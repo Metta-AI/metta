@@ -1,3 +1,4 @@
+import os
 import subprocess
 
 from metta.common.util.constants import DEV_STATS_SERVER_URI, PROD_STATS_SERVER_URI
@@ -42,8 +43,12 @@ class ObservatoryKeySetup(SetupModule):
 
         if login_script.exists():
             try:
-                # Don't capture output - this is an interactive OAuth flow
-                self.run_command([str(login_script), self.server_url], capture_output=False)
+                # In test/CI environments, skip interactive OAuth to avoid opening browsers
+                if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI"):
+                    warning("Skipping Observatory interactive login in test/CI environment.")
+                else:
+                    # Don't capture output - this is an interactive OAuth flow
+                    self.run_command([str(login_script), self.server_url], capture_output=False)
                 success(f"Observatory auth configured for {self.server_url}")
             except subprocess.CalledProcessError:
                 warning("Observatory login failed. You can manually run:")

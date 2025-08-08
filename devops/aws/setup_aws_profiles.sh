@@ -69,22 +69,7 @@ check_sso_token() {
 initialize_aws_config() {
   echo "Initializing AWS configuration..."
 
-  # Check if the SSO session already exists
-  if ! grep -q "\[sso-session softmax-sso\]" ~/.aws/config 2> /dev/null; then
-    echo "Adding SSO session configuration..."
-    mkdir -p ~/.aws
-    # Create a temporary file with the new config
-    cat >> ~/.aws/config << EOF
-[sso-session softmax-sso]
-sso_start_url = https://softmaxx.awsapps.com/start/
-sso_region = us-east-1
-sso_registration_scopes = sso:account:access
-EOF
-    echo "SSO session added successfully."
-  else
-    echo "SSO session already exists in ~/.aws/config"
-  fi
-
+  # Set up profiles via aws CLI in all environments (including test/CI)
   # Set up root profile
   aws configure set profile.softmax-root.region us-east-1
   aws configure set profile.softmax-root.output json
@@ -102,18 +87,54 @@ EOF
   aws configure set profile.softmax-admin.region us-east-1
 
   echo "AWS profiles have been configured successfully."
-  grep -q '^export AWS_PROFILE=' ~/.zshrc 2> /dev/null || echo -e '\nexport AWS_PROFILE=softmax' >> ~/.zshrc
+
+  # Function to get the correct zshrc path based on ZDOTDIR
+  get_zshrc_path() {
+    if [ -n "$ZDOTDIR" ]; then
+      echo "$ZDOTDIR/.zshrc"
+    else
+      echo "$HOME/.zshrc"
+    fi
+  }
+
+  # Function to get the correct bashrc path (bash doesn't use ZDOTDIR)
+  get_bashrc_path() {
+    echo "$HOME/.bashrc"
+  }
+
+  # Add AWS_PROFILE export to zshrc
+  zshrc_path=$(get_zshrc_path)
+  if [ ! -f "$zshrc_path" ]; then
+    mkdir -p "$(dirname "$zshrc_path")"
+    touch "$zshrc_path"
+  fi
+  grep -q '^export AWS_PROFILE=' "$zshrc_path" 2> /dev/null || echo -e '\nexport AWS_PROFILE=softmax' >> "$zshrc_path"
+
+  # Also add to bashrc for compatibility
+  bashrc_path=$(get_bashrc_path)
+  if [ ! -f "$bashrc_path" ]; then
+    mkdir -p "$(dirname "$bashrc_path")"
+    touch "$bashrc_path"
+  fi
+  grep -q '^export AWS_PROFILE=' "$bashrc_path" 2> /dev/null || echo -e '\nexport AWS_PROFILE=softmax' >> "$bashrc_path"
 }
 
-# Check if we're in CI or Docker
+# Check if we're in CI, Docker, or test environment
 if [ -f /.dockerenv ]; then
   export IS_DOCKER=true
 else
   export IS_DOCKER=false
 fi
 
+# Check for test environment
+if [ -n "$METTA_TEST_ENV" ] || [ -n "$CI" ] || [ "$IS_DOCKER" = "true" ]; then
+  export IS_TEST_ENV=true
+else
+  export IS_TEST_ENV=false
+fi
+
 # Main execution logic
-if [ -z "$CI" ] && [ "$IS_DOCKER" = "false" ]; then
+if [ "$IS_TEST_ENV" = "false" ]; then
 
   if [ -f ~/.aws/config ]; then
     if grep -q '^\[profile softmax-db\]' ~/.aws/config; then
@@ -145,17 +166,25 @@ if [ -z "$CI" ] && [ "$IS_DOCKER" = "false" ]; then
     fi
   fi
 
-  echo "Running AWS SSO login..."
-  aws sso login --profile softmax
+  # Respect non-interactive mode if set to avoid opening browsers in CI or controlled runs
+  if [ -n "$AWS_SSO_NONINTERACTIVE" ]; then
+    echo "Skipping interactive 'aws sso login' due to AWS_SSO_NONINTERACTIVE"
+  else
+    echo "Running AWS SSO login..."
+    aws sso login --profile softmax || true
+  fi
 
   # Verify token was created successfully
   if check_sso_token; then
     echo "SSO login successful! Token created for softmax-sso."
+    exit 0
   else
     echo "WARNING: SSO login completed but valid token not found. There might be an issue."
+    exit 1
   fi
 else
   # Always initialize in CI/Docker environments, but don't attempt login
   initialize_aws_config
   echo "Login to AWS using: aws sso login --profile softmax"
+  exit 0
 fi
