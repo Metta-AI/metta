@@ -19,7 +19,6 @@ else
 fi
 export HEARTBEAT_FILE
 
-
 # Auto-detect GPUs if not set
 if [ -z "$NUM_GPUS" ]; then
   if command -v nvidia-smi &> /dev/null; then

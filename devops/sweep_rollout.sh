@@ -16,6 +16,7 @@ fi
 # This is needed for local sweeps.
 hardware_arg=$(echo "$args" | grep -o '+hardware=[^ ]*' || true)
 
+# TODO: review desired cmd ENV settings
 export PYTHONUNBUFFERED=1
 export PYTHONPATH=$PYTHONPATH:$(pwd)
 export PYTHONOPTIMIZE=1
