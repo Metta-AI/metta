@@ -32,13 +32,14 @@ echo "Nodes: $NODES"
   run="$RUN_NAME" \
   trainer.total_timesteps="$TOTAL_TIMESTEPS" \
   trainer.num_workers="$NUM_WORKERS" \
-  +trainer.dual_policy.enabled=true \
-  +trainer.dual_policy.checkpoint_npc.uri="$WANDB_CHECKPOINT_URI" \
-  +trainer.dual_policy.training_agents_pct=0.5 \
+  trainer.dual_policy.enabled=true \
+  trainer.dual_policy.checkpoint_npc.uri="$WANDB_CHECKPOINT_URI" \
+  trainer.dual_policy.training_agents_pct=0.5 \
   trainer.curriculum=/env/mettagrid/curriculum/arena/learning_progress \
   trainer.optimizer.learning_rate=0.0045 \
   trainer.optimizer.type=muon \
   trainer.simulation.evaluate_interval=50 \
+  +user=npc_uri_env.yaml \
   "$@"
 
 
