@@ -232,8 +232,8 @@ def train(
     policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
     # Initialize NPC policy to environment if dual-policy is enabled
-    if trainer_cfg.dual_policy.enabled and npc_policy is not None:
-        npc_policy.initialize_to_environment(
+    if trainer_cfg.dual_policy.enabled and npc_policy_record is not None:
+        npc_policy_record.policy.initialize_to_environment(
             features, metta_grid_env.action_names, metta_grid_env.max_action_args, device
         )
         logger.info("NPC policy initialized to environment")
@@ -369,11 +369,11 @@ def train(
                     total_steps += num_steps
 
                     # Run policy inference (dual-policy or single-policy)
-                    if trainer_cfg.dual_policy.enabled and npc_policy is not None:
+                    if trainer_cfg.dual_policy.enabled and npc_policy_record is not None:
                         # Dual-policy training: some agents use training policy, others use NPC policy
                         actions, selected_action_log_probs, values, lstm_state_to_store = run_dual_policy_rollout(
                             training_policy=policy,
-                            npc_policy=npc_policy,
+                            npc_policy=npc_policy_record.policy,
                             observations=o,
                             experience=experience,
                             training_env_id_start=training_env_id.start,
@@ -495,18 +495,14 @@ def train(
                 )
 
                 # Add dual-policy specific logging if enabled
-                if is_master and wandb_run and trainer_cfg.dual_policy.enabled and npc_policy is not None:
+                if is_master and wandb_run and trainer_cfg.dual_policy.enabled and npc_policy_record is not None:
                     # Log dual-policy configuration and status
                     dual_policy_stats = {
                         "dual_policy/enabled": True,
                         "dual_policy/training_agents_pct": trainer_cfg.dual_policy.training_agents_pct,
                         "dual_policy/npc_policy_uri": trainer_cfg.dual_policy.checkpoint_npc.uri,
-                        "dual_policy/npc_policy_run_name": (
-                            npc_policy_record.run_name if npc_policy_record else "unknown"
-                        ),
-                        "dual_policy/npc_policy_generation": (
-                            npc_policy_record.metadata.get("generation", 0) if npc_policy_record else 0
-                        ),
+                        "dual_policy/npc_policy_run_name": npc_policy_record.run_name,
+                        "dual_policy/npc_policy_generation": npc_policy_record.metadata.get("generation", 0),
                     }
                     wandb_run.log(dual_policy_stats, step=agent_step)
 
