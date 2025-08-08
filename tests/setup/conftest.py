@@ -13,43 +13,31 @@ from metta.common.util.fs import get_repo_root
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
-    """Register CLI options to control profile-aware, real-install tests.
+    """Register CLI options to control profile-aware tests.
 
     Options can also be provided via environment variables:
     - METTA_TEST_PROFILE: active profile name (e.g., softmax, cloud, external, softmax-docker, custom)
-    - METTA_RUN_REAL: set to 1/true to enable real install tests
     """
     parser.addoption(
         "--metta-profile",
         action="store",
         default=os.environ.get("METTA_TEST_PROFILE", "softmax"),
-        help="Active Metta profile for real-install tests (default from METTA_TEST_PROFILE or 'softmax').",
-    )
-    parser.addoption(
-        "--run-real-install",
-        action="store_true",
-        default=str(os.environ.get("METTA_RUN_REAL", "")).lower() in {"1", "true", "yes"},
-        help="Enable tests marked as real_install (default from METTA_RUN_REAL).",
+        help="Active Metta profile for tests (default from METTA_TEST_PROFILE or 'softmax').",
     )
 
 
 def pytest_configure(config: pytest.Config) -> None:
     """Register custom markers used by the setup tests."""
     config.addinivalue_line("markers", "profile(name): test requires the given profile to be active")
-    config.addinivalue_line("markers", "real_install: test performs real installations")
     config.addinivalue_line("markers", "stream: disable output capturing to stream logs live")
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
-    """Skip tests based on active profile and whether real installs are enabled.
+    """Skip tests based on active profile.
 
-    - Tests marked with @pytest.mark.real_install are skipped unless --run-real-install (or METTA_RUN_REAL=1) is set
     - Tests marked with @pytest.mark.profile("<name>") are skipped unless --metta-profile matches
     """
     active_profile = config.getoption("--metta-profile")
-    run_real = config.getoption("--run-real-install")
-
-    skip_real = pytest.mark.skip(reason="real install disabled; enable with --run-real-install or METTA_RUN_REAL=1")
 
     def skip_profile_marker(required: str) -> pytest.MarkDecorator:
         return pytest.mark.skip(
@@ -58,27 +46,12 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
         )
 
     for item in items:
-        real_marker = item.get_closest_marker("real_install")
         profile_marker = item.get_closest_marker("profile")
-
-        if real_marker and not run_real:
-            item.add_marker(skip_real)
-            continue
 
         if profile_marker and profile_marker.args:
             required_profile = str(profile_marker.args[0])
             if required_profile != active_profile:
                 item.add_marker(skip_profile_marker(required_profile))
-
-
-@pytest.fixture(autouse=True)
-def _stream_logs_if_marked(request: pytest.FixtureRequest, capsys: pytest.CaptureFixture[str]):
-    """If a test is marked with @pytest.mark.stream, disable capturing to stream output live."""
-    if request.node.get_closest_marker("stream"):
-        with capsys.disabled():
-            yield
-    else:
-        yield
 
 
 @pytest.fixture(scope="session")
@@ -135,11 +108,8 @@ def temp_test_env() -> Generator[Path, None, None]:
 
 
 @pytest.fixture(scope="function")
-def clean_config(temp_test_env: Path) -> Path:
+def clean_config(test_env: Path) -> Path:
     """Create a clean configuration directory."""
-    config_dir = temp_test_env / ".metta"
+    config_dir = test_env / ".metta"
     config_dir.mkdir(parents=True, exist_ok=True)
     return config_dir
-
-
-# Note: all command/file-system mocks were removed to allow real-install flows
