@@ -58,17 +58,10 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       has_relevant_changes: ${{ steps.check_py_files.outputs.has_relevant_changes }}
-      run_lint: ${{ steps.determine_tasks.outputs.run_lint }}
       run_test: ${{ steps.determine_tasks.outputs.run_test }}
-      run_benchmark: ${{ steps.determine_tasks.outputs.run_benchmark }}
-      is_external: ${{ steps.detect-pr.outputs.is_external }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Detect PR context
-        id: detect-pr
-        uses: ./.github/actions/detect-external-pr
 
       - name: Check for file changes
         id: check_py_files
