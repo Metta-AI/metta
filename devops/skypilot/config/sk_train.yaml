@@ -189,7 +189,7 @@ run: |
   # Start heartbeat *watching the train PID*
   if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
     echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE (pid=$TRAIN_PID)"
-    python -m metta.common.util.heartbeat monitor "$HEARTBEAT_FILE" \
+    uv run python -m metta.common.util.heartbeat monitor "$HEARTBEAT_FILE" \
       --pid "$TRAIN_PID" --timeout "$HEARTBEAT_TIMEOUT" \
       >/dev/null 2>&1 &
     HEARTBEAT_PID=$!
