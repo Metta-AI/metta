@@ -30,6 +30,7 @@ import { initializeTooltips } from './tooltips.js'
 import { drawTrace, invalidateTrace } from './traces.js'
 import { Vec2f } from './vector_math.js'
 import { drawMap, focusFullMap } from './worldmap.js'
+import { Heatmap } from './heatmap.js'
 
 // Expose state to window for testing purposes (e.g., Playwright tests)
 if (typeof window !== 'undefined') {
@@ -751,6 +752,7 @@ async function parseUrlParams() {
   if (replayUrl) {
     console.info('Loading replay from URL: ', replayUrl)
     await fetchReplay(replayUrl)
+
     focusFullMap(ui.mapPanel)
   } else if (wsUrl) {
     Common.showModal('info', 'Connecting to a websocket', 'Please wait a few seconds for the environment to load.')
@@ -974,6 +976,17 @@ if (localStorage.hasOwnProperty('showFogOfWar')) {
   state.showFogOfWar = localStorage.getItem('showFogOfWar') === 'true'
 }
 toggleOpacity(html.fogOfWarToggle, state.showFogOfWar)
+
+onEvent('click', '#heatmap-toggle', () => {
+  state.showHeatmap = !state.showHeatmap
+  localStorage.setItem('showHeatmap', state.showHeatmap.toString())
+  toggleOpacity(html.heatmapToggle, state.showHeatmap)
+  requestFrame()
+})
+if (localStorage.hasOwnProperty('showHeatmap')) {
+  state.showHeatmap = localStorage.getItem('showHeatmap') === 'true'
+}
+toggleOpacity(html.heatmapToggle, state.showHeatmap)
 
 onEvent('click', '#minimap-toggle', () => {
   state.showMiniMap = !state.showMiniMap

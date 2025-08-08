@@ -34,7 +34,7 @@ datadog:
   env: "production"
   datadog:
     apiKeyExistingSecret: datadog-secret
-    clusterName: "arn:aws:eks:us-east-1:751442549699:cluster/main"
+    clusterName: "main"
     site: datadoghq.com
     apm:
       portEnabled: true

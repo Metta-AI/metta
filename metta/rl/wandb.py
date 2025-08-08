@@ -1,23 +1,24 @@
 from __future__ import annotations
 
-import json
 import logging
-import os
 import time
 import weakref
-from typing import Any, Dict
+from typing import Dict
 
 import torch.nn as nn
 import wandb
-from omegaconf import OmegaConf
+
+from metta.agent.policy_record import PolicyRecord
+from metta.agent.policy_store import PolicyStore
+from metta.common.wandb.wandb_context import WandbRun
 
 logger = logging.getLogger(__name__)
 
 # Use WeakKeyDictionary to associate state with each wandb.Run without mutating the object
-_ABORT_STATE: weakref.WeakKeyDictionary[wandb.sdk.wandb_run.Run, Dict[str, Any]] = weakref.WeakKeyDictionary()
+_ABORT_STATE: weakref.WeakKeyDictionary[WandbRun, Dict[str, float | bool]] = weakref.WeakKeyDictionary()
 
 
-def abort_requested(wandb_run: wandb.sdk.wandb_run.Run | None, min_interval_sec: int = 60) -> bool:
+def abort_requested(wandb_run: WandbRun | None, min_interval_sec: int = 60) -> bool:
     """Return True if the WandB run has an "abort" tag.
 
     The API call is throttled to *min_interval_sec* seconds.
@@ -30,7 +31,7 @@ def abort_requested(wandb_run: wandb.sdk.wandb_run.Run | None, min_interval_sec:
 
     # Return cached result if within throttle interval
     if now - state["last_check"] < min_interval_sec:
-        return state["cached_result"]
+        return bool(state["cached_result"])
 
     # Time to check again
     state["last_check"] = now
@@ -41,35 +42,16 @@ def abort_requested(wandb_run: wandb.sdk.wandb_run.Run | None, min_interval_sec:
         logger.debug(f"Abort tag check failed: {e}")
         state["cached_result"] = False
 
-    return state["cached_result"]
+    return bool(state["cached_result"])
 
 
-def upload_env_configs(env_configs: dict[str, Any], wandb_run: wandb.sdk.wandb_run.Run | None) -> None:
-    """Serialize resolved env configs and upload to run files.
-
-    Args:
-        env_configs: Dictionary mapping bucket names to their environment configurations
-        wandb_run: The wandb run to upload to
-    """
-    if wandb_run is None:
-        return
-
-    try:
-        resolved = {k: OmegaConf.to_container(v, resolve=True) for k, v in env_configs.items()}
-        payload = json.dumps(resolved, indent=2)
-        file_path = os.path.join(wandb_run.dir, "env_configs.json")
-        with open(file_path, "w", encoding="utf-8") as fp:
-            fp.write(payload)
-        try:
-            wandb_run.save(file_path, base_path=wandb_run.dir, policy="now")
-        except Exception:
-            pass  # offline mode
-    except Exception as e:
-        logger.warning(f"Failed to upload env configs: {e}")
+POLICY_EVALUATOR_METRIC_PREFIX = "policy_evaluator"
+POLICY_EVALUATOR_STEP_METRIC = "metric/policy_evaluator_agent_step"
+POLICY_EVALUATOR_EPOCH_METRIC = "metric/policy_evaluator_epoch"
 
 
 # Metrics functions moved from metrics.py
-def setup_wandb_metrics(wandb_run: Any) -> None:
+def setup_wandb_metrics(wandb_run: WandbRun) -> None:
     """Set up wandb metric definitions for consistent tracking across runs.
 
     Args:
@@ -85,9 +67,16 @@ def setup_wandb_metrics(wandb_run: Any) -> None:
 
     # Define special metric for reward vs total time
     wandb_run.define_metric("overview/reward_vs_total_time", step_metric="metric/total_time")
+    setup_policy_evaluator_metrics(wandb_run)
 
 
-def log_model_parameters(policy: nn.Module, wandb_run: Any) -> None:
+def setup_policy_evaluator_metrics(wandb_run: WandbRun) -> None:
+    # Separate step metric for remote evaluation allows evaluation results to be logged without conflicts
+    wandb_run.define_metric(POLICY_EVALUATOR_STEP_METRIC)
+    wandb_run.define_metric(f"{POLICY_EVALUATOR_METRIC_PREFIX}/*", step_metric=POLICY_EVALUATOR_STEP_METRIC)
+
+
+def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
     """Log model parameter count to wandb summary.
 
     Args:
@@ -99,44 +88,10 @@ def log_model_parameters(policy: nn.Module, wandb_run: Any) -> None:
         wandb_run.summary["model/total_parameters"] = num_params
 
 
-def log_training_metrics(
-    wandb_run: Any,
-    metrics: dict[str, Any],
-    step: int,
-) -> None:
-    """Log training metrics to wandb.
-
-    Args:
-        wandb_run: The wandb run object
-        metrics: Dictionary of metrics to log
-        step: The current training step
-    """
-    wandb_run.log(metrics, step=step)
-
-
-def define_custom_metric(
-    wandb_run: Any,
-    metric_name: str,
-    step_metric: str | None = None,
-) -> None:
-    """Define a custom metric with optional step metric.
-
-    Args:
-        wandb_run: The wandb run object
-        metric_name: Name of the metric to define
-        step_metric: Optional step metric to use as x-axis
-    """
-    if step_metric:
-        wandb_run.define_metric(metric_name, step_metric=step_metric)
-    else:
-        wandb_run.define_metric(metric_name)
-
-
 def upload_policy_artifact(
-    wandb_run: Any,
-    policy_store: Any,
-    policy_record: Any,
-    force: bool = False,
+    wandb_run: WandbRun | None,
+    policy_store: PolicyStore,
+    policy_record: PolicyRecord,
 ) -> str | None:
     """Upload policy to WandB as artifact.
 

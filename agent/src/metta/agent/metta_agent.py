@@ -1,17 +1,20 @@
 import logging
-from typing import TYPE_CHECKING, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Tuple, Union, Any
 
 import gymnasium as gym
 import numpy as np
 import torch
 from omegaconf import DictConfig, OmegaConf
+from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
+from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.policy_state import PolicyState
+from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
+from metta.common.util.datastruct import duplicates
 from metta.common.util.instantiate import instantiate
 from metta.agent.policy_base import PolicyBase
 
@@ -33,7 +36,7 @@ class ComponentPolicy(nn.Module):
         self.components = None
         self.clip_range = 0.0
 
-    def forward(self, agent: "MettaAgent", obs: Dict[str, torch.Tensor], state: Optional[PolicyState] = None, action: Optional[torch.Tensor] = None) -> Tuple:
+    def forward(self, agent: "MettaAgent", obs: Dict[str, torch.Tensor], state = None, action: Optional[torch.Tensor] = None) -> Tuple:
         """Execute policy forward pass."""
 
         if self.components is None:
@@ -177,7 +180,7 @@ class MettaAgent(nn.Module):
         self.policy.agent = self
         self.policy.to(self.device)
 
-    def forward(self, obs: Dict[str, torch.Tensor], state: Optional[PolicyState] = None, action: Optional[torch.Tensor] = None) -> Tuple:
+    def forward(self, obs: Dict[str, torch.Tensor], state = None, action: Optional[torch.Tensor] = None) -> Tuple:
         """Forward pass through the policy."""
         if self.policy is None:
             raise RuntimeError("No policy set. Use set_policy() first.")
@@ -435,31 +438,33 @@ class MettaAgent(nn.Module):
         return list(results.values())
 
 
-
-
 class DistributedMettaAgent(DistributedDataParallel):
-    """Distributed wrapper for MettaAgent."""
+    """
+    Because this class passes through __getattr__ to its self.module, it implements everything
+    MettaAgent does. We only have a need for this class because using the DistributedDataParallel wrapper
+    returns an object of almost the same interface: you need to call .module to get the wrapped agent.
+    """
 
-    def __init__(self, agent, device):
+    module: "MettaAgent"
+
+    def __init__(self, agent: "MettaAgent", device: torch.device):
         logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
-        agent = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)
-        super().__init__(agent, device_ids=[device], output_device=device)
 
-    def __getattr__(self, name):
+        # This maintains the same interface as the input MettaAgent
+        layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
+
+        # Pass device_ids for GPU, but not for CPU
+        if device.type == "cpu":
+            super().__init__(module=layers_converted_agent)
+        else:
+            super().__init__(module=layers_converted_agent, device_ids=[device], output_device=device)
+
+    def __getattr__(self, name: str) -> Any:
+        # First try DistributedDataParallel's __getattr__, then self.module's (MettaAgent's)
         try:
             return super().__getattr__(name)
         except AttributeError:
             return getattr(self.module, name)
-
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
-        return self.module.activate_actions(action_names, action_max_params, device)
-
-    def initialize_to_environment(self, features: dict[str, dict], action_names: list[str],
-                                action_max_params: list[int], device: torch.device, is_training: bool = True) -> None:
-        return self.module.initialize_to_environment(features, action_names, action_max_params, device)
-
-
-
 
 
 PolicyAgent = MettaAgent | DistributedMettaAgent

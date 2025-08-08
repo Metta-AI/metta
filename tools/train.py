@@ -7,10 +7,9 @@ import platform
 from logging import Logger
 
 import torch
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
-from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.git import get_git_hash_for_remote_task
@@ -19,13 +18,16 @@ from metta.common.util.resolvers import oc_date_format
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.core.distributed import setup_device_and_distributed
-from metta.rl.trainer import train as functional_train
+from metta.rl.env_config import create_env_config
+from metta.rl.trainer import train
+from metta.rl.trainer_config import create_trainer_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.metta_script import metta_script
 from tools.sweep_config_utils import (
     load_train_job_config_with_overrides,
     validate_train_job_config,
 )
+from tools.utils import get_policy_store_from_cfg
 
 logger = logging.getLogger(__name__)
 
@@ -58,14 +60,17 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
     return max(1, num_workers)
 
 
-def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logger):
+def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     cfg = load_train_job_config_with_overrides(cfg)
+
+    # Create env config early to use it throughout
+    env_cfg = create_env_config(cfg)
 
     # Validation must be done after merging
     # otherwise trainer's default num_workers: null will be override the values
     # set by _calculate_default_num_workers, and the validation will fail
     if not cfg.trainer.num_workers:
-        cfg.trainer.num_workers = _calculate_default_num_workers(cfg.vectorization == "serial")
+        cfg.trainer.num_workers = _calculate_default_num_workers(env_cfg.vectorization == "serial")
 
     # Determine git hash for remote simulations
     if cfg.trainer.simulation.evaluate_remote and not cfg.trainer.simulation.git_hash:
@@ -94,14 +99,19 @@ def train(cfg: DictConfig | ListConfig, wandb_run: WandbRun | None, logger: Logg
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
-    policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
+    policy_store = get_policy_store_from_cfg(cfg, wandb_run)
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
     if stats_client is not None:
         stats_client.validate_authenticated()
 
     # Use the functional train interface directly
-    functional_train(
-        cfg=cfg,  # type: ignore
+    train(
+        run=cfg.run,
+        run_dir=cfg.run_dir,
+        env_cfg=env_cfg,
+        agent_cfg=cfg.agent,
+        device=torch.device(env_cfg.device),
+        trainer_cfg=create_trainer_config(cfg),
         wandb_run=wandb_run,
         policy_store=policy_store,
         sim_suite_config=train_job.evals,
@@ -170,9 +180,9 @@ def main(cfg: DictConfig) -> int:
 
         # Initialize wandb using WandbContext
         with WandbContext(cfg.wandb, cfg) as wandb_run:
-            train(cfg, wandb_run, logger)
+            handle_train(cfg, wandb_run, logger)
     else:
-        train(cfg, None, logger)
+        handle_train(cfg, None, logger)
 
     if torch.distributed.is_initialized():
         torch.distributed.destroy_process_group()

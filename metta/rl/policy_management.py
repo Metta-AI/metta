@@ -1,22 +1,35 @@
 """Policy management utilities for Metta."""
 
 import logging
-import os
 from pathlib import Path
 
 import torch
-from omegaconf import DictConfig
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
 from metta.agent.metta_agent_builder import MettaAgentBuilder
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
-from metta.common.util.fs import wait_for_file
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.trainer_config import TrainerConfig
 
 logger = logging.getLogger(__name__)
+
+
+def initialize_policy_for_environment(
+    policy_record: PolicyRecord,
+    metta_grid_env: MettaGridEnv,
+    device: torch.device,
+    restore_feature_mapping: bool = True,
+) -> None:
+    policy = policy_record.policy
+
+    # Restore original_feature_mapping from metadata if available
+    if restore_feature_mapping and hasattr(policy, "restore_original_feature_mapping"):
+        if "original_feature_mapping" in policy_record.metadata:
+            policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+            logger.info("Restored original_feature_mapping")
+
+    # Initialize policy to environment
+    features = metta_grid_env.get_observation_features()
+    policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
 
 def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
@@ -53,6 +66,9 @@ def validate_policy_environment_match(policy: PolicyAgent, env: MettaGridEnv) ->
         agent = policy
     elif isinstance(policy, DistributedMettaAgent):
         agent = policy.module
+
+    elif type(policy).__name__ == "Recurrent":
+        agent = policy
     else:
         raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(policy)}")
 

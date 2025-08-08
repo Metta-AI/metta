@@ -6,9 +6,9 @@ from typing import Any
 from omegaconf import DictConfig, OmegaConf
 
 from cogweb.cogweb_client import CogwebClient
-from metta.agent.policy_store import PolicyStore
-from metta.common.wandb.wandb_context import WandbContext
+from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.rl.env_config import create_env_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sweep.protein_metta import MettaProtein
@@ -18,6 +18,7 @@ from metta.sweep.wandb_utils import (
     fetch_protein_observations_from_wandb,
     record_protein_observation_to_wandb,
 )
+from tools.utils import get_policy_store_from_cfg
 
 # 1 - Sweep Lifecycle Utils
 
@@ -174,13 +175,19 @@ def evaluate_rollout(
 
 
 def _evaluate_sweep_run(
-    wandb_run: Any,
+    wandb_run: WandbRun,
     sweep_metric: str,
     sweep_name: str,
     train_job_cfg: DictConfig,
 ) -> dict[str, Any]:
     simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(train_job_cfg.sim, resolve=True))  # type: ignore[arg-type]
-    policy_store = PolicyStore(train_job_cfg, wandb_run)
+
+    # Create env config
+    env_cfg = create_env_config(train_job_cfg)
+
+    if not wandb_run.name:
+        raise ValueError("WandB run has no name")
+    policy_store = get_policy_store_from_cfg(train_job_cfg, wandb_run)
     policy_pr = policy_store.policy_record("wandb://run/" + wandb_run.name, selector_type="latest")
 
     # Load the policy record directly using its wandb URI
@@ -194,7 +201,7 @@ def _evaluate_sweep_run(
         policy_pr=policy_pr,
         policy_store=policy_store,
         device=train_job_cfg.device,
-        vectorization=train_job_cfg.vectorization,
+        vectorization=env_cfg.vectorization,
     )
 
     # Start evaluation

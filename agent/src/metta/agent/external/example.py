@@ -1,5 +1,7 @@
 import logging
 
+import logging
+
 import einops
 import pufferlib.models
 import pufferlib.pytorch
@@ -201,13 +203,17 @@ class Policy(nn.Module):
             dtype=torch.float32,
         )[None, :, None, None]
         self.register_buffer("max_vec", max_vec.to(self.device))
+        )[None, :, None, None]
+        self.register_buffer("max_vec", max_vec.to(self.device))
 
+        action_nvec = self.action_space.nvec
         action_nvec = self.action_space.nvec
         self.actor = nn.ModuleList(
             [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in action_nvec]
         )
         self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
+        self.to(self.device)
         self.to(self.device)
 
     def encode_observations(self, observations, state=None):
@@ -222,8 +228,21 @@ class Policy(nn.Module):
             hidden: Encoded representation, shape (B * TT, hidden_size)
         """
         observations = observations.to(self.device)
+        """
+        Encode observations into a hidden representation.
+
+        Args:
+            observations: Input tensor, shape (B, TT, M, 3) or (B, M, 3)
+            state: Optional state dictionary
+
+        Returns:
+            hidden: Encoded representation, shape (B * TT, hidden_size)
+        """
+        observations = observations.to(self.device)
         token_observations = observations
         B = token_observations.shape[0]
+        TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
+        if token_observations.dim() != 3:
         TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
         if token_observations.dim() != 3:
             token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
@@ -256,11 +275,22 @@ class Policy(nn.Module):
         ] = atr_values[valid_tokens]
 
         features = box_obs / self.max_vec
+        features = box_obs / self.max_vec
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
         return torch.cat([self_features, cnn_features], dim=1)
 
     def decode_actions(self, hidden):
+        """
+        Decode hidden representation into logits and value.
+
+        Args:
+            hidden: Hidden representation, shape (B * TT, hidden_size)
+
+        Returns:
+            logits: List of logits for each action head, [shape (B * TT, n_i)]
+            value: Value estimate, shape (B * TT, 1)
+        """
         """
         Decode hidden representation into logits and value.
 
