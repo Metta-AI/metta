@@ -95,13 +95,9 @@ jobs:
           fi
 
           # Output the decisions
-          echo "run_lint=${RUN_LINT}" >> $GITHUB_OUTPUT
           echo "run_test=${RUN_TEST}" >> $GITHUB_OUTPUT
-          echo "run_benchmark=${RUN_BENCHMARK}" >> $GITHUB_OUTPUT
 
-          echo "run lint? ${RUN_LINT}"
           echo "run test? ${RUN_TEST}"
-          echo "run benchmark? ${RUN_BENCHMARK}"
 
   setup-tests:
     name: "METTA_TEST_PROFILE=${{ matrix.profile }}"
