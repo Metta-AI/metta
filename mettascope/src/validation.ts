@@ -347,12 +347,12 @@ export function validateReplayData(replay: Replay): void {
   if (!replay || !replay.objects || replay.objects.length === 0) {
     return
   }
+  // skip validation for older format that we don't care about
+  if (Common.state.replay.version < 2) {
+    return
+  }
 
   const issues: ValidationIssue[] = []
-  // TESTING: Add artificial validation issues to test the modal
-  issues.push({ message: "TEST: This is a test validation error to verify the modal works", field: "test" })
-  issues.push({ message: "TEST: Another test error for demonstration purposes", field: "test2" })
-  issues.push({ message: "TEST: Version validation is working correctly", field: "version" })
   validateReplaySchema(replay, issues)
 
   console.log("validation modal with", issues.length, "issues")
@@ -362,6 +362,10 @@ export function validateReplayData(replay: Replay): void {
 }
 
 export function validateReplayStep(replayStep: any): void {
+  if (Common.state.replay.version < 2) {
+    return
+  }
+
   const issues: ValidationIssue[] = []
 
   if (typeof replayStep.step !== 'number' || replayStep.step < 0) {
