@@ -16,70 +16,59 @@ from tests.setup.test_base import BaseMettaSetupTest
 
 @pytest.mark.profile("softmax")
 class TestInstallSoftmax(BaseMettaSetupTest):
-    """Integration tests for metta install with external profile."""
+    """Integration tests for metta install with softmax profile (condensed)."""
 
-    def test_install_external_profile(self):
-        self._create_test_config(UserType.EXTERNAL)
-        result = self._run_metta_command(["install"])
-        assert result.returncode == 0, f"Install failed: {result.stderr}"
-        config = SetupConfig(self.test_config_dir / "config.yaml")
-        assert config.user_type == UserType.EXTERNAL
-        assert not config.is_custom_config
-
-    def test_install_specific_components(self):
+    def test_softmax_end_to_end_flow(self):
+        """Run a condensed end-to-end flow for softmax profile in one test."""
         self._create_test_config(UserType.SOFTMAX)
-        result = self._run_metta_command(["install", "core", "system", "aws"])
-        assert result.returncode == 0, f"Install failed: {result.stderr}"
 
-    def test_install_with_force(self):
-        self._create_test_config(UserType.SOFTMAX)
-        result1 = self._run_metta_command(["install"])
-        assert result1.returncode == 0
-        result2 = self._run_metta_command(["install", "--force"])
-        assert result2.returncode == 0
+        # Full install
+        r_install_all = self._run_metta_command(["install"])
+        assert r_install_all.returncode == 0
 
-    def test_install_without_config(self):
-        result = self._run_metta_command(["install"])
-        assert result.returncode == 1, "Command should not complete. Unconfigured."
+        # Install specific components
+        r_install_some = self._run_metta_command(["install", "core", "system", "aws"])
+        assert r_install_some.returncode == 0
 
-    def test_install_once_components(self):
-        self._create_test_config(UserType.SOFTMAX)
-        result1 = self._run_metta_command(["install", "aws"])
-        assert result1.returncode == 0
-        result2 = self._run_metta_command(["install", "aws"])
-        assert result2.returncode == 0
+        # Force re-install
+        r_force = self._run_metta_command(["install", "--force"])
+        assert r_force.returncode == 0
 
-    def test_install_status_check(self):
-        self._create_test_config(UserType.SOFTMAX)
-        install_result = self._run_metta_command(["install"])
-        assert install_result.returncode == 0
-        status_result = self._run_metta_command(["status", "--non-interactive"])
-        assert status_result.returncode == 0
-        assert "Component" in status_result.stdout
+        # Status (non-interactive)
+        r_status = self._run_metta_command(["status", "--non-interactive"])
+        assert r_status.returncode == 0
+        assert "Component" in r_status.stdout
+
+        # Configure and run githooks
+        r_cfg = self._run_metta_command(["configure", "githooks"])
+        assert r_cfg.returncode == 0
+        r_install_githooks = self._run_metta_command(["install", "githooks"])
+        assert r_install_githooks.returncode == 0
+        r_run = self._run_metta_command(["run", "githooks", "pre-commit"])
+        assert r_run.returncode in [0, 1]
+
+        # Clean and symlink setup
+        r_clean = self._run_metta_command(["clean"])
+        assert r_clean.returncode == 0
+        r_symlink = self._run_metta_command(["symlink-setup"])
+        assert r_symlink.returncode == 0
+
+        # Verify config written
         config = SetupConfig(self.test_config_dir / "config.yaml")
         assert config.user_type == UserType.SOFTMAX
 
-    def test_configure_component(self):
-        self._create_test_config(UserType.SOFTMAX)
-        result = self._run_metta_command(["configure", "githooks"])
-        assert result.returncode == 0, f"Configure failed: {result.stderr}"
+    def test_install_without_config_fails(self):
+        """Installing without a config should fail in non-interactive tests."""
+        result = self._run_metta_command(["install"])
+        assert result.returncode == 1
 
-    def test_run_component_command(self):
+    def test_install_once_components(self):
+        """Installing install_once components repeatedly should be idempotent."""
         self._create_test_config(UserType.SOFTMAX)
-        install_result = self._run_metta_command(["install", "githooks"])
-        assert install_result.returncode == 0
-        run_result = self._run_metta_command(["run", "githooks", "pre-commit"])
-        assert run_result.returncode in [0, 1]
-
-    def test_clean_command(self):
-        self._create_test_config(UserType.SOFTMAX)
-        result = self._run_metta_command(["clean"])
-        assert result.returncode == 0, f"Clean failed: {result.stderr}"
-
-    def test_symlink_setup(self):
-        self._create_test_config(UserType.SOFTMAX)
-        result = self._run_metta_command(["symlink-setup"])
-        assert result.returncode == 0, f"Symlink setup failed: {result.stderr}"
+        r1 = self._run_metta_command(["install", "aws"])
+        assert r1.returncode == 0
+        r2 = self._run_metta_command(["install", "aws"])
+        assert r2.returncode == 0
 
 
 @pytest.mark.profile("external")
