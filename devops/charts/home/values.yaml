@@ -22,8 +22,12 @@ links:
     url: https://wandb.ai/metta-research/metta
   - name: Skypilot
     url: https://skypilot-api.softmax-research.net/
-  - name: Datadog Dashboard
+  - name: Datadog
     url: https://app.datadoghq.com/dashboard/gpk-2y2-9er?fromUser=false&refresh_mode=sliding&from_ts=1754597801739&to_ts=1754601401739&live=true
+  - name: Grafana
+    url: https://grafana.softmax-research.net/
+  - name: AWS
+    url: https://softmaxx.awsapps.com/start/
   - name: GitHub
     url: http://github.com/metta-ai
   - name: Public Site
