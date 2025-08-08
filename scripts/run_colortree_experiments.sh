@@ -8,6 +8,12 @@ if [ -f .venv/bin/activate ]; then
   source .venv/bin/activate
 fi
 
+# Load SkyPilot helpers (defines `lt`) if available
+if [ -f devops/skypilot/setup_shell.sh ]; then
+  # shellcheck disable=SC1091
+  source devops/skypilot/setup_shell.sh
+fi
+
 # Common settings
 SIM="colortree"
 USER_OVR="+user=jacke"
@@ -19,27 +25,44 @@ ARCHS=(fast recurrent)
 BPTTS=(16 64)
 MODES=(precise partial dense)
 
-# Patterns for fixed curriculum
-declare -A PATTERN_TO_SEQ
-PATTERN_TO_SEQ[1111]="[1,1,1,1]"
-PATTERN_TO_SEQ[1010]="[1,0,1,0]"
+# Patterns for fixed curriculum (macOS /bin/bash compatible mapping)
+get_seq_by_label() {
+  case "$1" in
+    1111)
+      echo "[1,1,1,1]"
+      ;;
+    1010)
+      echo "[1,0,1,0]"
+      ;;
+    *)
+      echo "Unknown sequence label: $1" 1>&2
+      return 1
+      ;;
+  esac
+}
 
 run_train() {
   local RUN_NAME="$1"; shift
-  echo "\n=== Launch: $RUN_NAME ==="
-  echo "./tools/train.py run=$RUN_NAME $*"
-  ./tools/train.py run="$RUN_NAME" "$@"
+  echo
+  echo "=== Launch: $RUN_NAME ==="
+  if command -v lt >/dev/null 2>&1; then
+    echo "lt run=$RUN_NAME $*"
+    lt run="$RUN_NAME" "$@"
+  else
+    echo "./devops/skypilot/launch.py train run=$RUN_NAME $*"
+    ./devops/skypilot/launch.py train run="$RUN_NAME" "$@"
+  fi
 }
 
 timestamp() {
   date +%Y%m%d_%H%M%S
 }
 
-"# 1) Fixed patterns: 1111 and 1010 across BPTT, architectures, and reward modes"
+# 1) Fixed patterns: 1111 and 1010 across BPTT, architectures, and reward modes
 for ARCH in "${ARCHS[@]}"; do
   for MODE in "${MODES[@]}"; do
     for SEQ_LABEL in 1111 1010; do
-      SEQ_STR=${PATTERN_TO_SEQ[$SEQ_LABEL]}
+      SEQ_STR=$(get_seq_by_label "$SEQ_LABEL")
       # Trial sequences must match target length to satisfy config validation
       TRIAL_SEQ_STR="[$SEQ_STR]"    # e.g., [[1,0,1,0]]
 
@@ -75,7 +98,7 @@ for ARCH in "${ARCHS[@]}"; do
   done
 done
 
-"# 2) Random curriculum across BPTT, architectures, and reward modes (no fixed sequence overrides)"
+# 2) Random curriculum across BPTT, architectures, and reward modes (no fixed sequence overrides)
 for ARCH in "${ARCHS[@]}"; do
   for MODE in "${MODES[@]}"; do
     for BPTT in "${BPTTS[@]}"; do
