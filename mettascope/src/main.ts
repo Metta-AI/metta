@@ -29,9 +29,7 @@ import { drawTimeline, initTimeline, onScrubberChange, onTraceMinimapChange, upd
 import { initializeTooltips } from './tooltips.js'
 import { drawTrace, invalidateTrace } from './traces.js'
 import { Vec2f } from './vector_math.js'
-
 import { drawMap, focusFullMap } from './worldmap.js'
-import { Heatmap } from './heatmap.js'
 
 // Expose state to window for testing purposes (e.g., Playwright tests)
 if (typeof window !== 'undefined') {
