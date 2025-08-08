@@ -99,7 +99,12 @@ run: |
   fi
 
   # load ENV
-  source "$METTA_ENV_FILE"
+  if [ -f "$METTA_ENV_FILE" ]; then
+    source "$METTA_ENV_FILE"
+  else
+    echo "Warning: $METTA_ENV_FILE does not exist. Creating empty file."
+    touch "$METTA_ENV_FILE"
+  fi
 
   echo "[RUN] Running training script..."
   ./devops/$METTA_CMD.sh \
