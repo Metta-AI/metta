@@ -30,14 +30,16 @@ export MASTER_PORT="${MASTER_PORT:-29501}"
 export NODE_INDEX="${SKYPILOT_NODE_RANK}"
 
 # NCCL Configuration
-# NCCL data sockets — a small, explicit range
-export NCCL_PORT_RANGE="${NCCL_PORT_RANGE:-43000-43063}"
 
-# Make sockets unambiguous
+export NCCL_PORT_RANGE="${NCCL_PORT_RANGE:-43000-43063}"
 export NCCL_SOCKET_IFNAME="${NCCL_SOCKET_IFNAME:-enp39s0}"
 export NCCL_SOCKET_FAMILY="${NCCL_SOCKET_FAMILY:-AF_INET}"
+export NCCL_MIN_NCHANNELS="${NCCL_MIN_NCHANNELS:-4}"
+export NCCL_MAX_NCHANNELS="${NCCL_MAX_NCHANNELS:-8}"
+export NCCL_SOCKET_NTHREADS="${NCCL_SOCKET_NTHREADS:-2}"
+export NCCL_NSOCKS_PERTHREAD="${NCCL_NSOCKS_PERTHREAD:-4}"
 
-# Quiet by default; perf on; debug toggle via METTA_NCCL_DEBUG=1
+# Quiet by default; debug toggle via METTA_NCCL_DEBUG=1
 export TORCH_NCCL_ASYNC_ERROR_HANDLING="${TORCH_NCCL_ASYNC_ERROR_HANDLING:-1}"
 if [ "${METTA_NCCL_DEBUG:-0}" = "1" ]; then
   export NCCL_DEBUG="${NCCL_DEBUG:-INFO}"
@@ -49,16 +51,10 @@ else
   unset CUDA_LAUNCH_BLOCKING
 fi
 
-# Enable fast paths (still no IB)
 export NCCL_P2P_DISABLE="${NCCL_P2P_DISABLE:-0}"
 export NCCL_SHM_DISABLE="${NCCL_SHM_DISABLE:-0}"
 export NCCL_IB_DISABLE="${NCCL_IB_DISABLE:-1}"
 
-# Light socket parallelism + a few channels
-export NCCL_MIN_NCHANNELS="${NCCL_MIN_NCHANNELS:-4}"
-export NCCL_MAX_NCHANNELS="${NCCL_MAX_NCHANNELS:-8}"
-export NCCL_SOCKET_NTHREADS="${NCCL_SOCKET_NTHREADS:-2}"
-export NCCL_NSOCKS_PERTHREAD="${NCCL_NSOCKS_PERTHREAD:-4}"
 EOF
 
 # Log NCCL configuration
