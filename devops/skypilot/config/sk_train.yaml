@@ -27,14 +27,6 @@ resources:
     strategy: EAGER_NEXT_REGION
     max_restarts_on_errors: 20
 
-config:
-  docker:
-    run_options:
-      - --cap-add=IPC_LOCK
-      - --ulimit memlock=-1:-1
-      - --ipc=host
-      - --shm-size=4g
-
 file_mounts:
   /mnt/s3/softmax-public:
     source: s3://softmax-public
@@ -83,8 +75,6 @@ run: |
   echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
   echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
 
-  bash ./devops/skypilot/config/configure_environment.sh
-
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
     echo "[RUN] Collecting skypilot latency..."
     LATENCY_OUTPUT=$(uv run python common/src/metta/common/util/skypilot_latency.py 2>&1) || true
@@ -92,6 +82,13 @@ run: |
   else
     echo "[RUN] Latency script is missing!"
   fi
+
+  export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
+  export NUM_NODES=$SKYPILOT_NUM_NODES
+  export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
+  export MASTER_PORT=8008
+  export NODE_INDEX=$SKYPILOT_NODE_RANK
+  export NCCL_SHM_DISABLE=1
 
   if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."

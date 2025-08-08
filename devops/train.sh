@@ -43,6 +43,13 @@ echo "  - Master port: $MASTER_PORT"
 echo "  - Node index: $NODE_INDEX"
 echo "  - Arguments: $args"
 
+export PYTHONUNBUFFERED=1
+export PYTHONPATH=$PYTHONPATH:$(pwd)
+export PYTHONOPTIMIZE=1
+export HYDRA_FULL_ERROR=1
+export WANDB_DIR="./wandb"
+export DATA_DIR=${DATA_DIR:-./train_dir}
+
 echo "[INFO] Starting training..."
 
 set +e
