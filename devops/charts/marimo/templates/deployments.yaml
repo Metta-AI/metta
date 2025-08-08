@@ -1,0 +1,136 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: marimo-directory
+data:
+  index.html: |
+    <!doctype html>
+    <html lang="en">
+    <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Marimo Apps</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 40px 16px; color: #0f172a; background: #f8fafc; }
+        .container { max-width: 760px; margin: 0 auto; }
+        h1 { margin: 0 0 16px; }
+        ul { list-style: none; padding: 0; display: grid; gap: 12px; }
+        a { display: block; padding: 14px 16px; background: white; border: 1px solid #e2e8f0; border-radius: 10px; text-decoration: none; color: inherit; }
+        small { color: #64748b; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>Marimo Apps</h1>
+        <ul>
+        {{- range .Values.apps }}
+          <li>
+            <a href="/app/{{ .name }}/" target="_self">
+              <div>{{ .title }}</div>
+              <small>/app/{{ .name }}/ → {{ .file }}</small>
+            </a>
+          </li>
+        {{- end }}
+        </ul>
+      </div>
+    </body>
+    </html>
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marimo-directory
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: marimo-directory
+  template:
+    metadata:
+      labels:
+        app: marimo-directory
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: index.html
+      volumes:
+        - name: html
+          configMap:
+            name: marimo-directory
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: marimo-directory
+spec:
+  type: ClusterIP
+  selector:
+    app: marimo-directory
+  ports:
+    - port: 80
+      targetPort: 80
+      name: http
+---
+
+{{- range .Values.apps }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marimo-{{ .name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: marimo-{{ .name }}
+  template:
+    metadata:
+      labels:
+        app: marimo-{{ .name }}
+    spec:
+      containers:
+        - name: marimo
+          image: "{{ if $.Values.image.registry }}{{ $.Values.image.registry }}/{{ end }}{{ $.Values.image.name }}:{{ required "tag is required" $.Values.image.tag }}"
+          imagePullPolicy: {{ $.Values.image.pullPolicy }}
+          command: ["uv", "run", "marimo", "run", "--host", "0.0.0.0", "--port", "{{ .port }}", "{{ .file }}"]
+          env:
+            - name: WANDB_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.secrets.wandb }}
+                  key: api-key
+            - name: MACHINE_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $.Values.secrets.machineToken }}
+                  key: token
+          {{- if .env }}
+          {{- range .env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+          {{- end }}
+          {{- end }}
+          ports:
+            - containerPort: {{ .port }}
+              name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: marimo-{{ .name }}
+spec:
+  selector:
+    app: marimo-{{ .name }}
+  ports:
+    - port: {{ .port }}
+      targetPort: {{ .port }}
+      name: http
+{{- end }}
+

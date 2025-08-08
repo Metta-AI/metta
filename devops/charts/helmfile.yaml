@@ -113,4 +113,15 @@ releases:
       - events: ["presync"]
         command: "kubectl"
         args: ["create", "namespace", "home", "--dry-run=client"]
+  
+  - name: marimo
+    chart: ./marimo
+    version: 0.1.0
+    namespace: marimo
+    hooks:
+      - events: ["presync"]
+        command: "kubectl"
+        args: ["create", "namespace", "marimo", "--dry-run=client"]
+    values:
+      - ./helm.values/marimo-values.yaml
   # Note: Observatory is deployed automatically by Github Actions.

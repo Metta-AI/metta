@@ -1,0 +1,7 @@
+apiVersion: v2
+name: marimo
+description: Host multiple SSO-protected Marimo apps under one domain
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+

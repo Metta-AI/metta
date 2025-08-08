@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: marimo-oauth2-proxy
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: marimo-oauth2-proxy
+  template:
+    metadata:
+      labels:
+        k8s-app: marimo-oauth2-proxy
+    spec:
+      containers:
+        - name: oauth2-proxy
+          image: quay.io/oauth2-proxy/oauth2-proxy:latest
+          imagePullPolicy: Always
+          args:
+            - --upstream=file:///dev/null
+            - --http-address=0.0.0.0:4180
+            - --reverse-proxy=true
+            - --set-xauthrequest=true
+            {{- range .Values.oauth2_proxy.email_domains | required "oauth2_proxy.email_domains is required" }}
+            - --email-domain={{ . }}
+            {{- end }}
+          env:
+            - name: OAUTH2_PROXY_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
+                  key: client-id
+            - name: OAUTH2_PROXY_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
+                  key: client-secret
+            - name: OAUTH2_PROXY_COOKIE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oauth2_proxy.secret_name | required "oauth2_proxy.secret_name is required" }}
+                  key: cookie-secret
+          ports:
+            - containerPort: 4180
+              protocol: TCP
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: marimo-oauth2-proxy
+spec:
+  ports:
+    - port: 4180
+      targetPort: 4180
+  selector:
+    k8s-app: marimo-oauth2-proxy
+

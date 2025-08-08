@@ -1,0 +1,26 @@
+host: marimo.softmax-research.net
+cert_manager_issuer: letsencrypt
+
+image:
+  registry: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+  name: metta-policy-evaluator
+  pullPolicy: Always
+  tag: "latest"
+
+secrets:
+  wandb: "wandb-api-secret"
+  machineToken: "machine-token-secret"
+
+oauth2_proxy:
+  email_domains:
+    - stem.ai
+    - softmax.com
+  secret_name: softmax-infra-oauth
+
+apps:
+  - name: scorecard
+    title: Policy Scorecards
+    file: metta/experiments/marimo/scorecard-example.py
+    port: 8000
+    env: []
+

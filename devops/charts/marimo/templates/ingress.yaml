@@ -1,0 +1,68 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: marimo-oauth2-proxy
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.cert_manager_issuer | required "cert_manager_issuer is required" }}
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: "{{ .Values.host | required "host is required" }}"
+      http:
+        paths:
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: marimo-oauth2-proxy
+                port:
+                  number: 4180
+  tls:
+    - hosts:
+        - {{ .Values.host | required "host is required" }}
+      secretName: marimo-tls
+---
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: marimo
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: "https://$host/oauth2/auth"
+    nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
+    nginx.ingress.kubernetes.io/auth-response-headers: |
+      X-Auth-Request-User, X-Auth-Request-Email
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: "/$2"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/hsts: "true"
+    nginx.ingress.kubernetes.io/hsts-include-subdomains: "true"
+    nginx.ingress.kubernetes.io/hsts-max-age: "31536000"
+    cert-manager.io/cluster-issuer: {{ .Values.cert_manager_issuer | required "cert_manager_issuer is required" }}
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: "{{ .Values.host | required "host is required" }}"
+      http:
+        paths:
+          - path: /()(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: marimo-directory
+                port:
+                  number: 80
+{{- range .Values.apps }}
+          - path: /app/{{ .name }}(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: marimo-{{ .name }}
+                port:
+                  number: {{ .port }}
+{{- end }}
+  tls:
+    - hosts:
+        - {{ .Values.host | required "host is required" }}
+      secretName: marimo-tls
+
