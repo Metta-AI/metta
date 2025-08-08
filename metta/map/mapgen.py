@@ -178,6 +178,7 @@ class MapGen(LevelBuilder):
                     CopyGrid.factory(
                         {
                             "grid": instance_grid,
+                            "labels": instance_level.labels,
                         }
                     )
                 )
