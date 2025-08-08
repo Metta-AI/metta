@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/operant_conditioning/trial_and_error/defaults@
+  - /env/mettagrid/operant_conditioning/single_conversion/defaults@
   - _self_
 
 game:
@@ -16,12 +16,12 @@ game:
       input_resources:
         ore_red: 1
       output_resources:
-        heart: 1
         battery_red: 0
     generator_blue:
       initial_resource_count: 0
       input_resources:
-        ore_blue: 0
         ore_red: 1
+        ore_blue: 0
       output_resources:
+        heart: 1
         battery_blue: 0

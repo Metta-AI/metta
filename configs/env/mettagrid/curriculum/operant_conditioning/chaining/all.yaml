@@ -1,0 +1,5 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  /env/mettagrid/curriculum/operant_conditioning/chaining/2_converters: 1
+  /env/mettagrid/curriculum/operant_conditioning/chaining/3_converters: 1
