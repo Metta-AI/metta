@@ -230,12 +230,13 @@ def get_git_hash_for_remote_task(
             logger.warning("Origin not set to metta-ai/metta, using git_hash=None")
         return None
 
+    on_skypilot = bool(os.getenv("SKYPILOT_TASK_ID"))
     has_changes, status_output = has_unstaged_changes()
     if has_changes:
         if logger:
             logger.warning("Working tree has unstaged changes.\n" + status_output)
         if not skip_git_check:
-            if os.getenv("SKYPILOT_TASK_ID"):
+            if on_skypilot:
                 # Skypilot jobs can create local files as part of their setup. It's assumed that these changes do not
                 # need to be checked in because they wouldn't have an effect on policy evaluator's execution
                 if logger:
@@ -250,7 +251,7 @@ def get_git_hash_for_remote_task(
         if status_output and logger:
             logger.info("Proceeding with unstaged changes.\n" + status_output)
 
-    if not is_commit_pushed(current_commit):
+    if not is_commit_pushed(current_commit) and not on_skypilot:
         short_commit = current_commit[:8]
         if not skip_git_check:
             raise GitError(
