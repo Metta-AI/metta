@@ -48,7 +48,7 @@ jobs:
   # check if any source code files have changed
   setup-checks:
     name: "Set up for source code checks"
-    needs: graphite-ci-optimizer
+    needs: [graphite-ci-optimizer]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (github.event.pull_request.draft == false ||
@@ -57,14 +57,14 @@ jobs:
         github.event_name == 'merge_group')
     runs-on: ubuntu-latest
     outputs:
-      has_relevant_changes: ${{ steps.check_py_files.outputs.has_relevant_changes }}
+      has_relevant_changes: ${{ steps.check_files.outputs.has_relevant_changes }}
       run_test: ${{ steps.determine_tasks.outputs.run_test }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Check for file changes
-        id: check_py_files
+        id: check_files
         uses: ./.github/actions/file-changes
         with:
           patterns: "**/*.py,**/pyproject.toml,**/pytest.ini,.github/workflows/*.yml"
@@ -78,7 +78,7 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             # Use workflow dispatch inputs for manual runs
             RUN_TEST="${{ github.event.inputs.run_test }}"
-          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_py_files.outputs.has_relevant_changes }}" == "false" ]]; then
+          elif [[ "${{ github.event_name }}" == "pull_request" && "${{ steps.check_files.outputs.has_relevant_changes }}" == "false" ]]; then
             # Skip everything for PRs with no relevant changes
             RUN_TEST="false"
             echo "::notice title=Skipping Tasks::Skipping all tasks because no relevant files have changed"
@@ -118,7 +118,7 @@ jobs:
         with:
           install-mode: "testing"
 
-      - name: Run setup-focused tests (tests/setup)
+      - name: Run metta setup integration tests
         run: |
           echo "Running setup tests with METTA_TEST_PROFILE=${{env.METTA_TEST_PROFILE}}"
           make METTA_TEST_PROFILE=${{ env.METTA_TEST_PROFILE }} test-setup
