@@ -1,4 +1,4 @@
-host: marimo.softmax-research.net
+host: notebooks.softmax-research.net
 cert_manager_issuer: letsencrypt
 
 image:
