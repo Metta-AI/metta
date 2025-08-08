@@ -30,7 +30,13 @@ from metta.rl.env_config import EnvConfig
 from metta.rl.evaluate import evaluate_policy, evaluate_policy_remote
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
-from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
+from metta.rl.losses import (
+    Losses,
+    RepresentationLoss,
+    get_loss_experience_spec,
+    process_minibatch_update,
+)
+from metta.rl.modules import DynamicsModel, ProjectionHead
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
@@ -74,6 +80,24 @@ torch.set_float32_matmul_precision("high")
 _rank = int(os.environ.get("RANK", 0))
 _local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
+
+
+def rep_step(
+    rep_loss: RepresentationLoss,
+    optimizer: torch.optim.Optimizer,
+    z: torch.Tensor,
+    a: torch.Tensor,
+    mask: torch.Tensor,
+    steps: int,
+) -> dict[str, torch.Tensor]:
+    """Run representation-only optimization steps."""
+    loss_dict: dict[str, torch.Tensor] = {}
+    for _ in range(steps):
+        optimizer.zero_grad()
+        loss_dict = rep_loss(z, a, mask)
+        loss_dict["total"].backward()
+        optimizer.step()
+    return loss_dict
 
 
 def train(
@@ -246,6 +270,13 @@ def train(
         except ValueError:
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
+    projection_head: ProjectionHead | None = None
+    dynamics_model: DynamicsModel | None = None
+    rep_loss: RepresentationLoss | None = None
+    rep_optimizer: torch.optim.Optimizer | None = None
+    if trainer_cfg.representation_learning.enabled:
+        rep_cfg = trainer_cfg.representation_learning
+
     # Set up monitoring (master only)
     if is_master:
         logger.info("Starting training")
@@ -412,6 +443,39 @@ def train(
 
                             if device.type == "cuda":
                                 torch.cuda.synchronize()
+
+                            if (
+                                trainer_cfg.representation_learning.enabled
+                                and rep_cfg.steps_per_batch > 0
+                                and "latents" in minibatch.keys()
+                            ):
+                                if rep_loss is None:
+                                    latent_dim = minibatch["latents"].shape[-1]
+                                    action_dim = minibatch["actions"].shape[-1]
+                                    projection_head = ProjectionHead(latent_dim, latent_dim).to(device)
+                                    dynamics_model = DynamicsModel(latent_dim, action_dim).to(device)
+                                    rep_loss = RepresentationLoss(projection_head, dynamics_model, rep_cfg)
+                                    encoder_params = [
+                                        p for n, p in policy.named_parameters() if "actor" not in n and "value" not in n
+                                    ]
+                                    rep_params = (
+                                        encoder_params
+                                        + list(projection_head.parameters())
+                                        + list(dynamics_model.parameters())
+                                    )
+                                    rep_optimizer = torch.optim.Adam(
+                                        rep_params,
+                                        lr=trainer_cfg.optimizer.learning_rate * 0.5,
+                                    )
+                                mask = (~minibatch["dones"].bool()).to(minibatch["dones"].device)
+                                rep_step(
+                                    rep_loss,
+                                    rep_optimizer,
+                                    minibatch["latents"],
+                                    minibatch["actions"],
+                                    mask,
+                                    rep_cfg.steps_per_batch,
+                                )
 
                         minibatch_idx += 1
                     epochs_trained += 1

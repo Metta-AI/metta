@@ -121,6 +121,19 @@ class TorchProfilerConfig(BaseModelWithForbidExtra):
         return self
 
 
+class RepresentationLearningConfig(BaseModelWithForbidExtra):
+    enabled: bool = False
+    lambda_contrast: float = Field(default=0.1, ge=0)
+    lambda_tc: float = Field(default=0.1, ge=0)
+    lambda_pred: float = Field(default=0.1, ge=0)
+    tau: float = Field(default=0.15, gt=0)
+    alpha: float = Field(default=0.8, ge=0, le=1.0)
+    num_negatives: int = Field(default=32, ge=0)
+    steps_per_batch: int = Field(default=1, ge=0)
+    loss_pred_type: Literal["cosine", "l2"] = "cosine"
+    loss_tc_type: Literal["cosine", "l2"] = "cosine"
+
+
 class TrainerConfig(BaseModelWithForbidExtra):
     # Core training parameters
     # Total timesteps: Type 2 arbitrary default
@@ -179,6 +192,9 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
     # scheduler registry
     hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
+
+    # Representation learning
+    representation_learning: RepresentationLearningConfig = Field(default_factory=RepresentationLearningConfig)
 
     # Kickstart
     kickstart: KickstartConfig = Field(default_factory=KickstartConfig)
