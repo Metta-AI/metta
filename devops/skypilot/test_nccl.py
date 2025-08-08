@@ -149,38 +149,31 @@ def _iface_is_up(iface: str) -> bool:
 
 
 def setup_nccl_debug_env(master_addr: str | None = os.environ.get("MASTER_ADDR")) -> None:
-    """
-    Call this on every rank *before* torch.distributed.init_process_group().
-    """
-    # Base debug/isolation env (turn some off later for perf once things work)
     defaults = {
         "NCCL_DEBUG": "INFO",
         "NCCL_DEBUG_SUBSYS": "ALL",
         "CUDA_LAUNCH_BLOCKING": "1",
-        "NCCL_SHM_DISABLE": "1",  # isolation: no POSIX shm
-        "NCCL_P2P_DISABLE": "1",  # isolation: no GPU P2P
-        "NCCL_IB_DISABLE": "1",  # isolation: no InfiniBand
+        "NCCL_SHM_DISABLE": "1",
+        "NCCL_P2P_DISABLE": "1",
+        "NCCL_IB_DISABLE": "1",
         "TORCH_NCCL_ASYNC_ERROR_HANDLING": "1",
+        # new:
+        "NCCL_SOCKET_FAMILY": "AF_INET",
+        "NCCL_PORT_RANGE": os.environ.get("NCCL_PORT_RANGE", "43000-43063"),
+        "NCCL_MIN_NCHANNELS": "1",
+        "NCCL_MAX_NCHANNELS": "2",
     }
-
-    # Apply defaults only if not already set by the user
     for k, v in defaults.items():
         os.environ.setdefault(k, v)
         logger.info(f"{k}={os.environ[k]}")
 
-    # Choose a socket interface: prefer the actual NIC to MASTER_ADDR
     iface = _detect_iface_to(master_addr) if master_addr else None
     if iface and _iface_is_up(iface):
         os.environ["NCCL_SOCKET_IFNAME"] = iface
-        picked = iface
     else:
-        # Safe fallback: allow all except loopback/virtual bridges
-        os.environ["NCCL_SOCKET_IFNAME"] = "^lo,docker*,veth*,br*,virbr*,tap*"
-        picked = os.environ["NCCL_SOCKET_IFNAME"]
-
-    logger.info(f"NCCL_SOCKET_IFNAME={picked}")
-
-    # Nice-to-have visibility
+        # safer: explicitly prefer your real NIC, not a negated list
+        os.environ.setdefault("NCCL_SOCKET_IFNAME", "enp39s0")
+    logger.info(f"NCCL_SOCKET_IFNAME={os.environ['NCCL_SOCKET_IFNAME']}")
     logger.info(f"MASTER_ADDR={master_addr or os.environ.get('MASTER_ADDR', '<unset>')}")
 
 
