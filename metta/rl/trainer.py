@@ -506,9 +506,8 @@ def train(
                     }
                     wandb_run.log(dual_policy_stats, step=agent_step)
 
-                    # Set dual-policy flag on environment for stats logging
-                    if hasattr(vecenv, "_dual_policy_enabled"):
-                        vecenv._dual_policy_enabled = True
+                    # Enable dual-policy stats on the underlying environment
+                    metta_grid_env._dual_policy_enabled = True
 
             # Clear stats after processing
             stats_tracker.clear_rollout_stats()

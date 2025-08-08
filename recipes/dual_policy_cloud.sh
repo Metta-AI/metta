@@ -28,6 +28,7 @@ echo "Nodes: $NODES"
   --gpus="$GPUS" \
   --nodes="$NODES" \
   --no-spot \
+  --skip-git-check \
   run="$RUN_NAME" \
   trainer.total_timesteps="$TOTAL_TIMESTEPS" \
   trainer.num_workers="$NUM_WORKERS" \
@@ -39,6 +40,7 @@ echo "Nodes: $NODES"
   trainer.optimizer.type=muon \
   trainer.simulation.evaluate_interval=50 \
   "$@"
+
 
 echo "Cloud training launched!"
 echo "Run name: $RUN_NAME"
