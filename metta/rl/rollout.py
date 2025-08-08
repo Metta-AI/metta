@@ -169,6 +169,30 @@ def run_policy_inference(
         from metta.agent.policy_state import PolicyState
 
         lstm_h, lstm_c = experience.get_lstm_state(training_env_id_start)
+
+        # Ensure LSTM state batch matches current observation batch size
+        expected_batch = int(observations.shape[0])
+        hidden_size, num_layers = get_lstm_config(policy)
+
+        # Initialize if missing
+        if lstm_h is None or lstm_c is None:
+            lstm_h = torch.zeros(num_layers, expected_batch, hidden_size, device=device)
+            lstm_c = torch.zeros(num_layers, expected_batch, hidden_size, device=device)
+        # Resize if mismatched
+        elif lstm_h.size(1) != expected_batch:
+            current_batch = lstm_h.size(1)
+            if current_batch > expected_batch:
+                # Slice down to match
+                lstm_h = lstm_h[:, :expected_batch, :]
+                lstm_c = lstm_c[:, :expected_batch, :]
+            else:
+                # Pad with zeros to match
+                pad = expected_batch - current_batch
+                h_pad = torch.zeros(num_layers, pad, hidden_size, device=lstm_h.device, dtype=lstm_h.dtype)
+                c_pad = torch.zeros(num_layers, pad, hidden_size, device=lstm_c.device, dtype=lstm_c.dtype)
+                lstm_h = torch.cat([lstm_h, h_pad], dim=1)
+                lstm_c = torch.cat([lstm_c, c_pad], dim=1)
+
         state = PolicyState(lstm_h=lstm_h, lstm_c=lstm_c)
 
         # Get policy outputs
@@ -194,30 +218,30 @@ def get_lstm_config(policy: torch.nn.Module) -> Tuple[int, int]:
     """Get LSTM configuration from policy."""
     # For MettaAgent, access LSTM through the lstm property
     if hasattr(policy, "lstm"):
-        lstm = policy.lstm
+        lstm = policy.lstm  # type: ignore[attr-defined]
         if hasattr(lstm, "hidden_size") and hasattr(lstm, "num_layers"):
-            hidden_size = lstm.hidden_size
-            num_layers = lstm.num_layers
-            return int(hidden_size), int(num_layers)
+            hidden_size = lstm.hidden_size  # type: ignore[attr-defined]
+            num_layers = lstm.num_layers  # type: ignore[attr-defined]
+            return int(hidden_size), int(num_layers)  # type: ignore[arg-type]
 
     # For external policies with LSTM wrapper
     if hasattr(policy, "recurrent"):
-        recurrent = policy.recurrent
+        recurrent = policy.recurrent  # type: ignore[attr-defined]
         if hasattr(recurrent, "hidden_size"):
-            hidden_size = recurrent.hidden_size
+            hidden_size = recurrent.hidden_size  # type: ignore[attr-defined]
             # External policies typically use 1 layer
-            return int(hidden_size), 1
+            return int(hidden_size), 1  # type: ignore[arg-type]
 
     # For policies with direct LSTM attributes
     if hasattr(policy, "hidden_size") and hasattr(policy, "num_lstm_layers"):
-        hidden_size = policy.hidden_size
-        num_lstm_layers = policy.num_lstm_layers
-        return int(hidden_size), int(num_lstm_layers)
+        hidden_size = policy.hidden_size  # type: ignore[attr-defined]
+        num_lstm_layers = policy.num_lstm_layers  # type: ignore[attr-defined]
+        return int(hidden_size), int(num_lstm_layers)  # type: ignore[arg-type]
 
     # For policies with hidden_size but no explicit layers
     if hasattr(policy, "hidden_size"):
-        hidden_size = policy.hidden_size
-        return int(hidden_size), 1
+        hidden_size = policy.hidden_size  # type: ignore[attr-defined]
+        return int(hidden_size), 1  # type: ignore[arg-type]
 
     # Default values if no LSTM found
     return 256, 1
