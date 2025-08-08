@@ -92,7 +92,29 @@ class MettaGridEnv(MettaGridPufferBase):
     def _make_episode_id(self) -> str:
         """Generate unique episode ID."""
         return str(uuid.uuid4())
+      
+    def _check_reward_termination(self) -> bool:
+        """Check if episode should terminate based on total reward threshold."""
+        if self._task.env_cfg().game.termination.max_reward:
+            # Check if any agent has reached the reward threshold
+            per_agent_rewards = self._c_env.get_episode_rewards()
+            termination_condition = self._task.env_cfg().game.termination.condition
 
+            if termination_condition == "any":
+                return any(r >= self._task.env_cfg().game.termination.max_reward for r in per_agent_rewards)
+            elif termination_condition == "all":
+                return all(r >= self._task.env_cfg().game.termination.max_reward for r in per_agent_rewards)
+            # percent of agents that got all the reward
+            elif isinstance(termination_condition, float):
+                return (
+                    sum(r >= self._task.env_cfg().game.termination.max_reward for r in per_agent_rewards)
+                    >= termination_condition * self._c_env.num_agents
+                )
+            else:
+                raise ValueError(f"Invalid termination condition: {termination_condition}")
+
+        return False
+      
     def _reset_trial(self) -> None:
         """Reset the environment for a new trial within the same episode."""
         # Get new task from curriculum (for new trial)
@@ -210,6 +232,10 @@ class MettaGridEnv(MettaGridPufferBase):
         with self.timer("_c_env.step"):
             self._c_env_instance.step(actions)
             self._steps += 1
+
+        if self._check_reward_termination():
+            # Set all terminals to True to trigger episode termination
+            self.terminals.fill(True)
 
         # Record step for replay (use shared PufferEnv buffers)
         if self._replay_writer and self._episode_id:

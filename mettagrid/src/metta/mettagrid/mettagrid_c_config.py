@@ -187,6 +187,9 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
         else:
             actions_cpp_params[action_name] = CppActionConfig(**action_cpp_params)
 
+    # Termination is handled in Python, so we don't need to pass it to C++
+    del game_cpp_params["termination"]
+
     game_cpp_params["actions"] = actions_cpp_params
     game_cpp_params["objects"] = objects_cpp_params
 

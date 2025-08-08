@@ -68,3 +68,7 @@ game:
     change_glyph:
       enabled: false
       number_of_glyphs: 4
+
+  termination:
+    max_reward: null #if set, terminate when overall reward = max_reward
+    condition: null #either any (any agent achieves max_reward), all (all agents achieve max_reward) or a pct of agents
