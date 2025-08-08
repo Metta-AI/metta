@@ -13,7 +13,7 @@ logger = logging.getLogger("metta_agent_builder")
 class MettaAgentBuilder:
     """Builder class for constructing MettaAgent instances with validated configurations."""
 
-    def __init__(self, env: 'MettaGridEnv', cfg: DictConfig):
+    def __init__(self, env: 'MettaGridEnv', env_cfg, agent_cfg):
         """
         Initialize the MettaAgentBuilder with environment and configuration.
 
@@ -22,34 +22,10 @@ class MettaAgentBuilder:
             cfg (DictConfig): Configuration for the agent, expected to contain an 'agent' section.
         """
         self.env = env
-        self.cfg = self._parse_config(cfg)
+        self.cfg = env_cfg
+        self.agent_cfg = OmegaConf.create(OmegaConf.to_container(agent_cfg, resolve=True))
         self.obs_space = self._create_observation_space()
 
-    def _parse_config(self, cfg: DictConfig) -> DictConfig:
-        """
-        Parse and validate the configuration.
-
-        Args:
-            cfg (DictConfig): Input configuration.
-
-        Returns:
-            DictConfig: Parsed and resolved agent configuration.
-
-        Raises:
-            ValueError: If the configuration is invalid or missing required sections.
-        """
-        if not hasattr(cfg, "agent"):
-            logger.error("Configuration missing 'agent' section")
-            raise ValueError("Configuration must contain 'agent' section")
-
-        try:
-            agent_cfg = OmegaConf.create(OmegaConf.to_container(cfg.agent, resolve=True))
-            logger.info(f"Agent Config: {agent_cfg}")
-            return agent_cfg
-
-        except Exception as e:
-            logger.error(f"Failed to parse configuration: {e}")
-            raise ValueError(f"Invalid configuration format: {e}")
 
     def _create_observation_space(self) -> gym.spaces.Dict:
         """
@@ -84,6 +60,7 @@ class MettaAgentBuilder:
         try:
             policy = policy or ComponentPolicy()
 
+
             agent = MettaAgent(
                 obs_space=self.obs_space,
                 obs_width=self.env.obs_width,
@@ -91,7 +68,7 @@ class MettaAgentBuilder:
                 action_space=self.env.single_action_space,
                 feature_normalizations=self.env.feature_normalizations,
                 device="cpu",
-                cfg=self.cfg,
+                cfg=self.agent_cfg,
                 policy=policy
             )
 

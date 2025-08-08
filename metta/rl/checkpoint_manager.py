@@ -7,8 +7,12 @@ from pathlib import Path
 import torch
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import DistributedMettaAgent
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
 from metta.agent.metta_agent_builder import MettaAgentBuilder
+from metta.agent.policy_record import PolicyRecord
+from metta.agent.policy_store import PolicyStore
+from metta.common.profiling.stopwatch import Stopwatch
+from metta.common.util.collections import remove_none_values
 from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.wandb_context import WandbRun
@@ -17,7 +21,6 @@ from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.env_config import EnvConfig
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.policy_management import cleanup_old_policies, validate_policy_environment_match
-from metta.rl.puffer_policy import PytorchAgent
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import CheckpointConfig, TrainerConfig
 from metta.rl.utils import should_run
@@ -57,81 +60,7 @@ class CheckpointManager:
         self.run_name = run_name
 
         # Ensure checkpoint directory exists
-        Path(checkpoint_dir).mkdir(parents=True, exist_ok=True)
-
-    def load_checkpoint(
-        self,
-        run_dir: str,
-        metta_grid_env: Any,
-        cfg: Any,
-    ) -> Tuple[TrainerCheckpoint | None, Any, int, int]:
-        """Load checkpoint and policy if they exist, or create new ones.
-
-        Args:
-            run_dir: Directory containing checkpoints
-            metta_grid_env: MettaGridEnv instance for policy creation
-            cfg: Full config for policy creation
-
-        Returns:
-            Tuple of (checkpoint, policy_record, agent_step, epoch)
-        """
-        # Try to load trainer checkpoint
-        checkpoint = TrainerCheckpoint.load(run_dir)
-        agent_step = 0
-        epoch = 0
-
-        if checkpoint:
-            agent_step = checkpoint.agent_step
-            epoch = checkpoint.epoch
-            logger.info(f"Restored from checkpoint at {agent_step} steps")
-
-        # Try to load policy from checkpoint
-        if checkpoint and checkpoint.policy_path:
-            logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-            policy_record = self.policy_store.policy_record(checkpoint.policy_path)
-            self._restore_feature_mapping(policy_record)
-            return checkpoint, policy_record, agent_step, epoch
-
-        # Try to load initial policy from config
-        if self.trainer_cfg.initial_policy and self.trainer_cfg.initial_policy.uri:
-            logger.info(f"Loading initial policy URI: {self.trainer_cfg.initial_policy.uri}")
-            policy_record = self.policy_store.policy_record(self.trainer_cfg.initial_policy.uri)
-            self._restore_feature_mapping(policy_record)
-            return checkpoint, policy_record, agent_step, epoch
-
-        # Check for existing policy at default path
-        default_path = os.path.join(self.checkpoint_dir, self.policy_store.make_model_name(0))
-        if os.path.exists(default_path):
-            logger.info(f"Loading policy from default path: {default_path}")
-            policy_record = self.policy_store.policy_record(default_path)
-            self._restore_feature_mapping(policy_record)
-            return checkpoint, policy_record, agent_step, epoch
-
-        # Create new policy with distributed coordination
-        if torch.distributed.is_initialized() and not self.is_master:
-            # Non-master waits for master to create
-            logger.info(f"Rank {self.rank}: Waiting for master to create policy at {default_path}")
-            torch.distributed.barrier()
-
-            if not wait_for_file(default_path, timeout=300):
-                raise RuntimeError(f"Rank {self.rank}: Timeout waiting for policy at {default_path}")
-
-            policy_record = self.policy_store.policy_record(default_path)
-            self._restore_feature_mapping(policy_record)
-            return checkpoint, policy_record, agent_step, epoch
-        else:
-            # Master creates new policy
-            name = self.policy_store.make_model_name(0)
-            pr = self.policy_store.create_empty_policy_record(name)
-
-            pr.policy = MettaAgentBuilder(metta_grid_env, cfg).build()
-            saved_pr = self.policy_store.save(pr)
-            logger.info(f"Created and saved new policy to {saved_pr.uri}")
-
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
-
-            return checkpoint, saved_pr, agent_step, epoch
+        Path(self.checkpoint_cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
     def save_checkpoint(
         self,
@@ -173,7 +102,7 @@ class CheckpointManager:
         logger.info(f"Saving policy at epoch {epoch}")
 
         # Extract the actual policy module from distributed wrapper if needed
-        policy_to_save: MettaAgent | PytorchAgent = (
+        policy_to_save: MettaAgent = (
             policy.module if isinstance(policy, DistributedMettaAgent) else policy
         )
 
@@ -279,7 +208,7 @@ class CheckpointManager:
             new_policy_record = self.policy_store.create_empty_policy_record(
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
-            new_policy_record.policy = make_policy(metta_grid_env, env_cfg, agent_cfg)
+            new_policy_record.policy = MettaAgentBuilder(metta_grid_env, env_cfg, agent_cfg).build()
             policy_record = self.policy_store.save(new_policy_record)
             logger.info(f"Created and saved new policy to {policy_record.uri}")
 
