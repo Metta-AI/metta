@@ -1,3 +1,5 @@
+from typing import Dict
+
 import torch
 import torch.nn as nn
 from einops import rearrange
@@ -27,63 +29,88 @@ class LSTM(LayerBase):
     is instantiated and never again. I.e., not when it is reloaded from a saved policy.
     """
 
-    def __init__(self, obs_shape, hidden_size, **cfg):
+    def __init__(self, **cfg):
         super().__init__(**cfg)
-        self._obs_shape = list(obs_shape)  # make sure no Omegaconf types are used in forward passes
-        self.hidden_size = hidden_size
+        self.hidden_size = self._nn_params["hidden_size"]
         self.num_layers = self._nn_params["num_layers"]
+
+        self.lstm_h: Dict[int, torch.Tensor] = {}
+        self.lstm_c: Dict[int, torch.Tensor] = {}
+
+    def has_memory(self):
+        return True
+
+    def get_memory(self):
+        return self.lstm_h, self.lstm_c
+
+    def set_memory(self, memory):
+        """Cannot be called at the MettaAgent level - use policy.component[this_layer_name].set_memory()"""
+        self.lstm_h, self.lstm_c = memory[0], memory[1]
+
+    def reset_memory(self):
+        self.lstm_h.clear()
+        self.lstm_c.clear()
+
+    def setup(self, source_components):
+        """Setup the layer and create the network."""
+        super().setup(source_components)
+        self._net = self._make_net()
 
     def _make_net(self):
         self._out_tensor_shape = [self.hidden_size]
-        net = nn.LSTM(self._in_tensor_shapes[0][0], self.hidden_size, **self._nn_params)
+        # Guard against setup order issues for static analyzers and runtime safety
+        assert (
+            getattr(self, "_in_tensor_shapes", None) is not None
+            and isinstance(self._in_tensor_shapes, list)
+            and len(self._in_tensor_shapes) > 0
+            and isinstance(self._in_tensor_shapes[0], list)
+            and len(self._in_tensor_shapes[0]) > 0
+        ), "LSTM requires a valid input tensor shape from its source component"
+        net = nn.LSTM(self._in_tensor_shapes[0][0], **self._nn_params)
 
         for name, param in net.named_parameters():
             if "bias" in name:
                 nn.init.constant_(param, 1)  # Joseph originally had this as 0
             elif "weight" in name:
-                nn.init.orthogonal_(param, 1.0)  # torch's default is uniform
+                nn.init.orthogonal_(param, 1)  # torch's default is uniform
 
         return net
 
-    @torch.compile(disable=True)  # Dynamo doesn't support compiling LSTMs
+    @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def _forward(self, td: TensorDict):
-        x = td["x"]
-        hidden = td[self._sources[0]["name"]]
-        state = td["state"]
+        assert (
+            getattr(self, "_sources", None) is not None and isinstance(self._sources, list) and len(self._sources) > 0
+        ), "LSTM requires at least one source component"
+        hidden = td[self._sources[0]["name"]]  # → (2, num_layers, batch, hidden_size)
 
-        if state is not None:
-            split_size = self.num_layers
-            state = (state[:split_size], state[split_size:])
-
-        x_shape, space_shape = x.shape, self._obs_shape
-        x_n, space_n = len(x_shape), len(space_shape)
-        if tuple(x_shape[-space_n:]) != tuple(space_shape):
-            raise ValueError("Invalid input tensor shape", x.shape)
-
-        if x_n == space_n + 1:
-            B, TT = x_shape[0], 1
-        elif x_n == space_n + 2:
-            B, TT = x_shape[:2]
-        else:
-            raise ValueError("Invalid input tensor shape", x.shape)
-
-        if state is not None:
-            assert state[0].shape[1] == state[1].shape[1] == B, "LSTM state batch size mismatch"
-        assert hidden.shape == (B * TT, self._in_tensor_shapes[0][0]), (
-            f"Hidden state shape {hidden.shape} does not match expected {(B * TT, self._in_tensor_shapes[0][0])}"
-        )
+        TT = td["bptt"][0]
+        B = td["batch"][0]
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
-        hidden, state = self._net(hidden, state)
+        training_env_id_start = td.get("training_env_id_start", torch.tensor([0], dtype=torch.long))[0].item()
+
+        if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
+            h_0 = self.lstm_h[training_env_id_start]
+            c_0 = self.lstm_c[training_env_id_start]
+            # reset the hidden state if the episode is done or truncated
+            dones = td.get("dones", None)
+            truncateds = td.get("truncateds", None)
+            if dones is not None and truncateds is not None:
+                reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
+                h_0 = h_0.masked_fill(reset_mask, 0)
+                c_0 = c_0.masked_fill(reset_mask, 0)
+        else:
+            h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
+            c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
+
+        hidden, (h_n, c_n) = self._net(hidden, (h_0, c_0))
+
+        self.lstm_h[training_env_id_start] = h_n.detach()
+        self.lstm_c[training_env_id_start] = c_n.detach()
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
-        if state is not None:
-            state = tuple(s.detach() for s in state)
-            state = torch.cat(state, dim=0)
-
         td[self._name] = hidden
-        td["state"] = state
 
         return td

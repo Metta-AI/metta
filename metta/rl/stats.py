@@ -24,7 +24,12 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import should_run
-from metta.rl.wandb import POLICY_EVALUATOR_EPOCH_METRIC, POLICY_EVALUATOR_METRIC_PREFIX, POLICY_EVALUATOR_STEP_METRIC
+from metta.rl.wandb import (
+    POLICY_EVALUATOR_EPOCH_METRIC,
+    POLICY_EVALUATOR_METRIC_PREFIX,
+    POLICY_EVALUATOR_STEP_METRIC,
+    setup_policy_evaluator_metrics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -450,6 +455,12 @@ def process_policy_evaluator_stats(
         resume="must",
     )
     try:
+        try:
+            setup_policy_evaluator_metrics(run)
+        except Exception:
+            logger.warning("Failed to set default axes for policy evaluator metrics. Continuing")
+            pass
+
         run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
         logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {pr.uri}")
     finally:

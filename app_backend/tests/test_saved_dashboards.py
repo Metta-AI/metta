@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -38,10 +39,13 @@ class TestSavedDashboards(BaseAsyncTest):
         # Verify the dashboard was created
         dashboard = await stats_repo.get_saved_dashboard(str(dashboard_id))
         assert dashboard is not None
-        assert dashboard["name"] == "Test Dashboard"
-        assert dashboard["description"] == "A test dashboard"
-        assert dashboard["type"] == "heatmap"
-        assert dashboard["dashboard_state"] == dashboard_state
+        assert dashboard.name == "Test Dashboard"
+        assert dashboard.description == "A test dashboard"
+        assert dashboard.type == "heatmap"
+        assert dashboard.dashboard_state == dashboard_state
+        assert isinstance(dashboard.id, uuid.UUID)
+        assert isinstance(dashboard.created_at, datetime)
+        assert isinstance(dashboard.updated_at, datetime)
 
     @pytest.mark.asyncio
     async def test_list_saved_dashboards(self, stats_repo: MettaRepo, user_id: str) -> None:
@@ -84,18 +88,18 @@ class TestSavedDashboards(BaseAsyncTest):
         assert len(dashboards) >= 2
 
         # Find our test dashboards
-        test_dashboard_1 = next((d for d in dashboards if d["name"] == "Test Dashboard 1"), None)
-        test_dashboard_2 = next((d for d in dashboards if d["name"] == "Test Dashboard 2"), None)
+        test_dashboard_1 = next((d for d in dashboards if d.name == "Test Dashboard 1"), None)
+        test_dashboard_2 = next((d for d in dashboards if d.name == "Test Dashboard 2"), None)
 
         assert test_dashboard_1 is not None
-        assert test_dashboard_1["description"] == "First test dashboard"
-        assert test_dashboard_1["type"] == "heatmap"
-        assert test_dashboard_1["dashboard_state"] == dashboard_state_1
+        assert test_dashboard_1.description == "First test dashboard"
+        assert test_dashboard_1.type == "heatmap"
+        assert test_dashboard_1.dashboard_state == dashboard_state_1
 
         assert test_dashboard_2 is not None
-        assert test_dashboard_2["description"] == "Another test dashboard"
-        assert test_dashboard_2["type"] == "heatmap"
-        assert test_dashboard_2["dashboard_state"] == dashboard_state_2
+        assert test_dashboard_2.description == "Another test dashboard"
+        assert test_dashboard_2.type == "heatmap"
+        assert test_dashboard_2.dashboard_state == dashboard_state_2
 
     @pytest.mark.asyncio
     async def test_delete_saved_dashboard(self, stats_repo: MettaRepo, user_id: str) -> None:
@@ -169,8 +173,8 @@ class TestSavedDashboards(BaseAsyncTest):
         # Verify the new dashboard
         dashboard = await stats_repo.get_saved_dashboard(str(dashboard_id2))
         assert dashboard is not None
-        assert dashboard["description"] == "Updated description"
-        assert dashboard["dashboard_state"] == updated_state
+        assert dashboard.description == "Updated description"
+        assert dashboard.dashboard_state == updated_state
 
     @pytest.mark.slow
     def test_update_saved_dashboard_route(self, test_client: TestClient, user_id: str) -> None:

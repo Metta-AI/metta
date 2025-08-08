@@ -15,6 +15,7 @@ brew "spacelift-io/spacelift/spacectl"
 brew "uv"
 brew "node@24"
 brew "gh"
+brew "pnpm"
 
 # Kubernetes local testing tools
 brew "kubectl"

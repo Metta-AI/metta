@@ -6,6 +6,8 @@ defaults:
       - basic
   - _self_
 
+desync_episodes: true
+
 game:
   num_agents: ???
   obs_width: 11
