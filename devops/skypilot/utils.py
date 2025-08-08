@@ -45,10 +45,11 @@ def check_git_state(commit_hash: str) -> str | None:
     """Check that the commit has been pushed and there are no staged changes."""
     error_lines = []
 
-    if has_unstaged_changes():
+    has_changes, _ = has_unstaged_changes()
+    if has_changes:
         error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
         error_lines.append("Options:")
-        error_lines.append("  - Commit: git add . && git commit -m 'your message'")
+        error_lines.append("  - Commit: git add -u && git commit -m 'your message'")
         error_lines.append("  - Stash: git stash")
         return "\n".join(error_lines)
 

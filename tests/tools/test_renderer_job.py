@@ -144,6 +144,7 @@ class TestRendererJob:
                         "trainer.curriculum=/env/mettagrid/debug",
                         "trainer.total_timesteps=50",  # Minimal training
                         "trainer.num_workers=1",
+                        "trainer.simulation.skip_git_check=true",  # Skip git check for tests
                         "wandb=off",
                     ],
                 )

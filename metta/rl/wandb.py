@@ -45,6 +45,11 @@ def abort_requested(wandb_run: WandbRun | None, min_interval_sec: int = 60) -> b
     return bool(state["cached_result"])
 
 
+POLICY_EVALUATOR_METRIC_PREFIX = "policy_evaluator"
+POLICY_EVALUATOR_STEP_METRIC = "metric/policy_evaluator_agent_step"
+POLICY_EVALUATOR_EPOCH_METRIC = "metric/policy_evaluator_epoch"
+
+
 # Metrics functions moved from metrics.py
 def setup_wandb_metrics(wandb_run: WandbRun) -> None:
     """Set up wandb metric definitions for consistent tracking across runs.
@@ -62,6 +67,13 @@ def setup_wandb_metrics(wandb_run: WandbRun) -> None:
 
     # Define special metric for reward vs total time
     wandb_run.define_metric("overview/reward_vs_total_time", step_metric="metric/total_time")
+    setup_policy_evaluator_metrics(wandb_run)
+
+
+def setup_policy_evaluator_metrics(wandb_run: WandbRun) -> None:
+    # Separate step metric for remote evaluation allows evaluation results to be logged without conflicts
+    wandb_run.define_metric(POLICY_EVALUATOR_STEP_METRIC)
+    wandb_run.define_metric(f"{POLICY_EVALUATOR_METRIC_PREFIX}/*", step_metric=POLICY_EVALUATOR_STEP_METRIC)
 
 
 def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:

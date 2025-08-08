@@ -9,14 +9,16 @@ defaults:
   # - /wandb/metta_research
   - _self_
 
+push_metrics_to_wandb: true
+
 trainer:
   compile: true
-  total_timesteps: 10_000_000
-  # curriculum: /env/mettagrid/navigation/training/multienv
+  total_timesteps: 10_000_000_000
+  curriculum: /env/mettagrid/navigation/training/multienv
   # curriculum: /env/mettagrid/curriculum/arena/learning_progress
   checkpoint:
-    checkpoint_interval: 5
-    wandb_checkpoint_interval: 5
+    checkpoint_interval: 10
+    wandb_checkpoint_interval: 10
   simulation:
     evaluate_interval: 10 # must be ≥ both checkpoint intervals (policies needed for eval)
     evaluate_remote: true

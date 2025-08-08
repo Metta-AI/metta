@@ -95,7 +95,7 @@ class CheckpointManager:
         agent_step: int,
         evals: EvalRewardSummary,
         timer: Stopwatch,
-        initial_policy_record: PolicyRecord | None,
+        initial_policy_record: PolicyRecord,
     ) -> PolicyRecord:
         """Save policy with metadata if needed."""
 
@@ -109,15 +109,7 @@ class CheckpointManager:
         # Build metadata
         name = self.policy_store.make_model_name(epoch)
 
-        # Extract average reward and scores from evals
-        evals_dict = {
-            "category_scores": evals.category_scores.copy(),
-            "simulation_scores": {f"{cat}/{sim}": score for (cat, sim), score in evals.simulation_scores.items()},
-            "avg_category_score": evals.avg_category_score,
-            "avg_simulation_score": evals.avg_simulation_score,
-        }
-
-        # TODO: reformat this; there is redundancy
+        # Base metadata without evaluation scores
         metadata = {
             "epoch": epoch,
             "agent_step": agent_step,
@@ -125,10 +117,35 @@ class CheckpointManager:
             "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
             "run": self.run_name,
             "initial_pr": initial_policy_record.uri if initial_policy_record else None,
-            "evals": evals_dict,
-            "avg_reward": evals.avg_category_score,
-            "score": evals.avg_simulation_score,  # Aggregated score for sweep evaluation
         }
+
+        # Only include evaluation metadata if we have meaningful scores
+        # (i.e., when local evaluation was performed on the current machine, not when remote evaluation was requested)
+        has_meaningful_scores = bool(evals.category_scores or evals.simulation_scores)
+        if has_meaningful_scores:
+            # Extract average reward and scores from evals
+            evals_dict = {
+                "category_scores": evals.category_scores.copy(),
+                "simulation_scores": {f"{cat}/{sim}": score for (cat, sim), score in evals.simulation_scores.items()},
+                "avg_category_score": evals.avg_category_score,
+                "avg_simulation_score": evals.avg_simulation_score,
+            }
+
+            metadata.update(
+                {
+                    "evals": evals_dict,
+                    "avg_reward": evals.avg_category_score,
+                    "score": evals.avg_simulation_score,  # Aggregated score for sweep evaluation
+                }
+            )
+            logger.info(
+                f"Including evaluation scores in policy metadata: "
+                f"avg_reward={evals.avg_category_score:.4f}, score={evals.avg_simulation_score:.4f}"
+            )
+        else:
+            logger.info(
+                "No meaningful evaluation scores available - skipping eval metadata (likely using remote evaluation)"
+            )
 
         # Save original feature mapping
         if isinstance(policy_to_save, MettaAgent):
@@ -229,7 +246,7 @@ def maybe_establish_checkpoint(
     agent_step: int,
     eval_scores: EvalRewardSummary,
     timer: Stopwatch,
-    initial_policy_record: PolicyRecord | None,
+    initial_policy_record: PolicyRecord,
     optimizer: torch.optim.Optimizer,
     run_dir: str,
     kickstarter: Kickstarter | None,
