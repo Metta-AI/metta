@@ -283,17 +283,19 @@ Then, to see the results in the scorecard along with the other policies in the d
 
 ### Specifying your agent architecture
 
-- **Configuring a MettaAgent**
-This repo supports creating a MettaAgent instance with network architecture specified by a config file. See `configs/agent/reference_design.yaml` for an explanation of the config language, and [this wiki section](https://deepwiki.com/Metta-AI/metta/6-agent-architecture) for further documentation. `configs/agent/fast.yaml` is used by default, and the other files in the `configs/agent` folder are ready to use if specified.
+#### Configuring a MettaAgent
 
-To specify a different network architecture config:
-  - (Optional:): Create your own configuration file, e.g. `configs/agent/my_agent.yaml`.
+This repo implements a `MettaAgent` policy class. The underlying network is parameterized by config files in `configs/agent` (with `configs/agent/fast.yaml` used by default). See `configs/agent/reference_design.yaml` for an explanation of the config structure, and [this wiki section](https://deepwiki.com/Metta-AI/metta/6-agent-architecture) for further documentation.
+
+To use `MettaAgent` with a non-default architecture config:
+  - (Optional): Create your own configuration file, e.g. `configs/agent/my_agent.yaml`.
   - Run with the configuration file of your choice:
     ```bash
     ./tools/train.py agent=my_agent
     ```
 
-- **Defining your own PyTorch agent**
+#### Defining your own PyTorch agent
+
 We support agent architectures without using the MettaAgent system:
   - Implement your agent class under `metta/agent/src/metta/agent/pytorch/my_agent.py`. See `metta/agent/src/metta/agent/pytorch/fast.py` for an example.
   - Register it in `metta/agent/src/metta/agent/pytorch/agent_mapper.py` by adding an entry to `agent_classes` with a key name (e.g., `"my_agent"`).
