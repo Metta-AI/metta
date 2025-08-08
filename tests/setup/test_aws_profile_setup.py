@@ -43,7 +43,7 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
         """Test that softmax profile AWS installation works correctly."""
         self._create_test_config(UserType.SOFTMAX)
 
-        # Run real AWS install (bypass base class mocking)
+        # Run AWS install (bypass base class mocking)
         import sys
 
         cmd = [sys.executable, "-m", "metta.setup.metta_cli", "install", "aws", "--force"]
@@ -107,7 +107,7 @@ class TestAWSProfileSoftmax(AWSAssertionsMixin, BaseMettaSetupTest):
 
         self._create_test_config(UserType.SOFTMAX)
 
-        # Run real AWS install (bypass base class mocking)
+        # Run AWS install (bypass base class mocking)
         cmd = [sys.executable, "-m", "metta.setup.metta_cli", "install", "aws", "--force"]
         result = subprocess.run(
             cmd,
@@ -155,7 +155,7 @@ class TestAWSProfileExternal(AWSAssertionsMixin, BaseMettaSetupTest):
         # Create external profile config
         self._create_test_config(UserType.EXTERNAL)
 
-        # Run real install (bypass base class mocking)
+        # Run install (bypass base class mocking)
         cmd = [sys.executable, "-m", "metta.setup.metta_cli", "install", "aws"]
         result = subprocess.run(
             cmd,
