@@ -1,6 +1,10 @@
 import { loadFeedPosts } from "@/posts/data/feed";
 import { loadPapersWithUserContext } from "@/posts/data/papers";
 import { auth } from "@/lib/auth";
+import {
+  OverlayStackProvider,
+  OverlayStackRenderer,
+} from "@/components/OverlayStack";
 
 import { FeedPostsPage } from "./FeedPostsPage";
 
@@ -19,10 +23,13 @@ export default async function FrontPage() {
     : null;
 
   return (
-    <FeedPostsPage
-      posts={posts}
-      papersData={papersData}
-      currentUser={currentUser}
-    />
+    <OverlayStackProvider>
+      <FeedPostsPage
+        posts={posts}
+        papersData={papersData}
+        currentUser={currentUser}
+      />
+      <OverlayStackRenderer />
+    </OverlayStackProvider>
   );
 }

@@ -18,6 +18,7 @@ model User {
   posts                 Post[]
   sessions              Session[]
   userPaperInteractions UserPaperInteraction[]
+  userPostLikes         UserPostLike[]
 
   @@map("user")
 }
@@ -74,19 +75,20 @@ model Authenticator {
 }
 
 model Post {
-  id        String   @id @default(cuid())
-  authorId  String
-  title     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-  content   String?
-  postType  String   @default("user-post")
-  likes     Int      @default(0)
-  retweets  Int      @default(0)
-  replies   Int      @default(0)
-  paperId   String?
-  author    User     @relation(fields: [authorId], references: [id])
-  paper     Paper?   @relation(fields: [paperId], references: [id])
+  id            String         @id @default(cuid())
+  authorId      String
+  title         String
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @default(now()) @updatedAt
+  content       String?
+  postType      String         @default("user-post")
+  likes         Int            @default(0)
+  retweets      Int            @default(0)
+  replies       Int            @default(0)
+  paperId       String?
+  author        User           @relation(fields: [authorId], references: [id])
+  paper         Paper?         @relation(fields: [paperId], references: [id])
+  userPostLikes UserPostLike[]
 
   @@map("post")
 }
@@ -157,4 +159,15 @@ model UserPaperInteraction {
 
   @@id([userId, paperId], map: "user_paper_interaction_userId_paperId_pk")
   @@map("user_paper_interaction")
+}
+
+model UserPostLike {
+  userId    String
+  postId    String
+  likedAt   DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@map("user_post_like")
 }
