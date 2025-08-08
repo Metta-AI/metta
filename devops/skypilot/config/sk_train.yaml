@@ -34,6 +34,8 @@ config:
       - --ulimit memlock=-1:-1
       - --ipc=host
       - --shm-size=4g
+      - --security-opt seccomp=unconfined
+      - --security-opt apparmor=unconfined
 
 file_mounts:
   /mnt/s3/softmax-public:
@@ -135,6 +137,12 @@ run: |
   echo "  SHM_MOUNT=$(mount | grep /dev/shm || echo 'No /dev/shm mount found')"
   echo "  ROUTE_TO_MASTER=$(ip -o route get $MASTER_ADDR | head -1)"
   echo "  NETWORK_INTERFACE=$(ip -o addr show ${NCCL_SOCKET_IFNAME:-enp39s0} | head -1 || echo 'Interface ${NCCL_SOCKET_IFNAME:-enp39s0} not found')"
+  echo "  IPC=$(readlink /proc/1/ns/ipc)"
+  echo "  SHM_DF=$(df -h /dev/shm | tail -1)"
+
+  # Log NCCL configuration
+  echo "Rendezvous: $MASTER_ADDR:$MASTER_PORT | IFACE=${NCCL_SOCKET_IFNAME:-enp39s0} AF=${NCCL_SOCKET_FAMILY:-AF_INET} PORT_RANGE=${NCCL_PORT_RANGE:-43000-43063}"
+  echo "NCCL: DEBUG=${NCCL_DEBUG:-VERSION}${NCCL_DEBUG_SUBSYS:+/$NCCL_DEBUG_SUBSYS} P2P=$((1- ${NCCL_P2P_DISABLE:-0})) SHM=$((1- ${NCCL_SHM_DISABLE:-0})) IB=$((1- ${NCCL_IB_DISABLE:-1})) CH=${NCCL_MIN_NCHANNELS:-4}-${NCCL_MAX_NCHANNELS:-8}"
 
   # Run comprehensive GPU diagnostics and NCCL tests
   echo "Running GPU diagnostics and NCCL tests..."
