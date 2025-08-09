@@ -24,13 +24,12 @@ from metta.core.monitoring import (
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.env_config import EnvConfig
 from metta.rl.evaluate import evaluate_policy, evaluate_policy_remote
 from metta.rl.experience import Experience
-from metta.rl.kickstarter import Kickstarter
-from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
+from metta.rl.loss.base_loss import LossTracker
+from metta.rl.loss.ppo import PPO
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
@@ -47,6 +46,7 @@ from metta.rl.stats import (
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.trainer_state import TrainerState
 from metta.rl.utils import (
     log_training_progress,
     should_run,
@@ -58,7 +58,7 @@ from metta.rl.wandb import (
     setup_wandb_metrics,
 )
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
-from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
+from metta.utils.batch import calculate_batch_sizes
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
@@ -101,10 +101,11 @@ def train(
     # Set up distributed
     is_master, world_size, rank = setup_distributed_vars()
 
-    # Create timer, Losses, profiler, curriculum
+    # Create timer, LossTracker, profiler, curriculum
     timer = Stopwatch(logger)
     timer.start()
-    losses = Losses()
+    # losses = Losses() # av
+    loss_tracker = LossTracker()  # av call this loss_tracker
     torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, run_dir)
     curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
 
@@ -191,32 +192,6 @@ def train(
         restore_feature_mapping=True,
     )
 
-    # Create kickstarter
-    kickstarter = Kickstarter(
-        cfg=trainer_cfg.kickstart,
-        device=device,
-        policy_store=policy_store,
-        metta_grid_env=metta_grid_env,
-    )
-
-    # Get the experience buffer specification from the policy
-    policy_spec = policy.get_agent_experience_spec()
-    act_space = vecenv.single_action_space
-    act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
-    loss_spec = get_loss_experience_spec(act_space.nvec, act_dtype)
-
-    # Create experience buffer
-    experience = Experience(
-        total_agents=vecenv.num_agents,
-        batch_size=trainer_cfg.batch_size,
-        bptt_horizon=trainer_cfg.bptt_horizon,
-        minibatch_size=trainer_cfg.minibatch_size,
-        max_minibatch_size=trainer_cfg.minibatch_size,
-        experience_spec=Composite({**dict(policy_spec.items()), **dict(loss_spec.items())}),
-        device=device,
-        cpu_offload=trainer_cfg.cpu_offload,
-    )
-
     # Create optimizer
     optimizer_type = trainer_cfg.optimizer.type
     if optimizer_type == "adam":
@@ -238,6 +213,27 @@ def train(
         )
     else:
         raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
+
+    ppo_loss = PPO(policy, trainer_cfg, vecenv, device, loss_tracker)  # av move later
+    # av change trainer_cfg to loss specific cfg
+    # Get the experience buffer specification from the policy
+    policy_spec = policy.get_agent_experience_spec()
+    act_space = vecenv.single_action_space
+    act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
+    loss_spec = ppo_loss.get_experience_spec(act_space.nvec, act_dtype)
+
+    # Create experience buffer
+    experience = Experience(
+        total_agents=vecenv.num_agents,
+        batch_size=trainer_cfg.batch_size,
+        bptt_horizon=trainer_cfg.bptt_horizon,
+        minibatch_size=trainer_cfg.minibatch_size,
+        max_minibatch_size=trainer_cfg.minibatch_size,
+        experience_spec=Composite({**dict(policy_spec.items()), **dict(loss_spec.items())}),
+        device=device,
+    )
+
+    policy.attach_replay_buffer(experience)
 
     if checkpoint and checkpoint.optimizer_state_dict:
         try:
@@ -288,17 +284,18 @@ def train(
     wandb_policy_name: str | None = None
 
     # Main training loop
+    trainer_state = TrainerState(agent_step=agent_step, epoch=0, update_epoch=0, mb_idx=0, num_minibatches=0)
     while agent_step < trainer_cfg.total_timesteps:
         steps_before = agent_step
+        trainer_state.agent_step = agent_step
         record_heartbeat()
 
         with torch_profiler:
             # ---- ROLLOUT PHASE ----
             with timer("_rollout"):
                 raw_infos = []
-                experience.reset_for_rollout()
                 total_steps = 0
-
+                experience.reset_for_rollout()
                 policy.reset_memory()
                 buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
@@ -327,10 +324,7 @@ def train(
                         policy(td)
 
                     # Store experience
-                    experience.store(
-                        data_td=td,
-                        env_id=training_env_id,
-                    )
+                    experience.store(data_td=td, env_id=training_env_id)
 
                     # Send observation
                     send_observation(vecenv, td["actions"], dtype_actions, timer)
@@ -339,71 +333,79 @@ def train(
                         raw_infos.extend(info)
 
                 agent_step += total_steps * world_size
+                trainer_state.agent_step = agent_step
             accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
             # ---- TRAINING PHASE ----
             with timer("_train"):
                 # Inline PPO training
-                losses.zero()
+                loss_tracker.zero()
                 experience.reset_importance_sampling_ratios()
 
                 # Calculate prioritized sampling parameters
-                anneal_beta = calculate_prioritized_sampling_params(
-                    epoch=epoch,
-                    total_timesteps=trainer_cfg.total_timesteps,
-                    batch_size=trainer_cfg.batch_size,
-                    prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
-                    prio_beta0=trainer_cfg.prioritized_experience_replay.prio_beta0,
-                )
+                # anneal_beta = calculate_prioritized_sampling_params(
+                #     epoch=epoch,
+                #     total_timesteps=trainer_cfg.total_timesteps,
+                #     batch_size=trainer_cfg.batch_size,
+                #     prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
+                #     prio_beta0=trainer_cfg.prioritized_experience_replay.prio_beta0,
+                # )
 
-                # Compute initial advantages
-                advantages = torch.zeros(experience.buffer["values"].shape, device=device)
-                initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
+                # # Compute initial advantages
+                # advantages = torch.zeros(experience.buffer["values"].shape, device=device)
+                # initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
 
-                advantages = compute_advantage(
-                    experience.buffer["values"],
-                    experience.buffer["rewards"],
-                    experience.buffer["dones"],
-                    initial_importance_sampling_ratio,
-                    advantages,
-                    trainer_cfg.ppo.gamma,
-                    trainer_cfg.ppo.gae_lambda,
-                    trainer_cfg.vtrace.vtrace_rho_clip,
-                    trainer_cfg.vtrace.vtrace_c_clip,
-                    device,
-                )
+                # advantages = compute_advantage(
+                #     experience.buffer["values"],
+                #     experience.buffer["rewards"],
+                #     experience.buffer["dones"],
+                #     initial_importance_sampling_ratio,
+                #     advantages,
+                #     trainer_cfg.ppo.gamma,
+                #     trainer_cfg.ppo.gae_lambda,
+                #     trainer_cfg.vtrace.vtrace_rho_clip,
+                #     trainer_cfg.vtrace.vtrace_c_clip,
+                #     device,
+                # )
 
                 # Train for multiple epochs
                 minibatch_idx = 0
                 epochs_trained = 0
-                policy_spec = policy.get_agent_experience_spec()
+
+                trainer_state.epoch = epoch
+                shared_loss_data = experience.mb_sized_td()
 
                 for _update_epoch in range(trainer_cfg.update_epochs):
-                    for _ in range(experience.num_minibatches):
+                    trainer_state.start_update_epoch(_update_epoch, experience.num_minibatches)
+                    for mb_idx in range(experience.num_minibatches):
+                        trainer_state.mb_idx = mb_idx
                         policy.reset_memory()
-                        # Sample minibatch
-                        minibatch, indices, prio_weights = experience.sample_minibatch(
-                            advantages=advantages,
-                            prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
-                            prio_beta=anneal_beta,
-                        )
+                        loss, shared_loss_data = ppo_loss.train(shared_loss_data, trainer_state)
+                        if trainer_state.early_stop_update_epoch:
+                            break
+                        # # Sample minibatch
+                        # minibatch, indices, prio_weights = experience.sample_minibatch(
+                        #     advantages=advantages,
+                        #     prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
+                        #     prio_beta=anneal_beta,
+                        # )
 
-                        policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
+                        # policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
 
                         # Process minibatch
-                        loss = process_minibatch_update(
-                            policy=policy,
-                            experience=experience,
-                            minibatch=minibatch,
-                            policy_td=policy_td,
-                            indices=indices,
-                            prio_weights=prio_weights,
-                            trainer_cfg=trainer_cfg,
-                            kickstarter=kickstarter,
-                            agent_step=agent_step,
-                            losses=losses,
-                            device=device,
-                        )
+                        # loss = process_minibatch_update(
+                        #     policy=policy,
+                        #     experience=experience,
+                        #     minibatch=minibatch,
+                        #     policy_td=policy_td,
+                        #     indices=indices,
+                        #     prio_weights=prio_weights,
+                        #     trainer_cfg=trainer_cfg,
+                        #     kickstarter=kickstarter,
+                        #     agent_step=agent_step,
+                        #     losses=loss_tracker,
+                        #     device=device,
+                        # )
 
                         # Optimizer step
                         optimizer.zero_grad()
@@ -415,26 +417,24 @@ def train(
                             torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
                             optimizer.step()
 
-                            # Optional weight clipping
-                            policy.clip_weights()
-
                             if device.type == "cuda":
                                 torch.cuda.synchronize()
 
                         minibatch_idx += 1
                     epochs_trained += 1
 
-                    # Early exit if KL divergence is too high
-                    if trainer_cfg.ppo.target_kl is not None:
-                        average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
-                        if average_approx_kl > trainer_cfg.ppo.target_kl:
-                            break
+                    # # Early exit if KL divergence is too high
+                    # if trainer_cfg.ppo.target_kl is not None:
+                    #     average_approx_kl = loss_tracker.approx_kl_sum / loss_tracker.minibatches_processed
+                    #     if average_approx_kl > trainer_cfg.ppo.target_kl:
+                    #         break
 
-                # Calculate explained variance
-                y_pred = experience.buffer["values"].flatten()
-                y_true = advantages.flatten() + experience.buffer["values"].flatten()
-                var_y = y_true.var()
-                losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
+                # # Calculate explained variance
+                # y_pred = experience.buffer["values"].flatten()
+                # # av changed advantages
+                # y_true = experience.buffer["advantages"].flatten() + experience.buffer["values"].flatten()
+                # var_y = y_true.var()
+                # loss_tracker.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             epoch += epochs_trained
 
         # Safe to proceed to next rollout phase only once all ranks have completed training
@@ -452,7 +452,7 @@ def train(
                 process_stats(
                     agent_cfg=agent_cfg,
                     stats=stats_tracker.rollout_stats,
-                    losses=losses,
+                    losses=loss_tracker,
                     evals=eval_scores,
                     grad_stats=stats_tracker.grad_stats,
                     experience=experience,
@@ -467,7 +467,6 @@ def train(
                     system_monitor=system_monitor,  # type: ignore[arg-type]
                     latest_saved_policy_record=latest_saved_policy_record,
                     optimizer=optimizer,
-                    kickstarter=kickstarter,
                 )
             # Clear stats after processing
             stats_tracker.clear_rollout_stats()
@@ -493,7 +492,6 @@ def train(
             initial_policy_record=initial_policy_record,
             optimizer=optimizer,
             run_dir=run_dir,
-            kickstarter=kickstarter,
             wandb_run=wandb_run,
         )
         if checkpoint_result:
@@ -597,7 +595,6 @@ def train(
         initial_policy_record=initial_policy_record,
         optimizer=optimizer,
         run_dir=run_dir,
-        kickstarter=kickstarter,
         force=True,
         wandb_run=wandb_run,
     )

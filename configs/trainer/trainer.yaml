@@ -20,7 +20,7 @@ simulation:
   evaluate_remote: true
   evaluate_local: true
   git_hash: null
-  skip_git_check: false
+  skip_git_check: true # av revert to false
 
 grad_mean_variance_interval: 0 # 0 to disable
 

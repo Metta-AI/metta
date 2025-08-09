@@ -37,7 +37,6 @@ class Experience:
         max_minibatch_size: int,
         experience_spec: Composite,
         device: torch.device | str,
-        cpu_offload: bool = False,
     ):
         """Initialize experience buffer with segmented storage."""
         self._check_for_duplicate_keys(experience_spec)
@@ -47,7 +46,6 @@ class Experience:
         self.batch_size: int = batch_size
         self.bptt_horizon: int = bptt_horizon
         self.device = device if isinstance(device, torch.device) else torch.device(device)
-        self.cpu_offload = cpu_offload
 
         # Calculate segments
         self.segments = batch_size // bptt_horizon
@@ -166,8 +164,6 @@ class Experience:
         idx = torch.multinomial(prio_probs, self.minibatch_segments)
 
         minibatch = self.buffer[idx].clone()
-        if self.cpu_offload:
-            minibatch = minibatch.to(self.device, non_blocking=True)
 
         minibatch["advantages"] = advantages[idx]
         minibatch["returns"] = advantages[idx] + minibatch["values"]
@@ -177,6 +173,18 @@ class Experience:
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
         """Update buffer with new data for given indices."""
         self.buffer[indices].update(data_td)
+
+    def mb_sized_td(self) -> TensorDict:
+        """Return a zero-initialized TensorDict shaped as a single minibatch.
+
+        The returned tensordict has batch size `[minibatch_segments, bptt_horizon]`
+        and the same keys, dtypes, and value shapes as `self.buffer`.
+        """
+        # Clone a slice with the right batch shape to preserve structure and dtypes
+        minibatch_td = self.buffer[: self.minibatch_segments].clone()
+        # Zero all leaves to make it logically empty
+        minibatch_td.zero_()
+        return minibatch_td
 
     def stats(self) -> Dict[str, float]:
         """Get mean values of all tracked buffers."""

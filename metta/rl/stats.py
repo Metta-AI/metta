@@ -20,7 +20,6 @@ from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
-from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import should_run
@@ -133,7 +132,6 @@ def process_training_stats(
     losses: Losses,
     experience: Experience,
     trainer_config: TrainerConfig,
-    kickstarter: Kickstarter | None,
 ) -> dict[str, Any]:
     """Process training statistics into a clean format.
 
@@ -142,7 +140,6 @@ def process_training_stats(
         losses: Losses object with stats() method
         experience: Experience object with stats() method
         trainer_config: Training configuration
-        kickstarter: Kickstarter object
 
     Returns:
         Dictionary with processed statistics including:
@@ -163,15 +160,6 @@ def process_training_stats(
     # Get loss and experience statistics
     losses_stats = losses.stats() if hasattr(losses, "stats") else {}
     experience_stats = experience.stats() if hasattr(experience, "stats") else {}
-
-    # Remove unused losses
-    if trainer_config.ppo.l2_reg_loss_coef == 0:
-        losses_stats.pop("l2_reg_loss", None)
-    if trainer_config.ppo.l2_init_loss_coef == 0:
-        losses_stats.pop("l2_init_loss", None)
-    if kickstarter is None or not kickstarter.enabled:
-        losses_stats.pop("ks_action_loss", None)
-        losses_stats.pop("ks_value_loss", None)
 
     # Calculate environment statistics
     environment_stats = {
@@ -349,7 +337,6 @@ def process_stats(
     system_monitor: SystemMonitor,
     latest_saved_policy_record: PolicyRecord,
     optimizer: torch.optim.Optimizer,
-    kickstarter: Kickstarter | None = None,
 ) -> None:
     """Process and log training statistics."""
     if not wandb_run:
@@ -361,7 +348,6 @@ def process_stats(
         losses=losses,
         experience=experience,
         trainer_config=trainer_cfg,
-        kickstarter=kickstarter,
     )
 
     # Compute timing stats
