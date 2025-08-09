@@ -51,6 +51,8 @@ def evaluate_policy(
             env_overrides={"_pre_built_env_config": task_cfg},
         )
         simulation_suite.simulations["eval/training_task"] = training_task_config
+    else:
+        logger.info("No training curriculum provided")
     sim = SimulationSuite(
         config=simulation_suite,
         policy_pr=pr,

@@ -79,13 +79,23 @@ def main(cfg: DictConfig) -> None:
     sim_job = SimJob(cfg.sim_job)
     logger.info(f"Sim job:\n{sim_job}")
     training_curriculum: Curriculum | None = None
-    if cfg.sim_suite_config:
-        logger.info(f"Using sim_suite_config: {cfg.sim_suite_config}")
-        sim_job.simulation_suite = SimulationSuiteConfig.model_validate(cfg.sim_suite_config)
-    if cfg.trainer_task and (parsed := json.loads(cfg.trainer_task)) and (curriculum_name := parsed.get("curriculum")):
-        env_overrides = parsed.get("env_overrides", {})
-        logger.info(f"Using trainer_task: {curriculum_name} with overrides: {env_overrides}")
-        training_curriculum = curriculum_from_config_path(curriculum_name, DictConfig(env_overrides))
+
+    if cfg.sim_suite_config_path:
+        with open(cfg.sim_suite_config_path, "r") as f:
+            sim_suite_config_dict = json.load(f)
+        sim_job.simulation_suite = SimulationSuiteConfig.model_validate(sim_suite_config_dict)
+        logger.info(f"Sim suite config:\n{sim_job.simulation_suite}")
+
+    if cfg.trainer_task_path:
+        logger.info(f"Loading trainer task from {cfg.trainer_task_path}")
+        with open(cfg.trainer_task_path, "r") as f:
+            trainer_task_dict = json.load(f)
+        logger.info(f"Trainer task:\n{trainer_task_dict}")
+        if curriculum_name := trainer_task_dict.get("curriculum"):
+            training_curriculum = curriculum_from_config_path(
+                curriculum_name, DictConfig(trainer_task_dict.get("env_overrides", {}))
+            )
+            logger.info(f"Training curriculum:\n{training_curriculum}")
 
     # Create env config
     env_cfg = create_env_config(cfg)

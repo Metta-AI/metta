@@ -22,7 +22,7 @@ cmd: sim
 push_metrics_to_wandb: false
 
 # Optional JSON override for sim_job.simulation_suite
-sim_suite_config: null
+sim_suite_config_path: null
 
 # Optional JSON override for trainer_task
-trainer_task: null
+trainer_task_path: null
