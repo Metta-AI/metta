@@ -13,9 +13,9 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/bbc/bbc
+  curriculum: /env/mettagrid/curriculum/operant_conditioning/2_converters
 
-policy_uri: wandb://run/george.navigation.bucketed.07-10
+policy_uri: wandb://run/daphne.operantconditioning.smoke_test2.08-06
 
 run_id: 5
 run: ${oc.env:USER}.local.${run_id}
