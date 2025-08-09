@@ -522,20 +522,25 @@ def train(
                     num_episodes=sim_suite_config.num_episodes,
                 )
 
-                # Add training task to the suite
-                # Pass the config as _pre_built_env_config to avoid Hydra loading
+                evaluate_local = trainer_cfg.simulation.evaluate_local
 
                 if trainer_cfg.simulation.evaluate_remote:
-                    evaluate_policy_remote(
-                        policy_record=latest_saved_policy_record,
-                        sim_suite_config=extended_suite_config,
-                        stats_epoch_id=stats_tracker.stats_epoch_id,
-                        wandb_policy_name=wandb_policy_name,
-                        stats_client=stats_client,
-                        wandb_run=wandb_run,
-                        trainer_cfg=trainer_cfg,
-                    )
-                if trainer_cfg.simulation.evaluate_local:
+                    try:
+                        evaluate_policy_remote(
+                            policy_record=latest_saved_policy_record,
+                            sim_suite_config=extended_suite_config,
+                            stats_epoch_id=stats_tracker.stats_epoch_id,
+                            wandb_policy_name=wandb_policy_name,
+                            stats_client=stats_client,
+                            wandb_run=wandb_run,
+                            trainer_cfg=trainer_cfg,
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
+                        logger.error("Falling back to local evaluation")
+                        evaluate_local = True
+
+                if evaluate_local:
                     evaluation_results = evaluate_policy(
                         policy_record=latest_saved_policy_record,
                         simulation_suite=extended_suite_config,
