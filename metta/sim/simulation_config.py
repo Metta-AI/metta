@@ -84,11 +84,8 @@ class SimulationSuiteConfig(SimulationConfig):
         values["simulations"] = merged
         return values
 
-    # ------------------------------------------------------------------
-    # Serialization helpers for remote execution
-    # ------------------------------------------------------------------
     def to_jsonable(self) -> dict[str, Any]:
-        return _to_jsonable(self)
+        return _to_jsonable(self)  # type: ignore
 
     @classmethod
     def from_json(cls, json_str: str) -> "SimulationSuiteConfig":

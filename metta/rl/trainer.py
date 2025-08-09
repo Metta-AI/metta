@@ -22,12 +22,13 @@ from metta.core.monitoring import (
     setup_monitoring,
 )
 from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.env_config import EnvConfig
-from metta.rl.evaluate import evaluate_policy, evaluate_policy_remote
+from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
@@ -535,9 +536,9 @@ def train(
                         trainer_cfg=trainer_cfg,
                     )
                 if trainer_cfg.simulation.evaluate_local:
-                    eval_scores = evaluate_policy(
+                    evaluation_results = evaluate_policy(
                         policy_record=latest_saved_policy_record,
-                        sim_suite_config=extended_suite_config,
+                        simulation_suite=extended_suite_config,
                         device=device,
                         vectorization=env_cfg.vectorization,
                         replay_dir=trainer_cfg.simulation.replay_dir,
@@ -545,11 +546,21 @@ def train(
                         wandb_policy_name=wandb_policy_name,
                         policy_store=policy_store,
                         stats_client=stats_client,
-                        wandb_run=wandb_run,
-                        agent_step=agent_step,
-                        epoch=epoch,
-                        training_task_curriculum=curriculum,
+                        logger=logger,
+                        training_curriculum=curriculum,
                     )
+                    logger.info("Simulation complete")
+                    eval_scores = evaluation_results.scores
+                    category_scores = list(eval_scores.category_scores.values())
+                    if category_scores and latest_saved_policy_record:
+                        latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+                    if wandb_run is not None and evaluation_results.replay_urls:
+                        upload_replay_html(
+                            replay_urls=evaluation_results.replay_urls,
+                            agent_step=agent_step,
+                            epoch=epoch,
+                            wandb_run=wandb_run,
+                        )
 
                 stats_tracker.update_epoch_tracking(epoch + 1)
 

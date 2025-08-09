@@ -3,19 +3,13 @@
 import logging
 import uuid
 
-import numpy as np
-import torch
 import wandb
 
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskResponse
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.wandb_context import WandbRun
-from metta.eval.eval_request_config import EvalRewardSummary
-from metta.eval.eval_service import evaluate_policy as eval_service_evaluate_policy
-from metta.mettagrid.curriculum.core import Curriculum
 from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
@@ -71,73 +65,9 @@ def evaluate_policy_remote(
                 logger.info(
                     f"Policy evaluator: created task {task.id} for {wandb_policy_name} on {sim_suite_config.name}"
                 )
-                # TODO: create a task for the trainer curriculum. Sample a few. Also pass
-                # along overrides if needed. Should make sure we handle overrides correctly
-                # in eval_task_worker.py's call out to sim.py (and make sure sim.py handles)
-                # them correctly. Also these tasks should get registered as eval/training_task
 
                 return task
         return None
-
-
-def evaluate_policy(
-    *,
-    policy_record: PolicyRecord,
-    sim_suite_config: SimulationSuiteConfig,
-    device: torch.device,
-    vectorization: str,
-    replay_dir: str | None,
-    stats_epoch_id: uuid.UUID | None,
-    wandb_policy_name: str | None,
-    policy_store: PolicyStore,
-    stats_client: StatsClient | None,
-    wandb_run: WandbRun | None,
-    training_task_curriculum: Curriculum | None,
-    agent_step: int,
-    epoch: int,
-) -> EvalRewardSummary:
-    """Evaluate policy using the eval service, handling scoring and replay uploads.
-
-    This function orchestrates policy evaluation including:
-    - Remote evaluation via stats server if configured
-    - Local evaluation using the eval service
-    - Policy metadata scoring for sweep evaluations
-    - Replay HTML upload to wandb
-
-    Returns:
-        EvalRewardSummary containing the evaluation scores
-    """
-    evaluation_results = eval_service_evaluate_policy(
-        policy_record=policy_record,
-        simulation_suite=sim_suite_config,
-        device=device,
-        vectorization=vectorization,
-        replay_dir=replay_dir,  # Pass replay_dir to enable replay generation
-        stats_epoch_id=stats_epoch_id,
-        wandb_policy_name=wandb_policy_name,
-        policy_store=policy_store,
-        stats_client=stats_client,
-        logger=logger,
-        training_task_curriculum=training_task_curriculum,
-    )
-    logger.info("Simulation complete")
-
-    eval_scores = evaluation_results.scores
-
-    category_scores = list(eval_scores.category_scores.values())
-    if category_scores and policy_record:
-        policy_record.metadata["score"] = float(np.mean(category_scores))
-
-    # Generate and upload replay HTML if we have wandb
-    if wandb_run is not None and evaluation_results.replay_urls:
-        upload_replay_html(
-            replay_urls=evaluation_results.replay_urls,
-            agent_step=agent_step,
-            epoch=epoch,
-            wandb_run=wandb_run,
-        )
-
-    return eval_scores
 
 
 def upload_replay_html(

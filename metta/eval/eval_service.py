@@ -27,7 +27,7 @@ def evaluate_policy(
     eval_task_id: uuid.UUID | None = None,
     policy_store: PolicyStore,
     stats_client: StatsClient | None,
-    training_task_curriculum: Curriculum | None = None,
+    training_curriculum: Curriculum | None = None,
     logger: logging.Logger,
 ) -> EvalResults:
     """
@@ -42,9 +42,9 @@ def evaluate_policy(
 
     # For each checkpoint of the policy, simulate
     logger.info(f"Evaluating policy {pr.uri}")
-    if training_task_curriculum:
-        logger.info(f"Adding training task to simulation suite: {training_task_curriculum}")
-        task_cfg = training_task_curriculum.get_task().env_cfg()
+    if training_curriculum:
+        logger.info(f"Adding training task to simulation suite: {training_curriculum}")
+        task_cfg = training_curriculum.get_task().env_cfg()
         training_task_config = SingleEnvSimulationConfig(
             env="eval/training_task",  # Just a descriptive name
             num_episodes=1,
@@ -55,7 +55,7 @@ def evaluate_policy(
         config=simulation_suite,
         policy_pr=pr,
         policy_store=policy_store,
-        replay_dir=replay_dir,  # TODO: check
+        replay_dir=replay_dir,
         stats_dir=stats_dir,
         device=device,
         vectorization=vectorization,
