@@ -67,26 +67,25 @@ The game is designed to evolve with the agents, providing unlimited learning opp
 ### Game Overview
 
 The current version of the game can be found [here](https://huggingface.co/metta-ai/baseline.v0.1.0). It's a grid world
-with the following dynamics:
+with the following dynamics (see [mettagrid/README.md](mettagrid/README.md) for details):
 
 - **Agents and Vision**: Agents can see a limited number of squares around them.
-- **Resources**: Agents harvest diamonds, convert them to energy at charger stations, and use energy to power the "heart
-  altar" for rewards.
-- **Energy Management**: All actions cost energy, so agents learn to manage their energy budgets efficiently.
-- **Combat**: Agents can attack others, temporarily freezing the target and stealing resources.
-- **Defense**: Agents can toggle shields, which drain energy but absorb attacks.
-- **Cooperation**: Agents can share energy or resources and use markers to communicate.
+- **Resources and Buildings**: Agents gather ores and operate buildings that convert inputs into batteries, equipment,
+  and hearts.
+- **Combat and Equipment**: Attacks consume lasers, freeze the target, and steal inventory, while armor can block a
+  hit.
+- **Group Rewards**: Agents may belong to teams that share a configurable portion of their rewards.
+- **Communication**: Agents can share resources; explicit communication is planned (see [roadmap](roadmap.md#11-game-dynamics)).
 
 ### Exploration and Expansion
 
 The game offers numerous possibilities for exploration, including:
 
-1. **Diverse Energy Profiles**: Assigning different energy profiles to agents, essentially giving them different bodies
-   and policies.
-2. **Dynamic Energy Profiles**: Allowing agents to change their energy profiles, reflecting different postures or
-   emotions.
+1. **Diverse Agent Profiles**: Assigning different abilities or starting conditions to agents.
+2. **Dynamic Profiles**: Allowing agents to change their abilities or roles over time.
 3. **Resource Types and Conversions**: Introducing different resource types and conversion mechanisms.
-4. **Environment Modification**: Enabling agents to modify the game board by creating, destroying, or altering objects.
+4. **Environment Modification**: Enabling agents to modify the game board by creating, destroying, or altering
+   objects.
 
 ### Kinship and Social Dynamics
 
