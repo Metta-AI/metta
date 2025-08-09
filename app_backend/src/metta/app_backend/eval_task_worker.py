@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import subprocess
+import tempfile
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -138,19 +139,28 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "push_metrics_to_wandb=true",
             f"sim_job.replay_dir={SOFTMAX_S3_BASE}/replays/" + "${run}",
         ]
-        if task.sim_suite_config:
-            cmd.append(f"sim_suite_config={json.dumps(task.sim_suite_config)}")
-        if task.trainer_task:
-            cmd.append(f"trainer_task={json.dumps(task.trainer_task)}")
 
-        self._logger.info(f"Running command: {' '.join(cmd)}")
+        with tempfile.TemporaryDirectory(prefix=f"metta-policy-evaluator-{task.id}", dir="/tmp") as task_tmp_dir:
+            if task.sim_suite_config:
+                path = os.path.join(task_tmp_dir, "sim_suite_config.json")
+                with open(path, "w") as f:
+                    json.dump(task.sim_suite_config, f)
+                cmd.append(f"sim_suite_config_path={path}")
 
-        result = self._run_cmd_from_versioned_checkout(
-            cmd,
-            "sim.py failed with exit code",
-        )
+            if task.trainer_task:
+                path = os.path.join(task_tmp_dir, "trainer_task.json")
+                with open(path, "w") as f:
+                    json.dump(task.trainer_task, f)
+                cmd.append(f"trainer_task_path={path}")
 
-        self._logger.info(f"Simulation completed successfully: {result.stdout}")
+            self._logger.info(f"Running command: {' '.join(cmd)}")
+
+            result = self._run_cmd_from_versioned_checkout(
+                cmd,
+                "sim.py failed with exit code",
+            )
+
+            self._logger.info(f"Simulation completed successfully: {result.stdout}")
 
 
 class EvalTaskWorker:
