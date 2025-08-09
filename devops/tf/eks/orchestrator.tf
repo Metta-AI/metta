@@ -30,6 +30,7 @@ resource "aws_iam_policy" "orchestrator_s3" {
           "s3:ListBucket",
         ]
         Resource = [
+          "arn:aws:s3:::softmax-public",
           "arn:aws:s3:::softmax-public/*",
         ]
       }
