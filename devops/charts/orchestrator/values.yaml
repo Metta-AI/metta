@@ -8,6 +8,8 @@ image:
 
 serviceAccount:
   create: true
+  annotations: {}
+  # Fill this in with the role ARN from orchestrator_irsa_role_arn once Terraform is applied
 
 env:
   BACKEND_URL: "https://api.observatory.softmax-research.net"
