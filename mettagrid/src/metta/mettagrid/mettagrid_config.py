@@ -107,7 +107,7 @@ class PyGroupConfig(BaseModelWithForbidExtra):
 class PyActionConfig(BaseModelWithForbidExtra):
     """Python action configuration."""
 
-    enabled: bool
+    enabled: bool = Field(default=True)
     # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: Optional[dict[str, int]] = Field(default=None)
     consumed_resources: Optional[dict[str, int]] = Field(default_factory=dict)
@@ -185,7 +185,20 @@ class PyConverterConfig(BaseModelWithForbidExtra):
 class PyGameConfig(BaseModelWithForbidExtra):
     """Python game configuration."""
 
-    inventory_item_names: list[str]
+    inventory_item_names: list[str] = Field(
+        default=[
+            "ore_red",
+            "ore_blue",
+            "ore_green",
+            "battery_red",
+            "battery_blue",
+            "battery_green",
+            "heart",
+            "armor",
+            "laser",
+            "blueprint",
+        ]
+    )
     num_agents: int = Field(ge=1)
     # max_steps = zero means "no limit"
     max_steps: int = Field(ge=0, default=1000)

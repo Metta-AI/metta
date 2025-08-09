@@ -5,47 +5,50 @@ from metta.mettagrid.mettagrid_config import (
     PyActionsConfig,
     PyAgentConfig,
     PyAgentRewards,
+    PyAttackActionConfig,
     PyGameConfig,
     PyGroupConfig,
     PyInventoryRewards,
 )
 
-resources = [
-    "ore_red",
-    "ore_blue",
-    "ore_green",
-    "battery_red",
-    "battery_blue",
-    "battery_green",
-    "heart",
-    "armor",
-    "laser",
-    "blueprint",
-]
-
-objects = {
-    "altar": object.altar,
-    "mine_red": object.mine_red,
-    "mine_blue": object.mine_blue,
-    "mine_green": object.mine_green,
-    "generator_red": object.generator_red,
-    "generator_blue": object.generator_blue,
-    "generator_green": object.generator_green,
-}
-
 
 def arena(
     num_agents: int,
+    combat: bool = False,
 ) -> EnvConfig:
+    objects = {
+        "altar": object.altar,
+        "mine_red": object.mine_red,
+        "generator_red": object.generator_red,
+    }
+
+    actions = PyActionsConfig(
+        noop=PyActionConfig(),
+        move=PyActionConfig(),
+        move_8way=PyActionConfig(),
+        move_cardinal=PyActionConfig(),
+        rotate=PyActionConfig(),
+        put_items=PyActionConfig(),
+        get_items=PyActionConfig(),
+    )
+
+    if combat:
+        objects["lasery"] = object.lasery
+        objects["armory"] = object.armory
+
+        actions.attack = PyAttackActionConfig(
+            required_resources={
+                "laser": 1,
+            },
+            defense_resources={
+                "armor": 1,
+            },
+        )
+
     return EnvConfig(
         game=PyGameConfig(
             num_agents=num_agents,
-            actions=PyActionsConfig(
-                noop=PyActionConfig(
-                    enabled=True,
-                )
-            ),
-            inventory_item_names=resources,
+            actions=actions,
             objects=objects,
             agent=PyAgentConfig(
                 default_resource_limit=50,
@@ -59,7 +62,7 @@ def arena(
                 ),
             ),
             groups={
-                "solo": PyGroupConfig(
+                "agent": PyGroupConfig(
                     id=0,
                     sprite=0,
                     props=PyAgentConfig(),

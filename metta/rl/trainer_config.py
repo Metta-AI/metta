@@ -4,6 +4,7 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
@@ -186,8 +187,7 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware
     num_workers: int = Field(gt=0)
-    env: str | None = None  # Environment config path
-    # Default curriculum: Simple environment for initial experiments
+    env: EnvConfig | None = None  # Environment config path
     curriculum: str | None = "/env/mettagrid/curriculum/simple"
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
