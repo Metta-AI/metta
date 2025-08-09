@@ -18,6 +18,10 @@ class TaskCreateRequest(BaseModel):
     sim_suite: str
     attributes: dict[str, Any] = Field(default_factory=dict)
 
+    # We should remove these once clients have migrated
+    git_hash: str | None = None
+    env_overrides: dict[str, Any] = Field(default_factory=dict)
+
 
 class TaskClaimRequest(BaseModel):
     tasks: list[uuid.UUID]
@@ -122,8 +126,13 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def create_task(request: TaskCreateRequest, user: str = user_or_token) -> TaskResponse:
         # If no git_hash provided, fetch latest commit from main branch
-        if not request.attributes.get("git_hash"):
-            request.attributes["git_hash"] = await get_latest_commit(branch="main")
+        attributes = request.attributes.copy()
+        if not attributes.get("git_hash"):
+            if request.git_hash:
+                # Remove this once clients have migrated
+                attributes["git_hash"] = request.git_hash
+            else:
+                attributes["git_hash"] = await get_latest_commit(branch="main")
 
         policy = await stats_repo.get_policy_by_id(request.policy_id)
         if not policy:
@@ -132,7 +141,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         task = await stats_repo.create_eval_task(
             policy_id=request.policy_id,
             sim_suite=request.sim_suite,
-            attributes=request.attributes,
+            attributes=attributes,
             user_id=user,
         )
         return TaskResponse.from_db(task)
