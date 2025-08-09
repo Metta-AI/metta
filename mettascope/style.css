@@ -104,6 +104,10 @@ html {
   color: white;
 }
 
+#modal.error .message {
+  user-select: text;
+}
+
 #agent-panel {
   overflow-x: auto;
   overflow-y: auto;
