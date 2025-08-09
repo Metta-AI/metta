@@ -430,6 +430,9 @@ def process_policy_evaluator_stats(
         f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
         for k, v in eval_results.scores.to_wandb_metrics_format().items()
     }
+    # Add category evaluation scores to overview. Redundant with what is above
+    metrics_to_log.update({f"overview/eval_{k}": v for k, v in eval_results.scores.category_scores.items()})
+
     if not metrics_to_log:
         logger.warning("No metrics to log for policy evaluator")
         return
