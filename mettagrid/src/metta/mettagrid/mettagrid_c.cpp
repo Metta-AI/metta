@@ -1,13 +1,5 @@
 #include "mettagrid_c.hpp"
 
-#include <pybind11/numpy.h>
-#include <pybind11/stl.h>
-
-#include <algorithm>
-#include <cmath>
-#include <numeric>
-#include <random>
-
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_color.hpp"
@@ -30,8 +22,17 @@
 #include "objects/wall.hpp"
 #include "observation_encoder.hpp"
 #include "packed_coordinate.hpp"
+#include "renderer/hermes.hpp"
 #include "stats_tracker.hpp"
 #include "types.hpp"
+
+#include <pybind11/numpy.h>
+#include <pybind11/stl.h>
+
+#include <algorithm>
+#include <cmath>
+#include <numeric>
+#include <random>
 
 namespace py = pybind11;
 
@@ -414,7 +415,8 @@ void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat
   *agent->reward -= agent->action_failure_penalty;
 }
 
-void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
+void MettaGrid::_step(Actions actions) {
+  _actions = actions;
   auto actions_view = actions.unchecked<2>();
 
   // Reset rewards and observations
@@ -746,7 +748,7 @@ py::dict MettaGrid::feature_spec() {
   return feature_spec;
 }
 
-size_t MettaGrid::num_agents() {
+size_t MettaGrid::num_agents() const {
   return _agents.size();
 }
 
@@ -825,7 +827,7 @@ py::object MettaGrid::observation_space() {
   return spaces.attr("Box")(min_value, max_value, space_shape, py::arg("dtype") = dtype_observations());
 }
 
-py::list MettaGrid::action_success() {
+py::list MettaGrid::action_success_py() {
   return py::cast(_action_success);
 }
 
@@ -898,7 +900,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("get_episode_stats", &MettaGrid::get_episode_stats)
       .def_property_readonly("action_space", &MettaGrid::action_space)
       .def_property_readonly("observation_space", &MettaGrid::observation_space)
-      .def("action_success", &MettaGrid::action_success)
+      .def("action_success", &MettaGrid::action_success_py)
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names_py)
       .def("feature_spec", &MettaGrid::feature_spec)
@@ -1092,4 +1094,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
   m.attr("dtype_actions") = dtype_actions();
   m.attr("dtype_masks") = dtype_masks();
   m.attr("dtype_success") = dtype_success();
+
+  py::class_<HermesPy>(m, "Hermes")
+      .def(py::init<>())
+      .def("update", &HermesPy::update, py::arg("env"))
+      .def("render", &HermesPy::render);
 }
