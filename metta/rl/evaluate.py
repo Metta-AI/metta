@@ -2,6 +2,7 @@
 
 import logging
 import uuid
+from typing import Any
 
 import numpy as np
 import torch
@@ -11,6 +12,7 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskResponse
+from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
@@ -129,6 +131,9 @@ def upload_replay_html(
     agent_step: int,
     epoch: int,
     wandb_run: WandbRun,
+    metric_prefix: str | None = None,
+    step_metric_key: str | None = None,
+    epoch_metric_key: str | None = None,
 ) -> None:
     """Upload replay HTML to wandb with organized links."""
     # Create unified HTML with all replay links on a single line
@@ -154,26 +159,47 @@ def upload_replay_html(
         for name, urls in replay_groups.items():
             if len(urls) == 1:
                 # Single episode - just show the name
-                player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={urls[0]}"
-                links.append(f'<a href="{player_url}" target="_blank">{name}</a>')
+                links.append(_form_mettascope_link(urls[0], name))
             else:
                 # Multiple episodes - show name with numbered links
                 episode_links = []
                 for i, url in enumerate(urls, 1):
-                    player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={url}"
-                    episode_links.append(f'<a href="{player_url}" target="_blank">{i}</a>')
+                    episode_links.append(_form_mettascope_link(url, str(i)))
                 links.append(f"{name} [{' '.join(episode_links)}]")
 
         # Log all links in a single HTML entry
         html_content = " | ".join(links)
-        wandb_run.log(
-            {"replays/all": wandb.Html(html_content)},
-            step=agent_step,
+        _upload_replay_html(
+            html_content, agent_step, epoch, wandb_run, metric_prefix, step_metric_key, epoch_metric_key
         )
 
     # Maintain backward compatibility - log training task separately if available
     if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
         training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
-        player_url = f"{METTASCOPE_REPLAY_URL}/?replayUrl={training_url}"
-        link_summary = {"replays/link": wandb.Html(f'<a href="{player_url}">MetaScope Replay (Epoch {epoch})</a>')}
-        wandb_run.log(link_summary, step=agent_step)
+        html_content = _form_mettascope_link(training_url, f"MetaScope Replay (Epoch {epoch})")
+        _upload_replay_html(
+            html_content, agent_step, epoch, wandb_run, metric_prefix, step_metric_key, epoch_metric_key
+        )
+
+
+def _form_mettascope_link(url: str, name: str) -> str:
+    return f'<a href="{METTASCOPE_REPLAY_URL}/?replayUrl={url}" target="_blank">{name}</a>'
+
+
+def _upload_replay_html(
+    html_content: str,
+    agent_step: int,
+    epoch: int,
+    wandb_run: WandbRun,
+    metric_prefix: str | None = None,
+    step_metric_key: str | None = None,
+    epoch_metric_key: str | None = None,
+) -> None:
+    key_all = (f"{metric_prefix}/" if metric_prefix else "") + "replays/all"
+    payload: dict[str, Any] = remove_none_keys(
+        {key_all: wandb.Html(html_content), step_metric_key: agent_step, epoch_metric_key: epoch}
+    )
+    if step_metric_key or epoch_metric_key:
+        wandb_run.log(payload)
+    else:
+        wandb_run.log(payload, step=agent_step)

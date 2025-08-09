@@ -26,6 +26,8 @@ METTA_SKYPILOT_URL = "skypilot-api.softmax-research.net"
 
 METTA_ENV_FILE = Path(os.path.expanduser("~/.metta_env_path"))
 
+SOFTMAX_S3_BASE = "s3://softmax-public"
+
 
 def main():
     if len(sys.argv) != 2:
