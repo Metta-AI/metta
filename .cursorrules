@@ -26,9 +26,9 @@
       "message": "Don't suggest whitespace changes"
     },
     {
-      "name": "No Summaries",
-      "pattern": "(?i)\\b(summary|summarize|overview)\\b",
-      "message": "Don't summarize changes made"
+      "name": "No Summaries (removed)",
+      "pattern": "^$",
+      "message": ""
     },
     {
       "name": "No Inventions",
@@ -71,9 +71,9 @@
       "message": "Do not consider any previous x.md files in your memory. Complain if the contents are the same as previous runs."
     },
     {
-      "name": "No Current Implementation",
-      "pattern": "(?i)\\b(current|existing)\\s+(implementation|code)\\b",
-      "message": "Don't show or discuss the current implementation unless specifically requested"
+      "name": "No Current Implementation (removed)",
+      "pattern": "^$",
+      "message": ""
     },
     {
       "name": "Check x.md Content",

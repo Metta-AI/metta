@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Plan & Review Process
 
-**IMPORTANT: Always start in plan mode before implementing any changes.**
+Preferred: Start in plan mode for larger or ambiguous tasks. For small, surgical changes, you may proceed directly with implementation.
 
 1. **Enter plan mode first** - Use the ExitPlanMode tool only after presenting a complete plan
 2. **Create a task plan** - Write your plan to `.claude/tasks/TASK_NAME.md` with:
@@ -15,8 +15,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Step-by-step implementation plan
    - Success criteria
 3. **Use appropriate tools** - If the task requires external knowledge or complex searches, use the Task tool with appropriate agents
-4. **Request review** - After writing the plan, explicitly ask: "Please review this plan before I proceed with implementation"
-5. **Wait for approval** - Only exit plan mode and begin implementation after receiving approval
+4. **Optional review** - If the plan is non-trivial or high-risk, request a quick review before implementing
+5. **Proceed when ready** - If low-risk and scoped, you may proceed without explicit approval
 
 #### Plan Template (.claude/tasks/TASK_NAME.md)
 

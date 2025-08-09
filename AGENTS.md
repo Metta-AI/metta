@@ -4,8 +4,9 @@ Codex agents working in this repository should follow these guidelines:
 
 ## Commit messages
 
-- Keep them short and present tense.
-- Describe the change clearly.
+- Use Conventional Commits where reasonable (`feat:`, `fix:`, `refactor:`, `docs:`, etc.)
+- Keep them short and present tense
+- Describe the change clearly
 
 ## Quality checks
 
