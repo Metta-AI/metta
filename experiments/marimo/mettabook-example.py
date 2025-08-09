@@ -13,13 +13,13 @@ def _():
 
 @app.cell
 def _(mo):
-    mo.md(r"""# Mettabook""")
+    mo.md(r"# Mettabook")
     return
 
 
 @app.cell
 def _(mo):
-    mo.md(r"""## Setup""")
+    mo.md(r"## Setup")
     return
 
 
@@ -52,14 +52,14 @@ def _():
 def _(mo):
     mo.md(
         r"""
-    ## Launch Training
-    #### Uncomment the below to launch training
-    """
+        ## Launch Training
+        #### Uncomment the below to launch training
+        """
     )
     return
 
 
-@app.cell(disabled=True)
+@app.cell
 def _():
     # Example: Launch training
 
@@ -78,7 +78,7 @@ def _():
 
 @app.cell
 def _(mo):
-    mo.md(r"""## Monitor Training Jobs""")
+    mo.md(r"## Monitor Training Jobs")
     return
 
 
@@ -105,7 +105,7 @@ def _(monitor_training_statuses):
 
 @app.cell
 def _(mo):
-    mo.md(r"""## Fetch Metrics""")
+    mo.md(r"## Fetch Metrics")
     return
 
 
@@ -131,7 +131,7 @@ def _(fetch_metrics, run_names):
 
 @app.cell
 def _(mo):
-    mo.md(r"""## Analyze Metrics""")
+    mo.md(r"## Analyze Metrics")
     return
 
 
@@ -243,10 +243,10 @@ def _(alt, metrics_dfs, pd):
 def _(mo):
     mo.md(
         r"""
-    ## View Replays
-
-    Display replay viewer for a specific run:
-    """
+        ## View Replays
+    
+        Display replay viewer for a specific run:
+        """
     )
     return
 
