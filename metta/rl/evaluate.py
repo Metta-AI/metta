@@ -183,7 +183,7 @@ def upload_replay_html(
 
 
 def _form_mettascope_link(url: str, name: str) -> str:
-    return f'<a href="{METTASCOPE_REPLAY_URL}/?replayUrl={url}">{name}</a>'
+    return f'<a href="{METTASCOPE_REPLAY_URL}/?replayUrl={url}" target="_blank">{name}</a>'
 
 
 def _upload_replay_html(
