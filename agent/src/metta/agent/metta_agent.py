@@ -163,7 +163,7 @@ class MettaAgent(nn.Module):
 
     def reset_memory(self) -> None:
         for name in self.components_with_memory:
-            comp = self.components.get(name)
+            comp = self.components[name]
             if not hasattr(comp, "reset_memory"):
                 logger.error(f"Component '{name}' listed in components_with_memory but has no reset_memory() method.")
                 continue

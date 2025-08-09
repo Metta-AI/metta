@@ -52,28 +52,17 @@ setup: |
 
   # Note that the docker image may start in a venv!
 
-  # Activate the metta venv
-  if [ -n "$VIRTUAL_ENV" ]; then
-      deactivate 2>/dev/null || true
-  fi
-  . .venv/bin/activate
-
-  git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
+  echo "[SETUP] Fetching latest from origin..."
+  git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
   git checkout "$METTA_GIT_REF"
-  echo "Checked out: $(git rev-parse HEAD)"
+  echo "[SETUP] Checked out: $(git rev-parse HEAD)"
 
   # Python environment setup
-  echo "Setting up Python environment..."
+  echo "[SETUP] Setting up Python environment..."
   uv sync
 
   # Create required directories
   mkdir -p "$WANDB_DIR"
-
-  echo "METTA_CMD_ARGS = $METTA_CMD_ARGS"
-  echo "METTA_RUN_ID = $METTA_RUN_ID"
-  echo "METTA_CMD = $METTA_CMD"
-  echo "METTA_GIT_REF = $METTA_GIT_REF"
-  echo "HEARTBEAT_TIMEOUT = $HEARTBEAT_TIMEOUT"
 
   # Note that different sets of skypilot environment variables are available in "run" vs "setup"
   # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
@@ -82,7 +71,7 @@ run: |
   set -euo pipefail
   cd /workspace/metta
 
-  # Activate the metta venv
+  # Note that the docker image may start with its own venv - switch to metta venv
   if [ -n "$VIRTUAL_ENV" ]; then
       deactivate 2>/dev/null || true
   fi
@@ -90,28 +79,30 @@ run: |
 
   bash ./devops/skypilot/config/configure_environment.sh
 
-  echo "METTA_RUN_ID: $METTA_RUN_ID"
-  echo "SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
+  echo "[RUN] Starting run phase..."
+  echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
+  echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
 
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
-    echo "Collecting skypilot latency..."
+    echo "[RUN] Collecting skypilot latency..."
     LATENCY_OUTPUT=$(uv run python common/src/metta/common/util/skypilot_latency.py 2>&1) || true
-    echo "$LATENCY_OUTPUT"
+    echo "[RUN] $LATENCY_OUTPUT"
   else
-    echo "Latency script is missing!"
+    echo "[RUN] Latency script is missing!"
   fi
 
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
 
   if [ -f common/src/metta/common/util/cost_monitor.py ]; then
-    echo "Collecting instance cost..."
-    if uv run python common/src/metta/common/util/cost_monitor.py; then
-      echo "wrote METTA_HOURLY_COST to $METTA_ENV_FILE"
+    echo "[RUN] Collecting instance cost..."
+    METTA_HOURLY_COST=$(uv run python common/src/metta/common/util/cost_monitor.py 2>&1 | tail -1)
+    if [ $? -eq 0 ] && [ -n "$METTA_HOURLY_COST" ]; then
+      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST in $METTA_ENV_FILE"
     else
-      echo "Cost monitor script failed to run."
+      echo "[RUN] Cost monitor script failed to run or returned no value."
     fi
   else
-    echo "Cost monitor script is missing!"
+    echo "[RUN] Cost monitor script is missing!"
   fi
 
   # Debug: Display environment file contents

@@ -11,6 +11,7 @@ echo "Configuring runtime environment..."
 # context and can not directly set ENV in the parent
 
 METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+mkdir -p "$(dirname "$METTA_ENV_FILE")"
 echo "Persisting env vars into: $METTA_ENV_FILE"
 
 # Write all environment variables using heredoc

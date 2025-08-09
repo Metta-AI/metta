@@ -34,7 +34,6 @@ on:
 
 env:
   DEFAULT_TRAINER_ENV: "env/mettagrid/arena/advanced"
-  DEFAULT_TIMEOUT_HOURS: 1
   DEFAULT_TIMEOUT_HOURS: 0.167 # 10 minutes = 0.167 hours
   DEFAULT_NUM_GPUS: "2"
   DEFAULT_NUM_NODES: "2"
@@ -146,7 +145,7 @@ jobs:
           wandb_api_key: ${{ secrets.WANDB_API_KEY }}
           skypilot_service_account_token: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
           observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
-          github_token: ${{ github.event_name == 'push' && env.GITHUB_TOKEN || '' }}
+          github_token: ${{ github.event_name == 'push' && secrets.GITHUB_TOKEN || '' }}
 
       - name: Print Run Information
         shell: bash
