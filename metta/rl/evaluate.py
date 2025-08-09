@@ -15,6 +15,7 @@ from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy as eval_service_evaluate_policy
+from metta.mettagrid.curriculum.core import Curriculum
 from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
@@ -58,8 +59,12 @@ def evaluate_policy_remote(
                         policy_id=stats_server_policy_id,
                         sim_suite=sim_suite_config.name,
                         attributes={
-                            "sim_suite_config": sim_suite_config.model_dump(mode="json"),
+                            "sim_suite_config": sim_suite_config.to_jsonable(),
                             "git_hash": trainer_cfg.simulation.git_hash,
+                            "trainer_task": {
+                                "curriculum": trainer_cfg.curriculum_or_env,
+                                "env_overrides": trainer_cfg.env_overrides,
+                            },
                         },
                     )
                 )
@@ -87,7 +92,7 @@ def evaluate_policy(
     policy_store: PolicyStore,
     stats_client: StatsClient | None,
     wandb_run: WandbRun | None,
-    trainer_cfg: TrainerConfig,
+    training_task_curriculum: Curriculum | None,
     agent_step: int,
     epoch: int,
 ) -> EvalRewardSummary:
@@ -113,6 +118,7 @@ def evaluate_policy(
         policy_store=policy_store,
         stats_client=stats_client,
         logger=logger,
+        training_task_curriculum=training_task_curriculum,
     )
     logger.info("Simulation complete")
 

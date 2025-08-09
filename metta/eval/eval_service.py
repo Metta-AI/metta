@@ -8,7 +8,8 @@ from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.mettagrid.curriculum.core import Curriculum
+from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 
 
@@ -26,6 +27,7 @@ def evaluate_policy(
     eval_task_id: uuid.UUID | None = None,
     policy_store: PolicyStore,
     stats_client: StatsClient | None,
+    training_task_curriculum: Curriculum | None = None,
     logger: logging.Logger,
 ) -> EvalResults:
     """
@@ -40,6 +42,15 @@ def evaluate_policy(
 
     # For each checkpoint of the policy, simulate
     logger.info(f"Evaluating policy {pr.uri}")
+    if training_task_curriculum:
+        logger.info(f"Adding training task to simulation suite: {training_task_curriculum}")
+        task_cfg = training_task_curriculum.get_task().env_cfg()
+        training_task_config = SingleEnvSimulationConfig(
+            env="eval/training_task",  # Just a descriptive name
+            num_episodes=1,
+            env_overrides={"_pre_built_env_config": task_cfg},
+        )
+        simulation_suite.simulations["eval/training_task"] = training_task_config
     sim = SimulationSuite(
         config=simulation_suite,
         policy_pr=pr,

@@ -57,7 +57,7 @@ from metta.rl.wandb import (
     log_model_parameters,
     setup_wandb_metrics,
 )
-from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
+from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
 
 try:
@@ -523,13 +523,6 @@ def train(
 
                 # Add training task to the suite
                 # Pass the config as _pre_built_env_config to avoid Hydra loading
-                task_cfg = curriculum.get_task().env_cfg()
-                training_task_config = SingleEnvSimulationConfig(
-                    env="eval/training_task",  # Just a descriptive name
-                    num_episodes=1,
-                    env_overrides={"_pre_built_env_config": task_cfg},
-                )
-                extended_suite_config.simulations["eval/training_task"] = training_task_config
 
                 if trainer_cfg.simulation.evaluate_remote:
                     evaluate_policy_remote(
@@ -553,9 +546,9 @@ def train(
                         policy_store=policy_store,
                         stats_client=stats_client,
                         wandb_run=wandb_run,
-                        trainer_cfg=trainer_cfg,
                         agent_step=agent_step,
                         epoch=epoch,
+                        training_task_curriculum=curriculum,
                     )
 
                 stats_tracker.update_epoch_tracking(epoch + 1)

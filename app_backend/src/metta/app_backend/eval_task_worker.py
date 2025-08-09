@@ -110,12 +110,10 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
         self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
-    @trace("worker.run_sim_task")
-    async def _run_sim_task(
+    @trace("worker.execute_task")
+    async def execute_task(
         self,
         task: TaskResponse,
-        sim_suite: str,
-        sim_suite_config: dict | None,
     ) -> None:
         if not task.git_hash:
             raise RuntimeError(f"Git hash not found for task {task.id}")
@@ -126,22 +124,22 @@ class SimTaskExecutor(AbstractTaskExecutor):
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
 
-        sim_suite_config_str = json.dumps(sim_suite_config) if sim_suite_config else None
-
         cmd = [
             "uv",
             "run",
             "tools/sim.py",
             f"policy_uri=wandb://run/{policy_name}",
-            f"sim={sim_suite}",
+            f"sim={task.sim_suite}",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
             "device=cpu",
             "vectorization=serial",
             "push_metrics_to_wandb=true",
         ]
-        if sim_suite_config_str:
-            cmd.append(f"sim_suite_config={sim_suite_config_str}")
+        if task.sim_suite_config:
+            cmd.append(f"sim_suite_config={json.dumps(task.sim_suite_config)}")
+        if task.trainer_task:
+            cmd.append(f"trainer_task={json.dumps(task.trainer_task)}")
 
         self._logger.info(f"Running command: {' '.join(cmd)}")
 
@@ -151,9 +149,6 @@ class SimTaskExecutor(AbstractTaskExecutor):
         )
 
         self._logger.info(f"Simulation completed successfully: {result.stdout}")
-
-    async def execute_task(self, task: TaskResponse) -> None:
-        await self._run_sim_task(task, task.sim_suite, task.sim_suite_config)
 
 
 class EvalTaskWorker:

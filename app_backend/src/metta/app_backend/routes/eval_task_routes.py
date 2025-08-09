@@ -63,6 +63,10 @@ class TaskResponse(BaseModel):
         return self._attribute_property("sim_suite_config")
 
     @property
+    def trainer_task(self) -> dict | None:
+        return self._attribute_property("trainer_task")
+
+    @property
     def git_hash(self) -> str | None:
         return self._attribute_property("git_hash")
 

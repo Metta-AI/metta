@@ -23,3 +23,6 @@ push_metrics_to_wandb: false
 
 # Optional JSON override for sim_job.simulation_suite
 sim_suite_config: null
+
+# Optional JSON override for trainer_task
+trainer_task: null
