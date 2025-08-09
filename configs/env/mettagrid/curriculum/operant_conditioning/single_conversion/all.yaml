@@ -1,0 +1,6 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  /env/mettagrid/curriculum/operant_conditioning/single_conversion/2_converters: 1
+  /env/mettagrid/curriculum/operant_conditioning/single_conversion/3_converters: 1
+  /env/mettagrid/curriculum/operant_conditioning/single_conversion/4_converters: 1
