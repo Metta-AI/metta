@@ -11,7 +11,7 @@ from metta.rl.kickstarter_config import KickstartConfig
 class OptimizerConfig(BaseModelWithForbidExtra):
     type: Literal["adam", "muon"] = "adam"
     # Learning rate: Type 2 default chosen by sweep
-    learning_rate: float = Field(default=0.0004573146765703167, gt=0, le=1.0)
+    learning_rate: float = Field(default=0.000457, gt=0, le=1.0)
     # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
     beta1: float = Field(default=0.9, ge=0, le=1.0)
     # Beta2: Standard Adam default from Kingma & Ba (2014)
@@ -48,10 +48,10 @@ class InitialPolicyConfig(BaseModelWithForbidExtra):
 
 
 class CheckpointConfig(BaseModelWithForbidExtra):
-    # Checkpoint every 60s: Balance between recovery granularity and I/O overhead
-    checkpoint_interval: int = Field(default=60, gt=0)
-    # W&B every 5 min: Less frequent due to network overhead and storage costs
-    wandb_checkpoint_interval: int = Field(default=300, ge=0)  # 0 to disable
+    # Checkpoint every 50s: Balance between recovery granularity and I/O overhead
+    checkpoint_interval: int = Field(default=50, gt=0)
+    # W&B every 50s: Synchronized with regular checkpoints
+    wandb_checkpoint_interval: int = Field(default=50, ge=0)  # 0 to disable
     checkpoint_dir: str = Field(default="")
 
     @model_validator(mode="after")
@@ -62,7 +62,7 @@ class CheckpointConfig(BaseModelWithForbidExtra):
 
 class SimulationConfig(BaseModelWithForbidExtra):
     # Interval at which to evaluate and generate replays: Type 2 arbitrary default
-    evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
+    evaluate_interval: int = Field(default=200, ge=0)  # 0 to disable
     replay_dir: str = Field(default="")
     evaluate_remote: bool = Field(default=True)
     evaluate_local: bool = Field(default=True)
@@ -110,22 +110,21 @@ class PPOConfig(BaseModelWithForbidExtra):
 class TorchProfilerConfig(BaseModelWithForbidExtra):
     interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable
     # Upload location: None disables uploads, supports s3:// or local paths
-    profile_dir: str = Field(default="")
+    profile_dir: str | None = Field(default=None)
 
     @property
     def enabled(self) -> bool:
-        return self.interval_epochs > 0
+        return self.interval_epochs > 0 and self.profile_dir is not None
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TorchProfilerConfig":
-        assert self.profile_dir, "profile_dir must be set"
         return self
 
 
 class TrainerConfig(BaseModelWithForbidExtra):
     # Core training parameters
     # Total timesteps: Type 2 arbitrary default
-    total_timesteps: int = Field(default=50_000_000_000, gt=0)
+    total_timesteps: int = Field(default=10_000_000_000, gt=0)
 
     # PPO configuration
     ppo: PPOConfig = Field(default_factory=PPOConfig)
