@@ -18,7 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicySelectorType
@@ -77,7 +77,7 @@ def main(cfg: DictConfig) -> None:
         logger.info(f"Auto-generated run name: {cfg.run}")
 
     sim_job = SimJob(cfg.sim_job)
-    logger.info(f"Sim job config:\n{OmegaConf.to_yaml(sim_job, resolve=True)}")
+    logger.info(f"Sim job:\n{sim_job}")
     training_curriculum: Curriculum | None = None
     if cfg.sim_suite_config:
         logger.info(f"Using sim_suite_config: {cfg.sim_suite_config}")
