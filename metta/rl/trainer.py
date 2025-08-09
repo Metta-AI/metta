@@ -28,8 +28,8 @@ from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_check
 from metta.rl.env_config import EnvConfig
 from metta.rl.evaluate import evaluate_policy, evaluate_policy_remote
 from metta.rl.experience import Experience
-from metta.rl.loss.base_loss import LossTracker
-from metta.rl.loss.ppo import PPO
+from metta.rl.losses.base_loss import LossTracker
+from metta.rl.losses.ppo import PPO
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
@@ -342,32 +342,6 @@ def train(
                 loss_tracker.zero()
                 experience.reset_importance_sampling_ratios()
 
-                # Calculate prioritized sampling parameters
-                # anneal_beta = calculate_prioritized_sampling_params(
-                #     epoch=epoch,
-                #     total_timesteps=trainer_cfg.total_timesteps,
-                #     batch_size=trainer_cfg.batch_size,
-                #     prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
-                #     prio_beta0=trainer_cfg.prioritized_experience_replay.prio_beta0,
-                # )
-
-                # # Compute initial advantages
-                # advantages = torch.zeros(experience.buffer["values"].shape, device=device)
-                # initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
-
-                # advantages = compute_advantage(
-                #     experience.buffer["values"],
-                #     experience.buffer["rewards"],
-                #     experience.buffer["dones"],
-                #     initial_importance_sampling_ratio,
-                #     advantages,
-                #     trainer_cfg.ppo.gamma,
-                #     trainer_cfg.ppo.gae_lambda,
-                #     trainer_cfg.vtrace.vtrace_rho_clip,
-                #     trainer_cfg.vtrace.vtrace_c_clip,
-                #     device,
-                # )
-
                 # Train for multiple epochs
                 minibatch_idx = 0
                 epochs_trained = 0
@@ -383,29 +357,6 @@ def train(
                         loss, shared_loss_data = ppo_loss.train(shared_loss_data, trainer_state)
                         if trainer_state.early_stop_update_epoch:
                             break
-                        # # Sample minibatch
-                        # minibatch, indices, prio_weights = experience.sample_minibatch(
-                        #     advantages=advantages,
-                        #     prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
-                        #     prio_beta=anneal_beta,
-                        # )
-
-                        # policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
-
-                        # Process minibatch
-                        # loss = process_minibatch_update(
-                        #     policy=policy,
-                        #     experience=experience,
-                        #     minibatch=minibatch,
-                        #     policy_td=policy_td,
-                        #     indices=indices,
-                        #     prio_weights=prio_weights,
-                        #     trainer_cfg=trainer_cfg,
-                        #     kickstarter=kickstarter,
-                        #     agent_step=agent_step,
-                        #     losses=loss_tracker,
-                        #     device=device,
-                        # )
 
                         # Optimizer step
                         optimizer.zero_grad()
@@ -423,18 +374,6 @@ def train(
                         minibatch_idx += 1
                     epochs_trained += 1
 
-                    # # Early exit if KL divergence is too high
-                    # if trainer_cfg.ppo.target_kl is not None:
-                    #     average_approx_kl = loss_tracker.approx_kl_sum / loss_tracker.minibatches_processed
-                    #     if average_approx_kl > trainer_cfg.ppo.target_kl:
-                    #         break
-
-                # # Calculate explained variance
-                # y_pred = experience.buffer["values"].flatten()
-                # # av changed advantages
-                # y_true = experience.buffer["advantages"].flatten() + experience.buffer["values"].flatten()
-                # var_y = y_true.var()
-                # loss_tracker.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             epoch += epochs_trained
 
         # Safe to proceed to next rollout phase only once all ranks have completed training

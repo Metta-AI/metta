@@ -7,7 +7,7 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
-from metta.rl.loss.base_loss import BaseLoss, LossTracker
+from metta.rl.losses.base_loss import BaseLoss, LossTracker
 from metta.rl.ppo import compute_ppo_losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
