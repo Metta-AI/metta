@@ -1,0 +1,43 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 4
+  max_steps: 500
+  agent:
+    initial_inventory:
+      battery_blue: 1
+    rewards:
+      inventory:
+        heart: 1.0
+  inventory_item_names:
+    - battery_blue
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+  map_builder:
+    _target_: metta.mettagrid.room.multi_room.MultiRoom
+    num_rooms: 1
+    border_width: 2
+    room:
+      _target_: metta.mettagrid.room.navigation.varied_terrain.VariedTerrain
+      style: balanced
+      width: 6
+      height: 6
+      border_width: 0
+      agents: 4
+      objects:
+        altar: 0
+        box: 0
+  objects:
+    altar:
+      cooldown: 1000
+      initial_resource_count: 1
+      type_id: 2
+    box:
+      type_id: 12

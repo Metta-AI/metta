@@ -50,6 +50,7 @@ class TestGlobalRewardObservations:
             actions={},
             objects={"agent.test_group": agent_config},
             track_movement_metrics=False,  # Explicitly set for clarity
+            no_agent_interference=False,
         )
 
         # Create simple map
@@ -126,6 +127,7 @@ class TestGlobalRewardObservations:
             actions={},
             objects={"agent.test_group": agent_config},
             track_movement_metrics=False,
+            no_agent_interference=False,
         )
 
         game_map = [["agent.test_group", "agent.test_group"]]  # Two agents
@@ -188,6 +190,7 @@ class TestGlobalRewardObservations:
             actions={},
             objects={"agent.test_group": agent_config},
             track_movement_metrics=False,
+            no_agent_interference=False,
         )
 
         game_map = [["agent.test_group"]]
@@ -256,6 +259,7 @@ class TestGlobalRewardObservations:
             actions={},
             objects={"agent.test_group": agent_config},
             track_movement_metrics=False,
+            no_agent_interference=False,
         )
 
         game_map = [["agent.test_group"]]

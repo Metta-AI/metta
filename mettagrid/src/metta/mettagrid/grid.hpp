@@ -68,6 +68,16 @@ public:
     return true;
   }
 
+  inline bool ghost_add_object(GridObject* obj) {
+    if (!is_valid_location(obj->location)) {
+      return false;
+    }
+    obj->id = static_cast<GridObjectId>(this->objects.size());
+    this->objects.push_back(std::unique_ptr<GridObject>(obj));
+    return true;
+  }
+
+
   // Removes an object from the grid and gives ownership of the object to the caller.
   // Since the caller is now the owner, this can make the raw pointer invalid, if the
   // returned unique_ptr is destroyed.
@@ -90,6 +100,23 @@ public:
     GridObject* obj = object(id);
     grid[loc.r][loc.c][loc.layer] = id;
     grid[obj->location.r][obj->location.c][obj->location.layer] = 0;
+    obj->location = loc;
+    return true;
+  }
+  // Force move an object to a location without it being registered in the grid at the new location
+  inline bool ghost_move_object(GridObjectId id, const GridLocation& loc) {
+    if (!is_valid_location(loc)) {
+      return false;
+    }
+
+    GridObject* obj = object(id);
+    if (!obj) {
+      return false;
+    }
+
+    // Remove the object from its current location
+    grid[obj->location.r][obj->location.c][obj->location.layer] = 0;
+
     obj->location = loc;
     return true;
   }
@@ -181,6 +208,12 @@ public:
     for (const auto& layer_objects : grid[row][col]) {
       if (layer_objects != 0) return false;
     }
+    return true;
+  }
+
+  // is_empty for a specific layer
+  inline bool is_empty_at_layer(GridCoord row, GridCoord col, ObservationType layer) const {
+    if (grid[row][col][layer] != 0) return false;
     return true;
   }
 };
