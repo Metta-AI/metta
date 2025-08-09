@@ -17,6 +17,7 @@ from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.datastruct import duplicates
 from metta.common.util.instantiate import instantiate
 from metta.rl.env_config import EnvConfig
+from metta.rl.experience import Experience
 from metta.rl.puffer_policy import PytorchAgent
 
 if TYPE_CHECKING:
@@ -175,6 +176,9 @@ class MettaAgent(nn.Module):
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
         )
+
+    def attach_replay_buffer(self, experience: Experience):
+        self.replay = experience
 
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.

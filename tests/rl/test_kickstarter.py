@@ -12,7 +12,7 @@ import pytest
 import torch
 from tensordict import TensorDict
 
-from metta.rl.kickstarter import Kickstarter, KickstartTeacherConfig
+from metta.rl.loss.kickstarter import Kickstarter, KickstartTeacherConfig
 
 
 class TestKickstarter:
