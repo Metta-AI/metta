@@ -26,6 +26,7 @@ from metta.app_backend.routes.eval_task_routes import (
 )
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
+from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.util.git import METTA_API_REPO_URL
 from metta.common.util.logging_helpers import init_logging
 
@@ -135,6 +136,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "device=cpu",
             "vectorization=serial",
             "push_metrics_to_wandb=true",
+            f"sim_job.replay_dir={SOFTMAX_S3_BASE}/replays/" + "${run}",
         ]
 
         for key, value in env_overrides.items():
