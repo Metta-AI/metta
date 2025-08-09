@@ -1,11 +1,12 @@
 import logging
 import os
 from collections import defaultdict
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import torch
 import torch.distributed
+import torch.nn.functional as F
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 from torchrl.data import Composite
@@ -38,6 +39,10 @@ from metta.rl.policy_management import (
     initialize_policy_for_environment,
     wrap_agent_distributed,
 )
+from metta.rl.rep.dynamics import LatentRollout
+from metta.rl.rep.encoder import TCEncoder
+from metta.rl.rep.momentum import ema_update
+from metta.rl.rep.tc_loss import cosine_tc
 from metta.rl.rollout import get_observation, send_observation
 from metta.rl.stats import (
     StatsTracker,
@@ -46,7 +51,7 @@ from metta.rl.stats import (
 )
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.trainer_config import TrainerConfig
+from metta.rl.trainer_config import RepConfig, TrainerConfig
 from metta.rl.utils import (
     log_training_progress,
     should_run,
@@ -74,6 +79,71 @@ torch.set_float32_matmul_precision("high")
 _rank = int(os.environ.get("RANK", 0))
 _local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
+
+
+def sample_valid_starts(dones: torch.Tensor, k: int) -> torch.Tensor:
+    """Sample valid starting indices for K-step windows."""
+    b, t = dones.shape[:2]
+    valid = (~dones.bool()).squeeze(-1).float()
+    window_ok = torch.ones(b, t - k, device=dones.device)
+    for i in range(k + 1):
+        window_ok *= valid[:, i : i + t - k]
+    probs = window_ok + 1e-6
+    return torch.multinomial(probs, 1).squeeze(-1)
+
+
+def gather_t(x: torch.Tensor, t_idx: torch.Tensor) -> torch.Tensor:
+    """Gather a single timestep from each batch element."""
+    b = x.size(0)
+    return x[torch.arange(b, device=x.device), t_idx]
+
+
+def gather_range(x: torch.Tensor, t_idx: torch.Tensor, k: int) -> torch.Tensor:
+    """Gather a range of K timesteps starting from t_idx."""
+    b = x.size(0)
+    return torch.stack([x[torch.arange(b, device=x.device), t_idx + i] for i in range(k)], dim=1)
+
+
+def _tc_step_from_rollouts(
+    batch: Any,
+    rep_cfg: RepConfig,
+    encoder_online: TCEncoder,
+    encoder_momentum: TCEncoder,
+    latent_dyn: LatentRollout,
+    tc_opt: torch.optim.Optimizer,
+    device: torch.device,
+) -> float:
+    """Perform one temporal-consistency update from fresh rollouts."""
+    k, gamma, lambda_r = rep_cfg.K, rep_cfg.gamma, rep_cfg.lambda_r
+    obs = batch.obs.to(device)
+    acts = batch.actions.to(device)
+    rews = batch.rewards.to(device)
+    dones = batch.dones.to(device)
+
+    starts = sample_valid_starts(dones, k)
+    o0 = gather_t(obs, starts)
+    ofut = gather_range(obs, starts + 1, k)
+    afut = gather_range(acts, starts, k)
+    rgt = gather_range(rews, starts + 1, k)
+
+    z0 = encoder_online(o0)
+    with torch.no_grad():
+        z_tgt = encoder_momentum(ofut.view(-1, *ofut.shape[2:])).view(o0.size(0), k, -1)
+    z_pred, r_pred = latent_dyn.rollout(z0, afut, k)
+
+    loss = cosine_tc(z_pred, z_tgt, gamma=gamma)
+    if rep_cfg.reward_head and r_pred is not None:
+        loss = loss + lambda_r * F.mse_loss(r_pred, rgt)
+
+    tc_opt.zero_grad()
+    loss.backward()
+    torch.nn.utils.clip_grad_norm_(
+        list(encoder_online.parameters()) + list(latent_dyn.parameters()),
+        10.0,
+    )
+    tc_opt.step()
+    ema_update(encoder_momentum, encoder_online, rep_cfg.tau)
+    return float(loss.detach().cpu())
 
 
 def train(
@@ -216,6 +286,59 @@ def train(
         device=device,
         cpu_offload=trainer_cfg.cpu_offload,
     )
+
+    # Representation learning modules
+    if trainer_cfg.rep.enabled:
+        encoder_online = TCEncoder(in_channels=30, latent_dim=trainer_cfg.rep.latent_dim).to(device)
+        encoder_momentum = TCEncoder(in_channels=30, latent_dim=trainer_cfg.rep.latent_dim).to(device).eval()
+        encoder_momentum.load_state_dict(encoder_online.state_dict())
+        for p in encoder_momentum.parameters():
+            p.requires_grad = False
+
+        act_dim = getattr(act_space, "shape", [act_space.n])[0]
+        latent_dyn = LatentRollout(
+            latent_dim=trainer_cfg.rep.latent_dim,
+            act_dim=act_dim,
+            predict_reward=trainer_cfg.rep.reward_head,
+        ).to(device)
+
+        tc_opt = torch.optim.Adam(
+            list(encoder_online.parameters()) + list(latent_dyn.parameters()),
+            lr=trainer_cfg.rep.lr,
+        )
+
+        def encode_obs_no_grad(obs: torch.Tensor) -> torch.Tensor:
+            with torch.no_grad():
+                return encoder_online(obs)
+    else:
+        encoder_online = encoder_momentum = None
+        latent_dyn = None
+        tc_opt = None
+
+    if trainer_cfg.rep.enabled and encoder_online and latent_dyn and tc_opt:
+        rollout_tc_minibatches: list[Any] = []
+        for _ in range(trainer_cfg.rep.tc_epochs):
+            for tc_batch in rollout_tc_minibatches:
+                _tc_step_from_rollouts(
+                    tc_batch,
+                    trainer_cfg.rep,
+                    encoder_online,
+                    encoder_momentum,
+                    latent_dyn,
+                    tc_opt,
+                    device,
+                )
+
+        encoder_online.eval()
+        for p in encoder_online.parameters():
+            p.requires_grad = False
+
+        for _ in range(trainer_cfg.rep.ppo_epochs):
+            pass
+
+        encoder_online.train()
+        for p in encoder_online.parameters():
+            p.requires_grad = True
 
     # Create optimizer
     optimizer_type = trainer_cfg.optimizer.type
