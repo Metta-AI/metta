@@ -9,6 +9,7 @@ Runs eval tasks inside a Docker container.
 """
 
 import asyncio
+import json
 import logging
 import os
 import subprocess
@@ -110,12 +111,10 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
         self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
-    @trace("worker.run_sim_task")
-    async def _run_sim_task(
+    @trace("worker.execute_task")
+    async def execute_task(
         self,
         task: TaskResponse,
-        sim_suite: str,
-        env_overrides: dict,
     ) -> None:
         if not task.git_hash:
             raise RuntimeError(f"Git hash not found for task {task.id}")
@@ -125,12 +124,13 @@ class SimTaskExecutor(AbstractTaskExecutor):
         policy_name = task.policy_name
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
+
         cmd = [
             "uv",
             "run",
             "tools/sim.py",
             f"policy_uri=wandb://run/{policy_name}",
-            f"sim={sim_suite}",
+            f"sim={task.sim_suite}",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
             "device=cpu",
@@ -138,9 +138,10 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "push_metrics_to_wandb=true",
             f"sim_job.replay_dir={SOFTMAX_S3_BASE}/replays/" + "${run}",
         ]
-
-        for key, value in env_overrides.items():
-            cmd.append(f"env_overrides.{key}={value}")
+        if task.sim_suite_config:
+            cmd.append(f"sim_suite_config={json.dumps(task.sim_suite_config)}")
+        if task.trainer_task:
+            cmd.append(f"trainer_task={json.dumps(task.trainer_task)}")
 
         self._logger.info(f"Running command: {' '.join(cmd)}")
 
@@ -150,9 +151,6 @@ class SimTaskExecutor(AbstractTaskExecutor):
         )
 
         self._logger.info(f"Simulation completed successfully: {result.stdout}")
-
-    async def execute_task(self, task: TaskResponse) -> None:
-        await self._run_sim_task(task, task.sim_suite, task.attributes.get("env_overrides", {}))
 
 
 class EvalTaskWorker:
