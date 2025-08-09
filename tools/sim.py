@@ -77,6 +77,7 @@ def main(cfg: DictConfig) -> None:
         logger.info(f"Auto-generated run name: {cfg.run}")
 
     sim_job = SimJob(cfg.sim_job)
+    logger.info(f"Sim job config:\n{OmegaConf.to_yaml(sim_job, resolve=True)}")
     training_curriculum: Curriculum | None = None
     if cfg.sim_suite_config:
         logger.info(f"Using sim_suite_config: {cfg.sim_suite_config}")
@@ -89,7 +90,6 @@ def main(cfg: DictConfig) -> None:
     ):
         logger.info(f"Using trainer_task: {curriculum_name} with overrides: {env_overrides}")
         training_curriculum = curriculum_from_config_path(curriculum_name, DictConfig(env_overrides))
-    logger.info(f"Sim job config:\n{OmegaConf.to_yaml(sim_job, resolve=True)}")
 
     # Create env config
     env_cfg = create_env_config(cfg)
