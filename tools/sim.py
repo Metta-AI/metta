@@ -82,12 +82,8 @@ def main(cfg: DictConfig) -> None:
     if cfg.sim_suite_config:
         logger.info(f"Using sim_suite_config: {cfg.sim_suite_config}")
         sim_job.simulation_suite = SimulationSuiteConfig.model_validate(cfg.sim_suite_config)
-    if (
-        cfg.trainer_task
-        and (parsed := json.loads(cfg.trainer_task))
-        and (curriculum_name := parsed.get("curriculum"))
-        and (env_overrides := parsed.get("env_overrides"))
-    ):
+    if cfg.trainer_task and (parsed := json.loads(cfg.trainer_task)) and (curriculum_name := parsed.get("curriculum")):
+        env_overrides = parsed.get("env_overrides", {})
         logger.info(f"Using trainer_task: {curriculum_name} with overrides: {env_overrides}")
         training_curriculum = curriculum_from_config_path(curriculum_name, DictConfig(env_overrides))
 
