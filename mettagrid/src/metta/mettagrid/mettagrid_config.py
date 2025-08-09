@@ -1,6 +1,6 @@
 from typing import Any, Literal, Optional
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
 
@@ -42,7 +42,7 @@ class PyStatsRewards(BaseModelWithForbidExtra):
     - stat_name_max: maximum cumulative reward for this stat
     """
 
-    class Config:
+    class ConfigDict:
         extra = "allow"  # Allow any stat names to be added dynamically
 
 
@@ -87,7 +87,7 @@ class PyAgentConfig(BaseModelWithForbidExtra):
 
     default_resource_limit: Optional[int] = Field(default=0, ge=0)
     resource_limits: Optional[dict[str, int]] = Field(default_factory=dict)
-    freeze_duration: Optional[int] = Field(default=0, ge=-1)
+    freeze_duration: Optional[int] = Field(default=10, ge=-1)
     rewards: Optional[PyAgentRewards] = Field(default_factory=PyAgentRewards)
     action_failure_penalty: Optional[float] = Field(default=0, ge=0)
     initial_inventory: Optional[dict[str, int]] = Field(default_factory=dict)
@@ -174,11 +174,11 @@ class PyConverterConfig(BaseModelWithForbidExtra):
     input_resources: dict[str, int] = Field(default_factory=dict)
     output_resources: dict[str, int] = Field(default_factory=dict)
     type_id: int = Field(default=0, ge=0, le=255)
-    max_output: int = Field(ge=-1)
+    max_output: int = Field(ge=-1, default=5)
     max_conversions: int = Field(default=-1)
-    conversion_ticks: int = Field(ge=0)
+    conversion_ticks: int = Field(ge=0, default=1)
     cooldown: int = Field(ge=0)
-    initial_resource_count: int = Field(ge=0)
+    initial_resource_count: int = Field(ge=0, default=0)
     color: int = Field(default=0, ge=0, le=255)
 
 
@@ -188,12 +188,12 @@ class PyGameConfig(BaseModelWithForbidExtra):
     inventory_item_names: list[str]
     num_agents: int = Field(ge=1)
     # max_steps = zero means "no limit"
-    max_steps: int = Field(ge=0)
+    max_steps: int = Field(ge=0, default=1000)
     # default is that we terminate / use "done" vs truncation
     episode_truncates: bool = Field(default=False)
-    obs_width: Literal[3, 5, 7, 9, 11, 13, 15]
-    obs_height: Literal[3, 5, 7, 9, 11, 13, 15]
-    num_observation_tokens: int = Field(ge=1)
+    obs_width: Literal[3, 5, 7, 9, 11, 13, 15] = Field(default=11)
+    obs_height: Literal[3, 5, 7, 9, 11, 13, 15] = Field(default=11)
+    num_observation_tokens: int = Field(ge=1, default=200)
     agent: PyAgentConfig
     # Every agent must be in a group, so we need at least one group
     groups: dict[str, PyGroupConfig] = Field(min_length=1)
@@ -213,6 +213,12 @@ class PyGameConfig(BaseModelWithForbidExtra):
     )
 
 
-class PyPolicyGameConfig(PyGameConfig):
-    obs_width: Literal[11]
-    obs_height: Literal[11]
+class EnvConfig(BaseModelWithForbidExtra):
+    """Environment configuration."""
+
+    game: PyGameConfig
+    desync_episodes: bool = Field(default=True)
+
+    @model_validator(mode="after")
+    def validate_fields(self) -> "EnvConfig":
+        return self
