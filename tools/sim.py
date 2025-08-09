@@ -76,21 +76,20 @@ def main(cfg: DictConfig) -> None:
         cfg.run = _determine_run_name(cfg.policy_uri)
         logger.info(f"Auto-generated run name: {cfg.run}")
 
-    logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
     sim_job = SimJob(cfg.sim_job)
     training_curriculum: Curriculum | None = None
     if cfg.sim_suite_config:
         logger.info(f"Using sim_suite_config: {cfg.sim_suite_config}")
         sim_job.simulation_suite = SimulationSuiteConfig.model_validate(cfg.sim_suite_config)
-        if (
-            cfg.trainer_task
-            and (parsed := json.loads(cfg.trainer_task))
-            and (curriculum_name := parsed.get("curriculum"))
-            and (env_overrides := parsed.get("env_overrides"))
-        ):
-            logger.info(f"Using trainer_task: {curriculum_name} with overrides: {env_overrides}")
-            training_curriculum = curriculum_from_config_path(curriculum_name, DictConfig(env_overrides))
-        logger.info(f"Updated sim job:\n{OmegaConf.to_yaml(sim_job, resolve=True)}")
+    if (
+        cfg.trainer_task
+        and (parsed := json.loads(cfg.trainer_task))
+        and (curriculum_name := parsed.get("curriculum"))
+        and (env_overrides := parsed.get("env_overrides"))
+    ):
+        logger.info(f"Using trainer_task: {curriculum_name} with overrides: {env_overrides}")
+        training_curriculum = curriculum_from_config_path(curriculum_name, DictConfig(env_overrides))
+    logger.info(f"Sim job config:\n{OmegaConf.to_yaml(sim_job, resolve=True)}")
 
     # Create env config
     env_cfg = create_env_config(cfg)
