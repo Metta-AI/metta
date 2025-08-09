@@ -4,3 +4,21 @@
 # DO NOT MODIFY.
 
 run: andre_local_2025_07_24_a
+device: cpu
+
+# replay_job.sim.trainer.env_overrides.game.actions.move.enabled: false
+# replay_job.sim.trainer.env_overrides.game.actions.rotate.enabled: false
+# replay_job.sim.trainer.env_overrides.game.actions.move_cardinal.enabled: true
+
+# replay_job:
+#   sim:
+#     trainer:
+#       env_overrides:
+#         game:
+#           actions:
+#             move:
+#               enabled: false
+#             rotate:
+#               enabled: false
+#             move_cardinal:
+#               enabled: true
