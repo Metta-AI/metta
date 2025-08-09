@@ -464,14 +464,17 @@ def process_policy_evaluator_stats(
         run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
         logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {pr.uri}")
         if eval_results.replay_urls:
-            upload_replay_html(
-                replay_urls=eval_results.replay_urls,
-                agent_step=agent_step,
-                epoch=epoch,
-                wandb_run=run,
-                metric_prefix=POLICY_EVALUATOR_METRIC_PREFIX,
-                step_metric_key=POLICY_EVALUATOR_STEP_METRIC,
-                epoch_metric_key=POLICY_EVALUATOR_EPOCH_METRIC,
-            )
+            try:
+                upload_replay_html(
+                    replay_urls=eval_results.replay_urls,
+                    agent_step=agent_step,
+                    epoch=epoch,
+                    wandb_run=run,
+                    metric_prefix=POLICY_EVALUATOR_METRIC_PREFIX,
+                    step_metric_key=POLICY_EVALUATOR_STEP_METRIC,
+                    epoch_metric_key=POLICY_EVALUATOR_EPOCH_METRIC,
+                )
+            except Exception as e:
+                logger.error(f"Failed to upload replays for {pr.uri}: {e}", exc_info=True)
     finally:
         run.finish()
