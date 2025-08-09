@@ -26,6 +26,8 @@ links:
     url: https://app.datadoghq.com/dashboard/gpk-2y2-9er?fromUser=false&refresh_mode=sliding&from_ts=1754597801739&to_ts=1754601401739&live=true
   - name: Grafana
     url: https://grafana.softmax-research.net/
+  - name: Cost Tracking Dashboard
+    url: https://111005867451-tovi76iq.us-east-1.console.aws.amazon.com/costmanagement/home#/cost-explorer?chartStyle=STACK&costAggregate=unBlendedCost&endDate=2025-07-31&excludeForecasting=false&filter=%5B%7B%22dimension%22:%7B%22id%22:%22RecordTypeV2%22,%22displayValue%22:%22Charge%20type%22%7D,%22operator%22:%22INCLUDES%22,%22values%22:%5B%7B%22value%22:%22Usage%22,%22displayValue%22:%22Usage%22%7D%5D%7D%5D&futureRelativeRange=CUSTOM&granularity=Daily&groupBy=%5B%22TagKeyValue:skypilot-user%22%5D&historicalRelativeRange=LAST_MONTH&isDefault=false&reportId=1971d36b-0953-49af-a635-11741bf365c0&reportMode=STANDARD&reportName=Costs%20by%20SkyPilot%20user&showOnlyUncategorized=false&showOnlyUntagged=false&startDate=2025-07-01&usageAggregate=undefined&useNormalizedUnits=false&reportArn=arn:aws:ce::111005867451:ce-saved-report%2F1971d36b-0953-49af-a635-11741bf365c0
   - name: AWS
     url: https://softmaxx.awsapps.com/start/
   - name: GitHub
