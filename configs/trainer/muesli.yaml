@@ -1,0 +1,84 @@
+# Muesli trainer configuration
+defaults:
+  - trainer  # Inherit from base trainer config
+  - _self_
+
+# Override algorithm type
+algorithm: muesli
+
+# Muesli-specific configuration
+muesli:
+  # CMPO configuration
+  cmpo:
+    clip_bound: 1.0  # Advantage clipping bound (max TV distance = tanh(c/2))
+    cmpo_weight: 1.0  # Weight for CMPO KL regularization
+    variance_decay: 0.99  # Running variance estimate decay
+
+  # Model learning configuration
+  model_learning:
+    unroll_steps: 5  # Number of steps to unroll the model
+    model_weight: 1.0  # Overall model loss weight
+    reward_weight: 1.0  # Reward prediction weight
+    value_weight: 1.0  # Value prediction weight
+    policy_model_weight: 1.0  # Policy model weight
+
+  # Categorical representation
+  categorical:
+    support_size: 601  # Number of bins for value/reward representation
+    value_min: -300.0  # Minimum value
+    value_max: 300.0  # Maximum value
+
+  # Replay buffer configuration
+  replay:
+    capacity: 100000  # Buffer capacity
+    replay_fraction: 0.75  # Fraction of replay data vs fresh data
+    priority_alpha: 0.0  # Priority exponent (0 = uniform)
+    priority_beta: 0.6  # Importance sampling correction
+
+  # Target network
+  target_network:
+    tau: 0.1  # EMA update rate
+    update_freq: 1  # Update frequency in training steps
+
+  # Retrace configuration
+  retrace:
+    lambda_: 0.95  # Retrace lambda
+    rho_max: 1.0  # Maximum importance sampling ratio
+
+  # Network architecture
+  network:
+    hidden_size: 512  # Hidden layer size
+    conv_channels: 64  # Conv channels
+    dynamics_hidden_size: 1024  # Dynamics LSTM hidden size
+    num_lstm_layers: 1  # Number of LSTM layers
+    policy_init_gain: 0.01  # Policy head initialization
+
+  # Mixed training
+  mixed_training: true  # Use mixed on-policy/off-policy training
+  max_grad_norm: 40.0  # Gradient clipping
+
+# Override some base trainer params for Muesli
+total_timesteps: 10_000_000_000
+batch_size: 524288
+minibatch_size: 4096  # Smaller minibatches for model learning
+update_epochs: 1  # Single epoch per batch (replay handles multiple updates)
+
+# Optimizer configuration
+optimizer:
+  type: adam
+  learning_rate: 0.0003  # Similar to PPO
+  beta1: 0.9
+  beta2: 0.999
+  eps: 1e-8
+  weight_decay: 0
+
+# Disable PPO-specific features
+ppo:
+  clip_coef: 0.0  # Not used in Muesli
+  ent_coef: 0.0  # Entropy is handled differently in Muesli
+  target_kl: null
+
+# Checkpoint more frequently due to replay buffer
+checkpoint:
+  checkpoint_interval: 25
+  wandb_checkpoint_interval: 25
