@@ -8,6 +8,7 @@ from torch import nn
 
 import pufferlib.models
 import pufferlib.pytorch
+from tensordict import TensorDict
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             )
         super().__init__(env, policy, input_size, hidden_size)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 
     def initialize_to_environment(
         self,
@@ -72,8 +74,22 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
         logger.info(f"Initialized policy actions: {self.active_actions}")
 
-    def forward(self, observations: torch.Tensor, state: Optional[dict] = None, action=None) -> dict:
+    def forward(self, td: TensorDict, state: Optional[dict] = None, action=None) -> TensorDict:
+
         """Forward pass: encodes observations, runs LSTM, decodes into actions, value, and stats."""
+
+        # Handle BPTT reshaping like the original
+        td.bptt = 1
+        td.batch = td.batch_size.numel()
+        if td.batch_dims > 1:
+            B = td.batch_size[0]
+            TT = td.batch_size[1]
+            td = td.reshape(td.batch_size.numel())  # flatten to BT
+            td.bptt = TT
+            td.batch = B
+
+
+        observations = td["env_obs"]
         state = state or {"lstm_h": None, "lstm_c": None, "hidden": None}
         observations = observations.to(self.device)
 
@@ -102,14 +118,29 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         else:
             actions_tensor = torch.stack([actions[0], torch.zeros_like(actions[0])], dim=-1)
 
-        return {
-            "actions": actions_tensor,
-            "act_log_prob": log_probs.mean(dim=-1),
-            "entropy": entropies.sum(dim=-1),
-            "value": value.flatten(),
-            "full_log_probs": full_log_probs,
-            "env_obs": observations,
-        }
+        actions_tensor = actions_tensor.to(dtype=torch.int32)
+
+        if action is None:
+            td["actions"] = torch.zeros(
+                (actions_tensor.shape[0], actions_tensor.shape[1]), dtype=torch.int32, device=self.device
+            )
+            td["act_log_prob"] = log_probs.mean(dim=-1)
+            td["values"] = value.flatten()
+            td["full_log_probs"] = full_log_probs
+
+        else:
+            td["act_log_prob"] = log_probs.mean(dim=-1)
+            td["entropy"] = entropies.sum(dim=-1)
+            td["value"] = value.flatten()
+            td["full_log_probs"] = full_log_probs
+
+            td = td.reshape(B, TT)
+
+
+
+
+        return td
+
 
     def _prepare_lstm_state(self, state: dict):
         """Ensures LSTM hidden states are on the correct device and sized properly."""
@@ -143,6 +174,9 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             full_log_probs.append(F.pad(log_probs, (0, pad_width), value=float("-inf")))
 
         return actions, torch.stack(selected_log_probs, dim=-1), torch.stack(entropies, dim=-1), torch.stack(full_log_probs, dim=-1)
+
+
+
 
 
 class Policy(nn.Module):

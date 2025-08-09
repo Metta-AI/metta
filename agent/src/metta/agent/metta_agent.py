@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Optional, Tuple, Union, Any
 import gymnasium as gym
 import numpy as np
 import torch
-from omegaconf import DictConfig, OmegaConf
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
@@ -180,17 +179,15 @@ class MettaAgent(nn.Module):
         self.policy.agent = self
         self.policy.to(self.device)
 
-    def forward(self, obs: Dict[str, torch.Tensor], state = None, action: Optional[torch.Tensor] = None) -> Tuple:
+    def forward(self, td: Dict[str, torch.Tensor], state = None, action: Optional[torch.Tensor] = None) -> Tuple:
         """Forward pass through the policy."""
         if self.policy is None:
             raise RuntimeError("No policy set. Use set_policy() first.")
         if isinstance(self.policy, ComponentPolicy):
 
-            return self.policy.forward(obs, action)
+            return self.policy.forward(td, action)
 
-        logger.info(f"Obervation: {obs['env_obs'].shape}")
-
-        return self.policy(obs['env_obs'], state, action)
+        return self.policy(td, state, action)
 
 
     def initialize_to_environment(self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device, is_training: bool = True):
