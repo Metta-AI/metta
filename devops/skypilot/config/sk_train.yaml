@@ -27,6 +27,17 @@ resources:
     strategy: EAGER_NEXT_REGION
     max_restarts_on_errors: 20
 
+config:
+  docker:
+    run_options:
+      - --cap-add=IPC_LOCK
+      - --ulimit memlock=-1:-1
+      - --ipc=host
+      - --userns=host
+      - --shm-size=4g
+      - --security-opt seccomp=unconfined
+      - --security-opt apparmor=unconfined
+
 file_mounts:
   /mnt/s3/softmax-public:
     source: s3://softmax-public
@@ -39,21 +50,22 @@ setup: |
   set -e
   cd /workspace/metta
 
+  # Note that the docker image may start in a venv!
+
   echo "[SETUP] Fetching latest from origin..."
   git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
+  git checkout "$METTA_GIT_REF"
+  echo "[SETUP] Checked out: $(git rev-parse HEAD)"
 
-  echo "[SETUP] Checking out ref: $METTA_GIT_REF"
-  git checkout $METTA_GIT_REF
-
+  # Python environment setup
+  echo "[SETUP] Setting up Python environment..."
   uv sync
-  mkdir -p $WANDB_DIR
 
-  echo "[SETUP] Creating job secrets..."
-  ./devops/skypilot/create_job_secrets.py \
-    --wandb-password "$WANDB_PASSWORD" \
-    --observatory-token "$OBSERVATORY_TOKEN"
+  # Create required directories
+  mkdir -p "$WANDB_DIR"
 
-  echo "[SETUP] Setup complete."
+  # Note that different sets of skypilot environment variables are available in "run" vs "setup"
+  # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
 
 run: |
   set -euo pipefail
@@ -65,6 +77,8 @@ run: |
   fi
   . .venv/bin/activate
 
+  bash ./devops/skypilot/config/configure_environment.sh
+
   echo "[RUN] Starting run phase..."
   echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
   echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
@@ -72,17 +86,10 @@ run: |
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
     echo "[RUN] Collecting skypilot latency..."
     LATENCY_OUTPUT=$(uv run python common/src/metta/common/util/skypilot_latency.py 2>&1) || true
-    echo "$LATENCY_OUTPUT"
+    echo "[RUN] $LATENCY_OUTPUT"
   else
     echo "[RUN] Latency script is missing!"
   fi
-
-  export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
-  export NUM_NODES=$SKYPILOT_NUM_NODES
-  export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
-  export MASTER_PORT=8008
-  export NODE_INDEX=$SKYPILOT_NODE_RANK
-  export NCCL_SHM_DISABLE=1
 
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
 
@@ -98,23 +105,112 @@ run: |
     echo "[RUN] Cost monitor script is missing!"
   fi
 
-  # load ENV
+  # Debug: Display environment file contents
+  echo "=== DEBUG: Contents of $METTA_ENV_FILE ==="
   if [ -f "$METTA_ENV_FILE" ]; then
-    source "$METTA_ENV_FILE"
+    cat "$METTA_ENV_FILE"
   else
-    echo "Warning: $METTA_ENV_FILE does not exist. Creating empty file."
-    touch "$METTA_ENV_FILE"
+    echo "ERROR: Environment file not found at $METTA_ENV_FILE"
+  fi
+  echo "=== END DEBUG ==="
+
+  # load environment vars written by child scripts
+  source "$METTA_ENV_FILE"
+
+  echo "Cluster configuration:"
+  echo "  NUM_GPUS=$NUM_GPUS"
+  echo "  NUM_NODES=$NUM_NODES"
+  echo "  MASTER_ADDR=$MASTER_ADDR"
+  echo "  NODE_INDEX=$NODE_INDEX"
+
+  # System diagnostics with cleaner output
+  echo "System diagnostics:"
+  echo "  ULIMIT=$(ulimit -l)"
+  echo "  SHM_MOUNT=$(mount | grep /dev/shm || echo 'No /dev/shm mount found')"
+  echo "  ROUTE_TO_MASTER=$(ip -o route get $MASTER_ADDR | head -1)"
+  echo "  NETWORK_INTERFACE=$(ip -o addr show ${NCCL_SOCKET_IFNAME:-enp39s0} | head -1 || echo 'Interface ${NCCL_SOCKET_IFNAME:-enp39s0} not found')"
+  echo "  IPC=$(readlink /proc/1/ns/ipc)"
+  echo "  SHM_DF=$(df -h /dev/shm | tail -1)"
+  echo "  USERNS=$(docker info | grep -i 'userns')"
+  echo "  UMASK=$(umask)"
+
+
+  echo "== SHM info =="
+  mount | grep /dev/shm || true
+  df -h /dev/shm || true
+  ls -ld /dev/shm || true
+  ipcs -m | head -20 || true   # (SysV shm - NCCL uses POSIX shm, but still useful)
+  docker info | grep -i userns || true
+
+  echo "== NCCL env =="
+  env | egrep 'NCCL_|MASTER_|RANK|LOCAL_RANK|WORLD_SIZE'
+
+  # Log NCCL configuration
+  echo "Rendezvous: $MASTER_ADDR:$MASTER_PORT | IFACE=${NCCL_SOCKET_IFNAME:-enp39s0} AF=${NCCL_SOCKET_FAMILY:-AF_INET} PORT_RANGE=${NCCL_PORT_RANGE:-43000-43063}"
+  echo "NCCL: DEBUG=${NCCL_DEBUG:-VERSION}${NCCL_DEBUG_SUBSYS:+/$NCCL_DEBUG_SUBSYS} P2P=$((1- ${NCCL_P2P_DISABLE:-0})) SHM=$((1- ${NCCL_SHM_DISABLE:-0})) IB=$((1- ${NCCL_IB_DISABLE:-1})) CH=${NCCL_MIN_NCHANNELS:-4}-${NCCL_MAX_NCHANNELS:-8}"
+
+  # Run comprehensive GPU diagnostics and NCCL tests
+  echo "Running GPU diagnostics and NCCL tests..."
+  if [ "$NUM_NODES" -gt 1 ] || [ "$NUM_GPUS" -gt 1 ]; then
+      # For distributed training
+      if ! uv run torchrun \
+        --nproc_per_node=$NUM_GPUS \
+        --nnodes=$NUM_NODES \
+        --node_rank=$NODE_INDEX \
+        --master_addr=$MASTER_ADDR \
+        --master_port="$MASTER_PORT" \
+        ./devops/skypilot/test_nccl.py; then
+          echo "NCCL pre-flight check failed!"
+          exit 1
+      fi
+  else
+      # For single GPU
+      if ! uv run python ./devops/skypilot/test_nccl.py; then
+          echo "GPU pre-flight check failed!"
+          # exit 1
+      fi
   fi
 
-  echo "[RUN] Running training script..."
-  ./devops/$METTA_CMD.sh \
-    run=$METTA_RUN_ID \
-    $METTA_CMD_ARGS
-  TRAIN_EXIT=$?
-  echo "[RUN] Training script exit code: $TRAIN_EXIT"
+  HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
 
-  echo "[RUN] Job complete."
-  exit $TRAIN_EXIT
+  # Start train.sh in background
+  ./devops/"$METTA_CMD".sh run="$METTA_RUN_ID" $METTA_CMD_ARGS &
+  TRAIN_PID=$!
+
+  # Start heartbeat *watching the train PID*
+  if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
+    echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE (pid=$TRAIN_PID)"
+    uv run python -m metta.common.util.heartbeat monitor "$HEARTBEAT_FILE" \
+      --pid "$TRAIN_PID" --timeout "$HEARTBEAT_TIMEOUT" \
+      >/dev/null 2>&1 &
+    HEARTBEAT_PID=$!
+  fi
+
+  # Wait for training to finish, capture exit, then kill heartbeat cleanly
+  wait "$TRAIN_PID"
+  CMD_EXIT=$?
+
+  if [[ -n "${HEARTBEAT_PID:-}" ]]; then
+    kill "$HEARTBEAT_PID" 2>/dev/null || true
+    wait "$HEARTBEAT_PID" 2>/dev/null || true
+  fi
+
+  # if a github token is provided, report training status back to github
+  COMMIT_SHA=$(git rev-parse HEAD)
+  GITHUB_REPOSITORY="$(uv run ./common/src/metta/common/util/constants.py METTA_GITHUB_REPO)"
+
+  # Just export the variables and run the script
+  if [ -n "${GITHUB_TOKEN:-}" ]; then
+      echo "Posting status to GitHub…"
+
+      # The script reads CMD_EXIT, COMMIT_SHA, and SKYPILOT_TASK_ID from environment
+      uv run python ./devops/skypilot/post_commit_status.py
+  else
+      echo "GITHUB_TOKEN not set; skipping GitHub status update"
+  fi
+
+  echo "$METTA_CMD job complete. (Exit code: $CMD_EXIT)"
+  exit $CMD_EXIT
 
 envs:
   METTA_RUN_ID: ""
@@ -123,6 +219,9 @@ envs:
   METTA_GIT_REF: main
   WANDB_DIR: ./wandb
   HEARTBEAT_TIMEOUT: 600
+
+  # if a github token is provided, we will report training status back to the branch
+  GITHUB_TOKEN: ""
 
   # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta
   DATA_DIR: /mnt/s3/train_dir

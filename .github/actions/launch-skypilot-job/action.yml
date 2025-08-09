@@ -15,6 +15,10 @@ inputs:
     description: "Number of GPUs to request. If empty, uses SkyPilot task default."
     required: false
     default: ""
+  num_nodes:
+    description: "Number of Nodes to request. If empty, uses SkyPilot task default."
+    required: false
+    default: ""
   git_ref_override: # Allow overriding the git ref for specific cases, normally determined automatically
     description: "Specific git ref (commit/branch/tag) to use. If empty, uses current HEAD."
     required: false
@@ -31,6 +35,10 @@ inputs:
   observatory_token:
     description: "Observatory API token"
     required: true
+  github_token:
+    description: "GitHub token (repo:status scope) for posting back job status"
+    required: false
+    default: ""
 
 runs:
   using: "composite"
@@ -87,6 +95,14 @@ runs:
 
         if [ -n "${{ inputs.num_gpus }}" ]; then
           LAUNCH_ARGS+=( "--gpus=${{ inputs.num_gpus }}" )
+        fi
+
+        if [ -n "${{ inputs.num_nodes }}" ]; then
+          LAUNCH_ARGS+=( "--nodes=${{ inputs.num_nodes }}" )
+        fi
+
+        if [ -n "${{ inputs.github_token }}" ]; then
+          LAUNCH_ARGS+=( "--github_token=${{ inputs.github_token }}" )
         fi
 
         LAUNCH_ARGS+=(

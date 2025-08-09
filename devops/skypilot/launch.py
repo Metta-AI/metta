@@ -109,6 +109,10 @@ def main():
     )
     parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation")
     parser.add_argument("-c", "--confirm", action="store_true", help="Show confirmation prompt")
+    parser.add_argument(
+        "--github-token", type=str, default=None, help="GitHub token for posting status updates (repo:status scope)"
+    )
+
     (args, cmd_args) = parser.parse_known_args(filtered_args)
 
     if run_id is None:
@@ -147,6 +151,7 @@ def main():
             METTA_CMD_ARGS=" ".join(cmd_args),
             METTA_GIT_REF=commit_hash,
             HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
+            GITHUB_TOKEN=args.github_token or "",
         )
     )
     task.name = run_id
