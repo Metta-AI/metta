@@ -20,3 +20,6 @@ eval_task_id: null
 cmd: sim
 
 push_metrics_to_wandb: false
+
+# Optional JSON override for sim_job.simulation_suite
+sim_suite_config: null

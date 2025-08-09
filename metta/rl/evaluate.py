@@ -56,11 +56,21 @@ def evaluate_policy_remote(
                 task = stats_client.create_task(
                     TaskCreateRequest(
                         policy_id=stats_server_policy_id,
-                        git_hash=trainer_cfg.simulation.git_hash,
                         sim_suite=sim_suite_config.name,
+                        attributes={
+                            "sim_suite_config": sim_suite_config.model_dump(mode="json"),
+                            "git_hash": trainer_cfg.simulation.git_hash,
+                        },
                     )
                 )
-                logger.info(f"Remote evaluation: created task {task.id} for policy {wandb_policy_name}")
+                logger.info(
+                    f"Policy evaluator: created task {task.id} for {wandb_policy_name} on {sim_suite_config.name}"
+                )
+                # TODO: create a task for the trainer curriculum. Sample a few. Also pass
+                # along overrides if needed. Should make sure we handle overrides correctly
+                # in eval_task_worker.py's call out to sim.py (and make sure sim.py handles)
+                # them correctly. Also these tasks should get registered as eval/training_task
+
                 return task
         return None
 

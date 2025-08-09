@@ -15,9 +15,8 @@ T = TypeVar("T")
 
 class TaskCreateRequest(BaseModel):
     policy_id: uuid.UUID
-    git_hash: str | None = None
-    env_overrides: dict[str, Any] = Field(default_factory=dict)
-    sim_suite: str = "all"
+    sim_suite: str
+    attributes: dict[str, Any] = Field(default_factory=dict)
 
 
 class TaskClaimRequest(BaseModel):
@@ -60,6 +59,10 @@ class TaskResponse(BaseModel):
         return self.attributes.get(key)
 
     @property
+    def sim_suite_config(self) -> dict | None:
+        return self._attribute_property("sim_suite_config")
+
+    @property
     def git_hash(self) -> str | None:
         return self._attribute_property("git_hash")
 
@@ -78,7 +81,7 @@ class TaskResponse(BaseModel):
             id=task.id,
             policy_id=task.policy_id,
             sim_suite=task.sim_suite,
-            status=task.status,
+            status=task.status,  # type: ignore
             assigned_at=task.assigned_at,
             assignee=task.assignee,
             created_at=task.created_at,
@@ -115,14 +118,9 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def create_task(request: TaskCreateRequest, user: str = user_or_token) -> TaskResponse:
         # If no git_hash provided, fetch latest commit from main branch
-        git_hash = request.git_hash
-        if git_hash is None:
-            git_hash = await get_latest_commit(branch="main")
+        if not request.attributes.get("git_hash"):
+            request.attributes["git_hash"] = await get_latest_commit(branch="main")
 
-        attributes = {
-            "env_overrides": request.env_overrides,
-            "git_hash": git_hash,
-        }
         policy = await stats_repo.get_policy_by_id(request.policy_id)
         if not policy:
             raise HTTPException(status_code=404, detail=f"Policy {request.policy_id} not found")
@@ -130,7 +128,7 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         task = await stats_repo.create_eval_task(
             policy_id=request.policy_id,
             sim_suite=request.sim_suite,
-            attributes=attributes,
+            attributes=request.attributes,
             user_id=user,
         )
         return TaskResponse.from_db(task)

@@ -76,6 +76,10 @@ def main(cfg: DictConfig) -> None:
 
     logger.info(f"Sim job config:\n{OmegaConf.to_yaml(cfg, resolve=True)}")
     sim_job = SimJob(cfg.sim_job)
+    if cfg.sim_suite_config:
+        logger.info(f"Using sim_suite_config: {cfg.sim_suite_config}")
+        sim_job.simulation_suite = SimulationSuiteConfig.model_validate(cfg.sim_suite_config)
+        logger.info(f"Updated sim job:\n{OmegaConf.to_yaml(sim_job, resolve=True)}")
 
     # Create env config
     env_cfg = create_env_config(cfg)

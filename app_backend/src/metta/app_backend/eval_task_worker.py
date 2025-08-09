@@ -9,6 +9,7 @@ Runs eval tasks inside a Docker container.
 """
 
 import asyncio
+import json
 import logging
 import os
 import subprocess
@@ -114,7 +115,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
         self,
         task: TaskResponse,
         sim_suite: str,
-        env_overrides: dict,
+        sim_suite_config: dict | None,
     ) -> None:
         if not task.git_hash:
             raise RuntimeError(f"Git hash not found for task {task.id}")
@@ -124,6 +125,9 @@ class SimTaskExecutor(AbstractTaskExecutor):
         policy_name = task.policy_name
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
+
+        sim_suite_config_str = json.dumps(sim_suite_config) if sim_suite_config else None
+
         cmd = [
             "uv",
             "run",
@@ -136,9 +140,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "vectorization=serial",
             "push_metrics_to_wandb=true",
         ]
-
-        for key, value in env_overrides.items():
-            cmd.append(f"env_overrides.{key}={value}")
+        if sim_suite_config_str:
+            cmd.append(f"sim_suite_config={sim_suite_config_str}")
 
         self._logger.info(f"Running command: {' '.join(cmd)}")
 
@@ -150,7 +153,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
         self._logger.info(f"Simulation completed successfully: {result.stdout}")
 
     async def execute_task(self, task: TaskResponse) -> None:
-        await self._run_sim_task(task, task.sim_suite, task.attributes.get("env_overrides", {}))
+        await self._run_sim_task(task, task.sim_suite, task.sim_suite_config)
 
 
 class EvalTaskWorker:
