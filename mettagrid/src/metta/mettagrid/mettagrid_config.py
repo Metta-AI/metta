@@ -1,13 +1,20 @@
-from typing import Any, Literal, Optional
+from typing import Any, Dict, Literal, Optional
 
 from pydantic import Field, model_validator
 
-from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.common.util.typed_config import ConfigWithBuilder
+from metta.map.mapgen import MapGenParams
 
 # ===== Python Configuration Models =====
 
 
-class InventoryRewards(BaseModelWithForbidExtra):
+class MapConfig(ConfigWithBuilder):
+    """Map configuration that wraps MapGenParams."""
+    
+    map_gen: MapGenParams
+
+
+class InventoryRewards(ConfigWithBuilder):
     """Inventory-based reward configuration."""
 
     ore_red: Optional[float] = Field(default=None)
@@ -32,7 +39,7 @@ class InventoryRewards(BaseModelWithForbidExtra):
     blueprint_max: Optional[int] = Field(default=None)
 
 
-class StatsRewards(BaseModelWithForbidExtra):
+class StatsRewards(ConfigWithBuilder):
     """Agent stats-based reward configuration.
 
     Maps stat names to reward values. Stats are tracked by the StatsTracker
@@ -46,7 +53,7 @@ class StatsRewards(BaseModelWithForbidExtra):
         extra = "allow"  # Allow any stat names to be added dynamically
 
 
-class AgentRewards(BaseModelWithForbidExtra):
+class AgentRewards(ConfigWithBuilder):
     """Agent reward configuration with separate inventory and stats rewards."""
 
     inventory: Optional[InventoryRewards] = Field(default_factory=InventoryRewards)
@@ -82,7 +89,7 @@ class AgentRewards(BaseModelWithForbidExtra):
         super().__init__(**data)
 
 
-class AgentConfig(BaseModelWithForbidExtra):
+class AgentConfig(ConfigWithBuilder):
     """Python agent configuration."""
 
     default_resource_limit: Optional[int] = Field(default=0, ge=0)
@@ -93,7 +100,7 @@ class AgentConfig(BaseModelWithForbidExtra):
     initial_inventory: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
-class GroupConfig(BaseModelWithForbidExtra):
+class GroupConfig(ConfigWithBuilder):
     """Python group configuration."""
 
     id: int
@@ -104,7 +111,7 @@ class GroupConfig(BaseModelWithForbidExtra):
     props: AgentConfig = Field(default_factory=AgentConfig)
 
 
-class ActionConfig(BaseModelWithForbidExtra):
+class ActionConfig(ConfigWithBuilder):
     """Python action configuration."""
 
     enabled: bool = Field(default=True)
@@ -125,7 +132,7 @@ class ChangeGlyphActionConfig(ActionConfig):
     number_of_glyphs: int = Field(default=0, ge=0, le=255)
 
 
-class ActionsConfig(BaseModelWithForbidExtra):
+class ActionsConfig(ConfigWithBuilder):
     """
     Actions configuration.
 
@@ -145,7 +152,7 @@ class ActionsConfig(BaseModelWithForbidExtra):
     change_glyph: Optional[ChangeGlyphActionConfig] = None
 
 
-class GlobalObsConfig(BaseModelWithForbidExtra):
+class GlobalObsConfig(ConfigWithBuilder):
     """Global observation configuration."""
 
     episode_completion_pct: bool = Field(default=True)
@@ -161,14 +168,14 @@ class GlobalObsConfig(BaseModelWithForbidExtra):
     visitation_counts: bool = Field(default=False)
 
 
-class WallConfig(BaseModelWithForbidExtra):
+class WallConfig(ConfigWithBuilder):
     """Python wall/block configuration."""
 
     type_id: int
     swappable: bool = Field(default=False)
 
 
-class ConverterConfig(BaseModelWithForbidExtra):
+class ConverterConfig(ConfigWithBuilder):
     """Python converter configuration."""
 
     input_resources: dict[str, int] = Field(default_factory=dict)
@@ -182,7 +189,7 @@ class ConverterConfig(BaseModelWithForbidExtra):
     color: int = Field(default=0, ge=0, le=255)
 
 
-class GameConfig(BaseModelWithForbidExtra):
+class GameConfig(ConfigWithBuilder):
     """Python game configuration."""
 
     inventory_item_names: list[str] = Field(
@@ -218,15 +225,22 @@ class GameConfig(BaseModelWithForbidExtra):
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
     params: Optional[Any] = None
-    map_builder: Optional[Any] = None
+    map: Optional[MapConfig] = None
 
     # Movement metrics configuration
     track_movement_metrics: bool = Field(
         default=False, description="Enable movement metrics tracking (sequential rotations)"
     )
 
+    @model_validator(mode="after")
+    def validate_map_required_for_envs(self) -> "GameConfig":
+        """Note: map field is required for environment creation but optional for C++ config."""
+        # The validation for map being required happens at the environment level, not here
+        # This allows for flexibility in testing and C++ config generation
+        return self
 
-class EnvConfig(BaseModelWithForbidExtra):
+
+class EnvConfig(ConfigWithBuilder):
     """Environment configuration."""
 
     game: GameConfig

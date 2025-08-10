@@ -11,10 +11,79 @@ import time
 import numpy as np
 from omegaconf import DictConfig
 
-from metta.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.gym_env import SingleAgentMettaGridGymEnv
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
+from metta.mettagrid.mettagrid_config import EnvConfig, MapConfig
+from metta.map.mapgen import MapGenParams
+
+
+def _create_env_config(config):
+    """Helper function to create EnvConfig from config."""
+    from omegaconf import OmegaConf
+    
+    root_scene = {
+        "type": "metta.map.scenes.random.Random",
+        "params": {
+            "agents": config.game.num_agents,
+            "objects": {
+                "mine_red": 3,
+                "generator_red": 2,
+                "altar": 1,
+            }
+        }
+    }
+    
+    map_gen_params = MapGenParams(
+        width=12,
+        height=12,
+        root=root_scene
+    )
+    map_config = MapConfig(map_gen=map_gen_params)
+    
+    # Create game dict and add map config - keep it as DictConfig for some envs
+    game_dict = OmegaConf.to_container(config.game, resolve=True)
+    # Remove the old map config
+    if "map" in game_dict:
+        del game_dict["map"]
+    game_dict["map"] = map_config.model_dump()
+    
+    return EnvConfig(game=game_dict)
+
+
+def _create_env_config_omegaconf(config):
+    """Helper function to create OmegaConf env config (for PettingZoo)."""
+    from omegaconf import OmegaConf
+    
+    root_scene = {
+        "type": "metta.map.scenes.random.Random",
+        "params": {
+            "agents": config.game.num_agents,
+            "objects": {
+                "mine_red": 3,
+                "generator_red": 2,
+                "altar": 1,
+            }
+        }
+    }
+    
+    map_gen_params = MapGenParams(
+        width=12,
+        height=12,
+        root=root_scene
+    )
+    map_config = MapConfig(map_gen=map_gen_params)
+    
+    # Create game dict and add map config - keep it as DictConfig
+    game_dict = OmegaConf.to_container(config.game, resolve=True)
+    # Remove the old map config
+    if "map" in game_dict:
+        del game_dict["map"]
+    game_dict["map"] = map_config.model_dump()
+    
+    # Return the config as DictConfig wrapped in EnvConfig structure
+    env_config_dict = {"game": OmegaConf.create(game_dict)}
+    return OmegaConf.create(env_config_dict)
 
 
 def create_game_config():
@@ -78,17 +147,20 @@ def create_game_config():
                         "color": 1,
                     },
                 },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 2,
+                "map": {
                     "width": 12,
-                    "height": 12,
-                    "border_width": 1,
-                    "objects": {
-                        "mine_red": 3,
-                        "generator_red": 2,
-                        "altar": 1,
-                    },
+                    "height": 12, 
+                    "root": {
+                        "type": "metta.map.scenes.random.Random",
+                        "params": {
+                            "agents": 2,
+                            "objects": {
+                                "mine_red": 3,
+                                "generator_red": 2,
+                                "altar": 1,
+                            }
+                        }
+                    }
                 },
             }
         }
@@ -102,12 +174,11 @@ def test_puffer_env():
     print("=" * 50)
 
     config = create_game_config()
-    curriculum = SingleTaskCurriculum("mettagrid_interactive", config)
+    env_config = _create_env_config_omegaconf(config)
 
     env = MettaGridEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode="human",
-        is_training=False,
     )
 
     print("Environment created!")
@@ -155,13 +226,12 @@ def test_gym_env():
 
     config = create_game_config()
     config.game.num_agents = 1  # Single agent for Gym
-    config.game.map_builder.agents = 1
-    curriculum = SingleTaskCurriculum("gym_interactive", config)
+    config.game.map.root.params.agents = 1
+    env_config = _create_env_config_omegaconf(config)
 
     env = SingleAgentMettaGridGymEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode="human",
-        is_training=False,
     )
 
     print("Environment created!")
@@ -202,13 +272,12 @@ def test_pettingzoo_env():
 
     config = create_game_config()
     config.game.num_agents = 3  # Multi-agent for PettingZoo
-    config.game.map_builder.agents = 3
-    curriculum = SingleTaskCurriculum("pettingzoo_interactive", config)
+    config.game.map.root.params.agents = 3
+    env_config = _create_env_config_omegaconf(config)
 
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode="human",
-        is_training=False,
     )
 
     print("Environment created!")

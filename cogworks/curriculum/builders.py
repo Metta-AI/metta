@@ -21,23 +21,22 @@ class TaskSetBuilder:
     """Builder for TaskSet configurations."""
     
     @staticmethod
-    def weighted(seed: int = 42) -> WeightedTaskSetBuilder:
+    def weighted() -> WeightedTaskSetBuilder:
         """Create a WeightedTaskSet builder."""
-        return WeightedTaskSetBuilder(seed=seed)
+        return WeightedTaskSetBuilder()
         
     @staticmethod
-    def bucketed(seed: int = 42, base_config: EnvConfig | None = None) -> BuckettedTaskSetBuilder:
+    def bucketed(base_config: EnvConfig | None = None) -> BuckettedTaskSetBuilder:
         """Create a BuckettedTaskSet builder."""
         if base_config is None:
             base_config = EnvConfig()
-        return BuckettedTaskSetBuilder(seed=seed, base_config=base_config)
+        return BuckettedTaskSetBuilder(base_config=base_config)
 
 
 class WeightedTaskSetBuilder:
     """Builder for WeightedTaskSetConfig."""
     
-    def __init__(self, seed: int = 42):
-        self.seed = seed
+    def __init__(self):
         self.items: list[WeightedTaskSetItem] = []
         self.overrides: dict[str, Any] | list[str] | None = None
         
@@ -98,7 +97,6 @@ class WeightedTaskSetBuilder:
     def build(self) -> WeightedTaskSetConfig:
         """Build the WeightedTaskSetConfig."""
         return WeightedTaskSetConfig(
-            seed=self.seed,
             items=self.items,
             overrides=self.overrides
         )
@@ -107,8 +105,7 @@ class WeightedTaskSetBuilder:
 class BuckettedTaskSetBuilder:
     """Builder for BuckettedTaskSetConfig."""
     
-    def __init__(self, seed: int = 42, base_config: EnvConfig | None = None):
-        self.seed = seed
+    def __init__(self, base_config: EnvConfig | None = None):
         self.base_config = base_config or EnvConfig()
         self.buckets: dict[str, list[BucketValue]] = {}
         
@@ -149,7 +146,6 @@ class BuckettedTaskSetBuilder:
     def build(self) -> BuckettedTaskSetConfig:
         """Build the BuckettedTaskSetConfig."""
         return BuckettedTaskSetConfig(
-            seed=self.seed,
             base_config=self.base_config,
             buckets=self.buckets
         )
@@ -178,18 +174,11 @@ class RandomCurriculumBuilder:
     
     def __init__(self, task_set_config: TaskSetConfig):
         self.task_set_config = task_set_config
-        self.base_seed: int | None = None
-        
-    def with_base_seed(self, base_seed: int) -> RandomCurriculumBuilder:
-        """Set the base seed for curriculum."""
-        self.base_seed = base_seed
-        return self
         
     def build(self) -> RandomCurriculumConfig:
         """Build the RandomCurriculumConfig."""
         return RandomCurriculumConfig(
-            task_set_config=self.task_set_config,
-            base_seed=self.base_seed
+            task_set_config=self.task_set_config
         )
 
 
@@ -199,7 +188,6 @@ class LearningProgressCurriculumBuilder:
     def __init__(self, task_set_config: TaskSetConfig):
         self.task_set_config = task_set_config
         self.n_tasks: int = 100
-        self.base_seed: int | None = None
         self.ema_timescale: float = 0.001
         self.progress_smoothing: float = 0.05
         self.num_active_tasks: int = 16
@@ -212,10 +200,6 @@ class LearningProgressCurriculumBuilder:
         self.n_tasks = n_tasks
         return self
         
-    def with_base_seed(self, base_seed: int) -> LearningProgressCurriculumBuilder:
-        """Set the base seed for curriculum."""
-        self.base_seed = base_seed
-        return self
         
     def with_ema_timescale(self, ema_timescale: float) -> LearningProgressCurriculumBuilder:
         """Set the EMA timescale for learning progress."""
@@ -252,7 +236,6 @@ class LearningProgressCurriculumBuilder:
         return LearningProgressCurriculumConfig(
             task_set_config=self.task_set_config,
             n_tasks=self.n_tasks,
-            base_seed=self.base_seed,
             ema_timescale=self.ema_timescale,
             progress_smoothing=self.progress_smoothing,
             num_active_tasks=self.num_active_tasks,

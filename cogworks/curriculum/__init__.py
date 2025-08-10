@@ -1,53 +1,63 @@
 """Reinforcement learning curriculum components."""
 
-from .curriculum import Curriculum, Task, RandomCurriculum, LearningProgressCurriculum
-from .task_set import TaskSet, WeightedTaskSet, BuckettedTaskSet, create_task_set_from_config
+# Task
+from .curriculum import Task
+
+# TaskSet
 from .config import (
     TaskSetConfig,
     WeightedTaskSetConfig,
     BuckettedTaskSetConfig,
     WeightedTaskSetItem,
     BucketValue,
-    CurriculumConfig,
-    RandomCurriculumConfig,
-    LearningProgressCurriculumConfig,
     TaskSetConfigUnion,
-    CurriculumConfigUnion,
 )
+from .task_set import TaskSet, WeightedTaskSet, BuckettedTaskSet, create_task_set_from_config
 from .builders import (
     TaskSetBuilder,
     WeightedTaskSetBuilder,
     BuckettedTaskSetBuilder,
+)
+
+# Curriculum
+from .config import (
+    CurriculumConfig,
+    RandomCurriculumConfig,
+    LearningProgressCurriculumConfig,
+    CurriculumConfigUnion,
+)
+from .curriculum import Curriculum, RandomCurriculum, LearningProgressCurriculum
+from .builders import (
     CurriculumBuilder,
     RandomCurriculumBuilder,
     LearningProgressCurriculumBuilder,
 )
 
 __all__ = [
-    # Core classes
-    "Curriculum",
-    "Task", 
-    "RandomCurriculum",
-    "LearningProgressCurriculum",
-    "TaskSet",
-    "WeightedTaskSet", 
-    "BuckettedTaskSet",
-    "create_task_set_from_config",
-    # Config classes
+    # Task
+    "Task",
+    # TaskSet
     "TaskSetConfig",
     "WeightedTaskSetConfig",
     "BuckettedTaskSetConfig",
     "WeightedTaskSetItem",
     "BucketValue",
-    "CurriculumConfig",
-    "RandomCurriculumConfig",
-    "LearningProgressCurriculumConfig",
     "TaskSetConfigUnion",
-    "CurriculumConfigUnion",
-    # Builder classes
+    "TaskSet",
+    "WeightedTaskSet",
+    "BuckettedTaskSet",
+    "create_task_set_from_config",
     "TaskSetBuilder",
     "WeightedTaskSetBuilder",
     "BuckettedTaskSetBuilder",
+    # Curriculum
+    "CurriculumConfig",
+    "RandomCurriculumConfig",
+    "LearningProgressCurriculumConfig",
+    "CurriculumConfigUnion",
+    "Curriculum",
+    "RandomCurriculum",
+    "LearningProgressCurriculum",
     "CurriculumBuilder",
     "RandomCurriculumBuilder",
     "LearningProgressCurriculumBuilder",

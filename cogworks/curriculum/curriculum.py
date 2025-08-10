@@ -7,7 +7,7 @@ from typing import List
 
 import numpy as np
 
-from metta.curriculum.task_set import TaskSet, create_task_set_from_config
+from cogworks.curriculum.task_set import TaskSet, create_task_set_from_config
 from metta.rl.env_config import EnvConfig
 from .config import (
     CurriculumConfig,
@@ -50,13 +50,14 @@ class Curriculum(ABC):
     to generate the EnvConfig and then returns a Task(env_cfg).
     """
     
-    def __init__(self, config: CurriculumConfig):
+    def __init__(self, config: CurriculumConfig, seed: int = 0):
         self.config = config
         self.task_set = create_task_set_from_config(config.task_set_config)
+        self.rng = random.Random(seed)
         
     @abstractmethod
-    def get_task(self) -> Task:
-        """Generate a task using the task set."""
+    def get_task(self, seed: int) -> Task:
+        """Generate a task using the task set with the provided seed."""
         pass
         
     def complete_task(self, task: Task, score: float):
@@ -73,113 +74,31 @@ class Curriculum(ABC):
 
 
 class RandomCurriculum(Curriculum):
-    """RandomCurriculum simply generates a new seed, and passes it to get_task()."""
+    """RandomCurriculum generates tasks using the provided seed."""
     
-    def __init__(self, config: RandomCurriculumConfig):
-        super().__init__(config)
+    def __init__(self, config: RandomCurriculumConfig, seed: int = 0):
+        super().__init__(config, seed)
         self.config: RandomCurriculumConfig = config
-        self.base_seed = config.base_seed or random.randint(0, 2**32 - 1)
-        self.task_counter = 0
         
-    def get_task(self) -> Task:
-        """Generate task with new seed."""
-        # Generate new seed for each task
-        seed = self.base_seed + self.task_counter
-        self.task_counter += 1
-        
-        # Create new TaskSet instance with the new seed
-        task_set_config = self._create_task_set_config_with_seed(seed)
-        task_set = create_task_set_from_config(task_set_config)
-        
-        # Generate the EnvConfig
-        env_cfg = task_set.get_task()
+    def get_task(self, seed: int) -> Task:
+        """Generate task with the provided seed."""
+        # Generate the EnvConfig using the task_set with seed
+        env_cfg = self.task_set.get_task(seed)
         
         # Return wrapped Task
         return Task(env_cfg, task_id=f"random_{seed}")
-        
-    def _create_task_set_config_with_seed(self, new_seed: int) -> TaskSetConfig:
-        """Create a new TaskSet config with updated seed."""
-        from .config import WeightedTaskSetConfig, BuckettedTaskSetConfig, WeightedTaskSetItem
-        
-        original_config = self.config.task_set_config
-        
-        if isinstance(original_config, WeightedTaskSetConfig):
-            # For weighted task sets, recursively update nested task sets
-            new_items = []
-            for item in original_config.items:
-                if item.task_set_config is not None:
-                    # Recursively update nested task set seed
-                    nested_config = self._update_nested_task_set_seed(item.task_set_config, new_seed)
-                    new_items.append(WeightedTaskSetItem(
-                        task_set_config=nested_config,
-                        weight=item.weight
-                    ))
-                else:
-                    # Keep env_config items as-is
-                    new_items.append(item)
-            
-            return WeightedTaskSetConfig(
-                seed=new_seed,
-                items=new_items,
-                overrides=original_config.overrides
-            )
-        elif isinstance(original_config, BuckettedTaskSetConfig):
-            return BuckettedTaskSetConfig(
-                seed=new_seed,
-                base_config=original_config.base_config,
-                buckets=original_config.buckets
-            )
-        else:
-            # Fallback to original method
-            config_dict = original_config.model_dump()
-            config_dict['seed'] = new_seed
-            return type(original_config).model_validate(config_dict)
-            
-    def _update_nested_task_set_seed(self, task_set_config: TaskSetConfig, base_seed: int) -> TaskSetConfig:
-        """Update nested task set config with new seed."""
-        from .config import WeightedTaskSetConfig, BuckettedTaskSetConfig, WeightedTaskSetItem
-        
-        if isinstance(task_set_config, WeightedTaskSetConfig):
-            # For nested weighted task sets, use a different seed offset
-            new_seed = base_seed + 1000  # Offset to avoid conflicts
-            new_items = []
-            for item in task_set_config.items:
-                if item.task_set_config is not None:
-                    nested_config = self._update_nested_task_set_seed(item.task_set_config, new_seed)
-                    new_items.append(WeightedTaskSetItem(
-                        task_set_config=nested_config,
-                        weight=item.weight
-                    ))
-                else:
-                    new_items.append(item)
-            
-            return WeightedTaskSetConfig(
-                seed=new_seed,
-                items=new_items,
-                overrides=task_set_config.overrides
-            )
-        elif isinstance(task_set_config, BuckettedTaskSetConfig):
-            new_seed = base_seed + 2000  # Different offset for bucketed
-            return BuckettedTaskSetConfig(
-                seed=new_seed,
-                base_config=task_set_config.base_config,
-                buckets=task_set_config.buckets
-            )
-        else:
-            # For base TaskSetConfig, just update seed
-            return TaskSetConfig(seed=base_seed + 3000)
 
 
 class LearningProgressCurriculum(Curriculum):
-    """LearningProgressCurriculum generates N tasks and then does learning progress."""
+    """LearningProgressCurriculum generates N tasks upfront and then samples based on learning progress."""
     
-    def __init__(self, config: LearningProgressCurriculumConfig):
-        super().__init__(config)
+    def __init__(self, config: LearningProgressCurriculumConfig, seed: int = 0):
+        super().__init__(config, seed)
         self.config: LearningProgressCurriculumConfig = config
-        self.base_seed = config.base_seed or random.randint(0, 2**32 - 1)
         
-        # Generate N tasks upfront
-        self.tasks = self._generate_n_tasks()
+        # Initialize empty task list - will be populated on first get_task call
+        self.tasks = []
+        self._tasks_initialized = False
         self.task_outcomes = {task.get_id(): [] for task in self.tasks}
         
         # Learning progress tracking state
@@ -190,95 +109,30 @@ class LearningProgressCurriculum(Curriculum):
         self.task_weights = np.ones(len(self.tasks)) / len(self.tasks)
         self.active_task_indices = list(range(min(self.config.num_active_tasks, len(self.tasks))))
         
-    def _generate_n_tasks(self) -> List[Task]:
+    def _generate_n_tasks(self, base_seed: int) -> List[Task]:
         """Generate N tasks using different seeds."""
         tasks = []
         for i in range(self.config.n_tasks):
-            seed = self.base_seed + i
-            task_set_config = self._create_task_set_config_with_seed(seed)
-            task_set = create_task_set_from_config(task_set_config)
-            env_cfg = task_set.get_task()
+            seed = base_seed + i
+            env_cfg = self.task_set.get_task(seed)
             task = Task(env_cfg, task_id=f"lp_{seed}")
             tasks.append(task)
         return tasks
-        
-    def _create_task_set_config_with_seed(self, new_seed: int) -> TaskSetConfig:
-        """Create a new TaskSet config with updated seed."""
-        from .config import WeightedTaskSetConfig, BuckettedTaskSetConfig, WeightedTaskSetItem
-        
-        original_config = self.config.task_set_config
-        
-        if isinstance(original_config, WeightedTaskSetConfig):
-            # For weighted task sets, recursively update nested task sets
-            new_items = []
-            for item in original_config.items:
-                if item.task_set_config is not None:
-                    # Recursively update nested task set seed
-                    nested_config = self._update_nested_task_set_seed(item.task_set_config, new_seed)
-                    new_items.append(WeightedTaskSetItem(
-                        task_set_config=nested_config,
-                        weight=item.weight
-                    ))
-                else:
-                    # Keep env_config items as-is
-                    new_items.append(item)
             
-            return WeightedTaskSetConfig(
-                seed=new_seed,
-                items=new_items,
-                overrides=original_config.overrides
-            )
-        elif isinstance(original_config, BuckettedTaskSetConfig):
-            return BuckettedTaskSetConfig(
-                seed=new_seed,
-                base_config=original_config.base_config,
-                buckets=original_config.buckets
-            )
-        else:
-            # Fallback to original method
-            config_dict = original_config.model_dump()
-            config_dict['seed'] = new_seed
-            return type(original_config).model_validate(config_dict)
-            
-    def _update_nested_task_set_seed(self, task_set_config: TaskSetConfig, base_seed: int) -> TaskSetConfig:
-        """Update nested task set config with new seed."""
-        from .config import WeightedTaskSetConfig, BuckettedTaskSetConfig, WeightedTaskSetItem
+    def get_task(self, seed: int) -> Task:
+        """Sample task based on learning progress using the provided seed."""
+        # Initialize tasks on first call
+        if not self._tasks_initialized:
+            self.tasks = self._generate_n_tasks(seed)
+            self.task_outcomes = {task.get_id(): [] for task in self.tasks}
+            self.task_weights = np.ones(len(self.tasks)) / len(self.tasks)
+            self.active_task_indices = list(range(min(self.config.num_active_tasks, len(self.tasks))))
+            self._tasks_initialized = True
         
-        if isinstance(task_set_config, WeightedTaskSetConfig):
-            # For nested weighted task sets, use a different seed offset
-            new_seed = base_seed + 1000  # Offset to avoid conflicts
-            new_items = []
-            for item in task_set_config.items:
-                if item.task_set_config is not None:
-                    nested_config = self._update_nested_task_set_seed(item.task_set_config, new_seed)
-                    new_items.append(WeightedTaskSetItem(
-                        task_set_config=nested_config,
-                        weight=item.weight
-                    ))
-                else:
-                    new_items.append(item)
-            
-            return WeightedTaskSetConfig(
-                seed=new_seed,
-                items=new_items,
-                overrides=task_set_config.overrides
-            )
-        elif isinstance(task_set_config, BuckettedTaskSetConfig):
-            new_seed = base_seed + 2000  # Different offset for bucketed
-            return BuckettedTaskSetConfig(
-                seed=new_seed,
-                base_config=task_set_config.base_config,
-                buckets=task_set_config.buckets
-            )
-        else:
-            # For base TaskSetConfig, just update seed
-            return TaskSetConfig(seed=base_seed + 3000)
-            
-    def get_task(self) -> Task:
-        """Sample task based on learning progress."""
+        # Use internal RNG for consistent sampling behavior
         if not self.active_task_indices:
             # If no active tasks, select randomly
-            task_idx = random.randint(0, len(self.tasks) - 1)
+            task_idx = self.rng.randint(0, len(self.tasks) - 1)
         else:
             # Sample from active tasks based on weights
             active_weights = [self.task_weights[i] for i in self.active_task_indices]
@@ -286,11 +140,11 @@ class LearningProgressCurriculum(Curriculum):
             
             if total_weight <= 0:
                 # Uniform sampling if weights are invalid
-                task_idx = random.choice(self.active_task_indices)
+                task_idx = self.rng.choice(self.active_task_indices)
             else:
                 # Weighted sampling
                 normalized_weights = [w / total_weight for w in active_weights]
-                selected_idx = random.choices(self.active_task_indices, weights=normalized_weights)[0]
+                selected_idx = self.rng.choices(self.active_task_indices, weights=normalized_weights)[0]
                 task_idx = selected_idx
                 
         return self.tasks[task_idx]
@@ -383,7 +237,7 @@ class LearningProgressCurriculum(Curriculum):
         all_indices = set(range(len(self.tasks)))
         remaining_indices = all_indices - set(top_indices)
         if remaining_indices and n_random_tasks > 0:
-            random_indices = random.sample(list(remaining_indices), min(n_random_tasks, len(remaining_indices)))
+            random_indices = self.rng.sample(list(remaining_indices), min(n_random_tasks, len(remaining_indices)))
         else:
             random_indices = []
             

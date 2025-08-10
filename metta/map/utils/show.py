@@ -9,7 +9,6 @@ import mettascope.server
 from metta.common.util.config import config_from_path
 from metta.map.utils.storable_map import StorableMap, grid_to_lines
 from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.level_builder import Level
 from metta.sim.map_preview import write_local_map_preview
 
@@ -31,7 +30,7 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
         assert isinstance(env_cfg, DictConfig)
 
         level = Level(storable_map.grid, [])
-        env = MettaGridEnv(SingleTaskCurriculum("show_map", env_cfg), level=level, render_mode="none")
+        env = MettaGridEnv(env_cfg, level=level, render_mode="none")
 
         file_path = write_local_map_preview(env)
 

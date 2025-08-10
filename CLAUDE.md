@@ -57,6 +57,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    ```
 3. **Track deviations** - If you need to deviate from the plan, document why and update the approach
 4. **Keep it concise** - Focus on what changed and why, not how (the code shows how)
+5. **CRITICAL: Always format Python code** - After editing any Python file (*.py), immediately run:
+   ```bash
+   ruff format [file_path]
+   ruff check --fix [file_path]
+   ```
+   Note: Only run these commands on Python files, not on other file types like Markdown, YAML, etc.
 
 ### After Implementation
 
@@ -137,6 +143,11 @@ metta configure --profile=softmax    # Reconfigure for different profile
 metta install aws wandb              # Install specific components
 
 # Run `metta -h` to see all available commands
+
+# If you encounter missing dependencies or import errors (like pufferlib), run:
+metta install                        # Reinstall all components
+# or
+metta install core                   # Reinstall core dependencies only
 ```
 
 ### Key Entry Points
@@ -166,7 +177,7 @@ metta install aws wandb              # Install specific components
 
 4. **Interactive Play**: `tools/play.py` - Manual testing and exploration
    ```bash
-   uv run ./tools/play.py run=play
+   uv run ./tools/play.py --config configs/play/default.yaml
    ```
 
 #### Visualization Tools
@@ -325,6 +336,7 @@ See @.cursor/docs.md for testing examples and quick test commands.
 - Tests should be focused on testing one thing
 - Tests should cover edge cases and boundary conditions
 - Tests are organized in the `tests/` directory, mirroring the project structure
+- **Always use `uv run` for testing Python files** - This ensures proper environment activation and dependency resolution
 - Test organization:
   - `tests/rl/` - Reinforcement learning components
   - `tests/sim/` - Simulation and evaluation

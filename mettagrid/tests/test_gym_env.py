@@ -8,7 +8,6 @@ import numpy as np
 import pytest
 from omegaconf import DictConfig
 
-from metta.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
 
 
@@ -49,13 +48,15 @@ def simple_config():
                 "objects": {
                     "wall": {"type_id": 1, "swappable": False},
                 },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 2,
+                "map": {
                     "width": 16,
-                    "height": 16,
-                    "border_width": 1,
-                    "objects": {},
+                    "height": 16, 
+                    "root": {
+                        "type": "metta.map.scenes.random.Random",
+                        "params": {
+                            "agents": 2
+                        }
+                    }
                 },
             }
         }
@@ -64,14 +65,10 @@ def simple_config():
 
 def test_multi_agent_gym_env(simple_config):
     """Test multi-agent Gymnasium environment."""
-    # Create config and curriculum
-    curriculum = SingleTaskCurriculum("gym_multi_test", simple_config)
-
-    # Create environment
+    # Create environment with config
     env = MettaGridGymEnv(
-        curriculum=curriculum,
+        env_config=simple_config,
         render_mode=None,
-        is_training=False,
         single_agent=False,
     )
 
@@ -104,14 +101,11 @@ def test_single_agent_gym_env(simple_config):
     """Test single-agent Gymnasium environment."""
     # Modify config for single agent
     simple_config.game.num_agents = 1
-    simple_config.game.map_builder.agents = 1
-    curriculum = SingleTaskCurriculum("gym_single_test", simple_config)
-
+    simple_config.game.map.root.params.agents = 1
     # Create environment
     env = SingleAgentMettaGridGymEnv(
-        curriculum=curriculum,
+        env_config=simple_config,
         render_mode=None,
-        is_training=False,
     )
 
     # Test environment properties
@@ -141,11 +135,9 @@ def test_single_agent_gym_env(simple_config):
 
 def test_gym_env_episode_termination(simple_config):
     """Test that environment terminates properly."""
-    curriculum = SingleTaskCurriculum("gym_termination_test", simple_config)
     env = MettaGridGymEnv(
-        curriculum=curriculum,
+        env_config=simple_config,
         render_mode=None,
-        is_training=False,
         single_agent=False,
     )
 

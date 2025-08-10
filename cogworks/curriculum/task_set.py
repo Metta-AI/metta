@@ -23,27 +23,22 @@ logger = logging.getLogger(__name__)
 class TaskSet(ABC):
     """Base class for generating tasks with deterministic seeding.
     
-    TaskSet supports .get_task() and generates tasks on the fly.
+    TaskSet supports .get_task(task_id) where task_id is used as the seed.
     It should always be constructed with a TaskSetConfig.
     """
     
     def __init__(self, config: TaskSetConfig):
         self.config = config
         
-    @property
-    def seed(self) -> int:
-        """Get the seed from config."""
-        return self.config.seed
-        
     @abstractmethod
-    def get_task(self) -> EnvConfig:
-        """Generate a task (EnvConfig) using seeded RNG."""
+    def get_task(self, task_id: int) -> EnvConfig:
+        """Generate a task (EnvConfig) using task_id as seed."""
         pass
         
-    def _init_rng(self) -> random.Random:
+    def _init_rng(self, task_id: int) -> random.Random:
         """Initialize and return a seeded random number generator."""
         rng = random.Random()
-        rng.seed(self.seed)
+        rng.seed(task_id)
         return rng
 
 
@@ -125,9 +120,9 @@ class WeightedTaskSet(TaskSet):
             
         return EnvConfig.model_validate(config_dict)
         
-    def get_task(self) -> EnvConfig:
+    def get_task(self, task_id: int) -> EnvConfig:
         """Sample from items by weight and return EnvConfig."""
-        rng = self._init_rng()
+        rng = self._init_rng(task_id)
         
         if not self.items:
             raise ValueError("No items to sample from")
@@ -142,9 +137,11 @@ class WeightedTaskSet(TaskSet):
         if isinstance(selected_item, EnvConfig):
             return self._apply_overrides(selected_item)
             
-        # If it's a TaskSet, recursively get task
+        # If it's a TaskSet, recursively get task with modified task_id
         if isinstance(selected_item, TaskSet):
-            task = selected_item.get_task()
+            # Use a different seed for nested TaskSets to avoid conflicts
+            nested_task_id = task_id + 1000
+            task = selected_item.get_task(nested_task_id)
             return self._apply_overrides(task)
             
         raise ValueError(f"Invalid item type: {type(selected_item)}")
@@ -176,9 +173,9 @@ class BuckettedTaskSet(TaskSet):
             buckets[key] = bucket_list
         return buckets
         
-    def get_task(self) -> EnvConfig:
+    def get_task(self, task_id: int) -> EnvConfig:
         """Generate task by sampling from buckets."""
-        rng = self._init_rng()
+        rng = self._init_rng(task_id)
         
         # Start with base config
         config_dict = self.base_config.model_dump()
@@ -226,7 +223,7 @@ def create_task_set_from_config(config: TaskSetConfig | DictConfig) -> TaskSet:
             return BuckettedTaskSet(config)
         elif type(config) == TaskSetConfig:
             # Base TaskSetConfig, try to convert to WeightedTaskSetConfig with empty items
-            weighted_config = WeightedTaskSetConfig(seed=config.seed, items=[])
+            weighted_config = WeightedTaskSetConfig(items=[])
             return WeightedTaskSet(weighted_config)
         else:
             raise ValueError(f"Unknown TaskSetConfig type: {type(config)}")
@@ -234,7 +231,6 @@ def create_task_set_from_config(config: TaskSetConfig | DictConfig) -> TaskSet:
     else:
         # Handle legacy Hydra configuration
         task_set_type = config.get("_target_", "WeightedTaskSet")
-        seed = config.get("seed", 42)
         
         if task_set_type == "WeightedTaskSet" or "_target_" not in config:
             items = []
@@ -249,7 +245,7 @@ def create_task_set_from_config(config: TaskSetConfig | DictConfig) -> TaskSet:
                     items.append(WeightedTaskSetItem(task_set_config=child_config, weight=weight))
                     
             overrides = config.get("overrides")
-            weighted_config = WeightedTaskSetConfig(seed=seed, items=items, overrides=overrides)
+            weighted_config = WeightedTaskSetConfig(items=items, overrides=overrides)
             return WeightedTaskSet(weighted_config)
             
         elif task_set_type == "BuckettedTaskSet":
@@ -267,7 +263,7 @@ def create_task_set_from_config(config: TaskSetConfig | DictConfig) -> TaskSet:
                         bucket_values.append(BucketValue(value=value))
                 buckets[key] = bucket_values
                 
-            bucketed_config = BuckettedTaskSetConfig(seed=seed, base_config=base_config, buckets=buckets)
+            bucketed_config = BuckettedTaskSetConfig(base_config=base_config, buckets=buckets)
             return BuckettedTaskSet(bucketed_config)
             
         else:
@@ -277,7 +273,6 @@ def create_task_set_from_config(config: TaskSetConfig | DictConfig) -> TaskSet:
 def create_task_set_config_from_dict(config_dict: dict) -> TaskSetConfig:
     """Create a TaskSetConfig from a dictionary (helper for legacy support)."""
     task_set_type = config_dict.get("_target_", "WeightedTaskSet")
-    seed = config_dict.get("seed", 42)
     
     if task_set_type == "WeightedTaskSet" or "_target_" not in config_dict:
         items = []
@@ -292,7 +287,7 @@ def create_task_set_config_from_dict(config_dict: dict) -> TaskSetConfig:
                 items.append(WeightedTaskSetItem(task_set_config=child_config, weight=weight))
                 
         overrides = config_dict.get("overrides")
-        return WeightedTaskSetConfig(seed=seed, items=items, overrides=overrides)
+        return WeightedTaskSetConfig(items=items, overrides=overrides)
         
     elif task_set_type == "BuckettedTaskSet":
         base_config = EnvConfig.model_validate(config_dict["base_config"])
@@ -309,7 +304,7 @@ def create_task_set_config_from_dict(config_dict: dict) -> TaskSetConfig:
                     bucket_values.append(BucketValue(value=value))
             buckets[key] = bucket_values
             
-        return BuckettedTaskSetConfig(seed=seed, base_config=base_config, buckets=buckets)
+        return BuckettedTaskSetConfig(base_config=base_config, buckets=buckets)
         
     else:
         raise ValueError(f"Unknown TaskSet type: {task_set_type}")

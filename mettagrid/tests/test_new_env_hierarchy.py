@@ -9,7 +9,38 @@ import numpy as np
 import pytest
 from omegaconf import DictConfig
 
-from metta.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.mettagrid_config import EnvConfig, MapConfig
+from metta.map.mapgen import MapGenParams
+
+
+def _create_env_config(config):
+    """Helper function to create EnvConfig from config."""
+    from omegaconf import OmegaConf
+    
+    root_scene = {
+        "type": "metta.map.scenes.random.Random",
+        "params": {
+            "agents": config.game.num_agents
+        }
+    }
+    
+    map_gen_params = MapGenParams(
+        width=10,
+        height=10,
+        root=root_scene
+    )
+    map_config = MapConfig(map_gen=map_gen_params)
+    
+    # Create game dict and add map config - keep it as DictConfig
+    game_dict = OmegaConf.to_container(config.game, resolve=True)
+    # Remove the old map config
+    if "map" in game_dict:
+        del game_dict["map"]
+    game_dict["map"] = map_config.model_dump()
+    
+    # Return the config as DictConfig wrapped in EnvConfig structure
+    env_config_dict = {"game": OmegaConf.create(game_dict)}
+    return OmegaConf.create(env_config_dict)
 
 
 def create_test_config():
@@ -45,24 +76,22 @@ def create_test_config():
                 "objects": {
                     "wall": {"type_id": 1, "swappable": False},
                 },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 2,
-                    "width": 8,
-                    "height": 8,
-                    "border_width": 1,
-                    "objects": {},
+                "map": {
+                    "width": 10,
+                    "height": 10, 
+                    "root": {
+                        "type": "metta.map.scenes.random.Random",
+                        "params": {
+                            "agents": 2
+                        }
+                    }
                 },
             }
         }
     )
 
 
-@pytest.fixture
-def test_curriculum():
-    """Create a test curriculum."""
-    config = create_test_config()
-    return SingleTaskCurriculum("test_hierarchy", config)
+# Removed unused curriculum fixture - now using direct env_config creation
 
 
 class TestNewEnvironmentHierarchy:
@@ -87,13 +116,12 @@ class TestNewEnvironmentHierarchy:
         # Create single agent config
         config = create_test_config()
         config.game.num_agents = 1
-        config.game.map_builder.agents = 1
-        curriculum = SingleTaskCurriculum("test_single", config)
+        config.game.map.root.params.agents = 1
+        env_config = _create_env_config(config)
 
         env = SingleAgentMettaGridGymEnv(
-            curriculum=curriculum,
+            env_config=env_config,
             render_mode=None,
-            is_training=False,
         )
 
         assert env is not None
@@ -106,13 +134,12 @@ class TestNewEnvironmentHierarchy:
         # Create single agent config
         config = create_test_config()
         config.game.num_agents = 1
-        config.game.map_builder.agents = 1
-        curriculum = SingleTaskCurriculum("test_single", config)
+        config.game.map.root.params.agents = 1
+        env_config = _create_env_config(config)
 
         env = SingleAgentMettaGridGymEnv(
-            curriculum=curriculum,
+            env_config=env_config,
             render_mode=None,
-            is_training=False,
         )
 
         # Test reset
@@ -131,27 +158,31 @@ class TestNewEnvironmentHierarchy:
 
         env.close()
 
-    def test_pettingzoo_env_creation(self, test_curriculum):
+    def test_pettingzoo_env_creation(self):
         """Test that PettingZoo environment can be created."""
         from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
+        config = create_test_config()
+        env_config = _create_env_config(config)
+
         env = MettaGridPettingZooEnv(
-            curriculum=test_curriculum,
+            env_config=env_config,
             render_mode=None,
-            is_training=False,
         )
 
         assert env is not None
         env.close()
 
-    def test_pettingzoo_env_basic_ops(self, test_curriculum):
+    def test_pettingzoo_env_basic_ops(self):
         """Test basic PettingZoo environment operations."""
         from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
+        config = create_test_config()
+        env_config = _create_env_config(config)
+
         env = MettaGridPettingZooEnv(
-            curriculum=test_curriculum,
+            env_config=env_config,
             render_mode=None,
-            is_training=False,
         )
 
         # Test reset
@@ -179,9 +210,9 @@ if __name__ == "__main__":
 
     print("Running manual tests...")
 
-    # Create test curriculum
+    # Create test configuration
     config = create_test_config()
-    curriculum = SingleTaskCurriculum("manual_test", config)
+    env_config = _create_env_config(config)
 
     # Test imports
     try:
@@ -194,7 +225,7 @@ if __name__ == "__main__":
 
     # Test basic creation
     try:
-        env = MettaGridEnv(curriculum=curriculum, render_mode=None, is_training=False)
+        env = MettaGridEnv(env_config=env_config, render_mode=None)
         env.close()
         print("✓ MettaGridEnv creation successful")
     except Exception as e:

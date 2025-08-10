@@ -5,53 +5,47 @@
 import argparse
 import logging
 import multiprocessing
-import os
 import platform
 import sys
-import yaml
+from contextlib import nullcontext
 from pathlib import Path
-from typing import Any
 
 import torch
+from pydantic import Field
 from torch.distributed.elastic.multiprocessing.errors import record
 
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.util.config import Config
-from metta.common.util.git import get_git_hash_for_remote_task
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.stats_client_cfg import get_stats_client
+from metta.common.util.typed_config import ConfigWithBuilder
+from metta.common.wandb.wandb_config import WandbConfig
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.core.distributed import setup_device_and_distributed
 from metta.rl.env_config import create_env_config
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.common.util.typed_config import BaseModelWithForbidExtra
 from tools.utils import get_policy_store_from_cfg
-
-from pydantic import Field
-
 
 logger = logging.getLogger(__name__)
 
 
-class TrainConfig(BaseModelWithForbidExtra):
+class TrainConfig(ConfigWithBuilder):
     """Configuration for the training script."""
-    
+
     # Run configuration
     run: str = Field(description="Run name/identifier")
-    
+
     # Training configuration - using TrainerConfig as a nested field
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
-    
+
     # Evaluation configuration
     evals: SimulationSuiteConfig | None = Field(default=None, description="Evaluation suite config")
-    
+
     # Other configurations
-    wandb: dict[str, Any] = Field(default_factory=dict, description="WandB configuration")
+    wandb: WandbConfig = Field(default_factory=WandbConfig, description="WandB configuration")
     device: str = Field(default="cuda", description="Device to use (cuda/cpu)")
     bypass_mac_overrides: bool = Field(default=False, description="Bypass Mac device overrides")
-    
+
     # Paths
     map_preview_uri: str | None = Field(default=None, description="Map preview URI")
 
@@ -84,138 +78,113 @@ def apply_mac_device_overrides(cfg: TrainConfig) -> None:
         cfg.trainer.zero_copy = False
 
 
-def load_config_from_yaml(config_path: str) -> TrainConfig:
-    """Load configuration from YAML file."""
-    config_path = Path(config_path)
-    
-    if not config_path.exists():
-        raise FileNotFoundError(f"Config file not found: {config_path}")
-    
-    with open(config_path, 'r') as f:
-        config_data = yaml.safe_load(f)
-    
-    return TrainConfig.model_validate(config_data)
-
-
 @record
 def main():
     """Main training function."""
     parser = argparse.ArgumentParser(description="Train a Metta AI agent")
-    parser.add_argument(
-        "--config",
-        type=str,
-        required=True,
-        help="Path to YAML configuration file"
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default=None,
-        help="Override device (cuda/cpu)"
-    )
-    parser.add_argument(
-        "--num-workers",
-        type=int,
-        default=None,
-        help="Override number of workers"
-    )
-    
+    parser.add_argument("--config", type=str, required=True, help="Path to YAML configuration file")
+    parser.add_argument("--device", type=str, default=None, help="Override device (cuda/cpu)")
+    parser.add_argument("--num-workers", type=int, default=None, help="Override number of workers")
+
     args = parser.parse_args()
-    
+
     # Load configuration from file
-    cfg = load_config_from_yaml(args.config)
-    
+    cfg = TrainConfig.from_file(args.config)
+
     # Apply command line overrides
     if args.device:
         cfg.device = args.device
-        
+
     if args.num_workers:
         cfg.trainer.num_workers = args.num_workers
-    
+
     # Apply Mac overrides
     apply_mac_device_overrides(cfg)
-    
+
     # Set default num_workers if not specified
-    if not hasattr(cfg.trainer, 'num_workers') or cfg.trainer.num_workers <= 0:
+    if not hasattr(cfg.trainer, "num_workers") or cfg.trainer.num_workers <= 0:
         # Check if we're in serial mode (async_factor=1 and zero_copy=False indicates serial)
         is_serial = cfg.trainer.async_factor == 1 and not cfg.trainer.zero_copy
         cfg.trainer.num_workers = _calculate_default_num_workers(is_serial)
-    
+
     # Setup logging
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
     logger.info(f"Starting training with config: {cfg.run}")
     logger.info(f"Device: {cfg.device}")
     logger.info(f"Num workers: {cfg.trainer.num_workers}")
     logger.info(f"Total timesteps: {cfg.trainer.total_timesteps}")
-    
+
     # Setup device and distributed training
     setup_device_and_distributed(cfg.device)
-    
+
     # Set checkpoint and replay directories based on run name
     train_dir = Path("train_dir") / cfg.run
     train_dir.mkdir(parents=True, exist_ok=True)
-    
+
     cfg.trainer.checkpoint.checkpoint_dir = str(train_dir / "checkpoints")
     cfg.trainer.simulation.replay_dir = str(train_dir / "replays")
-    
+
     # Create checkpoint directory
     Path(cfg.trainer.checkpoint.checkpoint_dir).mkdir(parents=True, exist_ok=True)
     Path(cfg.trainer.simulation.replay_dir).mkdir(parents=True, exist_ok=True)
-    
+
     # Create env config
     if cfg.trainer.env:
         env_config = create_env_config(cfg.trainer.env) if isinstance(cfg.trainer.env, str) else cfg.trainer.env
     else:
         # Create default env config if none specified
         from metta.rl.env_config import EnvConfig
+
         env_config = EnvConfig(device=cfg.device)
-    
+
     # Setup WandB context
-    wandb_enabled = cfg.wandb.get("enabled", True)
+    wandb_enabled = cfg.wandb.enabled
     wandb_context = None
     wandb_run = None
-    
+
     if wandb_enabled:
         wandb_run = WandbRun(
-            project=cfg.wandb.get("project", "metta"),
-            name=cfg.run,
+            project=cfg.wandb.project,
+            name=cfg.wandb.name or cfg.run,
             config=cfg.model_dump(),
-            tags=cfg.wandb.get("tags", [])
+            tags=cfg.wandb.tags,
+            entity=cfg.wandb.entity,
+            run_id=cfg.wandb.run_id,
         )
         wandb_context = WandbContext(wandb_run)
-    
+
     # Get policy store - create a config object with the fields the function expects
     from types import SimpleNamespace
+
     policy_config = SimpleNamespace()
     policy_config.device = cfg.device
     policy_config.wandb = cfg.wandb
-    policy_config.data_dir = getattr(cfg.trainer, 'data_dir', None)
-    
+    policy_config.data_dir = getattr(cfg.trainer, "data_dir", None)
+
     policy_store = get_policy_store_from_cfg(policy_config, wandb_run)
-    
+
     # Setup stats client
     from omegaconf import OmegaConf
+
     trainer_dict = OmegaConf.create(cfg.trainer.model_dump())
     stats_client = get_stats_client(trainer_dict, logger)
-    
+
     # Record heartbeat
     record_heartbeat()
-    
+
     try:
         # Start training
         with wandb_context if wandb_context else nullcontext():
             # Create run directory
             run_dir = f"./train_dir/{cfg.run}"
             Path(run_dir).mkdir(parents=True, exist_ok=True)
-            
+
             # Create agent config (placeholder for now)
-            from omegaconf import DictConfig, OmegaConf
+            from omegaconf import OmegaConf
+
             agent_cfg = OmegaConf.create({})
-            
+
             train(
                 run_dir=run_dir,
                 run=cfg.run,
@@ -226,7 +195,7 @@ def main():
                 wandb_run=wandb_run,
                 policy_store=policy_store,
                 sim_suite_config=cfg.evals,
-                stats_client=stats_client
+                stats_client=stats_client,
             )
     except KeyboardInterrupt:
         logger.info("Training interrupted by user")
@@ -234,13 +203,11 @@ def main():
     except Exception as e:
         logger.error(f"Training failed with error: {e}")
         raise
-    
+
     logger.info("Training completed successfully")
     return 0
 
 
-# Context manager for optional wandb
-from contextlib import nullcontext
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -9,8 +9,38 @@ import pytest
 from omegaconf import DictConfig
 from pettingzoo.test import parallel_api_test
 
-from metta.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
+from metta.mettagrid.mettagrid_config import EnvConfig, MapConfig
+from metta.map.mapgen import MapGenParams
+def _create_env_config(simple_config):
+    """Helper function to create EnvConfig from simple_config."""
+    # Create proper map configuration
+    from omegaconf import OmegaConf
+    
+    root_scene = {
+        "type": "metta.map.scenes.random.Random",
+        "params": {
+            "agents": simple_config.game.num_agents
+        }
+    }
+    
+    map_gen_params = MapGenParams(
+        width=16,
+        height=16,
+        root=root_scene
+    )
+    map_config = MapConfig(map_gen=map_gen_params)
+    
+    # Create game dict and add map config - keep it as DictConfig
+    game_dict = OmegaConf.to_container(simple_config.game, resolve=True)
+    # Remove the old map config
+    if "map" in game_dict:
+        del game_dict["map"]
+    game_dict["map"] = map_config.model_dump()
+    
+    # Return the config as DictConfig wrapped in EnvConfig structure
+    env_config_dict = {"game": OmegaConf.create(game_dict)}
+    return OmegaConf.create(env_config_dict)
 
 
 @pytest.fixture
@@ -50,27 +80,26 @@ def simple_config():
                 "objects": {
                     "wall": {"type_id": 1, "swappable": False},
                 },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 3,
+                "map": {
                     "width": 16,
-                    "height": 16,
-                    "border_width": 1,
-                    "objects": {},
+                    "height": 16, 
+                    "root": {
+                        "type": "metta.map.scenes.random.Random",
+                        "params": {
+                            "agents": 3
+                        }
+                    }
                 },
             }
         }
     )
-
-
 def test_pettingzoo_env_creation(simple_config):
     """Test PettingZoo environment creation and properties."""
-    curriculum = SingleTaskCurriculum("pettingzoo_test", simple_config)
+    env_config = _create_env_config(simple_config)
 
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
-        is_training=False,
     )
 
     # Test environment properties
@@ -81,15 +110,12 @@ def test_pettingzoo_env_creation(simple_config):
     assert env.max_steps == 100
 
     env.close()
-
-
 def test_pettingzoo_env_reset(simple_config):
     """Test PettingZoo environment reset functionality."""
-    curriculum = SingleTaskCurriculum("pettingzoo_reset_test", simple_config)
+    env_config = _create_env_config(simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
-        is_training=False,
     )
 
     # Test reset
@@ -108,15 +134,13 @@ def test_pettingzoo_env_reset(simple_config):
         assert isinstance(infos[agent], dict)
 
     env.close()
-
-
 def test_pettingzoo_env_step(simple_config):
     """Test PettingZoo environment step functionality."""
-    curriculum = SingleTaskCurriculum("pettingzoo_step_test", simple_config)
+    env_config = _create_env_config(simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
-        is_training=False,
+        
     )
 
     observations, infos = env.reset(seed=42)
@@ -152,15 +176,13 @@ def test_pettingzoo_env_step(simple_config):
             assert isinstance(infos[agent], dict)
 
     env.close()
-
-
 def test_pettingzoo_env_agent_removal(simple_config):
     """Test that agents are properly removed when terminated."""
-    curriculum = SingleTaskCurriculum("pettingzoo_removal_test", simple_config)
+    env_config = _create_env_config(simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
-        is_training=False,
+        
     )
 
     observations, infos = env.reset(seed=42)
@@ -185,15 +207,13 @@ def test_pettingzoo_env_agent_removal(simple_config):
                 assert terminations.get(agent, False) or truncations.get(agent, False)
 
     env.close()
-
-
 def test_pettingzoo_env_spaces(simple_config):
     """Test PettingZoo environment observation and action spaces."""
-    curriculum = SingleTaskCurriculum("pettingzoo_spaces_test", simple_config)
+    env_config = _create_env_config(simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
-        is_training=False,
+        
     )
 
     # Test space methods
@@ -209,15 +229,13 @@ def test_pettingzoo_env_spaces(simple_config):
         assert env.action_space(agent) is action_space
 
     env.close()
-
-
 def test_pettingzoo_env_state(simple_config):
     """Test PettingZoo environment state functionality."""
-    curriculum = SingleTaskCurriculum("pettingzoo_state_test", simple_config)
+    env_config = _create_env_config(simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
-        is_training=False,
+        
     )
 
     observations, infos = env.reset(seed=42)
@@ -232,30 +250,26 @@ def test_pettingzoo_env_state(simple_config):
     assert state.shape == state_space.shape
 
     env.close()
-
-
 def test_pettingzoo_api_compliance(simple_config):
     """Test official PettingZoo API compliance."""
-    curriculum = SingleTaskCurriculum("pettingzoo_compliance_test", simple_config)
+    env_config = _create_env_config(simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
-        is_training=False,
+        
     )
 
     # Run the official PettingZoo parallel API compliance test
     parallel_api_test(env, num_cycles=3)
 
     env.close()
-
-
 def test_pettingzoo_episode_lifecycle(simple_config):
     """Test the complete episode lifecycle with PettingZoo API."""
-    curriculum = SingleTaskCurriculum("pettingzoo_lifecycle_test", simple_config)
+    env_config = _create_env_config(simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
-        is_training=False,
+        
     )
 
     # Reset environment
@@ -309,15 +323,13 @@ def test_pettingzoo_episode_lifecycle(simple_config):
             break
 
     env.close()
-
-
 def test_pettingzoo_action_observation_spaces(simple_config):
     """Test that action and observation spaces are properly configured."""
-    curriculum = SingleTaskCurriculum("pettingzoo_spaces_validation_test", simple_config)
+    env_config = _create_env_config(simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
-        is_training=False,
+        
     )
 
     # Reset to ensure environment is initialized
@@ -343,15 +355,13 @@ def test_pettingzoo_action_observation_spaces(simple_config):
         assert action_space.contains(action_sample)
 
     env.close()
-
-
 def test_pettingzoo_render_functionality(simple_config):
     """Test that rendering works with PettingZoo interface."""
-    curriculum = SingleTaskCurriculum("pettingzoo_render_test", simple_config)
+    env_config = _create_env_config(simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode="human",
-        is_training=False,
+        
     )
 
     # Reset environment

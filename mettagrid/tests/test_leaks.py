@@ -3,32 +3,59 @@ import os
 
 import psutil
 import pytest
-from hydra import compose, initialize
 
-from metta.curriculum.core import SingleTaskCurriculum
+from metta.map.mapgen import MapGenParams
+from metta.mettagrid.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    EnvConfig,
+    GameConfig,
+    GroupConfig,
+    MapConfig,
+    WallConfig,
+)
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
-@pytest.fixture(scope="module")
-def cfg():
-    # Initialize Hydra with the correct relative path
-    with initialize(version_base=None, config_path="../configs"):
-        # Load the default config
-        cfg = compose(config_name="test_basic")
-        yield cfg
+def _create_env_config():
+    """Helper function to create EnvConfig using Pydantic."""
+    # Create config using Pydantic
+    map_config = MapConfig(
+        map_gen=MapGenParams(
+            width=25, height=25, root={"type": "metta.map.scenes.random.Random", "params": {"agents": 1}}
+        )
+    )
+
+    actions_config = ActionsConfig(noop=ActionConfig(), move=ActionConfig(), rotate=ActionConfig())
+
+    game_config = GameConfig(
+        num_agents=1,
+        max_steps=1000,
+        obs_width=11,
+        obs_height=11,
+        num_observation_tokens=200,
+        agent=AgentConfig(),
+        groups={"agent": GroupConfig(id=0)},
+        actions=actions_config,
+        objects={"wall": WallConfig(type_id=1, swappable=False)},
+        map=map_config,
+    )
+
+    return EnvConfig(game=game_config, desync_episodes=True)
 
 
-def test_mettagrid_env_init(cfg):
+def test_mettagrid_env_init():
     """Test that the MettaGridEnv can be initialized properly."""
-    curriculum = SingleTaskCurriculum("test", cfg)
-    env = MettaGridEnv(curriculum, render_mode=None)
+    env_config = _create_env_config()
+    env = MettaGridEnv(env_config, render_mode=None)
     assert env is not None, "Failed to initialize MettaGridEnv"
 
 
-def test_mettagrid_env_reset(cfg):
+def test_mettagrid_env_reset():
     """Test that the MettaGridEnv can be reset multiple times without memory leaks."""
-    curriculum = SingleTaskCurriculum("test", cfg)
-    env = MettaGridEnv(curriculum, render_mode=None)
+    env_config = _create_env_config()
+    env = MettaGridEnv(env_config, render_mode=None)
     # Reset the environment multiple times
     for _ in range(10):
         observation = env.reset()
@@ -42,7 +69,7 @@ def get_memory_usage():
 
 
 @pytest.mark.slow
-def test_mettagrid_env_no_memory_leaks(cfg):
+def test_mettagrid_env_no_memory_leaks():
     """
     Test that the MettaGridEnv can be reset multiple times without memory leaks.
 
@@ -62,8 +89,8 @@ def test_mettagrid_env_no_memory_leaks(cfg):
 
     for i in range(num_iterations):
         # Create the environment
-        curriculum = SingleTaskCurriculum("test", cfg)
-        env = MettaGridEnv(curriculum, render_mode=None)
+        env_config = _create_env_config()
+        env = MettaGridEnv(env_config, render_mode=None)
 
         # Reset the environment multiple times
         for _ in range(5):

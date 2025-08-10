@@ -93,15 +93,14 @@ class SingleTaskCurriculum(Curriculum):
         # Create a minimal task set config with the legacy env config
         env_config = EnvConfig()  # Use defaults for legacy configs
         task_set_config = WeightedTaskSetConfig(
-            seed=42,
             items=[],  # No items for single task
             overrides=None
         )
         curriculum_config = CurriculumConfig(task_set_config=task_set_config)
         
-        super().__init__(curriculum_config)
+        super().__init__(curriculum_config, seed=42)
 
-    def get_task(self):
+    def get_task(self, seed: int):
         """Get the single task."""
         return SingleTrialTask(self._task_id, self, self._task_cfg)
 

@@ -17,7 +17,6 @@ from metta.mettagrid import (
     dtype_terminals,
     dtype_truncations,
 )
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.util.actions import generate_valid_random_actions
 from metta.mettagrid.util.hydra import get_cfg
 from metta.util.metta_script import metta_script
@@ -233,10 +232,10 @@ def setup_environment(cfg: DictConfig) -> Tuple[MettaGridEnv, str]:
         print(f"⚠️  Unknown renderer type '{render_mode}', using 'human' (nethack)")
         render_mode = "human"
 
-    # Create curriculum
+    # Get environment configuration
     if hasattr(cfg, "env") and cfg.env is not None:
         # Use the env configuration directly
-        curriculum = SingleTaskCurriculum("renderer", cfg.env)
+        env_cfg = cfg.env
         print(f"📊 Using environment config: {cfg.env.game.num_agents} agents")
     else:
         # Fall back to the legacy renderer_job.environment approach
@@ -248,9 +247,7 @@ def setup_environment(cfg: DictConfig) -> Tuple[MettaGridEnv, str]:
             env_cfg.game.map_builder = OmegaConf.create(cfg.renderer_job.environment)
             print(f"📊 Using legacy environment config: {cfg.renderer_job.num_agents} agents")
 
-        curriculum = SingleTaskCurriculum("renderer", env_cfg)
-
-    env = MettaGridEnv(curriculum, render_mode=render_mode)
+    env = MettaGridEnv(env_cfg, render_mode=render_mode)
 
     return env, render_mode
 

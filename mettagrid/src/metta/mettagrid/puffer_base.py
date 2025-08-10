@@ -28,9 +28,8 @@ from pufferlib import PufferEnv
 from typing_extensions import override
 
 from metta.mettagrid.core import MettaGridCore
-from metta.curriculum.core import Curriculum
-from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.mettagrid.level_builder import Level
+from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.mettagrid.mettagrid_c import (
     dtype_actions,
     dtype_observations,
@@ -64,9 +63,8 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
 
     def __init__(
         self,
-        curriculum: Curriculum,
+        env_config: EnvConfig,
         render_mode: Optional[str] = None,
-        level: Optional[Level] = None,
         buf: Optional[Any] = None,
         **kwargs: Any,
     ):
@@ -74,32 +72,28 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         Initialize PufferLib base environment.
 
         Args:
-            curriculum: Curriculum for task management
+            env_config: Environment configuration
             render_mode: Rendering mode
-            level: Optional pre-built level
             buf: PufferLib buffer object
             **kwargs: Additional arguments
         """
-        # Store curriculum
-        self._curriculum = curriculum
-        self._task = curriculum.get_task()
+        # Store environment config
+        self._env_config = env_config
 
-        # Get level from curriculum if not provided
-        if level is None:
-            level = self._task.env_cfg().game.map_builder.build()
-
-        # Ensure we have a level
-        assert level is not None, "Level must be provided or generated from curriculum"
+        # Level will be created by the core environment from the map config
 
         # Get game config for core initialization
-        task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        if hasattr(self._env_config.game, 'model_dump'):
+            # Pydantic object
+            game_config_dict = self._env_config.game.model_dump()
+        else:
+            # OmegaConf object
+            game_config_dict = OmegaConf.to_container(self._env_config.game)
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
         # Initialize core environment
         MettaGridCore.__init__(
             self,
-            level=level,
             game_config_dict=game_config_dict,
             render_mode=render_mode,
             **kwargs,
@@ -131,6 +125,15 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         """Native envs do not use emulation (PufferLib compatibility)."""
         return False
 
+    def set_env_cfg(self, env_config: EnvConfig) -> None:
+        """
+        Set the environment configuration.
+        
+        Args:
+            env_config: New environment configuration
+        """
+        self._env_config = env_config
+
     def _get_initial_observations(self) -> np.ndarray:
         """
         Get initial observations and set up buffers.
@@ -138,10 +141,8 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         Returns:
             Initial observations array
         """
-        # Get task config for reset
-        assert self._task is not None, "Task not set"
-        task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        # Get config for reset
+        game_config_dict = OmegaConf.to_container(self._env_config.game)
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
         # Reset the environment to get initial observations
@@ -159,11 +160,8 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         Returns:
             Tuple of (observations, info)
         """
-        # Get new task from curriculum and its config
-        assert self._curriculum is not None, "Curriculum not set"
-        self._task = self._curriculum.get_task()
-        task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        # Get config for reset
+        game_config_dict = OmegaConf.to_container(self._env_config.game)
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
         return super().reset(game_config_dict, seed)

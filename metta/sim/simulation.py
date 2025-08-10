@@ -27,8 +27,8 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.mettagrid import MettaGridEnv, dtype_actions
-from metta.mettagrid.curriculum.core import Curriculum, SingleTrialTask, Task
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from cogworks.curriculum.core import Curriculum, SingleTrialTask, Task
+from cogworks.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.policy_management import initialize_policy_for_environment
@@ -151,7 +151,8 @@ class Simulation:
         else:
             curriculum = curriculum_from_config_path(config.env, env_overrides)
 
-        env_cfg = curriculum.get_task().env_cfg()
+        # Use a fixed seed to get a representative task for env configuration
+        env_cfg = curriculum.get_task(seed=42).env_cfg()
         self._vecenv = make_vecenv(
             curriculum,
             vectorization,

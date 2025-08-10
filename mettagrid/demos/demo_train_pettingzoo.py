@@ -30,7 +30,7 @@ from pettingzoo.test import parallel_api_test
 
 # PettingZoo adapter imports
 from metta.mettagrid import MettaGridPettingZooEnv
-from metta.curriculum.core import SingleTaskCurriculum
+from cogworks.curriculum.core import SingleTaskCurriculum
 
 
 def create_test_config() -> DictConfig:
