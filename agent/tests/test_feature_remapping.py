@@ -84,7 +84,7 @@ def test_obs_token_pad_strip_remapping():
     pad_strip.update_feature_remapping(remap_table)
 
     # Create input tensor dict
-    td = TensorDict({"x": observations})
+    td = TensorDict({"env_obs": observations})
 
     # Process through pad strip
     output_td = pad_strip._forward(td)

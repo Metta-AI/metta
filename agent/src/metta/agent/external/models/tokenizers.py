@@ -31,7 +31,7 @@ class ObsTokenPadStrip(nn.Module):
 
     def forward(self, td: TensorDict) -> TensorDict:
         # [B, M, 3] the 3 vector is: coord (unit8), attr_idx, attr_val
-        observations = td["x"]
+        observations = td["env_obs"]
 
         B = observations.shape[0]
         TT = 1
