@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 
 import numpy as np
-from gymnasium.spaces import Discrete
 from omegaconf import DictConfig
 
 from metta.mettagrid.curriculum.random import RandomCurriculum
@@ -33,9 +32,9 @@ class LearningProgressCurriculum(RandomCurriculum):
         super().__init__(tasks, env_overrides)
 
         # Initialize learning progress tracker
-        search_space_size = len(tasks)
+        num_tasks = len(tasks)
         self._lp_tracker = BidirectionalLearningProgress(
-            search_space=search_space_size,
+            num_tasks=num_tasks,
             ema_timescale=ema_timescale,
             progress_smoothing=progress_smoothing,
             num_active_tasks=num_active_tasks,
@@ -44,7 +43,7 @@ class LearningProgressCurriculum(RandomCurriculum):
             memory=memory,
         )
 
-        logger.info(f"LearningProgressCurriculum initialized with {search_space_size} tasks")
+        logger.info(f"LearningProgressCurriculum initialized with {num_tasks} tasks")
 
     def complete_task(self, id: str, score: float):
         """Complete a task and update learning progress tracking."""
@@ -83,7 +82,7 @@ class BidirectionalLearningProgress:
     def __init__(
         self,
         /,
-        search_space: int | Discrete,
+        num_tasks: int,
         ema_timescale: float,
         progress_smoothing: float,
         num_active_tasks: int,
@@ -91,13 +90,7 @@ class BidirectionalLearningProgress:
         sample_threshold: int,
         memory: int,
     ) -> None:
-        if isinstance(search_space, int):
-            search_space = Discrete(search_space)
-        assert isinstance(search_space, Discrete), (
-            f"search_space must be a Discrete space or int, got {type(search_space)}"
-        )
-        self._search_space = search_space
-        self._num_tasks = max_num_levels = search_space.n
+        self._num_tasks = num_tasks
         self._ema_timescale = ema_timescale
         self.progress_smoothing = progress_smoothing
         self.num_active_tasks = num_active_tasks
@@ -105,20 +98,19 @@ class BidirectionalLearningProgress:
         self._sample_threshold = sample_threshold
         self._memory = memory
         self._outcomes: dict[int, list[float]] = {}
-        for i in range(max_num_levels):
+        for i in range(num_tasks):
             self._outcomes[i] = []
         self._p_fast = None
         self._p_slow = None
         self._p_true = None
         self._random_baseline = None
-        self._task_success_rate = np.zeros(max_num_levels)
+        self._task_success_rate = np.zeros(num_tasks)
         self._mean_samples_per_eval = []
         self._num_nans = []
-        self._update_mask = np.ones(max_num_levels).astype(bool)
-        self._sample_levels = np.arange(max_num_levels).astype(np.int32)
+        self._update_mask = np.ones(num_tasks).astype(bool)
+        self._sample_levels = np.arange(num_tasks).astype(np.int32)
         self._counter = {i: 0 for i in self._sample_levels}
         self._task_dist = None
-        self._stale_dist = True
 
     def add_stats(self) -> dict[str, float]:
         """Return learning progress statistics for logging."""
@@ -175,7 +167,6 @@ class BidirectionalLearningProgress:
                 self._p_true[self._update_mask] * (1.0 - self._ema_timescale)
             )
 
-        self._stale_dist = True
         self._task_dist = None
 
         return task_success_rates
@@ -243,7 +234,6 @@ class BidirectionalLearningProgress:
             task_dist = subprobs
 
         self._task_dist = task_dist.astype(np.float32)
-        self._stale_dist = False
 
         out_vec = [
             np.mean(self._outcomes[i]) if len(self._outcomes[i]) > 0 else DEFAULT_SUCCESS_RATE
