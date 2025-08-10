@@ -46,10 +46,10 @@ class TestObservations:
         obs, _ = basic_env.reset()
 
         # global token is always at the center of the observation window
-        global_token_location = PackedCoordinate.pack(basic_env.OBS_HEIGHT // 2, basic_env.OBS_WIDTH // 2)
+        global_token_location = PackedCoordinate.pack(basic_env.obs_height // 2, basic_env.obs_width // 2)
 
         # Test global tokens (first 4 tokens)
-        for agent_idx in range(basic_env.NUM_AGENTS):
+        for agent_idx in range(basic_env.num_agents):
             for token_idx in range(4):
                 assert obs[agent_idx, token_idx, 0] == global_token_location
 
@@ -196,7 +196,7 @@ class TestObservations:
             obs_width=3,  # Use 3x3 observation window for this test
             obs_height=3,
             num_observation_tokens=50,
-            inventory_item_names=["resource1", "resource2"],
+            inventory_item_names=["laser", "resource1", "resource2"],  # include laser to allow attack
             objects=altar_objects,  # Pass the altar objects
         )
 
