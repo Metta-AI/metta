@@ -2,9 +2,8 @@ from typing import List, Tuple
 
 import numpy as np
 
-from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
-from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from metta.mettagrid.test_support import EnvConfig, TestEnvironmentBuilder, TokenTypes
+from metta.mettagrid.mettagrid_c import PackedCoordinate, dtype_actions
+from metta.mettagrid.test_support import TestEnvironmentBuilder, TokenTypes
 
 
 class ObservationHelper:
@@ -47,16 +46,16 @@ class TestObservations:
         obs, _ = basic_env.reset()
 
         # global token is always at the center of the observation window
-        global_token_location = PackedCoordinate.pack(EnvConfig.OBS_HEIGHT // 2, EnvConfig.OBS_WIDTH // 2)
+        global_token_location = PackedCoordinate.pack(basic_env.OBS_HEIGHT // 2, basic_env.OBS_WIDTH // 2)
 
         # Test global tokens (first 4 tokens)
-        for agent_idx in range(EnvConfig.NUM_AGENTS):
+        for agent_idx in range(basic_env.NUM_AGENTS):
             for token_idx in range(4):
                 assert obs[agent_idx, token_idx, 0] == global_token_location
 
         # Test empty terminator
-        assert (obs[0, -1, :] == EnvConfig.EMPTY_TOKEN).all()
-        assert (obs[1, -1, :] == EnvConfig.EMPTY_TOKEN).all()
+        assert (obs[0, -1, :] == TokenTypes.EMPTY_TOKEN).all()
+        assert (obs[1, -1, :] == TokenTypes.EMPTY_TOKEN).all()
 
     def test_detailed_wall_observations(self, basic_env):
         """Test detailed wall observations for both agents."""
@@ -169,37 +168,16 @@ class TestObservations:
             (3, 3, 8),  # H: bottom-right, color 8
         ]
 
-        # Create game config with altar objects
-        game_config = {
-            "max_steps": 10,
-            "num_agents": 1,  # Just one agent for this test
-            "obs_width": EnvConfig.OBS_WIDTH,
-            "obs_height": EnvConfig.OBS_HEIGHT,
-            "num_observation_tokens": EnvConfig.NUM_OBS_TOKENS,
-            "inventory_item_names": ["resource1", "resource2"],
-            "actions": {
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "attack": {"enabled": False},
-                "put_items": {"enabled": False},
-                "get_items": {"enabled": False},
-                "swap": {"enabled": False},
-                "change_color": {"enabled": False},
-                "change_glyph": {"enabled": False, "number_of_glyphs": 4},
-            },
-            "groups": {"red": {"id": 0, "props": {}}},
-            "objects": {
-                "wall": {"type_id": 1},
-            },
-            "agent": {},
-        }
-
-        # Add altar configurations with different colors
-        for i, (x, y, color) in enumerate(altar_positions):
+        # Place altars on the map
+        for i, (x, y, _color) in enumerate(altar_positions):
             altar_name = f"altar_{i + 1}"
             game_map[y, x] = altar_name
-            game_config["objects"][altar_name] = {
+
+        # Create altar objects configuration
+        altar_objects = {}
+        for i, (x, y, color) in enumerate(altar_positions):
+            altar_name = f"altar_{i + 1}"
+            altar_objects[altar_name] = {
                 "type_id": i + 2,  # type_ids 2-9 for altars
                 "input_resources": {"resource1": 1},
                 "output_resources": {"resource2": 1},
@@ -210,9 +188,19 @@ class TestObservations:
                 "color": color,
             }
 
-        env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
-        obs, _ = env.reset()
+        # Use the builder to create the environment with proper config
+        env = builder.create_environment(
+            game_map=game_map,
+            max_steps=10,
+            num_agents=1,
+            obs_width=3,  # Use 3x3 observation window for this test
+            obs_height=3,
+            num_observation_tokens=50,
+            inventory_item_names=["resource1", "resource2"],
+            objects=altar_objects,  # Pass the altar objects
+        )
 
+        obs, _ = env.reset()
         agent_obs = obs[0]
 
         # The agent at (2,2) should see all 8 altars in its 3x3 observation window
@@ -250,14 +238,14 @@ class TestObservations:
             )
 
             # Check color token (ObservationFeature::Color = 5)
-            color_tokens = location_tokens[location_tokens[:, 1] == 5]
+            color_tokens = location_tokens[location_tokens[:, 1] == TokenTypes.COLOR]
             assert len(color_tokens) > 0, f"Should have color token at ({x}, {y})"
             assert color_tokens[0, 2] == expected_color, (
                 f"Altar at ({x}, {y}) should have color {expected_color}, got {color_tokens[0, 2]}"
             )
 
             # Check converter status token (ObservationFeature::ConvertingOrCoolingDown = 6)
-            converter_tokens = location_tokens[location_tokens[:, 1] == 6]
+            converter_tokens = location_tokens[location_tokens[:, 1] == TokenTypes.CONVERTING_OR_COOLING_DOWN]
             assert len(converter_tokens) > 0, f"Should have converter status token at ({x}, {y})"
 
         # Verify the agent sees itself at center (1,1)
@@ -356,11 +344,14 @@ class TestGlobalTokens:
 
     def test_global_tokens_update(self, basic_env):
         """Test that global tokens update correctly."""
-        basic_env.reset()
+        obs, _ = basic_env.reset()
+
+        # Get the number of agents from the observation shape
+        num_agents = obs.shape[0]
 
         # Take a noop action
         noop_idx = basic_env.action_names().index("noop")
-        actions = np.full((EnvConfig.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
+        actions = np.full((num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
         obs, _, _, _, _ = basic_env.step(actions)
 
         # Check episode completion updated (1/10 = 10%)
@@ -371,7 +362,7 @@ class TestGlobalTokens:
 
         # Take a move action
         move_idx = basic_env.action_names().index("move")
-        actions = np.full((EnvConfig.NUM_AGENTS, 2), [move_idx, 1], dtype=dtype_actions)
+        actions = np.full((num_agents, 2), [move_idx, 1], dtype=dtype_actions)
         obs, _, _, _, _ = basic_env.step(actions)
 
         # Check updates
@@ -392,30 +383,21 @@ class TestGlobalTokens:
         game_map[2, 2] = "agent.blue"
 
         # Create environment with change_glyph enabled and 8 glyphs
-        game_config = {
-            "max_steps": 10,
-            "num_agents": 2,
-            "obs_width": EnvConfig.OBS_WIDTH,
-            "obs_height": EnvConfig.OBS_HEIGHT,
-            "num_observation_tokens": EnvConfig.NUM_OBS_TOKENS,
-            "inventory_item_names": ["laser", "armor"],
-            "actions": {
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "attack": {"enabled": False},
-                "put_items": {"enabled": False},
-                "get_items": {"enabled": False},
-                "swap": {"enabled": False},
-                "change_color": {"enabled": False},
+        env = builder.create_environment(
+            game_map=game_map,
+            max_steps=10,
+            num_agents=2,
+            obs_width=3,  # Use 3x3 observation window
+            obs_height=3,
+            num_observation_tokens=50,
+            inventory_item_names=["laser", "armor"],
+            actions={
                 "change_glyph": {"enabled": True, "number_of_glyphs": 8},
+                # Other actions use defaults from builder
             },
-            "groups": {"red": {"id": 0, "props": {}}, "blue": {"id": 1, "props": {}}},
-            "objects": {"wall": {"type_id": 1}},
-            "agent": {},
-        }
+            groups={"red": {"id": 0, "props": {}}, "blue": {"id": 1, "props": {}}},
+        )
 
-        env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
         obs, _ = env.reset()
 
         # Define glyph feature type
@@ -680,7 +662,7 @@ class TestEdgeObservations:
     def test_observation_off_edge_with_large_window(self):
         """Test observation window behavior when agent walks to corner of large map."""
         # Create a 15x10 grid (width=15, height=10) with 7x7 observation window
-        _builder = TestEnvironmentBuilder()
+        builder = TestEnvironmentBuilder()
         game_map = np.full((10, 15), "empty", dtype="<U50")
 
         # Add walls around perimeter
@@ -695,42 +677,32 @@ class TestEdgeObservations:
         # Place an altar at (7, 5) - we'll watch it move through our view
         game_map[5, 7] = "altar"
 
-        # Create environment with 7x7 observation window
-        game_config = {
-            "max_steps": 50,  # Enough steps to walk around
-            "num_agents": 1,
-            "obs_width": 7,
-            "obs_height": 7,
-            "num_observation_tokens": 200,
-            "inventory_item_names": ["resource1", "resource2"],
-            "actions": {
-                "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
-                "attack": {"enabled": False},
-                "put_items": {"enabled": False},
-                "get_items": {"enabled": False},
-                "swap": {"enabled": False},
-                "change_color": {"enabled": False},
-            },
-            "groups": {"red": {"id": 0, "props": {}}},
-            "objects": {
-                "wall": {"type_id": 1},
-                "altar": {
-                    "type_id": 10,
-                    "input_resources": {"resource1": 1},
-                    "output_resources": {"resource2": 1},
-                    "max_output": 10,
-                    "conversion_ticks": 5,
-                    "cooldown": 3,
-                    "initial_resource_count": 0,
-                    "color": 42,  # Distinctive color
-                },
-            },
-            "agent": {},
+        # Create altar object configuration
+        altar_objects = {
+            "altar": {
+                "type_id": 10,
+                "input_resources": {"resource1": 1},
+                "output_resources": {"resource2": 1},
+                "max_output": 10,
+                "conversion_ticks": 5,
+                "cooldown": 3,
+                "initial_resource_count": 0,
+                "color": 42,  # Distinctive color
+            }
         }
 
-        env = MettaGrid(from_mettagrid_config(game_config), game_map.tolist(), 42)
+        # Create environment with 7x7 observation window using the builder
+        env = builder.create_environment(
+            game_map=game_map,
+            max_steps=50,  # Enough steps to walk around
+            num_agents=1,
+            obs_width=7,
+            obs_height=7,
+            num_observation_tokens=200,
+            inventory_item_names=["resource1", "resource2"],
+            objects=altar_objects,  # Pass the altar configuration
+        )
+
         obs, _ = env.reset()
         helper = ObservationHelper()
 
@@ -881,6 +853,6 @@ class TestEdgeObservations:
                 tokens = helper.find_tokens_at_location(obs[0], x, y)
                 for i, token in enumerate(tokens):
                     if i >= 4:
-                        assert np.array_equal(token, EnvConfig.EMPTY_TOKEN), f"Expected empty token at obs ({x},{y})"
+                        assert np.array_equal(token, TokenTypes.EMPTY_TOKEN), f"Expected empty token at obs ({x},{y})"
 
         print("\nSUCCESS: Watched altar move through field of view and verified edge behavior")

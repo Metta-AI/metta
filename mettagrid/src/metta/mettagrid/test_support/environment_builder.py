@@ -12,7 +12,7 @@ from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 
 
 @dataclass
-class EnvConfig:
+class DefaultEnvConfig:
     """Default environment configuration values."""
 
     NUM_AGENTS: int = 2
@@ -20,7 +20,6 @@ class EnvConfig:
     OBS_WIDTH: int = 11
     NUM_OBS_TOKENS: int = 200
     OBS_TOKEN_SIZE: int = 3
-    EMPTY_TOKEN = [0xFF, 0xFF, 0xFF]
 
 
 class TestEnvironmentBuilder:
@@ -123,9 +122,9 @@ class TestEnvironmentBuilder:
             "num_agents": num_agents,
             "max_steps": max_steps,
             "episode_truncates": False,
-            "obs_width": obs_width or EnvConfig.OBS_WIDTH,
-            "obs_height": obs_height or EnvConfig.OBS_HEIGHT,
-            "num_observation_tokens": num_observation_tokens or EnvConfig.NUM_OBS_TOKENS,
+            "obs_width": obs_width or DefaultEnvConfig.OBS_WIDTH,
+            "obs_height": obs_height or DefaultEnvConfig.OBS_HEIGHT,
+            "num_observation_tokens": num_observation_tokens or DefaultEnvConfig.NUM_OBS_TOKENS,
             "inventory_item_names": inventory_item_names,
             "global_obs": {
                 "episode_completion_pct": True,
@@ -213,7 +212,7 @@ class TestEnvironmentBuilder:
             Configured MettaGrid environment
         """
         if num_agents is None:
-            num_agents = EnvConfig.NUM_AGENTS
+            num_agents = DefaultEnvConfig.NUM_AGENTS
 
         # Convert numpy array to list if needed
         if isinstance(game_map, np.ndarray):
@@ -254,6 +253,6 @@ class TestEnvironmentBuilder:
             game_map = TestEnvironmentBuilder.place_agents(game_map, agent_positions)
             num_agents = len(agent_positions)
         else:
-            num_agents = kwargs.get("num_agents", EnvConfig.NUM_AGENTS)
+            num_agents = kwargs.get("num_agents", DefaultEnvConfig.NUM_AGENTS)
 
         return TestEnvironmentBuilder.create_environment(game_map=game_map, num_agents=num_agents, **kwargs)

@@ -3,7 +3,7 @@ from typing import List, Tuple
 import numpy as np
 
 from metta.mettagrid.mettagrid_c import PackedCoordinate, dtype_actions
-from metta.mettagrid.test_support import EnvConfig, TokenTypes
+from metta.mettagrid.test_support import TokenTypes
 
 
 class ObservationHelper:
@@ -49,7 +49,7 @@ class TestBasicFunctionality:
         assert "noop" in basic_env.action_names()
 
         obs, info = basic_env.reset()
-        assert obs.shape == (EnvConfig.NUM_AGENTS, EnvConfig.NUM_OBS_TOKENS, EnvConfig.OBS_TOKEN_SIZE)
+        assert obs.shape == (basic_env.NUM_AGENTS, basic_env.NUM_OBS_TOKENS, basic_env.OBS_TOKEN_SIZE)
         assert isinstance(info, dict)
 
     def test_grid_hash(self, basic_env):
@@ -66,20 +66,20 @@ class TestBasicFunctionality:
         assert "rotate" in action_names
 
         noop_idx = action_names.index("noop")
-        actions = np.full((EnvConfig.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
+        actions = np.full((basic_env.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
 
         obs, rewards, terminals, truncations, info = basic_env.step(actions)
 
         # Check shapes and types
-        assert obs.shape == (EnvConfig.NUM_AGENTS, EnvConfig.NUM_OBS_TOKENS, EnvConfig.OBS_TOKEN_SIZE)
-        assert rewards.shape == (EnvConfig.NUM_AGENTS,)
-        assert terminals.shape == (EnvConfig.NUM_AGENTS,)
-        assert truncations.shape == (EnvConfig.NUM_AGENTS,)
+        assert obs.shape == (basic_env.NUM_AGENTS, basic_env.NUM_OBS_TOKENS, basic_env.OBS_TOKEN_SIZE)
+        assert rewards.shape == (basic_env.NUM_AGENTS,)
+        assert terminals.shape == (basic_env.NUM_AGENTS,)
+        assert truncations.shape == (basic_env.NUM_AGENTS,)
         assert isinstance(info, dict)
 
         # Action success should be boolean and per-agent
         action_success = basic_env.action_success()
-        assert len(action_success) == EnvConfig.NUM_AGENTS
+        assert len(action_success) == basic_env.NUM_AGENTS
         assert all(isinstance(x, bool) for x in action_success)
 
     def test_environment_state_consistency(self, basic_env):
@@ -88,7 +88,7 @@ class TestBasicFunctionality:
         initial_objects = basic_env.grid_objects()
 
         noop_idx = basic_env.action_names().index("noop")
-        actions = np.full((EnvConfig.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
+        actions = np.full((basic_env.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
 
         obs2, _, _, _, _ = basic_env.step(actions)
         post_step_objects = basic_env.grid_objects()

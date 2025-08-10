@@ -21,3 +21,6 @@ class TokenTypes:
 
     # Object type IDs
     WALL_TYPE_ID: int = 1
+
+    # empty token
+    EMPTY_TOKEN = [0xFF, 0xFF, 0xFF]
