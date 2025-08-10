@@ -9,7 +9,7 @@ image:
 serviceAccount:
   create: true
   annotations:
-    eks.amazonaws.com/role-arn: # Fill this in with the role ARN from orchestrator_irsa_role_arn once Terraform is applied
+    eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/orchestrator-eval-worker
 
 env:
   BACKEND_URL: "https://api.observatory.softmax-research.net"
