@@ -17,7 +17,7 @@ def simple_lstm_environment():
 
     # Create input data
     sample_input = {
-        "x": torch.rand(batch_size * seq_length, input_size),
+        "env_obs": torch.rand(batch_size * seq_length, input_size),
         "hidden": torch.rand(batch_size * seq_length, input_size),
     }
 
