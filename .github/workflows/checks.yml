@@ -299,7 +299,17 @@ jobs:
           else
             echo "::group::✅ Phase 1 - Fast tests passed"
           fi
-          cat pytest_output.log
+          # Show only content after the last "FAILURES" header
+          awk '
+          /^=+ FAILURES =+$/ { start = NR }   # remember the line number
+          END {
+            if (start) {
+              # re-read file and print from start+1
+              while ((getline line < FILENAME) > 0) {
+                if (NR > start) print line
+              }
+            }
+          }' pytest_output.log
           echo "::endgroup::"
 
           # Exit if fast tests failed
@@ -371,7 +381,17 @@ jobs:
           else
             echo "::group::✅ Phase 2 - Slow tests passed"
           fi
-          cat pytest_slow_output.log
+          # Show only content after the last "FAILURES" header
+          awk '
+          /^=+ FAILURES =+$/ { start = NR }   # remember the line number
+          END {
+            if (start) {
+              # re-read file and print from start+1
+              while ((getline line < FILENAME) > 0) {
+                if (NR > start) print line
+              }
+            }
+          }' pytest_slow_output.log
           echo "::endgroup::"
 
           # Exit if slow tests failed
