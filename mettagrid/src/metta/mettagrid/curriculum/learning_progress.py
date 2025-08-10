@@ -113,7 +113,9 @@ class BidirectionalLearningProgress:
         stats[f"lp/task_{self._num_tasks // 2}_success_rate"] = self._task_success_rate[self._num_tasks // 2]
         stats["lp/last_task_success_rate"] = self._task_success_rate[-1]
         stats["lp/task_success_rate"] = np.mean(self._task_success_rate)
-        stats["lp/mean_evals_per_task"] = self._mean_samples_per_eval[-1]
+        stats["lp/mean_evals_per_task"] = (
+            0 if len(self._mean_samples_per_eval) == 0 else self._mean_samples_per_eval[-1]
+        )
         return stats
 
     def _update(self):
@@ -266,7 +268,7 @@ class BidirectionalLearningProgress:
     def calculate_dist(self) -> tuple[np.ndarray, np.ndarray]:
         """Calculate task distribution and sample levels based on learning progress."""
         if (
-            all([v < self.config.sample_threshold for k, v in self._counter.items()])
+            all([v < self.config.sample_threshold for v in self._counter.values()])
             and self._random_baseline is not None
         ):
             # Ensure we have valid task_dist and sample_levels
