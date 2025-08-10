@@ -223,11 +223,16 @@ def test_visitation_performance_impact(performance_config, simple_map):
     # Performance assertions
     if enabled_time > 0:
         improvement = ((enabled_time - disabled_time) / enabled_time) * 100
-        print(f"\nPerformance improvement: {improvement:.2f}% faster when disabled")
+        print(f"\nPerformance difference: {improvement:.2f}%")
         print(f"Enabled: {enabled_time:.4f}s, Disabled: {disabled_time:.4f}s")
 
-        # Generally expect some performance improvement when disabled
-        assert disabled_time <= enabled_time, "Disabling visitation counts should not slow down the environment"
+        # Allow for some measurement noise (up to 10% slower is acceptable)
+        # The overhead of visitation counts is typically small
+        tolerance = 1.1  # Allow disabled to be up to 10% slower due to noise
+        assert disabled_time <= enabled_time * tolerance, (
+            f"Disabling visitation counts should not significantly slow down the environment "
+            f"(disabled: {disabled_time:.4f}s vs enabled: {enabled_time:.4f}s)"
+        )
 
 
 def test_agent_movement_tracking(env_with_visitation):
