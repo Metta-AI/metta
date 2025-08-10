@@ -107,7 +107,7 @@ class BidirectionalLearningProgress:
         """Return learning progress statistics for logging."""
         stats: dict[str, float] = {}
         stats["lp/num_active_tasks"] = len(self._sample_levels)
-        stats["lp/mean_sample_prob"] = np.mean(self._task_dist or [])
+        stats["lp/mean_sample_prob"] = 0 if self._task_dist is None else np.mean(self._task_dist)
         stats["lp/num_zeros_lp_dist"] = 0 if self._task_dist is None else np.sum(self._task_dist == 0)
         stats["lp/task_1_success_rate"] = self._task_success_rate[0]
         stats[f"lp/task_{self._num_tasks // 2}_success_rate"] = self._task_success_rate[self._num_tasks // 2]
