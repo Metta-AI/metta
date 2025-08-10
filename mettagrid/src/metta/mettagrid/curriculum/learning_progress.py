@@ -6,6 +6,7 @@ import logging
 import numpy as np
 from omegaconf import DictConfig
 
+from metta.common.util.typed_config import BaseModelWithForbidExtra
 from metta.mettagrid.curriculum.random import RandomCurriculum
 
 logger = logging.getLogger(__name__)
@@ -16,6 +17,15 @@ DEFAULT_WEIGHT = 1.0
 RANDOM_BASELINE_CAP = 0.75
 
 
+class LearningProgressCurriculumConfig(BaseModelWithForbidExtra):
+    ema_timescale: float = 0.001
+    progress_smoothing: float = 0.05
+    num_active_tasks: int = 16
+    rand_task_rate: float = 0.25
+    sample_threshold: int = 10
+    memory: int = 25
+
+
 class LearningProgressCurriculum(RandomCurriculum):
     """Curriculum that adaptively samples tasks based on learning progress."""
 
@@ -23,25 +33,17 @@ class LearningProgressCurriculum(RandomCurriculum):
         self,
         tasks: dict[str, float] | DictConfig,
         env_overrides: DictConfig | None = None,
-        ema_timescale: float = 0.001,
-        progress_smoothing: float = 0.05,
-        num_active_tasks: int = 16,
-        rand_task_rate: float = 0.25,
-        sample_threshold: int = 10,
-        memory: int = 25,
+        **kwargs,
     ):
         super().__init__(tasks, env_overrides)
+
+        config = LearningProgressCurriculumConfig(**kwargs)
 
         # Initialize learning progress tracker
         num_tasks = len(tasks)
         self._lp_tracker = BidirectionalLearningProgress(
             num_tasks=num_tasks,
-            ema_timescale=ema_timescale,
-            progress_smoothing=progress_smoothing,
-            num_active_tasks=num_active_tasks,
-            rand_task_rate=rand_task_rate,
-            sample_threshold=sample_threshold,
-            memory=memory,
+            config=config,
         )
 
         logger.info(f"LearningProgressCurriculum initialized with {num_tasks} tasks")
@@ -82,23 +84,14 @@ class BidirectionalLearningProgress:
 
     def __init__(
         self,
-        /,
+        *,
         num_tasks: int,
-        ema_timescale: float,
-        progress_smoothing: float,
-        num_active_tasks: int,
-        rand_task_rate: float,
-        sample_threshold: int,
-        memory: int,
+        config: LearningProgressCurriculumConfig,
     ) -> None:
         self._num_tasks = num_tasks
-        self._ema_timescale = ema_timescale
-        self.progress_smoothing = progress_smoothing
-        self.num_active_tasks = num_active_tasks
-        self._rand_task_rate = rand_task_rate
-        self._sample_threshold = sample_threshold
-        self._memory = memory
-        self._outcomes: list[collections.deque[float]] = [collections.deque(maxlen=memory) for _ in range(num_tasks)]
+        self.config = config
+
+        self._outcomes = [collections.deque[float](maxlen=self.config.memory) for _ in range(num_tasks)]
         self._p_fast = None
         self._p_slow = None
         self._p_true = None
@@ -156,14 +149,14 @@ class BidirectionalLearningProgress:
             self._p_slow = normalized_task_success_rates[self._update_mask]
             self._p_true = task_success_rates[self._update_mask]
         else:
-            self._p_fast[self._update_mask] = (normalized_task_success_rates * self._ema_timescale) + (
-                self._p_fast[self._update_mask] * (1.0 - self._ema_timescale)
+            self._p_fast[self._update_mask] = (normalized_task_success_rates * self.config.ema_timescale) + (
+                self._p_fast[self._update_mask] * (1.0 - self.config.ema_timescale)
             )
-            self._p_slow[self._update_mask] = (self._p_fast[self._update_mask] * self._ema_timescale) + (
-                self._p_slow[self._update_mask] * (1.0 - self._ema_timescale)
+            self._p_slow[self._update_mask] = (self._p_fast[self._update_mask] * self.config.ema_timescale) + (
+                self._p_slow[self._update_mask] * (1.0 - self.config.ema_timescale)
             )
-            self._p_true[self._update_mask] = (task_success_rates[self._update_mask] * self._ema_timescale) + (
-                self._p_true[self._update_mask] * (1.0 - self._ema_timescale)
+            self._p_true[self._update_mask] = (task_success_rates[self._update_mask] * self.config.ema_timescale) + (
+                self._p_true[self._update_mask] * (1.0 - self.config.ema_timescale)
             )
 
         self._task_dist = None
@@ -188,8 +181,8 @@ class BidirectionalLearningProgress:
 
     def _reweight(self, probs: np.ndarray) -> np.ndarray:
         """Apply progress smoothing reweighting to probability values."""
-        numerator = probs * (1.0 - self.progress_smoothing)
-        denominator = probs + self.progress_smoothing * (1.0 - 2.0 * probs)
+        numerator = probs * (1.0 - self.config.progress_smoothing)
+        denominator = probs + self.config.progress_smoothing * (1.0 - 2.0 * probs)
 
         # Handle division by zero
         denominator = np.where(denominator <= 0, 1.0, denominator)
@@ -264,8 +257,8 @@ class BidirectionalLearningProgress:
         else:
             task_dist = task_dist / sum_dist
 
-        for _i in range(self.num_active_tasks):
-            if np.random.rand() < self._rand_task_rate:
+        for _i in range(self.config.num_active_tasks):
+            if np.random.rand() < self.config.rand_task_rate:
                 level = np.random.choice(range(self._num_tasks))
             else:
                 try:
@@ -281,7 +274,10 @@ class BidirectionalLearningProgress:
 
     def calculate_dist(self) -> tuple[np.ndarray, np.ndarray]:
         """Calculate task distribution and sample levels based on learning progress."""
-        if all([v < self._sample_threshold for k, v in self._counter.items()]) and self._random_baseline is not None:
+        if (
+            all([v < self.config.sample_threshold for k, v in self._counter.items()])
+            and self._random_baseline is not None
+        ):
             # Ensure we have valid task_dist and sample_levels
             if self._task_dist is None or len(self._task_dist) == 0:
                 self._task_dist = np.ones(self._num_tasks) / self._num_tasks
