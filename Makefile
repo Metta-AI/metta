@@ -41,6 +41,6 @@ install:
 
 pytest: install
 	@echo "Running Python tests..."
-	uv run --active metta test -n auto
+	uv run -m pytest
 
 all: dev test
