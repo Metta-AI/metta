@@ -7,7 +7,8 @@ help:
 	@echo "Available targets:"
 	@echo " dev - Prepare the dev environment"
 	@echo " test - Run all unit tests with coverage"
-	@echo " pytest - Run all unit tests"
+	@echo " pytest - Run unit tests without benchmarks (parallel)"
+	@echo " bench - Run all unit tests (serial)"
 	@echo " test-setup - Run setup integration tests"
 	@echo " all - Run dev and test"
 	@echo " clean - Remove cmake build artifacts and temporary files"
@@ -16,7 +17,7 @@ help:
 # Clean cmake build artifacts
 clean:
 	@echo "(Metta) Running clean command..."
-	uv run  --active metta clean
+	uv run --active --frozen metta clean
 
 # Dev all project dependencies and external components
 dev:
@@ -25,7 +26,7 @@ dev:
 
 test:
 	@echo "Running python tests with coverage"
-	uv run --active metta test -n auto --cov=metta --cov-report=term-missing --durations=10
+	uv run --active --frozen metta test -n auto --cov=metta --cov-report=term-missing --durations=10
 
 test-setup:
 	@echo "Running setup integration tests..."
@@ -33,14 +34,17 @@ test-setup:
 	METTA_TEST_SETUP=1 \
 	METTA_TEST_PROFILE=$(METTA_TEST_PROFILE) \
 	AWS_SSO_NONINTERACTIVE=1 \
-		uv run --active metta test tests/setup -v -n auto
+		uv run --active --frozen metta test tests/setup -v -n auto
 
 install:
 	@echo "Installing package in editable mode..."
-	uv sync --inexact --active
+	uv sync --active --frozen
 
 pytest: install
 	@echo "Running Python tests..."
-	uv run -m pytest
+	uv run --active --frozen -m pytest --benchmark-disable
+
+bench:
+	uv run --active --frozen -m pytest -n 0 -k benchmark
 
 all: dev test
