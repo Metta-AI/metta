@@ -57,7 +57,10 @@ class LSTM(LayerBase):
         self._net = self._make_net()
 
     def _make_net(self):
-        self._out_tensor_shape = [self.hidden_size]
+        # Get hidden_size from _nn_params
+        hidden_size = self._nn_params.get("hidden_size", self.hidden_size)
+        self._out_tensor_shape = [hidden_size]
+
         # Guard against setup order issues for static analyzers and runtime safety
         assert (
             getattr(self, "_in_tensor_shapes", None) is not None

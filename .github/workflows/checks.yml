@@ -284,17 +284,39 @@ jobs:
             # Stream output to log immediately for debugging crashes
             pytest $PYTEST_BASE_ARGS -m "not slow" \
               --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml | tee pytest_output.log
-            FAST_TESTS_FAILED=$?
+            FAST_TESTS_FAILED=${PIPESTATUS[0]}  # Get pytest's exit code, not tee's
           else
             # Capture output for PRs
             pytest $PYTEST_BASE_ARGS -m "not slow" \
               --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml 2>&1 | tee pytest_output.log
-            FAST_TESTS_FAILED=$?
+            FAST_TESTS_FAILED=${PIPESTATUS[0]}  # Get pytest's exit code, not tee's
           fi
-
-          # Display the output
-          cat pytest_output.log
           echo "::endgroup::"
+
+          # Display the output with appropriate header
+          if [ "${FAST_TESTS_FAILED:-0}" -ne 0 ]; then
+            echo "::group::❌ Phase 1 - Fast tests failed (exit code: ${FAST_TESTS_FAILED})"
+          else
+            echo "::group::✅ Phase 1 - Fast tests passed"
+          fi
+          # Show only content after the last "FAILURES" header
+          awk '
+          /^=+ FAILURES =+$/ { start = NR }   # remember the line number
+          END {
+            if (start) {
+              # re-read file and print from start+1
+              while ((getline line < FILENAME) > 0) {
+                if (NR > start) print line
+              }
+            }
+          }' pytest_output.log
+          echo "::endgroup::"
+
+          # Exit if fast tests failed
+          if [ "${FAST_TESTS_FAILED:-0}" -ne 0 ]; then
+            echo "::error::Fast tests failed! Skipping slow tests."
+            exit $FAST_TESTS_FAILED
+          fi
 
           # Check for slow tests
           echo "::group::Checking for slow tests"
@@ -338,36 +360,47 @@ jobs:
           '
           echo "::endgroup::"
 
-          # Exit early if fast tests failed
-          if [ "${FAST_TESTS_FAILED:-0}" -ne 0 ]; then
-            echo "::error::Fast tests failed! Skipping slow tests."
-            exit $FAST_TESTS_FAILED
-          fi
-
           # Phase 2: Run slow tests (only if fast tests passed)
           echo "::group::Phase 2 - Running slow tests"
           echo "Fast tests passed! Now running slow tests..."
 
           # For slow tests, we need to append coverage data
-          SLOW_TESTS_EXIT=0
-          pytest $PYTEST_BASE_ARGS -m "slow" --maxfail=5 --cov-append --cov-report=xml:coverage-slow${COVERAGE_SUFFIX}.xml || SLOW_TESTS_EXIT=$?
+          pytest $PYTEST_BASE_ARGS -m "slow" --maxfail=5 --cov-append --cov-report=xml:coverage-slow${COVERAGE_SUFFIX}.xml | tee pytest_slow_output.log
+          SLOW_TESTS_EXIT=${PIPESTATUS[0]}
 
           # Exit code 5 means no tests were collected (which is fine - not all packages have slow tests)
           if [ "${SLOW_TESTS_EXIT:-0}" -eq 5 ]; then
             echo "No slow tests found in this package/shard - that's OK!"
             SLOW_TESTS_EXIT=0
-          elif [ "${SLOW_TESTS_EXIT:-0}" -ne 0 ]; then
-            echo "::warning::Slow tests failed with exit code $SLOW_TESTS_EXIT"
           fi
           echo "::endgroup::"
 
-          # Report final status
+          # Display the output with appropriate header
           if [ "${SLOW_TESTS_EXIT:-0}" -ne 0 ]; then
-            echo "::warning::Some slow tests failed, but fast tests passed"
+            echo "::group::❌ Phase 2 - Slow tests failed (exit code: ${SLOW_TESTS_EXIT})"
+          else
+            echo "::group::✅ Phase 2 - Slow tests passed"
+          fi
+          # Show only content after the last "FAILURES" header
+          awk '
+          /^=+ FAILURES =+$/ { start = NR }   # remember the line number
+          END {
+            if (start) {
+              # re-read file and print from start+1
+              while ((getline line < FILENAME) > 0) {
+                if (NR > start) print line
+              }
+            }
+          }' pytest_slow_output.log
+          echo "::endgroup::"
+
+          # Exit if slow tests failed
+          if [ "${SLOW_TESTS_EXIT:-0}" -ne 0 ]; then
+            echo "::error::Slow tests failed!"
             exit $SLOW_TESTS_EXIT
           fi
 
-          echo "✅ Test run complete!"
+          echo "✅ All tests complete!"
 
       - name: Upload python test coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'

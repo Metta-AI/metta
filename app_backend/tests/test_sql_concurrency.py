@@ -7,7 +7,7 @@ import httpx
 import pytest
 from fastapi import FastAPI
 
-from tests.base_async_test import BaseAsyncTest
+from metta.app_backend.test_support.base_async_test import BaseAsyncTest
 
 
 @pytest.mark.slow

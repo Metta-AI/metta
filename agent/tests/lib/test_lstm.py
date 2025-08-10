@@ -17,18 +17,22 @@ def simple_lstm_environment():
 
     # Create input data
     sample_input = {
-        "x": torch.rand(batch_size * seq_length, input_size),
+        "env_obs": torch.rand(batch_size * seq_length, input_size),
         "hidden": torch.rand(batch_size * seq_length, input_size),
     }
 
     obs_shape = [input_size]
     cfg = {
         "name": "_lstm_test_",
-        "_nn_params": {"num_layers": num_layers},
+        "_nn_params": {
+            "num_layers": num_layers,
+            "hidden_size": hidden_size,
+        },
         "sources": [{"name": "hidden"}],
+        "obs_shape": obs_shape,
     }
     # Create LSTM layer
-    lstm_layer = LSTM(obs_shape, hidden_size, **cfg)
+    lstm_layer = LSTM(**cfg)
 
     # Set up in_tensor_shapes manually
     lstm_layer._in_tensor_shapes = [[input_size]]
