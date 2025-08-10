@@ -1,5 +1,3 @@
-import os
-
 from metta.setup.components.base import SetupModule
 from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
@@ -52,15 +50,8 @@ class AWSSetup(SetupModule):
         try:
             import boto3
 
-            # Unset AWS_PROFILE temporarily to use IRSA/instance credentials if available
-            original_profile = os.environ.pop("AWS_PROFILE", None)
-            try:
-                sts = boto3.client("sts")
-                response = sts.get_caller_identity()
-                return response["Account"]
-            finally:
-                # Restore AWS_PROFILE if it was set
-                if original_profile:
-                    os.environ["AWS_PROFILE"] = original_profile
+            sts = boto3.client("sts")
+            response = sts.get_caller_identity()
+            return response["Account"]
         except Exception:
             return None
