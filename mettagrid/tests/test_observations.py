@@ -1,41 +1,30 @@
 from typing import Any
 
 import numpy as np
+import pytest
 
-from metta.mettagrid.mettagrid_c import PackedCoordinate, dtype_actions
-from metta.mettagrid.test_support import TestEnvironmentBuilder, TokenTypes
+from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
+from metta.mettagrid.test_support import ObservationHelper, TestEnvironmentBuilder, TokenTypes
+
+NUM_OBS_TOKENS = 50
 
 
-class ObservationHelper:
-    """Helper class for observation-related operations."""
+@pytest.fixture
+def basic_env() -> MettaGrid:
+    """Create a basic test environment."""
+    builder = TestEnvironmentBuilder()
+    game_map = builder.create_basic_grid()
+    game_map = builder.place_agents(game_map, [(1, 1), (2, 4)])
+    return builder.create_environment(game_map, obs_width=3, obs_height=3, num_observation_tokens=NUM_OBS_TOKENS)
 
-    @staticmethod
-    def find_tokens_at_location(obs: np.ndarray, x: int, y: int) -> np.ndarray:
-        """Find all tokens at a specific location."""
-        location = PackedCoordinate.pack(y, x)
-        return obs[obs[:, 0] == location]
 
-    @staticmethod
-    def find_tokens_by_type(obs: np.ndarray, type_id: int) -> np.ndarray:
-        """Find all tokens of a specific type."""
-        return obs[obs[:, 1] == type_id]
-
-    @staticmethod
-    def count_walls(obs: np.ndarray) -> int:
-        """Count the number of wall tokens in an observation."""
-        return np.sum(obs[:, 2] == TokenTypes.WALL_TYPE_ID)
-
-    @staticmethod
-    def get_wall_positions(obs: np.ndarray) -> list[tuple[int, int]]:
-        """Get all wall positions from an observation."""
-        positions = []
-        wall_tokens = obs[obs[:, 2] == TokenTypes.WALL_TYPE_ID]
-        for token in wall_tokens:
-            coords = PackedCoordinate.unpack(token[0])
-            if coords:
-                row, col = coords
-                positions.append((col, row))  # Return as (x, y)
-        return positions
+@pytest.fixture
+def adjacent_agents_env() -> MettaGrid:
+    """Create an environment with adjacent agents."""
+    builder = TestEnvironmentBuilder()
+    game_map = builder.create_basic_grid(5, 5)
+    game_map = builder.place_agents(game_map, [(2, 1), (2, 2)])
+    return builder.create_environment(game_map, obs_width=3, obs_height=3, num_observation_tokens=NUM_OBS_TOKENS)
 
 
 class TestObservations:
@@ -393,7 +382,8 @@ class TestGlobalTokens:
         # Check episode completion updated (1/10 = 10%)
         expected_completion = int(round(0.1 * 255))
         assert global_token_values.get(TokenTypes.EPISODE_COMPLETION_PCT) == expected_completion, (
-            f"Expected completion {expected_completion}, got {global_token_values.get(TokenTypes.EPISODE_COMPLETION_PCT)}"
+            f"Expected completion {expected_completion}, "
+            + f"got {global_token_values.get(TokenTypes.EPISODE_COMPLETION_PCT)}"
         )
 
         # Check last action

@@ -27,3 +27,6 @@ class TokenTypes:
 
     # empty token
     EMPTY_TOKEN = [0xFF, 0xFF, 0xFF]
+
+    # three bytes per token
+    OBS_TOKEN_SIZE = 3

@@ -10,7 +10,7 @@ Learning Progress Tests:
 
 Prioritize Regressed Curriculum Tests:
 6. All tasks have linear scaling -> should maintain equal distribution
-7. One impossible task (always 0) -> should get minimum weight as max_score = 0 ==> LP = epislon
+7. One impossible task (always 0) -> should get minimum weight as max_score = 0 ==> LP = epsilon
 """
 
 import random
@@ -43,6 +43,96 @@ for module in modules_to_remove:
 # TODO: decide if we want to allow mettagrid to import from metta or if we would rather
 # move metta.map to metta.common.map
 from metta.map.mapgen import MapGen  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def mock_hydra_everywhere(monkeypatch):
+    """
+    Short-circuit all project Hydra config loading for unit tests,
+    but let the YAML-backed test 'test_bucketed_config' use the real loader.
+    """
+    from omegaconf import DictConfig, OmegaConf
+
+    from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+
+    # Grab originals so we can selectively pass through
+    try:
+        import importlib
+
+        util_mod = importlib.import_module("metta.mettagrid.curriculum.util")
+        _real_curriculum_from_config_path = util_mod.curriculum_from_config_path
+    except Exception:
+        _real_curriculum_from_config_path = None
+
+    try:
+        # Try both possible locations for config_from_path
+        hydra_util_mod = importlib.import_module("metta.common.util.hydra")
+        _real_config_from_path = getattr(hydra_util_mod, "config_from_path", None)
+    except Exception:
+        try:
+            hydra_util_mod = importlib.import_module("metta.mettagrid.util.hydra")
+            _real_config_from_path = getattr(hydra_util_mod, "config_from_path", None)
+        except Exception:
+            _real_config_from_path = None
+
+    # Minimal fake config builder
+    def _fake_base(env_overrides=None) -> DictConfig:
+        base = OmegaConf.create({"game": {"num_agents": 1, "map": {"width": 10, "height": 10}}})
+        result = OmegaConf.merge(base, env_overrides or {})
+        assert isinstance(result, DictConfig)
+        return result
+
+    # Mock config_from_path with pass-through for the YAML test
+    def mock_config_from_path(path, env_overrides=None) -> DictConfig:
+        # Allow the real YAML-backed case to work
+        if str(path) == "test_bucketed_config" and _real_config_from_path is not None:
+            return _real_config_from_path(path, env_overrides)
+        return _fake_base(env_overrides)
+
+    # Mock curriculum_from_config_path with pass-through for the YAML test
+    def mock_curriculum_from_config_path(path, env_overrides=None):
+        if str(path) == "test_bucketed_config" and _real_curriculum_from_config_path is not None:
+            return _real_curriculum_from_config_path(path, env_overrides)
+        cfg = mock_config_from_path(path, env_overrides)
+        return SingleTaskCurriculum(path, cfg)
+
+    # Also mock hydra.compose to catch any direct calls
+    # Store original compose in a closure variable instead of on the module
+    original_compose = None
+    try:
+        import hydra
+
+        original_compose = hydra.compose
+    except Exception:
+        pass
+
+    def mock_hydra_compose(config_name=None, overrides=None, return_hydra_config=False, strict=None):
+        # Special case for test_bucketed_config
+        if config_name == "test_bucketed_config" and original_compose is not None:
+            return original_compose(config_name, overrides, return_hydra_config, strict)
+        # For all other cases, return a fake config
+        return _fake_base()
+
+    # Apply the compose mock if we successfully imported hydra
+    if original_compose is not None:
+        monkeypatch.setattr("hydra.compose", mock_hydra_compose)
+
+    # Apply mocks across likely call sites
+    # (cover both grid + common util entry points and module-local imports)
+    for target in [
+        "metta.mettagrid.util.hydra.config_from_path",
+        "metta.mettagrid.curriculum.util.config_from_path",
+        "metta.mettagrid.curriculum.bucketed.config_from_path",
+    ]:
+        monkeypatch.setattr(target, mock_config_from_path, raising=False)
+
+    for target in [
+        "metta.mettagrid.curriculum.util.curriculum_from_config_path",
+        "metta.mettagrid.curriculum.random.curriculum_from_config_path",
+        "metta.mettagrid.curriculum.core.curriculum_from_config_path",
+        "metta.mettagrid.curriculum.bucketed.curriculum_from_config_path",
+    ]:
+        monkeypatch.setattr(target, mock_curriculum_from_config_path, raising=False)
 
 
 @pytest.fixture(autouse=True)
@@ -137,6 +227,10 @@ def test_bucketed_curriculum_from_yaml_with_map_builder():
     """Test BucketedCurriculum loading from YAML file with buckets that impact map builder."""
 
     import hydra
+    from hydra.core.global_hydra import GlobalHydra
+
+    if GlobalHydra.instance().is_initialized():
+        GlobalHydra.instance().clear()
 
     # Get the path to the test YAML config file
     test_dir = Path(__file__).parent
@@ -320,7 +414,7 @@ class RandomScores(ScoreGenerator):
     Useful for testing curriculum behavior under noisy conditions.
     """
 
-    def __init__(self, seed: int = None, min_val: float = 0.0, max_val: float = 1.0):
+    def __init__(self, seed: int | None = None, min_val: float = 0.0, max_val: float = 1.0):
         self.rng = random.Random(seed)
         self.min_val = min_val
         self.max_val = max_val
