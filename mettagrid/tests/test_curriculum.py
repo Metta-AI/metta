@@ -14,14 +14,15 @@ Prioritize Regressed Curriculum Tests:
 """
 
 import random
+import sys
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any, Dict, List, Set
 
 import numpy as np
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
-from metta.map.mapgen import MapGen
 from metta.mettagrid.curriculum.bucketed import BucketedCurriculum, _expand_buckets
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum
 from metta.mettagrid.curriculum.learning_progress import LearningProgressCurriculum
@@ -30,6 +31,12 @@ from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedC
 from metta.mettagrid.curriculum.random import RandomCurriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
+
+# TODO: decide if we want to allow mettagrid to import from metta or if we would rather
+# move metta.map to metta.common.map
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT))
+from metta.map.mapgen import MapGen  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

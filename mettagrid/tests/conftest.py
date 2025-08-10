@@ -9,7 +9,7 @@ def basic_env():
     builder = TestEnvironmentBuilder()
     game_map = builder.create_basic_grid()
     game_map = builder.place_agents(game_map, [(1, 1), (2, 4)])
-    return builder.create_environment(game_map)
+    return builder.create_environment(game_map, obs_width=5, obs_height=5, num_observation_tokens=100)
 
 
 @pytest.fixture
@@ -18,4 +18,4 @@ def adjacent_agents_env():
     builder = TestEnvironmentBuilder()
     game_map = builder.create_basic_grid(5, 5)
     game_map = builder.place_agents(game_map, [(2, 1), (2, 2)])
-    return builder.create_environment(game_map)
+    return builder.create_environment(game_map, obs_width=3, obs_height=3, num_observation_tokens=50)

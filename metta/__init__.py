@@ -1,22 +1,15 @@
 # metta/__init__.py
 import sys
 from pathlib import Path
+from pkgutil import extend_path
 
-# Get the two potential metta source directories
-metta_src_dir = str(Path(__file__).parent.resolve())
-mettagrid_src_dir = str((Path(__file__).parent.parent / "mettagrid/src/metta").resolve())
+metta_parent = str(Path(__file__).parent.parent.resolve())  # .../GitHub/metta
+mettagrid_parent = str(Path(__file__).parent.parent / "mettagrid" / "src")  # .../GitHub/metta/mettagrid/src
 
-# Prioritize the main metta source directory
-# This ensures that imports like `metta.rl` resolve to the correct package,
-# not a conflicting module in the mettagrid source tree.
-if metta_src_dir in sys.path:
-    sys.path.remove(metta_src_dir)
-sys.path.insert(0, metta_src_dir)
+for p in (metta_parent, mettagrid_parent):
+    if p in sys.path:
+        sys.path.remove(p)
+sys.path.insert(0, metta_parent)  # repo root first
+sys.path.append(mettagrid_parent)  # de-prioritize mettagrid/src
 
-if mettagrid_src_dir in sys.path:
-    sys.path.remove(mettagrid_src_dir)
-sys.path.append(mettagrid_src_dir)  # Add it to the end to deprioritize it
-
-
-# Now, extend the path for namespace packaging
-__path__ = __import__("pkgutil").extend_path(__path__, __name__)
+__path__ = extend_path(__path__, __name__)
