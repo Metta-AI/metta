@@ -11,10 +11,9 @@ from omegaconf import DictConfig
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent, make_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.fs import wait_for_file
+from metta.agent.util.distribution_utils import get_from_master
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.trainer_config import TrainerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -88,105 +87,6 @@ def wrap_agent_distributed(agent: PolicyAgent, device: torch.device) -> PolicyAg
     return agent
 
 
-def maybe_load_checkpoint(
-    run_dir: str,
-    policy_store: PolicyStore,
-    trainer_cfg: TrainerConfig,
-    metta_grid_env: MettaGridEnv,
-    cfg: DictConfig,
-    is_master: bool,
-    rank: int,
-) -> tuple[TrainerCheckpoint | None, PolicyRecord, int, int]:
-    # Try to load checkpoint
-    checkpoint = TrainerCheckpoint.load(run_dir)
-    agent_step = 0
-    epoch = 0
-
-    if checkpoint:
-        agent_step = checkpoint.agent_step
-        epoch = checkpoint.epoch
-        logger.info(f"Restored from checkpoint at {agent_step} steps")
-
-    # Try to load policy from checkpoint
-    if checkpoint and checkpoint.policy_path:
-        logger.info(f"Loading policy from checkpoint: {checkpoint.policy_path}")
-        policy_record = policy_store.policy_record(checkpoint.policy_path)
-
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy_record.policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in policy_record.metadata
-        ):
-            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info("Restored original_feature_mapping from checkpoint")
-
-        return checkpoint, policy_record, agent_step, epoch
-
-    # Try to load initial policy from config
-    if trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri:
-        logger.info(f"Loading initial policy URI: {trainer_cfg.initial_policy.uri}")
-        policy_record = policy_store.policy_record(trainer_cfg.initial_policy.uri)
-
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy_record.policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in policy_record.metadata
-        ):
-            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info("Restored original_feature_mapping from initial policy")
-
-        return checkpoint, policy_record, agent_step, epoch
-
-    # Check for existing policy at default path
-    default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, policy_store.make_model_name(0))
-    if os.path.exists(default_path):
-        logger.info(f"Loading policy from default path: {default_path}")
-        policy_record = policy_store.policy_record(default_path)
-
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy_record.policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in policy_record.metadata
-        ):
-            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info("Restored original_feature_mapping from default path")
-
-        return checkpoint, policy_record, agent_step, epoch
-
-    # Create new policy with distributed coordination
-    if torch.distributed.is_initialized() and not is_master:
-        # Non-master waits for master to create
-        logger.info(f"Rank {rank}: Waiting for master to create policy at {default_path}")
-        torch.distributed.barrier()
-
-        if not wait_for_file(default_path, timeout=300):
-            raise RuntimeError(f"Rank {rank}: Timeout waiting for policy at {default_path}")
-
-        policy_record = policy_store.policy_record(default_path)
-
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy_record.policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in policy_record.metadata
-        ):
-            policy_record.policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info(f"Rank {rank}: Restored original_feature_mapping")
-
-        return checkpoint, policy_record, agent_step, epoch
-    else:
-        # Master creates new policy
-        name = policy_store.make_model_name(0)
-        pr = policy_store.create_empty_policy_record(name)
-        pr.policy = make_policy(metta_grid_env, cfg)
-        saved_pr = policy_store.save(pr)
-        logger.info(f"Created and saved new policy to {saved_pr.uri}")
-
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
-
-        return checkpoint, saved_pr, agent_step, epoch
-
-
 def load_or_initialize_policy(
     cfg: DictConfig,
     checkpoint: TrainerCheckpoint | None,
@@ -207,9 +107,12 @@ def load_or_initialize_policy(
         )
 
     if torch.distributed.is_initialized():
-        # Non-master ranks create a throwaway policy instance to receive the broadcasted state
-        # during the DDP wrapping of the policy.
-        policy = make_policy(metta_grid_env, cfg)
+        # receive policy from master using NCCL broadcasting
+        policy, initial_policy_record, latest_saved_policy_record = (
+            get_from_master(policy),
+            get_from_master(initial_policy_record),
+            get_from_master(latest_saved_policy_record),
+        )
 
     # cast to the correct type
     policy = cast(MettaAgent | DistributedMettaAgent, policy)

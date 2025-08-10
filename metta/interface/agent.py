@@ -193,41 +193,47 @@ def create_or_load_agent(
     Returns:
         Tuple of (agent, policy_record, agent_step, epoch, checkpoint)
     """
-    from metta.rl.policy_management import maybe_load_checkpoint
+    from metta.rl.policy_management import load_or_initialize_policy
+    from metta.rl.trainer_checkpoint import TrainerCheckpoint
 
     # Get the MettaGridEnv
     metta_grid_env = env.driver_env
     assert isinstance(metta_grid_env, MettaGridEnv)
 
-    # Load checkpoint and policy
-    checkpoint, policy_record, agent_step, epoch = maybe_load_checkpoint(
-        run_dir=run_dir,
+    checkpoint = TrainerCheckpoint.load(run_dir)
+    agent_step = 0
+    epoch = 0
+    if checkpoint:
+        agent_step = checkpoint.agent_step
+        epoch = checkpoint.epoch
+
+    cfg = DictConfig(
+        {
+            "device": str(device),
+            "run": os.path.basename(run_dir),
+            "run_dir": run_dir,
+            "agent": _get_default_agent_config(str(device))["agent"],
+            "trainer": trainer_config,
+        }
+    )
+
+    # Load or initialize policy
+    agent, policy_record, _ = load_or_initialize_policy(
+        cfg=cfg,
+        checkpoint=checkpoint,
         policy_store=policy_store,
-        trainer_cfg=trainer_config,
         metta_grid_env=metta_grid_env,
-        cfg=DictConfig(
-            {
-                "device": str(device),
-                "run": os.path.basename(run_dir),
-                "run_dir": run_dir,
-                "agent": _get_default_agent_config(str(device))["agent"],
-            }
-        ),
         is_master=is_master,
         rank=rank,
     )
 
     if policy_record is not None:
-        # Use loaded policy
-        agent = policy_record.policy
         logger.info(f"Loaded agent from {policy_record.uri}")
-
-        # Initialize to environment (handles feature remapping)
-        features = metta_grid_env.get_observation_features()
-        agent.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
     else:
-        # Create new agent
-        agent = Agent(env, device=str(device))
         logger.info("Created new agent")
+
+    # Initialize to environment (handles feature remapping)
+    features = metta_grid_env.get_observation_features()
+    agent.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
     return agent, policy_record, agent_step, epoch, checkpoint
