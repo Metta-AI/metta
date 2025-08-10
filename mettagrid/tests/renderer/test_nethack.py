@@ -16,7 +16,6 @@ from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
-    AttackActionConfig,
     EnvConfig,
     GameConfig,
     GroupConfig,
@@ -41,7 +40,7 @@ def _create_test_env_config():
         rotate=ActionConfig(),
         put_items=ActionConfig(),
         get_items=ActionConfig(),
-        attack=AttackActionConfig(),
+        attack=ActionConfig(),
         swap=ActionConfig(),
     )
 

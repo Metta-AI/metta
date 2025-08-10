@@ -31,7 +31,6 @@ class MettaGridCore:
 
     def __init__(
         self,
-        level: Level,
         game_config_dict: Dict[str, Any],
         render_mode: Optional[str] = None,
         **kwargs: Any,
@@ -40,12 +39,15 @@ class MettaGridCore:
         Initialize core MettaGrid functionality.
 
         Args:
-            level: Level to use for the environment
             game_config_dict: Game configuration dictionary
             render_mode: Rendering mode (None, "human", "miniscope")
             **kwargs: Additional arguments passed to subclasses
         """
         self._render_mode = render_mode
+        
+        # Create level from map config
+        level = self._create_level_from_config(game_config_dict)
+        
         self._level = level
         self._renderer = None
         self._map_labels: List[str] = level.labels
@@ -65,6 +67,45 @@ class MettaGridCore:
 
         # Create C++ environment immediately
         self._c_env_instance: Optional[MettaGridCpp] = self._create_c_env(game_config_dict)
+
+    def _create_level_from_config(self, game_config_dict: Dict[str, Any]) -> Level:
+        """
+        Create a level from the map configuration in the game config.
+        
+        Args:
+            game_config_dict: Game configuration dictionary containing map config
+            
+        Returns:
+            Level object created using MapGen
+        """
+        if "map" not in game_config_dict or game_config_dict["map"] is None:
+            raise ValueError("Map configuration is required for environment creation")
+        
+        from metta.map.mapgen import MapGen
+        
+        map_config = game_config_dict["map"]
+        
+        # Extract map_gen parameters from MapConfig wrapper or use directly
+        if isinstance(map_config, dict):
+            if "map_gen" in map_config:
+                # MapConfig wrapper case
+                mapgen_params = map_config["map_gen"]
+            else:
+                # Direct MapGenParams case
+                mapgen_params = map_config
+        else:
+            # Handle Pydantic object (MapConfig or MapGenParams)
+            if hasattr(map_config, "map_gen"):
+                # MapConfig wrapper
+                mapgen_params = map_config.map_gen.model_dump() if hasattr(map_config.map_gen, "model_dump") else map_config.map_gen
+            else:
+                # Direct MapGenParams
+                mapgen_params = map_config.model_dump() if hasattr(map_config, "model_dump") else map_config
+        
+        # Create MapGen instance with the extracted parameters
+        mapgen = MapGen(**mapgen_params)
+        
+        return mapgen.build()
 
     @property
     def c_env(self) -> MettaGridCpp:
@@ -110,9 +151,14 @@ class MettaGridCore:
         if not isinstance(game_config_dict, dict):
             raise ValueError(f"Expected dict for game config, got {type(game_config_dict)}")
 
+        # Remove map field before passing to C++ (it's already been used to create the level)
+        game_config_for_cpp = game_config_dict.copy()
+        if "map" in game_config_for_cpp:
+            del game_config_for_cpp["map"]
+
         # Create C++ config
         try:
-            c_cfg = from_mettagrid_config(game_config_dict)
+            c_cfg = from_mettagrid_config(game_config_for_cpp)
         except Exception as e:
             logger.error(f"Error creating C++ config: {e}")
             logger.error(f"Game config: {game_config_dict}")
