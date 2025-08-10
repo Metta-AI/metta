@@ -4,21 +4,12 @@ defaults:
   - _self_
 
 pytorch:
- _target_: metta.agent.external.example.Recurrent
- hidden_size: 256
+ _target_: metta.agent.pytorch.latent_attn_med.Recurrent
+ hidden_size: 512
  cnn_channels: 128
- input_size: 256
 
 trainer:
-  checkpoint:
-    checkpoint_interval: 300
-    wandb_checkpoint_interval: 300
-  simulation:
-    evaluate_interval: 300
-    #env: /env/mettagrid/navigation/training/multienv
   initial_policy:
-   uri: pytorch://checkpoints/metta-new/metta.pt
-  #  #uri: pytorch://checkpoints/metta-example/model_019074.pt
-  #env: /env/mettagrid//training/multienv_nc
+    uri: pytorch://checkpoints/metta-new/metta.pt
 
 trained_policy_uri: pytorch://checkpoints/metta-new/metta.pt
