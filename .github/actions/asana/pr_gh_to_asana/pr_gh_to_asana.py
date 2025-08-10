@@ -250,9 +250,9 @@ if __name__ == "__main__":
             else:
                 print(f"Skipping write to GITHUB_OUTPUT. Task URL: {task_url}")
 
-    except Exception:
+    except Exception as e:
         print(
-            "Exception while running github action. "
+            f"Exception while running github action: {e}. "
             "Failing silently so as not to block the PR. "
             "Rerun github action to retry."
         )
