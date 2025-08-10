@@ -1,4 +1,4 @@
-import json
+import os
 
 from metta.setup.components.base import SetupModule
 from metta.setup.profiles import UserType
@@ -26,10 +26,11 @@ class AWSSetup(SetupModule):
 
     def check_installed(self) -> bool:
         try:
-            result = self.run_command(["aws", "--version"], check=False)
-        except FileNotFoundError:
+            import boto3  # noqa: F401
+
+            return True
+        except ImportError:
             return False
-        return result.returncode == 0
 
     def install(self) -> None:
         if self.config.user_type == UserType.SOFTMAX_DOCKER:
@@ -49,14 +50,17 @@ class AWSSetup(SetupModule):
 
     def check_connected_as(self) -> str | None:
         try:
-            result = self.run_command(["aws", "sts", "get-caller-identity"], check=False)
-        except FileNotFoundError:
-            return None
+            import boto3
 
-        if result.returncode == 0:
+            # Unset AWS_PROFILE temporarily to use IRSA/instance credentials if available
+            original_profile = os.environ.pop("AWS_PROFILE", None)
             try:
-                res = json.loads(result.stdout)
-                return res["Account"]
-            except Exception:
-                pass
-        return None
+                sts = boto3.client("sts")
+                response = sts.get_caller_identity()
+                return response["Account"]
+            finally:
+                # Restore AWS_PROFILE if it was set
+                if original_profile:
+                    os.environ["AWS_PROFILE"] = original_profile
+        except Exception:
+            return None
