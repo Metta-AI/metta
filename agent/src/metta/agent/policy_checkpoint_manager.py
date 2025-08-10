@@ -39,13 +39,10 @@ class PolicyCheckpointManager:
     def __init__(self, base_path: str):
         self.base_path = Path(base_path)
         self.base_path.mkdir(parents=True, exist_ok=True)
+
+        # should this be handled centrally in the codebase? where should i put it
         yaml.SafeDumper.add_representer(MultiDiscrete, multidiscrete_representer)
         yaml.SafeLoader.add_constructor("!MultiDiscrete", multidiscrete_constructor)
-
-        space = MultiDiscrete([5, 2, 2])
-        yaml_str = yaml.safe_dump({"action_space": space})
-        loaded = yaml.safe_load(yaml_str)
-        print(loaded)
 
     def save(self, policy_record: PolicyRecord, checkpoint_name: str):
         """Save policy record with sidecar pattern"""
@@ -68,48 +65,23 @@ class PolicyCheckpointManager:
             return agent.module.state_dict()
         return agent.state_dict()
 
-    def _extract_agent_metadata(self, agent: PolicyAgent) -> Dict[str, Any]:
-        """Extract non-weight attributes from agent, reflecting the actual variable layout"""
-        metadata = {}
-
+    def _extract_agent_attributes(self, agent: PolicyAgent) -> Dict[str, Any]:
         # Get the actual agent (unwrap DDP if needed)
         actual_agent = agent.module if isinstance(agent, DistributedMettaAgent) else agent
 
-        # Extract all attributes that exist on the agent, organized by their actual structure
-        # These are the actual attributes that exist on MettaAgent
-        agent_attrs = [
-            "agent_attributes",
-            "_total_params",
-            "active_features",
-            "device",
-            "feature_id_to_name",
-            "feature_normalizations",
-            "original_feature_mapping",
-            "feature_id_remap",
-            "action_max_params",
-            "action_names",
-            "active_actions",
-            "cum_action_max_params",
-            "action_index_tensor",
-        ]
-
-        # Extract attributes that exist on the agent
-        for attr in agent_attrs:
-            if hasattr(actual_agent, attr):
-                value = getattr(actual_agent, attr)
-                # Only serialize JSON-compatible types
-                if self._is_serializable(value):
-                    metadata[attr] = value
-
-        return metadata
+        value = actual_agent.agent_attributes
+        if self._is_serializable(value):
+            return value
+        else:
+            return {}
 
     def _extract_metadata_from_record(self, policy_record: PolicyRecord) -> Dict[str, Any]:
         """Extract metadata from a PolicyRecord and the underlying agent."""
         agent = policy_record.policy
 
-        metadata_dict = {
+        metadata_dict: Dict[str, Any] = {
             "metadata": dict(policy_record.metadata),  # Convert PolicyMetadata to dict
-            "agent": self._extract_agent_metadata(agent),
+            "agent": self._extract_agent_attributes(agent),
         }
 
         # Add top-level summary fields for backward compatibility
@@ -143,7 +115,7 @@ class PolicyCheckpointManager:
 
     def load_weights_only(self, checkpoint_name: str) -> Dict[str, torch.Tensor]:
         """Load only model weights"""
-        weights_path = self.base_path / f"{checkpoint_name}.pt"
+        weights_path = self.base_path / f"{checkpoint_name}.ptx"
         return torch.load(weights_path, map_location="cpu")
 
     def load_weights_ptx(self, checkpoint_name: str) -> Dict[str, torch.Tensor]:
@@ -167,10 +139,26 @@ class PolicyCheckpointManager:
             agent.load_state_dict(weights)
             actual_agent = agent
 
-        # Restore metadata attributes
-        for key, value in metadata.items():
-            if hasattr(actual_agent, key) and key not in ["model_type", "timestamp"]:
-                setattr(actual_agent, key, value)
+        # Restore agent attributes from the new hierarchical structure
+        if "agent" in metadata:
+            agent_metadata = metadata["agent"]
+
+            # Restore agent attributes that exist on the actual agent
+            for attr_name, attr_value in agent_metadata.items():
+                if hasattr(actual_agent, attr_name):
+                    try:
+                        setattr(actual_agent, attr_name, attr_value)
+                    except Exception as e:
+                        print(f"Failed to restore attribute {attr_name}: {e}")
+                else:
+                    print(f"Warning: Agent does not have attribute {attr_name}")
+
+        # Restore metadata from the policy record if needed
+        if "metadata" in metadata:
+            policy_metadata = metadata["metadata"]
+            # Note: PolicyRecord metadata is typically not restored to the agent
+            # as it represents training state, not agent state
+            print(f"Policy metadata available: {list(policy_metadata.keys())}")
 
     @staticmethod
     def _is_serializable(obj) -> bool:

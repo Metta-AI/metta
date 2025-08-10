@@ -291,6 +291,8 @@ class PolicyStore:
                 checkpoint_manager.save(pr, checkpoint_name)
                 logger.info("Saved additional files (.ptx, .yaml) using PolicyCheckpointManager")
 
+                checkpoint_manager.restore_agent(pr._cached_policy, checkpoint_name)
+
             except Exception as e:
                 logger.warning(f"Failed to save additional files using PolicyCheckpointManager: {e}")
 

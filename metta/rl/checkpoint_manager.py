@@ -117,7 +117,6 @@ class CheckpointManager:
             "avg_simulation_score": evals.avg_simulation_score,
         }
 
-        # TODO: reformat this; there is redundancy
         metadata = {
             "epoch": epoch,
             "agent_step": agent_step,

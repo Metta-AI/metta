@@ -4,4 +4,4 @@ trainer:
   env: /env/mettagrid/arena/advanced
   simulation:
     replay_dir: /Users/localmini/github/metta/replay_dir/${run}
-  total_timesteps: 100000
+  total_timesteps: 1000000
