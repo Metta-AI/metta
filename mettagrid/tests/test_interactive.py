@@ -11,7 +11,7 @@ import time
 import numpy as np
 from omegaconf import DictConfig
 
-from metta.curriculum.rl.core import SingleTaskCurriculum
+from metta.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.gym_env import SingleAgentMettaGridGymEnv
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv

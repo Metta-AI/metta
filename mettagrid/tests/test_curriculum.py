@@ -23,14 +23,14 @@ from omegaconf import DictConfig, OmegaConf
 
 import metta.mettagrid.room.random
 from metta.map.mapgen import MapGen
-from metta.curriculum.rl.bucketed import BucketedCurriculum, _expand_buckets
-from metta.curriculum.rl.core import Curriculum, SingleTaskCurriculum
-from metta.curriculum.rl.learning_progress import LearningProgressCurriculum
-from metta.curriculum.rl.multi_task import MultiTaskCurriculum
-from metta.curriculum.rl.prioritize_regressed import PrioritizeRegressedCurriculum
-from metta.curriculum.rl.random import RandomCurriculum
-from metta.curriculum.rl.sampling import SampledTaskCurriculum
-from metta.curriculum.rl.util import curriculum_from_config_path
+from metta.curriculum.bucketed import BucketedCurriculum, _expand_buckets
+from metta.curriculum.core import Curriculum, SingleTaskCurriculum
+from metta.curriculum.learning_progress import LearningProgressCurriculum
+from metta.curriculum.multi_task import MultiTaskCurriculum
+from metta.curriculum.prioritize_regressed import PrioritizeRegressedCurriculum
+from metta.curriculum.random import RandomCurriculum
+from metta.curriculum.sampling import SampledTaskCurriculum
+from metta.curriculum.util import curriculum_from_config_path
 
 
 @pytest.fixture(autouse=True)

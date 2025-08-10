@@ -1,16 +1,8 @@
-"""Curriculum learning components for Metta AI."""
+"""Reinforcement learning curriculum components."""
 
-from .rl import (
-    # Core classes
-    Curriculum,
-    Task,
-    RandomCurriculum,
-    LearningProgressCurriculum,
-    TaskSet,
-    WeightedTaskSet,
-    BuckettedTaskSet,
-    create_task_set_from_config,
-    # Config classes
+from .curriculum import Curriculum, Task, RandomCurriculum, LearningProgressCurriculum
+from .task_set import TaskSet, WeightedTaskSet, BuckettedTaskSet, create_task_set_from_config
+from .config import (
     TaskSetConfig,
     WeightedTaskSetConfig,
     BuckettedTaskSetConfig,
@@ -21,7 +13,8 @@ from .rl import (
     LearningProgressCurriculumConfig,
     TaskSetConfigUnion,
     CurriculumConfigUnion,
-    # Builder classes
+)
+from .builders import (
     TaskSetBuilder,
     WeightedTaskSetBuilder,
     BuckettedTaskSetBuilder,
@@ -33,11 +26,11 @@ from .rl import (
 __all__ = [
     # Core classes
     "Curriculum",
-    "Task",
-    "RandomCurriculum", 
+    "Task", 
+    "RandomCurriculum",
     "LearningProgressCurriculum",
     "TaskSet",
-    "WeightedTaskSet",
+    "WeightedTaskSet", 
     "BuckettedTaskSet",
     "create_task_set_from_config",
     # Config classes

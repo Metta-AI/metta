@@ -20,7 +20,7 @@ from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.curriculum.rl.core import Curriculum
+from metta.curriculum.core import Curriculum
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
@@ -85,7 +85,7 @@ class MettaGridEnv(MettaGridPufferBase):
         
         # Create a simple curriculum if none provided
         if curriculum is None:
-            from metta.curriculum.rl.random import SingleTaskCurriculum
+            from metta.curriculum.random import SingleTaskCurriculum
             curriculum = SingleTaskCurriculum("env_config", env_config)
 
         # Initialize with base PufferLib functionality

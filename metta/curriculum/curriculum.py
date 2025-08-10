@@ -7,7 +7,7 @@ from typing import List
 
 import numpy as np
 
-from metta.curriculum.rl.task_set import TaskSet, create_task_set_from_config
+from metta.curriculum.task_set import TaskSet, create_task_set_from_config
 from metta.rl.env_config import EnvConfig
 from .config import (
     CurriculumConfig,

@@ -15,7 +15,7 @@ from omegaconf import OmegaConf
 from typing_extensions import override
 
 from metta.mettagrid.core import MettaGridCore
-from metta.curriculum.rl.core import Curriculum
+from metta.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
 
 # Data types for Gymnasium - import from C++ module

@@ -34,7 +34,7 @@ from omegaconf import DictConfig
 # MettaGrid imports
 # Note: MettaGridEnv inherits from PufferEnv, so it's fully PufferLib-compatible
 from metta.mettagrid import MettaGridEnv
-from metta.curriculum.rl.core import SingleTaskCurriculum
+from metta.curriculum.core import SingleTaskCurriculum
 
 # Training framework imports
 try:

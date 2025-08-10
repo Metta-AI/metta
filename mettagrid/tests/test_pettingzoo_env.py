@@ -9,7 +9,7 @@ import pytest
 from omegaconf import DictConfig
 from pettingzoo.test import parallel_api_test
 
-from metta.curriculum.rl.core import SingleTaskCurriculum
+from metta.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
 
