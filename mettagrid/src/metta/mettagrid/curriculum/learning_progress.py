@@ -57,7 +57,7 @@ class LearningProgressCurriculum(RandomCurriculum):
         task_idx = list(self._curricula.keys()).index(id)
 
         # Collect data for learning progress
-        self._lp_tracker.collect_data({f"tasks/{task_idx}": [success_rate]})
+        self._lp_tracker.complete_task(task_idx, success_rate)
 
         # Update task weights based on learning progress
         lp_weights, _ = self._lp_tracker.calculate_dist()
@@ -76,7 +76,7 @@ class LearningProgressCurriculum(RandomCurriculum):
 
     def get_curriculum_stats(self) -> dict[str, float]:
         """Get learning progress statistics for logging."""
-        return self._lp_tracker.add_stats()
+        return self._lp_tracker.get_stats()
 
 
 class BidirectionalLearningProgress:
@@ -98,13 +98,12 @@ class BidirectionalLearningProgress:
         self._random_baseline = None
         self._task_success_rate = np.zeros(num_tasks)
         self._mean_samples_per_eval = []
-        self._num_nans = []
         self._update_mask = np.ones(num_tasks).astype(bool)
         self._sample_levels = np.arange(num_tasks).astype(np.int32)
         self._counter = {i: 0 for i in self._sample_levels}
         self._task_dist = None
 
-    def add_stats(self) -> dict[str, float]:
+    def get_stats(self) -> dict[str, float]:
         """Return learning progress statistics for logging."""
         stats: dict[str, float] = {}
         stats["lp/num_active_tasks"] = len(self._sample_levels)
@@ -115,7 +114,6 @@ class BidirectionalLearningProgress:
         stats["lp/last_task_success_rate"] = self._task_success_rate[-1]
         stats["lp/task_success_rate"] = np.mean(self._task_success_rate)
         stats["lp/mean_evals_per_task"] = self._mean_samples_per_eval[-1]
-        stats["lp/num_nan_tasks"] = self._num_nans[-1]
         return stats
 
     def _update(self):
@@ -126,8 +124,6 @@ class BidirectionalLearningProgress:
                 for task_outcomes in self._outcomes
             ]
         )
-        # Handle NaN values in task success rates (empty lists)
-        task_success_rates = np.nan_to_num(task_success_rates, nan=DEFAULT_SUCCESS_RATE)
 
         if self._random_baseline is None:
             self._random_baseline = np.minimum(task_success_rates, RANDOM_BASELINE_CAP)
@@ -163,15 +159,11 @@ class BidirectionalLearningProgress:
 
         return task_success_rates
 
-    def collect_data(self, infos: dict[str, list[float]]):
+    def complete_task(self, task_id: int, res: float):
         """Collect task outcome data for learning progress tracking."""
-        for k, v in infos.items():
-            if "tasks" in k:
-                task_id = int(k.split("/")[1])
-                for res in v:
-                    self._outcomes[task_id].append(res)
-                    if task_id in self._sample_levels:
-                        self._counter[task_id] += 1
+        self._outcomes[task_id].append(res)
+        if task_id in self._sample_levels:
+            self._counter[task_id] += 1
 
     def _learning_progress(self, reweight: bool = True) -> np.ndarray:
         """Calculate learning progress as the difference between fast and slow moving averages."""
@@ -232,7 +224,6 @@ class BidirectionalLearningProgress:
             for task_outcomes in self._outcomes
         ]
         out_vec = [DEFAULT_SUCCESS_RATE if np.isnan(x) else x for x in out_vec]  # Handle NaN in outcomes
-        self._num_nans.append(sum(np.isnan(out_vec)))
         self._task_success_rate = np.array(out_vec)
         self._mean_samples_per_eval.append(np.mean([len(t) for t in self._outcomes]))
 
@@ -281,7 +272,7 @@ class BidirectionalLearningProgress:
             # Ensure we have valid task_dist and sample_levels
             if self._task_dist is None or len(self._task_dist) == 0:
                 self._task_dist = np.ones(self._num_tasks) / self._num_tasks
-            if self._sample_levels is None or len(self._sample_levels) == 0:
+            if len(self._sample_levels) == 0:
                 self._sample_levels = np.arange(self._num_tasks).astype(np.int32)
             return self._task_dist, self._sample_levels
 
