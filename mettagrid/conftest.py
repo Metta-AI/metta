@@ -1,17 +1,4 @@
-import sys
-from pathlib import Path
-
 import pytest
-
-print(f"\n===== applying conftest from {Path(__file__)} =====")
-
-# Add dependencies to sys.path if not already present
-base_dir = Path(__file__).resolve().parent
-
-print("\n===== DEBUG: Python sys.path =====")
-for i, path in enumerate(sys.path):
-    print(f"{i}: {path}")
-print("===== END DEBUG: Python sys.path =====\n")
 
 
 def pytest_configure(config):

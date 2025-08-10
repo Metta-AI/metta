@@ -1,7 +1,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from tests.base_async_test import BaseAsyncTest
+from metta.app_backend.test_support.base_async_test import BaseAsyncTest
 
 
 class TestTokenSystem(BaseAsyncTest):

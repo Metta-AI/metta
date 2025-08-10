@@ -22,12 +22,13 @@ from metta.core.monitoring import (
     setup_monitoring,
 )
 from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.env_config import EnvConfig
-from metta.rl.evaluate import evaluate_policy, evaluate_policy_remote
+from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
@@ -57,7 +58,7 @@ from metta.rl.wandb import (
     log_model_parameters,
     setup_wandb_metrics,
 )
-from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
+from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
 
 try:
@@ -523,30 +524,28 @@ def train(
                     num_episodes=sim_suite_config.num_episodes,
                 )
 
-                # Add training task to the suite
-                # Pass the config as _pre_built_env_config to avoid Hydra loading
-                task_cfg = curriculum.get_task().env_cfg()
-                training_task_config = SingleEnvSimulationConfig(
-                    env="eval/training_task",  # Just a descriptive name
-                    num_episodes=1,
-                    env_overrides={"_pre_built_env_config": task_cfg},
-                )
-                extended_suite_config.simulations["eval/training_task"] = training_task_config
+                evaluate_local = trainer_cfg.simulation.evaluate_local
 
                 if trainer_cfg.simulation.evaluate_remote:
-                    evaluate_policy_remote(
+                    try:
+                        evaluate_policy_remote(
+                            policy_record=latest_saved_policy_record,
+                            sim_suite_config=extended_suite_config,
+                            stats_epoch_id=stats_tracker.stats_epoch_id,
+                            wandb_policy_name=wandb_policy_name,
+                            stats_client=stats_client,
+                            wandb_run=wandb_run,
+                            trainer_cfg=trainer_cfg,
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
+                        logger.error("Falling back to local evaluation")
+                        evaluate_local = True
+
+                if evaluate_local:
+                    evaluation_results = evaluate_policy(
                         policy_record=latest_saved_policy_record,
-                        sim_suite_config=extended_suite_config,
-                        stats_epoch_id=stats_tracker.stats_epoch_id,
-                        wandb_policy_name=wandb_policy_name,
-                        stats_client=stats_client,
-                        wandb_run=wandb_run,
-                        trainer_cfg=trainer_cfg,
-                    )
-                if trainer_cfg.simulation.evaluate_local:
-                    eval_scores = evaluate_policy(
-                        policy_record=latest_saved_policy_record,
-                        sim_suite_config=extended_suite_config,
+                        simulation_suite=extended_suite_config,
                         device=device,
                         vectorization=env_cfg.vectorization,
                         replay_dir=trainer_cfg.simulation.replay_dir,
@@ -554,11 +553,21 @@ def train(
                         wandb_policy_name=wandb_policy_name,
                         policy_store=policy_store,
                         stats_client=stats_client,
-                        wandb_run=wandb_run,
-                        trainer_cfg=trainer_cfg,
-                        agent_step=agent_step,
-                        epoch=epoch,
+                        logger=logger,
+                        training_curriculum=curriculum,
                     )
+                    logger.info("Simulation complete")
+                    eval_scores = evaluation_results.scores
+                    category_scores = list(eval_scores.category_scores.values())
+                    if category_scores and latest_saved_policy_record:
+                        latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+                    if wandb_run is not None and evaluation_results.replay_urls:
+                        upload_replay_html(
+                            replay_urls=evaluation_results.replay_urls,
+                            agent_step=agent_step,
+                            epoch=epoch,
+                            wandb_run=wandb_run,
+                        )
 
                 stats_tracker.update_epoch_tracking(epoch + 1)
 
