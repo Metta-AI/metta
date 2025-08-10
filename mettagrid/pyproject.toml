@@ -71,12 +71,12 @@ wheel.packages = ["src/metta"]
 # So for now we're recompiling the entire package on every C++ code change.
 
 [tool.pytest.ini_options]
-# Configuring pytest here causes us to ignore metta/conftest.py
 markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 testpaths = ["tests", "benchmarks"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
+addopts = ["--rootdir=.."]
 
 [tool.uv]
 cache-keys = [

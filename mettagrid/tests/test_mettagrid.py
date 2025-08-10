@@ -66,20 +66,20 @@ class TestBasicFunctionality:
         assert "rotate" in action_names
 
         noop_idx = action_names.index("noop")
-        actions = np.full((basic_env.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
+        actions = np.full((basic_env.num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
 
         obs, rewards, terminals, truncations, info = basic_env.step(actions)
 
         # Check shapes and types
-        assert obs.shape == (basic_env.NUM_AGENTS, basic_env.NUM_OBS_TOKENS, basic_env.OBS_TOKEN_SIZE)
-        assert rewards.shape == (basic_env.NUM_AGENTS,)
-        assert terminals.shape == (basic_env.NUM_AGENTS,)
-        assert truncations.shape == (basic_env.NUM_AGENTS,)
+        assert obs.shape == (basic_env.num_agents, basic_env.NUM_OBS_TOKENS, basic_env.OBS_TOKEN_SIZE)
+        assert rewards.shape == (basic_env.num_agents,)
+        assert terminals.shape == (basic_env.num_agents,)
+        assert truncations.shape == (basic_env.num_agents,)
         assert isinstance(info, dict)
 
         # Action success should be boolean and per-agent
         action_success = basic_env.action_success()
-        assert len(action_success) == basic_env.NUM_AGENTS
+        assert len(action_success) == basic_env.num_agents
         assert all(isinstance(x, bool) for x in action_success)
 
     def test_environment_state_consistency(self, basic_env):
@@ -88,7 +88,7 @@ class TestBasicFunctionality:
         initial_objects = basic_env.grid_objects()
 
         noop_idx = basic_env.action_names().index("noop")
-        actions = np.full((basic_env.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
+        actions = np.full((basic_env.num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
 
         obs2, _, _, _, _ = basic_env.step(actions)
         post_step_objects = basic_env.grid_objects()

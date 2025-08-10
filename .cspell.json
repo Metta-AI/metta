@@ -87,6 +87,7 @@
     "evals",
     "excinfo",
     "exitstatus",
+    "filterwarnings",
     "FINDPYTHON",
     "finfo",
     "fvisibility",

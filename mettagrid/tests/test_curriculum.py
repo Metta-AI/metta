@@ -17,7 +17,7 @@ import random
 import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any, Set
 
 import numpy as np
 import pytest
@@ -32,10 +32,16 @@ from metta.mettagrid.curriculum.random import RandomCurriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 
+# Fix the path BEFORE any metta imports
+metta_parent = Path(__file__).parent.parent.parent
+if str(metta_parent) not in sys.path:
+    sys.path.insert(0, str(metta_parent))
+modules_to_remove = [key for key in sys.modules.keys() if key.startswith("metta")]
+for module in modules_to_remove:
+    del sys.modules[module]
+
 # TODO: decide if we want to allow mettagrid to import from metta or if we would rather
 # move metta.map to metta.common.map
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT))
 from metta.map.mapgen import MapGen  # noqa: E402
 
 
@@ -129,7 +135,6 @@ def test_bucketed_curriculum(monkeypatch, env_cfg):
 
 def test_bucketed_curriculum_from_yaml_with_map_builder():
     """Test BucketedCurriculum loading from YAML file with buckets that impact map builder."""
-    from pathlib import Path
 
     import hydra
 
@@ -399,7 +404,7 @@ class ThresholdDependentScores(ScoreGenerator):
 
 def run_curriculum_simulation(
     curriculum: Curriculum, score_generator: ScoreGenerator, num_steps: int
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run a curriculum test with controlled scores and collect detailed statistics.
 
     Args:
@@ -408,7 +413,7 @@ def run_curriculum_simulation(
         num_steps: Number of steps to simulate
 
     Returns:
-        Dictionary with detailed simulation results
+        dictionary with detailed simulation results
     """
     task_counts = {}
     weight_history = []
@@ -470,7 +475,7 @@ def run_curriculum_simulation(
     }
 
 
-def create_mock_curricula(task_names: List[str]) -> Dict[str, float]:
+def create_mock_curricula(task_names: list[str]) -> dict[str, float]:
     """Create task weights dictionary for testing.
 
     For LearningProgressCurriculum,

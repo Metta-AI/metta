@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -26,7 +26,7 @@ class ObservationHelper:
         return np.sum(obs[:, 2] == TokenTypes.WALL_TYPE_ID)
 
     @staticmethod
-    def get_wall_positions(obs: np.ndarray) -> List[Tuple[int, int]]:
+    def get_wall_positions(obs: np.ndarray) -> list[tuple[int, int]]:
         """Get all wall positions from an observation."""
         positions = []
         wall_tokens = obs[obs[:, 2] == TokenTypes.WALL_TYPE_ID]
@@ -174,10 +174,10 @@ class TestObservations:
             game_map[y, x] = altar_name
 
         # Create altar objects configuration
-        altar_objects = {}
-        for i, (x, y, color) in enumerate(altar_positions):
+        objects: dict[str, Any] = {"wall": {"type_id": TokenTypes.WALL_TYPE_ID}}
+        for i, (_x, _y, color) in enumerate(altar_positions):
             altar_name = f"altar_{i + 1}"
-            altar_objects[altar_name] = {
+            objects[altar_name] = {
                 "type_id": i + 2,  # type_ids 2-9 for altars
                 "input_resources": {"resource1": 1},
                 "output_resources": {"resource2": 1},
@@ -197,7 +197,7 @@ class TestObservations:
             obs_height=3,
             num_observation_tokens=50,
             inventory_item_names=["laser", "resource1", "resource2"],  # include laser to allow attack
-            objects=altar_objects,  # Pass the altar objects
+            objects=objects,  # Pass the altar objects
         )
 
         obs, _ = env.reset()
@@ -342,34 +342,84 @@ class TestGlobalTokens:
         assert obs[0, 2, 2] == 0  # No last action arg
         assert obs[0, 3, 2] == 0  # No last reward
 
-    def test_global_tokens_update(self, basic_env):
+    def test_global_tokens_update(self):
         """Test that global tokens update correctly."""
-        obs, _ = basic_env.reset()
 
-        # Get the number of agents from the observation shape
-        num_agents = obs.shape[0]
+        builder = TestEnvironmentBuilder()
+        game_map = builder.create_basic_grid()
+        game_map = builder.place_agents(game_map, [(1, 1), (2, 4)])
+
+        # Create environment with max_steps=10 so that 1 step = 10% completion
+        obs_width = 3
+        obs_height = 3
+        env = builder.create_environment(
+            game_map,
+            max_steps=10,  # Important: 10 steps total so 1 step = 10%
+            obs_width=obs_width,
+            obs_height=obs_height,
+            num_observation_tokens=20,
+            global_obs={
+                "episode_completion_pct": True,
+                "last_action": True,
+                "last_reward": True,
+                "resource_rewards": False,
+            },
+        )
+        obs, _ = env.reset()
+        num_agents = env.num_agents
 
         # Take a noop action
-        noop_idx = basic_env.action_names().index("noop")
+        noop_idx = env.action_names().index("noop")
         actions = np.full((num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
-        obs, _, _, _, _ = basic_env.step(actions)
+        obs, _, _, _, _ = env.step(actions)
+
+        # Use ObservationHelper to find global tokens
+        helper = ObservationHelper()
+
+        # Global tokens are at the center of the observation window
+        global_x = env.obs_width // 2
+        global_y = env.obs_height // 2
+
+        # Get all tokens at the global position for agent 0
+        global_tokens = helper.find_tokens_at_location(obs[0], global_x, global_y)
+
+        # Create a mapping of token types to their values
+        global_token_values = {}
+        for token in global_tokens:
+            token_type = token[1]  # Second element is the token type
+            token_value = token[2]  # Third element is the value
+            global_token_values[token_type] = token_value
 
         # Check episode completion updated (1/10 = 10%)
         expected_completion = int(round(0.1 * 255))
-        assert obs[0, 0, 2] == expected_completion
-        assert obs[0, 1, 2] == noop_idx
-        assert obs[0, 2, 2] == 0
+        assert global_token_values.get(TokenTypes.EPISODE_COMPLETION_PCT) == expected_completion, (
+            f"Expected completion {expected_completion}, got {global_token_values.get(TokenTypes.EPISODE_COMPLETION_PCT)}"
+        )
+
+        # Check last action
+        assert global_token_values.get(TokenTypes.LAST_ACTION) == noop_idx, (
+            f"Expected last action {noop_idx}, got {global_token_values.get(TokenTypes.LAST_ACTION)}"
+        )
+
+        # Check last action arg
+        assert global_token_values.get(TokenTypes.LAST_ACTION_ARG) == 0, (
+            f"Expected last action arg 0, got {global_token_values.get(TokenTypes.LAST_ACTION_ARG)}"
+        )
 
         # Take a move action
-        move_idx = basic_env.action_names().index("move")
+        move_idx = env.action_names().index("move")
         actions = np.full((num_agents, 2), [move_idx, 1], dtype=dtype_actions)
-        obs, _, _, _, _ = basic_env.step(actions)
+        obs, _, _, _, _ = env.step(actions)
+
+        # Get updated global tokens
+        global_tokens = helper.find_tokens_at_location(obs[0], global_x, global_y)
+        global_token_values = {token[1]: token[2] for token in global_tokens}
 
         # Check updates
         expected_completion = int(round(0.2 * 255))
-        assert obs[0, 0, 2] == expected_completion
-        assert obs[0, 1, 2] == move_idx
-        assert obs[0, 2, 2] == 1
+        assert global_token_values.get(TokenTypes.EPISODE_COMPLETION_PCT) == expected_completion
+        assert global_token_values.get(TokenTypes.LAST_ACTION) == move_idx
+        assert global_token_values.get(TokenTypes.LAST_ACTION_ARG) == 1
 
     def test_glyph_signaling(self):
         """Test that agents can signal using glyphs and observe each other's glyphs."""
@@ -678,9 +728,10 @@ class TestEdgeObservations:
         game_map[5, 7] = "altar"
 
         # Create altar object configuration
-        altar_objects = {
+        objects = {
+            "wall": {"type_id": TokenTypes.WALL_TYPE_ID},
             "altar": {
-                "type_id": 10,
+                "type_id": TokenTypes.ALTAR_TYPE_ID,
                 "input_resources": {"resource1": 1},
                 "output_resources": {"resource2": 1},
                 "max_output": 10,
@@ -688,7 +739,7 @@ class TestEdgeObservations:
                 "cooldown": 3,
                 "initial_resource_count": 0,
                 "color": 42,  # Distinctive color
-            }
+            },
         }
 
         # Create environment with 7x7 observation window using the builder
@@ -699,8 +750,8 @@ class TestEdgeObservations:
             obs_width=7,
             obs_height=7,
             num_observation_tokens=200,
-            inventory_item_names=["resource1", "resource2"],
-            objects=altar_objects,  # Pass the altar configuration
+            inventory_item_names=["laser", "resource1", "resource2"],  # laser required for attack action
+            objects=objects,  # Pass the altar configuration
         )
 
         obs, _ = env.reset()

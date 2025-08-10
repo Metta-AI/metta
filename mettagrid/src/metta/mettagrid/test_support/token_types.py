@@ -18,9 +18,12 @@ class TokenTypes:
     LAST_ACTION_ARG: int = 10
     LAST_REWARD: int = 11
     GLYPH: int = 12
+    RESOURCE_REWARDS: int = 13
+    VISITATION_COUNTS: int = 14
 
     # Object type IDs
     WALL_TYPE_ID: int = 1
+    ALTAR_TYPE_ID: int = 10
 
     # empty token
     EMPTY_TOKEN = [0xFF, 0xFF, 0xFF]
