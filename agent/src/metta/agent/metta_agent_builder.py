@@ -10,7 +10,6 @@ from metta.agent.pytorch.agent_mapper import agent_classes
 
 logger = logging.getLogger("metta_agent_builder")
 
-
 class MettaAgentBuilder:
     """Builder for constructing MettaAgent instances with validated configurations."""
 
@@ -37,30 +36,20 @@ class MettaAgentBuilder:
 
     def build(self, policy: Optional[ComponentPolicy] = None) -> MettaAgent:
         """
-        Build a MettaAgent instance.
-
-        Args:
-            policy: Optional policy to use. Defaults to ComponentPolicy if None.
-
-        Returns:
-            MettaAgent: Constructed agent instance.
+        Build a MettaAgent instance with either a specified policy or a default based on configuration.
         """
-        # If a PyTorch-based agent type is specified, use it
         if self.agent_cfg.get("agent_type") in agent_classes:
             AgentClass = agent_classes[self.agent_cfg.agent_type]
-            pytorch_agent = AgentClass(env=self.env)
-            logger.info(f"Using PyTorch Policy: {pytorch_agent} (type: {self.agent_cfg.agent_type})")
-            return self._create_agent(policy=pytorch_agent)
-
-        # Otherwise, use provided or default ComponentPolicy
-        try:
+            policy = AgentClass(env=self.env)
+            logger.info(f"Using PyTorch Policy: {policy} (type: {self.agent_cfg.agent_type})")
+        else:
             policy = policy or ComponentPolicy()
-            agent = self._create_agent(policy=policy)
-            logger.info(f"Successfully built MettaAgent with policy: {type(policy).__name__}")
-            return agent
-        except Exception as e:
-            logger.exception("Failed to build MettaAgent")
-            raise RuntimeError(f"Agent construction failed: {e}") from e
+            logger.info(f"Using ComponentPolicy: {type(policy).__name__}")
+
+        agent = self._create_agent(policy=policy)
+        logger.info(f"Successfully built MettaAgent with policy: {type(policy).__name__}")
+        return agent
+
 
 
     def _create_agent(self, policy: ComponentPolicy) -> MettaAgent:
