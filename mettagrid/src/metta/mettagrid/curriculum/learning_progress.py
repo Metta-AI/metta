@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections
 import logging
 
 import numpy as np
@@ -97,9 +98,7 @@ class BidirectionalLearningProgress:
         self._rand_task_rate = rand_task_rate
         self._sample_threshold = sample_threshold
         self._memory = memory
-        self._outcomes: dict[int, list[float]] = {}
-        for i in range(num_tasks):
-            self._outcomes[i] = []
+        self._outcomes: list[collections.deque[float]] = [collections.deque(maxlen=memory) for _ in range(num_tasks)]
         self._p_fast = None
         self._p_slow = None
         self._p_true = None
@@ -130,8 +129,8 @@ class BidirectionalLearningProgress:
         """Update learning progress tracking with current task success rates."""
         task_success_rates = np.array(
             [
-                np.mean(self._outcomes[i]) if len(self._outcomes[i]) > 0 else DEFAULT_SUCCESS_RATE
-                for i in range(self._num_tasks)
+                np.mean(task_outcomes) if len(task_outcomes) > 0 else DEFAULT_SUCCESS_RATE
+                for task_outcomes in self._outcomes
             ]
         )
         # Handle NaN values in task success rates (empty lists)
@@ -236,16 +235,14 @@ class BidirectionalLearningProgress:
         self._task_dist = task_dist.astype(np.float32)
 
         out_vec = [
-            np.mean(self._outcomes[i]) if len(self._outcomes[i]) > 0 else DEFAULT_SUCCESS_RATE
-            for i in range(self._num_tasks)
+            np.mean(task_outcomes) if len(task_outcomes) > 0 else DEFAULT_SUCCESS_RATE
+            for task_outcomes in self._outcomes
         ]
         out_vec = [DEFAULT_SUCCESS_RATE if np.isnan(x) else x for x in out_vec]  # Handle NaN in outcomes
         self._num_nans.append(sum(np.isnan(out_vec)))
         self._task_success_rate = np.array(out_vec)
-        self._mean_samples_per_eval.append(np.mean([len(self._outcomes[i]) for i in range(self._num_tasks)]))
+        self._mean_samples_per_eval.append(np.mean([len(t) for t in self._outcomes]))
 
-        for i in range(self._num_tasks):
-            self._outcomes[i] = self._outcomes[i][-self._memory :]
         return self._task_dist
 
     def _sample_tasks(self):
