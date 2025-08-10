@@ -24,11 +24,15 @@ def simple_lstm_environment():
     obs_shape = [input_size]
     cfg = {
         "name": "_lstm_test_",
-        "_nn_params": {"num_layers": num_layers},
+        "_nn_params": {
+            "num_layers": num_layers,
+            "hidden_size": hidden_size,
+        },
         "sources": [{"name": "hidden"}],
+        "obs_shape": obs_shape,
     }
     # Create LSTM layer
-    lstm_layer = LSTM(obs_shape, hidden_size, **cfg)
+    lstm_layer = LSTM(**cfg)
 
     # Set up in_tensor_shapes manually
     lstm_layer._in_tensor_shapes = [[input_size]]
