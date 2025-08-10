@@ -2,6 +2,7 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+from tensordict import TensorDict
 
 # Import the actual class
 from metta.agent.metta_agent import MettaAgent
@@ -51,7 +52,7 @@ def create_metta_agent():
                 "_target_": "metta.agent.lib.lstm.LSTM",
                 "sources": [{"name": "encoded_obs"}],
                 "output_size": 64,
-                "nn_params": {"num_layers": 1},
+                "nn_params": {"num_layers": 1, "hidden_size": 128},
             },
             "_action_embeds_": {
                 "_target_": "metta.agent.lib.action.ActionEmbedding",
@@ -724,8 +725,18 @@ def test_forward_training_integration(create_metta_agent):
         device="cpu",
     )
 
-    # Call forward_training
-    returned_action, action_log_prob, entropy, returned_value, log_probs = agent.forward_training(value, logits, action)
+    # Create a TensorDict with the required fields
+    td = TensorDict({"_value_": value, "_action_": logits}, batch_size=torch.Size([B * T]))
+
+    # Call forward_training with the new signature
+    output_td = agent.forward_training(td, action)
+
+    # Extract the results from the output TensorDict
+    returned_action = output_td["action"]
+    action_log_prob = output_td["action_log_prob"]
+    entropy = output_td["entropy"]
+    returned_value = output_td["_value_"]
+    log_probs = output_td["log_probs"]
 
     # Check output shapes
     assert returned_action.shape == (B, T, 2)

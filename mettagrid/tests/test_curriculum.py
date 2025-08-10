@@ -154,8 +154,8 @@ def test_bucketed_curriculum_from_yaml_with_map_builder():
     assert hasattr(task_cfg.game, "map_builder")
     assert isinstance(task_cfg.game.map_builder, MapGen)
     assert task_cfg.game.num_agents == 5, f"num_agents should have been overridden to 5, got {task_cfg.game.num_agents}"
-    assert task_cfg.game.map_builder.width in [20, 40, 60]
-    assert task_cfg.game.map_builder.height in [20, 40, 60]
+    assert task_cfg.game.map_builder.params.width in [20, 40, 60]
+    assert task_cfg.game.map_builder.params.height in [20, 40, 60]
     assert task_cfg.game.map_builder.root["params"]["room_size"] in [1, 3, 5]
 
 

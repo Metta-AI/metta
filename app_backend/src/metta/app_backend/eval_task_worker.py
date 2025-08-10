@@ -9,9 +9,11 @@ Runs eval tasks inside a Docker container.
 """
 
 import asyncio
+import json
 import logging
 import os
 import subprocess
+import tempfile
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -26,6 +28,7 @@ from metta.app_backend.routes.eval_task_routes import (
 )
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
+from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.util.git import METTA_API_REPO_URL
 from metta.common.util.logging_helpers import init_logging
 
@@ -109,12 +112,10 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
         self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
-    @trace("worker.run_sim_task")
-    async def _run_sim_task(
+    @trace("worker.execute_task")
+    async def execute_task(
         self,
         task: TaskResponse,
-        sim_suite: str,
-        env_overrides: dict,
     ) -> None:
         if not task.git_hash:
             raise RuntimeError(f"Git hash not found for task {task.id}")
@@ -124,33 +125,42 @@ class SimTaskExecutor(AbstractTaskExecutor):
         policy_name = task.policy_name
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
+
         cmd = [
             "uv",
             "run",
             "tools/sim.py",
             f"policy_uri=wandb://run/{policy_name}",
-            f"sim={sim_suite}",
+            f"sim={task.sim_suite}",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
             "device=cpu",
             "vectorization=serial",
             "push_metrics_to_wandb=true",
+            f"sim_job.replay_dir={SOFTMAX_S3_BASE}/replays/" + "${run}",
         ]
 
-        for key, value in env_overrides.items():
-            cmd.append(f"env_overrides.{key}={value}")
+        with tempfile.TemporaryDirectory(prefix=f"metta-policy-evaluator-{task.id}", dir="/tmp") as task_tmp_dir:
+            if task.sim_suite_config:
+                path = os.path.join(task_tmp_dir, "sim_suite_config.json")
+                with open(path, "w") as f:
+                    json.dump(task.sim_suite_config, f)
+                cmd.append(f"sim_suite_config_path={path}")
 
-        self._logger.info(f"Running command: {' '.join(cmd)}")
+            if task.trainer_task:
+                path = os.path.join(task_tmp_dir, "trainer_task.json")
+                with open(path, "w") as f:
+                    json.dump(task.trainer_task, f)
+                cmd.append(f"trainer_task_path={path}")
 
-        result = self._run_cmd_from_versioned_checkout(
-            cmd,
-            "sim.py failed with exit code",
-        )
+            self._logger.info(f"Running command: {' '.join(cmd)}")
 
-        self._logger.info(f"Simulation completed successfully: {result.stdout}")
+            result = self._run_cmd_from_versioned_checkout(
+                cmd,
+                "sim.py failed with exit code",
+            )
 
-    async def execute_task(self, task: TaskResponse) -> None:
-        await self._run_sim_task(task, task.sim_suite, task.attributes.get("env_overrides", {}))
+            self._logger.info(f"Simulation completed successfully: {result.stdout}")
 
 
 class EvalTaskWorker:
