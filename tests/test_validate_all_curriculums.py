@@ -3,7 +3,7 @@ import pytest
 
 from metta.common.util.mettagrid_cfgs import MettagridCfgFileMetadata
 from metta.common.util.resolvers import register_resolvers
-from metta.mettagrid.curriculum.core import Curriculum
+from metta.curriculum.rl.core import Curriculum
 
 register_resolvers()
 

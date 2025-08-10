@@ -22,14 +22,15 @@ import pytest
 from omegaconf import DictConfig, OmegaConf
 
 import metta.mettagrid.room.random
-from metta.mettagrid.curriculum.bucketed import BucketedCurriculum, _expand_buckets
-from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum
-from metta.mettagrid.curriculum.learning_progress import LearningProgressCurriculum
-from metta.mettagrid.curriculum.multi_task import MultiTaskCurriculum
-from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedCurriculum
-from metta.mettagrid.curriculum.random import RandomCurriculum
-from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.map.mapgen import MapGen
+from metta.curriculum.rl.bucketed import BucketedCurriculum, _expand_buckets
+from metta.curriculum.rl.core import Curriculum, SingleTaskCurriculum
+from metta.curriculum.rl.learning_progress import LearningProgressCurriculum
+from metta.curriculum.rl.multi_task import MultiTaskCurriculum
+from metta.curriculum.rl.prioritize_regressed import PrioritizeRegressedCurriculum
+from metta.curriculum.rl.random import RandomCurriculum
+from metta.curriculum.rl.sampling import SampledTaskCurriculum
+from metta.curriculum.rl.util import curriculum_from_config_path
 
 
 @pytest.fixture(autouse=True)
@@ -70,7 +71,7 @@ def test_single_task_curriculum(env_cfg):
 def test_random_curriculum_selects_task(monkeypatch, env_cfg):
     monkeypatch.setattr(random, "choices", lambda population, weights: ["b"])
     monkeypatch.setattr(
-        "metta.mettagrid.curriculum.random.curriculum_from_config_path", fake_curriculum_from_config_path
+        "metta.curriculum.rl.random.curriculum_from_config_path", fake_curriculum_from_config_path
     )
 
     curr = RandomCurriculum({"a": 1.0, "b": 1.0}, OmegaConf.create({}))
@@ -81,7 +82,7 @@ def test_random_curriculum_selects_task(monkeypatch, env_cfg):
 
 def test_prioritize_regressed_curriculum_updates(monkeypatch, env_cfg):
     monkeypatch.setattr(
-        "metta.mettagrid.curriculum.random.curriculum_from_config_path", fake_curriculum_from_config_path
+        "metta.curriculum.rl.random.curriculum_from_config_path", fake_curriculum_from_config_path
     )
     curr = PrioritizeRegressedCurriculum({"a": 1.0, "b": 1.0}, OmegaConf.create({}))
 
@@ -104,7 +105,7 @@ def test_prioritize_regressed_curriculum_updates(monkeypatch, env_cfg):
 
 def test_bucketed_curriculum(monkeypatch, env_cfg):
     monkeypatch.setattr(
-        "metta.mettagrid.curriculum.bucketed.config_from_path", lambda path, env_overrides=None: env_cfg
+        "metta.curriculum.rl.bucketed.config_from_path", lambda path, env_overrides=None: env_cfg
     )
     buckets = {
         "game.map.width": [5, 10],
@@ -497,7 +498,7 @@ class TestLearningProgressScenarios:
             return SingleTaskCurriculum(path, cfg)
 
         monkeypatch.setattr(
-            "metta.mettagrid.curriculum.random.curriculum_from_config_path", mock_curriculum_from_config_path
+            "metta.curriculum.rl.random.curriculum_from_config_path", mock_curriculum_from_config_path
         )
 
         tasks = ["impossible_1", "impossible_2", "learnable_1", "learnable_2"]
@@ -632,7 +633,7 @@ class TestLearningProgressScenarios:
             return SingleTaskCurriculum(path, cfg)
 
         monkeypatch.setattr(
-            "metta.mettagrid.curriculum.random.curriculum_from_config_path", mock_curriculum_from_config_path
+            "metta.curriculum.rl.random.curriculum_from_config_path", mock_curriculum_from_config_path
         )
 
         tasks = ["primary", "secondary"]
@@ -771,7 +772,7 @@ class TestPrioritizeRegressedCurriculumScenarios:
             return SingleTaskCurriculum(path, cfg)
 
         monkeypatch.setattr(
-            "metta.mettagrid.curriculum.random.curriculum_from_config_path", mock_curriculum_from_config_path
+            "metta.curriculum.rl.random.curriculum_from_config_path", mock_curriculum_from_config_path
         )
 
         tasks = ["task_1", "task_2", "task_3"]
@@ -873,7 +874,7 @@ class TestPrioritizeRegressedCurriculumScenarios:
             return SingleTaskCurriculum(path, cfg)
 
         monkeypatch.setattr(
-            "metta.mettagrid.curriculum.random.curriculum_from_config_path", mock_curriculum_from_config_path
+            "metta.curriculum.rl.random.curriculum_from_config_path", mock_curriculum_from_config_path
         )
 
         tasks = ["impossible", "learnable_1", "learnable_2"]

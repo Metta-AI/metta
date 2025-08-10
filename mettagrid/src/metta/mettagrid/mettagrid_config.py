@@ -7,7 +7,7 @@ from metta.common.util.typed_config import BaseModelWithForbidExtra
 # ===== Python Configuration Models =====
 
 
-class PyInventoryRewards(BaseModelWithForbidExtra):
+class InventoryRewards(BaseModelWithForbidExtra):
     """Inventory-based reward configuration."""
 
     ore_red: Optional[float] = Field(default=None)
@@ -32,7 +32,7 @@ class PyInventoryRewards(BaseModelWithForbidExtra):
     blueprint_max: Optional[int] = Field(default=None)
 
 
-class PyStatsRewards(BaseModelWithForbidExtra):
+class StatsRewards(BaseModelWithForbidExtra):
     """Agent stats-based reward configuration.
 
     Maps stat names to reward values. Stats are tracked by the StatsTracker
@@ -46,11 +46,11 @@ class PyStatsRewards(BaseModelWithForbidExtra):
         extra = "allow"  # Allow any stat names to be added dynamically
 
 
-class PyAgentRewards(BaseModelWithForbidExtra):
+class AgentRewards(BaseModelWithForbidExtra):
     """Agent reward configuration with separate inventory and stats rewards."""
 
-    inventory: Optional[PyInventoryRewards] = Field(default_factory=PyInventoryRewards)
-    stats: Optional[PyStatsRewards] = Field(default_factory=PyStatsRewards)
+    inventory: Optional[InventoryRewards] = Field(default_factory=InventoryRewards)
+    stats: Optional[StatsRewards] = Field(default_factory=StatsRewards)
 
     # For backward compatibility, handle old format
     def __init__(self, **data):
@@ -82,18 +82,18 @@ class PyAgentRewards(BaseModelWithForbidExtra):
         super().__init__(**data)
 
 
-class PyAgentConfig(BaseModelWithForbidExtra):
+class AgentConfig(BaseModelWithForbidExtra):
     """Python agent configuration."""
 
     default_resource_limit: Optional[int] = Field(default=0, ge=0)
     resource_limits: Optional[dict[str, int]] = Field(default_factory=dict)
     freeze_duration: Optional[int] = Field(default=10, ge=-1)
-    rewards: Optional[PyAgentRewards] = Field(default_factory=PyAgentRewards)
+    rewards: Optional[AgentRewards] = Field(default_factory=AgentRewards)
     action_failure_penalty: Optional[float] = Field(default=0, ge=0)
     initial_inventory: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
-class PyGroupConfig(BaseModelWithForbidExtra):
+class GroupConfig(BaseModelWithForbidExtra):
     """Python group configuration."""
 
     id: int
@@ -101,10 +101,10 @@ class PyGroupConfig(BaseModelWithForbidExtra):
     # group_reward_pct values outside of [0.0,1.0] are probably mistakes, and are probably
     # unstable. If you want to use values outside this range, please update this comment!
     group_reward_pct: float = Field(default=0, ge=0, le=1)
-    props: PyAgentConfig = Field(default_factory=PyAgentConfig)
+    props: AgentConfig = Field(default_factory=AgentConfig)
 
 
-class PyActionConfig(BaseModelWithForbidExtra):
+class ActionConfig(BaseModelWithForbidExtra):
     """Python action configuration."""
 
     enabled: bool = Field(default=True)
@@ -113,39 +113,39 @@ class PyActionConfig(BaseModelWithForbidExtra):
     consumed_resources: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
-class PyAttackActionConfig(PyActionConfig):
+class AttackActionConfig(ActionConfig):
     """Python attack action configuration."""
 
     defense_resources: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
-class PyChangeGlyphActionConfig(PyActionConfig):
+class ChangeGlyphActionConfig(ActionConfig):
     """Change glyph action configuration."""
 
     number_of_glyphs: int = Field(default=0, ge=0, le=255)
 
 
-class PyActionsConfig(BaseModelWithForbidExtra):
+class ActionsConfig(BaseModelWithForbidExtra):
     """
     Actions configuration.
 
     Omitted actions are disabled by default.
     """
 
-    noop: Optional[PyActionConfig] = None
-    move: Optional[PyActionConfig] = None
-    move_8way: Optional[PyActionConfig] = None
-    move_cardinal: Optional[PyActionConfig] = None
-    rotate: Optional[PyActionConfig] = None
-    put_items: Optional[PyActionConfig] = None
-    get_items: Optional[PyActionConfig] = None
-    attack: Optional[PyAttackActionConfig] = None
-    swap: Optional[PyActionConfig] = None
-    change_color: Optional[PyActionConfig] = None
-    change_glyph: Optional[PyChangeGlyphActionConfig] = None
+    noop: Optional[ActionConfig] = None
+    move: Optional[ActionConfig] = None
+    move_8way: Optional[ActionConfig] = None
+    move_cardinal: Optional[ActionConfig] = None
+    rotate: Optional[ActionConfig] = None
+    put_items: Optional[ActionConfig] = None
+    get_items: Optional[ActionConfig] = None
+    attack: Optional[AttackActionConfig] = None
+    swap: Optional[ActionConfig] = None
+    change_color: Optional[ActionConfig] = None
+    change_glyph: Optional[ChangeGlyphActionConfig] = None
 
 
-class PyGlobalObsConfig(BaseModelWithForbidExtra):
+class GlobalObsConfig(BaseModelWithForbidExtra):
     """Global observation configuration."""
 
     episode_completion_pct: bool = Field(default=True)
@@ -161,14 +161,14 @@ class PyGlobalObsConfig(BaseModelWithForbidExtra):
     visitation_counts: bool = Field(default=False)
 
 
-class PyWallConfig(BaseModelWithForbidExtra):
+class WallConfig(BaseModelWithForbidExtra):
     """Python wall/block configuration."""
 
     type_id: int
     swappable: bool = Field(default=False)
 
 
-class PyConverterConfig(BaseModelWithForbidExtra):
+class ConverterConfig(BaseModelWithForbidExtra):
     """Python converter configuration."""
 
     input_resources: dict[str, int] = Field(default_factory=dict)
@@ -182,7 +182,7 @@ class PyConverterConfig(BaseModelWithForbidExtra):
     color: int = Field(default=0, ge=0, le=255)
 
 
-class PyGameConfig(BaseModelWithForbidExtra):
+class GameConfig(BaseModelWithForbidExtra):
     """Python game configuration."""
 
     inventory_item_names: list[str] = Field(
@@ -207,13 +207,13 @@ class PyGameConfig(BaseModelWithForbidExtra):
     obs_width: Literal[3, 5, 7, 9, 11, 13, 15] = Field(default=11)
     obs_height: Literal[3, 5, 7, 9, 11, 13, 15] = Field(default=11)
     num_observation_tokens: int = Field(ge=1, default=200)
-    agent: PyAgentConfig
+    agent: AgentConfig
     # Every agent must be in a group, so we need at least one group
-    groups: dict[str, PyGroupConfig] = Field(min_length=1)
-    actions: PyActionsConfig
-    global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
+    groups: dict[str, GroupConfig] = Field(min_length=1)
+    actions: ActionsConfig
+    global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     recipe_details_obs: bool = Field(default=False)
-    objects: dict[str, PyConverterConfig | PyWallConfig]
+    objects: dict[str, ConverterConfig | WallConfig]
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
@@ -229,7 +229,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
 class EnvConfig(BaseModelWithForbidExtra):
     """Environment configuration."""
 
-    game: PyGameConfig
+    game: GameConfig
     desync_episodes: bool = Field(default=True)
 
     @model_validator(mode="after")

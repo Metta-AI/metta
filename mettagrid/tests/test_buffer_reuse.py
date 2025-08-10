@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.curriculum.rl.core import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.hydra import get_cfg
 

@@ -28,7 +28,8 @@ from pufferlib import PufferEnv
 from typing_extensions import override
 
 from metta.mettagrid.core import MettaGridCore
-from metta.mettagrid.curriculum.core import Curriculum
+from metta.curriculum.rl.core import Curriculum
+from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import (
     dtype_actions,

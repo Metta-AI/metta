@@ -1,12 +1,16 @@
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, Union, Annotated
 
 from omegaconf import DictConfig, OmegaConf
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, model_validator, field_validator
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
-from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
+
+# Import EnvConfig and Curriculum types for Union support
+from metta.mettagrid.mettagrid_config import EnvConfig
+# Use Any for Curriculum to avoid Pydantic schema generation issues
+Curriculum = Any
 
 
 class OptimizerConfig(BaseModelWithForbidExtra):
@@ -187,8 +191,8 @@ class TrainerConfig(BaseModelWithForbidExtra):
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware
     num_workers: int = Field(gt=0)
-    env: EnvConfig | None = None  # Environment config path
-    curriculum: str | None = "/env/mettagrid/curriculum/simple"
+    env: Union[str, EnvConfig, None] = Field(default=None)  # Environment config path or config object  
+    curriculum: Union[str, Curriculum, None] = Field(default="/env/mettagrid/curriculum/simple")  # Curriculum path or object
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
@@ -206,6 +210,8 @@ class TrainerConfig(BaseModelWithForbidExtra):
         extra="forbid",
         validate_assignment=True,
         populate_by_name=True,
+        # Force model schema rebuild
+        str_strip_whitespace=True,
     )
 
     @model_validator(mode="after")
@@ -249,6 +255,13 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
         return self
 
+    @property
+    def curriculum_or_env(self) -> Union[str, EnvConfig, Curriculum]:
+        if self.curriculum:
+            return self.curriculum
+        if self.env:
+            return self.env
+        raise ValueError("curriculum or env must be set")
 
 def create_trainer_config(
     cfg: DictConfig,

@@ -5,7 +5,7 @@ import psutil
 import pytest
 from hydra import compose, initialize
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.curriculum.rl.core import SingleTaskCurriculum
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 

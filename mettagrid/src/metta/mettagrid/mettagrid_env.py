@@ -20,7 +20,8 @@ from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.mettagrid.curriculum.core import Curriculum
+from metta.curriculum.rl.core import Curriculum
+from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from metta.mettagrid.puffer_base import MettaGridPufferBase
@@ -43,7 +44,8 @@ class MettaGridEnv(MettaGridPufferBase):
     @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
         self,
-        curriculum: Curriculum,
+        env_config: EnvConfig,
+        curriculum: Optional[Curriculum] = None,
         render_mode: Optional[str] = None,
         level: Optional[Level] = None,
         buf: Optional[Any] = None,
@@ -56,7 +58,8 @@ class MettaGridEnv(MettaGridPufferBase):
         Initialize MettaGridEnv for training.
 
         Args:
-            curriculum: Curriculum for task management
+            env_config: Environment configuration (required)
+            curriculum: Optional curriculum for task management
             render_mode: Rendering mode (None, "human", "miniscope")
             level: Optional pre-built level
             buf: PufferLib buffer object
@@ -76,6 +79,14 @@ class MettaGridEnv(MettaGridPufferBase):
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
         self._is_training = is_training
+        
+        # Store the env_config for direct access
+        self._env_config = env_config
+        
+        # Create a simple curriculum if none provided
+        if curriculum is None:
+            from metta.curriculum.rl.random import SingleTaskCurriculum
+            curriculum = SingleTaskCurriculum("env_config", env_config)
 
         # Initialize with base PufferLib functionality
         super().__init__(
@@ -87,7 +98,7 @@ class MettaGridEnv(MettaGridPufferBase):
         )
 
         # Environment metadata (self._task is set by base class)
-        self.labels: List[str] = self._task.env_cfg().get("labels", [])
+        self.labels: List[str] = self._env_config.get("labels", [])
 
     def _make_episode_id(self) -> str:
         """Generate unique episode ID."""

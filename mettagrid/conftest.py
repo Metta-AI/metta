@@ -1,5 +1,22 @@
+import sys
+from pathlib import Path
+
 import pytest
 
+print(f"\n===== applying conftest from {Path(__file__)} =====")
+
+# Add dependencies to sys.path if not already present
+base_dir = Path(__file__).resolve().parent
+repo_root = base_dir.parent
+
+# Ensure the current metta package takes precedence
+if str(repo_root) not in sys.path:
+    sys.path.insert(0, str(repo_root))
+
+print("\n===== DEBUG: Python sys.path =====")
+for i, path in enumerate(sys.path):
+    print(f"{i}: {path}")
+print("===== END DEBUG: Python sys.path =====\n")
 
 def pytest_configure(config):
     # Add multiple markers correctly

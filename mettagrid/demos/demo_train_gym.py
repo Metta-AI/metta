@@ -26,7 +26,7 @@ from omegaconf import DictConfig
 
 # Gym adapter imports
 from metta.mettagrid import SingleAgentMettaGridGymEnv
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.curriculum.rl.core import SingleTaskCurriculum
 
 # Training framework imports
 try:

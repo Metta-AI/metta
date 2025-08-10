@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 from omegaconf import DictConfig
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.curriculum.rl.core import SingleTaskCurriculum
 
 
 def create_test_config():
