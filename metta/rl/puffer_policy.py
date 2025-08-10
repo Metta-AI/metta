@@ -27,7 +27,6 @@ def load_pytorch_policy(path: str, device: str = "cpu", cfg = None, pytorch_cfg:
     try:
         weights = torch.load(path, map_location=device, weights_only=True)
 
-        weights = torch.load(path, map_location=device, weights_only=True)
 
         num_actions, hidden_size = weights["policy.actor.0.weight"].shape
         num_action_args, _ = weights["policy.actor.1.weight"].shape
@@ -100,11 +99,3 @@ def load_pytorch_policy(path: str, device: str = "cpu", cfg = None, pytorch_cfg:
     return metta_agent
 
 
-
-class PytorchPolicy(nn.Module):
-    def __init__(self, policy):
-        super().__init__()
-        self.policy = policy
-
-    def forward(self, x):
-        return self.policy(x)
