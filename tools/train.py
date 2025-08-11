@@ -96,13 +96,11 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
                 logger.info("No git hash available for remote evaluations")
 
     cfg = validate_train_job_config(cfg)
+    logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
 
     if os.environ.get("RANK", "0") == "0":
-        config_yaml_path = os.path.join(cfg.run_dir, "config.yaml")
-        logger.info(f"saving trainer config to {config_yaml_path}")
-        with open(config_yaml_path, "w") as f:
+        with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
-
     train_job = TrainJob(cfg.train_job)
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
@@ -114,11 +112,6 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
 
     policy_store = get_policy_store_from_cfg(cfg, wandb_run)
 
-    trainer_cfg = create_trainer_config(cfg)
-
-    logger.info("env_cfg used for train:\n%s", env_cfg)
-    logger.info("trainer_cfg used for train:\n%s", trainer_cfg)
-
     # Use the functional train interface directly
     train(
         run=cfg.run,
@@ -126,7 +119,7 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
         env_cfg=env_cfg,
         agent_cfg=cfg.agent,
         device=torch.device(env_cfg.device),
-        trainer_cfg=trainer_cfg,
+        trainer_cfg=create_trainer_config(cfg),
         wandb_run=wandb_run,
         policy_store=policy_store,
         sim_suite_config=train_job.evals,
@@ -191,6 +184,8 @@ def main(cfg: DictConfig) -> int:
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if is_master:
+        logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
+
         # Initialize wandb using WandbContext
         with WandbContext(cfg.wandb, cfg) as wandb_run:
             handle_train(cfg, wandb_run, logger)
