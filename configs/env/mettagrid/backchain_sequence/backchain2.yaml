@@ -5,6 +5,6 @@ buckets:
   game.agent.initial_inventory.ore_red: [1]
   game.map_builder.root.params.objects.altar: [1]
   game.map_builder.root.params.objects.generator_red: [1]
-  game.max_steps: [100, 250]
+  # game.max_steps: [300, 500]
   game.map_builder.width: [4, 7]
   game.map_builder.height: [4, 6]

@@ -6,6 +6,6 @@ buckets:
   game.map_builder.root.params.objects.altar: [1]
   game.map_builder.root.params.objects.generator_red: [1]
   game.map_builder.root.params.objects.mine_red: [1]
-  game.max_steps: [100, 350]
+  # game.max_steps: [300, 500]
   game.map_builder.width: [5, 6]
   game.map_builder.height: [4, 7]

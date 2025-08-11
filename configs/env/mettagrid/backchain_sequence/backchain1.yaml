@@ -4,6 +4,6 @@ env_cfg_template_path: /env/mettagrid/backchain_sequence/defaults
 buckets:
   game.agent.initial_inventory.battery_red: [1]
   game.map_builder.root.params.objects.altar: [1]
-  game.max_steps: [50, 150]
+  # game.max_steps: [250, 350]
   game.map_builder.width: [4, 6]
   game.map_builder.height: [4, 6]
