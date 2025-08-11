@@ -1,6 +1,10 @@
 # Experiments
 
-A framework for reproducible experiments and research notebooks with Metta.
+A framework for reproducible experiments with Metta. This includes:
+- Systematic launching of training jobs for MARL research experiments
+- Notebook infrastructure for analysis and visualization (marimo-based)
+
+Note: The experiment launching and notebook systems are not yet connected. Integration will be added in a future update.
 
 ## Quick Start
 
@@ -16,19 +20,13 @@ uv run experiments/recipes/arena_experiment.py
 ```
 experiments/
 ├── experiment.py          # Base Experiment class
-├── launch.py             # Core training launch functionality
-├── types.py              # TrainingJob and TrainingJobConfig
-├── wandb_utils.py        # WandB data fetching utilities
-├── monitoring.py         # Sky job monitoring utilities
+├── training_job.py       # TrainingJob and TrainingJobConfig
+├── wandb_service.py      # WandB data fetching utilities  
+├── skypilot_service.py   # Sky job monitoring utilities
 ├── recipes/              # Experiment implementations
 │   └── arena_experiment.py
-
-
-# TODO:
-
-├── notebooks/            # Notebook utilities
-...
-├── scratch/              # Generated notebooks (git-ignored)
-└── log/                  # HTML exports from notebooks
+├── notebooks/            # Notebook infrastructure (marimo/jupyter)
+├── marimo/              # Marimo-based notebooks
+└── scratch/              # Working directory (git-ignored)
 ```
 
