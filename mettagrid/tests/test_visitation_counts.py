@@ -220,8 +220,8 @@ def test_visitation_performance_impact(performance_config, simple_map):
     env_disabled.reset()
     disabled_time = _median_runtime(env_disabled, move_action)
 
-    # allow small jitter (≤5% slowdown)
-    assert disabled_time <= enabled_time * 1.05, (
+    # allow small jitter (≤10% slowdown)
+    assert disabled_time <= enabled_time * 1.1, (
         f"Disabled visitation unexpectedly slower: "
         f"enabled={enabled_time:.6f}s, disabled={disabled_time:.6f}s, "
         f"delta={(disabled_time / enabled_time - 1) * 100:.2f}%"

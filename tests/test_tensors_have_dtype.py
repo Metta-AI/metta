@@ -66,9 +66,26 @@ def collect_py_files(root: Path, exclude_dirs: set[str]) -> list[Path]:
     """Collect all Python files from the root directory, excluding specified directories."""
     files = []
     for path in root.rglob("*.py"):
-        if any(part in exclude_dirs for part in path.parts):
-            continue
-        files.append(path)
+        # Convert path to string for more flexible matching
+        path_str = str(path)
+
+        # Check if any excluded directory pattern is in the path
+        should_exclude = False
+        for exclude_dir in exclude_dirs:
+            if exclude_dir in path_str:
+                should_exclude = True
+                break
+
+        # Also check individual path parts for exact matches
+        if not should_exclude:
+            for part in path.parts:
+                if part in exclude_dirs:
+                    should_exclude = True
+                    break
+
+        if not should_exclude:
+            files.append(path)
+
     return files
 
 
@@ -119,6 +136,9 @@ def test_tensors_have_dtype():
         "wandb",  # Exclude wandb logs as they might contain generated code
         "tests",  # Exclude test files as they don't require explicit dtype
         "deps",  # Exclude external dependencies
+        ".deps",  # Exclude .deps directories (e.g., googletest)
+        "googletest-src",  # Exclude googletest source
+        "googletest",  # Exclude any googletest directory
     }
 
     py_files = collect_py_files(root, exclude_dirs)
