@@ -5,8 +5,8 @@ This module tests PufferLib's ability to load and run Metta environments
 through their CLI interface using their MettaPuff wrapper.
 """
 
+import os
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
 
@@ -33,15 +33,14 @@ def test_puffer_cli_compatibility():
         result = subprocess.run(clone_cmd, capture_output=True, text=True, timeout=30)
         assert result.returncode == 0, f"Failed to clone PufferLib: {result.stderr}"
 
-        # Install PufferLib
-        install_cmd = ["uv", "pip", "install", "-e", str(pufferlib_dir)]
-
-        result = subprocess.run(install_cmd, capture_output=True, text=True, timeout=120)
-        assert result.returncode == 0, f"Failed to install PufferLib: {result.stderr}"
-
-        # Test the actual puffer train metta command
+        # Run PufferLib in an ISOLATED env so build deps (Cython) don't pollute the main venv.
+        # We use uvx with --from <local path>, then run `python -m pufferlib.train` inside that env.
+        # Important: use "python" (from the uvx env), not sys.executable.
         train_cmd = [
-            sys.executable,
+            "uvx",
+            "--from",
+            str(pufferlib_dir),
+            "python",
             "-m",
             "pufferlib.train",
             "--env",
@@ -64,13 +63,18 @@ def test_puffer_cli_compatibility():
             "2",
         ]
 
-        # Run the command
+        project_root = Path(__file__).parent.parent.parent
+        env = os.environ.copy()
+        # Ensure the isolated interpreter can import the local repository as `metta`
+        env["PYTHONPATH"] = f"{project_root}{os.pathsep}{env.get('PYTHONPATH', '')}"
+
         result = subprocess.run(
             train_cmd,
-            cwd=Path(__file__).parent.parent.parent,
+            cwd=project_root,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=180,  # allow a bit more time for first-time uvx env creation
+            env=env,
         )
 
         # Check for integration errors
@@ -90,8 +94,16 @@ def test_puffer_cli_compatibility():
 
             if any(error in error_output or error in stdout_output for error in critical_errors):
                 raise AssertionError(
-                    f"PufferLib CLI failed with integration error:\n"
-                    f"COMMAND: {' '.join(train_cmd)}\n"
-                    f"STDOUT: {result.stdout}\n"
-                    f"STDERR: {result.stderr}"
+                    "PufferLib CLI failed with integration error:\n"
+                    f"COMMAND: {' '.join(train_cmd)}\n\n"
+                    f"STDOUT:\n{result.stdout}\n\n"
+                    f"STDERR:\n{result.stderr}"
                 )
+
+        # Non-critical failures (e.g., training exit codes) should still be reported
+        assert result.returncode == 0, (
+            "PufferLib CLI invocation failed.\n"
+            f"COMMAND: {' '.join(train_cmd)}\n\n"
+            f"STDOUT:\n{result.stdout}\n\n"
+            f"STDERR:\n{result.stderr}"
+        )

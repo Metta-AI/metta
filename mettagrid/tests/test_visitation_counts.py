@@ -188,46 +188,44 @@ def performance_config(base_config):
     return config
 
 
+def _median_runtime(env, move_action, warmup_steps=10, test_steps=200, reps=7):
+    # warmup
+    for _ in range(warmup_steps):
+        env.step(move_action)
+    times = []
+    for _ in range(reps):
+        t0 = time.perf_counter()
+        for _ in range(test_steps):
+            env.step(move_action)
+        times.append(time.perf_counter() - t0)
+    times.sort()
+    return times[len(times) // 2]
+
+
 def test_visitation_performance_impact(performance_config, simple_map):
-    """Test performance difference between enabled/disabled visitation counts."""
-    warmup_steps = 10
-    test_steps = 100
+    """Disabled visitation should not be materially slower."""
     move_action = np.array([[0, 0]], dtype=np.int32)
 
-    # Test with visitation enabled
-    performance_config["global_obs"]["visitation_counts"] = True
-    env_enabled = MettaGrid(from_mettagrid_config(performance_config), simple_map, 42)
+    # enabled
+    cfg_on = copy.deepcopy(performance_config)
+    cfg_on["global_obs"]["visitation_counts"] = True
+    env_enabled = MettaGrid(from_mettagrid_config(cfg_on), simple_map, 42)
     env_enabled.reset()
+    enabled_time = _median_runtime(env_enabled, move_action)
 
-    for _ in range(warmup_steps):
-        env_enabled.step(move_action)
-
-    start_time = time.time()
-    for _ in range(test_steps):
-        env_enabled.step(move_action)
-    enabled_time = time.time() - start_time
-
-    # Test with visitation disabled
-    performance_config["global_obs"]["visitation_counts"] = False
-    env_disabled = MettaGrid(from_mettagrid_config(performance_config), simple_map, 42)
+    # disabled
+    cfg_off = copy.deepcopy(performance_config)
+    cfg_off["global_obs"]["visitation_counts"] = False
+    env_disabled = MettaGrid(from_mettagrid_config(cfg_off), simple_map, 42)
     env_disabled.reset()
+    disabled_time = _median_runtime(env_disabled, move_action)
 
-    for _ in range(warmup_steps):
-        env_disabled.step(move_action)
-
-    start_time = time.time()
-    for _ in range(test_steps):
-        env_disabled.step(move_action)
-    disabled_time = time.time() - start_time
-
-    # Performance assertions
-    if enabled_time > 0:
-        improvement = ((enabled_time - disabled_time) / enabled_time) * 100
-        print(f"\nPerformance improvement: {improvement:.2f}% faster when disabled")
-        print(f"Enabled: {enabled_time:.4f}s, Disabled: {disabled_time:.4f}s")
-
-        # Generally expect some performance improvement when disabled
-        assert disabled_time <= enabled_time, "Disabling visitation counts should not slow down the environment"
+    # allow small jitter (≤1% slowdown)
+    assert disabled_time <= enabled_time * 1.01, (
+        f"Disabled visitation unexpectedly slower: "
+        f"enabled={enabled_time:.6f}s, disabled={disabled_time:.6f}s, "
+        f"delta={(disabled_time / enabled_time - 1) * 100:.2f}%"
+    )
 
 
 def test_agent_movement_tracking(env_with_visitation):
