@@ -15,7 +15,7 @@ run_dir: ${data_dir}/${run}
 
 trainer:
   curriculum: /env/mettagrid/curriculum/coop_rewardsharing/learning_progress
-  num_workers: 2
+  num_workers: 4
   simulation:
     evaluate_interval: 100
     skip_git_check: true
