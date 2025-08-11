@@ -64,8 +64,8 @@ function validateStringList(lst: any, fieldName: string, issues: ValidationIssue
     }
 
     for (const item of lst) {
-      if (typeof item !== 'string') {
-        issues.push({ message: `'${fieldName}' must contain strings`, field: fieldName })
+      if (typeof item !== 'string' || item === '') {
+        issues.push({ message: `'${fieldName}' must contain non-empty strings`, field: fieldName })
         break
       }
     }
