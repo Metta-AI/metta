@@ -6,17 +6,15 @@ This class implements the PettingZoo ParallelEnv interface using the base MettaG
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 from gymnasium import spaces
-from omegaconf import OmegaConf
 from pettingzoo import ParallelEnv
 from typing_extensions import override
 
+from metta.mettagrid.config import EnvConfig
 from metta.mettagrid.core import MettaGridCore
-from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.level_builder import Level
 
 # Data types for PettingZoo - import from C++ module
 from metta.mettagrid.mettagrid_c import (
@@ -44,42 +42,23 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
 
     def __init__(
         self,
-        curriculum: Curriculum,
+        env_config: EnvConfig,
         render_mode: Optional[str] = None,
-        level: Optional[Level] = None,
         **kwargs: Any,
     ):
         """
         Initialize PettingZoo environment.
 
         Args:
-            curriculum: Curriculum for task management
+            env_config: Environment configuration
             render_mode: Rendering mode
-            level: Optional pre-built level
             **kwargs: Additional arguments
         """
-        # Get level from curriculum if not provided
-        if level is None:
-            task = curriculum.get_task()
-            level = task.env_cfg().game.map_builder.build()
-
-        # Ensure we have a level
-        assert level is not None, "Level must be provided or generated from curriculum"
-
-        # Store curriculum for reset operations
-        self._curriculum = curriculum
-        self._task = self._curriculum.get_task()
-
-        # Get game config for core initialization
-        task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
-        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
         # Initialize core environment (no training features)
         MettaGridCore.__init__(
             self,
-            level=level,
-            game_config_dict=game_config_dict,
+            env_config=env_config,
             render_mode=render_mode,
             **kwargs,
         )
@@ -144,13 +123,8 @@ class MettaGridPettingZooEnv(MettaGridCore, ParallelEnv):
         """
         del options  # Unused parameter
 
-        # Get new task from curriculum and its config
-        self._task = self._curriculum.get_task()
-        task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
-        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
-
-        obs_array, info = super().reset(cast(Dict[str, Any], game_config_dict), seed)
+        # Call base reset with stored env_config
+        obs_array, info = super().reset(env_config=None, seed=seed)
 
         # Setup agents if not already done
         if not self.agents:

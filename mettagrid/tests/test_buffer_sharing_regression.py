@@ -14,7 +14,7 @@ import time
 import numpy as np
 import pytest
 
-from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid import AutoResetEnv
 
 
 class TestBufferSharingRegression:
@@ -75,15 +75,15 @@ class TestBufferSharingRegression:
 
     def test_step_method_signature_stability(self):
         """
-        Test that MettaGridEnv.step method signature hasn't changed unexpectedly.
+        Test that AutoResetEnv.step method signature hasn't changed unexpectedly.
 
         This catches regressions where the step method is accidentally modified
         in a way that could break buffer sharing.
         """
         # Verify step method exists and has expected signature
-        assert hasattr(MettaGridEnv, "step"), "MettaGridEnv missing step method"
+        assert hasattr(AutoResetEnv, "step"), "AutoResetEnv missing step method"
 
-        step_method = MettaGridEnv.step
+        step_method = AutoResetEnv.step
         sig = inspect.signature(step_method)
         params = list(sig.parameters.keys())
 

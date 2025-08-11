@@ -8,9 +8,8 @@ from omegaconf.omegaconf import OmegaConf
 import mettascope.server
 from metta.common.util.config import config_from_path
 from metta.map.utils.storable_map import StorableMap, grid_to_lines
-from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-from metta.mettagrid.level_builder import Level
+from metta.mettagrid import AutoResetEnv
+from metta.mettagrid.level_builder import LevelMap
 from metta.sim.map_preview import write_local_map_preview
 
 ShowMode = Literal["mettascope", "ascii", "ascii_border", "none"]
@@ -30,8 +29,13 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
         OmegaConf.resolve(env_cfg)
         assert isinstance(env_cfg, DictConfig)
 
-        level = Level(storable_map.grid, [])
-        env = MettaGridEnv(SingleTaskCurriculum("show_map", env_cfg), level=level, render_mode="none")
+        level = LevelMap(storable_map.grid, [])
+        # Create EnvConfig from the DictConfig and LevelMap
+        from metta.mettagrid.config import EnvConfig
+
+        env_config = EnvConfig.from_dict_config(env_cfg)
+        env_config.level_map = level
+        env = AutoResetEnv(env_config=env_config, render_mode="none")
 
         file_path = write_local_map_preview(env)
 

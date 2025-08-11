@@ -71,11 +71,11 @@ class TestNewEnvironmentHierarchy:
     def test_imports(self):
         """Test that all new classes can be imported."""
         # Test basic imports - this verifies our modules are structured correctly
+        from metta.mettagrid import AutoResetEnv
         from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
-        from metta.mettagrid.mettagrid_env import MettaGridEnv
         from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
-        assert MettaGridEnv is not None
+        assert AutoResetEnv is not None
         assert MettaGridGymEnv is not None
         assert SingleAgentMettaGridGymEnv is not None
         assert MettaGridPettingZooEnv is not None
@@ -185,7 +185,7 @@ if __name__ == "__main__":
 
     # Test imports
     try:
-        from metta.mettagrid.mettagrid_env import MettaGridEnv
+        from metta.mettagrid import AutoResetEnv
 
         print("✓ All imports successful")
     except Exception as e:
@@ -194,11 +194,11 @@ if __name__ == "__main__":
 
     # Test basic creation
     try:
-        env = MettaGridEnv(curriculum=curriculum, render_mode=None, is_training=False)
+        env = AutoResetEnv(curriculum=curriculum, render_mode=None, is_training=False)
         env.close()
-        print("✓ MettaGridEnv creation successful")
+        print("✓ AutoResetEnv creation successful")
     except Exception as e:
-        print(f"✗ MettaGridEnv creation failed: {e}")
+        print(f"✗ AutoResetEnv creation failed: {e}")
         sys.exit(1)
 
     print("✓ All manual tests passed!")

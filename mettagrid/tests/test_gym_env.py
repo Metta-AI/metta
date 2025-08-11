@@ -7,6 +7,7 @@ This module tests the MettaGridGymEnv with Gymnasium's standard environment inte
 import numpy as np
 import pytest
 from omegaconf import DictConfig
+from test_helpers import create_env_config_from_curriculum
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
@@ -67,11 +68,13 @@ def test_multi_agent_gym_env(simple_config):
     # Create config and curriculum
     curriculum = SingleTaskCurriculum("gym_multi_test", simple_config)
 
+    # Convert to EnvConfig
+    env_config = create_env_config_from_curriculum(curriculum)
+
     # Create environment
     env = MettaGridGymEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
-        is_training=False,
         single_agent=False,
     )
 
@@ -107,11 +110,13 @@ def test_single_agent_gym_env(simple_config):
     simple_config.game.map_builder.agents = 1
     curriculum = SingleTaskCurriculum("gym_single_test", simple_config)
 
+    # Convert to EnvConfig
+    env_config = create_env_config_from_curriculum(curriculum)
+
     # Create environment
     env = SingleAgentMettaGridGymEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
-        is_training=False,
     )
 
     # Test environment properties
@@ -142,10 +147,13 @@ def test_single_agent_gym_env(simple_config):
 def test_gym_env_episode_termination(simple_config):
     """Test that environment terminates properly."""
     curriculum = SingleTaskCurriculum("gym_termination_test", simple_config)
+
+    # Convert to EnvConfig
+    env_config = create_env_config_from_curriculum(curriculum)
+
     env = MettaGridGymEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
-        is_training=False,
         single_agent=False,
     )
 

@@ -11,9 +11,9 @@
 # ]
 # ///
 
-"""Gym Demo - Pure Gymnasium + SB3 ecosystem integration.
+"""Gym Demo - EnvConfig-based Gymnasium + SB3 ecosystem integration.
 
-This demo shows how to use MettaGridGymEnv (single-agent mode) with ONLY
+This demo shows how to use SingleAgentMettaGridGymEnv with EnvConfig and ONLY
 Gymnasium and Stable Baselines3, without any Metta training infrastructure.
 
 Run with: uv run python mettagrid/demos/demo_train_gym.py (from project root)
@@ -22,11 +22,13 @@ Run with: uv run python mettagrid/demos/demo_train_gym.py (from project root)
 import time
 
 import numpy as np
-from omegaconf import DictConfig
+
+# Shared demo configuration
+from demo_config import create_demo_config
 
 # Gym adapter imports
 from metta.mettagrid import SingleAgentMettaGridGymEnv
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.config import EnvConfig
 
 # Training framework imports
 try:
@@ -38,94 +40,24 @@ except ImportError:
     SB3_AVAILABLE = False
 
 
-def create_test_config() -> DictConfig:
-    """Create test configuration for single-agent Gym integration."""
-    return DictConfig(
-        {
-            "game": {
-                "max_steps": 60,
-                "num_agents": 1,  # Single agent for SB3 compatibility
-                "obs_width": 5,
-                "obs_height": 5,
-                "num_observation_tokens": 25,
-                "inventory_item_names": ["heart", "ore_red", "battery_red"],
-                "groups": {"agent": {"id": 0, "sprite": 0}},
-                "agent": {
-                    "default_resource_limit": 8,
-                    "resource_limits": {"heart": 255},
-                    "freeze_duration": 4,
-                    "rewards": {"heart": 4.0, "ore_red": 0.4, "battery_red": 0.8},
-                    "action_failure_penalty": 0.05,
-                },
-                "actions": {
-                    "noop": {"enabled": True},
-                    "move": {"enabled": True},
-                    "rotate": {"enabled": True},
-                    "put_items": {"enabled": True},
-                    "get_items": {"enabled": True},
-                    "attack": {"enabled": True},
-                    "swap": {"enabled": True},
-                    "change_color": {"enabled": False},
-                    "change_glyph": {"enabled": False, "number_of_glyphs": 0},
-                },
-                "objects": {
-                    "wall": {"type_id": 1, "swappable": False},
-                    "mine_red": {
-                        "type_id": 2,
-                        "output_resources": {"ore_red": 1},
-                        "max_output": -1,
-                        "conversion_ticks": 1,
-                        "cooldown": 3,
-                        "initial_resource_count": 0,
-                        "color": 0,
-                    },
-                    "generator_red": {
-                        "type_id": 5,
-                        "input_resources": {"ore_red": 1},
-                        "output_resources": {"battery_red": 1},
-                        "max_output": -1,
-                        "conversion_ticks": 1,
-                        "cooldown": 2,
-                        "initial_resource_count": 0,
-                        "color": 0,
-                    },
-                    "altar": {
-                        "type_id": 8,
-                        "input_resources": {"battery_red": 2},
-                        "output_resources": {"heart": 1},
-                        "max_output": 4,
-                        "conversion_ticks": 1,
-                        "cooldown": 15,
-                        "initial_resource_count": 1,
-                        "color": 2,
-                    },
-                },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 1,  # Single agent for SB3 compatibility
-                    "width": 8,
-                    "height": 8,
-                    "border_width": 1,
-                    "objects": {
-                        "mine_red": 2,
-                        "generator_red": 1,
-                        "altar": 1,
-                    },
-                },
-            }
-        }
+def create_test_env_config() -> EnvConfig:
+    """Create test EnvConfig for single-agent Gym integration."""
+    return create_demo_config(
+        num_agents=1,  # Single agent for Gym
+        max_steps=60,
+        map_width=8,
+        map_height=8,
     )
 
 
 def demo_single_agent_gym():
-    """Demonstrate single-agent Gymnasium environment."""
+    """Demonstrate single-agent Gymnasium environment with EnvConfig."""
     print("SINGLE-AGENT GYM DEMO")
     print("=" * 60)
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("gym_demo", config)
+    env_config = create_test_env_config()
     env = SingleAgentMettaGridGymEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
         is_training=False,
     )
@@ -167,11 +99,10 @@ def demo_sb3_training():
         return
 
     try:
-        config = create_test_config()
-        curriculum = SingleTaskCurriculum("sb3_training", config)
+        env_config = create_test_env_config()
 
         env = SingleAgentMettaGridGymEnv(
-            curriculum=curriculum,
+            env_config=env_config,
             render_mode=None,
             is_training=True,
         )
@@ -224,13 +155,12 @@ def demo_vectorized_envs():
         return
 
     try:
-        config = create_test_config()
-        curriculum = SingleTaskCurriculum("vectorized_demo", config)
+        env_config = create_test_env_config()
 
         def make_env():
             def _init():
                 return SingleAgentMettaGridGymEnv(
-                    curriculum=curriculum,
+                    env_config=env_config,
                     render_mode=None,
                     is_training=True,
                 )
@@ -267,10 +197,11 @@ def demo_vectorized_envs():
 
 def main():
     """Run Gymnasium + SB3 adapter demo."""
-    print("GYMNASIUM + SB3 ADAPTER DEMO")
+    print("GYMNASIUM + SB3 + ENVCONFIG ADAPTER DEMO")
     print("=" * 80)
-    print("This demo shows SingleAgentMettaGridGymEnv integration with")
+    print("This demo shows SingleAgentMettaGridGymEnv with EnvConfig integration with")
     print("Gymnasium and Stable Baselines3 (no internal training code).")
+    print("EnvConfig is the primary configuration method, combining PyGameConfig + LevelMap.")
     print()
 
     try:

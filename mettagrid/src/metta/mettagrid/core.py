@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from gymnasium import spaces
 
-from metta.mettagrid.level_builder import Level
+from metta.mettagrid.config import EnvConfig
 from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 
@@ -31,8 +31,7 @@ class MettaGridCore:
 
     def __init__(
         self,
-        level: Level,
-        game_config_dict: Dict[str, Any],
+        env_config: EnvConfig,
         render_mode: Optional[str] = None,
         **kwargs: Any,
     ):
@@ -40,26 +39,28 @@ class MettaGridCore:
         Initialize core MettaGrid functionality.
 
         Args:
-            level: Level to use for the environment
-            game_config_dict: Game configuration dictionary
+            env_config: Environment configuration containing game and level_map
             render_mode: Rendering mode (None, "human", "miniscope")
             **kwargs: Additional arguments passed to subclasses
         """
         self._render_mode = render_mode
-        self._level = level
+        self._env_config = env_config
+        self._level = env_config.level_map  # For backward compatibility
         self._renderer = None
-        self._map_labels: List[str] = level.labels
+        self._map_labels: List[str] = env_config.level_map.labels
         self._current_seed: int = 0
 
         # Environment metadata
         self.labels: List[str] = []
-        self._should_reset = False
+        # Start with _should_reset = True to allow initial reset/config change
+        self._should_reset = True
 
         # Initialize renderer class if needed (before C++ env creation)
         if self._render_mode is not None:
             self._initialize_renderer()
 
         # Create C++ environment immediately
+        game_config_dict = env_config.game.model_dump()
         self._c_env_instance: Optional[MettaGridCpp] = self._create_c_env(game_config_dict)
 
     @property
@@ -129,18 +130,27 @@ class MettaGridCore:
 
         return c_env
 
-    def reset(self, game_config_dict: Dict[str, Any], seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def reset(
+        self, env_config: Optional[EnvConfig] = None, seed: Optional[int] = None
+    ) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Reset the environment.
 
         Args:
-            game_config_dict: Game configuration dictionary
+            env_config: Optional new environment configuration
             seed: Random seed
 
         Returns:
             Tuple of (observations, info)
         """
-        # Recreate C++ environment with new config
+        # Use provided env_config or current one
+        if env_config is not None:
+            self._env_config = env_config
+            self._level = env_config.level_map
+            self._map_labels = env_config.level_map.labels
+
+        # Recreate C++ environment with config
+        game_config_dict = self._env_config.game.model_dump()
         self._c_env_instance = self._create_c_env(game_config_dict, seed)
 
         # Update seed

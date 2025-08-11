@@ -9,14 +9,14 @@ import wandb
 from wandb.sdk import wandb_run
 
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
-from metta.mettagrid import MettaGridEnv
+from metta.mettagrid import AutoResetEnv
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.util.file import write_file
 
 logger = logging.getLogger(__name__)
 
 
-def write_map_preview_file(preview_path: str, env: MettaGridEnv, gzipped: bool):
+def write_map_preview_file(preview_path: str, env: AutoResetEnv, gzipped: bool):
     logger.info("Building map preview...")
 
     preview = {
@@ -39,7 +39,7 @@ def write_map_preview_file(preview_path: str, env: MettaGridEnv, gzipped: bool):
         f.write(preview_data)
 
 
-def write_local_map_preview(env: MettaGridEnv):
+def write_local_map_preview(env: AutoResetEnv):
     maps_dir = "./outputs/maps"
     os.makedirs(maps_dir, exist_ok=True)
 
@@ -66,7 +66,9 @@ def upload_map_preview(
         wandb_run: Weights & Biases run object for logging
     """
 
-    env = MettaGridEnv(curriculum, render_mode=None)
+    from metta.mettagrid import AutoResetEnv
+
+    env = AutoResetEnv(curriculum, render_mode=None)
 
     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
         # Create directory and save compressed file

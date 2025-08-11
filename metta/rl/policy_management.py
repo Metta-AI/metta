@@ -7,14 +7,14 @@ import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
 from metta.agent.policy_record import PolicyRecord
-from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid import CurriculumEnv
 
 logger = logging.getLogger(__name__)
 
 
 def initialize_policy_for_environment(
     policy_record: PolicyRecord,
-    metta_grid_env: MettaGridEnv,
+    metta_grid_env: CurriculumEnv,
     device: torch.device,
     restore_feature_mapping: bool = True,
 ) -> None:
@@ -55,7 +55,7 @@ def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
         logger.warning(f"Error during policy cleanup: {e}")
 
 
-def validate_policy_environment_match(policy: PolicyAgent, env: MettaGridEnv) -> None:
+def validate_policy_environment_match(policy: PolicyAgent, env: CurriculumEnv) -> None:
     """Validate that policy's observation shape matches environment's."""
     # Extract agent from distributed wrapper if needed
     if isinstance(policy, MettaAgent):

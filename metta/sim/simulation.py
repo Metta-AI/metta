@@ -26,7 +26,7 @@ from tensordict import TensorDict
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.mettagrid import MettaGridEnv, dtype_actions
+from metta.mettagrid import CurriculumEnv, dtype_actions
 from metta.mettagrid.curriculum.core import Curriculum, SingleTrialTask, Task
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -174,8 +174,8 @@ class Simulation:
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
 
-        metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv)
+        metta_grid_env: CurriculumEnv = self._vecenv.driver_env  # type: ignore
+        assert isinstance(metta_grid_env, CurriculumEnv)
 
         # Initialize policy to environment
         initialize_policy_for_environment(

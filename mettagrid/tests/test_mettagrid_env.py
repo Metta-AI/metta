@@ -1,18 +1,18 @@
 import pytest
-from omegaconf import OmegaConf
-from omegaconf.errors import ConfigAttributeError
+from pydantic import ValidationError
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid import AutoResetEnv
 
 
-def test_invalid_env_map_type_raises():
-    cfg = OmegaConf.create({})
-    curriculum = SingleTaskCurriculum("test", cfg)
-    with pytest.raises(ConfigAttributeError):
-        MettaGridEnv(curriculum, render_mode=None, env_map={})
+def test_invalid_env_config_type_raises():
+    """Test that invalid env_config types raise proper errors."""
+    with pytest.raises(ValidationError):
+        # Passing a dict instead of EnvConfig should raise ValidationError
+        AutoResetEnv(env_config={}, render_mode=None)
 
 
-def test_invalid_env_cfg_type_raises():
-    with pytest.raises(ValueError):
-        MettaGridEnv({}, render_mode=None)
+def test_invalid_env_config_missing_fields_raises():
+    """Test that incomplete env_config raises proper errors."""
+    with pytest.raises(ValidationError):
+        # Passing an incomplete env_config should raise ValidationError
+        AutoResetEnv(env_config={"game": {}}, render_mode=None)

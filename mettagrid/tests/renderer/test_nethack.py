@@ -6,16 +6,23 @@ This module contains unit tests for the NethackRenderer, ensuring proper
 ASCII rendering, alignment, and NetHack-style conversion functionality.
 """
 
+import os
+
+# Import test helper from parent directory
+import sys
 from unittest.mock import patch
 
 import pytest
 from omegaconf import OmegaConf
 
+from metta.mettagrid.auto_reset_env import AutoResetEnv
 from metta.mettagrid.char_encoder import CHAR_TO_NAME
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.renderer.nethack import NethackRenderer
 from metta.mettagrid.util.hydra import get_cfg
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from test_helpers import create_env_config_from_curriculum
 
 
 class TestNethackRenderer:
@@ -205,7 +212,7 @@ class TestNethackRenderer:
 
 
 class TestRendererIntegration:
-    """Test renderer integration with MettaGridEnv and tools.sim style setup."""
+    """Test renderer integration with AutoResetEnv and tools.sim style setup."""
 
     @patch("builtins.print")
     def test_environment_rendering_workflow(self, mock_print):
@@ -226,7 +233,8 @@ class TestRendererIntegration:
         )
 
         curriculum = SingleTaskCurriculum("test", cfg)
-        env = MettaGridEnv(curriculum, render_mode="human")
+        env_config = create_env_config_from_curriculum(curriculum)
+        env = AutoResetEnv(env_config=env_config, render_mode="human")
 
         # Reset and render
         obs, info = env.reset()
@@ -269,7 +277,8 @@ class TestRendererIntegration:
         )
 
         curriculum = SingleTaskCurriculum("test", cfg)
-        env = MettaGridEnv(curriculum, render_mode="human")
+        env_config = create_env_config_from_curriculum(curriculum)
+        env = AutoResetEnv(env_config=env_config, render_mode="human")
 
         obs, info = env.reset()
 
@@ -310,10 +319,11 @@ class TestRendererIntegration:
         )
 
         curriculum = SingleTaskCurriculum("test", cfg)
+        env_config = create_env_config_from_curriculum(curriculum)
 
         # The key: render_mode="human" enables NethackRenderer
         with patch("builtins.print"):
-            env = MettaGridEnv(curriculum, render_mode="human")
+            env = AutoResetEnv(env_config=env_config, render_mode="human")
             assert env._renderer is not None
             assert env._renderer.__class__.__name__ == "NethackRenderer"
 

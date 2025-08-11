@@ -13,9 +13,9 @@
 # ]
 # ///
 
-"""PettingZoo Demo - Pure PettingZoo ecosystem integration.
+"""PettingZoo Demo - EnvConfig-based PettingZoo ecosystem integration.
 
-This demo shows how to use MettaGridPettingZooEnv with ONLY PettingZoo
+This demo shows how to use MettaGridPettingZooEnv with EnvConfig and ONLY PettingZoo
 and external multi-agent libraries, without any Metta training infrastructure.
 
 Run with: uv run python mettagrid/demos/demo_train_pettingzoo.py (from project root)
@@ -24,72 +24,32 @@ Run with: uv run python mettagrid/demos/demo_train_pettingzoo.py (from project r
 import time
 
 import numpy as np
+
+# Shared demo configuration
+from demo_config import create_demo_config
 from gymnasium import spaces
-from omegaconf import DictConfig
 from pettingzoo.test import parallel_api_test
 
 # PettingZoo adapter imports
 from metta.mettagrid import MettaGridPettingZooEnv
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.config import EnvConfig
 
 
-def create_test_config() -> DictConfig:
-    """Create test configuration for PettingZoo integration."""
-    return DictConfig(
-        {
-            "game": {
-                "max_steps": 50,
-                "num_agents": 2,
-                "obs_width": 3,
-                "obs_height": 3,
-                "num_observation_tokens": 9,
-                "inventory_item_names": ["heart"],
-                "groups": {"agent": {"id": 0, "sprite": 0}},
-                "agent": {
-                    "default_resource_limit": 5,
-                    "resource_limits": {"heart": 255},
-                    "freeze_duration": 0,
-                    "rewards": {"heart": 1.0},
-                    "action_failure_penalty": 0.0,
-                },
-                "actions": {
-                    "noop": {"enabled": True},
-                    "move": {"enabled": True},
-                    "rotate": {"enabled": True},
-                    "put_items": {"enabled": True},
-                    "get_items": {"enabled": True},
-                    "attack": {"enabled": True},
-                    "swap": {"enabled": True},
-                    "change_color": {"enabled": False},
-                    "change_glyph": {"enabled": False, "number_of_glyphs": 0},
-                },
-                "objects": {
-                    "wall": {"type_id": 1, "swappable": False},
-                },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 2,
-                    "width": 6,
-                    "height": 6,
-                    "border_width": 1,
-                    "objects": {},
-                },
-            }
-        }
-    )
+def create_test_env_config() -> EnvConfig:
+    """Create test EnvConfig for PettingZoo integration."""
+    return create_demo_config(num_agents=2, max_steps=50, map_width=6, map_height=6, obs_width=3, obs_height=3)
 
 
 def demo_pettingzoo_api():
-    """Demonstrate PettingZoo API compliance and basic usage."""
+    """Demonstrate PettingZoo API compliance and basic usage with EnvConfig."""
     print("PETTINGZOO API DEMO")
     print("=" * 60)
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("pettingzoo_demo", config)
+    env_config = create_test_env_config()
 
     # Create PettingZoo environment
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
         is_training=False,
     )
@@ -111,12 +71,11 @@ def demo_random_rollout():
     print("\nRANDOM ROLLOUT DEMO")
     print("=" * 60)
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("pettingzoo_rollout", config)
+    env_config = create_test_env_config()
 
     # Create PettingZoo environment
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
         is_training=True,
     )
@@ -165,11 +124,10 @@ def demo_simple_marl_training():
     print("\nSIMPLE MULTI-AGENT TRAINING DEMO")
     print("=" * 60)
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("marl_training", config)
+    env_config = create_test_env_config()
 
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_config=env_config,
         render_mode=None,
         is_training=True,
     )
@@ -254,10 +212,11 @@ def demo_simple_marl_training():
 
 def main():
     """Run PettingZoo adapter demo."""
-    print("PETTINGZOO ADAPTER DEMO")
+    print("PETTINGZOO + ENVCONFIG ADAPTER DEMO")
     print("=" * 80)
-    print("This demo shows MettaGridPettingZooEnv integration with")
+    print("This demo shows MettaGridPettingZooEnv with EnvConfig integration with")
     print("the PettingZoo multi-agent ecosystem (no internal training code).")
+    print("EnvConfig is the primary configuration method, combining PyGameConfig + LevelMap.")
     print()
 
     try:

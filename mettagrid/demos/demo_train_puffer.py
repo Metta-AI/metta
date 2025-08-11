@@ -11,17 +11,15 @@
 # ]
 # ///
 
-"""Puffer Demo - Pure PufferLib ecosystem integration.
+"""Puffer Demo - EnvConfig-based PufferLib ecosystem integration.
 
-This demo shows how to use MettaGridEnv with PufferLib and external training libraries.
+This demo shows how to use AutoResetEnv with EnvConfig and PufferLib integration.
+This is the comprehensive demo combining the best of both EnvConfig usage and PufferLib compatibility.
 
-IMPORTANT: MettaGridEnv inherits from PufferLib's PufferEnv, making it fully compatible
-with the PufferLib ecosystem. You can use MettaGridEnv directly with PufferLib training
-code, or use PufferLib's MettaPuff wrapper for additional PufferLib-specific features.
-
-Architecture:
-- MettaGridEnv -> MettaGridPufferBase -> PufferEnv (PufferLib compatibility)
+Env Hierarchy:
+- AutoResetEnv -> MettaGridPufferBase -> PufferEnv (PufferLib compatibility)
 - For pure PufferLib usage, you can also use: github.com/PufferAI/PufferLib/pufferlib/environments/metta/
+
 
 Run with: uv run python mettagrid/demos/demo_train_puffer.py (from project root)
 """
@@ -29,12 +27,15 @@ Run with: uv run python mettagrid/demos/demo_train_puffer.py (from project root)
 import time
 
 import numpy as np
-from omegaconf import DictConfig
+
+# Shared demo configuration
+from demo_config import create_demo_config
 
 # MettaGrid imports
-# Note: MettaGridEnv inherits from PufferEnv, so it's fully PufferLib-compatible
-from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+# Note: AutoResetEnv inherits from PufferEnv, so it's fully PufferLib-compatible
+from metta.mettagrid import AutoResetEnv
+from metta.mettagrid.config import EnvConfig
+from metta.mettagrid.room.utils import make_level_map
 
 # Training framework imports
 try:
@@ -45,83 +46,9 @@ except ImportError:
     PUFFERLIB_AVAILABLE = False
 
 
-def create_test_config() -> DictConfig:
-    """Create test configuration for Puffer integration."""
-    return DictConfig(
-        {
-            "game": {
-                "max_steps": 80,
-                "num_agents": 3,
-                "obs_width": 5,
-                "obs_height": 5,
-                "num_observation_tokens": 25,
-                "inventory_item_names": ["heart", "ore_red", "battery_red"],
-                "groups": {"agent": {"id": 0, "sprite": 0}},
-                "agent": {
-                    "default_resource_limit": 10,
-                    "resource_limits": {"heart": 255},
-                    "freeze_duration": 5,
-                    "rewards": {"heart": 5.0, "ore_red": 0.5, "battery_red": 1.0},
-                    "action_failure_penalty": 0.1,
-                },
-                "actions": {
-                    "noop": {"enabled": True},
-                    "move": {"enabled": True},
-                    "rotate": {"enabled": True},
-                    "put_items": {"enabled": True},
-                    "get_items": {"enabled": True},
-                    "attack": {"enabled": True},
-                    "swap": {"enabled": True},
-                    "change_color": {"enabled": False},
-                    "change_glyph": {"enabled": False, "number_of_glyphs": 0},
-                },
-                "objects": {
-                    "wall": {"type_id": 1, "swappable": False},
-                    "mine_red": {
-                        "type_id": 2,
-                        "output_resources": {"ore_red": 1},
-                        "max_output": -1,
-                        "conversion_ticks": 1,
-                        "cooldown": 3,
-                        "initial_resource_count": 0,
-                        "color": 0,
-                    },
-                    "generator_red": {
-                        "type_id": 5,
-                        "input_resources": {"ore_red": 1},
-                        "output_resources": {"battery_red": 1},
-                        "max_output": -1,
-                        "conversion_ticks": 1,
-                        "cooldown": 2,
-                        "initial_resource_count": 0,
-                        "color": 0,
-                    },
-                    "altar": {
-                        "type_id": 8,
-                        "input_resources": {"battery_red": 2},
-                        "output_resources": {"heart": 1},
-                        "max_output": 5,
-                        "conversion_ticks": 1,
-                        "cooldown": 20,
-                        "initial_resource_count": 1,
-                        "color": 2,
-                    },
-                },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 3,
-                    "width": 10,
-                    "height": 10,
-                    "border_width": 1,
-                    "objects": {
-                        "mine_red": 2,
-                        "generator_red": 1,
-                        "altar": 1,
-                    },
-                },
-            }
-        }
-    )
+def create_test_env_config() -> EnvConfig:
+    """Create test EnvConfig for Puffer integration."""
+    return create_demo_config(num_agents=3, max_steps=80, map_width=10, map_height=10)
 
 
 def demo_puffer_env():
@@ -129,13 +56,12 @@ def demo_puffer_env():
     print("PUFFERLIB ENVIRONMENT DEMO")
     print("=" * 60)
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("puffer_demo", config)
+    env_config = create_test_env_config()
 
-    # Create MettaGridEnv - which IS a PufferLib environment!
-    # MettaGridEnv inherits from PufferEnv, so it has all PufferLib functionality
-    env = MettaGridEnv(
-        curriculum=curriculum,
+    # Create AutoResetEnv - which IS a PufferLib environment!
+    # AutoResetEnv inherits from PufferEnv, so it has all PufferLib functionality
+    env = AutoResetEnv(
+        env_config=env_config,
         render_mode=None,
         is_training=False,  # Disable training-specific features for this demo
     )
@@ -178,13 +104,12 @@ def demo_random_rollout():
     print("\nRANDOM ROLLOUT DEMO")
     print("=" * 60)
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("puffer_rollout", config)
+    env_config = create_test_env_config()
 
-    # Create MettaGridEnv for rollout
+    # Create AutoResetEnv for rollout
     # Note: is_training=True enables training features like stats collection
-    env = MettaGridEnv(
-        curriculum=curriculum,
+    env = AutoResetEnv(
+        env_config=env_config,
         render_mode=None,
         is_training=True,
     )
@@ -235,6 +160,102 @@ def demo_random_rollout():
     env.close()
 
 
+def demo_custom_level():
+    """Demonstrate creating environment with custom level and EnvConfig."""
+    print("\nCUSTOM LEVEL DEMO")
+    print("=" * 60)
+
+    # Create a simple custom level with agents placed correctly
+    grid = np.array(
+        [
+            ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+            ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
+            ["wall", "empty", "agent.agent", "empty", "generator_red", "empty", "wall"],
+            ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
+            ["wall", "empty", "mine_red", "empty", "altar", "empty", "wall"],
+            ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
+            ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+        ],
+        dtype="<U50",
+    )  # Need larger dtype for longer strings
+
+    # Create level map
+    level_map = make_level_map(grid, labels=["custom_puffer_level"])
+
+    # Create EnvConfig with custom level
+    env_config = create_demo_config(num_agents=1, max_steps=50)
+    # Override the level map with our custom one
+    env_config = EnvConfig(game=env_config.game, level_map=level_map)
+
+    # Create environment
+    env = AutoResetEnv(env_config=env_config, render_mode=None)
+
+    print("Created environment with custom level")
+    print(f"  - Grid shape: {grid.shape}")
+    print(f"  - Labels: {level_map.labels}")
+    print(f"  - Agents: {env.num_agents}")
+
+    # Reset and take a few steps
+    obs, info = env.reset(seed=42)
+    print(f"  - Reset successful: observation shape {obs.shape}")
+
+    # Take a few random actions
+    for step in range(5):
+        actions = env.action_space.sample()
+        obs, rewards, terminals, truncations, info = env.step(actions)
+        print(f"  - Step {step + 1}: reward {rewards.sum():.2f}")
+        if terminals.any() or truncations.any():
+            break
+
+    env.close()
+    print("Custom level demo completed")
+
+
+def demo_env_config_modification():
+    """Demonstrate modifying environment configuration between resets."""
+    print("\nENVCONFIG MODIFICATION DEMO")
+    print("=" * 60)
+
+    # Create first EnvConfig (small map)
+    env_config_small = create_demo_config(num_agents=1, max_steps=30, map_width=6, map_height=6)
+
+    # Create environment with first config
+    env = AutoResetEnv(env_config=env_config_small, render_mode=None)
+
+    print("First configuration (6x6 map):")
+    obs, info = env.reset(seed=42)
+    print(f"  - Observation shape: {obs.shape}")
+    print(f"  - Max steps: {env.max_steps}")
+
+    # Take a few steps until episode is done
+    for _ in range(50):  # Enough steps to finish the episode
+        actions = env.action_space.sample()
+        obs, rewards, terminals, truncations, info = env.step(actions)
+        if terminals.any() or truncations.any():
+            break
+
+    # Create second EnvConfig (larger map)
+    env_config_large = create_demo_config(num_agents=1, max_steps=60, map_width=12, map_height=12)
+
+    # Set new configuration for next reset
+    env.set_env_cfg(env_config_large)
+
+    print("\nSecond configuration (12x12 map):")
+    obs, info = env.reset(seed=123)
+    print(f"  - Observation shape: {obs.shape}")
+    print(f"  - Max steps: {env.max_steps}")
+
+    # Take a few steps
+    for _ in range(3):
+        actions = env.action_space.sample()
+        obs, rewards, terminals, truncations, info = env.step(actions)
+        if terminals.any() or truncations.any():
+            break
+
+    env.close()
+    print("Environment configuration switching successful!")
+
+
 def demo_pufferlib_training():
     """Demonstrate actual PufferLib training integration."""
     print("\nPUFFERLIB TRAINING DEMO")
@@ -249,13 +270,12 @@ def demo_pufferlib_training():
         print("   - Integration with CleanRL algorithms")
         return
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("puffer_training", config)
+    env_config = create_test_env_config()
 
-    # MettaGridEnv can be used directly with PufferLib training code
+    # AutoResetEnv can be used directly with PufferLib training code
     # It inherits all PufferLib functionality through MettaGridPufferBase -> PufferEnv
-    env = MettaGridEnv(
-        curriculum=curriculum,
+    env = AutoResetEnv(
+        env_config=env_config,
         render_mode=None,
         is_training=True,
     )
@@ -361,11 +381,12 @@ def demo_pufferlib_training():
 
 def main():
     """Run PufferLib adapter demo."""
-    print("PUFFERLIB INTEGRATION DEMO")
+    print("PUFFERLIB + ENVCONFIG INTEGRATION DEMO")
     print("=" * 80)
-    print("This demo shows MettaGridEnv's PufferLib integration.")
-    print("MettaGridEnv inherits from PufferEnv, making it fully compatible")
+    print("This demo shows AutoResetEnv's EnvConfig-based PufferLib integration.")
+    print("AutoResetEnv inherits from PufferEnv, making it fully compatible")
     print("with the PufferLib high-performance training ecosystem.")
+    print("EnvConfig is the primary configuration method, combining PyGameConfig + LevelMap.")
     print()
 
     try:
@@ -376,6 +397,10 @@ def main():
         demo_random_rollout()
         demo_pufferlib_training()
 
+        # Run EnvConfig-specific demos
+        demo_custom_level()
+        demo_env_config_modification()
+
         # Summary
         duration = time.time() - start_time
         print("\n" + "=" * 80)
@@ -384,7 +409,14 @@ def main():
         print("Environment creation: Successful")
         print("Random rollout: Completed")
         print("PufferLib integration: Ready")
+        print("Custom level creation: Successful")
+        print("EnvConfig modification: Successful")
         print(f"\nTotal demo time: {duration:.1f} seconds")
+        print("\nKey Features Demonstrated:")
+        print("   - EnvConfig as primary configuration method")
+        print("   - Custom level creation with make_level_map()")
+        print("   - Environment reconfiguration between resets")
+        print("   - Full PufferLib compatibility and integration")
         print("\nNext steps:")
         print("   - Use PufferLib's vectorized training")
         print("   - Integrate with CleanRL algorithms")

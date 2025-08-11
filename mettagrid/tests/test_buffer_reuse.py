@@ -1,16 +1,17 @@
-"""Test that MettaGridEnv properly reuses buffers across resets."""
+"""Test that AutoResetEnv properly reuses buffers across resets."""
 
 import numpy as np
+from test_helpers import create_env_config_from_curriculum
 
+from metta.mettagrid import AutoResetEnv
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.hydra import get_cfg
 
 
 def test_buffer_reuse_across_resets():
     """
     Test that:
-    1. Creates an MettaGridEnv
+    1. Creates an AutoResetEnv
     2. Sets buffers on it
     3. Resets it
     4. Makes sure it has a new cpp env, but uses the same buffers
@@ -21,8 +22,11 @@ def test_buffer_reuse_across_resets():
     # Create curriculum with task name and config
     curriculum = SingleTaskCurriculum("buffer_test", task_cfg=cfg)
 
+    # Convert to EnvConfig
+    env_config = create_env_config_from_curriculum(curriculum)
+
     # Create environment
-    env = MettaGridEnv(curriculum=curriculum, render_mode=None)
+    env = AutoResetEnv(env_config=env_config, render_mode=None)
 
     # Get initial C++ environment reference
     initial_cpp_env = env.c_env
@@ -94,8 +98,11 @@ def test_buffer_consistency_during_episode():
     # Create curriculum with task name and config
     curriculum = SingleTaskCurriculum("buffer_test", task_cfg=cfg)
 
+    # Convert to EnvConfig
+    env_config = create_env_config_from_curriculum(curriculum)
+
     # Create environment
-    env = MettaGridEnv(curriculum=curriculum, render_mode=None)
+    env = AutoResetEnv(env_config=env_config, render_mode=None)
 
     # Reset environment
     obs, info = env.reset(seed=42)

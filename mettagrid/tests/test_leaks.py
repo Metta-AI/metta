@@ -4,9 +4,10 @@ import os
 import psutil
 import pytest
 from hydra import compose, initialize
+from test_helpers import create_env_config_from_curriculum
 
+from metta.mettagrid import AutoResetEnv
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
 @pytest.fixture(scope="module")
@@ -19,16 +20,18 @@ def cfg():
 
 
 def test_mettagrid_env_init(cfg):
-    """Test that the MettaGridEnv can be initialized properly."""
+    """Test that the AutoResetEnv can be initialized properly."""
     curriculum = SingleTaskCurriculum("test", cfg)
-    env = MettaGridEnv(curriculum, render_mode=None)
-    assert env is not None, "Failed to initialize MettaGridEnv"
+    env_config = create_env_config_from_curriculum(curriculum)
+    env = AutoResetEnv(env_config=env_config, render_mode=None)
+    assert env is not None, "Failed to initialize AutoResetEnv"
 
 
 def test_mettagrid_env_reset(cfg):
-    """Test that the MettaGridEnv can be reset multiple times without memory leaks."""
+    """Test that the AutoResetEnv can be reset multiple times without memory leaks."""
     curriculum = SingleTaskCurriculum("test", cfg)
-    env = MettaGridEnv(curriculum, render_mode=None)
+    env_config = create_env_config_from_curriculum(curriculum)
+    env = AutoResetEnv(env_config=env_config, render_mode=None)
     # Reset the environment multiple times
     for _ in range(10):
         observation = env.reset()
@@ -44,7 +47,7 @@ def get_memory_usage():
 @pytest.mark.slow
 def test_mettagrid_env_no_memory_leaks(cfg):
     """
-    Test that the MettaGridEnv can be reset multiple times without memory leaks.
+    Test that the AutoResetEnv can be reset multiple times without memory leaks.
 
     This test creates and destroys an environment object after multiple resets
     to verify that no memory leaks occur during this process.
@@ -63,7 +66,8 @@ def test_mettagrid_env_no_memory_leaks(cfg):
     for i in range(num_iterations):
         # Create the environment
         curriculum = SingleTaskCurriculum("test", cfg)
-        env = MettaGridEnv(curriculum, render_mode=None)
+        env_config = create_env_config_from_curriculum(curriculum)
+        env = AutoResetEnv(env_config=env_config, render_mode=None)
 
         # Reset the environment multiple times
         for _ in range(5):

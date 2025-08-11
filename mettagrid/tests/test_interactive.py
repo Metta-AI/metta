@@ -11,9 +11,9 @@ import time
 import numpy as np
 from omegaconf import DictConfig
 
+from metta.mettagrid import AutoResetEnv
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.gym_env import SingleAgentMettaGridGymEnv
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
 
@@ -96,7 +96,7 @@ def create_game_config():
 
 
 def test_puffer_env():
-    """Test MettaGridEnv (PufferLib-based) interactively."""
+    """Test AutoResetEnv (PufferLib-based) interactively."""
     print("\n" + "=" * 50)
     print("TESTING METTAGRID ENVIRONMENT (PufferLib-based)")
     print("=" * 50)
@@ -104,7 +104,7 @@ def test_puffer_env():
     config = create_game_config()
     curriculum = SingleTaskCurriculum("mettagrid_interactive", config)
 
-    env = MettaGridEnv(
+    env = AutoResetEnv(
         curriculum=curriculum,
         render_mode="human",
         is_training=False,
@@ -144,7 +144,7 @@ def test_puffer_env():
         time.sleep(0.1)  # Brief pause for readability
 
     env.close()
-    print("MettaGridEnv (PufferLib-compatible) test completed!")
+    print("AutoResetEnv (PufferLib-compatible) test completed!")
 
 
 def test_gym_env():

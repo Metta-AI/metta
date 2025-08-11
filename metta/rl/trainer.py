@@ -23,7 +23,7 @@ from metta.core.monitoring import (
 )
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
-from metta.mettagrid import MettaGridEnv, dtype_actions
+from metta.mettagrid import CurriculumEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
@@ -131,7 +131,7 @@ def train(
 
     vecenv.async_reset(env_cfg.seed + rank)
 
-    metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
+    metta_grid_env: CurriculumEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary

@@ -1,5 +1,6 @@
 from typing import Any, Literal, Optional
 
+from omegaconf import DictConfig
 from pydantic import ConfigDict, Field
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
@@ -215,3 +216,48 @@ class PyGameConfig(BaseModelWithForbidExtra):
 class PyPolicyGameConfig(PyGameConfig):
     obs_width: Literal[11]
     obs_height: Literal[11]
+
+
+class EnvConfig(BaseModelWithForbidExtra):
+    """Environment configuration combining game config and level map."""
+
+    game: PyGameConfig
+    level_map: Any  # Will be LevelMap from level_builder
+
+    class Config:
+        arbitrary_types_allowed = True
+
+    @classmethod
+    def from_dict_config(cls, cfg: DictConfig) -> "EnvConfig":
+        """Create EnvConfig from a DictConfig (e.g., from curriculum task).
+
+        Args:
+            cfg: DictConfig from hydra, typically containing 'game' and optionally map_builder
+
+        Returns:
+            EnvConfig instance with game config and built level_map
+        """
+        from omegaconf import OmegaConf
+
+        # Get the game config
+        if hasattr(cfg, "game"):
+            game_cfg = cfg.game
+        elif isinstance(cfg, dict) and "game" in cfg:
+            game_cfg = cfg["game"]
+        else:
+            # Assume entire config is game config
+            game_cfg = cfg
+
+        # Convert to PyGameConfig if needed
+        if not isinstance(game_cfg, PyGameConfig):
+            game_dict = OmegaConf.to_container(game_cfg, resolve=True) if hasattr(game_cfg, "__dict__") else game_cfg
+            game_config = PyGameConfig(**game_dict)
+        else:
+            game_config = game_cfg
+
+        # Build level_map from map_builder if present
+        level_map = None
+        if hasattr(game_config, "map_builder") and game_config.map_builder is not None:
+            level_map = game_config.map_builder.build()
+
+        return cls(game=game_config, level_map=level_map)

@@ -3,10 +3,8 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 
-from metta.mettagrid import (
-    MettaGridEnv,
-    dtype_actions,
-)
+from metta.mettagrid import dtype_actions
+from metta.mettagrid.auto_reset_env import AutoResetEnv
 from metta.mettagrid.mettagrid_c import MettaGrid
 
 
@@ -48,7 +46,7 @@ class Orientation(Enum):
 
 
 def generate_valid_random_actions(
-    env: MettaGridEnv,
+    env: AutoResetEnv,
     num_agents: int,
     force_action_type: Optional[int] = None,
     force_action_arg: Optional[int] = None,
@@ -58,7 +56,7 @@ def generate_valid_random_actions(
     Generate valid actions for all agents, respecting maximum argument values.
 
     Args:
-        env: MettaGridEnv instance
+        env: AutoResetEnv instance
         num_agents: Number of agents to generate actions for
         force_action_type: If provided, use this action type for all agents
         force_action_arg: If provided, use this action arg (clamped to valid range) for all agents

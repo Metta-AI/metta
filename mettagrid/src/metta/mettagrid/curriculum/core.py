@@ -4,6 +4,8 @@ from typing import List, Tuple
 import hydra
 from omegaconf import DictConfig
 
+from metta.mettagrid.config import EnvConfig
+
 logger = logging.getLogger(__name__)
 
 
@@ -61,7 +63,23 @@ class Task:
         raise NotImplementedError("Subclasses must implement this method")
 
     def original_env_cfg(self) -> DictConfig:
+        """Returns the original DictConfig before hydra instantiation (for backward compatibility)."""
         raise NotImplementedError("Subclasses must implement this method")
+
+    def original_env_config(self) -> EnvConfig:
+        """Returns the original EnvConfig before any modifications.
+
+        This converts the original DictConfig to an EnvConfig.
+        """
+        return EnvConfig.from_dict_config(self.original_env_cfg())
+
+    def env_config(self) -> EnvConfig:
+        """Returns the EnvConfig for the current trial.
+
+        Converts the task's DictConfig to an EnvConfig using the centralized
+        conversion logic in EnvConfig.from_dict_config().
+        """
+        return EnvConfig.from_dict_config(self.env_cfg())
 
     def id(self) -> str:
         """Returns the id of the task."""
@@ -108,6 +126,7 @@ class SingleTrialTask(Task):
         return self._env_cfg
 
     def original_env_cfg(self) -> DictConfig:
+        """Returns the original DictConfig before hydra resolution."""
         return self._original_env_cfg
 
 

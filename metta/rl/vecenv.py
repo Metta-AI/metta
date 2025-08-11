@@ -7,7 +7,7 @@ from pydantic import validate_call
 
 from metta.common.util.logging_helpers import init_logging
 from metta.common.util.resolvers import register_resolvers
-from metta.mettagrid import MettaGridEnv
+from metta.mettagrid import CurriculumEnv
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
@@ -32,9 +32,9 @@ def make_env_func(
         register_resolvers()
         init_logging(run_dir=run_dir)
 
-    # Create the environment instance
-    env = MettaGridEnv(
-        curriculum,
+    # Create the environment instance with CurriculumEnv wrapper
+    env = CurriculumEnv(
+        curriculum=curriculum,
         render_mode=render_mode,
         buf=buf,
         stats_writer=stats_writer,
@@ -44,7 +44,7 @@ def make_env_func(
     )
     # Ensure the environment is properly initialized
     if hasattr(env, "_c_env") and env._c_env is None:
-        raise ValueError("MettaGridEnv._c_env is None after hydra instantiation")
+        raise ValueError("Environment._c_env is None after hydra instantiation")
     return env
 
 

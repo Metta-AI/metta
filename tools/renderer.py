@@ -4,13 +4,13 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, List, Protocol, Tuple
+from typing import Any, List, Protocol
 
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
 from metta.mettagrid import (
-    MettaGridEnv,
+    CurriculumEnv,
     dtype_actions,
     dtype_observations,
     dtype_rewards,
@@ -35,7 +35,7 @@ class Policy(Protocol):
 class BasePolicy(ABC):
     """Base class for all policies."""
 
-    def __init__(self, env: MettaGridEnv) -> None:
+    def __init__(self, env) -> None:
         self.env = env
         self.num_agents = env.num_agents
         self.action_space = env.action_space
@@ -59,7 +59,7 @@ class RandomPolicy(BasePolicy):
 class SimplePolicy(BasePolicy):
     """A simple policy that tries to move towards objectives with valid actions."""
 
-    def __init__(self, env: MettaGridEnv) -> None:
+    def __init__(self, env) -> None:
         super().__init__(env)
 
         # Movement options
@@ -128,7 +128,7 @@ class SimplePolicy(BasePolicy):
 class TrainedPolicyWrapper(BasePolicy):
     """Wrapper for trained policies with action validation."""
 
-    def __init__(self, policy: Any, env: MettaGridEnv) -> None:
+    def __init__(self, policy: Any, env) -> None:
         super().__init__(env)
         self.policy = policy
         self._max_args: List[int] = env._c_env.max_action_args()
@@ -182,7 +182,7 @@ class TrainedPolicyWrapper(BasePolicy):
         return actions
 
 
-def get_policy(policy_type: str, env: MettaGridEnv, cfg: DictConfig) -> Policy:
+def get_policy(policy_type: str, env, cfg: DictConfig) -> Policy:
     """
     Get a policy based on the specified type.
 
@@ -205,7 +205,7 @@ def get_policy(policy_type: str, env: MettaGridEnv, cfg: DictConfig) -> Policy:
         return SimplePolicy(env)
 
 
-def _load_trained_policy(env: MettaGridEnv, cfg: DictConfig) -> Policy:
+def _load_trained_policy(env, cfg: DictConfig) -> Policy:
     """Attempt to load a trained policy, falling back to simple policy on failure."""
     try:
         policy_store = get_policy_store_from_cfg(cfg)
@@ -217,7 +217,7 @@ def _load_trained_policy(env: MettaGridEnv, cfg: DictConfig) -> Policy:
         return SimplePolicy(env)
 
 
-def setup_environment(cfg: DictConfig) -> Tuple[MettaGridEnv, str]:
+def setup_environment(cfg: DictConfig):
     """
     Set up the MettaGrid environment based on configuration.
 
@@ -250,7 +250,7 @@ def setup_environment(cfg: DictConfig) -> Tuple[MettaGridEnv, str]:
 
         curriculum = SingleTaskCurriculum("renderer", env_cfg)
 
-    env = MettaGridEnv(curriculum, render_mode=render_mode)
+    env = CurriculumEnv(curriculum=curriculum, render_mode=render_mode)
 
     return env, render_mode
 

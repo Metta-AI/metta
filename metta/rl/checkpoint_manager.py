@@ -16,7 +16,7 @@ from metta.common.util.fs import wait_for_file
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.mettagrid import CurriculumEnv
 from metta.rl.env_config import EnvConfig
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.policy_management import cleanup_old_policies, validate_policy_environment_match
@@ -174,7 +174,7 @@ class CheckpointManager:
         env_cfg: EnvConfig,
         trainer_cfg: TrainerConfig,
         checkpoint: TrainerCheckpoint | None,
-        metta_grid_env: MettaGridEnv,
+        metta_grid_env: CurriculumEnv,
     ) -> PolicyRecord:
         """
         Load or initialize policy with distributed coordination.

@@ -20,12 +20,12 @@ from metta.rl.env_config import EnvConfig
 from metta.rl.puffer_policy import PytorchAgent
 
 if TYPE_CHECKING:
-    from metta.mettagrid import MettaGridEnv
+    from metta.mettagrid import CurriculumEnv
 
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) -> "MettaAgent":
+def make_policy(env: "CurriculumEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) -> "MettaAgent":
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,

@@ -90,3 +90,21 @@ def set_position(x, upper_bound):
     if x >= upper_bound:
         return upper_bound - 1 if x % 2 == 0 else upper_bound - 2
     return x
+
+
+def make_level_map(grid: np.ndarray, labels: Optional[List[str]] = None):
+    """Create a LevelMap from a grid and optional labels.
+
+    Args:
+        grid: 2D numpy array representing the game grid
+        labels: Optional list of labels for the level
+
+    Returns:
+        LevelMap object
+    """
+    from metta.mettagrid.level_builder import LevelMap
+
+    if labels is None:
+        labels = []
+
+    return LevelMap(grid=grid, labels=labels)

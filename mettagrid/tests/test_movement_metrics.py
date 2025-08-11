@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 import numpy as np
 from omegaconf import OmegaConf
+from test_helpers import create_env_config_from_curriculum
 
+from metta.mettagrid.auto_reset_env import AutoResetEnv
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.hydra import get_cfg
 
 
@@ -32,7 +33,8 @@ def test_movement_metrics():
     )
     # Create curriculum and environment
     curriculum = SingleTaskCurriculum("test", cfg)
-    env = MettaGridEnv(curriculum, render_mode=None)
+    env_config = create_env_config_from_curriculum(curriculum)
+    env = AutoResetEnv(env_config=env_config, render_mode=None)
 
     obs, _ = env.reset()
 
