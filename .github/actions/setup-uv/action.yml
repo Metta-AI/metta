@@ -39,7 +39,7 @@ runs:
             ;;
 
           "testing")
-            uv pip install ./common
+            uv sync
             uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
             ;;
 

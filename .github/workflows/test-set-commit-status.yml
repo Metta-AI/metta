@@ -26,10 +26,7 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
         with:
-          install-mode: "testing"
-
-      - name: Install metta-common
-        run: uv pip install ./common
+          install-mode: "minimal"
 
       - name: Run status test script
         env:
@@ -38,4 +35,4 @@ jobs:
           INPUT_PASS: ${{ inputs.pass }}
           GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: uv run --with ./common --with httpx .github/scripts/test-set-commit-status.py
+        run: python .github/scripts/test-set-commit-status.py

@@ -3,7 +3,6 @@
 # requires-python = ">=3.11"
 # dependencies = [
 #   "httpx>=0.27",
-#   "metta-common",
 # ]
 # ///
 """
@@ -23,10 +22,16 @@ from __future__ import annotations
 import os
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 import httpx
 
-from metta.common.util.github import post_commit_status
+REPO_ROOT = Path(__file__).resolve().parents[2]  # .github/scripts/ -> repo root
+COMMON_SRC = REPO_ROOT / "common" / "src"
+if COMMON_SRC.exists():
+    sys.path.insert(0, str(COMMON_SRC))
+
+from metta.common.util.github import post_commit_status  # noqa: E402
 
 
 def gh_request(client: httpx.Client, method: str, url: str, **kwargs):
