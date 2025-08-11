@@ -34,7 +34,6 @@ inputs:
   commit_sha:
     description: "Git commit SHA for status reporting"
     required: true
-    default: ""
   github_pat:
     description: "GitHub PAT for status reporting"
     required: false
