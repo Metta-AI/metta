@@ -1,6 +1,6 @@
 name: "Disk Cleanup"
 description: "Free up ~8GB by removing Android SDK"
-author: "Your Organization"
+
 runs:
   using: "composite"
   steps:
