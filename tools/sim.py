@@ -28,7 +28,6 @@ from metta.common.util.stats_client_cfg import get_stats_client
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.rl.env_config import create_env_config
 from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.metta_script import metta_script
@@ -97,9 +96,6 @@ def main(cfg: DictConfig) -> None:
             )
             logger.info(f"Training curriculum:\n{training_curriculum}")
 
-    # Create env config
-    env_cfg = create_env_config(cfg)
-
     policy_store = get_policy_store_from_cfg(cfg)
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
     if stats_client:
@@ -131,7 +127,7 @@ def main(cfg: DictConfig) -> None:
                 stats_dir=sim_job.stats_dir,
                 replay_dir=f"{sim_job.replay_dir}/{pr.run_name}",
                 device=device,
-                vectorization=env_cfg.vectorization,
+                vectorization=cfg.vectorization,
                 export_stats_db_uri=sim_job.stats_db_uri,
                 policy_store=policy_store,
                 stats_client=stats_client,

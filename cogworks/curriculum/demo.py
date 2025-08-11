@@ -11,3 +11,5 @@ env_cfg = EnvConfig()
 # Create a curriculum builder
 
 # Create a curriculum
+
+print(env_cfg)

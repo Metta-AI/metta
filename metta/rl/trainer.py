@@ -27,7 +27,6 @@ from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
-from metta.rl.env_config import EnvConfig
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -80,7 +79,7 @@ logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
 def train(
     run_dir: str,
     run: str,
-    env_cfg: EnvConfig,
+    vectorization: str,
     agent_cfg: DictConfig,
     device: torch.device,
     trainer_cfg: TrainerConfig,
@@ -121,7 +120,7 @@ def train(
     # Create vectorized environment
     vecenv = make_vecenv(
         curriculum,
-        env_cfg.vectorization,
+        vectorization,
         num_envs=num_envs,
         batch_size=batch_size,
         num_workers=trainer_cfg.num_workers,
