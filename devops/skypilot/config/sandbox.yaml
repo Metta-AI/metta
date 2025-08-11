@@ -11,39 +11,58 @@ file_mounts:
     mode: MOUNT_CACHED
 
   /mnt/s3/train_dir:
-    name: softmax-train-dir
-    store: s3
+    source: s3://softmax-train-dir
     mode: MOUNT_CACHED
 
 setup: |
+  set -e
   cd /workspace/metta
-  git fetch
-  git checkout $METTA_GIT_REF
 
+  git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
+  git checkout "$METTA_GIT_REF"
+  echo "[SETUP] Checked out: $(git rev-parse HEAD)"
+
+  # Python environment setup
+  echo "[SETUP] Setting up Python environment..."
   uv sync
 
+  # Create required directories
   mkdir -p $WANDB_DIR
 
-  echo 'cd /workspace/metta' >> ~/.bashrc
-  echo '. .venv/bin/activate' >> ~/.bashrc
-  echo '. devops/setup.env' >> ~/.bashrc
-
-  # Export GPU-related environment variables (evaluated when user logs in)
-  echo 'export NUM_GPUS=${SKYPILOT_NUM_GPUS_PER_NODE}' >> ~/.bashrc
-  echo 'export NUM_NODES=${SKYPILOT_NUM_NODES}' >> ~/.bashrc
-  echo 'export MASTER_ADDR=$(echo "${SKYPILOT_NODE_IPS}" | head -n1)' >> ~/.bashrc
-  echo 'export MASTER_PORT=8008' >> ~/.bashrc
-  echo 'export NODE_INDEX=${SKYPILOT_NODE_RANK}' >> ~/.bashrc
-  echo 'export NCCL_SHM_DISABLE=1' >> ~/.bashrc
+  # Note that different sets of skypilot environment variables are available in "run" vs "setup"
+  # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
 
   echo "[SETUP] Creating job secrets..."
   ./devops/skypilot/create_job_secrets.py \
     --wandb-password "$WANDB_PASSWORD" \
     --observatory-token "$OBSERVATORY_TOKEN"
 
-  echo "Sandbox is ready"
+  echo "[SETUP] Sandbox is ready"
 
 run: |
+  set -e
+  cd /workspace/metta
+
+  # Note that the docker image may start with its own venv - switch to metta venv
+  if [ -n "$VIRTUAL_ENV" ]; then
+      deactivate 2>/dev/null || true
+  fi
+  . .venv/bin/activate
+
+  # set up GPU-related environment variables
+  export NUM_GPUS=${SKYPILOT_NUM_GPUS_PER_NODE}
+  export NUM_NODES=${SKYPILOT_NUM_NODES}
+  export MASTER_ADDR=$(echo "${SKYPILOT_NODE_IPS}" | head -n1)
+  export MASTER_PORT=8008
+  export NODE_INDEX=${SKYPILOT_NODE_RANK}
+  export NCCL_SHM_DISABLE=1
+
+  echo "[RUN] Creating job secrets..."
+  ./devops/skypilot/create_job_secrets.py \
+    --wandb-password "$WANDB_PASSWORD" \
+    --observatory-token "$OBSERVATORY_TOKEN"
+
+  echo "Starting bash shell..."
   exec bash
 
 envs:

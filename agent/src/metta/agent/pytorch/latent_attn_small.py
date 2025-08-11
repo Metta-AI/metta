@@ -295,7 +295,7 @@ class Policy(nn.Module):
         observations = observations.to(self.device)
 
         # Initialize dictionary for TensorDict
-        td = {"x": observations, "state": None}
+        td = {"env_obs": observations, "state": None}
 
         # Safely handle LSTM state
         if state is not None and state.get("lstm_h") is not None and state.get("lstm_c") is not None:
@@ -305,7 +305,7 @@ class Policy(nn.Module):
 
         if observations.dim() == 4:
             observations = einops.rearrange(observations, "b t m c -> (b t) m c")
-            td["x"] = observations
+            td["env_obs"] = observations
         elif observations.dim() != 3:
             raise ValueError(f"Expected observations with 3 or 4 dimensions, got shape: {observations.shape}")
 
