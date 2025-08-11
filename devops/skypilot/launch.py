@@ -110,7 +110,6 @@ def main():
     )
     parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation")
     parser.add_argument("-c", "--confirm", action="store_true", help="Show confirmation prompt")
-    parser.add_argument("--target-url", type=str, default=None, help="GitHub Actions run URL used in status update")
     parser.add_argument(
         "--github-pat", type=str, default=None, help="GitHub PAT token for posting status updates (repo scope)"
     )
@@ -153,7 +152,6 @@ def main():
         METTA_CMD_ARGS=" ".join(cmd_args),
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
-        TARGET_URL=args.target_url,
         GITHUB_PAT=args.github_pat,
     )
 

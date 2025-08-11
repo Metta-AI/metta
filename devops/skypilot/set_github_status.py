@@ -6,7 +6,7 @@ Env:
   CMD_EXIT          (optional) exit code; 0 => success, else failure
   STATE             (optional) explicit state: success/failure/error/pending
   SKYPILOT_TASK_ID  (optional) used to build a console link
-  TARGET_URL        (optional) preferred link to show in GitHub
+  METTA_RUN_ID      (optional) used to link to back to wandb from GitHub
   GITHUB_PAT        (required) Personal Access Token with repo
   GITHUB_REPOSITORY (required) e.g. "Metta-AI/metta"
   STATUS_CONTEXT    (optional) status context, default "Skypilot/E2E"
@@ -64,12 +64,13 @@ def main() -> int:
         "Training completed successfully" if state == "success" else f"Training failed (exit {cmd_exit})",
     )
 
-    # Prefer explicit TARGET_URL; else try SkyPilot console; else None
-    target_url = os.getenv("TARGET_URL") or None
-    if not target_url:
-        task_id = os.getenv("SKYPILOT_TASK_ID")
-        if task_id:
-            target_url = f"https://console.skypilot.co/jobs/{task_id}"
+    # The target_url is a URL that GitHub will associate with the commit status. When users view the commit status
+    # on GitHub (for example, in pull requests or on the commit page), they can click on the status check and be
+    # directed to this URL. We want to link to the expected wandb report based on the run name
+    target_url = None
+    wandb_run_id = os.getenv("METTA_RUN_ID") or None
+    if wandb_run_id:
+        target_url = f"https://wandb.ai/metta-research/metta/runs/{wandb_run_id}"
 
     # Light retry for transient errors
     for attempt in range(1, 5):

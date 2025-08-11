@@ -107,17 +107,21 @@ run: |
     touch "$METTA_ENV_FILE"
   fi
 
-  # --- Status reporting setup ---
-  : "${GITHUB_REPOSITORY:?missing GITHUB_REPOSITORY}"
-  : "${METTA_GIT_REF:?missing METTA_GIT_REF}"
-  : "${GITHUB_PAT:?missing GITHUB_PAT}"
-  : "${TARGET_URL:?missing TARGET_URL}"
+  if [ -n "${GITHUB_PAT:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${METTA_GIT_REF:-}" ]; then
+    ENABLE_GITHUB_STATUS=true
+    echo "[RUN] GitHub status reporting is enabled"
+    echo "[RUN] GITHUB_REPOSITORY: ${GITHUB_REPOSITORY:-<not set>}"
+    echo "[RUN] METTA_GIT_REF: ${METTA_GIT_REF:-<not set>}"
+    echo "[RUN] GITHUB_PAT: ${GITHUB_PAT:+<set>}"  # Don't print the actual token
+    echo "[RUN] TARGET_URL: ${TARGET_URL:-<not set>}"
 
-  # 1) Set PENDING at start
-  STATE=pending DESCRIPTION="Queued on SkyPilot…" \
-    uv run devops/skypilot/set_github_status.py || echo "[WARN] Pending status post failed; continuing"
+    STATE=pending DESCRIPTION="Queued on SkyPilot…" \
+      uv run devops/skypilot/set_github_status.py || echo "[WARN] Pending status post failed; continuing"
+  else
+    ENABLE_GITHUB_STATUS=false
+    echo "[RUN] GitHub status reporting is disabled (missing required credentials)"
+  fi
 
-  # --- Run training and capture exit ---
   set +e  # allow failure without aborting the wrapper script
   echo "[RUN] Running training script..."
   ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-}
@@ -125,9 +129,10 @@ run: |
   set -e
   echo "[RUN] Training script exit code: $TRAIN_EXIT"
 
-  # 2) Post FINAL status based on exit
-  export CMD_EXIT="$TRAIN_EXIT"
-  uv run  devops/skypilot/set_github_status.py
+  if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
+    export CMD_EXIT="$TRAIN_EXIT"
+    uv run devops/skypilot/set_github_status.py || echo "[WARN] Final status post failed"
+  fi
 
   echo "[RUN] Job complete."
   exit "$TRAIN_EXIT"
