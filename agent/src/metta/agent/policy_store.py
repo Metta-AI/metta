@@ -25,6 +25,7 @@ from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.puffer_policy import load_pytorch_policy
+from metta.rl.trainer_config import CheckpointFileType
 
 logger = logging.getLogger("policy_store")
 
@@ -237,7 +238,7 @@ class PolicyStore:
         metadata = PolicyMetadata()
         return PolicyRecord(self, name, f"file://{path}", metadata)
 
-    def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
+    def save_to_pt_file(self, pr: PolicyRecord, path: str | None) -> str:
         """Save a policy record using the simple torch.save approach with atomic file operations."""
         if path is None:
             if hasattr(pr, "file_path"):
@@ -270,12 +271,57 @@ class PolicyStore:
                     os.remove(temp_path)
                 except OSError:
                     pass
+        return path
+
+    def save_to_safetensors_file(self, pr: PolicyRecord, path: str | None) -> str:
+        """Save a policy record using safetensors format with YAML metadata sidecar."""
+        if path is None:
+            if hasattr(pr, "file_path"):
+                path = pr.file_path
+            elif pr.uri is not None:
+                path = pr.uri[7:] if pr.uri.startswith("file://") else pr.uri
+            else:
+                raise ValueError("PolicyRecord has no file_path or uri")
+
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        # Get checkpoint directory and name
+        checkpoint_dir = os.path.dirname(path)
+        checkpoint_name = os.path.splitext(os.path.basename(path))[0]
+
+        # Save .safetensors file (just the model weights/state dict)
+        safetensors_path = os.path.join(checkpoint_dir, f"{checkpoint_name}.safetensors")
+        if pr._cached_policy is not None:
+            torch.save(pr._cached_policy.state_dict(), safetensors_path)
+            logger.debug(f"Saved model weights to {safetensors_path}")
+
+        # Save .yaml file (just the metadata)
+        yaml_path = os.path.join(checkpoint_dir, f"{checkpoint_name}.yaml")
+        import yaml
+
+        with open(yaml_path, "w") as f:
+            yaml.dump(pr.metadata, f, default_flow_style=False)
+        logger.debug(f"Saved metadata to {yaml_path}")
+
+        logger.info("Saved additional files (.safetensors, .yaml)")
+        return safetensors_path
+
+    def save(
+        self, pr: PolicyRecord, checkpoint_file_type: CheckpointFileType = "dot_pt", path: str | None = None
+    ) -> PolicyRecord:
+        # if saving both, take path from safetensors
+        if checkpoint_file_type in ["dot_pt", "dot_pt_and_safetensors"]:
+            path = self.save_to_pt_file(pr, path)
+        if checkpoint_file_type in ["safetensors", "dot_pt_and_safetensors"]:
+            path = self.save_to_safetensors_file(pr, path)
 
         # Don't cache the policy that we just saved,
         # since it might be updated later. We always
         # load the policy from the file when needed.
         pr._cached_policy = None
-        self._cached_prs.put(path, pr)
+        if path is not None:
+            self._cached_prs.put(path, pr)
         return pr
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
@@ -307,9 +353,29 @@ class PolicyStore:
 
         if path.endswith(".pt"):
             paths.append(path)
+        elif path.endswith(".safetensors"):
+            paths.append(path)
         else:
-            paths.extend([os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")])
-        return [self._load_from_file(path, metadata_only=True) for path in paths]
+            # Look for both .pt and .safetensors files in directory
+            pt_files = [os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")]
+            safetensors_files = [os.path.join(path, p) for p in os.listdir(path) if p.endswith(".safetensors")]
+            paths.extend(pt_files)
+            paths.extend(safetensors_files)
+
+        policy_records = []
+        for path in paths:
+            policy_records.append(self._load_from_file(path, metadata_only=True))
+
+        return policy_records
+
+    def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+        """Load a PolicyRecord from a file, automatically detecting format based on extension."""
+        if path.endswith(".pt"):
+            return self._load_from_pt_file(path, metadata_only)
+        elif path.endswith(".safetensors"):
+            return self._load_from_safetensorsfile(path, metadata_only)
+        else:
+            raise ValueError(f"Unsupported file format: {path}. Expected .pt or .safetensors")
 
     def _prs_from_wandb_artifact(self, uri: str, version: str | None = None) -> list[PolicyRecord]:
         """
@@ -341,7 +407,8 @@ class PolicyStore:
         if uri.startswith("wandb://"):
             return self._load_wandb_artifact(uri[len("wandb://") :])
         if uri.startswith("file://"):
-            return self._load_from_file(uri[len("file://") :])
+            file_path = uri[len("file://") :]
+            return self._load_from_file(file_path)
         if uri.startswith("pytorch://"):
             return self._load_from_pytorch(uri[len("pytorch://") :])
         if "://" not in uri:
@@ -403,7 +470,7 @@ class PolicyStore:
                 if submodule_name in sys.modules:
                     modules_queue.append(submodule_name)
 
-    def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+    def _load_from_pt_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a PolicyRecord from a file using simple torch.load."""
         cached_pr = self._cached_prs.get(path)
         if cached_pr is not None:
@@ -435,6 +502,76 @@ class PolicyStore:
         if metadata_only:
             pr._cached_policy = None
 
+        return pr
+
+    def _load_from_safetensorsfile(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+        """Load a PolicyRecord from safetensors format with YAML metadata sidecar."""
+        cached_pr = self._cached_prs.get(path)
+        if cached_pr is not None:
+            if metadata_only or cached_pr._cached_policy is not None:
+                return cached_pr
+
+        # Handle directory case - look for .safetensors files
+        if os.path.isdir(path):
+            safetensors_files = [f for f in os.listdir(path) if f.endswith(".safetensors")]
+            if not safetensors_files:
+                raise FileNotFoundError(f"No .safetensors files found in directory {path}")
+            path = os.path.join(path, safetensors_files[-1])  # Use the latest one
+
+        logger.info(f"Loading policy from safetensors file {path}")
+
+        assert path.endswith(".safetensors"), f"Policy file {path} does not have a .safetensors extension"
+
+        # Get the base path for finding the corresponding YAML file
+        base_path = path[:-11]  # Remove .safetensors extension
+        yaml_path = base_path + ".yaml"
+
+        # Load metadata from YAML file
+        metadata = {}
+        if os.path.exists(yaml_path):
+            import yaml
+
+            with open(yaml_path, "r") as f:
+                metadata = yaml.safe_load(f)
+            logger.debug(f"Loaded metadata from {yaml_path}")
+        else:
+            logger.warning(f"No metadata file found at {yaml_path}")
+
+        # Create PolicyRecord with metadata
+        name = os.path.basename(base_path)
+        uri = f"file://{path}"
+        from metta.agent.policy_metadata import PolicyMetadata
+
+        policy_metadata = PolicyMetadata.from_dict(metadata) if metadata else PolicyMetadata()
+        pr = PolicyRecord(self, name, uri, policy_metadata)
+
+        if not metadata_only:
+            # Load model weights from safetensors file
+            try:
+                # Try to import safetensors, but don't fail if not available
+                try:
+                    from safetensors.torch import load_file  # type: ignore
+
+                    state_dict = load_file(path, device=self._device)
+                    logger.debug(f"Loaded model weights from {path}")
+
+                    # For now, we'll store the state dict but not create a full policy object
+                    # since reconstructing the policy requires the original model architecture
+                    # This is a limitation of the safetensors format - it only stores weights
+                    logger.warning(
+                        "Safetensors format only stores model weights. Full policy reconstruction requires the original model architecture."
+                    )
+                    pr._cached_policy = None
+
+                except ImportError:
+                    logger.error("safetensors library not available. Please install with: pip install safetensors")
+                    raise
+
+            except Exception as e:
+                logger.error(f"Failed to load safetensors file {path}: {e}")
+                raise
+
+        self._cached_prs.put(path, pr)
         return pr
 
     def _load_wandb_artifact(self, qualified_name: str):

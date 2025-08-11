@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 
 import torch
-import yaml
 from omegaconf import DictConfig
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent, make_policy
@@ -171,31 +170,8 @@ class CheckpointManager:
         policy_record.metadata = metadata
         policy_record.policy = policy_to_save
 
-        saved_policy_record = self.policy_store.save(policy_record)
+        saved_policy_record = self.policy_store.save(policy_record, self.checkpoint_cfg.checkpoint_file_type)
         logger.info(f"Successfully saved policy at epoch {epoch}")
-
-        # Save additional files (.ptx and .yaml) for the policy record
-        if saved_policy_record._cached_policy is not None:
-            try:
-                # Get checkpoint directory and name
-                checkpoint_dir = os.path.dirname(saved_policy_record.file_path)
-                checkpoint_name = os.path.splitext(os.path.basename(saved_policy_record.file_path))[0]
-
-                # Save .ptx file (just the model weights/state dict)
-                ptx_path = os.path.join(checkpoint_dir, f"{checkpoint_name}.ptx")
-                torch.save(saved_policy_record._cached_policy.state_dict(), ptx_path)
-                logger.debug(f"Saved model weights to {ptx_path}")
-
-                # Save .yaml file (just the metadata)
-                yaml_path = os.path.join(checkpoint_dir, f"{checkpoint_name}.yaml")
-                with open(yaml_path, "w") as f:
-                    yaml.dump(saved_policy_record.metadata, f, default_flow_style=False)
-                logger.debug(f"Saved metadata to {yaml_path}")
-
-                logger.info("Saved additional files (.ptx, .yaml)")
-
-            except Exception as e:
-                logger.warning(f"Failed to save additional files: {e}")
 
         return saved_policy_record
 
@@ -240,31 +216,8 @@ class CheckpointManager:
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
             new_policy_record.policy = make_policy(metta_grid_env, env_cfg, agent_cfg)
-            policy_record = self.policy_store.save(new_policy_record)
+            policy_record = self.policy_store.save(new_policy_record, self.checkpoint_cfg.checkpoint_file_type)
             logger.info(f"Created and saved new policy to {policy_record.uri}")
-
-            # Save additional files (.ptx and .yaml) for the policy record
-            if policy_record._cached_policy is not None:
-                try:
-                    # Get checkpoint directory and name
-                    checkpoint_dir = os.path.dirname(policy_record.file_path)
-                    checkpoint_name = os.path.splitext(os.path.basename(policy_record.file_path))[0]
-
-                    # Save .ptx file (just the model weights/state dict)
-                    ptx_path = os.path.join(checkpoint_dir, f"{checkpoint_name}.ptx")
-                    torch.save(policy_record._cached_policy.state_dict(), ptx_path)
-                    logger.debug(f"Saved model weights to {ptx_path}")
-
-                    # Save .yaml file (just the metadata)
-                    yaml_path = os.path.join(checkpoint_dir, f"{checkpoint_name}.yaml")
-                    with open(yaml_path, "w") as f:
-                        yaml.dump(policy_record.metadata, f, default_flow_style=False)
-                    logger.debug(f"Saved metadata to {yaml_path}")
-
-                    logger.info("Saved additional files (.ptx, .yaml)")
-
-                except Exception as e:
-                    logger.warning(f"Failed to save additional files: {e}")
 
         elif torch.distributed.is_initialized():
             logger.info(

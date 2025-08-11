@@ -3,5 +3,6 @@
 trainer:
   env: /env/mettagrid/arena/advanced
   simulation:
-    replay_dir: /Users/localmini/github/metta/replay_dir/${run}
+    replay_dir: /Users/localmini/github/replay_dir/${run}
+    skip_git_check: true
   total_timesteps: 1000000
