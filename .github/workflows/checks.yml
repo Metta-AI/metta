@@ -153,9 +153,38 @@ jobs:
       - name: Run cpplint
         run: ./mettagrid/tests/cpplint.sh
 
+  setup-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.create-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout scripts
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/scripts/expand_test_matrix.py
+          sparse-checkout-cone-mode: false
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Create test matrix
+        id: create-matrix
+        run: |
+          # Define the test configuration and pipe it to the script
+          echo '[
+            {"name": "agent", "package": "agent", "shards": 1},
+            {"name": "common", "package": "common", "shards": 1},
+            {"name": "app_backend", "package": "app_backend", "shards": 3},
+            {"name": "mettagrid", "package": "mettagrid", "shards": 2},
+            {"name": "core", "package": "core", "shards": 7}
+          ]' | python .github/scripts/expand_test_matrix.py >> $GITHUB_OUTPUT
+
   test-matrix:
     name: "Unit Tests - ${{ matrix.name }}"
-    needs: [graphite-ci-optimizer, setup-checks]
+    needs: [setup-matrix, graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
@@ -163,72 +192,7 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # Individual packages
-          - name: "agent"
-            package: "agent"
-          - name: "common"
-            package: "common"
-
-          # app_backend with sharding
-          - name: "app_backend-shard-0"
-            package: "app_backend"
-            shard_id: 0
-            num_shards: 5
-          - name: "app_backend-shard-1"
-            package: "app_backend"
-            shard_id: 1
-            num_shards: 5
-          - name: "app_backend-shard-2"
-            package: "app_backend"
-            shard_id: 2
-            num_shards: 5
-          - name: "app_backend-shard-3"
-            package: "app_backend"
-            shard_id: 3
-            num_shards: 5
-          - name: "app_backend-shard-4"
-            package: "app_backend"
-            shard_id: 4
-            num_shards: 5
-
-          # Mettagrid with sharding
-          - name: "mettagrid-shard-0"
-            package: "mettagrid"
-            shard_id: 0
-            num_shards: 2
-          - name: "mettagrid-shard-1"
-            package: "mettagrid"
-            shard_id: 1
-            num_shards: 2
-
-          # Core with sharding
-          - name: "core-shard-0"
-            package: "core"
-            shard_id: 0
-            num_shards: 6
-          - name: "core-shard-1"
-            package: "core"
-            shard_id: 1
-            num_shards: 6
-          - name: "core-shard-2"
-            package: "core"
-            shard_id: 2
-            num_shards: 6
-          - name: "core-shard-3"
-            package: "core"
-            shard_id: 3
-            num_shards: 6
-          - name: "core-shard-4"
-            package: "core"
-            shard_id: 4
-            num_shards: 6
-          - name: "core-shard-5"
-            package: "core"
-            shard_id: 5
-            num_shards: 6
-
+      matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
