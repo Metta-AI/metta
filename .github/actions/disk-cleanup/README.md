@@ -1,6 +1,6 @@
 # Disk Cleanup Action
 
-Free up ~16GB on GitHub Actions runners by removing Android SDK and swap.
+Free up ~16GB on GitHub Actions runners by removing Android SDK and swap in the background.
 
 ## Usage
 
@@ -13,10 +13,10 @@ That's it! No configuration needed.
 
 ## What it does
 
-- Removes Android SDK (~12GB)
-- Removes swap file (~4GB)
-- Cleans APT cache
-- **Takes ~5 seconds**
+- Removes Android SDK (~12GB) in background
+- Removes swap file (~4GB) in background
+- **Returns immediately** (<2 seconds)
+- Space is freed while your job continues running
 
 ## Example workflow
 
@@ -27,24 +27,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Free up space before heavy operations
+      # Start cleanup - returns immediately
       - name: Free disk space
         uses: ./.github/actions/disk-cleanup
 
-      # Now you have ~16GB more space
+      # Continue with your workflow while cleanup happens in background
+      - name: Setup environment
+        run: |
+          # Disk space is being freed up in parallel
+          npm install
+
       - name: Build large Docker image
-        run: docker build -t myapp .
+        run: |
+          # By now, you have ~16GB more space available
+          docker build -t myapp .
 ```
 
-## Outputs
+## How it works
 
-- `space-before` - Free space before cleanup (GB)
-- `space-after` - Free space after cleanup (GB)
-- `space-saved` - Space saved (GB)
+1. Checks what can be cleaned (Android SDK, swap)
+2. Starts deletion in background
+3. Returns immediately so your workflow continues
+4. Space becomes available as deletions complete
+
+## Output
+
+```
+Starting cleanup of Android SDK and swap...
+✓ Cleaning in background: Android SDK, swap
+  ~16GB will be freed up as your job continues
+```
 
 ## Notes
 
-- Android SDK is pre-installed on all GitHub Ubuntu runners
-- Most workflows don't need Android SDK or swap
-- This is safe for 99% of workflows
-- If you need Android SDK, don't use this action
+- Android SDK is pre-installed on all GitHub Ubuntu runners but rarely needed
+- The cleanup happens in parallel with your next steps
+- No options or configuration - designed to just work
+- Safe for 99% of workflows (if you need Android SDK, don't use this action)

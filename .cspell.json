@@ -220,6 +220,8 @@
     "stdout",
     "STREQUAL",
     "subpackages",
+    "swapfile",
+    "swapoff",
     "sympy",
     "tablefmt",
     "tailnet",

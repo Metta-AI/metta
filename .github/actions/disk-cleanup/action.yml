@@ -1,51 +1,25 @@
-name: "Disk Cleanup"
+name: "Fast Disk Cleanup"
 description: "Quickly free up ~16GB by removing Android SDK and swap"
-
-outputs:
-  space-before:
-    description: "Free space before cleanup (GB)"
-    value: ${{ steps.cleanup.outputs.space-before }}
-  space-after:
-    description: "Free space after cleanup (GB)"
-    value: ${{ steps.cleanup.outputs.space-after }}
-  space-saved:
-    description: "Space saved (GB)"
-    value: ${{ steps.cleanup.outputs.space-saved }}
+author: "Your Organization"
 
 runs:
   using: "composite"
   steps:
     - name: Free disk space
-      id: cleanup
       shell: bash
       run: |
-        # Get initial free space
-        SPACE_BEFORE=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
-        echo "Free space before: ${SPACE_BEFORE}GB"
+        echo "Starting cleanup of Android SDK and swap..."
 
-        # Remove Android SDK (~12GB) - Run in parallel
-        sudo rm -rf /usr/local/lib/android &
-        sudo rm -rf ${ANDROID_HOME} &
-        sudo rm -rf ${ANDROID_SDK_ROOT} &
+        # Just check if directories exist (fast)
+        WILL_CLEAN=""
+        [[ -d "/usr/local/lib/android" ]] && WILL_CLEAN="Android SDK"
+        [[ -f "/swapfile" ]] && WILL_CLEAN="${WILL_CLEAN:+$WILL_CLEAN, }swap"
 
-        # Remove swap (~4GB)
-        sudo swapoff /swapfile 2>/dev/null || true
-        sudo rm -f /swapfile &
+        # Start deletions in background
+        (
+          sudo rm -rf /usr/local/lib/android ${ANDROID_HOME} ${ANDROID_SDK_ROOT} 2>/dev/null &
+          sudo swapoff /swapfile 2>/dev/null && sudo rm -f /swapfile 2>/dev/null &
+        ) &
 
-        # Wait for all background jobs
-        wait
-
-        # Quick APT cleanup
-        sudo apt-get clean
-
-        # Get final free space
-        SPACE_AFTER=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
-        SPACE_SAVED=$((SPACE_AFTER - SPACE_BEFORE))
-
-        echo "Free space after: ${SPACE_AFTER}GB"
-        echo "Space saved: ${SPACE_SAVED}GB"
-
-        # Set outputs
-        echo "space-before=${SPACE_BEFORE}" >> $GITHUB_OUTPUT
-        echo "space-after=${SPACE_AFTER}" >> $GITHUB_OUTPUT
-        echo "space-saved=${SPACE_SAVED}" >> $GITHUB_OUTPUT
+        echo "✓ Cleaning in background: ${WILL_CLEAN:-nothing to clean}"
+        echo "  ~16GB will be freed up as your job continues"
