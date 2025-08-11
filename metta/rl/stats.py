@@ -20,7 +20,7 @@ from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.experience import Experience
-from metta.rl.losses import Losses
+from metta.rl.loss.base_loss import LossTracker
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import should_run
 from metta.rl.wandb import (
@@ -129,7 +129,7 @@ def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
 
 def process_training_stats(
     raw_stats: dict[str, Any],
-    losses: Losses,
+    losses: LossTracker,
     experience: Experience,
     trainer_config: TrainerConfig,
 ) -> dict[str, Any]:
@@ -322,7 +322,7 @@ def build_wandb_stats(
 
 def process_stats(
     stats: dict[str, Any],
-    losses: Losses,
+    losses: LossTracker,
     evals: EvalRewardSummary,
     grad_stats: dict[str, float],
     experience: Experience,

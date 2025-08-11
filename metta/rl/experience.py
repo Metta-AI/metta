@@ -174,18 +174,6 @@ class Experience:
         """Update buffer with new data for given indices."""
         self.buffer[indices].update(data_td)
 
-    def mb_sized_td(self) -> TensorDict:
-        """Return a zero-initialized TensorDict shaped as a single minibatch.
-
-        The returned tensordict has batch size `[minibatch_segments, bptt_horizon]`
-        and the same keys, dtypes, and value shapes as `self.buffer`.
-        """
-        # Clone a slice with the right batch shape to preserve structure and dtypes
-        minibatch_td = self.buffer[: self.minibatch_segments].clone()
-        # Zero all leaves to make it logically empty
-        minibatch_td.zero_()
-        return minibatch_td
-
     def stats(self) -> Dict[str, float]:
         """Get mean values of all tracked buffers."""
         stats = {
@@ -218,3 +206,10 @@ class Experience:
                 stats["actions_std"] = actions.std().item()
 
         return stats
+
+    def give_me_empty_md_td(self) -> TensorDict:
+        return TensorDict(
+            {},
+            batch_size=(self.minibatch_segments, self.bptt_horizon),
+            device=self.device,
+        )

@@ -7,6 +7,15 @@ from metta.agent.policy_store import PolicyStore
 from metta.mettagrid import MettaGridEnv
 from metta.rl.kickstarter_config import KickstartConfig, KickstartTeacherConfig
 
+# class SLKickstarter(BaseLoss):
+#     """Student led kickstarter"""
+
+#     def __init__(
+#         self, cfg: KickstartConfig, device: torch.device, policy_store: PolicyStore, metta_grid_env: MettaGridEnv
+#     ):
+#         super().__init__(cfg, device, policy_store, metta_grid_env)
+#         teacher_uri = cfg.teacher_uri
+
 
 class KickstartTeacher:
     def __init__(self, policy: nn.Module, action_loss_coef: float, value_loss_coef: float):

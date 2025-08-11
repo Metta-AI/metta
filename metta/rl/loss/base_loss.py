@@ -6,6 +6,8 @@ from tensordict import TensorDict
 from torch import Tensor
 
 from metta.agent.metta_agent import PolicyAgent
+from metta.agent.policy_store import PolicyStore
+from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
 
 
@@ -59,20 +61,34 @@ class BaseLoss(ABC):
     to access the shared state, favoring composition over inheritance.
     """
 
+    __slots__ = (
+        "policy",
+        "policy_experience_spec",
+        "trainer_cfg",
+        "vec_env",
+        "device",
+        "loss_tracker",
+        "policy_store",
+        "policy_cfg",
+    )
+
     def __init__(
         self,
         policy: PolicyAgent,
-        cfg: Any,
+        trainer_cfg: TrainerConfig,
         vec_env: Any,
         device: torch.device,
         loss_tracker: LossTracker,
+        policy_store: PolicyStore,
     ):
         self.policy = policy
         self.policy_experience_spec = self.policy.get_agent_experience_spec()
-        self.cfg = cfg
+        self.trainer_cfg = trainer_cfg
+        self.policy_cfg = self.policy.get_cfg()
         self.vec_env = vec_env
         self.device = device
         self.loss_tracker = loss_tracker
+        self.policy_store = policy_store
 
         # populate loss tracker with the loss components
         # self.loss_tracker.add_loss_component(self)

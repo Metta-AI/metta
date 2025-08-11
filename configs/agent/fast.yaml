@@ -12,6 +12,47 @@ observations:
 clip_range: 0 # set to 0 to disable clipping
 analyze_weights_interval: 300
 
+losses:
+  EMA:
+    decay: 0.996
+    loss_coef: 1.0
+
+  PPO:
+    # Core PPO hyperparameters
+    clip_coef: 0.1
+    ent_coef: 0.0021
+    gae_lambda: 0.916
+    gamma: 0.977
+
+    # Training parameters
+    max_grad_norm: 0.5
+    vf_clip_coef: 0.1
+    vf_coef: 0.44
+    l2_reg_loss_coef: 0
+    l2_init_loss_coef: 0
+    norm_adv: true
+    clip_vloss: true
+    target_kl: null
+
+    # Prioritized experience replay parameters
+    prioritized_experience_replay:
+      prio_alpha: 0.0 # Default to uniform sampling (0.0 = uniform, >0 = prioritized)
+      prio_beta0: 0.6 # Initial importance sampling correction
+
+    # V-trace clipping parameters (for off-policy corrections)
+    vtrace:
+      rho_clip: 1.0 # Default: on-policy (no off-policy correction)
+      c_clip: 1.0 # Default: on-policy bootstrapping
+
+optimizer:
+  type: adam
+  beta1: 0.9
+  beta2: 0.999
+  eps: 1e-12
+  learning_rate: 0.000457
+  weight_decay: 0
+  clip_grad_norm: 0
+
 components:
   #necessary layers: _core_, _action_embeds_, _action_, _value_
   #necessary input_source: _obs_

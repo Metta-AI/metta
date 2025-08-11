@@ -118,14 +118,8 @@ class LayerBase(nn.Module):
         td[self._name] = self._net(td[self._sources[0]["name"]])
         return td
 
-    def clip_weights(self):
-        pass
-
     def has_memory(self):
         return False
-
-    def l2_init_loss(self):
-        pass
 
     def compute_weight_metrics(self, delta: float = 0.01) -> dict:
         pass

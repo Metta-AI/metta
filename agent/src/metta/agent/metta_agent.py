@@ -98,16 +98,16 @@ class MettaAgent(nn.Module):
         super().__init__()
         # Note that this doesn't instantiate the components -- that will happen later once
         # we've built up the right parameters for them.
-        cfg = OmegaConf.create(cfg)
+        self.cfg = OmegaConf.create(cfg)
 
         logger.info(f"obs_space: {obs_space} ")
 
-        self.clip_range = cfg.clip_range
+        self.clip_range = self.cfg.clip_range
 
-        assert hasattr(cfg.observations, "obs_key") and cfg.observations.obs_key is not None, (
+        assert hasattr(self.cfg.observations, "obs_key") and self.cfg.observations.obs_key is not None, (
             "Configuration is missing required field 'observations.obs_key'"
         )
-        obs_key = cfg.observations.obs_key  # typically "grid_obs"
+        obs_key = self.cfg.observations.obs_key  # typically "grid_obs"
 
         obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")
 
@@ -117,7 +117,7 @@ class MettaAgent(nn.Module):
             "feature_normalizations": feature_normalizations,
             "obs_width": obs_width,
             "obs_height": obs_height,
-            "obs_key": cfg.observations.obs_key,
+            "obs_key": self.cfg.observations.obs_key,
             "obs_shape": obs_shape,
         }
 
@@ -125,7 +125,7 @@ class MettaAgent(nn.Module):
 
         self.components = nn.ModuleDict()
         # Keep component configs as DictConfig to support both dict and attribute access
-        component_cfgs = cfg.components
+        component_cfgs = self.cfg.components
 
         # First pass: instantiate all configured components
         for component_key in component_cfgs:
@@ -179,6 +179,9 @@ class MettaAgent(nn.Module):
 
     def attach_replay_buffer(self, experience: Experience):
         self.replay = experience
+
+    def get_cfg(self) -> DictConfig:
+        return self.cfg
 
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
@@ -543,23 +546,6 @@ class MettaAgent(nn.Module):
                 results.append(result)
 
         return results
-
-    def l2_init_loss(self) -> torch.Tensor:
-        """L2 initialization loss is on by default although setting l2_init_coeff to 0 effectively turns it off. Adjust
-        it by setting l2_init_scale in your component config to a multiple of the global loss value or 0 to turn it off.
-        """
-        component_loss_tensors = self._apply_to_components("l2_init_loss")
-        if len(component_loss_tensors) > 0:
-            return torch.sum(torch.stack(component_loss_tensors))
-        else:
-            return torch.tensor(0.0, device=self.device, dtype=torch.float32)
-
-    def clip_weights(self):
-        """Weight clipping is on by default although setting clip_range or clip_scale to 0, or a large positive value
-        effectively turns it off. Adjust it by setting clip_scale in your component config to a multiple of the global
-        loss value or 0 to turn it off."""
-        if self.clip_range > 0:
-            self._apply_to_components("clip_weights")
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics for all components that have weights enabled for analysis.
