@@ -85,6 +85,18 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
         pass_unknown_args=True,
         add_help=False,  # Let BookCommands handle its own help
     ),
+    "pytest": CommandConfig(
+        help="Run pytest with passed arguments",
+        subprocess_cmd=[
+            "uv",
+            "run",
+            "pytest",
+            "--benchmark-disable",
+            "-n",
+            "auto",
+        ],
+        pass_unknown_args=True,
+    ),
     "test": CommandConfig(
         help="Run all Python unit tests",
         subprocess_cmd=[
@@ -101,7 +113,6 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
             "-n",
             "auto",
         ],
-        pass_unknown_args=True,
     ),
     "ci": CommandConfig(
         help="Run all Python unit tests and all Mettagrid C++ tests",
@@ -790,6 +801,7 @@ Examples:
   metta run githooks pre-commit        # Run component-specific commands
 
   metta test ...                       # Run all python unit tests
+  metta pytest [args]                  # An alias "uv run pytest --benchmark-disable -n auto [args]"
   metta ci ...                         # Run all python unit tests and mettagrid c++ tests
 
   metta tool train run=test            # Run train.py tool with arguments
