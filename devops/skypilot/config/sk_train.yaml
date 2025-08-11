@@ -58,7 +58,11 @@ setup: |
 run: /workspace/metta/devops/skypilot/config/sk_train_run.sh
 
 envs:
+  # status callback
   GITHUB_REPOSITORY: Metta-AI/metta
+  GITHUB_STATUS_CONTEXT: ""
+  GITHUB_STATUS_DESCRIPTION: ""
+  GITHUB_STATUS_STATE: "" # success/failure/error/pending
   GITHUB_PAT: ""
 
   METTA_RUN_ID: ""
