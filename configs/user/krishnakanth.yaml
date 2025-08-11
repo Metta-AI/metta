@@ -7,14 +7,14 @@ defaults:
   - /sim/arena@sim
   - _self_
 
-run: krishnakanth.combat_rewardsharing.lp
+run: krishnakanth.coop_rewardsharing.lp
 cmd: train
 
 data_dir: ${oc.env:DATA_DIR,./train_dir}
 run_dir: ${data_dir}/${run}
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/combat_rewardsharing/learning_progress
+  curriculum: /env/mettagrid/curriculum/coop_rewardsharing/learning_progress
   num_workers: 4
   simulation:
     evaluate_interval: 100
