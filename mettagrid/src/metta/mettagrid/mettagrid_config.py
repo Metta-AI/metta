@@ -2,12 +2,12 @@ from typing import Any, Literal, Optional
 
 from pydantic import ConfigDict, Field
 
-from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.common.util.typed_config import ConfigWithBuilder
 
 # ===== Python Configuration Models =====
 
 
-class PyInventoryRewards(BaseModelWithForbidExtra):
+class PyInventoryRewards(ConfigWithBuilder):
     """Inventory-based reward configuration."""
 
     ore_red: Optional[float] = Field(default=None)
@@ -32,7 +32,7 @@ class PyInventoryRewards(BaseModelWithForbidExtra):
     blueprint_max: Optional[int] = Field(default=None)
 
 
-class PyStatsRewards(BaseModelWithForbidExtra):
+class PyStatsRewards(ConfigWithBuilder):
     """Agent stats-based reward configuration.
 
     Maps stat names to reward values. Stats are tracked by the StatsTracker
@@ -45,7 +45,7 @@ class PyStatsRewards(BaseModelWithForbidExtra):
     model_config = ConfigDict(extra="allow")  # Allow any stat names to be added dynamically
 
 
-class PyAgentRewards(BaseModelWithForbidExtra):
+class PyAgentRewards(ConfigWithBuilder):
     """Agent reward configuration with separate inventory and stats rewards."""
 
     inventory: Optional[PyInventoryRewards] = Field(default_factory=PyInventoryRewards)
@@ -81,7 +81,7 @@ class PyAgentRewards(BaseModelWithForbidExtra):
         super().__init__(**data)
 
 
-class PyAgentConfig(BaseModelWithForbidExtra):
+class PyAgentConfig(ConfigWithBuilder):
     """Python agent configuration."""
 
     default_resource_limit: Optional[int] = Field(default=0, ge=0)
@@ -92,7 +92,7 @@ class PyAgentConfig(BaseModelWithForbidExtra):
     initial_inventory: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
-class PyGroupConfig(BaseModelWithForbidExtra):
+class PyGroupConfig(ConfigWithBuilder):
     """Python group configuration."""
 
     id: int
@@ -103,7 +103,7 @@ class PyGroupConfig(BaseModelWithForbidExtra):
     props: PyAgentConfig = Field(default_factory=PyAgentConfig)
 
 
-class PyActionConfig(BaseModelWithForbidExtra):
+class PyActionConfig(ConfigWithBuilder):
     """Python action configuration."""
 
     enabled: bool
@@ -124,7 +124,7 @@ class PyChangeGlyphActionConfig(PyActionConfig):
     number_of_glyphs: int = Field(default=0, ge=0, le=255)
 
 
-class PyActionsConfig(BaseModelWithForbidExtra):
+class PyActionsConfig(ConfigWithBuilder):
     """
     Actions configuration.
 
@@ -144,7 +144,7 @@ class PyActionsConfig(BaseModelWithForbidExtra):
     change_glyph: Optional[PyChangeGlyphActionConfig] = None
 
 
-class PyGlobalObsConfig(BaseModelWithForbidExtra):
+class PyGlobalObsConfig(ConfigWithBuilder):
     """Global observation configuration."""
 
     episode_completion_pct: bool = Field(default=True)
@@ -160,14 +160,14 @@ class PyGlobalObsConfig(BaseModelWithForbidExtra):
     visitation_counts: bool = Field(default=False)
 
 
-class PyWallConfig(BaseModelWithForbidExtra):
+class PyWallConfig(ConfigWithBuilder):
     """Python wall/block configuration."""
 
     type_id: int
     swappable: bool = Field(default=False)
 
 
-class PyConverterConfig(BaseModelWithForbidExtra):
+class PyConverterConfig(ConfigWithBuilder):
     """Python converter configuration."""
 
     input_resources: dict[str, int] = Field(default_factory=dict)
@@ -181,7 +181,7 @@ class PyConverterConfig(BaseModelWithForbidExtra):
     color: int = Field(default=0, ge=0, le=255)
 
 
-class PyGameConfig(BaseModelWithForbidExtra):
+class PyGameConfig(ConfigWithBuilder):
     """Python game configuration."""
 
     inventory_item_names: list[str]
