@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from metta.setup.config import SetupConfig
     from metta.setup.local_commands import LocalCommands
     from metta.setup.symlink_setup import PathSetup
+    from metta.setup.tools.book import BookCommands
 
 
 @dataclass
@@ -76,6 +77,13 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
         subprocess_cmd=["codeclip"],
         pass_unknown_args=True,
         add_help=False,  # codeclip handles its own --help
+    ),
+    "book": CommandConfig(
+        help="Interactive marimo notebook commands",
+        handler="cmd_book",
+        needs_config=True,
+        pass_unknown_args=True,
+        add_help=False,  # Let BookCommands handle its own help
     ),
     "test": CommandConfig(
         help="Run Python unit tests",
@@ -165,6 +173,7 @@ class MettaCLI:
         self._config: Optional[SetupConfig] = None
         self._path_setup: Optional[PathSetup] = None
         self._local_commands: Optional[LocalCommands] = None
+        self._book_commands: Optional[BookCommands] = None
         self._components_initialized = False
 
     def _init_all(self):
@@ -209,6 +218,14 @@ class MettaCLI:
 
             self._local_commands = LocalCommands()
         return self._local_commands
+
+    @property
+    def book_commands(self):
+        if self._book_commands is None:
+            from metta.setup.tools.book import BookCommands
+
+            self._book_commands = BookCommands()
+        return self._book_commands
 
     def setup_wizard(self) -> None:
         from metta.setup.config import UserType
@@ -466,6 +483,9 @@ class MettaCLI:
     def cmd_local(self, args, unknown_args=None) -> None:
         self.local_commands.main(unknown_args)
 
+    def cmd_book(self, args, unknown_args=None) -> None:
+        self.book_commands.main(unknown_args)
+
     def cmd_lint(self, args, unknown_args=None) -> None:
         files = []
         if args.staged:
@@ -713,6 +733,7 @@ Examples:
   metta clip -e py metta               # Copy Python files to clipboard
 
   metta local ...                      # Commands for local development
+  metta book                           # Interactive marimo notebook commands
             """,
         )
 

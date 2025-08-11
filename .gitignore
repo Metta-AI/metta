@@ -19,7 +19,6 @@
 .coverage.*
 coverage.xml
 htmlcov/
-cython_debug/
 .venv/
 
 # CMake FetchContent cache

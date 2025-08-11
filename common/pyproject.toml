@@ -33,6 +33,10 @@ include = ["metta.common", "metta.common.*"]
 "metta.common" = ["py.typed"]
 
 [tool.pytest.ini_options]
+markers = [
+  "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 testpaths = ["tests"]
 pythonpath = ["src"]
 

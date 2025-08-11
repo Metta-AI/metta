@@ -8,6 +8,8 @@ image:
 
 serviceAccount:
   create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/orchestrator-eval-worker
 
 env:
   BACKEND_URL: "https://api.observatory.softmax-research.net"
@@ -34,7 +36,7 @@ datadog:
   env: "production"
   datadog:
     apiKeyExistingSecret: datadog-secret
-    clusterName: "arn:aws:eks:us-east-1:751442549699:cluster/main"
+    clusterName: "main"
     site: datadoghq.com
     apm:
       portEnabled: true

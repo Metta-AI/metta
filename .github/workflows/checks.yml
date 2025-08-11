@@ -34,6 +34,9 @@ env:
   HYDRA_FULL_ERROR: 1
   VENV_PATH: .venv
   PYTEST_WORKERS: auto
+  EVAL_SMOKE_TEST_POLICY: m.av.replay.probe.751 # just the name, no need to include any uri preamble like "wandb://run/"
+  EVAL_SMOKE_TEST_MAX_ATTEMPTS: 3
+  EVAL_SMOKE_TEST_MIN_REWARD: 0.0
 
 jobs:
   # check if CI should run based on Graphite's stack position
@@ -153,9 +156,38 @@ jobs:
       - name: Run cpplint
         run: ./mettagrid/tests/cpplint.sh
 
+  setup-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.create-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout scripts
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            .github/scripts/expand_test_matrix.py
+          sparse-checkout-cone-mode: false
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Create test matrix
+        id: create-matrix
+        run: |
+          # Define the test configuration and pipe it to the script
+          echo '[
+            {"name": "agent", "package": "agent", "shards": 1},
+            {"name": "common", "package": "common", "shards": 1},
+            {"name": "app_backend", "package": "app_backend", "shards": 3},
+            {"name": "mettagrid", "package": "mettagrid", "shards": 2},
+            {"name": "core", "package": "core", "shards": 8}
+          ]' | python .github/scripts/expand_test_matrix.py >> $GITHUB_OUTPUT
+
   test-matrix:
     name: "Unit Tests - ${{ matrix.name }}"
-    needs: [setup-checks]
+    needs: [setup-matrix, graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
@@ -163,72 +195,7 @@ jobs:
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          # Individual packages
-          - name: "agent"
-            package: "agent"
-          - name: "common"
-            package: "common"
-
-          # app_backend with sharding
-          - name: "app_backend-shard-0"
-            package: "app_backend"
-            shard_id: 0
-            num_shards: 5
-          - name: "app_backend-shard-1"
-            package: "app_backend"
-            shard_id: 1
-            num_shards: 5
-          - name: "app_backend-shard-2"
-            package: "app_backend"
-            shard_id: 2
-            num_shards: 5
-          - name: "app_backend-shard-3"
-            package: "app_backend"
-            shard_id: 3
-            num_shards: 5
-          - name: "app_backend-shard-4"
-            package: "app_backend"
-            shard_id: 4
-            num_shards: 5
-
-          # Mettagrid with sharding
-          - name: "mettagrid-shard-0"
-            package: "mettagrid"
-            shard_id: 0
-            num_shards: 2
-          - name: "mettagrid-shard-1"
-            package: "mettagrid"
-            shard_id: 1
-            num_shards: 2
-
-          # Core with sharding
-          - name: "core-shard-0"
-            package: "core"
-            shard_id: 0
-            num_shards: 6
-          - name: "core-shard-1"
-            package: "core"
-            shard_id: 1
-            num_shards: 6
-          - name: "core-shard-2"
-            package: "core"
-            shard_id: 2
-            num_shards: 6
-          - name: "core-shard-3"
-            package: "core"
-            shard_id: 3
-            num_shards: 6
-          - name: "core-shard-4"
-            package: "core"
-            shard_id: 4
-            num_shards: 6
-          - name: "core-shard-5"
-            package: "core"
-            shard_id: 5
-            num_shards: 6
-
+      matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -238,16 +205,14 @@ jobs:
         with:
           install-mode: "testing"
 
+      - name: Free disk space
+        uses: ./.github/actions/disk-cleanup
+
       - name: Run tests
         run: |
+
           # Base pytest arguments (without coverage file specification)
           PYTEST_BASE_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
-
-          if [ "${{ github.event_name }}" = "merge_group" ]; then
-            PYTEST_BASE_ARGS="${PYTEST_BASE_ARGS/-v/-vv}"  # upgrade verbosity
-            PYTEST_BASE_ARGS="${PYTEST_BASE_ARGS} --full-trace"
-            export PYTHONFAULTHANDLER=1
-          fi
 
           COVERAGE_SUFFIX="-shard${{ matrix.shard_id }}"
 
@@ -262,112 +227,49 @@ jobs:
             export PYTEST_NUM_SHARDS=${{ matrix.num_shards }}
 
             # Use the sharding plugin from common package
-            PYTEST_BASE_ARGS="$PYTEST_BASE_ARGS -p no:cacheprovider -p metta.common.tests.pytest_shard"
+            PYTEST_BASE_ARGS="$PYTEST_BASE_ARGS -p no:cacheprovider -p metta.common.test_support.pytest_shard"
           fi
 
-          if [ "${{ matrix.package }}" == "core" ]; then
-            # For core package, ignore other packages
-            SUBPACKAGES=(app_backend agent mettagrid common)
-            for pkg in "${SUBPACKAGES[@]}"; do
-              PYTEST_BASE_ARGS="$PYTEST_BASE_ARGS --ignore=$pkg"
-            done
-          else
+          if [ "${{ matrix.package }}" != "core" ]; then
             # Navigate to package directory
             cd ${{ matrix.package }}
           fi
 
-          # Phase 1: Run fast tests (not marked as slow)
-          echo "::group::Phase 1 - Running fast tests"
-          echo "Running tests not marked as slow..."
+          # Run all tests
+          echo "::group::Running tests"
+          echo "Running all tests..."
 
-          if [ "${{ github.event_name }}" = "merge_group" ]; then
-            # Stream output to log immediately for debugging crashes
-            pytest $PYTEST_BASE_ARGS -m "not slow" \
-              --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml | tee pytest_output.log
-            FAST_TESTS_FAILED=$?
+          pytest $PYTEST_BASE_ARGS \
+            --cov-report=xml:coverage${COVERAGE_SUFFIX}.xml 2>&1 | tee pytest_output.log
+          TESTS_FAILED=${PIPESTATUS[0]}  # Get pytest's exit code, not tee's
+          echo "::endgroup::"
+
+          # Display the output with appropriate header
+          if [ "${TESTS_FAILED:-0}" -ne 0 ]; then
+            echo "::group::❌ Tests failed (exit code: ${TESTS_FAILED})"
           else
-            # Capture output for PRs
-            pytest $PYTEST_BASE_ARGS -m "not slow" \
-              --cov-report=xml:coverage-fast${COVERAGE_SUFFIX}.xml 2>&1 | tee pytest_output.log
-            FAST_TESTS_FAILED=$?
+            echo "::group::✅ Tests passed"
           fi
-
-          # Display the output
-          cat pytest_output.log
-          echo "::endgroup::"
-
-          # Check for slow tests
-          echo "::group::Checking for slow tests"
-          cat pytest_output.log | awk '
-          BEGIN {
-              found_slow = 0
-          }
-          /===+ slowest [0-9]+ durations ===+/ {
-              print "Found slow tests in Phase 1:"
-              slow_section = 1
-              next
-          }
-          slow_section && /^[0-9]+\.[0-9]+s/ {
-              # Extract duration
-              duration = $1
-              gsub("s", "", duration)
-
-              # Extract phase (setup, call, teardown, etc.)
-              phase = $2
-
-              # Get the test path (third field onwards)
-              test_path = $3
-              for (i = 4; i <= NF; i++) {
-                  test_path = test_path " " $i
-              }
-
-              # Check if duration exceeds threshold
-              if (duration > 2.0) {
-                  print "::warning::" test_path " (" phase " phase) takes " duration " seconds - should be marked with @pytest.mark.slow"
-                  found_slow = 1
-              }
-          }
-          /^===/ && slow_section {
-              slow_section = 0
-          }
+          # Show only content after the last "FAILURES" header
+          awk '
+          /^=+ FAILURES =+$/ { start = NR }   # remember the line number
           END {
-              if (found_slow == 0) {
-                  print "✅ No slow tests found in Phase 1"
+            if (start) {
+              # re-read file and print from start+1
+              while ((getline line < FILENAME) > 0) {
+                if (NR > start) print line
               }
-          }
-          '
+            }
+          }' pytest_output.log
           echo "::endgroup::"
 
-          # Exit early if fast tests failed
-          if [ "${FAST_TESTS_FAILED:-0}" -ne 0 ]; then
-            echo "::error::Fast tests failed! Skipping slow tests."
-            exit $FAST_TESTS_FAILED
+          # Exit with test result
+          if [ "${TESTS_FAILED:-0}" -ne 0 ]; then
+            echo "::error::Tests failed!"
+            exit $TESTS_FAILED
           fi
 
-          # Phase 2: Run slow tests (only if fast tests passed)
-          echo "::group::Phase 2 - Running slow tests"
-          echo "Fast tests passed! Now running slow tests..."
-
-          # For slow tests, we need to append coverage data
-          SLOW_TESTS_EXIT=0
-          pytest $PYTEST_BASE_ARGS -m "slow" --maxfail=5 --cov-append --cov-report=xml:coverage-slow${COVERAGE_SUFFIX}.xml || SLOW_TESTS_EXIT=$?
-
-          # Exit code 5 means no tests were collected (which is fine - not all packages have slow tests)
-          if [ "${SLOW_TESTS_EXIT:-0}" -eq 5 ]; then
-            echo "No slow tests found in this package/shard - that's OK!"
-            SLOW_TESTS_EXIT=0
-          elif [ "${SLOW_TESTS_EXIT:-0}" -ne 0 ]; then
-            echo "::warning::Slow tests failed with exit code $SLOW_TESTS_EXIT"
-          fi
-          echo "::endgroup::"
-
-          # Report final status
-          if [ "${SLOW_TESTS_EXIT:-0}" -ne 0 ]; then
-            echo "::warning::Some slow tests failed, but fast tests passed"
-            exit $SLOW_TESTS_EXIT
-          fi
-
-          echo "✅ Test run complete!"
+          echo "✅ All tests complete!"
 
       - name: Upload python test coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true'
@@ -537,9 +439,14 @@ jobs:
         continue-on-error: true
         env:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-          POLICY: ${{ vars.EVAL_SMOKE_TEST_POLICY }}
+          POLICY: ${{ env.EVAL_SMOKE_TEST_POLICY }}
         run: |
-          uv run .github/scripts/validate-wandb-run.py && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
+          if uv run .github/scripts/validate-wandb-run.py; then
+            echo "result=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Evals Smoke Test Skipped::The evals smoke test was skipped because the W&B policy '${{ env.POLICY }}' could not be found. This test requires a valid W&B run to be available. Please ensure the policy exists or update the POLICY environment variable."
+          fi
 
       - name: Run evals smoke test
         if: matrix.test_type == 'evals' && steps.check_evals_policy.outputs.result == 'success' && needs.setup-checks.outputs.is_external != 'true'
@@ -548,9 +455,10 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
-          POLICY: ${{ vars.EVAL_SMOKE_TEST_POLICY }}
-          MIN_REWARD: ${{ vars.EVAL_SMOKE_TEST_MIN_REWARD }}
-          MAX_ATTEMPTS: ${{ vars.EVAL_SMOKE_TEST_MAX_ATTEMPTS }}
+          POLICY: ${{ env.EVAL_SMOKE_TEST_POLICY }}
+          MIN_REWARD: ${{ env.EVAL_SMOKE_TEST_MIN_REWARD }}
+          MAX_ATTEMPTS: ${{ env.EVAL_SMOKE_TEST_MAX_ATTEMPTS }}
+          TORCH_COMPILE_DISABLE: "1"
         run: |
           uv run .github/scripts/eval_smoke_test.py
 
@@ -621,21 +529,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup uv
         uses: ./.github/actions/setup-uv
-
       - name: Run Python benchmarks
         env:
           PYTHONOPTIMIZE: 1 # Disable __debug__ blocks and asserts for accurate benchmarks
         run: |
           # Main benchmarks
-          pytest --benchmark-only --benchmark-json=main_benchmark_results.json
+          pytest -n 0 --benchmark-only --benchmark-json=main_benchmark_results.json
 
           # Mettagrid benchmarks
           cd mettagrid
-          pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
-
+          pytest -n 0 --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
       - name: Upload Python benchmark artifacts
         uses: actions/upload-artifact@v4
         with:

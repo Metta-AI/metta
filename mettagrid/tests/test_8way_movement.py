@@ -2,31 +2,27 @@
 
 import numpy as np
 
-from metta.mettagrid.mettagrid_c import MettaGrid, dtype_actions
-from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from tests.test_utils import make_test_config
+from metta.mettagrid.mettagrid_c import dtype_actions
+from metta.mettagrid.test_support import TestEnvironmentBuilder
 
 
 def test_8way_movement_all_directions():
     """Test 8-way movement in all eight directions."""
-    config = make_test_config(
-        num_agents=1,
-        map=[
+    env = TestEnvironmentBuilder.create_environment(
+        game_map=[
             [".", ".", ".", ".", "."],
             [".", ".", ".", ".", "."],
             [".", ".", "agent.player", ".", "."],
             [".", ".", ".", ".", "."],
             [".", ".", ".", ".", "."],
         ],
+        num_agents=1,
         actions={
             "move": {"enabled": False},
             "rotate": {"enabled": False},
             "move_8way": {"enabled": True},
         },
     )
-
-    game_map = config.pop("map")
-    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     objects = env.grid_objects()
@@ -79,24 +75,21 @@ def test_8way_movement_all_directions():
 
 def test_8way_movement_obstacles():
     """Test that 8-way movement respects obstacles."""
-    config = make_test_config(
-        num_agents=1,
-        map=[
+    env = TestEnvironmentBuilder.create_environment(
+        game_map=[
             ["wall", "wall", "wall", "wall", "wall"],
             ["wall", ".", ".", ".", "wall"],
             ["wall", ".", "agent.player", ".", "wall"],
             ["wall", ".", ".", ".", "wall"],
             ["wall", "wall", "wall", "wall", "wall"],
         ],
+        num_agents=1,
         actions={
             "move": {"enabled": False},
             "rotate": {"enabled": False},
             "move_8way": {"enabled": True},
         },
     )
-
-    game_map = config.pop("map")
-    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     objects = env.grid_objects()
@@ -129,22 +122,19 @@ def test_8way_movement_obstacles():
 
 def test_orientation_changes_with_8way():
     """Test that orientation changes to match movement direction with 8-way movement."""
-    config = make_test_config(
-        num_agents=1,
-        map=[
+    env = TestEnvironmentBuilder.create_environment(
+        game_map=[
             [".", ".", ".", ".", "."],
             [".", "agent.player", ".", ".", "."],
             [".", ".", ".", ".", "."],
         ],
+        num_agents=1,
         actions={
             "move": {"enabled": False},
             "rotate": {"enabled": True},  # Keep rotate to test orientation
             "move_8way": {"enabled": True},
         },
     )
-
-    game_map = config.pop("map")
-    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     objects = env.grid_objects()
@@ -191,22 +181,19 @@ def test_orientation_changes_with_8way():
 
 def test_cardinal_movement_changes_orientation():
     """Test that cardinal movement changes orientation to match movement direction."""
-    config = make_test_config(
-        num_agents=1,
-        map=[
+    env = TestEnvironmentBuilder.create_environment(
+        game_map=[
             [".", ".", ".", ".", "."],
             [".", "agent.player", ".", ".", "."],
             [".", ".", ".", ".", "."],
         ],
+        num_agents=1,
         actions={
             "move": {"enabled": False},
             "rotate": {"enabled": True},
             "move_cardinal": {"enabled": True},
         },
     )
-
-    game_map = config.pop("map")
-    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     objects = env.grid_objects()
@@ -232,3 +219,111 @@ def test_cardinal_movement_changes_orientation():
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (0, 1)
     # Orientation should change to match movement direction (north = 0)
     assert objects[agent_id]["orientation"] == 0
+
+
+def test_8way_movement_with_simple_environment():
+    """Test 8-way movement using the simple environment builder."""
+    # Create a larger environment to test diagonal movements
+    env = TestEnvironmentBuilder.create_simple_environment(
+        width=8,
+        height=8,
+        agent_positions=[(4, 4)],  # Agent in center
+        actions={
+            "move": {"enabled": False},
+            "rotate": {"enabled": False},
+            "move_8way": {"enabled": True},
+        },
+    )
+    env.reset()
+
+    objects = env.grid_objects()
+    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
+
+    # Verify agent is at expected position
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 4)
+
+    action_names = env.action_names()
+    move_8dir_idx = action_names.index("move_8way")
+
+    # Test diagonal movement pattern (diamond shape)
+    actions = np.zeros((1, 2), dtype=dtype_actions)
+
+    # Move Northeast
+    actions[0] = [move_8dir_idx, 1]
+    env.step(actions)
+    objects = env.grid_objects()
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (3, 5)
+
+    # Move Southeast
+    actions[0] = [move_8dir_idx, 3]
+    env.step(actions)
+    objects = env.grid_objects()
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 6)
+
+    # Move Southwest
+    actions[0] = [move_8dir_idx, 5]
+    env.step(actions)
+    objects = env.grid_objects()
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (5, 5)
+
+    # Move Northwest - back to near start
+    actions[0] = [move_8dir_idx, 7]
+    env.step(actions)
+    objects = env.grid_objects()
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 4)
+
+
+def test_8way_movement_boundary_check():
+    """Test 8-way movement respects environment boundaries."""
+    # Small environment to easily test boundaries
+    env = TestEnvironmentBuilder.create_environment(
+        game_map=[
+            [".", ".", "."],
+            [".", "agent.player", "."],
+            [".", ".", "."],
+        ],
+        num_agents=1,
+        actions={
+            "move": {"enabled": False},
+            "rotate": {"enabled": False},
+            "move_8way": {"enabled": True},
+        },
+    )
+    env.reset()
+
+    objects = env.grid_objects()
+    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
+
+    action_names = env.action_names()
+    move_8dir_idx = action_names.index("move_8way")
+
+    # Move to top-left corner
+    actions = np.zeros((1, 2), dtype=dtype_actions)
+    actions[0] = [move_8dir_idx, 7]  # Northwest
+    env.step(actions)
+
+    objects = env.grid_objects()
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (0, 0)
+
+    # Try to move further northwest - should fail
+    actions[0] = [move_8dir_idx, 7]  # Northwest
+    env.step(actions)
+    assert not env.action_success()[0]
+
+    # Try to move north - should fail
+    actions[0] = [move_8dir_idx, 0]  # North
+    env.step(actions)
+    assert not env.action_success()[0]
+
+    # Try to move west - should fail
+    actions[0] = [move_8dir_idx, 6]  # West
+    env.step(actions)
+    assert not env.action_success()[0]
+
+    # Move southeast - should succeed
+    actions[0] = [move_8dir_idx, 3]  # Southeast
+    env.step(actions)
+    assert env.action_success()[0]
+
+    objects = env.grid_objects()
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)

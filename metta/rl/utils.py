@@ -32,7 +32,7 @@ def log_training_progress(
     train_time: float,
     rollout_time: float,
     stats_time: float,
-    run_name: str | None = None,
+    run_name: str,
 ) -> None:
     """Log training progress with timing breakdown.
 
