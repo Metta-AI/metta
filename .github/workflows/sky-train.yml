@@ -40,8 +40,6 @@ env:
 jobs:
   launch-batch-job:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     steps:
       - name: Checkout specific commit for dispatch
