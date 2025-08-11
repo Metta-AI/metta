@@ -1,15 +1,11 @@
+from typing import Optional
+
 import torch
 from tensordict import TensorDict
 from torch import nn
 
-from typing import Optional
-
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
-
-
-
-import torch.nn as nn
 
 
 class ComponentPolicy(nn.Module):

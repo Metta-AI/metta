@@ -1,28 +1,19 @@
 import logging
-from typing import TYPE_CHECKING, Optional, Tuple, Union, Any
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
 
 import gymnasium as gym
-import numpy as np
 import torch
-from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.pytorch.agent_mapper import agent_classes
-from metta.agent.util.debug import assert_shape
-from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+from metta.agent.component_policy import ComponentPolicy
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.datastruct import duplicates
 from metta.common.util.instantiate import instantiate
-from metta.agent.component_policy import ComponentPolicy
-import types
-
-from typing import Dict
-
 
 if TYPE_CHECKING:
-    from metta.mettagrid.mettagrid_env import MettaGridEnv
+    pass
 
 logger = logging.getLogger("metta_agent")
 

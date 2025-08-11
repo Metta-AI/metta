@@ -1,14 +1,13 @@
-from typing import Optional
 import logging
+from typing import Optional
 
 import einops
-import torch
-import torch.nn.functional as F
-from torch import nn
-from tensordict import TensorDict
-
 import pufferlib.models
 import pufferlib.pytorch
+import torch
+import torch.nn.functional as F
+from tensordict import TensorDict
+from torch import nn
 
 logger = logging.getLogger(__name__)
 

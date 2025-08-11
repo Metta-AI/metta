@@ -1,11 +1,8 @@
 import logging
 from types import SimpleNamespace
-from typing import Any
 
 import torch
 from omegaconf import DictConfig
-from pufferlib.pytorch import sample_logits
-from torch import nn
 
 from metta.common.util.instantiate import instantiate
 
@@ -76,9 +73,10 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
         logger.warning("Using randomly initialized weights")
 
 
-    from metta.agent.metta_agent_builder import MettaAgentBuilder
     import gymnasium as gym
     import numpy as np
+
+    from metta.agent.metta_agent_builder import MettaAgentBuilder
 
     obs_shape = [34, 11, 11]
     env = SimpleNamespace(
@@ -89,7 +87,6 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
         feature_normalizations={},
         global_features=[],
     )
-    from metta.rl.env_config import create_env_config
 
     logger.info(f"Logger Policy: {pytorch_cfg}")
 

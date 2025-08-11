@@ -5,11 +5,11 @@ import pufferlib.models
 import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
+from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.external.models.encoders import ObsLatentAttn, ObsSelfAttn
 from metta.agent.external.models.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
-from tensordict import TensorDict
 
 logger = logging.getLogger(__name__)
 
