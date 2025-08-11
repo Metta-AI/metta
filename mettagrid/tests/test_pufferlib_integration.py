@@ -14,7 +14,9 @@ from pathlib import Path
 import pytest
 
 
-@pytest.mark.skip
+@pytest.mark.skipif(
+    os.environ.get("CI") != "true", reason="Skipping PufferLib integration test in local environment (CI only)"
+)
 @pytest.mark.slow
 def test_puffer_cli_compatibility():
     """Ensure PufferLib can be installed in isolation and sees Metta."""
