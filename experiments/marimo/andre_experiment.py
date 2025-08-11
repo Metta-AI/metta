@@ -41,7 +41,7 @@ def _():
     import altair as alt
     import pandas as pd
     from experiments.notebooks.utils.metrics import fetch_metrics
-    from experiments.notebooks.utils.monitoring import sky_job_exists
+    from experiments.notebooks.utils.monitoring import sky_job_exists, get_sky_jobs_data
     from experiments.notebooks.utils.monitoring_marimo import monitor_training_statuses
     from experiments.notebooks.utils.training import launch_training
     from experiments.notebooks.utils.replays import show_replay
@@ -50,6 +50,7 @@ def _():
     return (
         alt,
         fetch_metrics,
+        get_sky_jobs_data,
         launch_training,
         monitor_training_statuses,
         pd,
@@ -70,46 +71,56 @@ def _(mo):
 
 
 @app.cell
+def _(get_sky_jobs_data):
+    get_sky_jobs_data()
+    return
+
+
+@app.cell
 def _(launch_training, sky_job_exists):
     # Going to launch a job if it doesn't exist
+    round = 4
     run_names = []
 
-    if not sky_job_exists("andre.baseline.round3"):
+    job_name = f"andre.baseline.round{round}"
+    if not sky_job_exists(job_name):
+        print("launching: ", job_name)
         launch_training(
-            run_name="andre.baseline.round3",
-            curriculum="env/mettagrid/arena/basic",
+            run_name=job_name,
             wandb_tags=["low_reward"],
             additional_args=["--skip-git-check"],
         )
-    run_names.append("andre.baseline.round3")
+    run_names.append(job_name)
 
-    if not sky_job_exists("andre.move_cardinal.round3"):
+    job_name = f"andre.move_cardinal.round{round}"
+    if not sky_job_exists(job_name):
+        print("launching: ", job_name)
         launch_training(
-            run_name="andre.move_cardinal.round3",
-            # curriculum="env/mettagrid/arena/basic",
+            run_name=job_name,
             wandb_tags=["low_reward"],
             additional_args=[
-                "+replay_job.sim.env_overrides.game.actions.move.enabled=false",
-                "+replay_job.sim.env_overrides.game.actions.rotate.enabled=false",
-                "+replay_job.sim.env_overrides.game.actions.move_cardinal.enabled=true",
+                "++replay_job.sim.env_overrides.game.actions.move.enabled=false",
+                "++replay_job.sim.env_overrides.game.actions.rotate.enabled=false",
+                "++replay_job.sim.env_overrides.game.actions.move_cardinal.enabled=true",
                 "--skip-git-check",
             ],
         )
-    run_names.append("andre.move_cardinal.round3")
+    run_names.append(job_name)
 
-    if not sky_job_exists("andre.move_8way.round2"):
+    job_name = f"andre.move_8way.round{round}"
+    if not sky_job_exists(job_name):
+        print("launching: ", job_name)
         launch_training(
-            run_name="andre.move_8way.round2",
-            curriculum="env/mettagrid/arena/basic",
+            run_name=job_name,
             wandb_tags=["low_reward"],
             additional_args=[
-                "+replay_job.sim.env_overrides.game.actions.move.enabled=false",
-                "+replay_job.sim.env_overrides.game.actions.rotate.enabled=false",
-                "+replay_job.sim.env_overrides.game.actions.move_8way.enabled=true",
+                "++replay_job.sim.env_overrides.game.actions.move.enabled=false",
+                "++replay_job.sim.env_overrides.game.actions.rotate.enabled=false",
+                "++replay_job.sim.env_overrides.game.actions.move_8way.enabled=true",
                 "--skip-git-check",
             ],
         )
-    run_names.append("andre.move_8way.round2")
+    run_names.append(job_name)
     return (run_names,)
 
 
@@ -134,13 +145,15 @@ def _(mo):
 @app.cell
 def _(fetch_metrics, run_names):
     # Option 1: Fetch with sampling (fast, returns 500 data points)
-    metrics_dfs = fetch_metrics(run_names, samples=500)
+    # metrics_dfs = fetch_metrics(run_names, samples=500)
 
     # Option 2: Fetch many samples without full scan (good balance)
     # metrics_dfs = fetch_metrics(run_names, samples=10000)
 
     # Option 3: Fetch only specific metrics (much faster)
-    # metrics_dfs = fetch_metrics(run_names, samples=5000, keys=["overview/reward", "_step", "losses/policy_loss"])
+    metrics_dfs = fetch_metrics(
+        run_names, samples=5000, keys=["overview/reward", "_step", "losses/policy_loss"]
+    )
 
     # Option 4: Fetch specific step range
     # metrics_dfs = fetch_metrics(run_names, samples=None, min_step=1000, max_step=5000)
@@ -284,9 +297,17 @@ def _(run_names, show_replay):
     # Show available replays
     # replays = get_available_replays("daveey.lp.16x4.bptt8")
 
-    # Show the last replay for a run
-    for run_name2 in run_names:
-        show_replay(run_name2, step="last", width=1000, height=600)
+    def show_replays(
+        run_names: list[str],
+        step: str | int = "last",
+        width: int = 1000,
+        height: int = 600,
+    ) -> None:
+        for run_name in run_names:
+            show_replay(run_name, step=step, width=width, height=height)
+
+    show_replays(run_names, step="last", width=1000, height=600)
+
     return
 
 
