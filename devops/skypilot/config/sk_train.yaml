@@ -34,9 +34,6 @@ config:
       - --ulimit memlock=-1:-1
       - --ipc=host
       - --userns=host
-      - --shm-size=4g
-      - --security-opt seccomp=unconfined
-      - --security-opt apparmor=unconfined
 
 file_mounts:
   /mnt/s3/softmax-public:
@@ -49,8 +46,6 @@ file_mounts:
 setup: |
   set -e
   cd /workspace/metta
-
-  # Note that the docker image may start in a venv!
 
   echo "[SETUP] Fetching latest from origin..."
   git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
@@ -82,6 +77,7 @@ run: |
   echo "[RUN] Starting run phase..."
   echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
   echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
+
 
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
     echo "[RUN] Collecting skypilot latency..."
@@ -133,7 +129,6 @@ run: |
   echo "  SHM_DF=$(df -h /dev/shm | tail -1)"
   echo "  USERNS=$(docker info | grep -i 'userns')"
   echo "  UMASK=$(umask)"
-
 
   echo "== SHM info =="
   mount | grep /dev/shm || true
