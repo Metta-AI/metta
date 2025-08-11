@@ -179,7 +179,7 @@ jobs:
             {"name": "common", "package": "common", "shards": 1},
             {"name": "app_backend", "package": "app_backend", "shards": 3},
             {"name": "mettagrid", "package": "mettagrid", "shards": 2},
-            {"name": "core", "package": "core", "shards": 7}
+            {"name": "core", "package": "core", "shards": 8}
           ]' | python .github/scripts/expand_test_matrix.py >> $GITHUB_OUTPUT
 
   test-matrix:
