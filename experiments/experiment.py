@@ -10,7 +10,6 @@ import logging
 from experiments.skypilot_service import get_skypilot_service
 from experiments.training_job import TrainingJob, TrainingJobConfig
 from metta.common.util.config import Config
-from pydantic import Field
 
 
 class ExperimentConfig(Config):
