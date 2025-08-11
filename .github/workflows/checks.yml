@@ -319,18 +319,7 @@ jobs:
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
         run: |
-          .github/scripts/mettagrid_build.py --with-coverage
-
-      - name: Check MettaGrid build quality
-        if: always()
-        uses: ./.github/actions/check-cpp-build
-        with:
-          errors: ${{ steps.mettagrid_build_check.outputs.total_errors }}
-          warnings: ${{ steps.mettagrid_build_check.outputs.total_warnings }}
-          runtime_issues: ${{ steps.mettagrid_build_check.outputs.runtime_issues }}
-          max_warnings: "50"
-          build_type: "MettaGrid C++"
-          full_output: ${{ steps.mettagrid_build_check.outputs.full_output }}
+          .github/scripts/mettagrid_build.py --with-coverage --max-warnings 50
 
       - name: Upload MettaGrid C++ coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
@@ -544,18 +533,7 @@ jobs:
       - name: Build C++ benchmarks
         id: benchmark_build_check
         run: |
-          .github/scripts/mettagrid_benchmark.py
-
-      - name: Check benchmark build quality
-        if: always()
-        uses: ./.github/actions/check-cpp-build
-        with:
-          errors: ${{ steps.benchmark_build_check.outputs.total_errors }}
-          warnings: ${{ steps.benchmark_build_check.outputs.total_warnings }}
-          runtime_issues: ${{ steps.benchmark_build_check.outputs.runtime_issues }}
-          max_warnings: "50"
-          build_type: "C++ Benchmarks"
-          full_output: ${{ steps.benchmark_build_check.outputs.full_output }}
+          .github/scripts/mettagrid_benchmark.py --max-warnings 50
 
       - name: Collect benchmarks
         if: steps.benchmark_build_check.outputs.build_success == 'true'

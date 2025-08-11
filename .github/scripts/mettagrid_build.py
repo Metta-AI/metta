@@ -53,6 +53,9 @@ def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Check mettagrid build for compiler warnings and errors")
     parser.add_argument("-c", "--with-coverage", action="store_true", help="Build with coverage enabled")
+    parser.add_argument(
+        "-w", "--max-warnings", type=int, default=50, help="Maximum allowed warnings before failing (default: 50)"
+    )
 
     args = parser.parse_args()
 
@@ -82,22 +85,53 @@ def main():
     # Print summary to console
     checker.print_summary()
 
+    # Check build quality
+    print(f"\n📊 Build Quality Check (max warnings: {args.max_warnings})")
+    print("=" * 50)
+
+    exit_code = 0
+
+    if not build_success:
+        print("❌ Build command failed!")
+        exit_code = 1
+    elif checker.build_failed:
+        print("❌ Build completed with errors!")
+        exit_code = 1
+    elif checker.total_warnings > args.max_warnings:
+        print(f"❌ Too many warnings! ({checker.total_warnings} > {args.max_warnings})")
+        exit_code = 1
+    elif checker.runtime_issues > 0:
+        print(f"❌ Runtime issues detected: {checker.runtime_issues}")
+        exit_code = 1
+    else:
+        print("✅ Build quality check passed")
+
+    print("=" * 50)
+
     # Generate and write GitHub Actions summary
     github_summary = checker.generate_github_summary()
+
+    # Add quality check result to summary
+    if exit_code != 0:
+        github_summary += "\n\n### ❌ Build Quality Check Failed\n"
+        if not build_success:
+            github_summary += "- Build command failed\n"
+        if checker.build_failed:
+            github_summary += f"- Build errors: {checker.total_errors}\n"
+        if checker.total_warnings > args.max_warnings:
+            github_summary += f"- Too many warnings: {checker.total_warnings} > {args.max_warnings}\n"
+        if checker.runtime_issues > 0:
+            github_summary += f"- Runtime issues: {checker.runtime_issues}\n"
+    else:
+        github_summary += "\n\n### ✅ Build Quality Check Passed\n"
+        github_summary += f"- Warnings: {checker.total_warnings}/{args.max_warnings}\n"
+
     write_github_summary(github_summary)
 
     # Set outputs for GitHub Actions
     write_github_outputs(checker, build_success, build_output)
 
-    # Exit with appropriate code - only fail on actual build failure or errors
-    if not build_success:
-        print("\n❌ Build command failed!")
-        sys.exit(1)
-    elif checker.build_failed:
-        print("\n❌ Build completed with errors!")
-        sys.exit(1)
-    else:
-        sys.exit(0)
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":

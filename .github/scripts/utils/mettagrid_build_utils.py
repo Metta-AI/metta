@@ -48,7 +48,22 @@ class BuildChecker:
         self.repo_root = self.project_root.parent.resolve()
         self.messages: list[CompilerMessage] = []
         self.build_failed = False
-        self.runtime_issues = []  # Simple list for runtime problems
+        self.runtime_issues_list = []  # Simple list for runtime problems
+
+    @property
+    def total_warnings(self) -> int:
+        """Get total number of warnings."""
+        return len(self.get_warnings())
+
+    @property
+    def total_errors(self) -> int:
+        """Get total number of errors."""
+        return len(self.get_errors())
+
+    @property
+    def runtime_issues(self) -> int:
+        """Get total number of runtime issues."""
+        return len(self.runtime_issues_list)
 
     def parse_build_output(self, output: str) -> None:
         """Parse build output and extract warnings/errors."""
@@ -76,7 +91,7 @@ class BuildChecker:
                     "core dumped",
                 ]
             ):
-                self.runtime_issues.append(line_stripped)
+                self.runtime_issues_list.append(line_stripped)
                 self.build_failed = True
 
             match = self.GCC_CLANG_PATTERN.match(line_stripped)
@@ -127,8 +142,8 @@ class BuildChecker:
                     self.build_failed = True
 
         print(f"🔍 Parsed {parsed_count} compiler messages from {total_lines} lines of output")
-        if self.runtime_issues:
-            print(f"💥 Found {len(self.runtime_issues)} runtime issue(s)")
+        if self.runtime_issues_list:
+            print(f"💥 Found {len(self.runtime_issues_list)} runtime issue(s)")
 
     def get_errors(self) -> list[CompilerMessage]:
         """Get all error messages."""
@@ -172,7 +187,7 @@ class BuildChecker:
             "errors": len(by_severity["error"]),
             "warnings": len(by_severity["warning"]),
             "notes": len(by_severity["note"]),
-            "runtime_issues": len(self.runtime_issues),  # Add runtime issues count
+            "runtime_issues": len(self.runtime_issues_list),  # Use the list length
             "files_with_issues": len(by_file),
             "warnings_by_flag": dict(
                 sorted([(flag, len(msgs)) for flag, msgs in warnings_by_flag.items()], key=lambda x: x[1], reverse=True)
@@ -219,10 +234,10 @@ class BuildChecker:
             print("-" * 80)
 
         # Print runtime issues
-        if self.runtime_issues:
-            print(f"\n💥 RUNTIME ISSUES ({len(self.runtime_issues)}):")
+        if self.runtime_issues_list:
+            print(f"\n💥 RUNTIME ISSUES ({len(self.runtime_issues_list)}):")
             print("-" * 80)
-            for i, issue in enumerate(self.runtime_issues, 1):
+            for i, issue in enumerate(self.runtime_issues_list, 1):
                 print(f"[{i}] {issue}")
             print("-" * 80)
 
@@ -294,10 +309,10 @@ class BuildChecker:
                     lines.append("\n---\n")
 
         # Add runtime issues section
-        if self.runtime_issues:
+        if self.runtime_issues_list:
             lines.append("\n### 💥 Runtime Issues\n")
             lines.append("The following runtime issues occurred:\n")
-            for i, issue in enumerate(self.runtime_issues, 1):
+            for i, issue in enumerate(self.runtime_issues_list, 1):
                 lines.append(f"{i}. `{issue}`")
             lines.append("")
 

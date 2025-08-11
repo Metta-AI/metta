@@ -9,6 +9,7 @@ Build mettagrid C++ benchmarks and check for compiler warnings and errors.
 This script is designed to be run in CI to surface build issues.
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from utils.mettagrid_build_utils import (
     run_build_command,
     setup_build_environment,
     write_github_outputs,
+    write_github_summary,
 )
 
 
@@ -36,6 +38,13 @@ def run_benchmark_build(project_root: Path) -> tuple[bool, str]:
 
 def main():
     """Main entry point."""
+    parser = argparse.ArgumentParser(description="Check mettagrid benchmark build for compiler warnings and errors")
+    parser.add_argument(
+        "-w", "--max-warnings", type=int, default=50, help="Maximum allowed warnings before failing (default: 50)"
+    )
+
+    args = parser.parse_args()
+
     # Determine project root (assumes script is in .github/scripts/)
     script_path = Path(__file__).resolve()
     repo_root = script_path.parent.parent.parent
@@ -62,22 +71,51 @@ def main():
     # Print summary to console
     checker.print_summary()
 
-    # skip GitHub Actions summary since it largely duplicated the test step
-    # github_summary = checker.generate_github_summary(title="Benchmark Summary")
-    # write_github_summary(github_summary)
+    # Check build quality
+    print(f"\n📊 Benchmark Build Quality Check (max warnings: {args.max_warnings})")
+    print("=" * 50)
+
+    exit_code = 0
+
+    if not build_success:
+        print("❌ Benchmark build command failed!")
+        exit_code = 1
+    elif checker.build_failed:
+        print("❌ Benchmark build completed with errors!")
+        exit_code = 1
+    elif checker.total_warnings > args.max_warnings:
+        print(f"❌ Too many warnings! ({checker.total_warnings} > {args.max_warnings})")
+        exit_code = 1
+    elif checker.runtime_issues > 0:
+        print(f"❌ Runtime issues detected: {checker.runtime_issues}")
+        exit_code = 1
+    else:
+        print("✅ Benchmark build quality check passed")
+
+    print("=" * 50)
+
+    # Generate and write GitHub Actions summary if needed
+    if exit_code != 0:
+        # Only write summary on failure to avoid duplication with test step
+        github_summary = checker.generate_github_summary(title="Benchmark Build Summary")
+
+        # Add quality check result to summary
+        github_summary += "\n\n### ❌ Benchmark Build Quality Check Failed\n"
+        if not build_success:
+            github_summary += "- Build command failed\n"
+        if checker.build_failed:
+            github_summary += f"- Build errors: {checker.total_errors}\n"
+        if checker.total_warnings > args.max_warnings:
+            github_summary += f"- Too many warnings: {checker.total_warnings} > {args.max_warnings}\n"
+        if checker.runtime_issues > 0:
+            github_summary += f"- Runtime issues: {checker.runtime_issues}\n"
+
+        write_github_summary(github_summary)
 
     # Set outputs for GitHub Actions
     write_github_outputs(checker, build_success, build_output)
 
-    # Exit with appropriate code - only fail on actual build failure or errors
-    if not build_success:
-        print("\n❌ Build command failed!")
-        sys.exit(1)
-    elif checker.build_failed:
-        print("\n❌ Build completed with errors!")
-        sys.exit(1)
-    else:
-        sys.exit(0)
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":
