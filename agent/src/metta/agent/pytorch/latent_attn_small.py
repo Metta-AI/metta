@@ -9,6 +9,7 @@ from torch import nn
 
 from metta.agent.external.models.encoders import ObsLatentAttn, ObsSelfAttn
 from metta.agent.external.models.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
+from tensordict import TensorDict
 
 logger = logging.getLogger(__name__)
 
@@ -148,77 +149,89 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
         logger.info(f"Policy actions initialized with: {self.active_actions}")
 
-    def forward(self, observations, state=None, action=None):
+    def forward(self, td: TensorDict, state=None, action=None):
+        observations = td["env_obs"].to(self.device)
+
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-        # prepare lstm state
-        lstm_h = state.get("lstm_h", None)
-        lstm_c = state.get("lstm_c", None)
-
+        # Prepare LSTM state
+        lstm_h, lstm_c = state.get("lstm_h"), state.get("lstm_c")
         if lstm_h is not None and lstm_c is not None:
-            lstm_h = lstm_h.to(self.device)
-            lstm_c = lstm_c.to(self.device)
-
-            expected_num_layers = self.lstm.num_layers
-            lstm_h = lstm_h[:expected_num_layers, :, :]
-            lstm_c = lstm_c[:expected_num_layers, :, :]
+            lstm_h = lstm_h.to(self.device)[:self.lstm.num_layers]
+            lstm_c = lstm_c.to(self.device)[:self.lstm.num_layers]
             lstm_state = (lstm_h, lstm_c)
         else:
             lstm_state = None
 
-        observations = observations.to(self.device)
+        # Encode observations
         hidden = self.policy.encode_observations(observations, state)
 
         B = observations.shape[0]
         TT = 1 if observations.dim() == 3 else observations.shape[1]
 
         # LSTM forward pass
-        hidden = hidden.view(B, TT, -1).transpose(0, 1)  # Shape: (TT, B, input_size)
+        hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, input_size)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
-        flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)  # Shape: (B * TT, hidden_size)
+        flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
         # Decode actions and value
         logits_list, value = self.policy.decode_actions(flat_hidden)
 
-        actions = []
-        selected_action_log_probs = []
-        entropies = []
-
-        for _, logits in enumerate(logits_list):
-            action_log_probs = F.log_softmax(logits, dim=-1)
+        if action is None:
+            # ---------- Inference Mode ----------
+            action_log_probs = F.log_softmax(logits_list, dim=-1)
             action_probs = torch.exp(action_log_probs)
 
-            # Sample action from categorical distribution
-            action = torch.multinomial(action_probs, num_samples=1).squeeze(-1)
+            sampled_actions = torch.multinomial(action_probs, num_samples=1).view(-1)
+            batch_indices = torch.arange(sampled_actions.shape[0], device=sampled_actions.device)
+            full_log_probs = action_log_probs[batch_indices, sampled_actions]
 
-            # Gather log-prob of the sampled action
-            batch_indices = torch.arange(action.shape[0], device=action.device)
-            selected_log_prob = action_log_probs[batch_indices, action]
+            converted_action = self._convert_logit_index_to_action(sampled_actions)
 
-            # Entropy
-            entropy = -torch.sum(action_probs * action_log_probs, dim=-1)
+            td["actions"] = converted_action.to(dtype=torch.int32)
+            td["act_log_prob"] = full_log_probs
+            td["values"] = value.flatten()
+            td["full_log_probs"] = action_log_probs
 
-            actions.append(action)
-            selected_action_log_probs.append(selected_log_prob)
-            entropies.append(entropy)
-
-        # Convert actions to expected format
-        if len(actions) >= 2:
-            actions_tensor = torch.stack([actions[0], actions[1]], dim=-1)
         else:
-            actions_tensor = torch.stack([actions[0], torch.zeros_like(actions[0])], dim=-1)
+            # ---------- Training Mode ----------
+            action = action.to(self.device)
+            if action.dim() == 3:  # (B, T, A) -> (BT, A)
+                B, T, A = action.shape
+                action = action.view(B * T, A)
 
-        selected_action_log_probs = torch.stack(selected_action_log_probs, dim=-1)
-        entropy = torch.stack(entropies, dim=-1).sum(-1)
+            action_log_probs = F.log_softmax(logits_list, dim=-1)
+            action_probs = torch.exp(action_log_probs)
 
-        return (
-            torch.zeros(actions_tensor.shape).to(dtype=torch.int32),
-            selected_action_log_probs.mean(dim=-1),
-            entropy,
-            value,
-            logits_list,
-        )
+            action_logit_index = self._convert_action_to_logit_index(action)
+            batch_indices = torch.arange(action_logit_index.shape[0], device=action_logit_index.device)
+            full_log_probs = action_log_probs[batch_indices, action_logit_index]
+
+            entropy = -(action_probs * action_log_probs).sum(dim=-1)
+
+            td["act_log_prob"] = full_log_probs.view(B, TT)
+            td["entropy"] = entropy.view(B, TT)
+            td["full_log_probs"] = action_log_probs.view(B, TT, -1)
+            td["value"] = value.view(B, TT)
+
+        return td
+
+
+    def clip_weights(self):
+        """Clip weights of the actor heads to prevent large updates."""
+        pass
+
+    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
+        """Convert logit indices back to action pairs."""
+        return self.action_index_tensor[action_logit_index]
+
+    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
+        """Convert (action_type, action_param) pairs to discrete indices."""
+        action_type_numbers = flattened_action[:, 0].long()
+        action_params = flattened_action[:, 1].long()
+        cumulative_sum = self.cum_action_max_params[action_type_numbers]
+        return cumulative_sum + action_params
 
 
 class Policy(nn.Module):
@@ -320,6 +333,6 @@ class Policy(nn.Module):
 
         action_embed = self.action_embeddings.weight.mean(dim=0).unsqueeze(0).expand(actor_features.shape[0], -1)
         combined_features = torch.cat([actor_features, action_embed], dim=-1)
-        logits = [head(combined_features) for head in self.actor_heads]
+        logits = torch.cat([head(combined_features) for head in self.actor_heads], dim=-1) # (B, sum(A_i))
 
         return logits, value
