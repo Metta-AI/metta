@@ -34,11 +34,15 @@ def simple_lstm_environment():
     # Create LSTM layer
     lstm_layer = LSTM(**cfg)
 
-    # Set up in_tensor_shapes manually
-    lstm_layer._in_tensor_shapes = [[input_size]]
-
-    # Initialize the network
-    lstm_layer.setup(source_components=None)
+    # Create a mock source component with the right output shape
+    class MockSource:
+        def __init__(self):
+            self._out_tensor_shape = [input_size]
+    
+    mock_source = MockSource()
+    
+    # Initialize the network with a source component
+    lstm_layer.setup(source_components={"hidden": mock_source})
 
     # Return all components needed for testing
     return {
@@ -64,8 +68,9 @@ class TestLSTMLayer:
         params = simple_lstm_environment["params"]
 
         td = TensorDict(sample_input, batch_size=[params["batch_size"] * params["seq_length"]])
-        td.bptt = params["seq_length"]
-        td.batch = params["batch_size"]
+        # Set bptt and batch as scalars that will be broadcasted
+        td["bptt"] = torch.full((params["batch_size"] * params["seq_length"],), params["seq_length"])
+        td["batch"] = torch.full((params["batch_size"] * params["seq_length"],), params["batch_size"])
 
         # The LSTM state is initially empty
         assert not lstm_layer.lstm_h
@@ -90,8 +95,9 @@ class TestLSTMLayer:
         params = simple_lstm_environment["params"]
 
         td = TensorDict(sample_input, batch_size=[params["batch_size"] * params["seq_length"]])
-        td.bptt = params["seq_length"]
-        td.batch = params["batch_size"]
+        # Set bptt and batch as scalars that will be broadcasted
+        td["bptt"] = torch.full((params["batch_size"] * params["seq_length"],), params["seq_length"])
+        td["batch"] = torch.full((params["batch_size"] * params["seq_length"],), params["batch_size"])
 
         # First forward pass will use initial zero state
         result1_td = lstm_layer._forward(td.clone())
@@ -112,8 +118,9 @@ class TestLSTMLayer:
         params = simple_lstm_environment["params"]
 
         td = TensorDict(sample_input, batch_size=[params["batch_size"] * params["seq_length"]])
-        td.bptt = params["seq_length"]
-        td.batch = params["batch_size"]
+        # Set bptt and batch as scalars that will be broadcasted
+        td["bptt"] = torch.full((params["batch_size"] * params["seq_length"],), params["seq_length"])
+        td["batch"] = torch.full((params["batch_size"] * params["seq_length"],), params["batch_size"])
 
         # Run a forward pass to populate the state
         lstm_layer._forward(td.clone())
