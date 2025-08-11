@@ -81,6 +81,7 @@
     "elif",
     "endforeach",
     "endfunction",
+    "endgroup",
     "errc",
     "esac",
     "evals",
@@ -264,5 +265,9 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }
