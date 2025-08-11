@@ -86,14 +86,27 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
         add_help=False,  # Let BookCommands handle its own help
     ),
     "test": CommandConfig(
-        help="Run Python unit tests",
-        subprocess_cmd=["pytest"],
+        help="Run all Python unit tests",
+        subprocess_cmd=[
+            "uv",
+            "run",
+            "pytest",
+            "tests",
+            "mettascope/tests",
+            "agent/tests",
+            "app_backend/tests",
+            "common/tests",
+            "mettagrid/tests",
+            "--benchmark-disable",
+            "-n",
+            "auto",
+        ],
         pass_unknown_args=True,
     ),
-    "test-changed": CommandConfig(
-        help="Run Python unit tests affected by changes",
-        subprocess_cmd=["pytest", "--testmon"],
-        pass_unknown_args=True,
+    "ci": CommandConfig(
+        help="Run all Python unit tests and all Mettagrid C++ tests",
+        handler="cmd_ci",
+        needs_config=True,  # Needs repo_root
     ),
     "tool": CommandConfig(
         help="Run a tool from the tools/ directory",
@@ -524,6 +537,57 @@ class MettaCLI:
             except subprocess.CalledProcessError as e:
                 sys.exit(e.returncode)
 
+    def cmd_ci(self, args, unknown_args=None) -> None:
+        """Run all Python and C++ tests for CI."""
+        from metta.setup.utils import error, info, success
+
+        # First run Python tests
+        info("Running Python tests...")
+        python_test_cmd = [
+            "uv",
+            "run",
+            "pytest",
+            "tests",
+            "mettascope/tests",
+            "agent/tests",
+            "app_backend/tests",
+            "common/tests",
+            "mettagrid/tests",
+            "--benchmark-disable",
+            "-n",
+            "auto",
+        ]
+
+        try:
+            subprocess.run(python_test_cmd, cwd=self.repo_root, check=True)
+            success("Python tests passed!")
+        except subprocess.CalledProcessError as e:
+            error("Python tests failed!")
+            sys.exit(e.returncode)
+
+        # Then run C++ tests
+        info("\nBuilding and running C++ tests...")
+        mettagrid_dir = self.repo_root / "mettagrid"
+
+        # Configure with cmake preset
+        try:
+            subprocess.run(["cmake", "--preset", "benchmark"], cwd=mettagrid_dir, check=True)
+
+            # Build
+            subprocess.run(["cmake", "--build", "build-release"], cwd=mettagrid_dir, check=True)
+
+            # Run tests
+            build_dir = mettagrid_dir / "build-release"
+            subprocess.run(["ctest", "-L", "benchmark", "--output-on-failure"], cwd=build_dir, check=True)
+
+            success("C++ tests passed!")
+
+        except subprocess.CalledProcessError as e:
+            error("C++ tests failed!")
+            sys.exit(e.returncode)
+
+        success("\nAll CI tests passed!")
+
     def cmd_tool(self, args, unknown_args=None) -> None:
         tool_path = self.repo_root / "tools" / f"{args.tool_name}.py"
         if not tool_path.exists():
@@ -725,8 +789,8 @@ Examples:
 
   metta run githooks pre-commit        # Run component-specific commands
 
-  metta test ...                       # Run python unit tests
-  metta test-changed ...               # Run python unit tests affected by changes
+  metta test ...                       # Run all python unit tests
+  metta ci ...                         # Run all python unit tests and mettagrid c++ tests
 
   metta tool train run=test            # Run train.py tool with arguments
   metta tool sim policy_uri=...        # Run sim.py tool with arguments
