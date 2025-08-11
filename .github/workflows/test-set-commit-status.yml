@@ -38,4 +38,4 @@ jobs:
           INPUT_PASS: ${{ inputs.pass }}
           GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: uv run .github/scripts/test-set-commit-status.py
+        run: uv run --with ./common --with httpx .github/scripts/test-set-commit-status.py
