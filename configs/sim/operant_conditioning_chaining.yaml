@@ -9,6 +9,14 @@ simulations:
     env: env/mettagrid/operant_conditioning/chaining/2_converters/br
   operant_conditioning_chaining/2_converters_rb:
     env: env/mettagrid/operant_conditioning/chaining/2_converters/rb
+  operant_conditioning_chaining/2_converters_rg:
+    env: env/mettagrid/operant_conditioning/chaining/2_converters/rg
+  operant_conditioning_chaining/2_converters_gb:
+    env: env/mettagrid/operant_conditioning/chaining/2_converters/gb
+  operant_conditioning_chaining/2_converters_bg:
+    env: env/mettagrid/operant_conditioning/chaining/2_converters/bg
+  operant_conditioning_chaining/2_converters_gr:
+    env: env/mettagrid/operant_conditioning/chaining/2_converters/gr
   operant_conditioning_chaining/3_converters_brg:
     env: env/mettagrid/operant_conditioning/chaining/3_converters/brg
   operant_conditioning_chaining/3_converters_rbg:
