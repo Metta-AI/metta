@@ -16,7 +16,7 @@ from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
 OBS_WIDTH = 3
-NUM_OBS_TOKENS = 100
+NUM_OBS_TOKENS = 30
 OBS_TOKEN_SIZE = 3
 
 
@@ -494,8 +494,8 @@ class TestBuffers:
 
         diff_mask = gym_obs != custom_obs
         if np.any(diff_mask):
-            print(f"Gym values: {gym_obs[:20]}")
-            print(f"Custom values: {custom_obs[:20]}")
+            print(f"Gym values: {gym_obs}")
+            print(f"Custom values: {custom_obs}")
 
         # Both modes should produce equivalent results
         np.testing.assert_array_equal(gym_obs, custom_obs, "Reset observations should match between modes")
