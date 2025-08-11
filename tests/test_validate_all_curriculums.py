@@ -1,10 +1,9 @@
-import sys
-
 import hydra
 import pytest
 
 from metta.common.util.mettagrid_cfgs import MettagridCfgFileMetadata
 from metta.common.util.resolvers import register_resolvers
+from metta.mettagrid.curriculum.core import Curriculum
 
 register_resolvers()
 
@@ -34,16 +33,6 @@ class TestValidateAllCurriculums:
     @pytest.mark.slow
     def test_curriculum(self, cfg_metadata: MettagridCfgFileMetadata):
         cfg = cfg_metadata.get_cfg().cfg
-
         with hydra.initialize(version_base=None, config_path="../configs"):
             curriculum = hydra.utils.instantiate(cfg, _recursive_=False)
-
-            # Get Curriculum from the instantiated object's module
-            _curriculum_module = sys.modules[type(curriculum).__module__]
-            # Navigate up to find the core module
-            parts = type(curriculum).__module__.split(".")
-            core_module_path = ".".join(parts[:-1]) + ".core"
-            core_module = sys.modules.get(core_module_path)
-
-            Curriculum = core_module.Curriculum
-            assert isinstance(curriculum, Curriculum)
+        assert isinstance(curriculum, Curriculum)
