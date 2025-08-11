@@ -494,9 +494,8 @@ class TestBuffers:
 
         diff_mask = gym_obs != custom_obs
         if np.any(diff_mask):
-            print(f"Differences found at indices: {np.where(diff_mask)}")
-            print(f"Gym values: {gym_obs[diff_mask][:10]}")  # First 10 differences
-            print(f"Custom values: {custom_obs[diff_mask][:10]}")
+            print(f"Gym values: {gym_obs[:20]}")
+            print(f"Custom values: {custom_obs[:20]}")
 
         # Both modes should produce equivalent results
         np.testing.assert_array_equal(gym_obs, custom_obs, "Reset observations should match between modes")
