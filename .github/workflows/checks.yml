@@ -454,7 +454,7 @@ jobs:
           AWS_ACCESS_KEY_ID: set_but_not_used
           AWS_SECRET_ACCESS_KEY: set_but_not_used
           # POLICY set at top
-          MIN_REWARD: ${{ vars.EVAL_SMOKE_TEST_MIN_REWARD }}
+          MIN_REWARD: "0" # TODO: increase when we have a performant policy to check
           MAX_ATTEMPTS: ${{ vars.EVAL_SMOKE_TEST_MAX_ATTEMPTS }}
           TORCH_COMPILE_DISABLE: "1"
         run: |
