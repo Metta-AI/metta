@@ -39,7 +39,7 @@ runs:
             ;;
 
           "testing")
-            uv sync --no-default-groups
+            uv sync
             uv pip install pytest pytest-cov pytest-xdist pytest-benchmark gcovr
             ;;
 
