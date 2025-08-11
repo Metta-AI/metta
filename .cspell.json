@@ -109,6 +109,7 @@
     "hasattr",
     "heavyball",
     "hookwrapper",
+    "httpx",
     "hyperparameters",
     "idxs",
     "initializedcheck",
