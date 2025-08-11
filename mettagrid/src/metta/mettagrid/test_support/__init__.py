@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from .environment_builder import EnvConfig, TestEnvironmentBuilder
+from .make_test_config import make_test_config
 
 
 # Constants from C++ code
@@ -29,4 +30,5 @@ __all__ = [
     "EnvConfig",
     "TestEnvironmentBuilder",
     "TokenTypes",
+    "make_test_config",
 ]
