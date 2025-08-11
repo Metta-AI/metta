@@ -240,8 +240,6 @@ jobs:
 
       - name: Run tests
         run: |
-          # help find metta.common.tests.pytest_shard
-          export PYTHONPATH="${PYTHONPATH:+$PYTHONPATH:}$GITHUB_WORKSPACE/common/src"
 
           # Base pytest arguments (without coverage file specification)
           PYTEST_BASE_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
@@ -265,7 +263,7 @@ jobs:
             export PYTEST_NUM_SHARDS=${{ matrix.num_shards }}
 
             # Use the sharding plugin from common package
-            PYTEST_BASE_ARGS="$PYTEST_BASE_ARGS -p no:cacheprovider -p metta.common.tests.pytest_shard"
+            PYTEST_BASE_ARGS="$PYTEST_BASE_ARGS -p no:cacheprovider -p metta.common.test_support.pytest_shard"
           fi
 
           if [ "${{ matrix.package }}" == "core" ]; then
