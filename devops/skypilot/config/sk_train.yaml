@@ -101,11 +101,10 @@ run: |
 
   # Load ENV
   if [ -f "$METTA_ENV_FILE" ]; then
-    # shellcheck disable=SC1090
     source "$METTA_ENV_FILE"
   else
     echo "Warning: $METTA_ENV_FILE does not exist. Creating empty file."
-    : > "$METTA_ENV_FILE"
+    touch "$METTA_ENV_FILE"
   fi
 
   # --- Status reporting setup ---
