@@ -1,7 +1,10 @@
 from dataclasses import dataclass
 
+# provide some constants from C++ code @ mettagrid/src/metta/mettagrid/objects/constants.hpp
 
-# Constants from C++ code
+# TODO - consider if there is a better way to keep this in sync, perhaps by connecting to the enums via pybind?
+
+
 @dataclass
 class TokenTypes:
     # Observation features
