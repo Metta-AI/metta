@@ -7,6 +7,7 @@ import tempfile
 import torch.profiler
 import wandb
 
+from metta.common.wandb.wandb_context import WandbRun
 from metta.mettagrid.util.file import http_url, is_public_uri, write_file
 from metta.rl.trainer_config import TorchProfilerConfig
 
@@ -31,7 +32,9 @@ class TorchProfiler:
     Future work could include support for TensorBoard.
     """
 
-    def __init__(self, master: bool, profiler_config: TorchProfilerConfig, wandb_run, run_dir: str):
+    def __init__(
+        self, master: bool, profiler_config: TorchProfilerConfig, wandb_run: WandbRun | None, run_dir: str
+    ) -> None:
         self._master = master
         self._profiler_config = profiler_config
         self._run_dir = run_dir
@@ -133,7 +136,12 @@ class TorchProfiler:
             upload_url = http_url(upload_path)
 
             if is_public_uri(upload_url) and self._wandb_run:
-                self._wandb_log_trace_link(upload_url)
+                link_summary = {
+                    "torch_traces/link": wandb.Html(
+                        f'<a href="{upload_url}">Torch Trace (Epoch {self._start_epoch})</a>'
+                    )
+                }
+                self._wandb_run.log(link_summary)
 
         except Exception as e:
             logger.error(f"Error handling profile trace for epoch {self._start_epoch}: {e}", exc_info=True)
@@ -156,10 +164,3 @@ class TorchProfiler:
             os.remove(input_path)
         except OSError as e:
             logger.warning(f"Could not remove temporary trace file {input_path}: {e}")
-
-    def _wandb_log_trace_link(self, upload_url) -> None:
-        """Logs the public url link to the profile trace in WandB."""
-        link_summary = {
-            "torch_traces/link": wandb.Html(f'<a href="{upload_url}">Torch Trace (Epoch {self._start_epoch})</a>')
-        }
-        self._wandb_run.log(link_summary)

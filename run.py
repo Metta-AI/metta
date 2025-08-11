@@ -405,10 +405,10 @@ experience = Experience(
 
 # Create kickstarter
 kickstarter = Kickstarter(
-    trainer_config.kickstart,
-    str(device),
-    policy_store,
-    metta_grid_env,  # Pass the full environment object, not individual attributes
+    cfg=trainer_config.kickstart,
+    device=device,
+    policy_store=policy_store,
+    metta_grid_env=metta_grid_env,
 )
 
 # Create losses tracker
@@ -446,9 +446,8 @@ last_evaluation_epoch = epoch - 1  # Track last epoch when evaluation was perfor
 
 # Create checkpoint manager
 checkpoint_manager = CheckpointManager(
-    checkpoint_dir=trainer_config.checkpoint.checkpoint_dir,
     policy_store=policy_store,
-    trainer_cfg=trainer_config,
+    checkpoint_config=trainer_config.checkpoint,
     device=device,
     is_master=is_master,
     rank=rank,
@@ -663,16 +662,17 @@ while agent_step < trainer_config.total_timesteps:
 
         # Compute weight stats if configured
         weight_stats = {}
-        if hasattr(trainer_config, "agent") and hasattr(trainer_config.agent, "analyze_weights_interval"):
-            if (
-                trainer_config.agent.analyze_weights_interval != 0
-                and epoch % trainer_config.agent.analyze_weights_interval == 0
-            ):
-                for metrics in agent.compute_weight_metrics():
-                    name = metrics.get("name", "unknown")
-                    for key, value in metrics.items():
-                        if key != "name":
-                            weight_stats[f"weights/{key}/{name}"] = value
+        # TODO: Re-enable weight stats when agent config is properly integrated
+        # if hasattr(trainer_config, "agent") and hasattr(trainer_config.agent, "analyze_weights_interval"):
+        #     if (
+        #         trainer_config.agent.analyze_weights_interval != 0
+        #         and epoch % trainer_config.agent.analyze_weights_interval == 0
+        #     ):
+        #         for metrics in agent.compute_weight_metrics():
+        #             name = metrics.get("name", "unknown")
+        #             for key, value in metrics.items():
+        #                 if key != "name":
+        #                     weight_stats[f"weights/{key}/{name}"] = value
 
         # Build complete stats dictionary
         all_stats = build_wandb_stats(
@@ -740,7 +740,7 @@ while agent_step < trainer_config.total_timesteps:
         stats_tracker.grad_stats = compute_gradient_stats(agent)
 
     # Save checkpoint periodically - all ranks must participate in checkpoint decision
-    if checkpoint_manager.should_checkpoint(epoch):
+    if should_run(epoch, trainer_config.checkpoint.checkpoint_interval, is_master):
         saved_record = checkpoint_manager.save_policy(
             policy=agent,
             epoch=epoch,
@@ -876,7 +876,7 @@ while agent_step < trainer_config.total_timesteps:
         last_evaluation_epoch = epoch
 
         # Upload replay HTML if we have replay URLs
-        if is_master and wandb_run and hasattr(results, "replay_urls") and results.replay_urls:
+        if is_master and wandb_run and results.replay_urls:
             upload_replay_html(
                 replay_urls=results.replay_urls,
                 agent_step=agent_step,

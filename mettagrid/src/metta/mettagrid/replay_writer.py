@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from metta.mettagrid.mettagrid_env import MettaGridEnv
+    from metta.mettagrid.core import MettaGridCore
 
 import json
 import zlib
@@ -20,7 +20,7 @@ class ReplayWriter:
         self.replay_dir = replay_dir
         self.episodes = {}
 
-    def start_episode(self, episode_id: str, env: MettaGridEnv):
+    def start_episode(self, episode_id: str, env: MettaGridCore):
         self.episodes[episode_id] = EpisodeReplay(env)
 
     def log_step(self, episode_id: str, actions: np.ndarray, rewards: np.ndarray):
@@ -39,7 +39,7 @@ class ReplayWriter:
 
 
 class EpisodeReplay:
-    def __init__(self, env: MettaGridEnv):
+    def __init__(self, env: MettaGridCore):
         self.env = env
         self.step = 0
         self.objects = []

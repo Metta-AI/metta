@@ -2,9 +2,8 @@
 
 import numpy as np
 
-from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_c import MettaGrid, dtype_actions
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from metta.mettagrid.mettagrid_env import dtype_actions
 from tests.test_utils import make_test_config
 
 

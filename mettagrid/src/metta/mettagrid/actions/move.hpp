@@ -40,9 +40,14 @@ protected:
 
     bool success = _grid->move_object(actor->id, target_location);
 
-    // Track movement direction on success (only if tracking enabled)
-    if (success && _track_movement_metrics) {
-      actor->stats.add(std::string("movement.direction.") + OrientationNames[static_cast<int>(move_direction)], 1);
+    if (success) {
+      // Increment visitation count for the new position
+      actor->increment_visitation_count(target_location.r, target_location.c);
+
+      // Track movement direction (only if tracking enabled)
+      if (_track_movement_metrics) {
+        actor->stats.add(std::string("movement.direction.") + OrientationNames[static_cast<int>(move_direction)], 1);
+      }
     }
 
     return success;

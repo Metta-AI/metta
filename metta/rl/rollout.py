@@ -1,13 +1,11 @@
 """Rollout phase functions for Metta training."""
 
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
+import numpy as np
 import torch
 from torch import Tensor
-
-if TYPE_CHECKING:
-    pass
 
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.rl.experience import Experience
@@ -22,7 +20,7 @@ def get_observation(
     vecenv: PufferlibVecEnv,
     device: torch.device,
     timer: Stopwatch,
-) -> Tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
+) -> tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
     """Get observations from vectorized environment and convert to tensors."""
     with timer("_rollout.env"):
         o, r, d, t, info, env_id, mask = vecenv.recv()
@@ -44,7 +42,7 @@ def get_observation(
 def send_observation(
     vecenv: PufferlibVecEnv,
     actions: Tensor,
-    dtype_actions: Any,
+    dtype_actions: np.dtype,
     timer: Stopwatch,
 ) -> None:
     """Send actions back to the vectorized environment."""
