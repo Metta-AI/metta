@@ -480,7 +480,12 @@ jobs:
           WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
           POLICY: wandb://run/m.av.replay.probe.751
         run: |
-          uv run .github/scripts/validate-wandb-run.py && echo "result=success" >> "$GITHUB_OUTPUT" || echo "result=skipped" >> "$GITHUB_OUTPUT"
+          if uv run .github/scripts/validate-wandb-run.py; then
+            echo "result=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "result=skipped" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Evals Smoke Test Skipped::The evals smoke test was skipped because the W&B policy '${{ env.POLICY }}' could not be found. This test requires a valid W&B run to be available. Please ensure the policy exists or update the POLICY environment variable."
+          fi
 
       - name: Run evals smoke test
         if: matrix.test_type == 'evals' && steps.check_evals_policy.outputs.result == 'success' && needs.setup-checks.outputs.is_external != 'true'
