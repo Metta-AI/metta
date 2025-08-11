@@ -12,7 +12,9 @@ license = "MIT"
 readme = "README.md"
 urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com/Metta-AI/metta" }
 
-dependencies = []
+dependencies = [
+  "pufferlib @ git+https://github.com/Metta-AI/PufferLib.git@dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183",
+]
 
 [dependency-groups]
 dev = [

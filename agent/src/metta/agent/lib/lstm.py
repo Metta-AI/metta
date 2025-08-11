@@ -57,7 +57,10 @@ class LSTM(LayerBase):
         self._net = self._make_net()
 
     def _make_net(self):
-        self._out_tensor_shape = [self.hidden_size]
+        # Get hidden_size from _nn_params
+        hidden_size = self._nn_params.get("hidden_size", self.hidden_size)
+        self._out_tensor_shape = [hidden_size]
+
         # Guard against setup order issues for static analyzers and runtime safety
         assert (
             getattr(self, "_in_tensor_shapes", None) is not None
@@ -88,7 +91,11 @@ class LSTM(LayerBase):
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
-        training_env_id_start = td.get("training_env_id_start", torch.tensor([0], dtype=torch.long))[0].item()
+        training_env_id_start = td.get("training_env_id_start", None)
+        if training_env_id_start is None:
+            training_env_id_start = 0
+        else:
+            training_env_id_start = training_env_id_start[0].item()
 
         if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
             h_0 = self.lstm_h[training_env_id_start]
