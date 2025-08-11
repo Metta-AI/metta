@@ -24,8 +24,8 @@ from metta.core.monitoring import (
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from cogworks.curriculum.core import SingleTaskCurriculum
+from cogworks.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.env_config import EnvConfig
@@ -117,7 +117,8 @@ def train(
         )
 
     # Calculate batch sizes
-    num_agents = curriculum.get_task().env_cfg().game.num_agents
+    # Use a fixed seed to get a representative task for determining num_agents
+    num_agents = curriculum.get_task(seed=42).env_cfg().game.num_agents
     target_batch_size, batch_size, num_envs = calculate_batch_sizes(
         trainer_cfg.forward_pass_minibatch_target_size,
         num_agents,

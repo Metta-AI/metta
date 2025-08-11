@@ -4,7 +4,7 @@ import numpy as np
 
 from metta.mettagrid.mettagrid_c import MettaGrid, dtype_actions
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from tests.test_utils import make_test_config
+from mettagrid.tests.test_utils import make_test_config
 
 
 def test_8way_movement_all_directions():

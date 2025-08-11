@@ -53,23 +53,20 @@ adjacent cardinal direction pointing towards the target square
 
 ### Evaluation
 ```bash
+# Note: play.py now uses config-based approach instead of run= parameter
+# TODO: Update these examples to use --config with appropriate YAML files
+
 # Tank (default - no overrides needed)
-./tools/play.py run=play_tank \
-  policy_uri=file://./train_dir/tank_test/checkpoints
+./tools/play.py --config configs/play/tank.yaml \
+  --policy-uri file://./train_dir/tank_test/checkpoints
 
 # Cardinal
-./tools/play.py run=play_cardinal \
-  policy_uri=file://./train_dir/cardinal_test/checkpoints \
-  +replay_job.sim.env_overrides.game.actions.move.enabled=false \
-  +replay_job.sim.env_overrides.game.actions.rotate.enabled=false \
-  +replay_job.sim.env_overrides.game.actions.move_cardinal.enabled=true
+./tools/play.py --config configs/play/cardinal.yaml \
+  --policy-uri file://./train_dir/cardinal_test/checkpoints
 
 # 8-Way
-./tools/play.py run=play_8way \
-  policy_uri=file://./train_dir/8way_test/checkpoints \
-  +replay_job.sim.env_overrides.game.actions.move.enabled=false \
-  +replay_job.sim.env_overrides.game.actions.rotate.enabled=false \
-  +replay_job.sim.env_overrides.game.actions.move_8way.enabled=true
+./tools/play.py --config configs/play/8way.yaml \
+  --policy-uri file://./train_dir/8way_test/checkpoints
 ```
 
 ## Performance Trade-offs

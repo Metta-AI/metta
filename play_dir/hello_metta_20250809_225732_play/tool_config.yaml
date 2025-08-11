@@ -1,0 +1,8 @@
+run: hello_metta_20250809_225732_play
+replay_job:
+  open_browser_on_start: true
+  policy_uri: null
+  env: null
+  device: cpu
+wandb:
+  enabled: false

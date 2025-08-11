@@ -1,6 +1,14 @@
+import sys
+from pathlib import Path
+
 import pytest
 
-from metta.common.test_support import docker_client_fixture
+# Ensure the current metta package takes precedence
+current_metta_path = Path(__file__).parent.resolve()
+if str(current_metta_path) not in sys.path:
+    sys.path.insert(0, str(current_metta_path))
+
+from metta.common.tests.fixtures import docker_client_fixture
 
 
 def pytest_configure(config):

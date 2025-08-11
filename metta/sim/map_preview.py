@@ -10,7 +10,8 @@ from wandb.sdk import wandb_run
 
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.curriculum.core import Curriculum
+from cogworks.curriculum.core import Curriculum
+from cogworks.curriculum.curriculum_env import CurriculumEnvWrapper
 from metta.mettagrid.util.file import write_file
 
 logger = logging.getLogger(__name__)
@@ -66,7 +67,11 @@ def upload_map_preview(
         wandb_run: Weights & Biases run object for logging
     """
 
-    env = MettaGridEnv(curriculum, render_mode=None)
+    # Get env_config from curriculum and create base environment
+    initial_task = curriculum.get_task(42)
+    env_config = initial_task.get_env_config()
+    base_env = MettaGridEnv(env_config, render_mode=None)
+    env = CurriculumEnvWrapper(base_env, curriculum)
 
     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
         # Create directory and save compressed file

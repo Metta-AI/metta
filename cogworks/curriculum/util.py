@@ -1,11 +1,22 @@
+"""Utility functions for curriculum management."""
+
 import hydra
 from omegaconf import DictConfig, OmegaConf
 
-from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum
-from metta.mettagrid.util.hydra import config_from_path
+from metta.common.util.config import config_from_path
+from .core import Curriculum, SingleTaskCurriculum
 
 
 def curriculum_from_config_path(config_path: str, env_overrides: DictConfig) -> Curriculum:
+    """Load curriculum from configuration file path.
+    
+    Args:
+        config_path: Path to curriculum configuration
+        env_overrides: Environment configuration overrides
+        
+    Returns:
+        Curriculum instance loaded from config
+    """
     if "_target_" in config_from_path(config_path, None):
         return hydra.utils.instantiate(
             # (a) Don't recurse here. We want one level of instantiation so we get the curriculum object, but

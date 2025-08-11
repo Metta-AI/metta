@@ -1,0 +1,12 @@
+# Default configuration for play.py
+# Interactive simulation for manual testing and exploration
+
+# Play configuration
+open_browser_on_start: true
+device: cpu
+policy_uri: null  # Can be overridden with --policy-uri
+env: null  # Environment config path
+
+# WandB configuration - disabled by default for play
+wandb:
+  mode: disabled
