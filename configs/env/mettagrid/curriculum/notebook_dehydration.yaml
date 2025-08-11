@@ -1,0 +1,25 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+buckets:
+  game.agent.resource_limits.heart:
+    bins: 4
+    range:
+    - 5
+    - 25
+  game.agent.rewards.inventory.heart:
+  - 0
+  - 0.5
+  - 1.0
+  - 2.0
+  game.agent.rewards.inventory.ore_red:
+  - 0
+  - 0.5
+  - 1.0
+  game.num_agents:
+    bins: 3
+    range:
+    - 2
+    - 16
+default_bins: 2
+env_cfg_template_path: /var/folders/dj/clqx2zj906gfqsmqnrvy6yv80000gn/T/tmptq2nimrw.yaml
+env_overrides:
+  game.episode_truncates: false

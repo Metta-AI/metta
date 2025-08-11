@@ -24,6 +24,7 @@ from metta.core.monitoring import (
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
+from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
@@ -107,7 +108,13 @@ def train(
     timer.start()
     losses = Losses()
     torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, run_dir)
-    curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
+    if trainer_cfg.curriculum:
+        curriculum = curriculum_from_config_path(trainer_cfg.curriculum, DictConfig(trainer_cfg.env_overrides))
+    else:
+        curriculum = SingleTaskCurriculum(
+            task_id="env_task",
+            task_cfg=env_cfg,
+        )
 
     # Calculate batch sizes
     num_agents = curriculum.get_task().env_cfg().game.num_agents
