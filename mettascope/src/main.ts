@@ -30,7 +30,6 @@ import { initializeTooltips } from './tooltips.js'
 import { drawTrace, invalidateTrace } from './traces.js'
 import { Vec2f } from './vector_math.js'
 import { drawMap, focusFullMap } from './worldmap.js'
-import { Heatmap } from './heatmap.js'
 
 // Expose state to window for testing purposes (e.g., Playwright tests)
 if (typeof window !== 'undefined') {
@@ -1085,6 +1084,13 @@ onEvent('click', '#action-buttons .close', () => {
   localStorage.setItem('showActionButtons', state.showActionButtons.toString())
   toggleOpacity(html.controlsToggle, state.showActionButtons)
   requestFrame()
+})
+
+onEvent('click', '#modal', () => {
+  // make error modal dismissable.
+  if (html.modal.classList.contains('error')) {
+    Common.closeModal()
+  }
 })
 
 initHighDpiMode()
