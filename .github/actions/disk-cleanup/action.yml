@@ -1,0 +1,51 @@
+name: "Disk Cleanup"
+description: "Quickly free up ~16GB by removing Android SDK and swap"
+
+outputs:
+  space-before:
+    description: "Free space before cleanup (GB)"
+    value: ${{ steps.cleanup.outputs.space-before }}
+  space-after:
+    description: "Free space after cleanup (GB)"
+    value: ${{ steps.cleanup.outputs.space-after }}
+  space-saved:
+    description: "Space saved (GB)"
+    value: ${{ steps.cleanup.outputs.space-saved }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Free disk space
+      id: cleanup
+      shell: bash
+      run: |
+        # Get initial free space
+        SPACE_BEFORE=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+        echo "Free space before: ${SPACE_BEFORE}GB"
+
+        # Remove Android SDK (~12GB) - Run in parallel
+        sudo rm -rf /usr/local/lib/android &
+        sudo rm -rf ${ANDROID_HOME} &
+        sudo rm -rf ${ANDROID_SDK_ROOT} &
+
+        # Remove swap (~4GB)
+        sudo swapoff /swapfile 2>/dev/null || true
+        sudo rm -f /swapfile &
+
+        # Wait for all background jobs
+        wait
+
+        # Quick APT cleanup
+        sudo apt-get clean
+
+        # Get final free space
+        SPACE_AFTER=$(df -BG / | awk 'NR==2 {print $4}' | sed 's/G//')
+        SPACE_SAVED=$((SPACE_AFTER - SPACE_BEFORE))
+
+        echo "Free space after: ${SPACE_AFTER}GB"
+        echo "Space saved: ${SPACE_SAVED}GB"
+
+        # Set outputs
+        echo "space-before=${SPACE_BEFORE}" >> $GITHUB_OUTPUT
+        echo "space-after=${SPACE_AFTER}" >> $GITHUB_OUTPUT
+        echo "space-saved=${SPACE_SAVED}" >> $GITHUB_OUTPUT
