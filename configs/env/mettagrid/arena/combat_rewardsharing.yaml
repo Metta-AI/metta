@@ -1,0 +1,24 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/basic@game.objects
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
+  - /env/mettagrid/game/objects/combat@game.objects
+  - override /env/mettagrid/game/groups@game.groups: teams
+  - _self_
+
+game:
+  num_agents: 4 # 2 on team_1, 2 on team_2
+  max_steps: 500 # Longer for combat scenarios
+
+  # Configure team reward sharing
+  groups:
+    team_1:
+      group_reward_pct: 1.0 # 100% reward sharing within team 1
+    team_2:
+      group_reward_pct: 1.0 # 100% reward sharing within team 2
+
+  map_builder:
+    _target_: metta.map.mapgen_ascii.MapGenAscii
+    border_width: 1
+    uri: "configs/env/mettagrid/maps/simple/combat_rewardharing_map"
