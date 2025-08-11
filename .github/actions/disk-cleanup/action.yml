@@ -1,25 +1,25 @@
-name: "Fast Disk Cleanup"
-description: "Quickly free up ~16GB by removing Android SDK and swap"
+name: "Disk Cleanup"
+description: "Free up ~8GB by removing Android SDK"
 author: "Your Organization"
-
 runs:
   using: "composite"
   steps:
     - name: Free disk space
       shell: bash
       run: |
-        echo "Starting cleanup of Android SDK and swap..."
+        echo "Starting cleanup of Android SDK..."
 
         # Just check if directories exist (fast)
         WILL_CLEAN=""
         [[ -d "/usr/local/lib/android" ]] && WILL_CLEAN="Android SDK"
-        [[ -f "/swapfile" ]] && WILL_CLEAN="${WILL_CLEAN:+$WILL_CLEAN, }swap"
 
         # Start deletions in background
-        (
-          sudo rm -rf /usr/local/lib/android ${ANDROID_HOME} ${ANDROID_SDK_ROOT} 2>/dev/null &
-          sudo swapoff /swapfile 2>/dev/null && sudo rm -f /swapfile 2>/dev/null &
-        ) &
-
-        echo "✓ Cleaning in background: ${WILL_CLEAN:-nothing to clean}"
-        echo "  ~16GB will be freed up as your job continues"
+        if [[ -n "$WILL_CLEAN" ]]; then
+          (
+            sudo rm -rf /usr/local/lib/android ${ANDROID_HOME} ${ANDROID_SDK_ROOT} 2>/dev/null
+          ) &
+          echo "✓ Cleaning in background: $WILL_CLEAN"
+          echo "  ~8GB will be freed up as your job continues"
+        else
+          echo "✓ No Android SDK found to clean"
+        fi
