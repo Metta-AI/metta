@@ -28,6 +28,9 @@ jobs:
         with:
           install-mode: "testing"
 
+      - name: Install metta-common
+        run: uv pip install ./common
+
       - name: Run status test script
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
