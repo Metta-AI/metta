@@ -112,7 +112,7 @@ def main() -> int:
 
         emoji = "✅" if state == "success" else "❌"
         comment_body = (
-            f"{emoji} **Manual Status Test**\n\n..."
+            f"{emoji} **Manual Status Test**\n\n"
             f"- State: `{state}`\n"
             f"- Context: `{context}`\n"
             f"- Commit: `{sha}`\n"
