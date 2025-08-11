@@ -1,17 +1,20 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from metta.mettagrid.core import MettaGridCore
-
 import json
+import logging
 import zlib
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from metta.mettagrid.grid_object_formatter import format_grid_object
 from metta.mettagrid.util.file import http_url, write_data
+
+if TYPE_CHECKING:
+    from metta.mettagrid.core import MettaGridCore
+
+
+logger = logging.getLogger("ReplayWriter")
 
 
 class ReplayWriter:
@@ -115,9 +118,18 @@ class EpisodeReplay:
 
     @staticmethod
     def _validate_non_empty_string_list(values: list[str], field_name: str) -> None:
-        """Ensure the provided iterable is a list of non-empty strings."""
+        """Ensure the provided iterable is a list of strings, warn on empty strings with index."""
         if not isinstance(values, list):
             raise ValueError(f"{field_name} must be a list of strings, got {type(values)}")
         for index, value in enumerate(values):
-            if not isinstance(value, str) or value == "":
-                raise ValueError(f"{field_name}[{index}] must be a non-empty string, got {repr(value)}")
+            if not isinstance(value, str):
+                raise ValueError(f"{field_name}[{index}] must be a string, got {type(value)}: {repr(value)}")
+            if value == "":
+                logger.warning(
+                    (
+                        "%s contains an empty string at index %d; "
+                        "frontend tolerates empty names but backend discourages them"
+                    ),
+                    field_name,
+                    index,
+                )
