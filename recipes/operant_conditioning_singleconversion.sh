@@ -6,7 +6,7 @@
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/2_converters \
   trainer.bptt_horizon=128 \
   trainer.batch_size=1032192 \
-  sim=operant_conditioning_singleepisode \
+  sim=operant_conditioning_singleconversion \
   "$@"
 
 #3 converters
