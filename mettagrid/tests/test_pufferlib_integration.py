@@ -27,7 +27,7 @@ def test_puffer_cli_compatibility():
             "clone",
             "--depth",
             "1",
-            "https://github.com/Metta-AI/PufferLib.git",
+            "https://github.com/PufferAI/PufferLib.git",
             str(pufferlib_dir),
         ]
         result = subprocess.run(clone_cmd, capture_output=True, text=True, timeout=60)
