@@ -30,6 +30,7 @@ from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedC
 from metta.mettagrid.curriculum.random import RandomCurriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.mettagrid.room.random import Random
 
 
 @pytest.fixture(autouse=True)
@@ -245,7 +246,7 @@ def test_bucketed_curriculum_from_yaml_with_map_builder():
     # Verify the task config structure is correct
     task_cfg = task.env_cfg()
     assert hasattr(task_cfg.game, "map_builder")
-    assert isinstance(task_cfg.game.map_builder, metta.mettagrid.room.random.Random)
+    assert isinstance(task_cfg.game.map_builder, Random)
     assert task_cfg.game.num_agents == 5, f"num_agents should have been overridden to 5, got {task_cfg.game.num_agents}"
     assert task_cfg.game.map_builder._width in [20, 40, 60]
     assert task_cfg.game.map_builder._height in [20, 40, 60]

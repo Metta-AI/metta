@@ -9,7 +9,6 @@ help:
 	@echo "  reinstall    Re-install package and dependencies"
 	@echo "  test       Run tests with coverage"
 	@echo "  pytest     Run tests quickly (no coverage, parallel)"
-	@echo "  bench      Run benchmark tests"
 	@echo "  clean      Remove build artifacts"
 	@echo "  dev        Set up development environment"
 	@echo "  all        Run dev and test"
@@ -20,21 +19,17 @@ reinstall:
 install:
 	uv sync
 
-# Run tests with coverage
+# Run tests with coverage and benchmarks
 test: install
 	uv run pytest \
 		--cov=metta \
 		--cov-report=term-missing \
 		--durations=10 \
-		-n auto
+		-n 0
 
 # Quick test run without coverage
 pytest: install
 	uv run pytest --benchmark-disable -n auto
-
-# Run benchmarks (serial execution required)
-bench: install
-	uv run pytest -n 0 -k benchmark
 
 # Clean build artifacts
 clean:
