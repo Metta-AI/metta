@@ -119,7 +119,10 @@ python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
 filterwarnings = ["ignore::DeprecationWarning:wandb.analytics.sentry"]
-markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
+markers = [
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
+]
 console_output_style = "progress"
 addopts = "-n auto"
 import_mode = "importlib"
