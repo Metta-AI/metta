@@ -91,9 +91,142 @@ def get_gpu_diagnostics() -> dict[str, Any]:
     return diagnostics
 
 
+def get_system_diagnostics() -> dict[str, Any]:
+    """Collect comprehensive system diagnostics."""
+    diagnostics = {}
+
+    # Cluster configuration
+    diagnostics["cluster"] = {
+        "NUM_GPUS": os.environ.get("NUM_GPUS", "1"),
+        "NUM_NODES": os.environ.get("NUM_NODES", "1"),
+        "MASTER_ADDR": os.environ.get("MASTER_ADDR", "localhost"),
+        "NODE_INDEX": os.environ.get("NODE_INDEX", "0"),
+        "MASTER_PORT": os.environ.get("MASTER_PORT", "29500"),
+    }
+
+    # System limits and mounts
+    diagnostics["system"] = {}
+
+    # ulimit -l
+    code, stdout, stderr = run_command(["bash", "-c", "ulimit -l"])
+    diagnostics["system"]["ULIMIT"] = stdout.strip() if code == 0 else "Error getting ulimit"
+
+    # /dev/shm mount
+    code, stdout, stderr = run_command(["mount"])
+    if code == 0:
+        shm_mount = [line for line in stdout.split("\n") if "/dev/shm" in line]
+        diagnostics["system"]["SHM_MOUNT"] = shm_mount[0] if shm_mount else "No /dev/shm mount found"
+
+    # Route to master
+    master_addr = diagnostics["cluster"]["MASTER_ADDR"]
+    code, stdout, stderr = run_command(["ip", "-o", "route", "get", master_addr])
+    diagnostics["system"]["ROUTE_TO_MASTER"] = stdout.strip() if code == 0 else f"No route to {master_addr}"
+
+    # Network interface
+    iface = os.environ.get("NCCL_SOCKET_IFNAME", "enp39s0")
+    code, stdout, stderr = run_command(["ip", "-o", "addr", "show", iface])
+    diagnostics["system"]["NETWORK_INTERFACE"] = stdout.strip() if code == 0 else f"Interface {iface} not found"
+
+    # IPC namespace
+    try:
+        ipc_ns = os.readlink("/proc/1/ns/ipc")
+        diagnostics["system"]["IPC"] = ipc_ns
+    except Exception:
+        diagnostics["system"]["IPC"] = "Could not read IPC namespace"
+
+    # SHM disk usage
+    code, stdout, stderr = run_command(["df", "-h", "/dev/shm"])
+    if code == 0:
+        lines = stdout.strip().split("\n")
+        diagnostics["system"]["SHM_DF"] = lines[-1] if len(lines) > 1 else "No SHM info"
+
+    # Docker userns
+    code, stdout, stderr = run_command(["docker", "info"])
+    if code == 0:
+        userns_lines = [line for line in stdout.split("\n") if "userns" in line.lower()]
+        diagnostics["system"]["USERNS"] = userns_lines[0].strip() if userns_lines else "No userns info"
+
+    # umask
+    code, stdout, stderr = run_command(["bash", "-c", "umask"])
+    diagnostics["system"]["UMASK"] = stdout.strip() if code == 0 else "Error getting umask"
+
+    # SHM detailed info
+    diagnostics["shm"] = {}
+
+    code, stdout, stderr = run_command(["ls", "-ld", "/dev/shm"])
+    diagnostics["shm"]["permissions"] = stdout.strip() if code == 0 else "Error"
+
+    code, stdout, stderr = run_command(["ipcs", "-m"])
+    if code == 0:
+        lines = stdout.strip().split("\n")[:20]
+        diagnostics["shm"]["ipcs"] = "\n".join(lines)
+
+    # NCCL environment
+    diagnostics["nccl_env"] = {
+        k: v
+        for k, v in os.environ.items()
+        if any(pattern in k for pattern in ["NCCL_", "MASTER_", "RANK", "LOCAL_RANK", "WORLD_SIZE"])
+    }
+
+    return diagnostics
+
+
+def print_system_diagnostics(diagnostics: dict[str, Any]) -> None:
+    """Print system diagnostics in a clean format."""
+    # Cluster configuration
+    print("== Cluster configuration ==")
+    for k, v in diagnostics["cluster"].items():
+        print(f"  {k}={v}")
+
+    # System diagnostics
+    print("\n== System diagnostics ==")
+    for k, v in diagnostics["system"].items():
+        print(f"  {k}={v}")
+
+    # SHM info
+    print("\n== SHM info ==")
+    print(f"  Mount: {diagnostics['system'].get('SHM_MOUNT', 'N/A')}")
+    print(f"  Usage: {diagnostics['system'].get('SHM_DF', 'N/A')}")
+    print(f"  Permissions: {diagnostics['shm'].get('permissions', 'N/A')}")
+    if diagnostics["shm"].get("ipcs"):
+        print("  IPC Shared Memory:")
+        for line in diagnostics["shm"]["ipcs"].split("\n")[:5]:
+            print(f"    {line}")
+
+    # NCCL environment
+    print("\n== NCCL env ==")
+    for k, v in sorted(diagnostics["nccl_env"].items()):
+        print(f"  {k}={v}")
+
+    # NCCL summary
+    nccl_socket_ifname = os.environ.get("NCCL_SOCKET_IFNAME", "enp39s0")
+    nccl_socket_family = os.environ.get("NCCL_SOCKET_FAMILY", "AF_INET")
+    nccl_port_range = os.environ.get("NCCL_PORT_RANGE", "43000-43063")
+    nccl_debug = os.environ.get("NCCL_DEBUG", "VERSION")
+    nccl_debug_subsys = os.environ.get("NCCL_DEBUG_SUBSYS", "")
+    nccl_p2p_disable = int(os.environ.get("NCCL_P2P_DISABLE", "0"))
+    nccl_shm_disable = int(os.environ.get("NCCL_SHM_DISABLE", "0"))
+    nccl_ib_disable = int(os.environ.get("NCCL_IB_DISABLE", "1"))
+    nccl_min_nchannels = os.environ.get("NCCL_MIN_NCHANNELS", "4")
+    nccl_max_nchannels = os.environ.get("NCCL_MAX_NCHANNELS", "8")
+
+    master_addr = diagnostics["cluster"]["MASTER_ADDR"]
+    master_port = diagnostics["cluster"]["MASTER_PORT"]
+
+    print(
+        f"\nRendezvous: {master_addr}:{master_port} | IFACE={nccl_socket_ifname} AF={nccl_socket_family} PORT_RANGE={nccl_port_range}"
+    )
+    debug_str = nccl_debug
+    if nccl_debug_subsys:
+        debug_str += f"/{nccl_debug_subsys}"
+    print(
+        f"NCCL: DEBUG={debug_str} P2P={(1 - nccl_p2p_disable)} SHM={(1 - nccl_shm_disable)} IB={(1 - nccl_ib_disable)} CH={nccl_min_nchannels}-{nccl_max_nchannels}"
+    )
+
+
 def print_diagnostics(diagnostics: dict[str, Any]) -> None:
     """Pretty print diagnostics information."""
-    print("=== GPU Diagnostics ===")
+    print("\n=== GPU Diagnostics ===")
 
     if diagnostics["nvidia_smi"]:
         print(diagnostics["nvidia_smi"])
@@ -237,7 +370,7 @@ def test_nccl_communication() -> bool:
         logger.error(f"NCCL test failed: {e}", exc_info=True)
         return False
     finally:
-        # Ensure we don’t leak communicators on failures too
+        # Ensure we don't leak communicators on failures too
         try:
             if dist.is_available() and dist.is_initialized():
                 dist.destroy_process_group()
@@ -277,14 +410,80 @@ def test_single_gpu() -> bool:
         return False
 
 
+def is_distributed_environment() -> bool:
+    """Check if we're in a distributed environment."""
+    # Check for torchrun environment variables
+    if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
+        return True
+
+    # Check for custom environment variables that might indicate multi-node/GPU setup
+    num_nodes = int(os.environ.get("NUM_NODES", "1"))
+    num_gpus = int(os.environ.get("NUM_GPUS", "1"))
+
+    return num_nodes > 1 or num_gpus > 1
+
+
+def launch_distributed_test() -> int:
+    """Launch distributed test using torchrun."""
+    num_gpus = int(os.environ.get("NUM_GPUS", "1"))
+    num_nodes = int(os.environ.get("NUM_NODES", "1"))
+    node_index = int(os.environ.get("NODE_INDEX", "0"))
+    master_addr = os.environ.get("MASTER_ADDR", "localhost")
+    master_port = os.environ.get("MASTER_PORT", "29500")
+
+    logger.info(f"Launching distributed test with {num_gpus} GPUs on {num_nodes} nodes")
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "torch.distributed.run",
+        f"--nproc_per_node={num_gpus}",
+        f"--nnodes={num_nodes}",
+        f"--node_rank={node_index}",
+        f"--master_addr={master_addr}",
+        f"--master_port={master_port}",
+        __file__,
+        "--distributed-worker",
+    ]
+
+    logger.info(f"Running command: {' '.join(cmd)}")
+
+    try:
+        result = subprocess.run(cmd, check=True)
+        return result.returncode
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Distributed test failed with return code {e.returncode}")
+        return e.returncode
+
+
 def main():
     """Main function to run all diagnostics and tests."""
-    # Collect diagnostics
-    logger.info("Collecting GPU diagnostics...")
-    diagnostics = get_gpu_diagnostics()
+    # Check if we're a distributed worker
+    if "--distributed-worker" in sys.argv:
+        # We're inside a torchrun worker, run the actual tests
+        logger.info("Running as distributed worker")
+    else:
+        # We're the main process, check if we need to launch distributed
+        if is_distributed_environment() and "RANK" not in os.environ:
+            logger.info("Detected distributed environment, launching with torchrun...")
+            return launch_distributed_test()
 
-    # Print diagnostics
-    print_diagnostics(diagnostics)
+    # If we get here, we're either:
+    # 1. A distributed worker (inside torchrun)
+    # 2. Running in single GPU mode
+    # 3. Already have RANK set (manual distributed launch)
+
+    # Collect system diagnostics first
+    logger.info("Collecting system diagnostics...")
+    system_diagnostics = get_system_diagnostics()
+    print_system_diagnostics(system_diagnostics)
+
+    # Collect GPU diagnostics
+    logger.info("Collecting GPU diagnostics...")
+    gpu_diagnostics = get_gpu_diagnostics()
+
+    # Print GPU diagnostics
+    print_diagnostics(gpu_diagnostics)
 
     # Setup debug environment
     setup_nccl_debug_env()
@@ -293,7 +492,7 @@ def main():
     all_passed = True
 
     # Single GPU test
-    if diagnostics["pytorch_cuda_available"]:
+    if gpu_diagnostics["pytorch_cuda_available"]:
         if not test_single_gpu():
             all_passed = False
             logger.error("Single GPU test failed")
