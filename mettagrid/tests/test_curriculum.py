@@ -10,18 +10,18 @@ Learning Progress Tests:
 
 Prioritize Regressed Curriculum Tests:
 6. All tasks have linear scaling -> should maintain equal distribution
-7. One impossible task (always 0) -> should get minimum weight as max_score = 0 ==> LP = epislon
+7. One impossible task (always 0) -> should get minimum weight as max_score = 0 ==> LP = epsilon
 """
 
 import random
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Set
+from pathlib import Path
+from typing import Any, Set
 
 import numpy as np
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
-from metta.map.mapgen import MapGen
 from metta.mettagrid.curriculum.bucketed import BucketedCurriculum, _expand_buckets
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum
 from metta.mettagrid.curriculum.learning_progress import LearningProgressCurriculum
@@ -30,6 +30,7 @@ from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedC
 from metta.mettagrid.curriculum.random import RandomCurriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
+from metta.mettagrid.room.random import Random
 
 
 @pytest.fixture(autouse=True)
@@ -122,9 +123,12 @@ def test_bucketed_curriculum(monkeypatch, env_cfg):
 
 def test_bucketed_curriculum_from_yaml_with_map_builder():
     """Test BucketedCurriculum loading from YAML file with buckets that impact map builder."""
-    from pathlib import Path
 
     import hydra
+    from hydra.core.global_hydra import GlobalHydra
+
+    if GlobalHydra.instance().is_initialized():
+        GlobalHydra.instance().clear()
 
     # Get the path to the test YAML config file
     test_dir = Path(__file__).parent
@@ -147,16 +151,16 @@ def test_bucketed_curriculum_from_yaml_with_map_builder():
     task_id = task.id()
     assert "width=" in task_id, f"Task ID should contain width parameter: {task_id}"
     assert "height=" in task_id, f"Task ID should contain height parameter: {task_id}"
-    assert "room_size=" in task_id, f"Task ID should contain room_size parameter: {task_id}"
+    assert "altar=" in task_id, f"Task ID should contain altar parameter: {task_id}"
 
     # Verify the task config structure is correct
     task_cfg = task.env_cfg()
     assert hasattr(task_cfg.game, "map_builder")
-    assert isinstance(task_cfg.game.map_builder, MapGen)
+    assert isinstance(task_cfg.game.map_builder, Random)
     assert task_cfg.game.num_agents == 5, f"num_agents should have been overridden to 5, got {task_cfg.game.num_agents}"
-    assert task_cfg.game.map_builder.params.width in [20, 40, 60]
-    assert task_cfg.game.map_builder.params.height in [20, 40, 60]
-    assert task_cfg.game.map_builder.root["params"]["room_size"] in [1, 3, 5]
+    assert task_cfg.game.map_builder._width in [20, 40, 60]
+    assert task_cfg.game.map_builder._height in [20, 40, 60]
+    assert task_cfg.game.map_builder._objects.altar in [1, 3, 5]
 
 
 def test_expand_buckets_values_and_range():
@@ -308,7 +312,7 @@ class RandomScores(ScoreGenerator):
     Useful for testing curriculum behavior under noisy conditions.
     """
 
-    def __init__(self, seed: int = None, min_val: float = 0.0, max_val: float = 1.0):
+    def __init__(self, seed: int | None = None, min_val: float = 0.0, max_val: float = 1.0):
         self.rng = random.Random(seed)
         self.min_val = min_val
         self.max_val = max_val
@@ -392,7 +396,7 @@ class ThresholdDependentScores(ScoreGenerator):
 
 def run_curriculum_simulation(
     curriculum: Curriculum, score_generator: ScoreGenerator, num_steps: int
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run a curriculum test with controlled scores and collect detailed statistics.
 
     Args:
@@ -401,7 +405,7 @@ def run_curriculum_simulation(
         num_steps: Number of steps to simulate
 
     Returns:
-        Dictionary with detailed simulation results
+        dictionary with detailed simulation results
     """
     task_counts = {}
     weight_history = []
@@ -463,7 +467,7 @@ def run_curriculum_simulation(
     }
 
 
-def create_mock_curricula(task_names: List[str]) -> Dict[str, float]:
+def create_mock_curricula(task_names: list[str]) -> dict[str, float]:
     """Create task weights dictionary for testing.
 
     For LearningProgressCurriculum,

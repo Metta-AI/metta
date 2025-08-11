@@ -4,37 +4,12 @@ import tempfile
 from pathlib import Path
 
 import torch
-import torch.nn as nn
 from tensordict import TensorDict
 
 from metta.agent.lib.obs_tokenizers import ObsTokenPadStrip
-from metta.agent.metta_agent import MettaAgent
+from metta.agent.mocks import MockAgent
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
-
-
-# Module-level MockAgent class to avoid repetition
-class MockAgent(MettaAgent):
-    """Mock agent for testing feature remapping without full setup."""
-
-    def __init__(self):
-        # Initialize nn.Module to get the training attribute
-        nn.Module.__init__(self)
-
-        # Set up necessary attributes without full MettaAgent.__init__
-        self.device = "cpu"
-        self.components = nn.ModuleDict()
-        self._mock_is_training = True
-
-    def _is_training_context(self):
-        """Mock the training context detection for testing."""
-        return self._mock_is_training
-
-    def activate_actions(self, action_names, action_max_params, device):
-        """Mock version that doesn't require action embeddings."""
-        self.action_names = action_names
-        self.action_max_params = action_max_params
-        self.device = device
 
 
 class MockObsComponent(torch.nn.Module):
@@ -126,7 +101,7 @@ def test_feature_remapping_in_agent():
     }
 
     # Set training mode for first initialization
-    agent._mock_is_training = True
+    agent.train()
     agent._initialize_observations(original_features, "cpu")
 
     # Verify original mapping stored
@@ -171,7 +146,7 @@ def test_unknown_feature_handling():
     }
 
     # Set training mode for first initialization
-    agent._mock_is_training = True
+    agent.train()
     agent._initialize_observations(original_features, "cpu")
 
     # Add mock observation component
@@ -186,6 +161,7 @@ def test_unknown_feature_handling():
     }
 
     # Initialize in evaluation mode
+    agent.eval()
     agent._initialize_observations(new_features_with_unknown, "cpu")
 
     # Verify all remappings in a clear block
@@ -217,6 +193,7 @@ def test_feature_mapping_persistence_via_metadata():
     }
 
     # Initialize the agent
+    agent.train()
     agent._initialize_observations(original_features, "cpu")
 
     # Get the original feature mapping
@@ -247,6 +224,7 @@ def test_feature_mapping_persistence_via_metadata():
     new_agent.components["_obs_"] = mock_obs
 
     # Initialize in training mode - new features should be learned
+    new_agent.train()
     new_agent._initialize_observations(new_features, "cpu")
 
     # Verify all remappings in a clear block
@@ -267,6 +245,7 @@ def test_feature_mapping_persistence_via_metadata():
     eval_agent.components["_obs_"] = MockObsComponent()
 
     # Initialize in eval mode - new features should map to 255
+    eval_agent.eval()
     eval_agent._initialize_observations(new_features, "cpu")
 
     # Check the observation component's remap table
@@ -313,8 +292,9 @@ def test_end_to_end_initialize_to_environment_workflow():
             }
         )
 
-        # Create a mock policy (we use MockAgent for simplicity)
+        # Create a mock policy
         policy = MockAgent()
+        policy.train()  # Start in training mode
 
         # Initialize the policy to the original environment
         features = original_env.get_observation_features()
@@ -394,7 +374,7 @@ def test_end_to_end_initialize_to_environment_workflow():
         assert loaded_policy.feature_id_remap[60] == 255  # mana -> UNKNOWN
 
         # Verify the observation component received the remapping
-        assert mock_obs.remap_table
+        assert mock_obs.remap_table is not None  # Fixed: was checking tensor as boolean
         assert mock_obs.remap_table[10] == 1
         assert mock_obs.remap_table[20] == 2
         assert mock_obs.remap_table[30] == 3
