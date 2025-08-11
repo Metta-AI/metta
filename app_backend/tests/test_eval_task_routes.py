@@ -71,12 +71,30 @@ class TestEvalTaskRoutes:
 
         response = await eval_task_client.create_task(request)
 
+        # Basic assertions
         assert response.policy_id == test_policy_id
         assert response.sim_suite == "navigation"
         assert response.status == "unprocessed"
         assert response.assigned_at is None
         assert response.assignee is None
+
+        # Debug attributes content
+        print(f"Response attributes: {response.attributes}")
+        print(f"Available attribute keys: {list(response.attributes.keys())}")
+
+        # Check git_hash
+        assert "git_hash" in response.attributes, f"git_hash not found in attributes: {response.attributes}"
         assert response.attributes["git_hash"] == "abc123def456"
+
+        # Check env_overrides - more robust check
+        if "env_overrides" not in response.attributes:
+            # Log what we actually have
+            pytest.fail(
+                f"env_overrides not found in attributes. "
+                f"Available keys: {list(response.attributes.keys())}. "
+                f"Full attributes: {response.attributes}"
+            )
+
         assert response.attributes["env_overrides"] == {"key": "value"}
 
     @pytest.mark.asyncio
