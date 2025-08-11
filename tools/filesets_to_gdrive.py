@@ -50,7 +50,13 @@ def main():
             continue
 
         # Generate context and upload
-        context, _ = get_context(paths=files, raw=False)
+        context, token_info = get_context(paths=files, raw=False)
+
+        # Print token information to stderr
+        total_tokens = token_info.get('total_tokens', 0)
+        total_files = token_info.get('total_files', 0)
+        print(f"Processing {name}: {total_files} files, {total_tokens:,} tokens", file=sys.stderr)
+
         gdrive_path = f"gdrive://folder/{args.folder}/{name}.txt"
         write_data(gdrive_path, context, content_type="text/plain")
         print(f"Uploaded {name}: {len(files)} files")
