@@ -1,45 +1,58 @@
 #!/usr/bin/env -S uv run
 
+"""Training script for Metta AI using typer and Pydantic configs."""
+
 import logging
 import multiprocessing
-import os
 import platform
-from logging import Logger
+from contextlib import nullcontext
+from pathlib import Path
+from typing import Optional
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+import typer
+from pydantic import Field
 from torch.distributed.elastic.multiprocessing.errors import record
 
-from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.util.config import Config
-from metta.common.util.git import get_git_hash_for_remote_task
 from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.resolvers import oc_date_format
 from metta.common.util.stats_client_cfg import get_stats_client
+from metta.common.util.typed_config import ConfigWithBuilder
+from metta.common.wandb.wandb_config import WandbConfig
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.core.distributed import setup_device_and_distributed
 from metta.rl.env_config import create_env_config
 from metta.rl.trainer import train
-from metta.rl.trainer_config import create_trainer_config
+from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.util.metta_script import metta_script
-from tools.sweep_config_utils import (
-    load_train_job_config_with_overrides,
-    validate_train_job_config,
-)
 from tools.utils import get_policy_store_from_cfg
 
 logger = logging.getLogger(__name__)
+app = typer.Typer()
 
 
-# TODO: populate this more
-class TrainJob(Config):
-    __init__ = Config.__init__
-    evals: SimulationSuiteConfig
-    map_preview_uri: str | None = None
+class TrainConfig(ConfigWithBuilder):
+    """Configuration for the training script."""
+
+    # Run configuration
+    run: str = Field(description="Run name/identifier")
+
+    # Training configuration - using TrainerConfig as a nested field
+    trainer: TrainerConfig = Field(default_factory=TrainerConfig)
+
+    # Evaluation configuration
+    evals: SimulationSuiteConfig | None = Field(default=None, description="Evaluation suite config")
+
+    # Other configurations
+    wandb: WandbConfig = Field(default_factory=WandbConfig, description="WandB configuration")
+    device: str = Field(default="cuda", description="Device to use (cuda/cpu)")
+    bypass_mac_overrides: bool = Field(default=False, description="Bypass Mac device overrides")
+
+    # Paths
+    map_preview_uri: str | None = Field(default=None, description="Map preview URI")
 
 
 def _calculate_default_num_workers(is_serial: bool) -> int:
+    """Calculate default number of workers based on hardware."""
     if is_serial:
         return 1
 
@@ -48,154 +61,151 @@ def _calculate_default_num_workers(is_serial: bool) -> int:
     if torch.cuda.is_available() and torch.distributed.is_initialized():
         num_gpus = torch.cuda.device_count()
     else:
-        num_gpus = 1
+        num_gpus = 1 if torch.cuda.is_available() else 0
 
-    ideal_workers = (cpu_count // 2) // num_gpus
-
-    # Round down to nearest power of 2
-    num_workers = 1
-    while num_workers * 2 <= ideal_workers:
-        num_workers *= 2
-
-    return max(1, num_workers)
-
-
-def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
-    cfg = load_train_job_config_with_overrides(cfg)
-
-    # Create env config early to use it throughout
-    env_cfg = create_env_config(cfg)
-
-    # Validation must be done after merging
-    # otherwise trainer's default num_workers: null will be override the values
-    # set by _calculate_default_num_workers, and the validation will fail
-    if not cfg.trainer.num_workers:
-        cfg.trainer.num_workers = _calculate_default_num_workers(env_cfg.vectorization == "serial")
-
-    stats_client: StatsClient | None = get_stats_client(cfg, logger)
-    if stats_client is not None:
-        stats_client.validate_authenticated()
-
-    # Determine git hash for remote simulations
-    if cfg.trainer.simulation.evaluate_remote:
-        if not stats_client:
-            cfg.trainer.simulation.evaluate_remote = False
-            logger.info("Not connected to stats server, disabling remote evaluations")
-        elif not cfg.trainer.simulation.evaluate_interval:
-            cfg.trainer.simulation.evaluate_remote = False
-            logger.info("Evaluate interval set to 0, disabling remote evaluations")
-        elif not cfg.trainer.simulation.git_hash:
-            cfg.trainer.simulation.git_hash = get_git_hash_for_remote_task(
-                skip_git_check=cfg.trainer.simulation.skip_git_check,
-                skip_cmd="trainer.simulation.skip_git_check=true",
-                logger=logger,
-            )
-            if cfg.trainer.simulation.git_hash:
-                logger.info(f"Git hash for remote evaluations: {cfg.trainer.simulation.git_hash}")
-            else:
-                logger.info("No git hash available for remote evaluations")
-
-    cfg = validate_train_job_config(cfg)
-    logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
-
-    if os.environ.get("RANK", "0") == "0":
-        with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
-            OmegaConf.save(cfg, f)
-    train_job = TrainJob(cfg.train_job)
-    if torch.distributed.is_initialized():
-        world_size = torch.distributed.get_world_size()
-        if cfg.trainer.scale_batches_by_world_size:
-            cfg.trainer.forward_pass_minibatch_target_size = (
-                cfg.trainer.forward_pass_minibatch_target_size // world_size
-            )
-            cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
-
-    policy_store = get_policy_store_from_cfg(cfg, wandb_run)
-
-    # Use the functional train interface directly
-    train(
-        run=cfg.run,
-        run_dir=cfg.run_dir,
-        env_cfg=env_cfg,
-        agent_cfg=cfg.agent,
-        device=torch.device(env_cfg.device),
-        trainer_cfg=create_trainer_config(cfg),
-        wandb_run=wandb_run,
-        policy_store=policy_store,
-        sim_suite_config=train_job.evals,
-        stats_client=stats_client,
-    )
-
-
-def _set_min(cfg: DictConfig, path: str, value: float) -> None:
-    """Set config value to the minimum of the current value and the provided value.
-    If current value is None, use the provided value."""
-    current = OmegaConf.select(cfg, path)
-    if current is None:
-        OmegaConf.update(cfg, path, value)
+    # Prefer 2 workers per GPU, fallback to CPU count
+    if num_gpus > 0:
+        return num_gpus * 2
     else:
-        OmegaConf.update(cfg, path, min(value, current))
+        return cpu_count
 
 
-def apply_mac_overrides(cfg: DictConfig) -> None:
+def apply_mac_device_overrides(cfg: TrainConfig) -> None:
+    """Apply Mac-specific device overrides."""
     if not cfg.bypass_mac_overrides and platform.system() == "Darwin":
-        _set_min(cfg, "trainer.batch_size", 1024)
-        _set_min(cfg, "trainer.minibatch_size", 1024)
-        _set_min(cfg, "trainer.forward_pass_minibatch_target_size", 2)
-        _set_min(cfg, "trainer.checkpoint.checkpoint_interval", 10)
-        _set_min(cfg, "trainer.checkpoint.wandb_checkpoint_interval", 10)
-        _set_min(cfg, "trainer.bptt_horizon", 8)
-        _set_min(cfg, "trainer.simulation.evaluate_interval", 10)
+        cfg.device = "cpu"
+        # Apply serial vectorization settings (async_factor=1, zero_copy=False)
+        cfg.trainer.async_factor = 1
+        cfg.trainer.zero_copy = False
 
 
-def set_run_name_if_missing(cfg: DictConfig) -> None:
-    """Set up cfg.run if it's not already set."""
-    if (OmegaConf.is_missing(cfg, "run") or not cfg.get("run")) and cfg.run_name_pattern:
-        generated_name = cfg.run_name_pattern
-        replacements = {
-            "user": os.getenv("USER", "unknown_user"),
-            "now": oc_date_format("YYYYMMDD_HHmmss"),
-            "curriculum": cfg.trainer.curriculum.split("/")[-1],
-        }
-        for key, replacement in replacements.items():
-            generated_name = generated_name.replace(f"{{{key}}}", replacement)
-        if not all(c.isalnum() or c in [".", "_", "-"] for c in generated_name):
-            raise ValueError(f"Invalid run name pattern: {cfg.run_name_pattern} -> {generated_name}")
-        print(f"Setting run name to {generated_name}")
-        cfg.run = generated_name
-
-
+@app.command()
 @record
-def main(cfg: DictConfig) -> int:
+def main(
+    config: str = typer.Option(..., "--config", help="Path to YAML configuration file"),
+    device: Optional[str] = typer.Option(None, "--device", help="Override device (cuda/cpu)"),
+    num_workers: Optional[int] = typer.Option(None, "--num-workers", help="Override number of workers"),
+):
+    """Train a Metta AI agent."""
+    # Load configuration from file
+    cfg = TrainConfig.from_file(config)
+
+    # Apply command line overrides
+    if device:
+        cfg.device = device
+
+    if num_workers:
+        cfg.trainer.num_workers = num_workers
+
+    # Apply Mac overrides
+    apply_mac_device_overrides(cfg)
+
+    # Set default num_workers if not specified
+    if not hasattr(cfg.trainer, "num_workers") or cfg.trainer.num_workers <= 0:
+        # Check if we're in serial mode (async_factor=1 and zero_copy=False indicates serial)
+        is_serial = cfg.trainer.async_factor == 1 and not cfg.trainer.zero_copy
+        cfg.trainer.num_workers = _calculate_default_num_workers(is_serial)
+
+    # Setup logging
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+    logger.info(f"Starting training with config: {cfg.run}")
+    logger.info(f"Device: {cfg.device}")
+    logger.info(f"Num workers: {cfg.trainer.num_workers}")
+    logger.info(f"Total timesteps: {cfg.trainer.total_timesteps}")
+
+    # Setup device and distributed training
+    setup_device_and_distributed(cfg.device)
+
+    # Set checkpoint and replay directories based on run name
+    train_dir = Path("train_dir") / cfg.run
+    train_dir.mkdir(parents=True, exist_ok=True)
+
+    cfg.trainer.checkpoint.checkpoint_dir = str(train_dir / "checkpoints")
+    cfg.trainer.simulation.replay_dir = str(train_dir / "replays")
+
+    # Create checkpoint directory
+    Path(cfg.trainer.checkpoint.checkpoint_dir).mkdir(parents=True, exist_ok=True)
+    Path(cfg.trainer.simulation.replay_dir).mkdir(parents=True, exist_ok=True)
+
+    # Create env config
+    if cfg.trainer.env:
+        env_config = create_env_config(cfg.trainer.env) if isinstance(cfg.trainer.env, str) else cfg.trainer.env
+    else:
+        # Create default env config if none specified
+        from metta.rl.env_config import EnvConfig
+
+        env_config = EnvConfig(device=cfg.device)
+
+    # Setup WandB context
+    wandb_enabled = cfg.wandb.enabled
+    wandb_context = None
+    wandb_run = None
+
+    if wandb_enabled:
+        wandb_run = WandbRun(
+            project=cfg.wandb.project,
+            name=cfg.wandb.name or cfg.run,
+            config=cfg.model_dump(),
+            tags=cfg.wandb.tags,
+            entity=cfg.wandb.entity,
+            run_id=cfg.wandb.run_id,
+        )
+        wandb_context = WandbContext(wandb_run)
+
+    # Get policy store - create a config object with the fields the function expects
+    from types import SimpleNamespace
+
+    policy_config = SimpleNamespace()
+    policy_config.device = cfg.device
+    policy_config.wandb = cfg.wandb
+    policy_config.data_dir = getattr(cfg.trainer, "data_dir", None)
+
+    policy_store = get_policy_store_from_cfg(policy_config, wandb_run)
+
+    # Setup stats client
+    from omegaconf import OmegaConf
+
+    trainer_dict = OmegaConf.create(cfg.trainer.model_dump())
+    stats_client = get_stats_client(trainer_dict, logger)
+
+    # Record heartbeat
     record_heartbeat()
 
-    logger.info(
-        f"Training {cfg.run} on "
-        + f"{os.environ.get('NODE_INDEX', '0')}: "
-        + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.device})"
-    )
+    try:
+        # Start training
+        with wandb_context if wandb_context else nullcontext():
+            # Create run directory
+            run_dir = f"./train_dir/{cfg.run}"
+            Path(run_dir).mkdir(parents=True, exist_ok=True)
 
-    apply_mac_overrides(cfg)
-    # Use shared distributed setup function
-    device, is_master, world_size, rank = setup_device_and_distributed(cfg.device)
+            # Create agent config (placeholder for now)
+            from omegaconf import OmegaConf
 
-    # Update cfg.device to include the local rank if distributed
-    cfg.device = str(device)
+            agent_cfg = OmegaConf.create({})
 
-    logger.info(f"Training {cfg.run} on {cfg.device}")
-    if is_master:
-        logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
+            train(
+                run_dir=run_dir,
+                run=cfg.run,
+                env_cfg=env_config,
+                agent_cfg=agent_cfg,
+                device=torch.device(cfg.device),
+                trainer_cfg=cfg.trainer,
+                wandb_run=wandb_run,
+                policy_store=policy_store,
+                sim_suite_config=cfg.evals,
+                stats_client=stats_client,
+            )
+    except KeyboardInterrupt:
+        logger.info("Training interrupted by user")
+        return 1
+    except Exception as e:
+        logger.error(f"Training failed with error: {e}")
+        raise
 
-        # Initialize wandb using WandbContext
-        with WandbContext(cfg.wandb, cfg) as wandb_run:
-            handle_train(cfg, wandb_run, logger)
-    else:
-        handle_train(cfg, None, logger)
-
-    if torch.distributed.is_initialized():
-        torch.distributed.destroy_process_group()
-
+    logger.info("Training completed successfully")
     return 0
 
 
-metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
+if __name__ == "__main__":
+    app()

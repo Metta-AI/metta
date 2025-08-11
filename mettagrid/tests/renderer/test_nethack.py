@@ -9,13 +9,19 @@ ASCII rendering, alignment, and NetHack-style conversion functionality.
 from unittest.mock import patch
 
 import pytest
-from omegaconf import OmegaConf
 
 from metta.mettagrid.char_encoder import CHAR_TO_NAME
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    EnvConfig,
+    GameConfig,
+    GroupConfig,
+    WallConfig,
+)
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.renderer.nethack import NethackRenderer
-from metta.mettagrid.util.hydra import get_cfg
 
 
 class TestNethackRenderer:
@@ -204,29 +210,52 @@ class TestNethackRenderer:
         assert "0" in result  # Agent should be present
 
 
+@pytest.fixture
+def test_env_config():
+    """Configuration for MettaGridEnv integration tests."""
+    # Create a small test level map manually to match group name
+    import numpy as np
+
+    from metta.mettagrid.level_builder import LevelMap
+
+    grid = np.array(
+        [
+            ["wall", "wall", "wall", "wall", "wall"],
+            ["wall", "empty", "empty", "empty", "wall"],
+            ["wall", "empty", "agent.red", "empty", "wall"],
+            ["wall", "empty", "empty", "empty", "wall"],
+            ["wall", "wall", "wall", "wall", "wall"],
+        ],
+        dtype="<U20",
+    )
+    level_map = LevelMap(grid=grid, labels=[])
+
+    actions_config = ActionsConfig(noop=ActionConfig(), move=ActionConfig(), rotate=ActionConfig())
+
+    game_config = GameConfig(
+        num_agents=1,
+        max_steps=50,
+        obs_width=7,
+        obs_height=7,
+        num_observation_tokens=100,
+        agent=AgentConfig(),
+        groups={"red": GroupConfig(id=0)},
+        actions=actions_config,
+        objects={"wall": WallConfig(type_id=1, swappable=False)},
+        level_map=level_map,
+    )
+
+    return EnvConfig(game=game_config, desync_episodes=True)
+
+
 class TestRendererIntegration:
     """Test renderer integration with MettaGridEnv and tools.sim style setup."""
 
     @patch("builtins.print")
-    def test_environment_rendering_workflow(self, mock_print):
+    def test_environment_rendering_workflow(self, mock_print, test_env_config):
         """Test complete rendering workflow with environment."""
-        # Use the working approach from our demo scripts
-        cfg = get_cfg("benchmark")
-        cfg.game.num_agents = 1
-        cfg.game.max_steps = 5
-        cfg.game.map_builder = OmegaConf.create(
-            {
-                "_target_": "metta.mettagrid.room.random.Random",
-                "width": 5,
-                "height": 5,
-                "agents": 1,
-                "border_width": 1,
-                "objects": {},
-            }
-        )
-
-        curriculum = SingleTaskCurriculum("test", cfg)
-        env = MettaGridEnv(curriculum, render_mode="human")
+        # Use the test_env_config fixture
+        env = MettaGridEnv(env_config=test_env_config, render_mode="human")
 
         # Reset and render
         obs, info = env.reset()
@@ -250,26 +279,10 @@ class TestRendererIntegration:
         env.close()
 
     @patch("builtins.print")
-    def test_multiple_render_calls(self, mock_print):
+    def test_multiple_render_calls(self, mock_print, test_env_config):
         """Test multiple render calls for consistency."""
-        cfg = get_cfg("benchmark")
-        cfg.game.num_agents = 1
-        cfg.game.max_steps = 5
-
-        # Override map builder to ensure agent count matches
-        cfg.game.map_builder = OmegaConf.create(
-            {
-                "_target_": "metta.mettagrid.room.random.Random",
-                "width": 5,
-                "height": 5,
-                "agents": 1,
-                "border_width": 1,
-                "objects": {},
-            }
-        )
-
-        curriculum = SingleTaskCurriculum("test", cfg)
-        env = MettaGridEnv(curriculum, render_mode="human")
+        # Use the test_env_config fixture
+        env = MettaGridEnv(env_config=test_env_config, render_mode="human")
 
         obs, info = env.reset()
 
@@ -290,30 +303,11 @@ class TestRendererIntegration:
 
         env.close()
 
-    def test_tools_sim_style_integration(self):
+    def test_tools_sim_style_integration(self, test_env_config):
         """Test tools.sim style integration approach."""
-        # Get benchmark config (like tools.sim would)
-        cfg = get_cfg("benchmark")
-        cfg.game.num_agents = 1
-        cfg.game.max_steps = 5
-
-        # Override map builder to ensure agent count matches
-        cfg.game.map_builder = OmegaConf.create(
-            {
-                "_target_": "metta.mettagrid.room.random.Random",
-                "width": 5,
-                "height": 5,
-                "agents": 1,
-                "border_width": 1,
-                "objects": {},
-            }
-        )
-
-        curriculum = SingleTaskCurriculum("test", cfg)
-
         # The key: render_mode="human" enables NethackRenderer
         with patch("builtins.print"):
-            env = MettaGridEnv(curriculum, render_mode="human")
+            env = MettaGridEnv(env_config=test_env_config, render_mode="human")
             assert env._renderer is not None
             assert env._renderer.__class__.__name__ == "NethackRenderer"
 

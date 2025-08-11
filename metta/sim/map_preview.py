@@ -10,7 +10,6 @@ from wandb.sdk import wandb_run
 
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.util.file import write_file
 
 logger = logging.getLogger(__name__)
@@ -53,7 +52,7 @@ def write_local_map_preview(env: MettaGridEnv):
 
 
 def upload_map_preview(
-    curriculum: Curriculum,
+    env: MettaGridEnv,
     s3_path: str,
     wandb_run: Optional[wandb_run.Run] = None,
 ):
@@ -61,12 +60,10 @@ def upload_map_preview(
     Builds a map preview of the simulation environment and uploads it to S3.
 
     Args:
-        cfg: Configuration for the simulation
+        env: MettaGridEnv instance to preview
         s3_path: Path to upload the map preview to
         wandb_run: Weights & Biases run object for logging
     """
-
-    env = MettaGridEnv(curriculum, render_mode=None)
 
     with tempfile.NamedTemporaryFile(delete=False) as temp_file:
         # Create directory and save compressed file

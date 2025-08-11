@@ -13,9 +13,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 from gymnasium import spaces
 
-from metta.mettagrid.level_builder import Level
+from metta.mettagrid.level_builder import LevelMap
 from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
+from metta.mettagrid.renderer.nethack import NethackRenderer
 
 logger = logging.getLogger("MettaGridCore")
 
@@ -31,8 +34,7 @@ class MettaGridCore:
 
     def __init__(
         self,
-        level: Level,
-        game_config_dict: Dict[str, Any],
+        env_cfg: EnvConfig,
         render_mode: Optional[str] = None,
         **kwargs: Any,
     ):
@@ -40,27 +42,37 @@ class MettaGridCore:
         Initialize core MettaGrid functionality.
 
         Args:
-            level: Level to use for the environment
-            game_config_dict: Game configuration dictionary
+            env_cfg: Environment configuration object containing game config and level_map
             render_mode: Rendering mode (None, "human", "miniscope")
             **kwargs: Additional arguments passed to subclasses
         """
         self._render_mode = render_mode
-        self._level = level
+
+        # Get level_map from game config - it must be present
+        assert env_cfg.game.level_map is not None, "level_map is required for environment creation"
+        assert isinstance(env_cfg.game.level_map, LevelMap), (
+            f"level_map must be a LevelMap object, got {type(env_cfg.game.level_map)}"
+        )
+
+        self._level_map = env_cfg.game.level_map
         self._renderer = None
-        self._map_labels: List[str] = level.labels
+        self._map_labels: List[str] = self._level_map.labels
         self._current_seed: int = 0
 
         # Environment metadata
         self.labels: List[str] = []
         self._should_reset = False
 
+        # Configuration management
+        self._env_cfg = env_cfg
+        self._next_env_cfg = env_cfg
+
         # Initialize renderer class if needed (before C++ env creation)
         if self._render_mode is not None:
             self._initialize_renderer()
 
         # Create C++ environment immediately
-        self._c_env_instance: Optional[MettaGridCpp] = self._create_c_env(game_config_dict)
+        self._c_env_instance: Optional[MettaGridCpp] = self._create_c_env(env_cfg)
 
     @property
     def c_env(self) -> MettaGridCpp:
@@ -75,40 +87,40 @@ class MettaGridCore:
         self._renderer_class = None
 
         if self._render_mode == "human":
-            from metta.mettagrid.renderer.nethack import NethackRenderer
-
             self._renderer_class = NethackRenderer
         elif self._render_mode == "miniscope":
-            from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
-
             self._renderer_class = MiniscopeRenderer
 
-    def _create_c_env(self, game_config_dict: Dict[str, Any], seed: Optional[int] = None) -> MettaGridCpp:
+    def _create_c_env(self, env_cfg: EnvConfig, seed: Optional[int] = None) -> MettaGridCpp:
         """
         Create a new MettaGridCpp instance.
 
         Args:
-            game_config_dict: Game configuration dictionary
+            env_cfg: Environment configuration object
             seed: Random seed for environment
 
         Returns:
             New MettaGridCpp instance
         """
-        level = self._level
+        level_map = self._level_map
 
         # Validate number of agents
-        level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert game_config_dict["num_agents"] == level_agents, (
-            f"Number of agents {game_config_dict['num_agents']} does not match number of agents in map {level_agents}"
+        level_agents = np.count_nonzero(np.char.startswith(level_map.grid, "agent"))
+        assert env_cfg.game.num_agents == level_agents, (
+            f"Number of agents {env_cfg.game.num_agents} does not match number of agents in map {level_agents}"
         )
 
-        # Ensure we have a dict
-        if not isinstance(game_config_dict, dict):
-            raise ValueError(f"Expected dict for game config, got {type(game_config_dict)}")
+        # Convert EnvConfig's game config to dict for C++ conversion
+        game_config_dict = env_cfg.game.model_dump()
+
+        # Remove level_map field before passing to C++ (it's already been used to create the level)
+        game_config_for_cpp = game_config_dict.copy()
+        if "level_map" in game_config_for_cpp:
+            del game_config_for_cpp["level_map"]
 
         # Create C++ config
         try:
-            c_cfg = from_mettagrid_config(game_config_dict)
+            c_cfg = from_mettagrid_config(game_config_for_cpp)
         except Exception as e:
             logger.error(f"Error creating C++ config: {e}")
             logger.error(f"Game config: {game_config_dict}")
@@ -116,7 +128,7 @@ class MettaGridCore:
 
         # Create C++ environment
         current_seed = seed if seed is not None else self._current_seed
-        c_env = MettaGridCpp(c_cfg, level.grid.tolist(), current_seed)
+        c_env = MettaGridCpp(c_cfg, level_map.grid.tolist(), current_seed)
 
         # Initialize renderer if needed
         if (
@@ -129,19 +141,33 @@ class MettaGridCore:
 
         return c_env
 
-    def reset(self, game_config_dict: Dict[str, Any], seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+    def reset(self, env_cfg: EnvConfig, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
         """
         Reset the environment.
 
         Args:
-            game_config_dict: Game configuration dictionary
+            env_cfg: Environment configuration object
             seed: Random seed
 
         Returns:
             Tuple of (observations, info)
         """
+        # Copy next_env_cfg to env_cfg during reset
+        self._env_cfg = self._next_env_cfg
+
+        # Use the current env_cfg for reset
+        config_to_use = self._env_cfg if env_cfg is None else env_cfg
+
+        # Update level_map if it's changed
+        if config_to_use.game.level_map is not None:
+            assert isinstance(config_to_use.game.level_map, LevelMap), (
+                f"level_map must be a LevelMap object, got {type(config_to_use.game.level_map)}"
+            )
+            self._level_map = config_to_use.game.level_map
+            self._map_labels = self._level_map.labels
+
         # Recreate C++ environment with new config
-        self._c_env_instance = self._create_c_env(game_config_dict, seed)
+        self._c_env_instance = self._create_c_env(config_to_use, seed)
 
         # Update seed
         self._current_seed = seed or 0
@@ -300,3 +326,14 @@ class MettaGridCore:
     def grid_objects(self) -> Dict[int, Dict[str, Any]]:
         """Get grid objects information."""
         return self._c_env_instance.grid_objects()
+
+    def set_next_env_cfg(self, env_cfg: EnvConfig) -> None:
+        """
+        Set the configuration to be used in the next reset.
+
+        The configuration will be copied to _env_cfg during the next reset() call.
+
+        Args:
+            env_cfg: Environment configuration object
+        """
+        self._next_env_cfg = env_cfg

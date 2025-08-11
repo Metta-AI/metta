@@ -10,6 +10,8 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 from torchrl.data import Composite
 
+from cogworks.curriculum.core import SingleTaskCurriculum
+from cogworks.curriculum.util import curriculum_from_config_path
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
@@ -24,7 +26,6 @@ from metta.core.monitoring import (
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.env_config import EnvConfig
@@ -107,10 +108,17 @@ def train(
     timer.start()
     losses = Losses()
     torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, run_dir)
-    curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
+    if trainer_cfg.curriculum:
+        curriculum = curriculum_from_config_path(trainer_cfg.curriculum, DictConfig(trainer_cfg.env_overrides))
+    else:
+        curriculum = SingleTaskCurriculum(
+            task_id="env_task",
+            task_cfg=env_cfg,
+        )
 
     # Calculate batch sizes
-    num_agents = curriculum.get_task().env_cfg().game.num_agents
+    # Use a fixed seed to get a representative task for determining num_agents
+    num_agents = curriculum.get_task(seed=42).env_cfg().game.num_agents
     target_batch_size, batch_size, num_envs = calculate_batch_sizes(
         trainer_cfg.forward_pass_minibatch_target_size,
         num_agents,

@@ -9,7 +9,6 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from omegaconf import DictConfig
 
 import mettascope.replays as replays
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
@@ -98,7 +97,7 @@ def paste_memory(sim: replays.Simulation, agent_id: int, memory: tuple[list[floa
     policy_state.lstm_h[:, agent_id, :] = th.tensor(lstm_h)
 
 
-def make_app(cfg: DictConfig):
+def make_app(cfg):
     app = FastAPI()
 
     @app.get("/", response_class=HTMLResponse)
@@ -236,7 +235,7 @@ def make_app(cfg: DictConfig):
     return app
 
 
-def run(cfg: DictConfig, open_url: str | None = None):
+def run(cfg, open_url: str | None = None):
     app = make_app(cfg)
 
     if open_url:

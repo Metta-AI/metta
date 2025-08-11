@@ -11,12 +11,9 @@ from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 from gymnasium import Env as GymEnv
-from omegaconf import OmegaConf
 from typing_extensions import override
 
 from metta.mettagrid.core import MettaGridCore
-from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.level_builder import Level
 
 # Data types for Gymnasium - import from C++ module
 from metta.mettagrid.mettagrid_c import (
@@ -26,6 +23,7 @@ from metta.mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
+from metta.mettagrid.mettagrid_config import EnvConfig
 
 
 class MettaGridGymEnv(MettaGridCore, GymEnv):
@@ -44,9 +42,8 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
 
     def __init__(
         self,
-        curriculum: Curriculum,
+        env_config: EnvConfig,
         render_mode: Optional[str] = None,
-        level: Optional[Level] = None,
         single_agent: bool = False,
         **kwargs: Any,
     ):
@@ -54,34 +51,18 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
         Initialize Gymnasium environment.
 
         Args:
-            curriculum: Curriculum for task management
+            env_config: Environment configuration
             render_mode: Rendering mode
-            level: Optional pre-built level
             single_agent: Whether to use single-agent mode
             **kwargs: Additional arguments
         """
-        # Get level from curriculum if not provided
-        if level is None:
-            task = curriculum.get_task()
-            level = task.env_cfg().game.map_builder.build()
+        # Store env_config for reset operations
+        self._env_config = env_config
 
-        # Ensure we have a level
-        assert level is not None, "Level must be provided or generated from curriculum"
-
-        # Store curriculum for reset operations
-        self._curriculum = curriculum
-        self._task = self._curriculum.get_task()
-
-        # Get game config for core initialization
-        task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
-        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
-
-        # Initialize core functionality
+        # Initialize core functionality with EnvConfig
         MettaGridCore.__init__(
             self,
-            level=level,
-            game_config_dict=game_config_dict,
+            env_cfg=env_config,
             render_mode=render_mode,
             **kwargs,
         )
@@ -128,14 +109,17 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
         Returns:
             Tuple of (observations, info)
         """
-        # Get new task from curriculum and its config
-        self._task = self._curriculum.get_task()
-        task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
-        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
+        # Get env config from options or use default
+        if options and "env_config" in options:
+            env_cfg = options["env_config"]
+            # Ensure it's an EnvConfig object
+            if not isinstance(env_cfg, EnvConfig):
+                raise TypeError(f"env_config must be an EnvConfig object, got {type(env_cfg)}")
+        else:
+            env_cfg = self._env_config
 
-        # Call the base reset method
-        obs, info = super().reset(game_config_dict, seed)
+        # Call the base reset method with EnvConfig
+        obs, info = super().reset(env_cfg, seed)
 
         # Handle single-agent return format
         if self._single_agent and obs is not None:
@@ -225,24 +209,21 @@ class SingleAgentMettaGridGymEnv(MettaGridGymEnv):
 
     def __init__(
         self,
-        curriculum: Curriculum,
+        env_config: EnvConfig,
         render_mode: Optional[str] = None,
-        level: Optional[Level] = None,
         **kwargs: Any,
     ):
         """
         Initialize single-agent Gymnasium environment.
 
         Args:
-            curriculum: Curriculum for task management
+            env_config: Environment configuration
             render_mode: Rendering mode
-            level: Optional pre-built level
             **kwargs: Additional arguments
         """
         super().__init__(
-            curriculum=curriculum,
+            env_config=env_config,
             render_mode=render_mode,
-            level=level,
             single_agent=True,
             **kwargs,
         )

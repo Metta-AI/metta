@@ -3,7 +3,7 @@ from typing import Optional
 import numpy as np
 import numpy.typing as npt
 
-from metta.mettagrid.level_builder import Level, LevelBuilder
+from metta.mettagrid.level_builder import LevelBuilder, LevelMap
 
 
 class Room(LevelBuilder):
@@ -21,10 +21,10 @@ class Room(LevelBuilder):
         else:
             self.labels.append("large")
 
-    def build(self) -> Level:
+    def build(self) -> LevelMap:
         grid = self._build()
         bordered_grid = self._add_border(grid)
-        return Level(bordered_grid, self.labels)
+        return LevelMap(bordered_grid, self.labels)
 
     def _add_border(self, room):
         b = self._border_width

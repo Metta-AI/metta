@@ -2,9 +2,16 @@
 
 import numpy as np
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    EnvConfig,
+    GameConfig,
+    GroupConfig,
+)
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.util.hydra import get_cfg
+from metta.mettagrid.test_support import make_test_level_map
 
 
 def test_buffer_reuse_across_resets():
@@ -15,14 +22,28 @@ def test_buffer_reuse_across_resets():
     3. Resets it
     4. Makes sure it has a new cpp env, but uses the same buffers
     """
-    # Get basic config
-    cfg = get_cfg("test_basic")
+    # Create level map directly
+    level_map = make_test_level_map(width=25, height=25, num_agents=1)
 
-    # Create curriculum with task name and config
-    curriculum = SingleTaskCurriculum("buffer_test", task_cfg=cfg)
+    actions_config = ActionsConfig(noop=ActionConfig(), move=ActionConfig(), rotate=ActionConfig())
+
+    game_config = GameConfig(
+        num_agents=1,
+        max_steps=1000,
+        obs_width=11,
+        obs_height=11,
+        num_observation_tokens=200,
+        agent=AgentConfig(),
+        groups={"agent": GroupConfig(id=0)},
+        actions=actions_config,
+        objects={"wall": {"type_id": 1, "swappable": False}},
+        level_map=level_map,
+    )
+
+    env_config = EnvConfig(game=game_config, desync_episodes=True)
 
     # Create environment
-    env = MettaGridEnv(curriculum=curriculum, render_mode=None)
+    env = MettaGridEnv(env_config, render_mode=None)
 
     # Get initial C++ environment reference
     initial_cpp_env = env.c_env
@@ -88,14 +109,28 @@ def test_buffer_reuse_across_resets():
 
 def test_buffer_consistency_during_episode():
     """Test that buffers remain consistent during an episode."""
-    # Get basic config
-    cfg = get_cfg("test_basic")
+    # Create level map directly
+    level_map = make_test_level_map(width=25, height=25, num_agents=1)
 
-    # Create curriculum with task name and config
-    curriculum = SingleTaskCurriculum("buffer_test", task_cfg=cfg)
+    actions_config = ActionsConfig(noop=ActionConfig(), move=ActionConfig(), rotate=ActionConfig())
+
+    game_config = GameConfig(
+        num_agents=1,
+        max_steps=1000,
+        obs_width=11,
+        obs_height=11,
+        num_observation_tokens=200,
+        agent=AgentConfig(),
+        groups={"agent": GroupConfig(id=0)},
+        actions=actions_config,
+        objects={"wall": {"type_id": 1, "swappable": False}},
+        level_map=level_map,
+    )
+
+    env_config = EnvConfig(game=game_config, desync_episodes=True)
 
     # Create environment
-    env = MettaGridEnv(curriculum=curriculum, render_mode=None)
+    env = MettaGridEnv(env_config, render_mode=None)
 
     # Reset environment
     obs, info = env.reset(seed=42)

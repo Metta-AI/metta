@@ -6,72 +6,31 @@ This module tests the MettaGridGymEnv with Gymnasium's standard environment inte
 
 import numpy as np
 import pytest
-from omegaconf import DictConfig
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
+from metta.mettagrid.test_support import env_cfg_builder
 
 
 @pytest.fixture
 def simple_config():
     """Create a simple navigation configuration."""
-    return DictConfig(
-        {
-            "game": {
-                "max_steps": 100,
-                "num_agents": 2,
-                "obs_width": 7,
-                "obs_height": 7,
-                "num_observation_tokens": 50,
-                "inventory_item_names": [
-                    "ore_red",
-                    "ore_blue",
-                    "battery_red",
-                    "battery_blue",
-                    "heart",
-                ],
-                "groups": {"agent": {"id": 0, "sprite": 0}},
-                "agent": {
-                    "default_resource_limit": 10,
-                    "rewards": {"inventory": {"heart": 1.0}},
-                },
-                "actions": {
-                    "noop": {"enabled": True},
-                    "move": {"enabled": True},
-                    "rotate": {"enabled": True},
-                    "put_items": {"enabled": True},
-                    "get_items": {"enabled": True},
-                    "attack": {"enabled": True},
-                    "swap": {"enabled": True},
-                    "change_color": {"enabled": False},
-                    "change_glyph": {"enabled": False, "number_of_glyphs": 0},
-                },
-                "objects": {
-                    "wall": {"type_id": 1, "swappable": False},
-                },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 2,
-                    "width": 16,
-                    "height": 16,
-                    "border_width": 1,
-                    "objects": {},
-                },
-            }
-        }
+    return (
+        env_cfg_builder()
+        .with_num_agents(2)
+        .with_max_steps(100)
+        .with_obs_size(7, 7, num_tokens=50)
+        .with_map_size(16, 16)
+        .with_seed(42)
+        .build()
     )
 
 
 def test_multi_agent_gym_env(simple_config):
     """Test multi-agent Gymnasium environment."""
-    # Create config and curriculum
-    curriculum = SingleTaskCurriculum("gym_multi_test", simple_config)
-
-    # Create environment
+    # Create environment with config
     env = MettaGridGymEnv(
-        curriculum=curriculum,
+        env_config=simple_config,
         render_mode=None,
-        is_training=False,
         single_agent=False,
     )
 
@@ -100,18 +59,22 @@ def test_multi_agent_gym_env(simple_config):
     env.close()
 
 
-def test_single_agent_gym_env(simple_config):
+def test_single_agent_gym_env():
     """Test single-agent Gymnasium environment."""
-    # Modify config for single agent
-    simple_config.game.num_agents = 1
-    simple_config.game.map_builder.agents = 1
-    curriculum = SingleTaskCurriculum("gym_single_test", simple_config)
-
+    # Create single-agent config
+    single_agent_config = (
+        env_cfg_builder()
+        .with_num_agents(1)
+        .with_max_steps(100)
+        .with_obs_size(7, 7, num_tokens=50)
+        .with_map_size(16, 16)
+        .with_seed(42)
+        .build()
+    )
     # Create environment
     env = SingleAgentMettaGridGymEnv(
-        curriculum=curriculum,
+        env_config=single_agent_config,
         render_mode=None,
-        is_training=False,
     )
 
     # Test environment properties
@@ -141,11 +104,9 @@ def test_single_agent_gym_env(simple_config):
 
 def test_gym_env_episode_termination(simple_config):
     """Test that environment terminates properly."""
-    curriculum = SingleTaskCurriculum("gym_termination_test", simple_config)
     env = MettaGridGymEnv(
-        curriculum=curriculum,
+        env_config=simple_config,
         render_mode=None,
-        is_training=False,
         single_agent=False,
     )
 

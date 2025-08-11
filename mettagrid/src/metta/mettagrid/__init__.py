@@ -17,9 +17,8 @@ from __future__ import annotations
 from metta.mettagrid.core import MettaGridCore
 
 # Import other commonly used classes
-from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
-from metta.mettagrid.level_builder import Level
+from metta.mettagrid.level_builder import LevelMap
 
 # Import data types from C++ module (source of truth)
 from metta.mettagrid.mettagrid_c import (
@@ -54,8 +53,7 @@ __all__ = [
     "dtype_masks",
     "dtype_success",
     # Supporting classes
-    "Curriculum",
-    "Level",
+    "LevelMap",
     "ReplayWriter",
     "StatsWriter",
 ]

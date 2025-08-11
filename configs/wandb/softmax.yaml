@@ -1,0 +1,14 @@
+# WandB configuration for Softmax organization
+# Use with: --wandb-config configs/wandb/softmax.yaml
+
+enabled: true
+project: "metta"
+entity: "softmax-ai"  # Softmax AI organization
+group: null
+name: null
+run_id: null
+job_type: null
+tags: []
+notes: ""
+data_dir: null
+expected_connection: "softmax-ai"

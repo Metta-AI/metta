@@ -5,10 +5,10 @@ from omegaconf import DictConfig
 from pydantic import ConfigDict, Field
 
 from metta.common.util.collections import remove_none_values
-from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.common.util.typed_config import ConfigWithBuilder
 
 
-class EnvConfig(BaseModelWithForbidExtra):
+class EnvConfig(ConfigWithBuilder):
     vectorization: Literal["serial", "multiprocessing"] = "multiprocessing"
     seed: int = Field(default_factory=lambda: np.random.randint(0, 1000000))
     torch_deterministic: bool = Field(default=True)
