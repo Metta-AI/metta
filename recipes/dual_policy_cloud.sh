@@ -9,8 +9,8 @@ set -e
 WANDB_CHECKPOINT_URI="${1:-wandb://metta-research/dual_policy_training/model/bullm_dual_policy_against_roomba_v9:v2}"
 TOTAL_TIMESTEPS="${2:-1000000000}"
 NUM_WORKERS="${3:-4}"
-GPUS="${4:-4}"
-NODES="${5:-8}"
+GPUS="${4:-1}"
+NODES="${5:-1}"
 
 # Generate unique run name
 RUN_NAME="dual_policy_cloud.$(date +%m-%d).$(date +%H%M)"

@@ -1,6 +1,8 @@
 """Rollout phase functions for Metta training."""
 
 import logging
+import os
+import threading
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
@@ -12,6 +14,43 @@ from metta.rl.experience import Experience
 
 logger = logging.getLogger(__name__)
 
+# Guard to only apply recv timeout on the very first observation
+_first_recv_completed: bool = False
+
+
+def _recv_with_timeout(vecenv: Any, timeout_seconds: float):
+    """Call vecenv.recv() with a timeout to avoid indefinite hangs on startup.
+
+    Applies only at startup to fail fast if worker processes cannot initialize
+    shared buffers (common on constrained /dev/shm or misconfigured backends).
+    """
+
+    result: dict[str, Any] = {"ok": False, "value": None, "error": None}
+
+    def _target():
+        try:
+            result["value"] = vecenv.recv()
+            result["ok"] = True
+        except BaseException as exc:  # noqa: BLE001 - propagate any failure
+            result["error"] = exc
+
+    thread = threading.Thread(target=_target, daemon=True)
+    thread.start()
+    thread.join(timeout_seconds)
+
+    if thread.is_alive():
+        raise TimeoutError(
+            "Timed out waiting for first vecenv.recv(). "
+            "This often indicates vector workers failed to start or shared-memory constraints. "
+            "Try running with overrides: trainer.zero_copy=false, trainer.num_workers=1, or vectorization=serial. "
+            "You can also set METTA_VECENV_RECV_TIMEOUT to adjust this startup timeout."
+        )
+
+    if result["error"] is not None:
+        raise result["error"]
+
+    return result["value"]
+
 
 PufferlibVecEnv = Any
 
@@ -22,8 +61,21 @@ def get_observation(
     timer: Stopwatch,
 ) -> tuple[Tensor, Tensor, Tensor, Tensor, list, slice, Tensor, int]:
     """Get observations from vectorized environment and convert to tensors."""
+    global _first_recv_completed
+
     with timer("_rollout.env"):
-        o, r, d, t, info, env_id, mask = vecenv.recv()
+        if not _first_recv_completed:
+            # Default to 120s, configurable with env var
+            timeout_env = os.getenv("METTA_VECENV_RECV_TIMEOUT", "120")
+            try:
+                timeout_seconds = float(timeout_env)
+            except ValueError:
+                timeout_seconds = 120.0
+
+            o, r, d, t, info, env_id, mask = _recv_with_timeout(vecenv, timeout_seconds)
+            _first_recv_completed = True
+        else:
+            o, r, d, t, info, env_id, mask = vecenv.recv()
 
     training_env_id = slice(env_id[0], env_id[-1] + 1)
 
