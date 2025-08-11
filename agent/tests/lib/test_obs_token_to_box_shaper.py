@@ -47,7 +47,7 @@ def test_obs_token_to_box_shaper_forward():
     )
 
     # Create input TensorDict
-    td = TensorDict({"x": input_tokens})
+    td = TensorDict({"env_obs": input_tokens})
 
     # Run forward pass
     output_td = shaper._forward(td)

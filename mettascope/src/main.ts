@@ -980,13 +980,13 @@ toggleOpacity(html.fogOfWarToggle, state.showFogOfWar)
 onEvent('click', '#heatmap-toggle', () => {
   state.showHeatmap = !state.showHeatmap
   localStorage.setItem('showHeatmap', state.showHeatmap.toString())
-  // toggleOpacity(html.heatmapToggle, state.showHeatmap)
+  toggleOpacity(html.heatmapToggle, state.showHeatmap)
   requestFrame()
 })
 if (localStorage.hasOwnProperty('showHeatmap')) {
   state.showHeatmap = localStorage.getItem('showHeatmap') === 'true'
 }
-// toggleOpacity(html.heatmapToggle, state.showHeatmap)
+toggleOpacity(html.heatmapToggle, state.showHeatmap)
 
 onEvent('click', '#minimap-toggle', () => {
   state.showMiniMap = !state.showMiniMap

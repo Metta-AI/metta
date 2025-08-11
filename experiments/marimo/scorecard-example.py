@@ -159,26 +159,8 @@ def _(available_metrics, mo):
 
 
 @app.cell
-def _(metric_selector, mo, selected_eval_names, training_run_selector):
-    can_generate = (
-        training_run_selector.value and selected_eval_names and metric_selector.value
-    )
-    generate_button = mo.ui.button(
-        label="Generate Scorecard",
-        disabled=not can_generate,
-        kind="success" if can_generate else "neutral",
-        value=0,
-        on_click=lambda value: value + 1,
-    )
-
-    generate_button
-    return (generate_button,)
-
-
-@app.cell
 async def _(
     client,
-    generate_button,
     metric_selector,
     mo,
     policy_selector_selector,
@@ -186,7 +168,7 @@ async def _(
     training_run_selector,
 ):
     scorecard_data = None
-    if generate_button.value:
+    if training_run_selector.value and selected_eval_names and metric_selector.value:
         with mo.status.spinner("Generating scorecard..."):
             scorecard_data = await client.generate_scorecard(
                 training_run_ids=training_run_selector.value,

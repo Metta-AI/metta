@@ -4,8 +4,7 @@ import numpy as np
 
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-
-from .test_mettagrid import EnvConfig, TestEnvironmentBuilder, TokenTypes
+from metta.mettagrid.test_support import EnvConfig, TestEnvironmentBuilder, TokenTypes
 
 
 class ObservationHelper:

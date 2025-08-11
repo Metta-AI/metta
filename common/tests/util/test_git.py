@@ -349,7 +349,7 @@ def test_get_git_hash_for_remote_task(monkeypatch, caplog):
 
     # Test with uncommitted changes (should raise)
     monkeypatch.setattr("metta.common.util.git.is_metta_ai_repo", lambda: True)
-    monkeypatch.setattr("metta.common.util.git.has_unstaged_changes", lambda: True)
+    monkeypatch.setattr("metta.common.util.git.has_unstaged_changes", lambda: (True, "M  some_file.py"))
     with pytest.raises(GitError) as e:
         get_git_hash_for_remote_task()
     assert "uncommitted changes" in str(e.value)

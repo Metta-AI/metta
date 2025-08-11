@@ -21,7 +21,7 @@ import numpy as np
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
-from metta.map.mapgen import MapGen
+import metta.mettagrid.room.random
 from metta.mettagrid.curriculum.bucketed import BucketedCurriculum, _expand_buckets
 from metta.mettagrid.curriculum.core import Curriculum, SingleTaskCurriculum
 from metta.mettagrid.curriculum.learning_progress import LearningProgressCurriculum
@@ -147,16 +147,16 @@ def test_bucketed_curriculum_from_yaml_with_map_builder():
     task_id = task.id()
     assert "width=" in task_id, f"Task ID should contain width parameter: {task_id}"
     assert "height=" in task_id, f"Task ID should contain height parameter: {task_id}"
-    assert "room_size=" in task_id, f"Task ID should contain room_size parameter: {task_id}"
+    assert "altar=" in task_id, f"Task ID should contain altar parameter: {task_id}"
 
     # Verify the task config structure is correct
     task_cfg = task.env_cfg()
     assert hasattr(task_cfg.game, "map_builder")
-    assert isinstance(task_cfg.game.map_builder, MapGen)
+    assert isinstance(task_cfg.game.map_builder, metta.mettagrid.room.random.Random)
     assert task_cfg.game.num_agents == 5, f"num_agents should have been overridden to 5, got {task_cfg.game.num_agents}"
-    assert task_cfg.game.map_builder.width in [20, 40, 60]
-    assert task_cfg.game.map_builder.height in [20, 40, 60]
-    assert task_cfg.game.map_builder.root["params"]["room_size"] in [1, 3, 5]
+    assert task_cfg.game.map_builder._width in [20, 40, 60]
+    assert task_cfg.game.map_builder._height in [20, 40, 60]
+    assert task_cfg.game.map_builder._objects.altar in [1, 3, 5]
 
 
 def test_expand_buckets_values_and_range():

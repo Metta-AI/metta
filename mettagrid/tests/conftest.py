@@ -1,6 +1,6 @@
 import pytest
 
-from .test_mettagrid import TestEnvironmentBuilder
+from metta.mettagrid.test_support import TestEnvironmentBuilder
 
 
 @pytest.fixture
