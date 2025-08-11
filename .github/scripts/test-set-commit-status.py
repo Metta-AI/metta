@@ -77,7 +77,7 @@ def main() -> int:
     state = "success" if raw_pass == "true" else "failure"
 
     run_url = os.environ.get("GITHUB_RUN_URL") or ""
-    context = "CI/Skypilot"
+    context = "GitHub/Test"
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S %Z")
     description = f"Manual test: set status '{state}' via Actions @ {now}"
     target_url = run_url if run_url else None
