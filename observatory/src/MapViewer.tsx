@@ -79,6 +79,16 @@ const getShortName = (evalName: string) => {
 
 const getMapImageUrl = (evalName: string) => {
   if (evalName.toLowerCase() === 'overall') return ''
+  
+  // New naming scheme: eval_category_env_name.png
+  const newKey = evalName.replace('/', '_').toLowerCase()
+  return `https://softmax-public.s3.amazonaws.com/policydash/evals/img/${newKey}.png`
+}
+
+const getFallbackImageUrl = (evalName: string) => {
+  if (evalName.toLowerCase() === 'overall') return ''
+  
+  // Old naming scheme: env_name.png (backwards compatibility)
   const shortName = getShortName(evalName)
   return `https://softmax-public.s3.amazonaws.com/policydash/evals/img/${shortName.toLowerCase()}.png`
 }
@@ -99,11 +109,22 @@ export function MapViewer({
           <div className="map-viewer-placeholder">Hover over an evaluation name or cell to see the environment map</div>
         ) : (
           <img
+            key={selectedEval} // Force reload when selectedEval changes
             className="map-viewer-img"
             src={getMapImageUrl(selectedEval)}
             alt={`Environment map for ${selectedEval}`}
             onError={(e) => {
               const target = e.target as HTMLImageElement
+              const currentSrc = target.src
+              const fallbackUrl = getFallbackImageUrl(selectedEval)
+              
+              // If we haven't tried the fallback yet, try it
+              if (currentSrc !== fallbackUrl) {
+                target.src = fallbackUrl
+                return
+              }
+              
+              // Both URLs failed, show placeholder
               target.style.display = 'none'
               const placeholder = target.parentElement?.querySelector('.map-viewer-placeholder') as HTMLDivElement
               if (placeholder) {
