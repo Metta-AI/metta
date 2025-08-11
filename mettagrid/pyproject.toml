@@ -46,6 +46,7 @@ dependencies = [
     "termcolor>=2.4.0",
     "tqdm>=4.67.1",
     "wandb>=0.19.11",
+    "pufferlib>=3.0.0",
 ]
 
 [dependency-groups]
