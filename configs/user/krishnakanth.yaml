@@ -1,0 +1,34 @@
+# @package __global__
+
+defaults:
+  - /common
+  - /agent/fast
+  - /trainer/trainer
+  - /sim/arena@sim
+  - _self_
+
+run: krishnakanth.coop_rewardsharing.lp
+cmd: train
+
+data_dir: ${oc.env:DATA_DIR,./train_dir}
+run_dir: ${data_dir}/${run}
+
+trainer:
+  curriculum: /env/mettagrid/curriculum/coop_rewardsharing/learning_progress
+  num_workers: 2
+  simulation:
+    evaluate_interval: 100
+    skip_git_check: true
+  checkpoint:
+    wandb_checkpoint_interval: 100
+  total_timesteps: 1_000_000_000
+
+wandb:
+  enabled: false
+  project: metta
+  entity: metta_research
+  group: ${run}
+  name: ${run}
+  run_id: ${run}
+  data_dir: ${run_dir}
+  job_type: ${cmd}
