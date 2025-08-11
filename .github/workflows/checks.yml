@@ -318,43 +318,18 @@ jobs:
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
         run: |
-          .github/scripts/check_mettagrid_build.py --with-coverage
+          .github/scripts/mettagrid_build.py --with-coverage
 
-      - name: Debug - Print full build output
+      - name: Check MettaGrid build quality
         if: always()
-        run: |
-          echo "Full build output:"
-          echo "${{ steps.mettagrid_build_check.outputs.full_output }}"
-
-      - name: Check MettaGrid build warnings
-        if: always()
-        run: |
-          errors=${{ steps.mettagrid_build_check.outputs.total_errors }}
-          warnings=${{ steps.mettagrid_build_check.outputs.total_warnings }}
-          runtime_issues=${{ steps.mettagrid_build_check.outputs.runtime_issues }}
-          max_warnings=50
-
-          # Fail if any of the values are not set
-          if [ -z "$errors" ] || [ -z "$warnings" ] || [ -z "$runtime_issues" ]; then
-            echo "❌ Missing value for errors, warnings, or runtime issues!"
-            exit 1
-          fi
-
-          echo "Build Summary: $errors errors, $warnings warnings, $runtime_issues runtime issues"
-          echo "Maximum allowed warnings: $max_warnings"
-
-          if [ "$errors" -gt 0 ]; then
-            echo "❌ MettaGrid has build errors!"
-            exit 1
-          elif [ "$runtime_issues" -gt 0 ]; then
-            echo "❌ MettaGrid has runtime issues (segfaults, test failures)!"
-            exit 1
-          elif [ "$warnings" -gt "$max_warnings" ]; then
-            echo "⚠️ Too many warnings in MettaGrid build ($warnings > $max_warnings)"
-            exit 1
-          else
-            echo "✅ MettaGrid build quality check passed"
-          fi
+        uses: ./.github/actions/check-cpp-build
+        with:
+          errors: ${{ steps.mettagrid_build_check.outputs.total_errors }}
+          warnings: ${{ steps.mettagrid_build_check.outputs.total_warnings }}
+          runtime_issues: ${{ steps.mettagrid_build_check.outputs.runtime_issues }}
+          max_warnings: "50"
+          build_type: "MettaGrid C++"
+          full_output: ${{ steps.mettagrid_build_check.outputs.full_output }}
 
       - name: Upload MettaGrid C++ coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
@@ -565,12 +540,26 @@ jobs:
       - name: Setup uv
         uses: ./.github/actions/setup-uv
 
-      - name: Build and run C++ benchmarks
+      - name: Build C++ benchmarks
+        id: benchmark_build_check
         run: |
-          source .venv/bin/activate
-          cd mettagrid
-          make benchmark
+          .github/scripts/mettagrid_benchmark.py
 
+      - name: Check benchmark build quality
+        if: always()
+        uses: ./.github/actions/check-cpp-build
+        with:
+          errors: ${{ steps.benchmark_build_check.outputs.total_errors }}
+          warnings: ${{ steps.benchmark_build_check.outputs.total_warnings }}
+          runtime_issues: ${{ steps.benchmark_build_check.outputs.runtime_issues }}
+          max_warnings: "50"
+          build_type: "C++ Benchmarks"
+          full_output: ${{ steps.benchmark_build_check.outputs.full_output }}
+
+      - name: Collect benchmarks
+        if: steps.benchmark_build_check.outputs.build_success == 'true'
+        working-directory: ./mettagrid
+        run: |
           mkdir -p benchmark_output
           for f in build-release/*_benchmark; do
             "$f" --benchmark_format=json > benchmark_output/$(basename $f).json
