@@ -76,7 +76,6 @@ testpaths = ["tests", "benchmarks"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
-addopts = ["--rootdir=.."]
 
 [tool.uv]
 cache-keys = [

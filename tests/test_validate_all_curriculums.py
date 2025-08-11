@@ -45,9 +45,5 @@ class TestValidateAllCurriculums:
             core_module_path = ".".join(parts[:-1]) + ".core"
             core_module = sys.modules.get(core_module_path)
 
-            if core_module and hasattr(core_module, "Curriculum"):
-                Curriculum = core_module.Curriculum
-                assert isinstance(curriculum, Curriculum)
-            else:
-                # Fallback: check if it's a Curriculum by checking the MRO
-                assert any(cls.__name__ == "Curriculum" for cls in type(curriculum).__mro__)
+            Curriculum = core_module.Curriculum
+            assert isinstance(curriculum, Curriculum)
