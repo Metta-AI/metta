@@ -1,6 +1,6 @@
 """Notebook-friendly wrappers for training functionality."""
 
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from experiments.launch import launch_training_run as core_launch
 

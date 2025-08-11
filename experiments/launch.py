@@ -1,12 +1,11 @@
 """Core training launch functionality."""
 
-import json
 import subprocess
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from metta.common.util.fs import get_repo_root
 from experiments.types import TrainingJobConfig
+from metta.common.util.fs import get_repo_root
 
 
 def launch_training_run(
@@ -53,7 +52,7 @@ def launch_training_run(
 
     if no_spot:
         cmd.append("--no-spot")
-    
+
     if skip_git_check:
         cmd.append("--skip-git-check")
 
@@ -74,7 +73,7 @@ def launch_training_run(
         nodes=nodes,
         no_spot=no_spot,
         wandb_tags=wandb_tags,
-        additional_args=additional_args or []
+        additional_args=additional_args or [],
     )
 
     result = {
@@ -86,7 +85,6 @@ def launch_training_run(
         "timestamp": datetime.now().isoformat(),
         "config": config,
     }
-
 
     print(f"Launching training job: {run_name}")
     print(f"Command: {result['command']}")

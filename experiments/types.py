@@ -1,26 +1,28 @@
 """Common types for experiments."""
 
 from dataclasses import dataclass
-from typing import Optional, Dict, Any, List
 from datetime import datetime
-from pydantic import Field, ConfigDict
+from typing import Any, Dict, List, Optional
+
+from pydantic import ConfigDict, Field
 
 from metta.common.util.config import Config
 
 
 class BaseExperimentConfig(Config):
     """Base configuration for all experiments with CLI parameters."""
+
     model_config = ConfigDict(extra="forbid")
-    
+
     # Notebook generation parameters
     name: str = Field(..., description="Name for the experiment/notebook")
     description: Optional[str] = Field(None, description="Description of the experiment")
     sections: Optional[List[str]] = Field(None, description="Notebook sections to include")
-    
+
     # Launch control
     launch: bool = Field(True, description="Whether to launch training runs")
     job_ids: Optional[List[str]] = Field(None, description="Existing SkyPilot job IDs to load")
-    
+
     # Output control
     open_notebook: bool = Field(False, description="Open notebook in Jupyter after creation")
     output_dir: str = Field("experiments/scratch", description="Directory for notebook output")
@@ -28,8 +30,9 @@ class BaseExperimentConfig(Config):
 
 class TrainingJobConfig(Config):
     """Configuration for a training job."""
+
     model_config = ConfigDict(extra="forbid")
-    
+
     # Core launch parameters (matching launch.py argument names)
     curriculum: str = Field(..., description="Path to curriculum config")
     gpus: int = Field(1, description="Number of GPUs per node")
@@ -37,10 +40,10 @@ class TrainingJobConfig(Config):
     no_spot: bool = Field(True, description="Whether to disable spot instances")
     skip_git_check: bool = Field(False, description="Skip git check for uncommitted changes")
     wandb_tags: Optional[List[str]] = Field(None, description="Tags for wandb")
-    
+
     # Additional arguments passed to trainer (e.g., trainer.optimizer.learning_rate=0.001)
     additional_args: List[str] = Field(default_factory=list, description="Additional command line arguments")
-    
+
     def get_arg_value(self, key: str) -> Optional[str]:
         """Get value of a specific additional arg by key."""
         for arg in self.additional_args:
@@ -54,16 +57,17 @@ class TrainingJobConfig(Config):
 @dataclass
 class TrainingJob:
     """Represents a launched training job with its identifiers."""
+
     wandb_run_name: str  # The WandB run name (e.g., "user.experiments.arena.12-04")
     skypilot_job_id: Optional[str] = None
     config: Optional[TrainingJobConfig] = None
     notes: Optional[str] = None
     timestamp: Optional[datetime] = None
-    
+
     def __post_init__(self):
         if self.timestamp is None:
             self.timestamp = datetime.now()
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
@@ -71,27 +75,27 @@ class TrainingJob:
             "skypilot_job_id": self.skypilot_job_id,
             "config": self.config.model_dump() if self.config else None,
             "notes": self.notes,
-            "timestamp": self.timestamp.isoformat() if self.timestamp else None
+            "timestamp": self.timestamp.isoformat() if self.timestamp else None,
         }
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "TrainingJob":
         """Create from dictionary."""
         timestamp = None
         if data.get("timestamp"):
             timestamp = datetime.fromisoformat(data["timestamp"])
-        
+
         config = None
         if data.get("config"):
             if isinstance(data["config"], dict):
                 config = TrainingJobConfig(**data["config"])
             else:
                 config = data["config"]  # Already a TrainingJobConfig
-        
+
         return cls(
             wandb_run_name=data.get("wandb_run_name") or data.get("wandb_run_id"),  # Support old format
             skypilot_job_id=data.get("skypilot_job_id"),
             config=config,
             notes=data.get("notes"),
-            timestamp=timestamp
+            timestamp=timestamp,
         )

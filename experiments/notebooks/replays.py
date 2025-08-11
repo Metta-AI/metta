@@ -28,10 +28,11 @@ def show_replay(run_name: str, step: str | int = "last", width: int = 1000, heig
 
     print(f"Loading MettaScope viewer for {run_name} at step {selected['step']:,}...")
     print(f"\nDirect link: {selected['url']}")
-    
+
     # Try to display in notebook environment
     try:
         from IPython.display import IFrame, display
+
         display(IFrame(src=selected["url"], width=width, height=height))
     except ImportError:
         # Not in a notebook environment

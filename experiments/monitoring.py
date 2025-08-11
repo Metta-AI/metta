@@ -1,7 +1,8 @@
 """Monitoring utilities for training jobs."""
 
 import subprocess
-from typing import Dict, List, Optional
+from typing import List, Optional
+
 import pandas as pd
 
 from metta.common.util.fs import get_repo_root
@@ -9,7 +10,7 @@ from metta.common.util.fs import get_repo_root
 
 def get_sky_jobs_data() -> pd.DataFrame:
     """Fetch current sky jobs data.
-    
+
     Returns:
         DataFrame with sky job information
     """
@@ -79,37 +80,37 @@ def get_sky_jobs_data() -> pd.DataFrame:
 
 def get_wandb_run_name_from_sky_job(job_id: str) -> Optional[str]:
     """Extract the wandb run name from a SkyPilot job.
-    
+
     Args:
         job_id: SkyPilot job ID
-        
+
     Returns:
         Wandb run name if found, None otherwise
     """
     try:
         # Get sky jobs data to find the job name
         sky_jobs_df = get_sky_jobs_data()
-        
+
         if sky_jobs_df.empty:
-            print(f"No sky jobs data available")
+            print("No sky jobs data available")
             return None
-            
+
         # Find the job by ID
         job_match = sky_jobs_df[sky_jobs_df["ID"] == job_id]
-        
+
         if job_match.empty:
             print(f"Job {job_id} not found in sky jobs queue")
             return None
-            
+
         # The NAME column contains the wandb run name
         job_name = job_match.iloc[0]["NAME"]
-        
+
         if job_name and job_name.strip():
             return job_name.strip()
         else:
             print(f"Job {job_id} has no name")
             return None
-            
+
     except Exception as e:
         print(f"Error extracting run name from job {job_id}: {str(e)}")
         return None
@@ -120,34 +121,35 @@ def get_training_status(
     skypilot_job_ids: Optional[List[str]] = None,
     show_metrics: Optional[List[str]] = None,
     entity: str = "metta-research",
-    project: str = "metta"
+    project: str = "metta",
 ) -> pd.DataFrame:
     """Get combined status for training runs.
-    
+
     Args:
         wandb_run_names: List of wandb run names
         skypilot_job_ids: Optional list of corresponding sky job IDs
         show_metrics: Metrics to include in status
         entity: Wandb entity
         project: Wandb project
-        
+
     Returns:
         DataFrame with combined status information
     """
     # Get wandb status
     from experiments.wandb_utils import get_run_statuses
+
     wandb_status = get_run_statuses(wandb_run_names, show_metrics, entity, project)
-    
+
     # If we have sky job IDs, merge with sky status
     if skypilot_job_ids:
         sky_status = get_sky_jobs_data()
-        
+
         # Create mapping of run names to job IDs
-        job_mapping = dict(zip(wandb_run_names, skypilot_job_ids))
-        
+        job_mapping = dict(zip(wandb_run_names, skypilot_job_ids, strict=False))
+
         # Add sky status to wandb status
         wandb_status["sky_job_id"] = wandb_status["run_name"].map(job_mapping)
-        
+
         if not sky_status.empty:
             # Merge on job ID
             wandb_status = wandb_status.merge(
@@ -155,10 +157,10 @@ def get_training_status(
                 left_on="sky_job_id",
                 right_on="ID",
                 how="left",
-                suffixes=("", "_sky")
+                suffixes=("", "_sky"),
             )
             wandb_status["sky_status"] = wandb_status["STATUS"]
             wandb_status["sky_duration"] = wandb_status["JOB DURATION"]
             wandb_status = wandb_status.drop(columns=["ID", "STATUS", "JOB DURATION"])
-    
+
     return wandb_status
