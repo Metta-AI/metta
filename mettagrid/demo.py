@@ -3,51 +3,79 @@ Demo showing how to create a MettaGridEnv and run a simulation with random actio
 """
 
 import numpy as np
-from omegaconf import OmegaConf
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.config import object as objects
+from metta.mettagrid.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    AgentRewards,
+    EnvConfig,
+    GameConfig,
+    GroupConfig,
+    InventoryRewards,
+    MapConfig,
+)
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
 def create_minimal_config():
-    """Create a minimal game configuration with basic objects."""
-    return OmegaConf.create(
-        {
-            "game": {
-                "num_agents": 2,
-                "max_steps": 500,
-                "game_module": "metta_gridcraft",
-                "randomize_player_spawns": True,
-                "map_builder": {
-                    "_target_": "metta.map.mapgen.MapGen",
+    """Create a minimal environment configuration with basic objects."""
+    return EnvConfig(
+        game=GameConfig(
+            num_agents=2,
+            max_steps=500,
+            inventory_item_names=["ore_red", "battery_red", "heart"],
+            # Agent configuration with simple rewards
+            agent=AgentConfig(
+                default_resource_limit=50,
+                resource_limits={"heart": 100, "battery_red": 50},
+                rewards=AgentRewards(inventory=InventoryRewards(ore_red=0.1, battery_red=0.2, heart=1.0)),
+            ),
+            groups={"agent": GroupConfig(id=0, sprite=0, props=AgentConfig())},
+            # Simple actions
+            actions=ActionsConfig(
+                noop=ActionConfig(),
+                move=ActionConfig(),
+                get_items=ActionConfig(),
+                put_items=ActionConfig(),
+            ),
+            # Objects: Use predefined objects from objects.py
+            objects={
+                "wall": objects.wall,  # Required for boundaries
+                "altar": objects.altar,
+                "mine_red": objects.mine_red,
+                "generator_red": objects.generator_red,
+            },
+            # Map configuration - use dict to avoid circular import
+            map=MapConfig(
+                map_gen={
                     "width": 20,
                     "height": 20,
+                    "border_width": 2,
+                    "seed": 42,
                     "root": {
-                        "_target_": "metta.map.scenes.random_objects.RandomObjects",
-                        "objects": {
-                            "object.altar": 2,
-                            "object.mine": 3,
-                            "object.generator": 2,
-                            "agent": 2,
+                        "type": "metta.map.scenes.random.Random",
+                        "params": {
+                            "objects": {"altar": 2, "mine_red": 3, "generator_red": 2},
+                            "agents": 2,
                         },
                     },
-                },
-            }
-        }
+                }
+            ),
+        ),
+        desync_episodes=True,
     )
 
 
 def run_simulation():
     """Run a simulation with random actions."""
     print("Creating environment configuration...")
-    task_cfg = create_minimal_config()
-
-    # Create curriculum with single task
-    curriculum = SingleTaskCurriculum("demo_task", task_cfg)
+    env_config = create_minimal_config()
 
     # Create environment
     print("Creating MettaGridEnv...")
-    env = MettaGridEnv(curriculum=curriculum, is_training=False)
+    env = MettaGridEnv(env_config=env_config, is_training=False)
 
     # Reset environment
     print("Resetting environment...")
@@ -99,23 +127,22 @@ def run_simulation():
     print(f"\nSimulation complete after {step_count} steps")
     print(f"Final total rewards: {total_rewards}")
 
-    # Demonstrate set_next_env_cfg functionality
-    print("\n--- Testing set_next_env_cfg ---")
+    # Demonstrate set_env_cfg functionality
+    print("\n--- Testing set_env_cfg ---")
 
     # Prepare a new configuration
-    new_config = OmegaConf.to_container(task_cfg.game)
-    new_config["max_steps"] = 1000
-    new_config["num_agents"] = 2  # Keep same number of agents
+    new_env_config = create_minimal_config()
+    new_env_config.game.max_steps = 1000
 
-    print(f"Current max_steps: {env._env_cfg['max_steps']}")
+    print(f"Current max_steps: {env._env_config.game.max_steps}")
 
-    # Set the next configuration
-    env.set_next_env_cfg(new_config)
-    print(f"Set next_env_cfg with max_steps: {env._next_env_cfg['max_steps']}")
+    # Set the new configuration
+    env.set_env_cfg(new_env_config)
+    print(f"After set_env_cfg, max_steps: {env._env_config.game.max_steps}")
 
     # Reset to apply the new configuration
     obs, info = env.reset()
-    print(f"After reset, max_steps: {env._env_cfg['max_steps']}")
+    print(f"After reset, max_steps is still: {env._env_config.game.max_steps}")
 
     # Clean up
     env.close()
