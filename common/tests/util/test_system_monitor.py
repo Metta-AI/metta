@@ -319,13 +319,19 @@ class TestMetricCollection:
 # Tests for monitoring control
 class TestMonitoringControl:
     def test_start_stop(self, monitor, mock_psutil):
-        """Test starting and stopping monitoring"""
+        """Test starting and stopping monitoring with a brief teardown wait."""
         assert not monitor.is_running()
 
         monitor.start()
         assert monitor.is_running()
 
         monitor.stop()
+
+        # Allow the background thread to finish (max ~1s)
+        deadline = time.perf_counter() + 1.0
+        while monitor.is_running() and time.perf_counter() < deadline:
+            time.sleep(0.02)
+
         assert not monitor.is_running()
 
     def test_double_start(self, monitor, mock_psutil, caplog):
