@@ -41,21 +41,11 @@ def _():
     import altair as alt
     import pandas as pd
     from experiments.notebooks.utils.metrics import fetch_metrics
-    from experiments.notebooks.utils.monitoring import sky_job_exists
     from experiments.notebooks.utils.monitoring_marimo import monitor_training_statuses
-    from experiments.notebooks.utils.training import launch_training
     from experiments.notebooks.utils.replays import show_replay
 
     print("Setup complete!")
-    return (
-        alt,
-        fetch_metrics,
-        launch_training,
-        monitor_training_statuses,
-        pd,
-        show_replay,
-        sky_job_exists,
-    )
+    return alt, fetch_metrics, monitor_training_statuses, pd, show_replay
 
 
 @app.cell
@@ -69,48 +59,21 @@ def _(mo):
     return
 
 
-@app.cell
-def _(launch_training, sky_job_exists):
-    # Going to launch a job if it doesn't exist
-    run_names = []
+@app.cell(disabled=True)
+def _():
+    # Example: Launch training
 
-    if not sky_job_exists("andre.baseline.round3"):
-        launch_training(
-            run_name="andre.baseline.round3",
-            curriculum="env/mettagrid/arena/basic",
-            wandb_tags=["low_reward"],
-            additional_args=["--skip-git-check"],
-        )
-    run_names.append("andre.baseline.round3")
+    # new_run_name = f"{os.environ.get('USER')}.training-run.{datetime.now().strftime('%Y-%m-%d_%H-%M')}"
+    # print(f"Launching training with run name: {new_run_name}...")
 
-    if not sky_job_exists("andre.move_cardinal.round3"):
-        launch_training(
-            run_name="andre.move_cardinal.round3",
-            # curriculum="env/mettagrid/arena/basic",
-            wandb_tags=["low_reward"],
-            additional_args=[
-                "+replay_job.sim.env_overrides.game.actions.move.enabled=false",
-                "+replay_job.sim.env_overrides.game.actions.rotate.enabled=false",
-                "+replay_job.sim.env_overrides.game.actions.move_cardinal.enabled=true",
-                "--skip-git-check",
-            ],
-        )
-    run_names.append("andre.move_cardinal.round3")
-
-    if not sky_job_exists("andre.move_8way.round2"):
-        launch_training(
-            run_name="andre.move_8way.round2",
-            curriculum="env/mettagrid/arena/basic",
-            wandb_tags=["low_reward"],
-            additional_args=[
-                "+replay_job.sim.env_overrides.game.actions.move.enabled=false",
-                "+replay_job.sim.env_overrides.game.actions.rotate.enabled=false",
-                "+replay_job.sim.env_overrides.game.actions.move_8way.enabled=true",
-                "--skip-git-check",
-            ],
-        )
-    run_names.append("andre.move_8way.round2")
-    return (run_names,)
+    # # # View `launch_training` function for all options
+    # result = launch_training(
+    #     run_name=new_run_name,
+    #     curriculum="env/mettagrid/arena/basic",
+    #     wandb_tags=[f"{os.environ.get('USER')}-arena-experiment"],
+    #     additional_args=["--skip-git-check"],
+    # )
+    return
 
 
 @app.cell
@@ -120,9 +83,24 @@ def _(mo):
 
 
 @app.cell
-def _(monitor_training_statuses, run_names):
+def _(monitor_training_statuses):
+    # Monitor Training
+    run_names = [
+        "daveey.navigation.low_reward.baseline.2",
+        "daveey.navigation.low_reward.baseline.07-18",
+    ]
+
+    # Optional: instead, find all runs that meet some criteria
+    # runs = find_training_runs(
+    #     # wandb_tags=["low_reward"],
+    #     # state="finished",
+    #     author=os.getenv("USER"),
+    #     limit=5,
+    # )
+    # run_names = [run.name for run in runs]  # Extract run names from Run objects
+
     monitor_training_statuses(run_names, show_metrics=["_step", "overview/reward"])
-    return
+    return (run_names,)
 
 
 @app.cell
@@ -149,12 +127,6 @@ def _(fetch_metrics, run_names):
     # metrics_dfs = fetch_metrics(run_names, samples=None)
 
     return (metrics_dfs,)
-
-
-@app.cell
-def _(metrics_dfs):
-    metrics_dfs
-    return
 
 
 @app.cell
@@ -280,13 +252,12 @@ def _(mo):
 
 
 @app.cell
-def _(run_names, show_replay):
+def _(show_replay):
     # Show available replays
     # replays = get_available_replays("daveey.lp.16x4.bptt8")
 
     # Show the last replay for a run
-    for run_name2 in run_names:
-        show_replay(run_name2, step="last", width=1000, height=600)
+    show_replay("daveey.lp.16x4.bptt8", step="last", width=1000, height=600)
     return
 
 
