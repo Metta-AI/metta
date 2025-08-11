@@ -157,6 +157,7 @@ jobs:
         run: ./mettagrid/tests/cpplint.sh
 
   setup-matrix:
+    name: "Setup Test Matrix"
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.create-matrix.outputs.matrix }}
