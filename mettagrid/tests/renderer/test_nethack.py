@@ -315,7 +315,7 @@ class TestRendererIntegration:
         with patch("builtins.print"):
             env = MettaGridEnv(curriculum, render_mode="human")
             assert env._renderer is not None
-            assert isinstance(env._renderer, NethackRenderer)
+            assert env._renderer.__class__.__name__ == "NethackRenderer"
 
             # Test that it produces NetHack-style output
             obs, info = env.reset()

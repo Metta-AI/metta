@@ -15,6 +15,16 @@ def simple_lstm_environment():
     hidden_size = 20
     num_layers = 2
 
+    # Create a mock source component that LSTM expects
+    class MockSourceComponent:
+        def __init__(self, output_shape, name):
+            self._out_tensor_shape = output_shape
+            self.name = name
+
+    # Create mock source components with proper output shapes
+    mock_source = MockSourceComponent([input_size], "hidden")
+    source_components = {"hidden": mock_source}
+
     # Create input data
     sample_input = {
         "env_obs": torch.rand(batch_size * seq_length, input_size),
@@ -34,11 +44,8 @@ def simple_lstm_environment():
     # Create LSTM layer
     lstm_layer = LSTM(**cfg)
 
-    # Set up in_tensor_shapes manually
-    lstm_layer._in_tensor_shapes = [[input_size]]
-
-    # Initialize the network
-    lstm_layer.setup(source_components=None)
+    # Initialize the network with proper source components
+    lstm_layer.setup(source_components=source_components)
 
     # Return all components needed for testing
     return {
@@ -64,8 +71,9 @@ class TestLSTMLayer:
         params = simple_lstm_environment["params"]
 
         td = TensorDict(sample_input, batch_size=[params["batch_size"] * params["seq_length"]])
-        td.bptt = params["seq_length"]
-        td.batch = params["batch_size"]
+        # Set bptt and batch as tensors with the correct batch dimension
+        td["bptt"] = torch.tensor([params["seq_length"]] * (params["batch_size"] * params["seq_length"]))
+        td["batch"] = torch.tensor([params["batch_size"]] * (params["batch_size"] * params["seq_length"]))
 
         # The LSTM state is initially empty
         assert not lstm_layer.lstm_h
@@ -90,8 +98,9 @@ class TestLSTMLayer:
         params = simple_lstm_environment["params"]
 
         td = TensorDict(sample_input, batch_size=[params["batch_size"] * params["seq_length"]])
-        td.bptt = params["seq_length"]
-        td.batch = params["batch_size"]
+        # Set bptt and batch as tensors with the correct batch dimension
+        td["bptt"] = torch.tensor([params["seq_length"]] * (params["batch_size"] * params["seq_length"]))
+        td["batch"] = torch.tensor([params["batch_size"]] * (params["batch_size"] * params["seq_length"]))
 
         # First forward pass will use initial zero state
         result1_td = lstm_layer._forward(td.clone())
@@ -112,8 +121,9 @@ class TestLSTMLayer:
         params = simple_lstm_environment["params"]
 
         td = TensorDict(sample_input, batch_size=[params["batch_size"] * params["seq_length"]])
-        td.bptt = params["seq_length"]
-        td.batch = params["batch_size"]
+        # Set bptt and batch as tensors with the correct batch dimension
+        td["bptt"] = torch.tensor([params["seq_length"]] * (params["batch_size"] * params["seq_length"]))
+        td["batch"] = torch.tensor([params["batch_size"]] * (params["batch_size"] * params["seq_length"]))
 
         # Run a forward pass to populate the state
         lstm_layer._forward(td.clone())

@@ -55,7 +55,7 @@ tidy: build
 # Python
 install:
 	@echo "📦 Installing package..."
-	UV_PROJECT_ENVIRONMENT=../.venv uv sync --inexact --active
+	UV_PROJECT_ENVIRONMENT=../.venv uv sync --active --inexact --frozen
 
 pytest: install
 	@echo "🐍 Running Python tests..."

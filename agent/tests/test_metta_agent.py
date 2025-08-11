@@ -732,21 +732,21 @@ def test_forward_training_integration(create_metta_agent):
     output_td = agent.forward_training(td, action)
 
     # Extract the results from the output TensorDict
-    returned_action = output_td["action"]
-    action_log_prob = output_td["action_log_prob"]
+    returned_action_logits = output_td["_action_"]  # This contains the logits
+    action_log_prob = output_td["act_log_prob"]
     entropy = output_td["entropy"]
     returned_value = output_td["_value_"]
-    log_probs = output_td["log_probs"]
+    log_probs = output_td["full_log_probs"]
 
-    # Check output shapes
-    assert returned_action.shape == (B, T, 2)
-    assert action_log_prob.shape == (B * T,)
-    assert entropy.shape == (B * T,)
-    assert returned_value.shape == (B * T, 1)
-    assert log_probs.shape == (B * T, num_total_actions)
+    # Check output shapes - all outputs are flattened (B*T, ...)
+    assert returned_action_logits.shape == (B * T, num_total_actions)  # (6, 7) - the logits
+    assert action_log_prob.shape == (B * T,)  # (6,)
+    assert entropy.shape == (B * T,)  # (6,)
+    assert returned_value.shape == (B * T, 1)  # (6, 1)
+    assert log_probs.shape == (B * T, num_total_actions)  # (6, 7)
 
-    # Check that returned action and value are the same as input
-    assert torch.all(returned_action == action)
+    # Check that returned logits and value are the same as input
+    assert torch.all(returned_action_logits == logits)
     assert torch.all(returned_value == value)
 
     # Additional validation: verify all actions are actually valid
@@ -764,3 +764,15 @@ def test_forward_training_integration(create_metta_agent):
         assert 0 <= action_param <= max_param, (
             f"Invalid param {action_param} for action type {action_type}, max is {max_param}"
         )
+
+    # Verify that the output tensors are valid
+    assert not torch.isnan(action_log_prob).any()
+    assert not torch.isnan(entropy).any()
+    assert not torch.isnan(log_probs).any()
+
+    # Verify entropy is non-negative
+    assert (entropy >= 0).all()
+
+    # Verify exp(log probabilities) sum to 1
+    probs = torch.exp(log_probs)
+    assert torch.allclose(probs.sum(dim=1), torch.ones(B * T), atol=1e-5)

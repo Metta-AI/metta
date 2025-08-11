@@ -161,9 +161,15 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
-    def reset_memory(self):
+    def reset_memory(self) -> None:
         for name in self.components_with_memory:
-            self.components[name].reset_memory()
+            comp = self.components[name]
+            if not hasattr(comp, "reset_memory"):
+                raise ValueError(
+                    f"Component '{name}' listed in components_with_memory but has no reset_memory() method."
+                    + " Perhaps an obsolete policy?"
+                )
+            comp.reset_memory()
 
     def get_memory(self):
         memory = {}
