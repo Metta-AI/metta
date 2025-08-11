@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import numpy as np
+import pytest
 from omegaconf import OmegaConf
 
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
@@ -53,6 +54,7 @@ def test_no_agent_interference():
     return all_passed
 
 
+@pytest.mark.skip(reason="This is a standalone test script, not a pytest test")
 def test_ghost_movement_with_interference_flag(no_agent_interference: bool):
     """Test that agents can move through each other when no_agent_interference is enabled"""
 
@@ -173,6 +175,7 @@ def test_ghost_movement_with_interference_flag(no_agent_interference: bool):
             return False
 
 
+@pytest.mark.skip(reason="This is a standalone test script, not a pytest test")
 def test_observation_filtering(no_agent_interference: bool):
     """Test that agents only see themselves when no_agent_interference is enabled"""
 
@@ -259,6 +262,7 @@ def test_observation_filtering(no_agent_interference: bool):
     return True  # Indicate success
 
 
+@pytest.mark.skip(reason="This is a standalone test script, not a pytest test")
 def test_ghost_add_object():
     """Test ghost_add_object functionality"""
 
