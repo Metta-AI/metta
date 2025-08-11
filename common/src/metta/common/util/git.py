@@ -1,4 +1,5 @@
 import logging
+import os
 import subprocess
 from pathlib import Path
 
@@ -85,10 +86,30 @@ def get_commit_message(commit_hash: str) -> str:
     return run_git("log", "-1", "--pretty=%B", commit_hash)
 
 
-def has_unstaged_changes() -> bool:
-    """Check if there are any unstaged changes."""
+def has_unstaged_changes(allow_untracked: bool = False) -> tuple[bool, str]:
+    """Returns if there are any unstaged changes in the local git checkout.
+
+    If allow_untracked is True, then unstaged changes in the form of new untracked files will be ignored.
+
+    Interpretation of porcelain codes:
+    - Lines starting with '??' indicate untracked files
+    - Any other status lines indicate changes to tracked files
+    """
     status_output = run_git("status", "--porcelain")
-    return bool(status_output)
+    if not allow_untracked:
+        return bool(status_output), status_output
+
+    is_dirty_tracked = False
+    for line in status_output.splitlines():
+        if not line.strip():
+            continue
+        if line.startswith("??"):
+            # untracked file, ignore
+            continue
+        # any other status code refers to tracked file state change
+        is_dirty_tracked = True
+        break
+    return is_dirty_tracked, status_output
 
 
 def is_commit_pushed(commit_hash: str) -> bool:
@@ -209,16 +230,28 @@ def get_git_hash_for_remote_task(
             logger.warning("Origin not set to metta-ai/metta, using git_hash=None")
         return None
 
-    if has_unstaged_changes():
+    on_skypilot = bool(os.getenv("SKYPILOT_TASK_ID"))
+    has_changes, status_output = has_unstaged_changes()
+    if has_changes:
+        if logger:
+            logger.warning("Working tree has unstaged changes.\n" + status_output)
         if not skip_git_check:
-            raise GitError(
-                f"You have uncommitted changes that won't be reflected in the remote task.\n"
-                f"You can push your changes or specify to skip this check with {skip_cmd}"
-            )
-        elif logger:
-            logger.info("Proceeding with uncommitted changes")
+            if on_skypilot:
+                # Skypilot jobs can create local files as part of their setup. It's assumed that these changes do not
+                # need to be checked in because they wouldn't have an effect on policy evaluator's execution
+                if logger:
+                    logger.warning("Running on skypilot: proceeding despite unstaged changes")
+            else:
+                raise GitError(
+                    "You have uncommitted changes to tracked files that won't be reflected in the remote task.\n"
+                    f"You can push your changes or specify to skip this check with {skip_cmd}"
+                )
+    else:
+        # Only untracked files present (or clean). Log for visibility if untracked exist.
+        if status_output and logger:
+            logger.info("Proceeding with unstaged changes.\n" + status_output)
 
-    if not is_commit_pushed(current_commit):
+    if not is_commit_pushed(current_commit) and not on_skypilot:
         short_commit = current_commit[:8]
         if not skip_git_check:
             raise GitError(

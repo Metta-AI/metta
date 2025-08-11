@@ -15,15 +15,16 @@ game:
     put_items:
       enabled: false
   map_builder:
-    _target_: metta.mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
+    _target_: metta.map.mapgen.MapGen
+    instances: ${..num_agents}
     border_width: 6
-    room:
-      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
-      border_width: 3
-      agents: 1
-      objects:
-        altar: 10
+    instance_border_width: 3
+    instance_map:
+      type: metta.map.terrain_from_numpy.TerrainFromNumpy
+      params:
+        agents: 1
+        objects:
+          altar: 10
   objects:
     altar:
       cooldown: 1000

@@ -75,10 +75,11 @@ jobs:
           echo "Installation complete"
           echo "::endgroup::"
 
-      - name: Check format and lint
-        run: |
-          cd mettascope
-          pnpm run lint
+      # TODO: Re-enable when it stops eating our code.
+      # - name: Check format and lint
+      #   run: |
+      #     cd mettascope
+      #     pnpm run lint
 
       - name: Run training
         run: |

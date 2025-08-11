@@ -14,7 +14,7 @@ from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 NUM_AGENTS = 2
 OBS_HEIGHT = 3
 OBS_WIDTH = 3
-NUM_OBS_TOKENS = 100
+NUM_OBS_TOKENS = 30
 OBS_TOKEN_SIZE = 3
 
 
@@ -457,41 +457,3 @@ class TestBuffers:
         # Episode rewards should be cumulative
         expected_cumulative = episode_rewards_1 + step_rewards_2
         np.testing.assert_array_equal(episode_rewards_2, expected_cumulative, "Episode rewards should be cumulative")
-
-    def test_gym_mode_vs_custom_buffers(self):
-        """Test that gym mode and custom buffer mode produce equivalent results."""
-        # Test with gym mode (no custom buffers)
-        gym_env = create_minimal_mettagrid_c_env()
-        gym_obs, gym_info = gym_env.reset()
-
-        noop_action_idx = gym_env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
-
-        gym_obs_step, gym_rewards, gym_terminals, gym_truncations, gym_info_step = gym_env.step(actions)
-        gym_episode_rewards = gym_env.get_episode_rewards()
-
-        # Test with custom buffers
-        custom_env = create_minimal_mettagrid_c_env()
-
-        observations = np.zeros((NUM_AGENTS, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=np.uint8)
-        terminals = np.zeros(NUM_AGENTS, dtype=bool)
-        truncations = np.zeros(NUM_AGENTS, dtype=bool)
-        rewards = np.zeros(NUM_AGENTS, dtype=np.float32)
-
-        custom_env.set_buffers(observations, terminals, truncations, rewards)
-        custom_obs, custom_info = custom_env.reset()
-
-        custom_obs_step, custom_rewards, custom_terminals, custom_truncations, _custom_info_step = custom_env.step(
-            actions
-        )
-        custom_episode_rewards = custom_env.get_episode_rewards()
-
-        # Both modes should produce equivalent results
-        np.testing.assert_array_equal(gym_obs, custom_obs, "Reset observations should match between modes")
-        np.testing.assert_array_equal(gym_obs_step, custom_obs_step, "Step observations should match between modes")
-        np.testing.assert_array_equal(gym_rewards, custom_rewards, "Rewards should match between modes")
-        np.testing.assert_array_equal(gym_terminals, custom_terminals, "Terminals should match between modes")
-        np.testing.assert_array_equal(gym_truncations, custom_truncations, "Truncations should match between modes")
-        np.testing.assert_array_equal(
-            gym_episode_rewards, custom_episode_rewards, "Episode rewards should match between modes"
-        )

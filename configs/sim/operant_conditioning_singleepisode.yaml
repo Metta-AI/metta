@@ -1,0 +1,25 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: operant_conditioning_singleepisode
+
+simulations:
+  operant_conditioning_multiday/2_converters_generator_blue:
+    env: env/mettagrid/operant_conditioning/trial_and_error/2_converters/generator_blue
+  operant_conditioning_multiday/2_converters_generator_red:
+    env: env/mettagrid/operant_conditioning/trial_and_error/2_converters/generator_red
+  operant_conditioning_multiday/3_converters_generator_blue:
+    env: env/mettagrid/operant_conditioning/trial_and_error/3_converters/generator_blue
+  operant_conditioning_multiday/3_converters_generator_red:
+    env: env/mettagrid/operant_conditioning/trial_and_error/3_converters/generator_red
+  operant_conditioning_multiday/3_converters_generator_green:
+    env: env/mettagrid/operant_conditioning/trial_and_error/3_converters/generator_green
+  operant_conditioning_multiday/4_converters_generator_blue:
+    env: env/mettagrid/operant_conditioning/trial_and_error/4_converters/generator_blue
+  operant_conditioning_multiday/4_converters_generator_red:
+    env: env/mettagrid/operant_conditioning/trial_and_error/4_converters/generator_red
+  operant_conditioning_multiday/4_converters_generator_green:
+    env: env/mettagrid/operant_conditioning/trial_and_error/4_converters/generator_green
+  operant_conditioning_multiday/4_converters_altar:
+    env: env/mettagrid/operant_conditioning/trial_and_error/4_converters/altar

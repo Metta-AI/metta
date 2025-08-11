@@ -1,5 +1,3 @@
-from typing import List
-
 from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import (
     ScorecardWidget,
     create_scorecard_widget,
@@ -10,70 +8,10 @@ from metta.setup.utils import info, warning
 from typing_extensions import Literal
 
 
-async def get_available_metrics(
-    client: ScorecardClient,
-    search_texts: List[str] = [],
-    include_run_free_policies: bool = False,
-) -> List[str]:
-    """
-    Get available metrics for the given search texts without generating a scorecard.
-    Useful for exploring what metrics are available before calling fetch_real_scorecard_data.
-
-    Args:
-        client: ScorecardClient instance
-        search_texts: List of search texts to use to find training runs
-        include_run_free_policies: Whether to include run-free policies
-
-    Returns:
-        List of available metric names
-    """
-    # Find training run IDs that match our training run names
-    training_run_ids = []
-    run_free_policy_ids = []
-    if search_texts:
-        for search_text in search_texts:
-            policies_data = await client.get_policies(
-                search_text=search_text, page_size=100
-            )
-            for policy in policies_data.policies:
-                if policy.type == "training_run" and search_text in policy.name:
-                    training_run_ids.append(policy.id)
-                elif policy.type == "policy" and include_run_free_policies:
-                    run_free_policy_ids.append(policy.id)
-    else:
-        raise Exception(
-            "No search_texts provided. Please provide at least one so we can search for policies."
-        )
-
-    if not training_run_ids:
-        raise Exception(f"No training runs found matching: {search_texts}.")
-
-    # Get available evaluations for these training runs
-    eval_names_tuples = await client.get_eval_names(
-        training_run_ids, run_free_policy_ids
-    )
-
-    if not eval_names_tuples:
-        warning("No evaluations found for selected training runs")
-        return []
-
-    # Flatten eval_names structure - it comes as [('category', ['eval1', 'eval2', ...])]
-    flat_eval_names = []
-    for item in eval_names_tuples:
-        category, evals = item
-        flat_eval_names.extend(evals)
-
-    available_metrics = await client.get_available_metrics(
-        training_run_ids, run_free_policy_ids, flat_eval_names
-    )
-
-    return sorted(available_metrics)
-
-
 async def fetch_real_scorecard_data(
     client: ScorecardClient,
-    metrics: List[str],
-    search_texts: List[str] = [],
+    restrict_to_metrics: list[str] | None = None,
+    restrict_to_policy_names: list[str] | None = None,
     policy_selector: Literal["best", "latest"] = "best",
     max_policies: int = 30,
     include_run_free_policies: bool = False,
@@ -97,26 +35,21 @@ async def fetch_real_scorecard_data(
     # Find training run IDs that match our training run names
     training_run_ids = []
     run_free_policy_ids = []
-    if search_texts:
-        for search_text in search_texts:
-            policies_data = await client.get_policies(
-                search_text=search_text, page_size=100
+    policies_data = await client.get_policies()
+    for policy in policies_data.policies:
+        if policy.type == "training_run" and (
+            not restrict_to_policy_names
+            or any(
+                filter_policy_name in policy.name
+                for filter_policy_name in restrict_to_policy_names
             )
-            for policy in policies_data.policies:
-                if policy.type == "training_run" and search_text in policy.name:
-                    training_run_ids.append(policy.id)
-                elif policy.type == "policy" and include_run_free_policies:
-                    run_free_policy_ids.append(policy.id)
-    else:
-        raise Exception(
-            "No search_texts provided. Please provide at least one so we can search for policies."
-        )
+        ):
+            training_run_ids.append(policy.id)
+        elif policy.type == "policy" and include_run_free_policies:
+            run_free_policy_ids.append(policy.id)
 
     if not training_run_ids:
-        raise Exception(
-            f"No training runs found matching: {search_texts}. This may be due to a \
-                limitation in the backend. We're working on a fix!"
-        )
+        raise Exception("No training runs found")
     info(f"Training run IDs: {len(training_run_ids)}")
     info(f"Run free policy IDs: {len(run_free_policy_ids)}")
 
@@ -141,14 +74,20 @@ async def fetch_real_scorecard_data(
         raise Exception("No metrics found for selected training runs and evaluations")
 
     # Filter to requested metrics that actually exist
-    valid_metrics = [m for m in metrics if m in available_metrics]
+    valid_metrics = list(
+        filter(
+            lambda m: (not restrict_to_metrics or m in restrict_to_metrics),
+            available_metrics,
+        )
+    )
     if not valid_metrics:
         info(f"Available metrics: {sorted(available_metrics)}")
-        warning(f"None of the requested metrics {metrics} are available")
+        if restrict_to_metrics:
+            warning(
+                f"None of the requested metrics {restrict_to_metrics} are available"
+            )
         warning(f"Available metrics are: {sorted(available_metrics)}")
-        raise Exception(
-            f"None of the requested metrics {metrics} are available. Available metrics: {sorted(available_metrics)}"
-        )
+        raise Exception("No valid metrics found")
 
     # Step 4: Generate scorecard for the first metric
     primary_metric = valid_metrics[0]

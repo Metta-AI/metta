@@ -177,7 +177,7 @@ async def _create_remote_eval_tasks(
         )
         for policy_id in policy_ids.values()
         for eval_name in request.evals
-        if not len(existing_tasks[(policy_id, eval_name)])
+        if (request.allow_duplicates or not len(existing_tasks[(policy_id, eval_name)]))
     ]
 
     if not task_requests:

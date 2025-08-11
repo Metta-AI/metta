@@ -48,7 +48,7 @@ def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
         existing_sweep = await metta_repo.get_sweep_by_name(sweep_name)
 
         if existing_sweep:
-            return SweepCreateResponse(created=False, sweep_id=uuid.UUID(existing_sweep["id"]))
+            return SweepCreateResponse(created=False, sweep_id=existing_sweep.id)
 
         # Create new sweep
         sweep_id = await metta_repo.create_sweep(
@@ -70,7 +70,7 @@ def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
         if not sweep:
             return SweepInfo(exists=False, wandb_sweep_id="")
 
-        return SweepInfo(exists=True, wandb_sweep_id=sweep["wandb_sweep_id"])
+        return SweepInfo(exists=True, wandb_sweep_id=sweep.wandb_sweep_id)
 
     @router.post("/{sweep_name}/runs/next", response_model=RunIdResponse)
     @timed_http_handler
@@ -82,7 +82,7 @@ def create_sweep_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=404, detail=f"Sweep '{sweep_name}' not found")
 
         # Atomically increment and get next run counter
-        next_counter = await metta_repo.get_next_sweep_run_counter(uuid.UUID(sweep["id"]))
+        next_counter = await metta_repo.get_next_sweep_run_counter(sweep.id)
 
         # Format run ID as "sweep_name.r.counter"
         run_id = f"{sweep_name}.r.{next_counter}"
