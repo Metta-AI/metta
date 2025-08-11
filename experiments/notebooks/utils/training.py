@@ -3,7 +3,6 @@ import os
 import subprocess
 
 import yaml
-
 from metta.common.util.collections import remove_none_values
 from metta.common.util.fs import get_repo_root
 
@@ -23,6 +22,7 @@ def load_available_environments() -> list[str]:
 
 def launch_training(
     run_name: str,
+    num_nodes: int | None = None,
     num_gpus: int | None = None,
     num_cpus: int | None = None,
     no_spot: bool | None = None,
@@ -40,6 +40,7 @@ def launch_training(
 
     cmd_args = remove_none_values(
         {
+            "nodes": num_nodes,
             "gpu": num_gpus,
             "cpu": num_cpus,
             "no_spot": no_spot,
