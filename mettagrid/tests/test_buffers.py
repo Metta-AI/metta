@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import pytest
 
@@ -460,6 +462,10 @@ class TestBuffers:
 
     def test_gym_mode_vs_custom_buffers(self):
         """Test that gym mode and custom buffer mode produce equivalent results."""
+
+        np.random.seed(42)
+        random.seed(42)
+
         # Test with gym mode (no custom buffers)
         gym_env = create_minimal_mettagrid_c_env()
         gym_obs, gym_info = gym_env.reset()
