@@ -7,7 +7,7 @@ from metta.common.util.typed_config import BaseModelWithForbidExtra
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
-CheckpointFileType = Literal["dot_pt", "safetensors", "dot_pt_and_safetensors"]
+CheckpointFileType = Literal["pt", "safetensors", "pt_also_emit_safetensors"]
 
 
 class OptimizerConfig(BaseModelWithForbidExtra):
@@ -56,7 +56,7 @@ class CheckpointConfig(BaseModelWithForbidExtra):
     wandb_checkpoint_interval: int = Field(default=300, ge=0)  # 0 to disable
     checkpoint_dir: str = Field(default="")
     # Checkpoint file type: Controls the format of saved checkpoint files
-    checkpoint_file_type: CheckpointFileType = Field(default="dot_pt")
+    checkpoint_file_type: CheckpointFileType = Field(default="pt")
 
     @model_validator(mode="after")
     def validate_fields(self) -> "CheckpointConfig":

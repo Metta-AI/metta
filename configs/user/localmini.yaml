@@ -3,6 +3,8 @@
 trainer:
   env: /env/mettagrid/arena/advanced
   simulation:
-    replay_dir: /Users/localmini/github/replay_dir/${run}
+    replay_dir: /Users/localmini/replay_dir/${run}
     skip_git_check: true
   total_timesteps: 1000000
+  checkpoint:
+    checkpoint_file_type: safetensors

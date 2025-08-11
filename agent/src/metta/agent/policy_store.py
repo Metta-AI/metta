@@ -14,12 +14,14 @@ import logging
 import os
 import random
 import sys
+from pathlib import Path
 from typing import Any, Literal
 
 import torch
 import wandb
 from omegaconf import DictConfig
 
+from metta.agent import policy_metadata_yaml_helper
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
@@ -230,8 +232,8 @@ class PolicyStore:
             logger.warning(f"Metric '{metric}' not found in policy metadata")
             return {p: None for p in prs}
 
-    def make_model_name(self, epoch: int) -> str:
-        return f"model_{epoch:04d}.pt"
+    def make_model_name(self, epoch: int, model_suffix: str) -> str:
+        return f"model_{epoch:04d}{model_suffix}"
 
     def create_empty_policy_record(self, name: str, checkpoint_dir: str) -> PolicyRecord:
         path = os.path.join(checkpoint_dir, name)
@@ -291,30 +293,17 @@ class PolicyStore:
         checkpoint_name = os.path.splitext(os.path.basename(path))[0]
 
         # Save .safetensors file (just the model weights/state dict)
-        safetensors_path = os.path.join(checkpoint_dir, f"{checkpoint_name}.safetensors")
-        if pr._cached_policy is not None:
-            torch.save(pr._cached_policy.state_dict(), safetensors_path)
-            logger.debug(f"Saved model weights to {safetensors_path}")
-
-        # Save .yaml file (just the metadata)
-        yaml_path = os.path.join(checkpoint_dir, f"{checkpoint_name}.yaml")
-        import yaml
-
-        with open(yaml_path, "w") as f:
-            yaml.dump(pr.metadata, f, default_flow_style=False)
-        logger.debug(f"Saved metadata to {yaml_path}")
-
-        logger.info("Saved additional files (.safetensors, .yaml)")
-        return safetensors_path
+        safetensors_path = policy_metadata_yaml_helper.save_policy(pr, checkpoint_name, Path(checkpoint_dir))
+        return str(safetensors_path)
 
     def save(
-        self, pr: PolicyRecord, checkpoint_file_type: CheckpointFileType = "dot_pt", path: str | None = None
+        self, pr: PolicyRecord, checkpoint_file_type: CheckpointFileType = "pt", path: str | None = None
     ) -> PolicyRecord:
         # if saving both, take path from safetensors
-        if checkpoint_file_type in ["dot_pt", "dot_pt_and_safetensors"]:
-            path = self.save_to_pt_file(pr, path)
-        if checkpoint_file_type in ["safetensors", "dot_pt_and_safetensors"]:
+        if checkpoint_file_type in ["safetensors", "pt_also_emit_safetensors"]:
             path = self.save_to_safetensors_file(pr, path)
+        if checkpoint_file_type in ["pt", "pt_also_emit_safetensors"]:
+            path = self.save_to_pt_file(pr, path)
 
         # Don't cache the policy that we just saved,
         # since it might be updated later. We always
@@ -511,65 +500,10 @@ class PolicyStore:
             if metadata_only or cached_pr._cached_policy is not None:
                 return cached_pr
 
-        # Handle directory case - look for .safetensors files
-        if os.path.isdir(path):
-            safetensors_files = [f for f in os.listdir(path) if f.endswith(".safetensors")]
-            if not safetensors_files:
-                raise FileNotFoundError(f"No .safetensors files found in directory {path}")
-            path = os.path.join(path, safetensors_files[-1])  # Use the latest one
-
-        logger.info(f"Loading policy from safetensors file {path}")
-
-        assert path.endswith(".safetensors"), f"Policy file {path} does not have a .safetensors extension"
-
-        # Get the base path for finding the corresponding YAML file
-        base_path = path[:-11]  # Remove .safetensors extension
-        yaml_path = base_path + ".yaml"
-
-        # Load metadata from YAML file
-        metadata = {}
-        if os.path.exists(yaml_path):
-            import yaml
-
-            with open(yaml_path, "r") as f:
-                metadata = yaml.safe_load(f)
-            logger.debug(f"Loaded metadata from {yaml_path}")
-        else:
-            logger.warning(f"No metadata file found at {yaml_path}")
-
-        # Create PolicyRecord with metadata
-        name = os.path.basename(base_path)
-        uri = f"file://{path}"
-        from metta.agent.policy_metadata import PolicyMetadata
-
-        policy_metadata = PolicyMetadata.from_dict(metadata) if metadata else PolicyMetadata()
-        pr = PolicyRecord(self, name, uri, policy_metadata)
-
-        if not metadata_only:
-            # Load model weights from safetensors file
-            try:
-                # Try to import safetensors, but don't fail if not available
-                try:
-                    from safetensors.torch import load_file  # type: ignore
-
-                    state_dict = load_file(path, device=self._device)
-                    logger.debug(f"Loaded model weights from {path}")
-
-                    # For now, we'll store the state dict but not create a full policy object
-                    # since reconstructing the policy requires the original model architecture
-                    # This is a limitation of the safetensors format - it only stores weights
-                    logger.warning(
-                        "Safetensors format only stores model weights. Full policy reconstruction requires the original model architecture."
-                    )
-                    pr._cached_policy = None
-
-                except ImportError:
-                    logger.error("safetensors library not available. Please install with: pip install safetensors")
-                    raise
-
-            except Exception as e:
-                logger.error(f"Failed to load safetensors file {path}: {e}")
-                raise
+        # For safetensors files, we need to load metadata from YAML and create a proper PolicyRecord
+        # This is handled by the _load_from_safetensorsfile method in the policy_store
+        # For now, create a basic PolicyRecord and let the caller handle the full loading
+        pr = PolicyRecord(self, os.path.basename(path), "file://" + path, PolicyMetadata())
 
         self._cached_prs.put(path, pr)
         return pr

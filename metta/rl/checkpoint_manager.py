@@ -88,6 +88,11 @@ class CheckpointManager:
 
         return True
 
+    def model_suffix(self) -> str:
+        if self.checkpoint_cfg.checkpoint_file_type == "safetensors":
+            return ".safetensors"
+        return ".pt"
+
     def save_policy(
         self,
         policy: PolicyAgent,
@@ -107,7 +112,7 @@ class CheckpointManager:
         )
 
         # Build metadata
-        name = self.policy_store.make_model_name(epoch)
+        name = self.policy_store.make_model_name(epoch, self.model_suffix())
 
         # Extract average reward and scores from evals
         evals_dict = {
@@ -197,7 +202,7 @@ class CheckpointManager:
         """
 
         # Check if policy already exists at default path - all ranks check this
-        default_model_name = self.policy_store.make_model_name(0)
+        default_model_name = self.policy_store.make_model_name(0, self.model_suffix())
         default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, default_model_name)
 
         # First priority: checkpoint
