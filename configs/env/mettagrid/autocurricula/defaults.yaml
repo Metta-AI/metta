@@ -6,7 +6,7 @@ game:
   num_agents: 16
   max_steps: 500
   agent:
-    starting_inventory:
+    initial_inventory:
       battery_blue: 1
     rewards:
       inventory:

@@ -6,13 +6,14 @@ game:
   num_agents: 4
   max_steps: 500
   agent:
-    starting_inventory:
+    initial_inventory:
       battery_blue: 1
     rewards:
       inventory:
         heart: 1.0
   inventory_item_names:
     - battery_blue
+    - heart
   actions:
     attack:
       enabled: false
@@ -23,13 +24,10 @@ game:
   map_builder:
     _target_: metta.mettagrid.room.multi_room.MultiRoom
     num_rooms: 1
-    border_width: 2
+    border_width: 6
     room:
-      _target_: metta.mettagrid.room.navigation.varied_terrain.VariedTerrain
-      style: balanced
-      width: 6
-      height: 6
-      border_width: 0
+      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
+      border_width: 3
       agents: 4
       objects:
         altar: 0
@@ -41,3 +39,5 @@ game:
       type_id: 2
     box:
       type_id: 12
+
+  no_agent_interference: true
