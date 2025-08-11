@@ -220,8 +220,9 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
 
     def clip_weights(self):
-        """Clip weights of the actor heads to prevent large updates."""
-        pass
+        for p in self.parameters():
+            p.data.clamp_(-1, 1)
+
 
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """Convert logit indices back to action pairs."""
