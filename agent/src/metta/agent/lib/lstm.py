@@ -91,7 +91,11 @@ class LSTM(LayerBase):
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
-        training_env_id_start = td.get("training_env_id_start", torch.tensor([0], dtype=torch.long))[0].item()
+        training_env_id_start = td.get("training_env_id_start", None)
+        if training_env_id_start is None:
+            training_env_id_start = 0
+        else:
+            training_env_id_start = training_env_id_start[0].item()
 
         if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
             h_0 = self.lstm_h[training_env_id_start]
