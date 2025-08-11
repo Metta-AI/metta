@@ -14,7 +14,6 @@ Prioritize Regressed Curriculum Tests:
 """
 
 import random
-import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Set
@@ -31,18 +30,6 @@ from metta.mettagrid.curriculum.prioritize_regressed import PrioritizeRegressedC
 from metta.mettagrid.curriculum.random import RandomCurriculum
 from metta.mettagrid.curriculum.sampling import SampledTaskCurriculum
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-
-# Fix the path BEFORE any metta imports
-metta_parent = Path(__file__).parent.parent.parent
-if str(metta_parent) not in sys.path:
-    sys.path.insert(0, str(metta_parent))
-modules_to_remove = [key for key in sys.modules.keys() if key.startswith("metta")]
-for module in modules_to_remove:
-    del sys.modules[module]
-
-# TODO: decide if we want to allow mettagrid to import from metta or if we would rather
-# move metta.map to metta.common.map
-from metta.map.mapgen import MapGen  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -253,16 +240,16 @@ def test_bucketed_curriculum_from_yaml_with_map_builder():
     task_id = task.id()
     assert "width=" in task_id, f"Task ID should contain width parameter: {task_id}"
     assert "height=" in task_id, f"Task ID should contain height parameter: {task_id}"
-    assert "room_size=" in task_id, f"Task ID should contain room_size parameter: {task_id}"
+    assert "altar=" in task_id, f"Task ID should contain altar parameter: {task_id}"
 
     # Verify the task config structure is correct
     task_cfg = task.env_cfg()
     assert hasattr(task_cfg.game, "map_builder")
-    assert isinstance(task_cfg.game.map_builder, MapGen)
+    assert isinstance(task_cfg.game.map_builder, metta.mettagrid.room.random.Random)
     assert task_cfg.game.num_agents == 5, f"num_agents should have been overridden to 5, got {task_cfg.game.num_agents}"
-    assert task_cfg.game.map_builder.params.width in [20, 40, 60]
-    assert task_cfg.game.map_builder.params.height in [20, 40, 60]
-    assert task_cfg.game.map_builder.root["params"]["room_size"] in [1, 3, 5]
+    assert task_cfg.game.map_builder._width in [20, 40, 60]
+    assert task_cfg.game.map_builder._height in [20, 40, 60]
+    assert task_cfg.game.map_builder._objects.altar in [1, 3, 5]
 
 
 def test_expand_buckets_values_and_range():
