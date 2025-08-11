@@ -45,6 +45,11 @@ class EpisodeReplay:
         self.step = 0
         self.objects = []
         self.total_rewards = np.zeros(env.num_agents)
+
+        self._validate_non_empty_string_list(env.action_names, "action_names")
+        self._validate_non_empty_string_list(env.inventory_item_names, "item_names")
+        self._validate_non_empty_string_list(env.object_type_names, "type_names")
+
         self.replay_data = {
             "version": 2,
             "action_names": env.action_names,
@@ -107,3 +112,12 @@ class EpisodeReplay:
         compressed_data = zlib.compress(replay_bytes)  # Compress the bytes
 
         write_data(path, compressed_data, content_type="application/x-compress")
+
+    @staticmethod
+    def _validate_non_empty_string_list(values: list[str], field_name: str) -> None:
+        """Ensure the provided iterable is a list of non-empty strings."""
+        if not isinstance(values, list):
+            raise ValueError(f"{field_name} must be a list of strings, got {type(values)}")
+        for index, value in enumerate(values):
+            if not isinstance(value, str) or value == "":
+                raise ValueError(f"{field_name}[{index}] must be a non-empty string, got {repr(value)}")
