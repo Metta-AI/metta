@@ -456,6 +456,7 @@ jobs:
           # POLICY set at top
           MIN_REWARD: ${{ vars.EVAL_SMOKE_TEST_MIN_REWARD }}
           MAX_ATTEMPTS: ${{ vars.EVAL_SMOKE_TEST_MAX_ATTEMPTS }}
+          TORCH_COMPILE_DISABLE: "1"
         run: |
           uv run .github/scripts/eval_smoke_test.py
 

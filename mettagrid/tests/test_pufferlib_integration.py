@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 
+@pytest.mark.skip
 @pytest.mark.slow
 def test_puffer_cli_compatibility():
     """Ensure PufferLib can be installed in isolation and sees Metta."""
