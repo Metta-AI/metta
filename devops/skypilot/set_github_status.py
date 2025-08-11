@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
 Post GitHub commit status from SkyPilot job.
-
 Env:
   METTA_GIT_REF     (required) git SHA to update
   CMD_EXIT          (optional) exit code; 0 => success, else failure
+  STATE             (optional) explicit state: success/failure/error/pending
   SKYPILOT_TASK_ID  (optional) used to build a console link
   TARGET_URL        (optional) preferred link to show in GitHub
   GITHUB_PAT        (required) Personal Access Token with repo
   GITHUB_REPOSITORY (required) e.g. "Metta-AI/metta"
-  CONTEXT           (optional) status context, default "Skypilot/E2E"
+  STATUS_CONTEXT    (optional) status context, default "Skypilot/E2E"
   DESCRIPTION       (optional) custom description
 """
 
