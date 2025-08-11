@@ -35,10 +35,6 @@ inputs:
     description: "Git commit SHA for status reporting"
     required: true
     default: ""
-  target_url:
-    description: "URL to link to in the GitHub status"
-    required: false
-    default: ""
   github_pat:
     description: "GitHub PAT for status reporting"
     required: false
@@ -89,10 +85,6 @@ runs:
 
         if [ -n "${{ inputs.num_nodes }}" ]; then
           LAUNCH_ARGS+=( "--nodes=${{ inputs.num_nodes }}" )
-        fi
-
-        if [ -n "${{ inputs.target_url }}" ]; then
-          LAUNCH_ARGS+=( "--target-url=${{ inputs.target_url }}" )
         fi
 
         if [ -n "${{ inputs.github_pat }}" ]; then

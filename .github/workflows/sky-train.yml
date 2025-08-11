@@ -141,7 +141,6 @@ jobs:
           skypilot_service_account_token: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
           observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
           commit_sha: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.commit_to_run || github.sha }}
-          target_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           github_pat: ${{ secrets.METTA_STATUS_PAT }}
 
       - name: Print Run Information

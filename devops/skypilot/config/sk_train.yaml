@@ -110,10 +110,10 @@ run: |
   if [ -n "${GITHUB_PAT:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${METTA_GIT_REF:-}" ]; then
     ENABLE_GITHUB_STATUS=true
     echo "[RUN] GitHub status reporting is enabled"
+    echo "[RUN] GITHUB_PAT: ${GITHUB_PAT:+<set>}"  # Don't print the actual token
     echo "[RUN] GITHUB_REPOSITORY: ${GITHUB_REPOSITORY:-<not set>}"
     echo "[RUN] METTA_GIT_REF: ${METTA_GIT_REF:-<not set>}"
-    echo "[RUN] GITHUB_PAT: ${GITHUB_PAT:+<set>}"  # Don't print the actual token
-    echo "[RUN] TARGET_URL: ${TARGET_URL:-<not set>}"
+    echo "[RUN] METTA_RUN_ID: ${METTA_RUN_ID:-<not set>}"
 
     STATE=pending DESCRIPTION="Queued on SkyPilot…" \
       uv run devops/skypilot/set_github_status.py || echo "[WARN] Pending status post failed; continuing"
@@ -141,7 +141,6 @@ envs:
   # status callback
   GITHUB_REPOSITORY: Metta-AI/metta
   STATUS_CONTEXT: Skypilot/E2E
-  TARGET_URL: ""
   GITHUB_PAT: ""
 
   METTA_RUN_ID: ""
