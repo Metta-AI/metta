@@ -25,6 +25,10 @@ on:
         description: "Number of GPUs to request (e.g., 1, 4). If empty, defaults to SkyPilot task definition (usually 1)."
         required: false
         type: string # Keep as string to allow empty, action handles default
+      num_nodes:
+        description: "Number of Nodes to request (e.g., 1, 4). If empty, defaults to SkyPilot task definition (usually 1)."
+        required: false
+        type: string # Keep as string to allow empty, action handles default
   push:
     branches: [main]
 
@@ -38,6 +42,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      statuses: write
 
     steps:
       - name: Checkout specific commit for dispatch
@@ -133,11 +138,14 @@ jobs:
           trainer_env: ${{ github.event.inputs.trainer_env || env.DEFAULT_TRAINER_ENV }}
           timeout_hours: ${{ github.event.inputs.timeout_hours || env.DEFAULT_TIMEOUT_HOURS }}
           num_gpus: ${{ github.event.inputs.num_gpus || '' }}
+          num_nodes: ${{ github.event.inputs.num_nodes || '' }}
           run_name: ${{ steps.generate_run_name.outputs.run_name }} # Pass the fully generated name
-          git_ref_override: ${{ github.event.inputs.commit_to_run || '' }} # Pass commit_to_run for manual, default for push
           wandb_api_key: ${{ secrets.WANDB_API_KEY }}
           skypilot_service_account_token: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
           observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
+          commit_sha: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.commit_to_run || github.sha }}
+          target_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          github_pat: ${{ secrets.METTA_STATUS_PAT }}
 
       - name: Print Run Information
         shell: bash

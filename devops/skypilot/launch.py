@@ -80,6 +80,7 @@ def main():
     # A named argument with argparse would end up as `--run=foo` which is not quite right
     run_id = None
     filtered_args = []
+
     for arg in sys.argv[1:]:
         if arg.startswith("run="):
             run_id = arg[4:]  # Remove 'run=' prefix
@@ -109,6 +110,10 @@ def main():
     )
     parser.add_argument("--skip-git-check", action="store_true", help="Skip git state validation")
     parser.add_argument("-c", "--confirm", action="store_true", help="Show confirmation prompt")
+    parser.add_argument("--target-url", type=str, default=None, help="GitHub Actions run URL used in status update")
+    parser.add_argument(
+        "--github-pat", type=str, default=None, help="GitHub PAT token for posting status updates (repo scope)"
+    )
     (args, cmd_args) = parser.parse_known_args(filtered_args)
 
     if run_id is None:
@@ -140,15 +145,20 @@ def main():
     assert commit_hash
 
     task = sky.Task.from_yaml("./devops/skypilot/config/sk_train.yaml")
-    task = task.update_envs(
-        dict(
-            METTA_RUN_ID=run_id,
-            METTA_CMD=args.cmd,
-            METTA_CMD_ARGS=" ".join(cmd_args),
-            METTA_GIT_REF=commit_hash,
-            HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
-        )
+
+    # Prepare environment variables including status parameters
+    env_updates = dict(
+        METTA_RUN_ID=run_id,
+        METTA_CMD=args.cmd,
+        METTA_CMD_ARGS=" ".join(cmd_args),
+        METTA_GIT_REF=commit_hash,
+        HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
+        TARGET_URL=args.target_url,
+        GITHUB_PAT=args.github_pat,
     )
+
+    env_updates = {k: v for k, v in env_updates.items() if v is not None}
+    task = task.update_envs(env_updates)
     task.name = run_id
     task.validate_name()
 

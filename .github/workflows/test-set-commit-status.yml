@@ -30,9 +30,9 @@ jobs:
 
       - name: Run status test script
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_PAT: ${{ secrets.METTA_STATUS_PAT }}
           INPUT_REF: ${{ inputs.ref }}
           INPUT_PASS: ${{ inputs.pass }}
           GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: python .github/scripts/test-set-commit-status.py
+        run: uv run .github/scripts/test-set-commit-status.py
