@@ -32,6 +32,12 @@ test-setup:
 # Run tests with coverage and benchmarks
 test: install
 	uv run pytest \
+		tests \
+		mettascope/tests \
+		agent/tests \
+		app_backend/tests \
+		common/tests \
+		mettagrid/tests \
 		--cov=metta \
 		--cov-report=term-missing \
 		--durations=10 \
@@ -39,7 +45,14 @@ test: install
 
 # Quick test run without coverage
 pytest: install
-	uv run pytest --benchmark-disable -n auto
+	uv run pytest \
+		tests \
+		mettascope/tests \
+		agent/tests \
+		app_backend/tests \
+		common/tests \
+		mettagrid/tests \
+		--benchmark-disable -n auto
 
 # Clean build artifacts
 clean:

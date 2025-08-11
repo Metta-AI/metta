@@ -260,13 +260,7 @@ jobs:
             PYTEST_BASE_ARGS="$PYTEST_BASE_ARGS -p no:cacheprovider -p metta.common.test_support.pytest_shard"
           fi
 
-          if [ "${{ matrix.package }}" == "core" ]; then
-            # For core package, ignore other packages
-            SUBPACKAGES=(app_backend agent mettagrid common)
-            for pkg in "${SUBPACKAGES[@]}"; do
-              PYTEST_BASE_ARGS="$PYTEST_BASE_ARGS --ignore=$pkg"
-            done
-          else
+          if [ "${{ matrix.package }}" != "core" ]; then
             # Navigate to package directory
             cd ${{ matrix.package }}
           fi
@@ -601,21 +595,18 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
       - name: Setup uv
         uses: ./.github/actions/setup-uv
-
       - name: Run Python benchmarks
         env:
           PYTHONOPTIMIZE: 1 # Disable __debug__ blocks and asserts for accurate benchmarks
         run: |
           # Main benchmarks
-          pytest --benchmark-only --benchmark-json=main_benchmark_results.json
+          pytest -n 0 --benchmark-only --benchmark-json=main_benchmark_results.json
 
           # Mettagrid benchmarks
           cd mettagrid
-          pytest --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
-
+          pytest -n 0 --benchmark-only --benchmark-json=../mettagrid_benchmark_results.json
       - name: Upload Python benchmark artifacts
         uses: actions/upload-artifact@v4
         with:
