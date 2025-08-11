@@ -211,7 +211,7 @@ class ABTestRunner:
                     "name": run_name,
                     "run_id": run_name,
                     "tags": [f"variant:{variant.name}"] + variant.tags,
-                    "notes": f"Variant: {variant.name} - {variant.description}",
+                    "notes": f"Variant: {variant.name} - {variant.description.replace('(', '').replace(')', '')}",
                 },
             }
         )

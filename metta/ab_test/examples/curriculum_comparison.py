@@ -24,14 +24,14 @@ def create_curriculum_comparison_experiment():
         )
         .add_variant(
             name="prioritized_regressed",
-            description="Prioritized regressed curriculum for navigation tasks",
-            trainer__curriculum="/env/mettagrid/curriculum/nav_memory_sequence",
-            run="curriculum_pr",
+            description="Bucketed curriculum for navigation tasks (compatible action space)",
+            trainer__curriculum="/env/mettagrid/curriculum/navigation/bucketed",
+            run="curriculum_bucketed",
         )
         .set_runs_per_variant(5)
         .set_base_config(
             defaults=["/common", "/agent/fast", "/trainer/trainer", "/sim/all"],
-            trainer__total_timesteps=1_000_000_000,
+            trainer__total_timesteps=1_000_000_000,  # Full experiment length
             trainer__num_workers=4,
             trainer__simulation__evaluate_interval=100,
             trainer__checkpoint__wandb_checkpoint_interval=100,
