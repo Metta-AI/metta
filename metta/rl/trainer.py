@@ -164,15 +164,11 @@ def train(
         metta_grid_env=metta_grid_env,
     )
 
-
-
     # Don't proceed until all ranks have the policy
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 
     policy: PolicyAgent = latest_saved_policy_record.policy
-
-    logger.info(f"Policy: {policy}")
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")

@@ -45,8 +45,6 @@ class ComponentPolicy(nn.Module):
 
         return output_td
 
-
-
     def forward_inference(self, td: TensorDict) -> TensorDict:
         """Inference mode - sample actions and store them in td."""
         value = td["_value_"]
@@ -71,7 +69,6 @@ class ComponentPolicy(nn.Module):
         td["act_log_prob"] = action_log_prob
         td["values"] = value.flatten()
         td["full_log_probs"] = full_log_probs
-
 
         return td
 
@@ -121,4 +118,3 @@ class ComponentPolicy(nn.Module):
         """Apply weight clipping if enabled."""
         if self.clip_range > 0:
             self._apply_to_components("clip_weights")
-

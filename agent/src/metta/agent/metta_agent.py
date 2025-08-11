@@ -18,7 +18,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger("metta_agent")
 
 
-
 class MettaAgent(nn.Module):
     """Clean and simplified MettaAgent implementation."""
 
@@ -31,7 +30,7 @@ class MettaAgent(nn.Module):
         feature_normalizations: dict[int, float],
         device: str,
         cfg,
-        policy
+        policy,
     ):
         super().__init__()
         self.cfg = cfg
@@ -44,11 +43,8 @@ class MettaAgent(nn.Module):
         self.action_space = action_space
         self.feature_normalizations = feature_normalizations
 
-
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
-
-
 
     def set_policy(self, policy):
         """Set the agent's policy."""
@@ -56,20 +52,24 @@ class MettaAgent(nn.Module):
         self.policy.agent = self
         self.policy.to(self.device)
 
-    def forward(self, td: Dict[str, torch.Tensor], state = None, action: Optional[torch.Tensor] = None) -> Tuple:
+    def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> Tuple:
         """Forward pass through the policy."""
         if self.policy is None:
             raise RuntimeError("No policy set. Use set_policy() first.")
         if isinstance(self.policy, ComponentPolicy):
-
             return self.policy.forward(td, action)
 
         return self.policy(td, state, action)
 
-
-    def initialize_to_environment(self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device, is_training: bool = True):
+    def initialize_to_environment(
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+        is_training: bool = True,
+    ):
         """Initialize the agent to the current environment."""
-
 
         if isinstance(self.policy, ComponentPolicy):
             self.activate_policy()
@@ -88,7 +88,6 @@ class MettaAgent(nn.Module):
                 self.activate_actions(action_names, action_max_params, device)
                 self._initialize_observations(features, device)
 
-
     def activate_policy(self):
         self.clip_range = self.cfg.clip_range
 
@@ -99,7 +98,6 @@ class MettaAgent(nn.Module):
         obs_key = self.cfg.observations.obs_key
         obs_shape = safe_get_from_obs_space(self.obs_space, obs_key, "shape")
 
-
         self.agent_attributes = {
             "clip_range": self.clip_range,
             "action_space": self.action_space,
@@ -109,7 +107,6 @@ class MettaAgent(nn.Module):
             "obs_key": self.cfg.observations.obs_key,
             "obs_shape": obs_shape,
         }
-
 
         self.components = nn.ModuleDict()
         # Keep component configs as DictConfig to support both dict and attribute access
@@ -154,7 +151,6 @@ class MettaAgent(nn.Module):
         self.policy.components = self.components
         self.policy.clip_range = self.clip_range
 
-
     def reset_memory(self):
         if isinstance(self.policy, ComponentPolicy):
             for name in self.components_with_memory:
@@ -171,8 +167,6 @@ class MettaAgent(nn.Module):
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
         )
-
-
 
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
@@ -193,9 +187,6 @@ class MettaAgent(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
-
-
-
     def _initialize_observations(self, features: dict[str, dict], device):
         """Initialize observation features by storing the feature mapping."""
         self.active_features = features
@@ -214,8 +205,6 @@ class MettaAgent(nn.Module):
         else:
             # Create remapping for subsequent initializations
             self._create_feature_remapping(features)
-
-
 
     def _create_feature_remapping(self, features: dict[str, dict]):
         """Create a remapping dictionary to translate new feature IDs to original ones."""
@@ -244,8 +233,6 @@ class MettaAgent(nn.Module):
             )
             self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
 
-
-
     def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
         """Apply feature remapping to observation component and update normalizations."""
         # Update observation component if it supports remapping
@@ -268,7 +255,6 @@ class MettaAgent(nn.Module):
         # Update normalization factors
         self._update_normalization_factors(features)
 
-
     def _update_normalization_factors(self, features: dict[str, dict]):
         """Update normalization factors for components after feature remapping."""
         # Update ObsAttrValNorm components if they exist
@@ -284,7 +270,6 @@ class MettaAgent(nn.Module):
                         norm_tensor[original_id] = props["normalization"]
 
                 component.register_buffer("_norm_factors", norm_tensor)
-
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Initialize action space for the agent."""
@@ -316,11 +301,9 @@ class MettaAgent(nn.Module):
         self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
         logger.info(f"Actions initialized: {self.active_actions}")
 
-
         # Activate policy attributes
         self.policy.action_index_tensor = self.action_index_tensor
         self.policy.cum_action_max_params = self.cum_action_max_params
-
 
     def get_original_feature_mapping(self) -> dict[str, int] | None:
         """Get the original feature mapping for saving in metadata."""
@@ -346,13 +329,12 @@ class MettaAgent(nn.Module):
     @property
     def total_params(self):
         """Total number of parameters."""
-        return getattr(self, '_total_params', sum(p.numel() for p in self.parameters() if p.requires_grad))
-
+        return getattr(self, "_total_params", sum(p.numel() for p in self.parameters() if p.requires_grad))
 
     def _apply_to_components(self, method_name, *args, **kwargs) -> list[torch.Tensor]:
         """Apply a method to all components that have it."""
         results = []
-        for name, component in self.components.items():
+        for _, component in self.components.items():
             if hasattr(component, method_name):
                 method = getattr(component, method_name)
                 if callable(method):
@@ -369,7 +351,6 @@ class MettaAgent(nn.Module):
     def update_l2_init_weight_copy(self):
         """Update L2 initialization weight copies."""
         self._apply_to_components("update_l2_init_weight_copy")
-
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics for analysis."""

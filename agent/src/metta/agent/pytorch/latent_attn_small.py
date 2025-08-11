@@ -158,8 +158,8 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         # Prepare LSTM state
         lstm_h, lstm_c = state.get("lstm_h"), state.get("lstm_c")
         if lstm_h is not None and lstm_c is not None:
-            lstm_h = lstm_h.to(self.device)[:self.lstm.num_layers]
-            lstm_c = lstm_c.to(self.device)[:self.lstm.num_layers]
+            lstm_h = lstm_h.to(self.device)[: self.lstm.num_layers]
+            lstm_c = lstm_c.to(self.device)[: self.lstm.num_layers]
             lstm_state = (lstm_h, lstm_c)
         else:
             lstm_state = None
@@ -216,7 +216,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             td["value"] = value.view(B, TT)
 
         return td
-
 
     def clip_weights(self):
         for p in self.parameters():
@@ -333,6 +332,6 @@ class Policy(nn.Module):
 
         action_embed = self.action_embeddings.weight.mean(dim=0).unsqueeze(0).expand(actor_features.shape[0], -1)
         combined_features = torch.cat([actor_features, action_embed], dim=-1)
-        logits = torch.cat([head(combined_features) for head in self.actor_heads], dim=-1) # (B, sum(A_i))
+        logits = torch.cat([head(combined_features) for head in self.actor_heads], dim=-1)  # (B, sum(A_i))
 
         return logits, value

@@ -11,30 +11,37 @@ from torch import nn
 
 logger = logging.getLogger(__name__)
 
+
 class Recurrent(pufferlib.models.LSTMWrapper):
     """Recurrent LSTM-based policy wrapper with discrete multi-head action space."""
 
-    def __init__(self, env, policy: Optional[nn.Module] = None,
-                 cnn_channels: int = 128, input_size: int = 512, hidden_size: int = 512):
+    def __init__(
+        self,
+        env,
+        policy: Optional[nn.Module] = None,
+        cnn_channels: int = 128,
+        input_size: int = 512,
+        hidden_size: int = 512,
+    ):
         if policy is None:
-            policy = Policy(env, cnn_channels=cnn_channels,
-                            hidden_size=hidden_size, input_size=input_size)
+            policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size, input_size=input_size)
 
         super().__init__(env, policy, input_size, hidden_size)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-    def initialize_to_environment(self, features: dict[str, dict],
-                                   action_names: list[str], action_max_params: list[int],
-                                   device, is_training: bool = True) -> None:
+    def initialize_to_environment(
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+        is_training: bool = True,
+    ) -> None:
         """Sets up action space mappings for the environment."""
         self._initialize_observations(features, device, is_training)
         self.activate_actions(action_names, action_max_params, device)
 
-
-
-    def activate_actions(self, action_names: list[str], action_max_params: list[int],
-                         device: torch.device) -> None:
+    def activate_actions(self, action_names: list[str], action_max_params: list[int], device: torch.device) -> None:
         """Initialize discrete action heads and precompute indexing tables."""
         assert isinstance(action_max_params, list), "action_max_params must be a list"
         self.device = device
@@ -47,9 +54,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         )
 
         action_index = [
-            [atype, param]
-            for atype, max_param in enumerate(action_max_params)
-            for param in range(max_param + 1)
+            [atype, param] for atype, max_param in enumerate(action_max_params) for param in range(max_param + 1)
         ]
         self.action_index_tensor = torch.tensor(action_index, device=device, dtype=torch.int32)
 
@@ -73,7 +78,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         else:
             # Create remapping for subsequent initializations
             self._create_feature_remapping(features, is_training)
-
 
     def _create_feature_remapping(self, features: dict[str, dict], is_training: bool):
         """Create a remapping dictionary to translate new feature IDs to original ones."""
@@ -132,8 +136,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         # Store normalization tensor as a buffer
         self.register_buffer("norm_factors", norm_tensor)
 
-
-
     def forward(self, td: TensorDict, state: Optional[dict] = None, action=None) -> TensorDict:
         """Forward pass: encodes observations, runs LSTM, decodes into actions, value, and stats."""
 
@@ -187,7 +189,7 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         h, c = state.get("lstm_h"), state.get("lstm_c")
         if h is None or c is None:
             return None
-        return h.to(self.device)[:self.lstm.num_layers], c.to(self.device)[:self.lstm.num_layers]
+        return h.to(self.device)[: self.lstm.num_layers], c.to(self.device)[: self.lstm.num_layers]
 
     def _sample_actions(self, logits_list: list[torch.Tensor]):
         """Samples discrete actions from logits and computes log-probs and entropy."""
@@ -256,8 +258,7 @@ class Policy(nn.Module):
         self.register_buffer("max_vec", max_vec.to(self.device))
 
         self.actor = nn.ModuleList(
-            [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01)
-             for n in self.action_space.nvec]
+            [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in self.action_space.nvec]
         )
         self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
         self.to(self.device)
@@ -274,12 +275,11 @@ class Policy(nn.Module):
         observations[observations == 255] = 0
         coords_byte = observations[..., 0].to(torch.uint8)
 
-
-         # Extract x and y coordinate indices (0-15 range, but we need to make them long for indexing)
-        x_coords = ((coords_byte >> 4) & 0x0F).long() # Shape: [B_TT, M]
-        y_coords = (coords_byte & 0x0F).long() # Shape: [B_TT, M]
-        atr_indices = observations[..., 1].long() # Shape: [B_TT, M], ready for embedding
-        atr_values = observations[..., 2].float() # Shape: [B_TT, M]
+        # Extract x and y coordinate indices (0-15 range, but we need to make them long for indexing)
+        x_coords = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
+        y_coords = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+        atr_indices = observations[..., 1].long()  # Shape: [B_TT, M], ready for embedding
+        atr_values = observations[..., 2].float()  # Shape: [B_TT, M]
 
         box_obs = torch.zeros(
             (B * TT, self.num_layers, self.out_width, self.out_height),
@@ -288,15 +288,16 @@ class Policy(nn.Module):
         )
 
         valid_tokens = (
-            (coords_byte != 0xFF) &
-            (x_coords < self.out_width) &
-            (y_coords < self.out_height) &
-            (atr_indices < self.num_layers)
+            (coords_byte != 0xFF)
+            & (x_coords < self.out_width)
+            & (y_coords < self.out_height)
+            & (atr_indices < self.num_layers)
         )
 
         batch_idx = torch.arange(B * TT, device=self.device).unsqueeze(-1).expand_as(atr_values)
-        box_obs[batch_idx[valid_tokens], atr_indices[valid_tokens],
-                x_coords[valid_tokens], y_coords[valid_tokens]] = atr_values[valid_tokens]
+        box_obs[batch_idx[valid_tokens], atr_indices[valid_tokens], x_coords[valid_tokens], y_coords[valid_tokens]] = (
+            atr_values[valid_tokens]
+        )
 
         features = box_obs / self.max_vec
         self_features = self.self_encoder(features[:, :, 5, 5])

@@ -11,6 +11,7 @@ from metta.agent.pytorch.agent_mapper import agent_classes
 
 logger = logging.getLogger("metta_agent_builder")
 
+
 class MettaAgentBuilder:
     """Builder for constructing MettaAgent instances with validated configurations."""
 
@@ -22,18 +23,18 @@ class MettaAgentBuilder:
             agent_cfg (DictConfig): Agent configuration, expected to contain an 'agent' section.
         """
         self.env = env
-        self.cfg = env_cfg
+        self.env_cfg = env_cfg
         self.agent_cfg = OmegaConf.create(OmegaConf.to_container(agent_cfg, resolve=True))
         self.obs_space = self._create_observation_space()
 
     def _create_observation_space(self) -> gym.spaces.Dict:
         """Combine grid observations and global variables into an observation space."""
-        return gym.spaces.Dict({
-            "grid_obs": self.env.single_observation_space,
-            "global_vars": gym.spaces.Box(
-                low=-np.inf, high=np.inf, shape=(0,), dtype=np.int32
-            ),
-        })
+        return gym.spaces.Dict(
+            {
+                "grid_obs": self.env.single_observation_space,
+                "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(0,), dtype=np.int32),
+            }
+        )
 
     def build(self, policy: Optional[ComponentPolicy] = None) -> MettaAgent:
         """
@@ -51,8 +52,6 @@ class MettaAgentBuilder:
         logger.info(f"Successfully built MettaAgent with policy: {type(policy).__name__}")
         return agent
 
-
-
     def _create_agent(self, policy: ComponentPolicy) -> MettaAgent:
         """Helper to construct a MettaAgent with the given policy."""
         return MettaAgent(
@@ -61,7 +60,7 @@ class MettaAgentBuilder:
             obs_height=self.env.obs_height,
             action_space=self.env.single_action_space,
             feature_normalizations=self.env.feature_normalizations,
-            device="cpu",
+            device=self.env_cfg.device,
             cfg=self.agent_cfg,
             policy=policy,
         )

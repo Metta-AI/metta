@@ -146,7 +146,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
         logger.info(f"Policy actions initialized with: {self.active_actions}")
 
-
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"].to(self.device)
 
@@ -162,8 +161,8 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         # Prepare LSTM state
         lstm_h, lstm_c = state.get("lstm_h"), state.get("lstm_c")
         if lstm_h is not None and lstm_c is not None:
-            lstm_h = lstm_h.to(self.device)[:self.lstm.num_layers]
-            lstm_c = lstm_c.to(self.device)[:self.lstm.num_layers]
+            lstm_h = lstm_h.to(self.device)[: self.lstm.num_layers]
+            lstm_c = lstm_c.to(self.device)[: self.lstm.num_layers]
             lstm_state = (lstm_h, lstm_c)
         else:
             lstm_state = None
@@ -192,7 +191,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             td["act_log_prob"] = full_log_probs
             td["values"] = value.flatten()
             td["full_log_probs"] = log_probs
-
 
         else:
             # ---------- Training Mode ----------
@@ -232,7 +230,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
         return cumulative_sum + action_params
-
 
 
 class Policy(nn.Module):
@@ -352,7 +349,6 @@ class Policy(nn.Module):
         ] = atr_values[valid_tokens]
 
         return self.network_forward(box_obs)
-
 
     def decode_actions(self, hidden):
         critic_features = torch.tanh(self.critic_1(hidden))

@@ -25,7 +25,6 @@ def _parse_weights_metadata(weights: dict[str, Any]) -> tuple[int, int, int, int
         return 9, 512, 10, 22  # Safe defaults
 
 
-
 def _init_env() -> SimpleNamespace:
     """Create the runtime env for MettaAgentBuilder."""
     import gymnasium as gym
@@ -33,9 +32,7 @@ def _init_env() -> SimpleNamespace:
 
     obs_shape = [34, 11, 11]
     return SimpleNamespace(
-        single_observation_space=gym.spaces.Box(
-            low=0, high=255, shape=obs_shape, dtype=np.uint8
-        ),
+        single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
         obs_width=obs_shape[1],
         obs_height=obs_shape[2],
         single_action_space=gym.spaces.MultiDiscrete([9, 10]),
@@ -44,11 +41,7 @@ def _init_env() -> SimpleNamespace:
     )
 
 
-def load_pytorch_policy(
-    path: str,
-    device: str = "cpu",
-    pytorch_cfg: Optional[DictConfig] = None
-) -> MettaAgent:
+def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[DictConfig] = None) -> MettaAgent:
     """
     Create or loads a PyTorch policy.
     """
@@ -70,9 +63,7 @@ def load_pytorch_policy(
 
     logger.info(f"Loaded PyTorch policy config: {pytorch_cfg}")
 
-    env_config = OmegaConf.create({
-        'device': device
-    })
+    env_config = OmegaConf.create({"device": device})
 
     builder = MettaAgentBuilder(env, env_config, pytorch_cfg)
     return builder.build(policy)

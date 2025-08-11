@@ -102,9 +102,7 @@ class CheckpointManager:
         logger.info(f"Saving policy at epoch {epoch}")
 
         # Extract the actual policy module from distributed wrapper if needed
-        policy_to_save: MettaAgent = (
-            policy.module if isinstance(policy, DistributedMettaAgent) else policy
-        )
+        policy_to_save: MettaAgent = policy.module if isinstance(policy, DistributedMettaAgent) else policy
 
         # Build metadata
         name = self.policy_store.make_model_name(epoch)
