@@ -115,7 +115,7 @@ run: |
     echo "[RUN] METTA_GIT_REF: ${METTA_GIT_REF:-<not set>}"
     echo "[RUN] METTA_RUN_ID: ${METTA_RUN_ID:-<not set>}"
 
-    STATE=pending DESCRIPTION="Queued on SkyPilot…" \
+    GITHUB_STATUS_STATE=pending GITHUB_STATUS_DESCRIPTION="Queued on SkyPilot…" \
       uv run devops/skypilot/set_github_status.py || echo "[WARN] Pending status post failed; continuing"
   else
     ENABLE_GITHUB_STATUS=false
@@ -140,7 +140,9 @@ run: |
 envs:
   # status callback
   GITHUB_REPOSITORY: Metta-AI/metta
-  STATUS_CONTEXT: Skypilot/E2E
+  GITHUB_STATUS_CONTEXT: ""
+  GITHUB_STATUS_DESCRIPTION: ""
+  GITHUB_STATUS_STATE: "" # success/failure/error/pending
   GITHUB_PAT: ""
 
   METTA_RUN_ID: ""

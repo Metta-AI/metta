@@ -3,14 +3,17 @@
 Post GitHub commit status from SkyPilot job.
 Env:
   METTA_GIT_REF     (required) git SHA to update
-  CMD_EXIT          (optional) exit code; 0 => success, else failure
-  STATE             (optional) explicit state: success/failure/error/pending
   SKYPILOT_TASK_ID  (optional) used to build a console link
-  METTA_RUN_ID      (optional) used to link to back to wandb from GitHub
   GITHUB_PAT        (required) Personal Access Token with repo
   GITHUB_REPOSITORY (required) e.g. "Metta-AI/metta"
-  STATUS_CONTEXT    (optional) status context, default "Skypilot/E2E"
-  DESCRIPTION       (optional) custom description
+  CMD_EXIT          (optional) exit code; 0 => success, else failure
+
+  Configuration for the status report:
+
+  METTA_RUN_ID                 (optional) used to build a link to wandb
+  GITHUB_STATUS_STATE          (optional) explicit state: success/failure/error/pending (overrides CMD_EXIT)
+  GITHUB_STATUS_CONTEXT        (optional) status context, default "Skypilot/E2E"
+  GITHUB_STATUS_DESCRIPTION    (optional) custom description, default "Training completed successfully" etc
 """
 
 from __future__ import annotations
@@ -52,15 +55,15 @@ def main() -> int:
     except ValueError:
         cmd_exit = 1
 
-    # Check for explicit STATE override (e.g., for pending status)
-    state = os.getenv("STATE", "").strip()
+    # Check for explicit GITHUB_STATUS_STATE override (e.g., for pending status)
+    state = os.getenv("GITHUB_STATUS_STATE", "").strip()
     if not state:
         # If no explicit state, determine from exit code
         state = "success" if cmd_exit == 0 else "failure"
 
-    context = os.getenv("STATUS_CONTEXT", "Skypilot/E2E")
+    context = os.getenv("GITHUB_STATUS_CONTEXT", "Skypilot/E2E")
     desc = os.getenv(
-        "DESCRIPTION",
+        "GITHUB_STATUS_DESCRIPTION",
         "Training completed successfully" if state == "success" else f"Training failed (exit {cmd_exit})",
     )
 
