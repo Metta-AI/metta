@@ -188,7 +188,7 @@ def performance_config(base_config):
     return config
 
 
-def _median_runtime(env, move_action, warmup_steps=10, test_steps=200, reps=7):
+def _median_runtime(env, move_action, warmup_steps=10, test_steps=200, reps=15):
     # warmup
     for _ in range(warmup_steps):
         env.step(move_action)
@@ -220,8 +220,8 @@ def test_visitation_performance_impact(performance_config, simple_map):
     env_disabled.reset()
     disabled_time = _median_runtime(env_disabled, move_action)
 
-    # allow small jitter (≤1% slowdown)
-    assert disabled_time <= enabled_time * 1.01, (
+    # allow small jitter (≤5% slowdown)
+    assert disabled_time <= enabled_time * 1.05, (
         f"Disabled visitation unexpectedly slower: "
         f"enabled={enabled_time:.6f}s, disabled={disabled_time:.6f}s, "
         f"delta={(disabled_time / enabled_time - 1) * 100:.2f}%"

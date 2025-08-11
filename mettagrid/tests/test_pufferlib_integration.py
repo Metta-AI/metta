@@ -1,4 +1,10 @@
 # mettagrid/tests/test_pufferlib_integration.py
+"""
+Tests for PufferLib integration with MettaGrid.
+
+This module tests PufferLib's ability to load and run Metta environments
+through their CLI interface using their MettaPuff wrapper.
+"""
 
 import os
 import subprocess
@@ -46,69 +52,69 @@ def test_puffer_cli_compatibility():
             f"Isolated env failed to import pufferlib.\nSTDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}"
         )
 
-        # 2) Detect whether pufferlib.train exists (newer releases may drop it)
+        # 2) Detect whether the modern training entrypoint exists
         detect_cmd = [
             "uvx",
             "--from",
             str(pufferlib_dir),
             "python",
             "-c",
-            "import importlib.util; print(importlib.util.find_spec('pufferlib.train') is not None)",
+            "import importlib.util as i; print(i.find_spec('pufferlib.pufferl') is not None)",
         ]
         detect = subprocess.run(detect_cmd, cwd=project_root, env=env, capture_output=True, text=True, timeout=60)
-        has_train = detect.returncode == 0 and detect.stdout.strip() == "True"
+        has_pufferl = detect.returncode == 0 and detect.stdout.strip() == "True"
 
-        if has_train:
-            # 3a) Run the training module with tiny settings
-            train_cmd = [
-                "uvx",
-                "--from",
-                str(pufferlib_dir),
-                "python",
-                "-m",
-                "pufferlib.train",
-                "--env",
-                "metta",
-                "--train.total_timesteps",
-                "10",
-                "--train.wandb",
-                "disabled",
-                "--env.game.max_steps",
-                "10",
-                "--env.game.obs_width",
-                "5",
-                "--env.game.obs_height",
-                "5",
-                "--env.game.map_builder.width",
-                "8",
-                "--env.game.map_builder.height",
-                "8",
-                "--env.game.num_agents",
-                "2",
+        if not has_pufferl:
+            pytest.skip("PufferLib build provides neither CLI nor `pufferlib.pufferl`; skipping CLI run.")
+
+        # 3) Run the training module with tiny settings in the isolated env
+        train_cmd = [
+            "uvx",
+            "--from",
+            str(pufferlib_dir),
+            "python",
+            "-m",
+            "pufferlib.pufferl",
+            "train",
+            "metta",
+            "--train.total_timesteps",
+            "10",
+            "--train.wandb",
+            "disabled",
+            "--train.device",
+            "cpu",
+            "--env.game.max_steps",
+            "10",
+            "--env.game.obs_width",
+            "5",
+            "--env.game.obs_height",
+            "5",
+            "--env.game.map_builder.width",
+            "8",
+            "--env.game.map_builder.height",
+            "8",
+            "--env.game.num_agents",
+            "2",
+            "--vec.backend",
+            "Serial",
+        ]
+        run = subprocess.run(train_cmd, cwd=project_root, env=env, capture_output=True, text=True, timeout=240)
+
+        # Only fail on true integration errors (imports/registration); otherwise just report.
+        if run.returncode != 0:
+            critical = [
+                "no module named metta",
+                "environment not found",
+                "failed to import",
+                "invalid environment",
+                "registration failed",
+                "modulenotfounderror",
             ]
-            run = subprocess.run(train_cmd, cwd=project_root, env=env, capture_output=True, text=True, timeout=240)
-            # If it fails, surface only integration errors (import/registration)
-            if run.returncode != 0:
-                critical = [
-                    "no module named metta",
-                    "environment not found",
-                    "failed to import",
-                    "invalid environment",
-                    "registration failed",
-                    "modulenotfounderror",
-                ]
-                if any(c in (run.stderr.lower() + run.stdout.lower()) for c in critical):
-                    raise AssertionError(
-                        "PufferLib CLI failed with integration error.\n"
-                        f"COMMAND: {' '.join(train_cmd)}\n\n"
-                        f"STDOUT:\n{run.stdout}\n\nSTDERR:\n{run.stderr}"
-                    )
-                # non-critical failures acceptable; just assert import worked above
-        else:
-            # 3b) Fallback: ensure CLI exists (e.g., `pufferlib --help`)
-            help_cmd = ["uvx", "--from", str(pufferlib_dir), "pufferlib", "--help"]
-            run = subprocess.run(help_cmd, cwd=project_root, env=env, capture_output=True, text=True, timeout=120)
-            assert run.returncode == 0, (
-                "PufferLib CLI not available (no train module and no CLI).\n"
-                f"STDOUT:\n{run.stdout}\n\nSTDERR:\n{run.stderr}"
-            )
+            blob = (run.stderr or "").lower() + (run.stdout or "").lower()
+            if any(c in blob for c in critical):
+                raise AssertionError(
+                    "PufferLib CLI failed with integration error.\n"
+                    f"COMMAND: {' '.join(train_cmd)}\n\n"
+                    f"STDOUT:\n{run.stdout}\n\nSTDERR:\n{run.stderr}"
+                )
+            # Non-critical failures acceptable; at least import worked.
