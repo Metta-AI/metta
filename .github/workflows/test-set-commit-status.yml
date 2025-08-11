@@ -11,12 +11,6 @@ on:
         required: false
         default: "true"
 
-permissions:
-  contents: read
-  statuses: write
-  pull-requests: write
-  issues: write
-
 jobs:
   set-status:
     runs-on: ubuntu-latest
