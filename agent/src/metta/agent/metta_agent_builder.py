@@ -5,8 +5,11 @@ import gymnasium as gym
 import numpy as np
 from omegaconf import OmegaConf, DictConfig
 
-from metta.agent.metta_agent import MettaAgent, ComponentPolicy
+from metta.agent.metta_agent import MettaAgent
 from metta.agent.pytorch.agent_mapper import agent_classes
+
+from metta.agent.component_policy import ComponentPolicy
+
 
 logger = logging.getLogger("metta_agent_builder")
 
