@@ -1,57 +1,37 @@
-import logging
 from typing import Optional
+import logging
 
 import einops
 import torch
 import torch.nn.functional as F
 from torch import nn
+from tensordict import TensorDict
 
 import pufferlib.models
 import pufferlib.pytorch
-from tensordict import TensorDict
 
 logger = logging.getLogger(__name__)
-
 
 class Recurrent(pufferlib.models.LSTMWrapper):
     """Recurrent LSTM-based policy wrapper with discrete multi-head action space."""
 
-    def __init__(
-        self,
-        env,
-        policy: Optional[nn.Module] = None,
-        cnn_channels: int = 128,
-        input_size: int = 512,
-        hidden_size: int = 512,
-    ):
+    def __init__(self, env, policy: Optional[nn.Module] = None,
+                 cnn_channels: int = 128, input_size: int = 512, hidden_size: int = 512):
         if policy is None:
-            policy = Policy(
-                env,
-                cnn_channels=cnn_channels,
-                hidden_size=hidden_size,
-                input_size=input_size,
-            )
+            policy = Policy(env, cnn_channels=cnn_channels,
+                            hidden_size=hidden_size, input_size=input_size)
+
         super().__init__(env, policy, input_size, hidden_size)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-    def initialize_to_environment(
-        self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
-        device,
-        is_training: bool = True,
-    ) -> None:
+    def initialize_to_environment(self, features: dict[str, dict],
+                                   action_names: list[str], action_max_params: list[int],
+                                   device, is_training: bool = True) -> None:
         """Sets up action space mappings for the environment."""
         self.activate_actions(action_names, action_max_params, device)
 
-    def activate_actions(
-        self,
-        action_names: list[str],
-        action_max_params: list[int],
-        device: torch.device,
-    ) -> None:
+    def activate_actions(self, action_names: list[str], action_max_params: list[int],
+                         device: torch.device) -> None:
         """Initialize discrete action heads and precompute indexing tables."""
         assert isinstance(action_max_params, list), "action_max_params must be a list"
         self.device = device
@@ -59,12 +39,10 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         self.action_max_params = action_max_params
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
-        # Cumulative indices for mapping actions
         self.cum_action_max_params = torch.cumsum(
             torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )
 
-        # Build action index tensor [action_type, param]
         action_index = [
             [atype, param]
             for atype, max_param in enumerate(action_max_params)
@@ -75,81 +53,59 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         logger.info(f"Initialized policy actions: {self.active_actions}")
 
     def forward(self, td: TensorDict, state: Optional[dict] = None, action=None) -> TensorDict:
-
         """Forward pass: encodes observations, runs LSTM, decodes into actions, value, and stats."""
 
-        # Handle BPTT reshaping like the original
+        # Handle BPTT reshaping
         td.bptt = 1
         td.batch = td.batch_size.numel()
         if td.batch_dims > 1:
-            B = td.batch_size[0]
-            TT = td.batch_size[1]
-            td = td.reshape(td.batch_size.numel())  # flatten to BT
-            td.bptt = TT
-            td.batch = B
+            B, TT = td.batch_size
+            td = td.reshape(td.batch_size.numel())
+            td.bptt, td.batch = TT, B
 
-
-        observations = td["env_obs"]
+        observations = td["env_obs"].to(self.device)
         state = state or {"lstm_h": None, "lstm_c": None, "hidden": None}
-        observations = observations.to(self.device)
 
-        # Encode observations
         hidden = self.policy.encode_observations(observations, state)
 
         B = observations.shape[0]
         TT = 1 if observations.dim() == 3 else observations.shape[1]
 
-        # Prepare LSTM state
         lstm_state = self._prepare_lstm_state(state)
 
-        # Run LSTM
-        hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, input_size)
+        hidden = hidden.view(B, TT, -1).transpose(0, 1)
         lstm_output, (new_h, new_c) = self.lstm(hidden, lstm_state)
         flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
-        # Decode actions and values
         logits_list, value = self.policy.decode_actions(flat_hidden)
-
         actions, log_probs, entropies, full_log_probs = self._sample_actions(logits_list)
 
-        # Ensure at least 2D action tensor
         if len(actions) >= 2:
             actions_tensor = torch.stack([actions[0], actions[1]], dim=-1)
         else:
             actions_tensor = torch.stack([actions[0], torch.zeros_like(actions[0])], dim=-1)
-
         actions_tensor = actions_tensor.to(dtype=torch.int32)
 
         if action is None:
-            td["actions"] = torch.zeros(
-                (actions_tensor.shape[0], actions_tensor.shape[1]), dtype=torch.int32, device=self.device
-            )
+            td["actions"] = torch.zeros(actions_tensor.shape, dtype=torch.int32, device=self.device)
             td["act_log_prob"] = log_probs.mean(dim=-1)
             td["values"] = value.flatten()
             td["full_log_probs"] = full_log_probs
-
         else:
             td["act_log_prob"] = log_probs.mean(dim=-1)
             td["entropy"] = entropies.sum(dim=-1)
             td["value"] = value.flatten()
             td["full_log_probs"] = full_log_probs
-
             td = td.reshape(B, TT)
 
-
-
-
         return td
-
 
     def _prepare_lstm_state(self, state: dict):
         """Ensures LSTM hidden states are on the correct device and sized properly."""
         h, c = state.get("lstm_h"), state.get("lstm_c")
         if h is None or c is None:
             return None
-        h, c = h.to(self.device), c.to(self.device)
-        num_layers = self.lstm.num_layers
-        return h[:num_layers], c[:num_layers]
+        return h.to(self.device)[:self.lstm.num_layers], c.to(self.device)[:self.lstm.num_layers]
 
     def _sample_actions(self, logits_list: list[torch.Tensor]):
         """Samples discrete actions from logits and computes log-probs and entropy."""
@@ -169,14 +125,19 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             actions.append(action)
             selected_log_probs.append(selected_log_prob)
             entropies.append(entropy)
-            # Pad to max_actions
             pad_width = max_actions - log_probs.shape[1]
             full_log_probs.append(F.pad(log_probs, (0, pad_width), value=float("-inf")))
 
-        return actions, torch.stack(selected_log_probs, dim=-1), torch.stack(entropies, dim=-1), torch.stack(full_log_probs, dim=-1)
+        return (
+            actions,
+            torch.stack(selected_log_probs, dim=-1),
+            torch.stack(entropies, dim=-1),
+            torch.stack(full_log_probs, dim=-1),
+        )
 
-
-
+    def clip_weights(self):
+        for p in self.parameters():
+            p.data.clamp_(-1, 1)
 
 
 class Policy(nn.Module):
@@ -213,10 +174,10 @@ class Policy(nn.Module):
         self.register_buffer("max_vec", max_vec.to(self.device))
 
         self.actor = nn.ModuleList(
-            [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in self.action_space.nvec]
+            [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01)
+             for n in self.action_space.nvec]
         )
         self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
-
         self.to(self.device)
 
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
@@ -224,16 +185,19 @@ class Policy(nn.Module):
         observations = observations.to(self.device)
         B = observations.shape[0]
         TT = 1 if observations.dim() == 3 else observations.shape[1]
+
         if observations.dim() != 3:
             observations = einops.rearrange(observations, "b t m c -> (b t) m c")
 
         observations[observations == 255] = 0
         coords_byte = observations[..., 0].to(torch.uint8)
 
-        x_coords = ((coords_byte >> 4) & 0x0F).long()
-        y_coords = (coords_byte & 0x0F).long()
-        atr_indices = observations[..., 1].long()
-        atr_values = observations[..., 2].float()
+
+         # Extract x and y coordinate indices (0-15 range, but we need to make them long for indexing)
+        x_coords = ((coords_byte >> 4) & 0x0F).long() # Shape: [B_TT, M]
+        y_coords = (coords_byte & 0x0F).long() # Shape: [B_TT, M]
+        atr_indices = observations[..., 1].long() # Shape: [B_TT, M], ready for embedding
+        atr_values = observations[..., 2].float() # Shape: [B_TT, M]
 
         box_obs = torch.zeros(
             (B * TT, self.num_layers, self.out_width, self.out_height),
@@ -242,14 +206,15 @@ class Policy(nn.Module):
         )
 
         valid_tokens = (
-            (coords_byte != 0xFF)
-            & (x_coords < self.out_width)
-            & (y_coords < self.out_height)
-            & (atr_indices < self.num_layers)
+            (coords_byte != 0xFF) &
+            (x_coords < self.out_width) &
+            (y_coords < self.out_height) &
+            (atr_indices < self.num_layers)
         )
 
         batch_idx = torch.arange(B * TT, device=self.device).unsqueeze(-1).expand_as(atr_values)
-        box_obs[batch_idx[valid_tokens], atr_indices[valid_tokens], x_coords[valid_tokens], y_coords[valid_tokens]] = atr_values[valid_tokens]
+        box_obs[batch_idx[valid_tokens], atr_indices[valid_tokens],
+                x_coords[valid_tokens], y_coords[valid_tokens]] = atr_values[valid_tokens]
 
         features = box_obs / self.max_vec
         self_features = self.self_encoder(features[:, :, 5, 5])
