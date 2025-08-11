@@ -19,7 +19,6 @@ from utils.mettagrid_build_utils import (
     run_build_command,
     setup_build_environment,
     write_github_outputs,
-    write_github_summary,
 )
 
 
@@ -63,9 +62,9 @@ def main():
     # Print summary to console
     checker.print_summary()
 
-    # Generate and write GitHub Actions summary
-    github_summary = checker.generate_github_summary(title="Benchmark Summary")
-    write_github_summary(github_summary)
+    # skip GitHub Actions summary since it largely duplicated the test step
+    # github_summary = checker.generate_github_summary(title="Benchmark Summary")
+    # write_github_summary(github_summary)
 
     # Set outputs for GitHub Actions
     write_github_outputs(checker, build_success, build_output)
