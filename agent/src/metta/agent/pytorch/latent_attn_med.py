@@ -34,20 +34,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
     ):
         """
         Initialize the policy to the current environment's features and actions.
-
-        Args:
-            features: Dictionary mapping feature names to their properties:
-                {
-                    feature_name: {
-                        "id": byte,  # The feature_id to use during this run
-                        "type": "scalar" | "categorical",
-                        "normalization": float (optional, only for scalar features)
-                    }
-                }
-            action_names: List of action names
-            action_max_params: List of maximum parameters for each action
-            device: Device to place tensors on
-            is_training: Deprecated. Training mode is now automatically detected.
         """
         self._initialize_observations(features, device, is_training)
         self.activate_actions(action_names, action_max_params, device)
@@ -301,13 +287,6 @@ class Policy(nn.Module):
     def encode_observations(self, observations, state=None):
         """
         Encode observations into a hidden representation.
-
-        Args:
-            observations: Input tensor, shape (B, TT, M, 3) or (B, M, 3)
-            state: Optional state dictionary
-
-        Returns:
-            hidden: Encoded representation, shape (B * TT, hidden_size)
         """
         observations = observations.to(self.device)
 
