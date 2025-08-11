@@ -52,13 +52,6 @@ setup: |
   git checkout "$METTA_GIT_REF"
   echo "[SETUP] Checked out: $(git rev-parse HEAD)"
 
-  # Python environment setup
-  echo "[SETUP] Setting up Python environment..."
-  uv sync
-
-  # Create required directories
-  mkdir -p "$WANDB_DIR"
-
   # Note that different sets of skypilot environment variables are available in "run" vs "setup"
   # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
 
@@ -72,12 +65,18 @@ run: |
   fi
   . .venv/bin/activate
 
+  # Python environment setup
+  echo "[SETUP] Setting up Python environment..."
+  uv sync
+
+  # Create required directories
+  mkdir -p "$WANDB_DIR"
+
   bash ./devops/skypilot/config/configure_environment.sh
 
   echo "[RUN] Starting run phase..."
   echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
   echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
-
 
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
     echo "[RUN] Collecting skypilot latency..."
