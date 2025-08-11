@@ -16,6 +16,7 @@ from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.datastruct import duplicates
 from metta.common.util.instantiate import instantiate
 from metta.agent.component_policy import ComponentPolicy
+import types
 
 from typing import Dict
 
@@ -77,19 +78,27 @@ class MettaAgent(nn.Module):
 
     def initialize_to_environment(self, features: dict[str, dict], action_names: list[str], action_max_params: list[int], device, is_training: bool = True):
         """Initialize the agent to the current environment."""
-        self._initialize_observations(features, device)
+
 
         if isinstance(self.policy, ComponentPolicy):
             self.activate_policy()
             self.activate_actions(action_names, action_max_params, device)
-        else:
-            self.policy.initialize_to_environment(features, action_names, action_max_params, device, is_training)
+            self._initialize_observations(features, device)
 
+        else:
+            # Or we can create an another abstraction for PytorchPolicy which defines default functions
+            # for now, using metta agent's one.
+
+            if hasattr(self.policy, "initialize_to_environment"):
+                # Call the policy's specific initialization method
+                self.policy.initialize_to_environment(features, action_names, action_max_params, device, is_training)
+            else:
+                # Fallback to generic activation
+                self.activate_actions(action_names, action_max_params, device)
+                self._initialize_observations(features, device)
 
 
     def activate_policy(self):
-        # self.hidden_size = self.cfg.components._core_.output_size
-        # self.core_num_layers = self.cfg.components._core_.nn_params.num_layers
         self.clip_range = self.cfg.clip_range
 
         # Validate and extract observation key
