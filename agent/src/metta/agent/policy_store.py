@@ -238,13 +238,7 @@ class PolicyStore:
         return PolicyRecord(self, name, f"file://{path}", metadata)
 
     def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
-        """Save a policy record using the simple torch.save approach with atomic file operations.
-
-        This method saves three files:
-        - <file>.pt: The complete PolicyRecord object (existing format)
-        - <file>.ptx: Just the torch model weights/state dict
-        - <file>.yaml: Just the metadata in YAML format
-        """
+        """Save a policy record using the simple torch.save approach with atomic file operations."""
         if path is None:
             if hasattr(pr, "file_path"):
                 path = pr.file_path
