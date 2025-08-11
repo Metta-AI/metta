@@ -19,7 +19,7 @@ class ExperimentConfig(Config):
     name: str
     user: Optional[str] = None
     launch: bool = False
-    previous_job_ids: Optional[List[str]] = None
+    previous_job_ids: Optional[List[str]] = Non
     # output_dir: Optional[str] = Field(
     #     default=None,
     #     description="Directory to save notebook, None to skip notebook generation",
@@ -128,7 +128,6 @@ class Experiment(ABC):
             # Store the configs for potential later launching
             self._training_job_configs = list(self.training_job_configs)
             self.launched_training_jobs = []
-
 
 
 class SingleJobExperiment(Experiment):
