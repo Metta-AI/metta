@@ -19,9 +19,9 @@ game:
     change_color:
       enabled: false
   agent:
+    default_resource_limit: 1
     resource_limits:
-      ore_red: 1
-      heart: 10
+      heart: 100
     rewards:
       inventory:
         heart: 1.0
@@ -35,3 +35,13 @@ game:
       params:
         agents: 1
         objects: ??
+  objects:
+    generator_red:
+      initial_resource_count: 0
+      cooldown: 10
+    generator_blue:
+      initial_resource_count: 0
+      cooldown: 10
+    generator_green:
+      initial_resource_count: 0
+      cooldown: 10

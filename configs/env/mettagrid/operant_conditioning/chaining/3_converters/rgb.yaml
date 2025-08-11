@@ -1,5 +1,5 @@
 defaults:
-  - /env/mettagrid/operant_conditioning/operant_sequence/defaults@
+  - /env/mettagrid/operant_conditioning/chaining/defaults@
   - _self_
 
 game:
@@ -12,16 +12,12 @@ game:
           generator_green: 1
   objects:
     generator_red:
-      initial_resource_count: 0
-      cooldown: 5
       input_resources:
         ore_red: 0
       output_resources:
         battery_red: 0
         battery_green: 1
     generator_blue:
-      initial_resource_count: 0
-      cooldown: 5
       input_resources:
         ore_blue: 0
         battery_blue: 1
@@ -29,8 +25,6 @@ game:
         battery_blue: 0
         heart: 1
     generator_green:
-      initial_resource_count: 0
-      cooldown: 5
       input_resources:
         ore_green: 0
         battery_green: 1
