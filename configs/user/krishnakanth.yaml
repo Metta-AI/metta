@@ -24,7 +24,7 @@ trainer:
   total_timesteps: 1_000_000_000
 
 wandb:
-  enabled: false
+  enabled: true
   project: metta
   entity: metta_research
   group: ${run}
