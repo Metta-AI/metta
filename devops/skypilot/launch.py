@@ -97,12 +97,14 @@ def main():
     parser.add_argument("--no-spot", action="store_true", help="Disable spot instances")
     parser.add_argument("--copies", type=int, default=1, help="Number of identical job copies to launch")
     parser.add_argument(
+        "-hb",
         "--heartbeat-timeout-seconds",
         type=int,
         default=300,
         help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
     )
     parser.add_argument(
+        "-t",
         "--max-runtime-hours",
         type=float,
         default=None,
