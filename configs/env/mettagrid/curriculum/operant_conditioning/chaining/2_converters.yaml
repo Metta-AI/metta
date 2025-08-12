@@ -1,0 +1,9 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  /env/mettagrid/operant_conditioning/chaining/2_converters/br: 1
+  /env/mettagrid/operant_conditioning/chaining/2_converters/rb: 1
+  /env/mettagrid/operant_conditioning/chaining/2_converters/rg: 1
+  /env/mettagrid/operant_conditioning/chaining/2_converters/gb: 1
+  /env/mettagrid/operant_conditioning/chaining/2_converters/bg: 1
+  /env/mettagrid/operant_conditioning/chaining/2_converters/gr: 1

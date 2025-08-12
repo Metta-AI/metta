@@ -1,0 +1,11 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: operant_conditioning_forking
+
+simulations:
+  operant_conditioning_forking/2_converters_blue:
+    env: env/mettagrid/operant_conditioning/forking/2_converters/2_converters_blue
+  operant_conditioning_forking/2_converters_red:
+    env: env/mettagrid/operant_conditioning/forking/2_converters/2_converters_red
