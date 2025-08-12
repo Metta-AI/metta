@@ -455,7 +455,9 @@ function drawTrajectory() {
 
       // Debug: Log the first movement to understand the issue.
       if (i === 1) {
-        console.log(`First movement: (${cx0},${cy0}) -> (${cx1},${cy1}), step=${state.step}, show=${cx0 !== cx1 || cy0 !== cy1}`)
+        console.log(
+          `First movement: (${cx0},${cy0}) -> (${cx1},${cy1}), step=${state.step}, show=${cx0 !== cx1 || cy0 !== cy1}`
+        )
       }
 
       if (cx0 !== cx1 || cy0 !== cy1) {
@@ -509,11 +511,11 @@ function drawTrajectory() {
             scale = [Math.sqrt(2), 1]
           } else if (dx < 0 && dy > 0) {
             // Movement is southwest diagonal.
-            rotation = -3 * Math.PI / 4
+            rotation = (-3 * Math.PI) / 4
             scale = [Math.sqrt(2), 1]
           } else if (dx < 0 && dy < 0) {
             // Movement is northwest diagonal.
-            rotation = 3 * Math.PI / 4
+            rotation = (3 * Math.PI) / 4
             scale = [Math.sqrt(2), 1]
           }
 

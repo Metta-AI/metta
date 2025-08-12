@@ -26,9 +26,12 @@ function flushComboIfAny() {
   let param = -1
   if (comboKeys.size >= 2) {
     const has = (k: 'w' | 'a' | 's' | 'd') => comboKeys.has(k)
-    if (has('w') && has('a')) param = 7 // NW
-    else if (has('w') && has('d')) param = 1 // NE
-    else if (has('s') && has('d')) param = 3 // SE
+    if (has('w') && has('a'))
+      param = 7 // NW
+    else if (has('w') && has('d'))
+      param = 1 // NE
+    else if (has('s') && has('d'))
+      param = 3 // SE
     else if (has('s') && has('a')) param = 5 // SW
   }
   if (param === -1) {
@@ -330,7 +333,7 @@ export function processGamepad() {
 
   let inputDetected = false
 
-// Helper to dispatch a synthetic keyboard event so that we can reuse the
+  // Helper to dispatch a synthetic keyboard event so that we can reuse the
   // existing `processActions` logic.
   const dispatchKey = (key: string) => {
     // Construct a minimal KeyboardEvent carrying the `key` information.
