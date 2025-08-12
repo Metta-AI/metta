@@ -8,7 +8,7 @@ protein:
   expansion_rate: 0.15 # Higher exploration along cost dimension
   seed_with_search_center: true
 
-metric: reward
+metric: heart.get
 
 goal: maximize
 method: bayes
