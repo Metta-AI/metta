@@ -400,7 +400,6 @@ export function processGamepad() {
   if (gp.axes.length >= 2) {
     const x = gp.axes[0]
     const y = gp.axes[1]
-
     if (y < -axisThreshold) {
       directionActives.w = true
     }
