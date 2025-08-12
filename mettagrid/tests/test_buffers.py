@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from metta.mettagrid.level_builder import create_grid
 from metta.mettagrid.mettagrid_c import (
     MettaGrid,
     dtype_actions,
@@ -28,7 +29,7 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
         config_override: Dictionary to override/merge with default config
     """
     # Define a simple map: empty with walls around perimeter
-    game_map = np.full((height, width), "empty", dtype="<U50")
+    game_map = create_grid(height, width)
     game_map[0, :] = "wall"
     game_map[-1, :] = "wall"
     game_map[:, 0] = "wall"
