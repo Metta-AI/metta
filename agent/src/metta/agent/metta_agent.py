@@ -297,7 +297,7 @@ class MettaAgent(nn.Module):
         """Calculate L2 initialization loss - delegates to policy."""
         if hasattr(self.policy, "l2_init_loss"):
             return self.policy.l2_init_loss()
-        return torch.tensor(0.0, device=self.device)
+        return torch.tensor(0.0, dtype=torch.float32, device=self.device)
 
     def update_l2_init_weight_copy(self):
         """Update L2 initialization weight copies - delegates to policy."""

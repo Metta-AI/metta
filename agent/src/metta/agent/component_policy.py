@@ -244,7 +244,7 @@ class ComponentPolicy(nn.Module):
     def l2_init_loss(self) -> torch.Tensor:
         """Calculate L2 initialization loss for all components."""
         losses = self._apply_to_components("l2_init_loss")
-        return torch.sum(torch.stack(losses)) if losses else torch.tensor(0.0)
+        return torch.sum(torch.stack(losses)) if losses else torch.tensor(0.0, dtype=torch.float32)
 
     def update_l2_init_weight_copy(self):
         """Update L2 initialization weight copies for all components."""
