@@ -1,8 +1,9 @@
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 import gymnasium as gym
 import torch
+from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
@@ -55,7 +56,7 @@ class MettaAgent(nn.Module):
         self.policy.device = self.device
         self.policy.to(self.device)
 
-    def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> Tuple:
+    def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass through the policy."""
         if self.policy is None:
             raise RuntimeError("No policy set. Use set_policy() first.")

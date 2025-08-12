@@ -13,6 +13,8 @@ class ComponentPolicy(nn.Module):
         super().__init__()
         self.components = None
         self.clip_range = 0.0
+        self.cum_action_max_params = None
+        self.action_index_tensor = None
 
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass of the ComponentPolicy - matches original MettaAgent forward() logic."""
