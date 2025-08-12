@@ -43,7 +43,7 @@ class ComponentPolicy(nn.Module):
             output_td = self.forward_inference(td)
         else:
             output_td = self.forward_training(td, action)
-            output_td = output_td.reshape(B, TT)
+            output_td = output_td.reshape(td.batch, td.bptt)
 
         return output_td
 
