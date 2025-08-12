@@ -69,6 +69,8 @@ run: |
   echo "[RUN] Starting run phase..."
   echo "[RUN] METTA_RUN_ID: ${METTA_RUN_ID:-}"
   echo "[RUN] SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
+  echo "[RUN] HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
+  echo "[RUN] MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 
   # Optional metrics (best-effort)
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
@@ -123,9 +125,6 @@ run: |
   fi
 
   export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
-  echo "[DEBUG] WANDB_DIR: ${WANDB_DIR:-'NOT SET'}"
-  echo "[DEBUG] HEARTBEAT_FILE: ${HEARTBEAT_FILE:-'NOT SET'}"
-  echo "[DEBUG] HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 
   # Start train.sh in background with its own process group
   setsid ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
