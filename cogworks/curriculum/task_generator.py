@@ -205,6 +205,7 @@ class BucketedTaskGenerator(TaskGenerator):
     def __init__(self, config: BucketedTaskGeneratorConfig):
         super().__init__(config)
         self._config: BucketedTaskGeneratorConfig = config
+        assert config.buckets, "Buckets must be non-empty"
         self._child_generator = config.child_generator_config.create()
 
     def _get_bucket_value(self, bucket_values: list[int | float | str | ValueRange], rng: random.Random) -> Any:
