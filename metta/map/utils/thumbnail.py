@@ -49,22 +49,51 @@ def get_position_component(object, step, component):
     return result
 
 
+def get_position_component_v2(object, step, component):
+    """Get position component for version 2 replay format (uses location array)."""
+    location = object["location"]
+
+    # Check if it's animated (list of [frame, value] pairs) or simple location array
+    if isinstance(location, list) and len(location) > 0 and isinstance(location[0], list):
+        # Animated location - find value at step
+        result = [0, 0, 0]  # [c, r, layer]
+        for [frame, value] in location:
+            if frame > step:
+                break
+            result = value
+        return result[0] if component == "c" else result[1]
+    else:
+        # Simple location array [c, r, layer]
+        return location[0] if component == "c" else location[1]
+
+
 def read_replay_map(input, step):
     """
-    Faithfully extracted from gen_thumb.py.
-    TODO: Add version 2 replay support for modern ReplayWriter format which uses
-    "objects" field instead of "grid_objects" and "type_names" instead of "object_types"
+    Faithfully extracted from gen_thumb.py with version 2 support added.
+    Supports both version 1 and version 2 replay formats.
     """
-    if input["version"] != 1:
-        raise ValueError("Unsupported replay version")
+    version = input.get("version", 1)
+    if version not in [1, 2]:
+        raise ValueError(f"Unsupported replay version: {version}")
+
     if input["max_steps"] <= step:
         raise ValueError("Step is out of range")
+
+    # Handle version differences for object types and objects list
+    if version == 1:
+        object_types = input["object_types"]
+        objects_list = input["grid_objects"]
+        type_key = "type"
+    else:  # version == 2
+        object_types = input["type_names"]
+        objects_list = input["objects"]
+        type_key = "type_id"
 
     # Setup phase: map object types to drawing functions.
     agent_type_id = -1
     shape = []
     fills = []
-    for type_id, object_type in enumerate(input["object_types"]):
+    for type_id, object_type in enumerate(object_types):
         if object_type == "agent":
             agent_type_id = type_id
         if object_type in colors:
@@ -75,16 +104,20 @@ def read_replay_map(input, step):
         match object_type:
             case "agent":
                 shape.append(path_agent)
-
             case _:
                 shape.append(path_wall)
 
-    objects = input["grid_objects"]
-    nodes = [0] * len(objects)
-    for i, object in enumerate(objects):
-        x = get_position_component(object, step, "c")
-        y = get_position_component(object, step, "r")
-        nodes[i] = y | (x << 16) | (object["type"] << 32) | (object.get("agent_id", 0) << 48)
+    # Process objects with version-specific position handling
+    nodes = [0] * len(objects_list)
+    for i, object in enumerate(objects_list):
+        if version == 1:
+            x = get_position_component(object, step, "c")
+            y = get_position_component(object, step, "r")
+        else:  # version == 2
+            x = get_position_component_v2(object, step, "c")
+            y = get_position_component_v2(object, step, "r")
+
+        nodes[i] = y | (x << 16) | (object[type_key] << 32) | (object.get("agent_id", 0) << 48)
 
     size = input["map_size"]
     return [size[0], size[1], nodes, shape, fills, agent_type_id]
