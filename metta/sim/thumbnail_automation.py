@@ -25,7 +25,7 @@ THUMBNAIL_S3_PREFIX = "policydash/evals/img"
 
 def eval_name_to_s3_key(eval_name: str) -> str:
     """
-    Convert eval_name to S3 key using new naming scheme.
+    Convert eval_name to S3 key using naming scheme that matches frontend expectations.
 
     Args:
         eval_name: Evaluation name like "navigation/emptyspace_withinsight"
