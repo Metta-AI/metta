@@ -136,13 +136,28 @@ run: |
   mkdir -p "$IPC_DIR"
   export TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
 
-  # Shared function to gracefully terminate a process
+  terminate_watchdogs() {
+    if [[ -n "${HEARTBEAT_MONITOR_PID:-}" ]]; then
+      kill "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
+      wait "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
+      echo "[INFO] Terminating heartbeat monitor"
+    fi
+
+    if [[ -n "${TIMEOUT_MONITOR_PID:-}" ]]; then
+      kill "$TIMEOUT_MONITOR_PID" 2>/dev/null || true
+      wait "$TIMEOUT_MONITOR_PID" 2>/dev/null || true
+      echo "[INFO] Terminating timeout monitor"
+    fi
+  }
+
   terminate_process() {
     local pid=$1
     local reason=$2
 
     if kill -0 "$pid" 2>/dev/null; then
       echo "[INFO] Terminating process group $pid (reason: $reason)"
+      echo "$reason" > "$TERMINATION_REASON_FILE"
+      terminate_watchdogs
 
       # Kill the entire process group (negative PID)
       kill -TERM -"$pid" 2>/dev/null || true
@@ -159,13 +174,10 @@ run: |
         echo "[WARN] Process group $pid didn't terminate gracefully, forcing kill"
         kill -KILL -"$pid" 2>/dev/null || true
       fi
-
-      # Write termination reason to file for parent process
-      echo "$reason" > "$TERMINATION_REASON_FILE"
     fi
   }
 
-  run_training() {
+  run_cmd() {
     local START_TIME=$(date +%s)
 
     # Start training in its own process group with job control to create process groups
@@ -187,6 +199,12 @@ run: |
         while true; do
           sleep "$TIMEOUT_CHECK_INTERVAL"
 
+          # Check if main process is still alive
+          if ! kill -0 "$CMD_PID" 2>/dev/null; then
+            echo "[INFO] Timeout monitor: main process no longer running, exiting"
+            break
+          fi
+
           elapsed=$(($(date +%s) - START_TIME))
           remaining=$((max_seconds - elapsed))
 
@@ -196,16 +214,14 @@ run: |
             echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
           else
             echo "[INFO] Timeout limit reached - terminating training process"
-
             # Use shared terminate function
             terminate_process "$CMD_PID" "max_runtime_reached"
-
             echo "[INFO] Timeout monitor exiting - process terminated"
             break
           fi
         done
       ) &
-      local TIMEOUT_MONITOR_PID=$!
+      TIMEOUT_MONITOR_PID=$!
       echo "[INFO] Started timeout monitor with PID: $TIMEOUT_MONITOR_PID"
     fi
 
@@ -236,18 +252,18 @@ run: |
             # Check if timeout exceeded
             if [ $((CURRENT_TIME - LAST_HEARTBEAT_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
               echo "[ERROR] Heartbeat timeout! No heartbeat for $HEARTBEAT_TIMEOUT seconds"
-
               # Use shared terminate function
               terminate_process "$CMD_PID" "heartbeat_timeout"
-
               break
             fi
           fi
 
           sleep "$HEARTBEAT_CHECK_INTERVAL"
         done
+
+        echo "[INFO] Heartbeat monitor exiting"
       ) &
-      local HEARTBEAT_MONITOR_PID=$!
+      HEARTBEAT_MONITOR_PID=$!
       echo "[INFO] Started heartbeat monitor with PID: $HEARTBEAT_MONITOR_PID"
     fi
 
@@ -261,16 +277,7 @@ run: |
       echo "[INFO] Termination reason from monitor: $TERMINATION_REASON"
     fi
 
-    # Cleanup monitors
-    if [[ -n "${HEARTBEAT_MONITOR_PID:-}" ]]; then
-      kill "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
-      wait "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
-    fi
-
-    if [[ -n "${TIMEOUT_MONITOR_PID:-}" ]]; then
-      kill "$TIMEOUT_MONITOR_PID" 2>/dev/null || true
-      wait "$TIMEOUT_MONITOR_PID" 2>/dev/null || true
-    fi
+    terminate_watchdogs
 
     # Calculate total runtime
     local END_TIME=$(date +%s)
@@ -281,11 +288,14 @@ run: |
   }
 
   # Export the terminate function so it's available in subshells
+  export TIMEOUT_MONITOR_PID=""
+  export HEARTBEAT_MONITOR_PID=""
   export -f terminate_process
+  export -f terminate_watchdogs
 
   # Run training without the timeout wrapper
   echo "[INFO] Starting training with watchdog monitors"
-  run_training
+  run_cmd
   CMD_EXIT=$?
 
   # Check termination reason
