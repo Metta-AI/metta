@@ -58,6 +58,10 @@ class CurriculumConfig(Config):
             raise ValueError("num_active_tasks must be less than max_task_id")
         return v
 
+    def make(self) -> Curriculum:
+        """Make a Curriculum from this configuration."""
+        return Curriculum(self)
+
 
 class Curriculum:
     """Base curriculum class that uses TaskGenerator to generate EnvConfigs and returns Tasks.
