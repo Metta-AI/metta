@@ -76,7 +76,7 @@ class MettaAgent(nn.Module):
             policy = self._create_policy(agent_cfg, env, system_cfg)
 
         self.policy = policy
-        if self.policy is not None:
+        if self.policy is not None and hasattr(self.policy, "device"):
             self.policy.device = self.device
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
@@ -107,8 +107,10 @@ class MettaAgent(nn.Module):
     def set_policy(self, policy):
         """Set the agent's policy."""
         self.policy = policy
-        self.policy.agent = self
-        self.policy.device = self.device
+        # Don't create circular reference - it causes recursion during serialization
+        # self.policy.agent = self  # REMOVED - causes recursion errors
+        if hasattr(self.policy, "device"):
+            self.policy.device = self.device
         self.policy.to(self.device)
 
     def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
