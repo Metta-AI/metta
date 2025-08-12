@@ -25,17 +25,9 @@ class ComponentPolicy(nn.Module):
         action_space: Optional[gym.spaces.Space] = None,
         feature_normalizations: Optional[dict[int, float]] = None,
         device: Optional[str] = None,
-        cfg: Optional[DictConfig] = None,
+        cfg: DictConfig = None,
     ):
         super().__init__()
-
-        # If no config provided, create a minimal policy (for backwards compatibility)
-        if cfg is None:
-            self.components = None
-            self.clip_range = 0.0
-            self.cum_action_max_params = None
-            self.action_index_tensor = None
-            return
 
         # Build components immediately, just like old MettaAgent did
         self.cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))

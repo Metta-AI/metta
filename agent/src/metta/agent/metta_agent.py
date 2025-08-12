@@ -97,61 +97,21 @@ class MettaAgent(nn.Module):
 
         return self.policy(td, state, action)
 
-    def activate_policy(self):
-        """Legacy method for backwards compatibility - components are now built in ComponentPolicy.__init__."""
-        # This method is no longer needed since ComponentPolicy builds its own components
-        # Keep it for backwards compatibility with any code that might call it
-        if isinstance(self.policy, ComponentPolicy):
-            self.components = self.policy.components
-            self.components_with_memory = self.policy.components_with_memory
-            self.clip_range = self.policy.clip_range
-
     def reset_memory(self) -> None:
-        """Reset memory for all components that have memory."""
-        if isinstance(self.policy, ComponentPolicy):
-            # Delegate to ComponentPolicy if it has its own reset_memory
-            if hasattr(self.policy, "reset_memory"):
-                self.policy.reset_memory()
-            elif hasattr(self, "components_with_memory"):
-                for name in self.components_with_memory:
-                    comp = self.components[name]
-                    if not hasattr(comp, "reset_memory"):
-                        raise ValueError(
-                            f"Component '{name}' listed in components_with_memory but has no reset_memory() method."
-                            + " Perhaps an obsolete policy?"
-                        )
-                    comp.reset_memory()
+        """Reset memory - delegates to policy if it supports memory."""
+        if hasattr(self.policy, "reset_memory"):
+            self.policy.reset_memory()
 
-    def get_memory(self):
-        memory = {}
-        if isinstance(self.policy, ComponentPolicy) and hasattr(self, "components_with_memory"):
-            for name in self.components_with_memory:
-                memory[name] = self.components[name].get_memory()
-        return memory
+    def get_memory(self) -> dict:
+        """Get memory state - delegates to policy if it supports memory."""
+        if hasattr(self.policy, "get_memory"):
+            return self.policy.get_memory()
+        return {}
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
         )
-
-    def _setup_components(self, component):
-        """_sources is a list of dicts albeit many layers simply have one element.
-        It must always have a "name" and that name should be the same as the relevant key in self.components.
-        source_components is a dict of components that are sources for the current component. The keys
-        are the names of the source components."""
-        # recursively setup all source components
-        if component._sources is not None:
-            for source in component._sources:
-                logger.info(f"setting up {component._name} with source {source['name']}")
-                self._setup_components(self.components[source["name"]])
-
-        # setup the current component and pass in the source components
-        source_components = None
-        if component._sources is not None:
-            source_components = {}
-            for source in component._sources:
-                source_components[source["name"]] = self.components[source["name"]]
-        component.setup(source_components)
 
     def initialize_to_environment(
         self,
@@ -329,40 +289,22 @@ class MettaAgent(nn.Module):
             return self.components["_core_"]._net
         return None
 
-    def _apply_to_components(self, method_name, *args, **kwargs) -> list[torch.Tensor]:
-        """Apply a method to all components that have it."""
-        results = []
-        if not hasattr(self, "components"):
-            return results
-        for _, component in self.components.items():
-            if hasattr(component, method_name):
-                method = getattr(component, method_name)
-                if callable(method):
-                    result = method(*args, **kwargs)
-                    if result is not None:
-                        results.append(result)
-        return results
-
     def l2_init_loss(self) -> torch.Tensor:
-        """Calculate L2 initialization loss."""
-        losses = self._apply_to_components("l2_init_loss")
-        return torch.sum(torch.stack(losses)) if losses else torch.tensor(0.0, device=self.device)
+        """Calculate L2 initialization loss - delegates to policy."""
+        if hasattr(self.policy, "l2_init_loss"):
+            return self.policy.l2_init_loss()
+        return torch.tensor(0.0, device=self.device)
 
     def update_l2_init_weight_copy(self):
-        """Update L2 initialization weight copies."""
-        self._apply_to_components("update_l2_init_weight_copy")
+        """Update L2 initialization weight copies - delegates to policy."""
+        if hasattr(self.policy, "update_l2_init_weight_copy"):
+            self.policy.update_l2_init_weight_copy()
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        """Compute weight metrics for analysis."""
-        results = {}
-        if not hasattr(self, "components"):
-            return []
-        for name, component in self.components.items():
-            if hasattr(component, "compute_weight_metrics"):
-                result = component.compute_weight_metrics(delta)
-                if result is not None:
-                    results[name] = result
-        return list(results.values())
+        """Compute weight metrics - delegates to policy."""
+        if hasattr(self.policy, "compute_weight_metrics"):
+            return self.policy.compute_weight_metrics(delta)
+        return []
 
 
 PolicyAgent = MettaAgent | DistributedMettaAgent
