@@ -55,7 +55,12 @@ function validateNonNegativeNumber(value: any, fieldName: string, issues: Valida
   }
 }
 
-function validateStringList(lst: any, fieldName: string, issues: ValidationIssue[], allowEmpty: boolean = false): void {
+function validateStringList(
+  lst: any,
+  fieldName: string,
+  issues: ValidationIssue[],
+  allowEmpty: boolean = false
+): void {
   validateType(lst, 'array', fieldName, issues)
 
   if (Array.isArray(lst)) {
@@ -64,8 +69,8 @@ function validateStringList(lst: any, fieldName: string, issues: ValidationIssue
     }
 
     for (const item of lst) {
-      if (typeof item !== 'string' || item === '') {
-        issues.push({ message: `'${fieldName}' must contain non-empty strings`, field: fieldName })
+      if (typeof item !== 'string') {
+        issues.push({ message: `'${fieldName}' must contain strings`, field: fieldName })
         break
       }
     }
