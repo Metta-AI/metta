@@ -171,6 +171,15 @@ def train(
 
     policy: PolicyAgent = latest_saved_policy_record.policy
 
+    # Initialize policy to environment BEFORE distributed wrapping
+    # This ensures the policy has parameters that require gradients
+    initialize_policy_for_environment(
+        policy_record=latest_saved_policy_record,
+        metta_grid_env=metta_grid_env,
+        device=device,
+        restore_feature_mapping=True,
+    )
+
     if trainer_cfg.compile:
         logger.info("Compiling policy")
         # torch.compile gives a CallbackFunctionType, but it preserves the interface of the original policy
@@ -182,15 +191,6 @@ def train(
         torch.distributed.barrier()
         policy = wrap_agent_distributed(policy, device)
         torch.distributed.barrier()
-
-    # Initialize policy to environment after distributed wrapping
-    # This must happen after wrapping to ensure all ranks do it at the same time
-    initialize_policy_for_environment(
-        policy_record=latest_saved_policy_record,
-        metta_grid_env=metta_grid_env,
-        device=device,
-        restore_feature_mapping=True,
-    )
 
     # Create kickstarter
     kickstarter = Kickstarter(
