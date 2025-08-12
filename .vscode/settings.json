@@ -22,9 +22,6 @@
     "editor.rulers": [120],
     "editor.renderWhitespace": "trailing",
   },
-  "python.testing.unittestEnabled": true,
-  "python.testing.pytestEnabled": false,
-  "python.testing.unittestArgs": ["-v", "-s", "./tests", "-p", "test_*.py"],
   // YAML Configuration
   "[yaml]": {
     "editor.insertSpaces": true,
@@ -47,5 +44,4 @@
     "train_dir": true,
     "wandb": true,
   },
-  "search.useIgnoreFiles": true,
 }

@@ -15,7 +15,6 @@ from omegaconf import DictConfig, ListConfig
 
 from metta.common.util.fs import get_repo_root
 from metta.common.util.logging_helpers import init_logging
-from metta.common.util.resolvers import register_resolvers
 from metta.util.init.mettagrid_system import init_mettagrid_system_environment
 
 logger = logging.getLogger(__name__)
@@ -133,9 +132,6 @@ def hydraless_metta_script(main: Callable[[], int | None]) -> None:
     caller_globals = caller_frame.f_globals
     if caller_globals.get("__name__") != "__main__":
         return
-
-    init_logging()
-    register_resolvers()
 
     # Exit on ctrl+c
     signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))

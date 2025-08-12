@@ -19,8 +19,8 @@ class TestCurriculumEnv:
 
     def create_test_curriculum(self):
         """Helper to create a test curriculum."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config, num_active_tasks=5, new_task_rate=0.1)
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=5, new_task_rate=0.1)
         return Curriculum(config, seed=0)
 
     def create_mock_env(self):
@@ -294,8 +294,8 @@ class TestCurriculumEnvEdgeCases:
         )
         mock_env.set_env_cfg = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config)
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        config = CurriculumConfig(task_generator=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
         wrapper = CurriculumEnv(mock_env, curriculum)
@@ -320,8 +320,8 @@ class TestCurriculumEnvEdgeCases:
         )
         mock_env.set_env_cfg = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config)
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        config = CurriculumConfig(task_generator=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
         wrapper = CurriculumEnv(mock_env, curriculum)
@@ -345,8 +345,8 @@ class TestCurriculumEnvEdgeCases:
         )
         mock_env.set_env_cfg = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config, num_active_tasks=2)
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=2)
         curriculum = Curriculum(config, seed=0)
         wrapper = CurriculumEnv(mock_env, curriculum)
 
