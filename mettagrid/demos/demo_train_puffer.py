@@ -29,12 +29,12 @@ Run with: uv run python mettagrid/demos/demo_train_puffer.py (from project root)
 import time
 
 import numpy as np
-from omegaconf import DictConfig
 
 # MettaGrid imports
 # Note: MettaGridEnv inherits from PufferEnv, so it's fully PufferLib-compatible
 from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.config.builder import make_arena
+from metta.mettagrid.mettagrid_config import EnvConfig
 
 # Training framework imports
 try:
@@ -45,83 +45,9 @@ except ImportError:
     PUFFERLIB_AVAILABLE = False
 
 
-def create_test_config() -> DictConfig:
+def create_test_config() -> EnvConfig:
     """Create test configuration for Puffer integration."""
-    return DictConfig(
-        {
-            "game": {
-                "max_steps": 80,
-                "num_agents": 3,
-                "obs_width": 5,
-                "obs_height": 5,
-                "num_observation_tokens": 25,
-                "inventory_item_names": ["heart", "ore_red", "battery_red"],
-                "groups": {"agent": {"id": 0, "sprite": 0}},
-                "agent": {
-                    "default_resource_limit": 10,
-                    "resource_limits": {"heart": 255},
-                    "freeze_duration": 5,
-                    "rewards": {"heart": 5.0, "ore_red": 0.5, "battery_red": 1.0},
-                    "action_failure_penalty": 0.1,
-                },
-                "actions": {
-                    "noop": {"enabled": True},
-                    "move": {"enabled": True},
-                    "rotate": {"enabled": True},
-                    "put_items": {"enabled": True},
-                    "get_items": {"enabled": True},
-                    "attack": {"enabled": True},
-                    "swap": {"enabled": True},
-                    "change_color": {"enabled": False},
-                    "change_glyph": {"enabled": False, "number_of_glyphs": 0},
-                },
-                "objects": {
-                    "wall": {"type_id": 1, "swappable": False},
-                    "mine_red": {
-                        "type_id": 2,
-                        "output_resources": {"ore_red": 1},
-                        "max_output": -1,
-                        "conversion_ticks": 1,
-                        "cooldown": 3,
-                        "initial_resource_count": 0,
-                        "color": 0,
-                    },
-                    "generator_red": {
-                        "type_id": 5,
-                        "input_resources": {"ore_red": 1},
-                        "output_resources": {"battery_red": 1},
-                        "max_output": -1,
-                        "conversion_ticks": 1,
-                        "cooldown": 2,
-                        "initial_resource_count": 0,
-                        "color": 0,
-                    },
-                    "altar": {
-                        "type_id": 8,
-                        "input_resources": {"battery_red": 2},
-                        "output_resources": {"heart": 1},
-                        "max_output": 5,
-                        "conversion_ticks": 1,
-                        "cooldown": 20,
-                        "initial_resource_count": 1,
-                        "color": 2,
-                    },
-                },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 3,
-                    "width": 10,
-                    "height": 10,
-                    "border_width": 1,
-                    "objects": {
-                        "mine_red": 2,
-                        "generator_red": 1,
-                        "altar": 1,
-                    },
-                },
-            }
-        }
-    )
+    return EnvConfig()
 
 
 def demo_puffer_env():
@@ -129,13 +55,10 @@ def demo_puffer_env():
     print("PUFFERLIB ENVIRONMENT DEMO")
     print("=" * 60)
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("puffer_demo", config)
-
     # Create MettaGridEnv - which IS a PufferLib environment!
     # MettaGridEnv inherits from PufferEnv, so it has all PufferLib functionality
     env = MettaGridEnv(
-        curriculum=curriculum,
+        env_cfg=make_arena(num_agents=24),
         render_mode=None,
         is_training=False,  # Disable training-specific features for this demo
     )
@@ -178,13 +101,10 @@ def demo_random_rollout():
     print("\nRANDOM ROLLOUT DEMO")
     print("=" * 60)
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("puffer_rollout", config)
-
     # Create MettaGridEnv for rollout
     # Note: is_training=True enables training features like stats collection
     env = MettaGridEnv(
-        curriculum=curriculum,
+        env_cfg=make_arena(num_agents=24),
         render_mode=None,
         is_training=True,
     )
@@ -249,13 +169,9 @@ def demo_pufferlib_training():
         print("   - Integration with CleanRL algorithms")
         return
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("puffer_training", config)
-
     # MettaGridEnv can be used directly with PufferLib training code
-    # It inherits all PufferLib functionality through MettaGridPufferBase -> PufferEnv
     env = MettaGridEnv(
-        curriculum=curriculum,
+        env_cfg=make_arena(num_agents=24),
         render_mode=None,
         is_training=True,
     )
