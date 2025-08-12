@@ -17,10 +17,10 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.rl.env_config import EnvConfig
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.policy_management import cleanup_old_policies, validate_policy_environment_match
 from metta.rl.puffer_policy import PytorchAgent
+from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import CheckpointConfig, TrainerConfig
 from metta.rl.utils import should_run
@@ -171,7 +171,7 @@ class CheckpointManager:
     def load_or_create_policy(
         self,
         agent_cfg: DictConfig,
-        env_cfg: EnvConfig,
+        system_cfg: SystemConfig,
         trainer_cfg: TrainerConfig,
         checkpoint: TrainerCheckpoint | None,
         metta_grid_env: MettaGridEnv,
@@ -222,7 +222,7 @@ class CheckpointManager:
             new_policy_record = self.policy_store.create_empty_policy_record(
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
-            new_policy_record.policy = make_policy(metta_grid_env, env_cfg, agent_cfg)
+            new_policy_record.policy = make_policy(metta_grid_env, system_cfg, agent_cfg)
             policy_record = self.policy_store.save(new_policy_record)
             logger.info(f"Created and saved new policy to {policy_record.uri}")
         elif torch.distributed.is_initialized():
