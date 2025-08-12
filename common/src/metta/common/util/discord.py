@@ -133,3 +133,37 @@ def send_to_discord(webhook_url: str, content: str, suppress_embeds: bool = True
             return False
 
     return True
+
+
+if __name__ == "__main__":
+    import os
+    import sys
+
+    # Check for webhook URL in environment variable
+    webhook_url = os.getenv("DISCORD_WEBHOOK_URL")
+
+    if not webhook_url:
+        print("Error: DISCORD_WEBHOOK_URL environment variable not set")
+        print(
+            "Usage: DISCORD_WEBHOOK_URL=<your-webhook-url> DISCORD_CONTENT=<message> python -m metta.common.util.discord"
+        )
+        sys.exit(1)
+
+    # Get content from DISCORD_CONTENT env var
+    content = os.getenv("DISCORD_CONTENT")
+
+    if not content:
+        print("Error: DISCORD_CONTENT environment variable not set")
+        print(
+            "Usage: DISCORD_WEBHOOK_URL=<your-webhook-url> DISCORD_CONTENT=<message> python -m metta.common.util.discord"
+        )
+        sys.exit(1)
+
+    print("Sending message to Discord...")
+    success = send_to_discord(webhook_url, content, suppress_embeds=True)
+
+    if success:
+        print("✅ Message sent successfully!")
+    else:
+        print("❌ Failed to send message")
+        sys.exit(1)
