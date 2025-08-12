@@ -121,6 +121,8 @@ public:
   const ActionSuccess& action_success() const { return _action_success; }
   const ActionHandlers& action_handlers() const { return _action_handlers; }
 
+  const Agent* agent(uint32_t agent_id) const { return _agents[agent_id]; }
+
 private:
   // Member variables
   GlobalObsConfig _global_obs_config;

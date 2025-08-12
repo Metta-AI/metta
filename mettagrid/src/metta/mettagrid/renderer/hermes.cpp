@@ -17,9 +17,6 @@
 #include <unordered_map>
 #include <vector>
 
-#pragma clang diagnostic ignored "-Wgnu-anonymous-struct"
-#pragma clang diagnostic ignored "-Wnested-anon-types"
-
 #define HERMES_DEBUG 1
 
 #if HERMES_DEBUG
@@ -39,9 +36,12 @@ static constexpr float DRAG_SPEED = 1.0f;
 static constexpr float SCROLL_SPEED = 0.1f;
 
 static constexpr float TILE_SIZE = 200.0f;
+static constexpr float INVENTORY_PADDING = 16.0f;
 
+static constexpr Color VOID_COLOR = BLACK;
 static constexpr Color FLOOR_COLOR = {0xCF, 0xA9, 0x70, 0xFF};
 static constexpr Color OBJECT_COLORS[3] = {RED, GREEN, BLUE};
+static constexpr Color PANEL_COLOR = {0, 0, 0, 0x40};
 
 static constexpr uint32_t NO_SELECTION = std::numeric_limits<uint32_t>::max();
 
@@ -63,25 +63,32 @@ enum : WallTile {
 
 // Serializable user configuration.
 struct HermesConfig {
+    static constexpr uint32_t V0 = 'M' | ('G' << 8) | ('H' << 16) | ('0' << 24);
+
+    uint32_t signature; // Indicates the version/features of the file format.
+    int32_t monitor;
+    Vector2 position;
     Camera2D camera; // Also contains the window size in its offset parameter.
     GridObjectId selection; // NO_SELECTION for none, otherwise object index.
 
-    union {
-        uint16_t value;
-        struct {
-            bool show_grid : 1;
-            bool show_resources : 1;
-            bool show_attack_mode : 1;
-            bool show_fog_of_war : 1;
-            bool show_visual_ranges : 1;
-            bool show_profiler : 1;
-            // Serialized as zeros.
-            uint16_t _unused : 7;
-            bool disable_file : 1;
-            bool mouse_moved : 1;
-            bool initialized : 1;
-        };
-    };
+    bool show_grid : 1;
+    bool show_resources : 1;
+    bool show_attack_mode : 1;
+    bool show_fog_of_war : 1;
+    bool show_visual_ranges : 1;
+    bool show_profiler : 1;
+    bool padding : 2;
+};
+
+struct HermesActions {
+    using Action = uint16_t;
+    Action noop;
+    Action move;
+    Action rotate;
+
+    bool show(Action action) const {
+        return action != noop && action != move && action != rotate;
+    }
 };
 
 // Resolved type names to batch indices for specific render nodes.
@@ -92,41 +99,40 @@ struct HermesTypes {
 
 // Resolved sprite names to rectangle indices in the sprite sheet.
 struct HermesSprites {
+    using Sprite = uint16_t;
     struct Object {
-        uint16_t base;
-        uint16_t item;
-        uint16_t color;
+        Sprite base;
+        Sprite item;
+        Sprite color;
     };
-    uint16_t agent[5]; // Orientation sprite indices, extra for frozen state.
-    uint16_t wall[17]; // WallTile sprite indices.
-    uint16_t grid;
-    uint16_t reward;
-    uint16_t selection;
-    uint16_t converting;
-    std::vector<Object> objects; // Indexed by type_id.
-    std::vector<uint16_t> actions; // Indexed by action_id.
+    std::vector<Object> objects; // Indexed by type_name_id.
+    std::vector<Sprite> actions; // Indexed by action_name_id.
+    std::vector<Sprite> items; // Indexed by inventory_item_name_id.
+    Sprite agent[5]; // Orientation sprite indices, extra for frozen state.
+    Sprite wall[17]; // WallTile sprite indices.
+    Sprite grid;
+    Sprite halo;
+    Sprite reward;
+    Sprite selection;
+    Sprite converting;
+};
+
+struct GridCell {
+    GridCoord x, y;
 };
 
 // Lightweight data common to all render objects.
-union HermesNode {
-    struct {
-        GridCoord x : 14; // TODO GridCoord supports whole 16-bit unsigned range.
-        GridCoord y : 14; // can merge HermesAgent here, but wastes bits for other nodes.
-        uint16_t a : 4; // Agent orientation/state, wall tile index, or color index.
-    };
-    struct {
-        uint32_t _ : 28;
-        uint32_t c : 2; // Converter color index.
-        uint32_t o : 1; // Converter has output resources
-        uint32_t v : 1; // Converter is converting
-    };
+struct HermesNode {
+    GridCell cell;
+    uint16_t index : 16; // Object id (for inventory), agent id, wall tile index
+    uint8_t object : 4; // Agent orientation/state, or color index.
+    uint8_t frozen : 1; // Agent has a frozen overlay to display
+    uint8_t output : 1; // Converter has output resources
+    uint8_t active : 1; // Converter is converting
+    uint8_t single : 1; // Converter has a single output
+    uint8_t item_id; // Item ID of the converter's single output
 };
-
-// HermesNode extension to the agent bucket.
-struct HermesAgent {
-    uint16_t color : 15;
-    uint16_t frozen : 1;
-};
+static_assert(sizeof(HermesNode) == 8);
 
 // Simple profile metric, avoids making assumptions about performance.
 struct HermesProfile {
@@ -134,16 +140,22 @@ struct HermesProfile {
     std::string_view name;
     std::chrono::microseconds time;
     std::chrono::high_resolution_clock::time_point start;
+    uint32_t num_draws;
 };
 
 // Internal state, grouped by lifetimes.
 struct Hermes {
     // Local resources (always present)
+    std::string config_file;
     HermesConfig config;
+
     Vector2 last_mouse_pos;
+    bool mouse_moved : 1;
+    uint8_t padding : 6;
+    bool initialized : 1;
 
     // Asset resources (lazily loaded on first render)
-    std::unordered_map<std::string, uint16_t> sprite_lookup;
+    std::unordered_map<std::string, HermesSprites::Sprite> sprite_lookup;
     std::vector<Rectangle> sprites;
     HermesSprites sprite_atlas;
     Texture2D sprite_sheet;
@@ -153,24 +165,27 @@ struct Hermes {
     const MettaGrid* self;
     const Grid* grid;
 
-    Texture2D walls_texture; // TODO these take the most drawing time from many small rects inside Raylib
-    Texture2D grid_texture;  // can save ~1ms of frame time of Raylib building meshes by pre-rendering them
-
+    HermesActions actions;
     HermesTypes types;
     std::vector<std::vector<HermesNode>> buckets; // Also contains frame nodes.
-    std::vector<HermesNode> wall_fills;
+    std::vector<GridCell> wall_fills;
 
     // Frame resources (updated on render)
-    std::vector<HermesAgent> agents;
     std::vector<float> rewards;
+    std::vector<bool> visibility;
     GridObject* selection; // Null if none or selected object invalid this frame.
     uint64_t items_mask; // Bitmask of buckets whose nodes carry an inventory.
     uint64_t color_mask; // Bitmask of buckets whose nodes carry a color index.
+
+    // Statistics (for the UI) (num_agents stored in the MettaGrid environment)
+    uint32_t num_walls;
+    uint32_t num_objects;
 
     // Profiling (always running, optional display)
     HermesProfile setup;
     HermesProfile cache;
     std::vector<HermesProfile> profiles;
+    uint32_t* num_draws; // Counter for the render pass being profiled currently.
 };
 
 // Profiling helper to name, color and measure a block of code.
@@ -179,7 +194,9 @@ class HermesProfileScope {
 
 public:
     HermesProfileScope(Hermes& ctx, std::string_view name, Color color) :
-        HermesProfileScope(ctx.profiles.emplace_back(), name, color) {}
+        HermesProfileScope(ctx.profiles.emplace_back(), name, color) {
+            ctx.num_draws = &_profile.num_draws;
+        }
 
     HermesProfileScope(HermesProfile& profile, std::string_view name, Color color) : _profile(profile) {
         _profile.name = name;
@@ -201,37 +218,40 @@ public:
 
 // Render Passes --------------------------------------------------------------
 
-static inline float ToDegrees(float radians) {
-    return radians / static_cast<float>(M_PI) * 180.0f;
-}
-
 // HermesNode -> Raylib world position, sized by the node's sprite.
 static inline Vector2 Position(HermesNode node) {
-    return {node.x * TILE_SIZE, node.y * TILE_SIZE};
+    return {node.cell.x * TILE_SIZE, node.cell.y * TILE_SIZE};
 }
 
 // HermesNode -> Raylib world rectangle, sized to the grid itself.
-static inline Rectangle TileRect(HermesNode node) {
-    return {node.x * TILE_SIZE, node.y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
+static inline Rectangle TileRect(GridCell cell) {
+    return {cell.x * TILE_SIZE, cell.y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
 }
+static inline Rectangle TileRect(HermesNode node) { return TileRect(node.cell); }
 
 // Heavy lifter, and the most expensive function to call in the whole renderer.
-static inline void Draw(Hermes& ctx, Rectangle sprite, Rectangle pos, float rot = 0, Color color = WHITE) {
-    Vector2 pivot = {pos.width / 2, pos.height / 2};
-    DrawTexturePro(ctx.sprite_sheet, sprite, pos, pivot, rot, color);
+static inline void Draw(Hermes& ctx, Rectangle sprite, Rectangle rect, float rot = 0, Color color = WHITE) {
+    Vector2 pivot = {rect.width / 2, rect.height / 2};
+    DrawTexturePro(ctx.sprite_sheet, sprite, rect, pivot, rot, color);
+    ++*ctx.num_draws;
 }
 static inline void Draw(Hermes& ctx, Rectangle sprite, Vector2 pos, float rot = 0, Color color = WHITE) {
     Draw(ctx, sprite, {pos.x, pos.y, sprite.width, sprite.height}, rot, color);
 }
 
+static void DrawFloor(Hermes& ctx) {
+    constexpr auto sz = static_cast<int>(TILE_SIZE);
+    DrawRectangle(-sz / 2, -sz / 2, ctx.grid->width * sz, ctx.grid->height * sz, FLOOR_COLOR);
+}
+
 static void DrawWalls(Hermes& ctx) {
     for (auto node : ctx.buckets[ctx.types.wall]) {
-        Draw(ctx, ctx.sprites[ctx.sprite_atlas.wall[node.a]], TileRect(node));
+        Draw(ctx, ctx.sprites[ctx.sprite_atlas.wall[node.index]], TileRect(node));
     }
 
     auto fill_sprite = ctx.sprites[ctx.sprite_atlas.wall[WallTile_Fill]];
-    for (auto node : ctx.wall_fills) {
-        auto pos = TileRect(node);
+    for (auto cell : ctx.wall_fills) {
+        auto pos = TileRect(cell);
         pos.x += TILE_SIZE / 2;
         pos.y += TILE_SIZE / 2 - 42;
         Draw(ctx, fill_sprite, pos);
@@ -243,65 +263,73 @@ static void DrawTrajectory(Hermes& ctx) {
         return;
     }
 
-    // TODO capture frame data across time to draw this.
+    // TODO capture frame data across time to support drawing this.
 }
 
-static void DrawObjects(Hermes& ctx) {
-    auto converting_rot = ToDegrees(ctx.self->current_step * 0.1f);
+#if 0
+static inline float ToDegrees(float radians) {
+    return radians / static_cast<float>(M_PI) * 180.0f;
+}
+#endif
 
-    auto type_id = 0u;
+static void DrawObjects(Hermes& ctx) {
+    #if 0
+    auto converting_rot = ToDegrees(ctx.self->current_step * 0.1f);
+    #endif
+
+    auto t = 0u;
     for (const auto& bucket : ctx.buckets) {
-        if (type_id != ctx.types.wall && type_id != ctx.types.agent) {
-            auto sprite = ctx.sprite_atlas.objects[type_id];
-            auto sprite_base = ctx.sprites[sprite.base];
-            // Path for converters.
-            if (ctx.color_mask & (1 << type_id)) {
-                auto sprite_item = ctx.sprites[sprite.item];
-                auto sprite_color = ctx.sprites[sprite.color];
-                auto sprite_converting = ctx.sprites[ctx.sprite_atlas.converting];
-                for (auto node : bucket) {
-                    auto pos = Position(node);
-                    Draw(ctx, sprite_base, pos);
-                    Draw(ctx, sprite_color, pos, 0, OBJECT_COLORS[node.c]);
-                    if (node.o) {
-                        Draw(ctx, sprite_item, pos);
-                    }
-                    if (!node.v) { // TODO inverting to force display for debug
-                        Draw(ctx, sprite_converting, Vector2{pos.x, pos.y - 100}, converting_rot);
-                    }
+        auto type_id = t++;
+        if (type_id == ctx.types.wall || type_id == ctx.types.agent) {
+            continue;
+        }
+
+        auto sprite = ctx.sprite_atlas.objects[type_id];
+        auto sprite_base = ctx.sprites[sprite.base];
+        // Path for converters.
+        if (ctx.color_mask & (1 << type_id)) {
+            auto sprite_color = ctx.sprites[sprite.color];
+            #if 0
+            auto sprite_item = ctx.sprites[sprite.item];
+            auto sprite_converting = ctx.sprites[ctx.sprite_atlas.converting];
+            #endif
+            for (auto node : bucket) {
+                auto pos = Position(node);
+                Draw(ctx, sprite_base, pos);
+                Draw(ctx, sprite_color, pos, 0, OBJECT_COLORS[node.object]);
+                #if 0
+                if (node.output) {
+                    Draw(ctx, sprite_item, pos);
                 }
-            }
-            // Path for objects with inventory.
-            else if (ctx.items_mask & (1 << type_id)) {
-                // TODO do these even exist?
-            }
-            // Path for the remaining objects.
-            else {
-                for (auto node : bucket) {
-                    Draw(ctx, sprite_base, Position(node));
+                if (!node.active) { // TODO inverting to force display for debug
+                    Draw(ctx, sprite_converting, Vector2{pos.x, pos.y - 100}, converting_rot);
                 }
+                #endif
             }
         }
-        type_id++;
+        // Path for trivial objects.
+        else {
+            for (auto node : bucket) {
+                Draw(ctx, sprite_base, Position(node));
+            }
+        }
     }
 }
 
 static void DrawAgents(Hermes& ctx) {
     Color color;
-    uint16_t sprite;
-    auto node_id = 0u;
+    HermesSprites::Sprite sprite;
     for (auto node : ctx.buckets[ctx.types.agent]) {
-        auto agent = ctx.agents[node_id++];
-        if (agent.frozen) { // TODO frozen state is an agent overlay, not replacement.
+        if (node.frozen) { // TODO frozen state is an agent overlay, not replacement.
             sprite = 4;
             color = {0, 0, 0, 0xFF};
         }
         else {
-            sprite = ctx.sprite_atlas.agent[node.a];
+            sprite = ctx.sprite_atlas.agent[node.object];
             color = {
-                static_cast<uint8_t>(fmodf(agent.color * static_cast<float>(M_PI), 1.0f) * 0xFF),
-                static_cast<uint8_t>(fmodf(agent.color * static_cast<float>(M_E), 1.0f) * 0xFF),
-                static_cast<uint8_t>(fmodf(agent.color * static_cast<float>(M_SQRT2), 1.0f) * 0xFF),
+                static_cast<uint8_t>(fmodf(node.index * static_cast<float>(M_PI), 1.0f) * 0xFF),
+                static_cast<uint8_t>(fmodf(node.index * static_cast<float>(M_E), 1.0f) * 0xFF),
+                static_cast<uint8_t>(fmodf(node.index * static_cast<float>(M_SQRT2), 1.0f) * 0xFF),
                 0xFF
             };
         }
@@ -327,11 +355,11 @@ static void DrawActions(Hermes& ctx) {
         auto action_success = ctx.self->action_success();
         const auto& agents = ctx.buckets[ctx.types.agent];
         for (auto i = 0u; i < agents.size(); i++) {
-            if (action_success[i]) {
+            auto action = static_cast<uint16_t>(actions_view(i, 0));
+            if (action_success[i] && ctx.actions.show(action)) {
                 Vector2 ofs;
-                auto action = static_cast<uint16_t>(actions_view(i, 0));
                 auto node = agents[i];
-                auto rot = ToDegrees(static_cast<Orientation>(node.a), ofs);
+                auto rot = ToDegrees(static_cast<Orientation>(node.object), ofs);
                 auto pos = Position(node);
                 pos.x += ofs.x * TILE_SIZE / 2;
                 pos.y += ofs.y * TILE_SIZE / 2;
@@ -350,7 +378,8 @@ static void DrawSelection(Hermes& ctx) {
     }
 
     auto loc = ctx.selection->location;
-    Draw(ctx, ctx.sprites[ctx.sprite_atlas.selection], Position({.x = loc.r, .y = loc.c}));
+    HermesNode node = {.cell = {.x = loc.r, .y = loc.c}};
+    Draw(ctx, ctx.sprites[ctx.sprite_atlas.selection], Position(node));
 }
 
 static void DrawInventory(Hermes& ctx) {
@@ -358,7 +387,66 @@ static void DrawInventory(Hermes& ctx) {
         return;
     }
 
-    // TODO
+    Rectangle dst;
+    auto set_position = [&dst](HermesNode node) {
+        auto pos = Position(node);
+        dst.x = pos.x - TILE_SIZE / 2;
+        dst.y = pos.y - TILE_SIZE / 2 + 16;
+    };
+
+    auto draw = [&ctx, &dst](size_t item_id, float scale) {
+        auto sprite = ctx.sprites[ctx.sprite_atlas.items[item_id]];
+        dst.width = sprite.width / scale;
+        dst.height = sprite.height / scale;
+        Draw(ctx, sprite, dst);
+    };
+
+    using Inventory = std::map<InventoryItem, InventoryQuantity>;
+    auto multi_draw = [draw, &dst](const Inventory& inv) {
+        auto advanceX = std::min(32.0f, (TILE_SIZE - INVENTORY_PADDING * 2) / inv.size());
+        for (auto [item_id, quantity] : inv) {
+            if (quantity > 0) {
+                draw(item_id, 8);
+                dst.x += advanceX;
+            }
+        }
+    };
+
+    auto t = 0u;
+    for (const auto& bucket : ctx.buckets) {
+        auto type_id = t++;
+        if ((ctx.items_mask & (1 << type_id)) == 0) {
+            continue;
+        }
+
+        for (auto node : bucket) {
+            const auto& inv = static_cast<HasInventory*>(ctx.grid->object(node.index))->inventory;
+            if (inv.size() == 0) {
+                continue;
+            }
+
+            set_position(node);
+
+            if (inv.size() == 1 && node.single) {
+                auto kv = inv.begin();
+                auto id = kv->first;
+                if (id == node.item_id && kv->second == 1) {
+                    draw(id, 2);
+                    continue;
+                }
+            }
+
+            multi_draw(inv);
+        }
+    }
+
+    for (const auto node : ctx.buckets[ctx.types.agent]) {
+        const auto& inv = ctx.self->agent(node.index)->inventory;
+        if (inv.size() != 0) {
+            set_position(node);
+            multi_draw(inv);
+        }
+    }
 }
 
 static void DrawRewards(Hermes& ctx) {
@@ -368,7 +456,7 @@ static void DrawRewards(Hermes& ctx) {
     auto height = sprite.height / 8;
     for (auto node : ctx.buckets[ctx.types.agent]) {
         auto reward = ctx.rewards[node_id++];
-        auto advanceX = std::min(32, static_cast<int32_t>(TILE_SIZE / reward));
+        auto advanceX = std::min(32.0f, TILE_SIZE / reward);
         auto pos = Position(node);
         Rectangle dst = { pos.x - TILE_SIZE / 2, pos.y + TILE_SIZE / 2 - 16, width, height };
         for (auto i = 0; i < reward; i++) {
@@ -383,34 +471,34 @@ static void DrawVisibility(Hermes& ctx) {
         return;
     }
 
-    size_t grid_width  = ctx.grid->width;
-    size_t grid_height = ctx.grid->height;
-    std::vector<bool> visibility_map(grid_width * grid_height);
+    std::fill(ctx.visibility.begin(), ctx.visibility.end(), false);
 
-    size_t obs_width  = ctx.self->obs_width;
-    size_t obs_height = ctx.self->obs_height;
+    uint32_t grid_width  = ctx.grid->width;
+    uint32_t grid_height = ctx.grid->height;
+    uint32_t obs_width  = ctx.self->obs_width;
+    uint32_t obs_height = ctx.self->obs_height;
     auto view_width  = obs_width  / 2;
     auto view_height = obs_height / 2;
 
-    auto update_visibility = [=, &visibility_map](size_t agent_x, size_t agent_y) {
-        auto x = agent_x - view_width;
-        auto y1 = agent_y - view_height;
-        auto y2 = y1 + obs_height;
+    auto update_visibility = [=, &ctx](uint32_t agent_x, uint32_t agent_y) {
+        auto x1 = std::max(agent_x - view_width, 0u);
+        auto y1 = std::max(agent_y - view_height, 0u);
+        auto x2 = std::min(x1 + obs_width, grid_width);
+        auto y2 = std::min(y1 + obs_height, grid_height);
         for (; y1 < y2; y1++) {
             auto y = y1 * grid_width;
-            auto x2 = x + obs_width;
-            for (auto x1 = x; x1 < x2; x1++) {
-                visibility_map[y + x1] = true;
+            for (auto x = x1; x < x2; x++) {
+                ctx.visibility[y + x] = true;
             }
         }
     };
 
-    if (ctx.selection != nullptr) {
+    if (ctx.selection != nullptr && ctx.selection->type_id == ctx.types.agent) {
         auto loc = ctx.selection->location;
         update_visibility(loc.r, loc.c);
     }
     else for (auto agent : ctx.buckets[ctx.types.agent]) {
-        update_visibility(agent.x, agent.y);
+        update_visibility(agent.cell.x, agent.cell.y);
     }
 
     constexpr auto pivot = TILE_SIZE / 2; // Match sprites having a centered pivot.
@@ -419,7 +507,7 @@ static void DrawVisibility(Hermes& ctx) {
     for (auto y = 0u; y < grid_height; y++) {
         rect.y = y * TILE_SIZE - pivot;
         for (auto x = 0u; x < grid_width; x++) {
-            if (!visibility_map[y * grid_width + x]) {
+            if (!ctx.visibility[y * grid_width + x]) {
                 rect.x = x * TILE_SIZE - pivot;
                 DrawRectangleRec(rect, color);
             }
@@ -450,7 +538,8 @@ static void DrawThoughtBubbles(Hermes& ctx) {
         return;
     }
 
-    auto agent = static_cast<Agent*>(ctx.selection);
+    // TODO need to capture replay data to support this
+    //auto agent = static_cast<Agent*>(ctx.selection);
 }
 
 static void DrawAttackMode(Hermes& ctx) {
@@ -463,19 +552,32 @@ static void DrawAttackMode(Hermes& ctx) {
 
 static void DrawUI(Hermes& ctx) {
     char buffer[256];
-    snprintf(buffer, sizeof(buffer), "Step: %d, %d", ctx.self->current_step, static_cast<int32_t>(ctx.grid->objects.size() - 1));
-    DrawText(buffer, 10, 10, 20, BLACK);
+    auto num_agents = static_cast<int>(ctx.buckets[ctx.types.agent].size());
+    snprintf(buffer, sizeof(buffer), "Agents: %d, Walls: %d, Objects: %d, Step: %d",
+        num_agents, ctx.num_walls, ctx.num_objects, ctx.self->current_step);
+
+    DrawRectangle(5, 5, 500, 30, PANEL_COLOR);
+    DrawText(buffer, 10, 10, 20, RAYWHITE);
 }
 
 static void DrawProfiler(Hermes& ctx) {
     if (ctx.config.show_profiler) {
         auto x = 10;
         auto y = 50;
+        auto w = 275;
+        auto h = (1 + static_cast<int>(ctx.profiles.size())) * 17;
+        auto p = 5;
+        DrawRectangle(x - p, y - p, x + w + p, y + h + p, PANEL_COLOR);
+
+        char buffer[256];
         auto draw = [&](HermesProfile& profile) {
+            auto calls   = profile.num_draws;
+            auto time_us = static_cast<int32_t>(profile.time.count());
+            auto average = calls == 0 ? 0.0 : static_cast<double>(time_us) / calls;
+            snprintf(buffer, sizeof(buffer), "%4d draws (%.2f) - %3d us", calls, average, time_us);
             DrawText(profile.name.data(), x, y, 13, profile.color);
-            DrawText(std::format("{:3} us", profile.time.count()).c_str(), x + 100, y, 13, profile.color);
-            auto w = std::min(250, static_cast<int32_t>(profile.time.count() / 4));
-            DrawRectangle(x, y + 13, w, 3, profile.color);
+            DrawText(buffer, x + 100, y, 13, profile.color);
+            DrawRectangle(x, y + 13, std::min(w, time_us / 4), 3, profile.color);
             y += 17;
         };
         draw(ctx.setup);
@@ -485,19 +587,44 @@ static void DrawProfiler(Hermes& ctx) {
             draw(profile);
             frame_time += profile.time;
         }
-        DrawText(std::format("Frame: {:0.2f} ms", static_cast<float>(frame_time.count()) / 1000).c_str(), x, y + 17, 13, WHITE);
+        auto frame = frame_time.count() / 1000.0;
+        auto color = frame > 16.666 ? RED : GREEN;
+        snprintf(buffer, sizeof(buffer), "Frame: %.2f ms", frame);
+        DrawText(buffer, x, y + 17, 13, color);
     }
     ctx.profiles.clear();
 }
 
 // Frame Rendering ------------------------------------------------------------
 
+static void Hermes_Close(Hermes& ctx) {
+    ctx.config.monitor = GetCurrentMonitor();
+    ctx.config.position = GetWindowPosition();
+
+    auto file = ctx.config_file.c_str();
+    if (file && !SaveFileData(file, &ctx.config, sizeof(ctx.config))) {
+        fprintf(stderr, "Failed to save hermes config file %.*s\n",
+            static_cast<int>(ctx.config_file.size()), file);
+    }
+
+    UnloadTexture(ctx.sprite_sheet);
+    CloseWindow();
+
+    ctx.initialized = false;
+}
+
 #define Draw(f, color) HERMES_PROFILE(ctx, #f, (color), Draw##f(ctx))
 
 static void Hermes_Image(Hermes& ctx) {
+    if (WindowShouldClose()) {
+        Hermes_Close(ctx);
+        return;
+    }
+
     BeginDrawing();
-        ClearBackground(FLOOR_COLOR);
+        ClearBackground(VOID_COLOR);
         BeginMode2D(ctx.config.camera);
+            Draw(Floor, WHITE);
             Draw(Walls, WHITE);
             Draw(Trajectory, WHITE);
             Draw(Objects, WHITE);
@@ -511,7 +638,7 @@ static void Hermes_Image(Hermes& ctx) {
             Draw(ThoughtBubbles, WHITE);
             Draw(AttackMode, WHITE);
         EndMode2D();
-        Draw(UI, WHITE);
+        Draw(UI, BLUE);
         DrawProfiler(ctx);
     EndDrawing();
 }
@@ -523,7 +650,7 @@ static void Hermes_Image(Hermes& ctx) {
 //
 // Note that parts of the MettaGrid touched by single draw calls are not batched.
 static void Hermes_Batch(Hermes& ctx) {
-    HermesProfileScope _hps(ctx, "Batch"sv, RED);
+    HermesProfileScope _hps(ctx, "Batch"sv, ORANGE);
 
     // Clear all buckets, except for those containing static scene objects.
     auto type_id = 0;
@@ -536,21 +663,19 @@ static void Hermes_Batch(Hermes& ctx) {
     }
 
     auto num_agents = ctx.self->num_agents();
-    ctx.agents.clear(); // TODO agent IDs never change (also check if they're incremental, meaning == node_id)
     ctx.rewards.clear();
-    ctx.agents.reserve(num_agents);
     ctx.rewards.reserve(num_agents);
 
     // Extract scene data from changing objects into buckets matching their type_id.
+    auto count = 0u;
     for (const auto& ptr : ctx.grid->objects) {
         const auto obj = ptr.get();
         if (obj == nullptr) {
             continue;
         }
 
-        // TODO camera visibility check (or capture all objects for replay frames)
         auto loc = obj->location;
-        HermesNode node = { .x = loc.r, .y = loc.c, .a = 0 };
+        HermesNode node = { .cell = { .x = loc.r, .y = loc.c } };
 
         auto t = obj->type_id;
         if (t == ctx.types.wall) {
@@ -558,27 +683,30 @@ static void Hermes_Batch(Hermes& ctx) {
         }
         else if (t == ctx.types.agent) {
             const auto agent = static_cast<Agent*>(obj);
-            node.a = agent->orientation;
-            ctx.agents.push_back({
-                .color = static_cast<uint16_t>(agent->agent_id),
-                .frozen = agent->frozen > 0
-            });
+            node.index = static_cast<uint16_t>(agent->agent_id);
+            node.object = agent->orientation;
+            node.frozen = agent->frozen > 0;
             ctx.rewards.push_back(*agent->reward);
         }
         else if (ctx.items_mask & (1u << t)) {
-            // TODO separate inventory needed?
-            //auto inv = static_cast<HasInventory*>(obj);
+            node.index = static_cast<uint16_t>(obj->id);
             if (ctx.color_mask & (1u << t)) {
-                auto con = static_cast<Converter*>(obj);
+                const auto con = static_cast<Converter*>(obj);
+                const auto& res = con->output_resources;
                 auto color = con->color;
-                node.c = color > 2 ? 0 : color;
-                node.o = con->output_resources.size() > 0;
-                node.v = con->converting;
+                node.object = color > 2 ? 0 : color;
+                node.active = con->converting;
+                node.output = res.size() > 0;
+                node.single = res.size() == 1;
+                node.item_id = node.single ? res.begin()->first : 0;
             }
         }
 
         ctx.buckets[t].push_back(node);
+        count++;
     }
+
+    ctx.num_objects = count;
 
     // Update the selection pointer each frame, because the object may have been removed.
     ctx.selection = ctx.config.selection != NO_SELECTION
@@ -590,13 +718,21 @@ static inline void Hermes_SetupCamera(Hermes& ctx) {
     ctx.config.camera.offset = {GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f};
 }
 
+static inline void Hermes_ClampCamera(Hermes& ctx) {
+}
+
 static inline bool is_zero(float a) {
     return std::abs(a) < 0.001f;
 }
 
 // Handles user events and updates the Hermes configuration or camera in response.
 static void Hermes_Input(Hermes& ctx) {
-    HermesProfileScope _hps(ctx, "Input"sv, YELLOW);
+    HermesProfileScope _hps(ctx, "Input"sv, GREEN);
+
+    // Window + camera = viewport.
+    if (IsWindowResized()) {
+        Hermes_SetupCamera(ctx);
+    }
 
     // Configuration toggles.
     #define CONFIG(k, v) if (IsKeyPressed(k)) ctx.config.v = !ctx.config.v
@@ -619,7 +755,7 @@ static void Hermes_Input(Hermes& ctx) {
         auto num = objects.size();
         auto idx = ctx.config.selection == NO_SELECTION ? 0 : ctx.config.selection + 1;
         for (; idx < num; idx++) {
-            const auto obj = objects[idx].get();
+            auto obj = objects[idx].get();
             if (obj != nullptr && obj->type_id == ctx.types.agent) {
                 ctx.config.selection = idx;
                 break;
@@ -635,18 +771,19 @@ static void Hermes_Input(Hermes& ctx) {
     auto mouse_pos = GetMousePosition();
     auto delta_time = GetFrameTime();
     auto delta_scale = ctx.config.camera.zoom;
+    auto& target = ctx.config.camera.target;
     if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
         auto delta_x = mouse_pos.x - ctx.last_mouse_pos.x;
         auto delta_y = mouse_pos.y - ctx.last_mouse_pos.y;
         if (!is_zero(delta_x) || !is_zero(delta_y)) {
             HERMES_DBG("Drag: {}x{}", delta_x, delta_y);
-            ctx.config.camera.target.x -= delta_x / delta_scale * DRAG_SPEED;
-            ctx.config.camera.target.y -= delta_y / delta_scale * DRAG_SPEED;
-            ctx.config.mouse_moved = true;
+            target.x -= delta_x / delta_scale * DRAG_SPEED;
+            target.y -= delta_y / delta_scale * DRAG_SPEED;
+            ctx.mouse_moved = true;
         }
     }
     if (IsMouseButtonReleased(MOUSE_BUTTON_LEFT)) {
-        if (!ctx.config.mouse_moved) {
+        if (!ctx.mouse_moved) {
             auto world_pos = GetScreenToWorld2D(mouse_pos, ctx.config.camera);
             auto grid_x = static_cast<GridCoord>((world_pos.x + TILE_SIZE / 2) / TILE_SIZE);
             auto grid_y = static_cast<GridCoord>((world_pos.y + TILE_SIZE / 2) / TILE_SIZE);
@@ -656,16 +793,16 @@ static void Hermes_Input(Hermes& ctx) {
                 if (obj != nullptr) {
                     HERMES_DBG("Pick: {}x{}.{} {}", grid_x, grid_y, layer, obj->id);
                     ctx.config.selection = obj->id;
-                    break; // TODO cycle through layers if selected object is on this tile
+                    break;
                 }
             } while (layer != 0);
         }
-        ctx.config.mouse_moved = false;
+        ctx.mouse_moved = false;
     }
     ctx.last_mouse_pos = mouse_pos;
 
     // Keyboard camera controls.
-    #define MOVE(k, d, dir) if (IsKeyDown(k)) ctx.config.camera.target.d += delta_time / delta_scale * dir * MOVE_SPEED * TILE_SIZE
+    #define MOVE(k, d, dir) if (IsKeyDown(k)) target.d += delta_time / delta_scale * dir * MOVE_SPEED * TILE_SIZE
     MOVE(KEY_W, y, -1);
     MOVE(KEY_S, y, +1);
     MOVE(KEY_A, x, -1);
@@ -677,20 +814,17 @@ static void Hermes_Input(Hermes& ctx) {
     ZOOM(KEY_E, -1);
     #undef ZOOM
 
-    if (!is_zero(zoom)) {
+    if (is_zero(zoom)) {
+        Hermes_ClampCamera(ctx);
+    }
+    else {
         auto before = GetScreenToWorld2D(mouse_pos, ctx.config.camera);
         ctx.config.camera.zoom *= 1.0f + zoom;
+        Hermes_ClampCamera(ctx);
 
         auto after = GetScreenToWorld2D(mouse_pos, ctx.config.camera);
-        ctx.config.camera.target.x += before.x - after.x;
-        ctx.config.camera.target.y += before.y - after.y;
-    }
-
-    // TODO should also constraint the camera to the grid bounds.
-
-    // Window + camera = viewport.
-    if (IsWindowResized()) {
-        Hermes_SetupCamera(ctx);
+        target.x += before.x - after.x;
+        target.y += before.y - after.y;
     }
 }
 
@@ -700,7 +834,7 @@ static void Hermes_Cache(Hermes& ctx) {
         return;
     }
 
-    HermesProfileScope _hps(ctx.cache, "Cache"sv, MAROON);
+    HermesProfileScope _hps(ctx.cache, "Cache"sv, RED);
 
     ctx.self = ctx.next;
     ctx.grid = &ctx.self->grid();
@@ -712,8 +846,7 @@ static void Hermes_Cache(Hermes& ctx) {
 
     // Map object type names to sprite indices.
     const auto& type_names = ctx.self->object_type_names;
-    auto num_types = type_names.size();
-    ctx.sprite_atlas.objects.resize(num_types);
+    ctx.sprite_atlas.objects.resize(type_names.size());
 
     uint8_t type_id = 0;
     for (const auto& name : type_names) {
@@ -758,18 +891,32 @@ static void Hermes_Cache(Hermes& ctx) {
     auto action_id = 0u;
     for (const auto& handler : action_handlers) {
         const auto& name = handler->action_name();
+
+        #define ACTION(s) else if (name == #s##sv) ctx.actions.s = static_cast<uint8_t>(action_id)
+        if (false) {}
+        ACTION(noop);
+        ACTION(move);
+        ACTION(rotate);
+        #undef ACTION
+
         auto file = std::format("actions/icons/{}.png", name);
         ctx.sprite_atlas.actions[action_id++] = ctx.sprite_lookup[file];
         HERMES_DBG("Action: {} = Sprite {}", name, ctx.sprite_lookup[file]);
     }
 
     // Map inventory item names to sprite indices.
-    for (const auto& n : ctx.self->inventory_item_names) {
-        HERMES_DBG("Inventory: {}", n);
+    const auto& item_names = ctx.self->inventory_item_names;
+    ctx.sprite_atlas.items.resize(item_names.size());
+
+    auto item_id = 0u;
+    for (const auto& name : item_names) {
+        auto file = std::format("resources/{}.png", name);
+        ctx.sprite_atlas.items[item_id++] = ctx.sprite_lookup[file];
+        HERMES_DBG("Inventory: {} = Sprite {}", name, ctx.sprite_lookup[file]);
     }
 
     // Setup buckets for each object type.
-    ctx.buckets.resize(num_types);
+    ctx.buckets.resize(type_names.size());
     ctx.buckets[ctx.types.wall].clear();
     ctx.wall_fills.clear();
 
@@ -784,7 +931,7 @@ static void Hermes_Cache(Hermes& ctx) {
         }
         if (obj->type_id == ctx.types.wall) {
             auto loc = obj->location;
-            walls.push_back({ .x = loc.r, .y = loc.c });
+            walls.push_back({ .cell = { .x = loc.r, .y = loc.c }});
         }
         else if (auto inv = dynamic_cast<HasInventory*>(obj)) {
             items_mask |= 1 << obj->type_id;
@@ -792,14 +939,10 @@ static void Hermes_Cache(Hermes& ctx) {
                 color_mask |= 1 << obj->type_id;
             }
         }
-        /*else if (!obj->is_swappable()) { // TODO depends on is_swappable never changing
-            auto loc = obj->location;
-            ctx.buckets[obj->type_id].push_back({ .x = loc.r, .y = loc.c });
-        }*/
     }
-
     ctx.items_mask = items_mask;
     ctx.color_mask = color_mask;
+    ctx.num_walls = static_cast<uint32_t>(walls.size());
 
     // Construct a wall adjacency map and assign each wall node a sprite index.
     auto wall_map_width  = grid_width  + 2; // Surround the grid with empty space to
@@ -807,12 +950,12 @@ static void Hermes_Cache(Hermes& ctx) {
     std::vector<bool> wall_map(wall_map_width * wall_map_height);
     std::vector<bool> wall_del(walls.size()); // Mark wall nodes covered by wall fills.
     for (auto wall : walls) {
-        wall_map[(wall.y + 1) * wall_map_width + wall.x + 1] = true;
+        wall_map[(wall.cell.y + 1) * wall_map_width + wall.cell.x + 1] = true;
     }
     auto wall_idx = 0u;
     for (auto& wall : walls) {
-        auto x = wall.x + 1u;
-        auto y = wall.y + 1u;
+        auto x = wall.cell.x + 1u;
+        auto y = wall.cell.y + 1u;
 
         #define WALL(x, y) wall_map[(y) * wall_map_width + (x)]
         WallTile tile = WallTile_0;
@@ -820,12 +963,12 @@ static void Hermes_Cache(Hermes& ctx) {
         if (WALL(x + 1, y)) tile |= WallTile_E;
         if (WALL(x, y - 1)) tile |= WallTile_N;
         if (WALL(x - 1, y)) tile |= WallTile_W;
-        wall.a = tile;
+        wall.index = tile;
 
         if ((tile & WallTile_SE) == WallTile_SE && WALL(x + 1, y + 1)) {
-            ctx.wall_fills.push_back({ .x = wall.x, .y = wall.y });
+            ctx.wall_fills.push_back({ .x = wall.cell.x, .y = wall.cell.y });
 
-            if ((tile & WallTile_NW) == WallTile_NW && WALL(x + 1, y - 1) &&WALL(x - 1, y - 1) && WALL(x - 1, y + 1)) {
+            if ((tile & WallTile_NW) == WallTile_NW && WALL(x + 1, y - 1) && WALL(x - 1, y - 1) && WALL(x - 1, y + 1)) {
                 wall_del[wall_idx] = true;
             }
         }
@@ -836,7 +979,8 @@ static void Hermes_Cache(Hermes& ctx) {
 
     // Don't render walls covered by wall fills.
     auto write_idx = 0u;
-    for (size_t read_idx = 0; read_idx < walls.size(); read_idx++) {
+    auto read_idx = 0u;
+    for (; read_idx < walls.size(); read_idx++) {
         if (!wall_del[read_idx]) {
             if (write_idx != read_idx) {
                 walls[write_idx] = walls[read_idx];
@@ -844,47 +988,58 @@ static void Hermes_Cache(Hermes& ctx) {
             write_idx++;
         }
     }
+    assert(wall_del.size() == read_idx - write_idx);
     walls.resize(write_idx);
 
-    #if 0 // Debug draw all wall tiles
-    walls.clear(); ctx.wall_fills.clear();
-    for (auto i = 0; i < 17; i++) {
-        walls.push_back({ .x = i * 2, .y = 2, .a = i });
-    }
-    #endif
-
-    // Center the camera and ensure it fits the grid.
-    auto view_width = grid_width * TILE_SIZE;
-    auto view_height = grid_height * TILE_SIZE;
-    //ctx.camera.target = (Vector2){ width / 2.0f, height / 2.0f };
-    //ctx.camera.zoom = 0.1f;
+    // Intermediate frame memory whose size doesn't change between frames.
+    ctx.visibility.resize(grid_width * grid_height);
 }
 
 // Initializes the Hermes instance, its Raylib window, and sprite sheet.
 static void Hermes_Setup(Hermes& ctx) {
-    if (ctx.config.initialized) {
+    if (ctx.initialized) {
         return;
     }
 
-    HermesProfileScope _hps(ctx.setup, "Setup", BLUE);
+    HermesProfileScope _hps(ctx.setup, "Setup", MAROON);
 
-    // TODO load config
+    // Query the environment through our helper python module.
+    auto hermes_py = py::module::import("metta.mettagrid.renderer.hermes");
+    auto asset_path = hermes_py.attr("get_asset_path")().cast<std::string>();
+    auto config_path = hermes_py.attr("get_config_path")().cast<std::string>();
+    HERMES_DBG("Asset path: {}", asset_path);
+    HERMES_DBG("Config file: {}", config_path);
+
+    // Load the user file, if it exists, to preserve configuration across sessions.
+    ctx.config_file = std::format("{}/hermes.bin", config_path);
+
+    int bin_size;
+    bool has_config = false;
+    if (auto bin = LoadFileData(ctx.config_file.c_str(), &bin_size)) {
+        auto ptr = static_cast<HermesConfig*>(static_cast<void*>(bin));
+        if (bin_size == sizeof(HermesConfig) && ptr->signature == HermesConfig::V0) {
+            ctx.config = *ptr;
+            has_config = true;
+        }
+        UnloadFileData(bin);
+    }
 
     // Raylib initialization.
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);
     InitWindow(1280, 960, "Lens of Hermes");
+    SetExitKey(KEY_NULL);
     SetTargetFPS(60);
 
     // Sprite sheet texture.
-    ctx.sprite_sheet = LoadTexture("mettagrid/src/metta/mettagrid/renderer/atlas.png");
-    SetTextureFilter(ctx.sprite_sheet, TEXTURE_FILTER_BILINEAR);
+    ctx.sprite_sheet = LoadTexture(std::format("{}/atlas.png"sv, asset_path).c_str());
+    SetTextureFilter(ctx.sprite_sheet, TEXTURE_FILTER_TRILINEAR);
     SetTextureWrap(ctx.sprite_sheet, TEXTURE_WRAP_CLAMP);
     GenTextureMipmaps(&ctx.sprite_sheet);
 
     // Sprite sheet atlas and lookup.
     auto builtins = py::module::import("builtins");
     auto json = py::module::import("json");
-    auto config = json.attr("load")(builtins.attr("open")("mettagrid/src/metta/mettagrid/renderer/atlas.json", "r"sv));
+    auto config = json.attr("load")(builtins.attr("open")(std::format("{}/atlas.json", asset_path), "r"sv));
 
     auto num_sprites = py::len(config);
     ctx.sprite_lookup.reserve(num_sprites);
@@ -893,7 +1048,7 @@ static void Hermes_Setup(Hermes& ctx) {
     for (auto& [key, value] : config.cast<py::dict>()) {
         auto name = key.cast<std::string>();
         auto sprite = value.cast<py::list>();
-        ctx.sprite_lookup[name] = static_cast<uint16_t>(ctx.sprites.size());
+        ctx.sprite_lookup[name] = static_cast<HermesSprites::Sprite>(ctx.sprites.size());
         ctx.sprites.emplace_back(Rectangle{
             .x = sprite[0].cast<float>(),
             .y = sprite[1].cast<float>(),
@@ -916,11 +1071,13 @@ static void Hermes_Setup(Hermes& ctx) {
     auto agent_sprite = [&ctx](std::string_view suffix, Orientation orientation) {
         auto file = std::format("agents/agent.{}.png"sv, suffix);
         ctx.sprite_atlas.agent[orientation] = ctx.sprite_lookup[file];
+        HERMES_DBG("Agent {} = {}", suffix, ctx.sprite_lookup[file]);
     };
 
     auto wall_sprite = [&ctx](std::string_view suffix, WallTile tile) {
         auto file = std::format("objects/wall.{}.png"sv, suffix);
         ctx.sprite_atlas.wall[tile] = ctx.sprite_lookup[file];
+        HERMES_DBG("Wall {} = {}", suffix, ctx.sprite_lookup[file]);
     };
 
     agent_sprite("n", Orientation::Up);
@@ -948,21 +1105,44 @@ static void Hermes_Setup(Hermes& ctx) {
     wall_sprite("fill", WallTile_Fill);
 
     ctx.sprite_atlas.grid = ctx.sprite_lookup["objects/grid.png"];
+    ctx.sprite_atlas.halo = ctx.sprite_lookup["objects/halo.png"];
     ctx.sprite_atlas.reward = ctx.sprite_lookup["resources/reward.png"];
     ctx.sprite_atlas.selection = ctx.sprite_lookup["selection.png"];
     ctx.sprite_atlas.converting = ctx.sprite_lookup["actions/converting.png"];
 
     // Scene initialization.
+    constexpr auto min_width = 400;
+    constexpr auto min_height = 300;
+    SetWindowMinSize(min_width, min_height);
+    if (has_config) {
+        if (ctx.config.monitor < 0 || ctx.config.monitor >= GetMonitorCount()) {
+            ctx.config.monitor = 0;
+        }
+        SetWindowMonitor(ctx.config.monitor);
 
-    // TODO defaults if no config file found
+        auto mon_w = GetMonitorWidth (ctx.config.monitor);
+        auto mon_h = GetMonitorHeight(ctx.config.monitor);
+        auto x = std::clamp(static_cast<int>(ctx.config.position.x), 0, mon_w - min_width);
+        auto y = std::clamp(static_cast<int>(ctx.config.position.y), 0, mon_h - min_height);
+        SetWindowPosition(x, y);
+
+        auto o = ctx.config.camera.offset;
+        auto w = std::clamp(static_cast<int>(o.x * 2), min_width,  mon_w - x);
+        auto h = std::clamp(static_cast<int>(o.y * 2), min_height, mon_h - y);
+        SetWindowSize(w, h);
+    }
+    else {
+        ctx.config.signature = HermesConfig::V0;
+        ctx.config.show_grid = true;
+        ctx.config.show_resources = true;
+        ctx.config.show_attack_mode = true;
+        ctx.config.camera.zoom = 0.25f;
+    }
     Hermes_SetupCamera(ctx);
-    ctx.config.camera.zoom = 0.25f;
-    ctx.config.show_grid = true;
-    ctx.config.show_resources = true;
-    ctx.config.show_attack_mode = true;
+    Hermes_ClampCamera(ctx);
 
     // One time initialization completed.
-    ctx.config.initialized = true;
+    ctx.initialized = true;
 }
 
 // Hermes Interface -----------------------------------------------------------
@@ -974,11 +1154,8 @@ Hermes* Hermes_Init() {
 }
 
 void Hermes_Quit(Hermes* ctx) {
-    if (ctx->config.initialized) {
-        UnloadTexture(ctx->sprite_sheet);
-        CloseWindow();
-
-        // TODO save config
+    if (ctx->initialized) {
+        Hermes_Close(*ctx);
     }
     delete ctx;
 }
@@ -988,14 +1165,13 @@ void Hermes_Scene(Hermes* ctx, const MettaGrid* env) {
     ctx->next = env; // Picked up in Hermes_Frame in the Hermes_Cache step.
 }
 
-void Hermes_Frame(Hermes* ctx) {
+bool Hermes_Frame(Hermes* ctx) {
     Hermes_Setup(*ctx); // Engine (lazy one-time init)
     Hermes_Cache(*ctx); // System (compute then reuse)
     Hermes_Input(*ctx); // Player (user interactivity)
     Hermes_Batch(*ctx); // Camera (broad phase bucket)
     Hermes_Image(*ctx); // Render (narrow phase group)
+    return ctx->initialized;
 }
-
-#undef Pass
 
 } // extern "C"
