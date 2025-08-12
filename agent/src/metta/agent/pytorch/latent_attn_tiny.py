@@ -8,8 +8,8 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.external.models.encoders import ObsLatentAttn
-from metta.agent.external.models.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
+from metta.agent.models.encoders import ObsLatentAttn
+from metta.agent.models.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 
 logger = logging.getLogger(__name__)
 
