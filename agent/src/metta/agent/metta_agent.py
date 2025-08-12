@@ -146,14 +146,19 @@ class MettaAgent(nn.Module):
         """Initialize the agent to the current environment."""
         # MettaAgent handles the initialization for all policy types
         self.activate_actions(action_names, action_max_params, device)
-        self._initialize_observations(features, device)
+        self.activate_observations(features, device)
 
         # Let the policy know about environment initialization if it has such a method
+        # This allows ComponentPolicy or other specialized policies to do their own initialization
         if hasattr(self.policy, "initialize_to_environment"):
             self.policy.initialize_to_environment(features, action_names, action_max_params, device, is_training)
 
-    def _initialize_observations(self, features: dict[str, dict], device):
-        """Initialize observation features by storing the feature mapping."""
+    def activate_observations(self, features: dict[str, dict], device):
+        """Activate observation features by storing the feature mapping.
+
+        This method handles feature remapping for policies that don't understand
+        feature ID changes between training and evaluation environments.
+        """
         self.active_features = features
         self.device = device
 
@@ -199,7 +204,12 @@ class MettaAgent(nn.Module):
             self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
 
     def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
-        """Apply feature remapping to observation component and update normalizations."""
+        """Apply feature remapping to policy if it supports it, and update normalizations.
+
+        This allows policies that understand feature remapping (like ComponentPolicy)
+        to update their observation components, while vanilla torch.nn.Module policies
+        will simply ignore this.
+        """
         # Build complete remapping tensor
         remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
 
@@ -271,10 +281,13 @@ class MettaAgent(nn.Module):
         self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
         logger.info(f"Actions initialized: {self.active_actions}")
 
-        # Activate policy attributes
+        # Pass action conversion tensors to policy if it needs them
+        # ComponentPolicy uses these for action conversion, vanilla policies don't need them
         if self.policy is not None:
-            self.policy.action_index_tensor = self.action_index_tensor
-            self.policy.cum_action_max_params = self.cum_action_max_params
+            if hasattr(self.policy, "action_index_tensor"):
+                self.policy.action_index_tensor = self.action_index_tensor
+            if hasattr(self.policy, "cum_action_max_params"):
+                self.policy.cum_action_max_params = self.cum_action_max_params
 
     def clip_weights(self):
         """Delegate weight clipping to the policy."""
