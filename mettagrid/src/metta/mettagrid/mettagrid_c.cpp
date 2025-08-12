@@ -1,3 +1,4 @@
+#include <iostream>
 #include "mettagrid_c.hpp"
 
 #include <pybind11/numpy.h>
@@ -194,6 +195,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
+        // Initialize per-environment genome byte
+        agent->genome = static_cast<ObservationType>(63);
         if (_no_agent_interference) {
           _grid->ghost_add_object(agent);
         } else {
@@ -689,6 +692,7 @@ py::dict MettaGrid::grid_objects() {
     // Inject agent-specific info
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
       obj_dict["orientation"] = static_cast<int>(agent->orientation);
+      obj_dict["genome"] = 63;
       obj_dict["group_id"] = agent->group;
       obj_dict["is_frozen"] = !!agent->frozen;
       obj_dict["freeze_remaining"] = agent->frozen;
@@ -708,6 +712,8 @@ py::dict MettaGrid::grid_objects() {
       obj_dict["agent_id"] = agent->agent_id;
     }
 
+
+    //updates converters
     if (auto* converter = dynamic_cast<Converter*>(obj)) {
       py::dict inventory_dict;
       for (const auto& [resource, quantity] : converter->inventory) {
@@ -731,6 +737,8 @@ py::dict MettaGrid::grid_objects() {
       }
       obj_dict["output_resources"] = output_resources_dict;
     }
+
+
 
     objects[py::int_(obj_id)] = obj_dict;
   }

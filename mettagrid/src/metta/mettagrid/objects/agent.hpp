@@ -71,6 +71,7 @@ public:
   std::string group_name;
   ObservationType color;
   ObservationType glyph;
+  ObservationType genome;
   // Despite being a GridObjectId, this is different from the `id` property.
   // This is the index into MettaGrid._agents (std::vector<Agent*>)
   GridObjectId agent_id;
@@ -98,6 +99,7 @@ public:
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
+        genome(0),
         agent_id(0),
         stats(),  // default constructor
         current_stat_reward(0),
@@ -221,7 +223,7 @@ public:
   }
 
   std::vector<PartialObservationToken> obs_features() const override {
-    const size_t num_tokens = this->inventory.size() + 5 + (glyph > 0 ? 1 : 0);
+    const size_t num_tokens = this->inventory.size() + 6 + (glyph > 0 ? 1 : 0);
 
     std::vector<PartialObservationToken> features;
     features.reserve(num_tokens);
@@ -232,6 +234,7 @@ public:
     features.push_back({ObservationFeature::Orientation, static_cast<ObservationType>(orientation)});
     features.push_back({ObservationFeature::Color, static_cast<ObservationType>(color)});
     if (glyph != 0) features.push_back({ObservationFeature::Glyph, static_cast<ObservationType>(glyph)});
+    features.push_back({ObservationFeature::Genome, static_cast<ObservationType>(genome)});
 
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
