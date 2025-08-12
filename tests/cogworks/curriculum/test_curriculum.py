@@ -10,7 +10,7 @@ from cogworks.curriculum import (
     CurriculumTask,
     SingleTaskGeneratorConfig,
 )
-from metta.rl.env_config import SystemConfig
+from metta.mettagrid.mettagrid_config import EnvConfig
 
 
 class TestCurriculumTask:
@@ -19,7 +19,7 @@ class TestCurriculumTask:
     def test_curriculum_task_creation(self):
         """Test creating a CurriculumTask with required parameters."""
         task_id = 123
-        env_cfg = SystemConfig(seed=42)
+        env_cfg = EnvConfig(seed=42)
 
         task = CurriculumTask(task_id, env_cfg)
 
@@ -32,14 +32,14 @@ class TestCurriculumTask:
 
     def test_curriculum_task_get_env_cfg(self):
         """Test that get_env_cfg returns the correct env config."""
-        env_cfg = SystemConfig(seed=42, device="cpu")
+        env_cfg = EnvConfig(seed=42, device="cpu")
         task = CurriculumTask(123, env_cfg)
 
         assert task.get_env_cfg() is env_cfg
 
     def test_curriculum_task_complete(self):
         """Test task completion updates statistics."""
-        task = CurriculumTask(123, SystemConfig())
+        task = CurriculumTask(123, EnvConfig())
 
         # Complete with score 0.8
         task.complete(0.8)
@@ -59,7 +59,7 @@ class TestCurriculumConfig:
 
     def test_curriculum_config_creation(self):
         """Test creating a CurriculumConfig with valid parameters."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
         config = CurriculumConfig(
             task_generator_config=task_gen_config, max_task_id=1000, num_active_tasks=50, new_task_rate=0.05
         )
@@ -71,7 +71,7 @@ class TestCurriculumConfig:
 
     def test_curriculum_config_defaults(self):
         """Test that CurriculumConfig uses correct default values."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
         config = CurriculumConfig(task_generator_config=task_gen_config)
 
         assert config.max_task_id == 1000000
@@ -80,7 +80,7 @@ class TestCurriculumConfig:
 
     def test_curriculum_config_validation_num_active_tasks(self):
         """Test that num_active_tasks validation works."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
 
         # This should fail because num_active_tasks > max_task_id
         with pytest.raises(ValueError):
@@ -88,7 +88,7 @@ class TestCurriculumConfig:
 
     def test_curriculum_config_edge_case_values(self):
         """Test edge case values for parameters."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
 
         # Test minimum values
         config = CurriculumConfig(
@@ -110,7 +110,7 @@ class TestCurriculum:
 
     def create_test_config(self):
         """Helper to create a test configuration."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=SystemConfig(seed=42))
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=42))
         return CurriculumConfig(
             task_generator_config=task_gen_config, max_task_id=1000, num_active_tasks=5, new_task_rate=0.1
         )
@@ -288,7 +288,7 @@ class TestCurriculumEdgeCases:
 
     def test_curriculum_with_new_task_rate_zero(self):
         """Test curriculum behavior when new_task_rate is 0."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
         config = CurriculumConfig(
             task_generator_config=task_gen_config,
             num_active_tasks=3,
@@ -311,7 +311,7 @@ class TestCurriculumEdgeCases:
 
     def test_curriculum_with_new_task_rate_one(self):
         """Test curriculum behavior when new_task_rate is 1.0."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
         config = CurriculumConfig(
             task_generator_config=task_gen_config,
             num_active_tasks=3,
@@ -335,7 +335,7 @@ class TestCurriculumEdgeCases:
 
     def test_curriculum_with_single_task_capacity(self):
         """Test curriculum with capacity of 1."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
         config = CurriculumConfig(task_generator_config=task_gen_config, num_active_tasks=1, new_task_rate=0.5)
         curriculum = Curriculum(config, seed=0)
 
@@ -347,7 +347,7 @@ class TestCurriculumEdgeCases:
 
     def test_curriculum_max_task_id_boundary(self):
         """Test task ID generation at max_task_id boundary."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
         config = CurriculumConfig(
             task_generator_config=task_gen_config,
             max_task_id=2,  # IDs 0, 1, 2 possible (3 total)

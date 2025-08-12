@@ -18,7 +18,7 @@ class TestCurriculumEnv:
 
     def create_test_curriculum(self):
         """Helper to create a test curriculum."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=SystemConfig(seed=42))
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=42))
         config = CurriculumConfig(task_generator_config=task_gen_config, num_active_tasks=5, new_task_rate=0.1)
         return Curriculum(config, seed=0)
 
@@ -293,7 +293,7 @@ class TestCurriculumEnvEdgeCases:
         )
         mock_env.set_env_cfg = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
         config = CurriculumConfig(task_generator_config=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
@@ -319,7 +319,7 @@ class TestCurriculumEnvEdgeCases:
         )
         mock_env.set_env_cfg = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
         config = CurriculumConfig(task_generator_config=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
@@ -344,7 +344,7 @@ class TestCurriculumEnvEdgeCases:
         )
         mock_env.set_env_cfg = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
         config = CurriculumConfig(task_generator_config=task_gen_config, num_active_tasks=2)
         curriculum = Curriculum(config, seed=0)
         wrapper = CurriculumEnv(mock_env, curriculum)
