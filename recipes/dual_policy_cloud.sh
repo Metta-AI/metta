@@ -5,12 +5,15 @@
 
 set -e
 
+export METTA_VECENV_RECV_TIMEOUT=300
+
 # Configuration
 WANDB_CHECKPOINT_URI="${1:-wandb://metta-research/dual_policy_training/model/bullm_dual_policy_against_roomba_v9:v2}"
 TOTAL_TIMESTEPS="${2:-1000000000}"
 NUM_WORKERS="${3:-1}"
 GPUS="${4:-1}"
 NODES="${5:-1}"
+ZERO_COPY="${6:-false}"
 
 # Generate unique run name
 RUN_NAME="dual_policy_cloud.$(date +%m-%d).$(date +%H%M)"
@@ -32,6 +35,7 @@ export HYDRA_FULL_ERROR=1
   --no-spot \
   --skip-git-check \
   run="$RUN_NAME" \
+  trainer.zero_copy="$ZERO_COPY" \
   trainer.total_timesteps="$TOTAL_TIMESTEPS" \
   trainer.num_workers="$NUM_WORKERS" \
   trainer.dual_policy.enabled=true \
