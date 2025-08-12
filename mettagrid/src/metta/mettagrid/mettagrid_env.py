@@ -152,6 +152,7 @@ class MettaGridEnv(MettaGridPufferBase):
         game_config_dict = OmegaConf.to_container(task_cfg.game)
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
+        # need to make sure that level is synced with config
         level = task_cfg.game.map_builder.build()
         self._level = level
         self._map_labels = level.labels
