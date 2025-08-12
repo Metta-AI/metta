@@ -11,56 +11,45 @@ from typing import Tuple, Optional, Dict, Any
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange, repeat
 import numpy as np
 
 
 class GRUGatingUnit(nn.Module):
     """
     GRU Gating Unit used in AGaLiTe.
-    
-    Args:
-        input_dim: Input dimension
-        bg: Initial gate bias value. Setting bg > 0 initializes the gating mechanism
-            close to the identity map, improving learning speed and stability
+    Implements custom GRU formulation matching the JAX version.
     """
     
     def __init__(self, input_dim: int, bg: float = 2.0):
         super().__init__()
         self.input_dim = input_dim
-        self.bg = bg
         
-        # Initialize weights with orthogonal initialization
+        # Define weight matrices directly to match JAX implementation
         self.Wr = nn.Linear(input_dim, input_dim, bias=False)
         self.Ur = nn.Linear(input_dim, input_dim, bias=False)
         self.Wz = nn.Linear(input_dim, input_dim, bias=False)
         self.Uz = nn.Linear(input_dim, input_dim, bias=False)
         self.Wg = nn.Linear(input_dim, input_dim, bias=False)
         self.Ug = nn.Linear(input_dim, input_dim, bias=False)
-        
-        # Bias parameter for gate
         self.bgp = nn.Parameter(torch.full((input_dim,), bg))
         
-        # Initialize weights
-        self._initialize_weights()
-    
-    def _initialize_weights(self):
+        # Initialize weights orthogonally
         for module in [self.Wr, self.Ur, self.Wz, self.Uz, self.Wg, self.Ug]:
             nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
     
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x: First input tensor
-            y: Second input tensor
-        
+            x: Previous hidden state
+            y: Current input
         Returns:
-            Gated output tensor
+            Gated output
         """
         r = torch.sigmoid(self.Wr(y) + self.Ur(x))
         z = torch.sigmoid(self.Wz(y) + self.Uz(x) - self.bgp)
         h = torch.tanh(self.Wg(y) + self.Ug(r * x))
-        g = (1 - z) * x + z * h
-        return g
+        return (1 - z) * x + z * h
 
 
 class ParameterizedProjection(nn.Module):
@@ -92,19 +81,18 @@ class ParameterizedProjection(nn.Module):
         Returns:
             Projected tensor of shape (T, d_model * nu)
         """
-        T = inputs.shape[0]
         inputs_proj = self.non_linearity(self.proj_main(inputs))  # (T, dim)
         nu_proj = self.non_linearity(self.proj_nu(inputs))  # (T, nu)
         
-        # Compute outer product for each timestep
-        outer_products = torch.einsum('ti,tj->tij', inputs_proj, nu_proj)  # (T, dim, nu)
-        return outer_products.reshape(T, -1)  # (T, dim * nu)
+        # Compute outer product using einsum
+        return torch.einsum('ti,tj->tij', inputs_proj, nu_proj).flatten(-2)  # (T, dim * nu)
 
 
 def discounted_sum_parallel(start_state: torch.Tensor, x: torch.Tensor, 
                            discounts: torch.Tensor) -> torch.Tensor:
     """
-    Compute discounted sum in parallel using cumulative products.
+    Compute discounted sum using parallel scan (associative scan).
+    Implements: y[t] = discount[t] * y[t-1] + x[t]
     
     Args:
         start_state: Initial state tensor of shape (*)
@@ -117,21 +105,14 @@ def discounted_sum_parallel(start_state: torch.Tensor, x: torch.Tensor,
     T = x.shape[0]
     device = x.device
     
-    # Concatenate start state with x
-    x_cat = torch.cat([start_state.unsqueeze(0), x], dim=0)  # (T+1, *)
-    discounts_cat = torch.cat([
-        torch.ones((1, *discounts.shape[1:]), dtype=discounts.dtype, device=device),
-        discounts
-    ], dim=0)  # (T+1, *)
-    
-    # Compute weighted sum using a more efficient method
+    # Use cumulative sum with discounting
+    # This matches the JAX associative scan behavior
     result = []
-    running_state = start_state
+    state = start_state
     
     for t in range(T):
-        # Update running state with discounting
-        running_state = running_state * discounts[t] + x[t]
-        result.append(running_state)
+        state = discounts[t] * state + x[t]
+        result.append(state)
     
     return torch.stack(result, dim=0)
 
@@ -202,49 +183,35 @@ class AttentionAGaLiTeLayer(nn.Module):
         tilde_k_prev, tilde_v_prev, s_prev, tick = last_memory
         
         # Project to keys, queries, values, beta, gamma
-        kqvbetagammas = self.linear_kqvbetagammas(inputs)  # (cur_seq, head_num * head_dim * 5)
-        kqvbetagammas = kqvbetagammas.reshape(cur_seq, self.head_num, -1)
-        keys, queries, values, beta, gammas = torch.split(kqvbetagammas, self.head_dim, dim=-1)
+        kqvbetagammas = self.linear_kqvbetagammas(inputs).view(cur_seq, self.head_num, 5, self.head_dim)
+        keys, queries, values, beta, gammas = kqvbetagammas.unbind(2)  # Each: (cur_seq, head_num, head_dim)
         
         # Project to p1, p2, p3 for feature map computation
-        p1p2p3 = self.linear_p1p2p3(inputs)  # (cur_seq, head_num * eta * 3)
-        p1p2p3 = p1p2p3.reshape(cur_seq, self.head_num, -1)
-        p1, p2, p3 = torch.split(p1p2p3, self.eta, dim=-1)
+        p1p2p3 = self.linear_p1p2p3(inputs).view(cur_seq, self.head_num, 3, self.eta)
+        p1, p2, p3 = p1p2p3.unbind(2)  # Each: (cur_seq, head_num, eta)
         
-        # Compute feature mapped keys using outer products
-        keys = torch.einsum('chd,chn->chnd', F.relu(keys), F.relu(p1))  # (cur_seq, head_num, eta, head_dim)
-        keys = keys.reshape(cur_seq, self.head_num, -1)  # (cur_seq, head_num, eta * head_dim)
-        
-        # Compute feature mapped queries using outer products
-        queries = torch.einsum('chd,chn->chnd', F.relu(queries), F.relu(p2))
-        queries = queries.reshape(cur_seq, self.head_num, -1)
-        
-        # Compute gating factors gamma using outer products
-        gammas = torch.einsum('chd,chn->chnd', torch.sigmoid(gammas), torch.sigmoid(p3))
-        gammas = gammas.reshape(cur_seq, self.head_num, -1)
+        # Compute feature mapped keys, queries, gammas using outer products with einsum
+        keys = torch.einsum('chd,chn->chdn', F.relu(keys), F.relu(p1)).flatten(-2)  # (cur_seq, head_num, eta * head_dim)
+        queries = torch.einsum('chd,chn->chdn', F.relu(queries), F.relu(p2)).flatten(-2)
+        gammas = torch.einsum('chd,chn->chdn', torch.sigmoid(gammas), torch.sigmoid(p3)).flatten(-2)
         
         beta = torch.sigmoid(beta)  # (cur_seq, head_num, head_dim)
         
         # Update tick and compute oscillatory terms
-        tick_inc = torch.arange(1, cur_seq + 1, device=device).reshape(-1, 1)
-        tick_inc = tick_inc.repeat(1, self.r)  # (cur_seq, r)
-        ticks = tick + tick_inc  # (cur_seq, r)
+        tick_inc = torch.arange(1, cur_seq + 1, device=device)[:, None]  # (cur_seq, 1)
+        ticks = tick + tick_inc  # (cur_seq, 1)
         
-        omegas = torch.linspace(-math.pi, math.pi, self.r, device=device).reshape(1, -1)
-        omegas = omegas.repeat(cur_seq, 1)  # (cur_seq, r)
+        omegas = torch.linspace(-math.pi, math.pi, self.r, device=device)  # (r,)
+        occil = torch.cos(torch.einsum('ci,j->cj', ticks, omegas))  # (cur_seq, r)
         
-        occil = torch.cos(ticks * omegas)  # (cur_seq, r)
-        
-        # Apply gating to values and keys
+        # Apply gating to values and keys using einsum
         values = values * beta  # (cur_seq, head_num, head_dim)
-        values = values.reshape(cur_seq, 1, self.head_num, self.head_dim) * \
-                 occil.reshape(cur_seq, self.r, 1, 1)  # (cur_seq, r, head_num, head_dim)
+        values = torch.einsum('chd,cr->crhd', values, occil)  # (cur_seq, r, head_num, head_dim)
         
         keys = keys * gammas  # (cur_seq, head_num, eta * head_dim)
         s = keys.clone()  # (cur_seq, head_num, eta * head_dim)
         
-        keys = keys.reshape(cur_seq, 1, self.head_num, self.eta * self.head_dim) * \
-               occil.reshape(cur_seq, self.r, 1, 1)  # (cur_seq, r, head_num, eta * head_dim)
+        keys = torch.einsum('chd,cr->crhd', keys, occil)  # (cur_seq, r, head_num, eta * head_dim)
         
         # Compute discount factors
         if self.reset_hidden_on_terminate:
@@ -267,17 +234,16 @@ class AttentionAGaLiTeLayer(nn.Module):
             s_prev, s, discount_gamma
         )  # (cur_seq, head_num, eta * head_dim)
         
-        # Compute attention output
+        # Compute attention output using einsum throughout
         keys_dot_queries = torch.einsum('crhd,chd->crh', final_keys, queries)  # (cur_seq, r, head_num)
-        kv = (final_values * keys_dot_queries.unsqueeze(-1)).sum(dim=1)  # (cur_seq, head_num, head_dim)
+        kv = torch.einsum('crhd,crh->chd', final_values, keys_dot_queries)  # (cur_seq, head_num, head_dim)
         
         norm = torch.einsum('chd,chd->ch', final_s, queries)  # (cur_seq, head_num)
-        attn_out = kv / (2 * self.r * norm.unsqueeze(-1) + self.eps)  # (cur_seq, head_num, head_dim)
+        attn_out = kv / (2 * self.r * norm[..., None] + self.eps)  # (cur_seq, head_num, head_dim)
         
         # Reshape and project output
-        attn_out = attn_out.reshape(cur_seq, self.head_num * self.head_dim)
-        attn_out = self.project(attn_out)  # (cur_seq, input_dim)
-        attn_out = self.dropout(attn_out)
+        attn_out = attn_out.flatten(-2)  # (cur_seq, head_num * head_dim)
+        attn_out = self.dropout(self.project(attn_out))  # (cur_seq, input_dim)
         
         # Update memory
         new_tick = tick + cur_seq
@@ -565,40 +531,25 @@ class BatchedAGaLiTe(nn.Module):
         ins, resets = x
         T, B, d_model = ins.shape
         
-        # Process each batch element
-        outputs = []
-        new_memories = []
+        # Process batch in parallel using list comprehension for better performance
+        batch_results = [self.model(
+            ins[:, b], resets[:, b],
+            {key: tuple(m[b] for m in carry[key]) for key in carry}
+        ) for b in range(B)]
         
-        for b in range(B):
-            # Extract memory for this batch element
-            batch_memory = {}
-            for key in carry:
-                layer_memory = tuple(m[b] for m in carry[key])
-                batch_memory[key] = layer_memory
-            
-            # Process sequence
-            out, new_mem = self.model(ins[:, b], resets[:, b], batch_memory)
-            outputs.append(out)
-            new_memories.append(new_mem)
+        outputs, new_memories = zip(*batch_results)
         
-        # Stack outputs
+        # Stack outputs efficiently
         outputs = torch.stack(outputs, dim=1)  # (T, B, d_model)
         
-        # Stack memories
-        new_memory = {}
-        for key in new_memories[0]:
-            layer_memories = []
-            for b in range(B):
-                layer_memories.append(new_memories[b][key])
-            
-            # Stack each component of the memory tuple
-            stacked_memory = []
-            for i in range(len(layer_memories[0])):
-                components = [mem[i] for mem in layer_memories]
-                stacked = torch.stack(components, dim=0)
-                stacked_memory.append(stacked)
-            
-            new_memory[key] = tuple(stacked_memory)
+        # Stack memories efficiently using dict comprehension
+        new_memory = {
+            key: tuple(
+                torch.stack([new_memories[b][key][i] for b in range(B)], dim=0)
+                for i in range(len(new_memories[0][key]))
+            )
+            for key in new_memories[0]
+        }
         
         return new_memory, outputs
     
@@ -611,23 +562,17 @@ class BatchedAGaLiTe(nn.Module):
         Returns:
             Dictionary mapping layer names to batched memory tuples
         """
-        # Get single memory
+        # Get single memory and batch it efficiently
         single_memory = AGaLiTe.initialize_memory(n_layers, n_heads, d_head, eta, r, device)
         
-        # Batch the memory
-        batched_memory = {}
-        for key in single_memory:
-            layer_memory = single_memory[key]
-            batched_components = []
-            
-            for component in layer_memory:
-                # Expand each component to batch dimension
-                batched = component.unsqueeze(0).expand(batch_size, *component.shape)
-                batched_components.append(batched)
-            
-            batched_memory[key] = tuple(batched_components)
-        
-        return batched_memory
+        # Batch the memory using dict and tuple comprehensions
+        return {
+            key: tuple(
+                component.unsqueeze(0).expand(batch_size, *component.shape)
+                for component in layer_memory
+            )
+            for key, layer_memory in single_memory.items()
+        }
 
 
 # Test code

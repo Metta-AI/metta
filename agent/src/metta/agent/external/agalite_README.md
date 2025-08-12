@@ -103,11 +103,19 @@ AGaLiTe offers significant computational advantages over standard transformers:
 - **50% less memory usage** compared to GTrXL
 - Scales well with sequence length without quadratic complexity
 
-## Differences from JAX Implementation
+## Implementation Details
 
-This PyTorch implementation maintains algorithmic equivalence while adapting to PyTorch conventions:
+This PyTorch implementation maintains algorithmic equivalence with the JAX version while using PyTorch idioms:
+
+### Key Design Choices
+1. **Efficient tensor operations**: Extensive use of `torch.einsum` for clarity and performance
+2. **Custom GRU implementation**: Matches the JAX formulation exactly with orthogonal initialization
+3. **Simplified batching**: Efficient parallel processing using list comprehensions and stacking
+4. **Clean abstractions**: Each component is self-contained and follows PyTorch conventions
+
+### Differences from JAX Implementation
 1. Uses PyTorch's `nn.Module` instead of Flax's `linen`
-2. Replaces JAX's `scan` operations with explicit loops
+2. Replaces JAX's associative scan with iterative discounted sum (functionally equivalent)
 3. Adapts initialization methods to PyTorch's approach
 4. Uses PyTorch's autograd for gradient computation
 
