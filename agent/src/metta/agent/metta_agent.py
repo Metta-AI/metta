@@ -322,5 +322,13 @@ class MettaAgent(nn.Module):
             return self.policy._convert_logit_index_to_action(logit_indices)
         raise NotImplementedError("Policy does not implement _convert_logit_index_to_action")
 
+    def __setstate__(self, state):
+        """Restore state from checkpoint and ensure policy attribute is properly set."""
+        self.__dict__.update(state)
+
+        # Ensure policy attribute exists - if missing, this MettaAgent IS the policy
+        if not hasattr(self, "policy"):
+            self.policy = self
+
 
 PolicyAgent = MettaAgent | DistributedMettaAgent
