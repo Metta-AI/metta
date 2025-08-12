@@ -1,7 +1,14 @@
+# Phased sweep job configuration
+# This loads all phase configs upfront so they're available
+
 defaults:
   - common
   - wandb: metta_research
-  - sweep: full
+  - sweep: full # Default sweep config (will be overridden by phases)
+  # Load all phase sweep configs with specific names
+  - sweep@phase1_config: phase1_explore_cheap
+  - sweep@phase2_config: phase2_exploit_medium
+  - sweep@phase3_config: phase3_final_expensive
   - _self_
 
 sweep_name: ??? # Will be set via command line override
@@ -12,13 +19,25 @@ settings:
   max_observations_to_load: 250
   sweep_server_uri: https://api.observatory.softmax-research.net
 
+  # Reference the loaded configs
+  phase_schedule:
+    - phase: 1
+      num_runs: 80
+      sweep: ${phase1_config} # Reference the loaded config
+    - phase: 2
+      num_runs: 80
+      sweep: ${phase2_config} # Reference the loaded config
+    - phase: 3
+      num_runs: 90
+      sweep: ${phase3_config} # Reference the loaded config
+
 # Otherwise common will mess with us
 run: null
 
 sim_name: arena
 sweep_job_overrides:
   trainer:
-    curriculum: /env/mettagrid/arena/advanced
+    curriculum: /env/mettagrid/arena/basic_easy_shaped
     simulation:
       evaluate_remote: false
       evaluate_local: true
