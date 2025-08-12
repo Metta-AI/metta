@@ -7,7 +7,7 @@ from metta.mettagrid.test_support import TestEnvironmentBuilder
 
 
 class TestDeterminism:
-    Signature = tuple[int, tuple[float, ...], tuple[bool, ...], tuple[bool, ...]]
+    Signature = tuple[tuple[int, ...], bytes, tuple[float, ...], tuple[bool, ...], tuple[bool, ...]]
 
     def _rollout(self, base_seed: int, max_steps: int = 30) -> list[Signature]:
         builder: TestEnvironmentBuilder = TestEnvironmentBuilder()
@@ -30,7 +30,8 @@ class TestDeterminism:
 
             signatures.append(
                 (
-                    int(np.sum(obs)),
+                    tuple(obs.shape),
+                    obs.tobytes(),
                     tuple(np.asarray(rewards).tolist()),
                     tuple(np.asarray(terminals).tolist()),
                     tuple(np.asarray(truncations).tolist()),
@@ -78,7 +79,8 @@ class TestDeterminism:
 
             signatures.append(
                 (
-                    int(np.sum(obs)),
+                    tuple(obs.shape),
+                    obs.tobytes(),
                     tuple(np.asarray(rewards).tolist()),
                     tuple(np.asarray(terminals).tolist()),
                     tuple(np.asarray(truncations).tolist()),
