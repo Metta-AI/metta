@@ -28,52 +28,52 @@ class Example(pufferlib.models.LSTMWrapper):
 
         super().__init__(env, policy, input_size, hidden_size)
 
-    def forward(self, td: TensorDict, state: Optional[dict] = None, action=None) -> TensorDict:
-        """Forward pass: encodes observations, runs LSTM, decodes into actions, value, and stats."""
+def forward(self, td: TensorDict, state: Optional[dict] = None, action=None) -> TensorDict:
+    """Forward pass: encodes observations, runs LSTM, decodes into actions, value, and stats."""
 
-        # Handle BPTT reshaping
-        td.bptt = 1
-        td.batch = td.batch_size.numel()
-        if td.batch_dims > 1:
-            B, TT = td.batch_size
-            td = td.reshape(td.batch_size.numel())
-            td.bptt, td.batch = TT, B
+    # Handle BPTT reshaping
+    td.set("bptt", torch.full((td.batch_size.numel(),), 1, device=td.device, dtype=torch.long))
+    td.set("batch", torch.full((td.batch_size.numel(),), td.batch_size.numel(), device=td.device, dtype=torch.long))
+    if td.batch_dims > 1:
+        B, TT = td.batch_size
+        td = td.reshape(td.batch_size.numel())
+        td.set("bptt", torch.full((B,), TT, device=td.device, dtype=torch.long))
+        td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
 
-        observations = td["env_obs"].to(self.device)
-        state = state or {"lstm_h": None, "lstm_c": None, "hidden": None}
+    observations = td["env_obs"].to(self.device)
+    state = state or {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-        hidden = self.policy.encode_observations(observations, state)
+    hidden = self.policy.encode_observations(observations, state)
 
-        B = observations.shape[0]
-        TT = 1 if observations.dim() == 3 else observations.shape[1]
+    B = observations.shape[0]
+    TT = 1 if observations.dim() == 3 else observations.shape[1]
 
-        lstm_state = self._prepare_lstm_state(state)
+    lstm_state = self._prepare_lstm_state(state)
 
-        hidden = hidden.view(B, TT, -1).transpose(0, 1)
-        lstm_output, (new_h, new_c) = self.lstm(hidden, lstm_state)
-        flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
+    hidden = hidden.view(B, TT, -1).transpose(0, 1)
+    lstm_output, (new_h, new_c) = self.lstm(hidden, lstm_state)
+    flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
-        logits_list, value = self.policy.decode_actions(flat_hidden)
-        actions, log_probs, entropies, full_log_probs = self._sample_actions(logits_list)
+    logits_list, value = self.policy.decode_actions(flat_hidden)
+    actions, log_probs, entropies, full_log_probs = self._sample_actions(logits_list)
 
-        if len(actions) >= 2:
-            actions_tensor = torch.stack([actions[0], actions[1]], dim=-1)
-        else:
-            actions_tensor = torch.stack([actions[0], torch.zeros_like(actions[0])], dim=-1)
-        actions_tensor = actions_tensor.to(dtype=torch.int32)
+    if len(actions) >= 2:
+        actions_tensor = torch.stack([actions[0], actions[1]], dim=-1)
+    else:
+        actions_tensor = torch.stack([actions[0], torch.zeros_like(actions[0])], dim=-1)
+    actions_tensor = actions_tensor.to(dtype=torch.int32)
 
-        if action is None:
-            td["actions"] = torch.zeros(actions_tensor.shape, dtype=torch.int32, device=self.device)
-            td["act_log_prob"] = log_probs.mean(dim=-1)
-            td["values"] = value.flatten()
-            td["full_log_probs"] = full_log_probs
-        else:
-            td["act_log_prob"] = log_probs.mean(dim=-1)
-            td["entropy"] = entropies.sum(dim=-1)
-            td["value"] = value.flatten()
-            td["full_log_probs"] = full_log_probs
-            td = td.reshape(B, TT)
-
+    if action is None:
+        td["actions"] = torch.zeros(actions_tensor.shape, dtype=torch.int32, device=self.device)
+        td["act_log_prob"] = log_probs.mean(dim=-1)
+        td["values"] = value.flatten()
+        td["full_log_probs"] = full_log_probs
+    else:
+        td["act_log_prob"] = log_probs.mean(dim=-1)
+        td["entropy"] = entropies.sum(dim=-1)
+        td["value"] = value.flatten()
+        td["full_log_probs"] = full_log_probs
+        td = td.reshape(B, TT)
         return td
 
     def _prepare_lstm_state(self, state: dict):
