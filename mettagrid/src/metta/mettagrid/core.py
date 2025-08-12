@@ -115,7 +115,7 @@ class MettaGridCore:
             raise e
 
         # Create C++ environment
-        print(c_cfg)
+        print(f"THIS IS THE C CONFIG: {c_cfg}")
         current_seed = seed if seed is not None else self._current_seed
         c_env = MettaGridCpp(c_cfg, level.grid.tolist(), current_seed)
 
