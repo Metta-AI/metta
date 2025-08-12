@@ -319,7 +319,7 @@ jobs:
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
         run: |
-          .github/scripts/mettagrid_build.py --with-coverage --max-warnings 50
+          .github/scripts/mettagrid_build.py coverage --max-warnings 50
 
       - name: Upload MettaGrid C++ coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
@@ -533,7 +533,7 @@ jobs:
       - name: Build C++ benchmarks
         id: benchmark_build_check
         run: |
-          .github/scripts/mettagrid_benchmark.py --max-warnings 50
+          .github/scripts/mettagrid_build.py benchmark --max-warnings 50
 
       - name: Collect benchmarks
         if: steps.benchmark_build_check.outputs.build_success == 'true'
