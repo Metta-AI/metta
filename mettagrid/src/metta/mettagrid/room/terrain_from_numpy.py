@@ -4,11 +4,18 @@ import random
 import time
 import zipfile
 
-import boto3
 import numpy as np
-from botocore.exceptions import NoCredentialsError
-from filelock import FileLock
 from omegaconf import DictConfig
+
+# Try to import optional dependencies
+try:
+    import boto3
+    from botocore.exceptions import NoCredentialsError
+    from filelock import FileLock
+
+    HAS_AWS_DEPS = True
+except ImportError:
+    HAS_AWS_DEPS = False
 
 from metta.mettagrid.room.room import Room
 
@@ -39,6 +46,9 @@ def pick_random_file(path):
 
 
 def download_from_s3(s3_path: str, save_path: str, location: str = "us-east-1"):
+    if not HAS_AWS_DEPS:
+        raise ImportError("AWS dependencies (boto3, filelock) not available for S3 download")
+
     if not s3_path.startswith("s3://"):
         raise ValueError(f"Invalid S3 path: {s3_path}. Must start with s3://")
 
@@ -119,14 +129,17 @@ class TerrainFromNumpy(Room):
         s3_path = f"s3://softmax-public/maps/{root}.zip"
         local_zipped_dir = root_dir + ".zip"
         # Only one process can hold this lock at a time:
-        with FileLock(local_zipped_dir + ".lock"):
-            if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
-                download_from_s3(s3_path, local_zipped_dir)
-            if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
-                with zipfile.ZipFile(local_zipped_dir, "r") as zip_ref:
-                    zip_ref.extractall(os.path.dirname(root_dir))
-                os.remove(local_zipped_dir)
-                logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
+        if HAS_AWS_DEPS:
+            with FileLock(local_zipped_dir + ".lock"):
+                if not os.path.exists(map_dir) and not os.path.exists(local_zipped_dir):
+                    download_from_s3(s3_path, local_zipped_dir)
+                if not os.path.exists(root_dir) and os.path.exists(local_zipped_dir):
+                    with zipfile.ZipFile(local_zipped_dir, "r") as zip_ref:
+                        zip_ref.extractall(os.path.dirname(root_dir))
+                    os.remove(local_zipped_dir)
+                    logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
+        else:
+            logger.warning("AWS dependencies not available, skipping S3 download/extraction.")
 
         if self._file is None:
             uri = pick_random_file(map_dir)
