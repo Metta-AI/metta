@@ -183,11 +183,18 @@ run: |
   run_cmd() {
     local START_TIME=$(date +%s)
 
+    # Debug: Check if setsid is available
+    if command -v setsid >/dev/null 2>&1; then
+        echo "[DEBUG] setsid is available"
+    else
+        echo "[DEBUG] setsid is NOT available - falling back to standard process group"
+    fi
+
     # CRITICAL: Start training in a separate process group so that when we call
     # terminate_process() with kill -TERM -$PGID, it terminates only the training
     # processes and NOT this SkyPilot run script. This allows us to see the final
-    # summary and exit cleanly. The & automatically creates a new process group.
-    sh -c 'exec "$@"' -- ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
+    # summary and exit cleanly.
+    setsid bash -c 'exec "$@"' -- ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} 2>&1 &
     local CMD_PID=$!
 
     # Make the process a group leader if it isn't already
@@ -250,9 +257,9 @@ run: |
               HEARTBEAT_COUNT=$((HEARTBEAT_COUNT + 1))
               LAST_HEARTBEAT_TIME=$CURRENT_MTIME
 
-              # Print status every 10 heartbeats
+              # Print status occasionally
               if [ $((HEARTBEAT_COUNT % 10)) -eq 0 ]; then
-                echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeats)"
+                echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
               fi
             fi
 
@@ -278,12 +285,6 @@ run: |
     wait "$CMD_PID"
     local CMD_EXIT=$?
 
-    # Read termination reason from file if it exists
-    if [ -f "$TERMINATION_REASON_FILE" ]; then
-      TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE")
-      echo "[INFO] Termination reason from monitor: $TERMINATION_REASON"
-    fi
-
     terminate_monitors
 
     # Calculate total runtime
@@ -294,61 +295,86 @@ run: |
     return $CMD_EXIT
   }
 
-  # Export the terminate function so it's available in subshells
+  cleanup() {
+      # Only run cleanup once
+      if [ "${CLEANUP_DONE:-}" = "true" ]; then
+          return
+      fi
+      export CLEANUP_DONE=true
+
+      # Read termination reason from file if it exists
+      if [ -f "$TERMINATION_REASON_FILE" ]; then
+          TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE")
+          echo "[INFO] Termination reason from monitor: $TERMINATION_REASON"
+      fi
+
+      # Check termination reason
+      if [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
+          echo "[ERROR] Job terminated due to heartbeat timeout"
+          export GITHUB_STATUS_DESCRIPTION="Job failed - no heartbeat for ${HEARTBEAT_TIMEOUT} seconds"
+          # Keep failure exit code
+      elif [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]]; then
+          echo "[INFO] Job terminated due to max runtime limit"
+          export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
+          # Map to success
+          CMD_EXIT=0
+      elif [[ $CMD_EXIT -eq 0 ]]; then
+          echo "[SUCCESS] Job completed successfully"
+          export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
+          export TERMINATION_REASON="completed"
+      else
+          echo "[ERROR] Job failed with exit code $CMD_EXIT"
+          export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
+          export TERMINATION_REASON="exit_code_${CMD_EXIT}"
+      fi
+
+      # Final summary
+      echo "[SUMMARY] ===== Job Summary ====="
+      echo "[SUMMARY] Job ID: ${METTA_RUN_ID}"
+      echo "[SUMMARY] Exit code: ${CMD_EXIT}"
+      echo "[SUMMARY] Termination reason: ${TERMINATION_REASON:-unknown}"
+      echo "[SUMMARY] ======================"
+
+      if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
+          # The set_github_status.py script uses CMD_EXIT to determine status
+          export CMD_EXIT
+          uv run devops/skypilot/set_github_status.py || echo "[WARN] Final status post failed"
+      fi
+
+      echo "[RUN] Job complete with exit code: $CMD_EXIT (reason: ${TERMINATION_REASON:-unknown})"
+
+      # Set the final exit code for the script (don't exit here!)
+      if [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]] ||
+        [[ "${TERMINATION_REASON}" == "completed" ]] ||
+        [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
+          echo "[INFO] Will exit with code 0 to prevent SkyPilot restart"
+          FINAL_EXIT_CODE=0
+      else
+          echo "[INFO] Will exit with actual exit code: $CMD_EXIT"
+          FINAL_EXIT_CODE=$CMD_EXIT
+      fi
+  }
+
+  # Export variables needed by cleanup
   export TIMEOUT_MONITOR_PID=""
   export HEARTBEAT_MONITOR_PID=""
+  export CMD_EXIT=1  # Default exit code
+  export FINAL_EXIT_CODE=""
   export -f terminate_process
   export -f terminate_monitors
 
-  # Run command without the timeout wrapper
+  # Trap SIGTERM in parent to prevent immediate exit
+  trap 'echo "[INFO] Parent script received SIGTERM, ignoring to complete cleanup"' TERM
+
+  # Set up cleanup trap
+  trap cleanup EXIT
+
+  # Run the command
   run_cmd
   CMD_EXIT=$?
 
-  # Check termination reason
-  if [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
-    echo "[ERROR] Job terminated due to heartbeat timeout"
-    export GITHUB_STATUS_DESCRIPTION="Job failed - no heartbeat for ${HEARTBEAT_TIMEOUT} seconds"
-    # Keep failure exit code
-  elif [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]]; then
-    echo "[INFO] Job terminated due to max runtime limit"
-    export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
-    # Map to success
-    CMD_EXIT=0
-  elif [[ $CMD_EXIT -eq 0 ]]; then
-    echo "[SUCCESS] Job completed successfully"
-    export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
-    export TERMINATION_REASON="completed"
-  else
-    echo "[ERROR] Job failed with exit code $CMD_EXIT"
-    export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
-    export TERMINATION_REASON="exit_code_${CMD_EXIT}"
-  fi
-
-  # Final summary
-  echo "[SUMMARY] ===== Job Summary ====="
-  echo "[SUMMARY] Job ID: ${METTA_RUN_ID}"
-  echo "[SUMMARY] Exit code: ${CMD_EXIT}"
-  echo "[SUMMARY] Termination reason: ${TERMINATION_REASON:-unknown}"
-  echo "[SUMMARY] ======================"
-
-  if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
-    # The set_github_status.py script uses CMD_EXIT to determine status
-    export CMD_EXIT
-    uv run devops/skypilot/set_github_status.py || echo "[WARN] Final status post failed"
-  fi
-
-  echo "[RUN] Job complete with exit code: $CMD_EXIT (reason: ${TERMINATION_REASON:-unknown})"
-
-  # Exit with 0 for planned terminations to prevent SkyPilot restarts
-  if [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]] ||
-    [[ "${TERMINATION_REASON}" == "completed" ]] ||
-    [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
-      echo "[INFO] Exiting with code 0 to prevent SkyPilot restart"
-      exit 0
-  else
-      echo "[INFO] Exiting with actual exit code: $CMD_EXIT"
-      exit "$CMD_EXIT"
-  fi
+  # Exit with the appropriate code (cleanup will run automatically)
+  exit ${FINAL_EXIT_CODE:-$CMD_EXIT}
 
 envs:
   GITHUB_REPOSITORY: Metta-AI/metta
