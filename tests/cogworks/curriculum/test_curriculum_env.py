@@ -1,4 +1,4 @@
-"""Tests for CurriculumEnvWrapper."""
+"""Tests for CurriculumEnv."""
 
 from unittest.mock import Mock
 
@@ -10,12 +10,12 @@ from cogworks.curriculum import (
     CurriculumTask,
     SingleTaskGeneratorConfig,
 )
-from cogworks.curriculum.curriculum_env import CurriculumEnvWrapper
+from cogworks.curriculum.curriculum_env import CurriculumEnv
 from metta.rl.env_config import EnvConfig
 
 
-class TestCurriculumEnvWrapper:
-    """Test cases for CurriculumEnvWrapper."""
+class TestCurriculumEnv:
+    """Test cases for CurriculumEnv."""
 
     def create_test_curriculum(self):
         """Helper to create a test curriculum."""
@@ -36,22 +36,22 @@ class TestCurriculumEnvWrapper:
         mock_env.set_env_cfg = Mock()  # Add set_env_cfg method
         return mock_env
 
-    def test_curriculum_env_wrapper_creation(self):
-        """Test creating a CurriculumEnvWrapper."""
+    def test_curriculum_env_creation(self):
+        """Test creating a CurriculumEnv."""
         mock_env = self.create_mock_env()
         curriculum = self.create_test_curriculum()
 
-        wrapper = CurriculumEnvWrapper(mock_env, curriculum)
+        wrapper = CurriculumEnv(mock_env, curriculum)
 
         assert wrapper._env is mock_env
         assert wrapper._curriculum is curriculum
         assert isinstance(wrapper._current_task, CurriculumTask)
 
-    def test_curriculum_env_wrapper_step_no_termination(self):
+    def test_curriculum_env_step_no_termination(self):
         """Test step method when episode doesn't terminate."""
         mock_env = self.create_mock_env()
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnvWrapper(mock_env, curriculum)
+        wrapper = CurriculumEnv(mock_env, curriculum)
 
         initial_task = wrapper._current_task
 
@@ -76,7 +76,7 @@ class TestCurriculumEnvWrapper:
         # Should not have called set_env_cfg
         assert not mock_env.set_env_cfg.called
 
-    def test_curriculum_env_wrapper_step_with_termination(self):
+    def test_curriculum_env_step_with_termination(self):
         """Test step method when episode terminates."""
         mock_env = self.create_mock_env()
         # Set up termination condition
@@ -89,7 +89,7 @@ class TestCurriculumEnvWrapper:
         )
 
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnvWrapper(mock_env, curriculum)
+        wrapper = CurriculumEnv(mock_env, curriculum)
 
         initial_task = wrapper._current_task
         initial_completions = initial_task._num_completions
@@ -111,7 +111,7 @@ class TestCurriculumEnvWrapper:
         # Should have set new env config
         mock_env.set_env_cfg.assert_called_once_with(wrapper._current_task.get_env_cfg())
 
-    def test_curriculum_env_wrapper_step_with_truncation(self):
+    def test_curriculum_env_step_with_truncation(self):
         """Test step method when episode truncates."""
         mock_env = self.create_mock_env()
         # Set up truncation condition
@@ -124,7 +124,7 @@ class TestCurriculumEnvWrapper:
         )
 
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnvWrapper(mock_env, curriculum)
+        wrapper = CurriculumEnv(mock_env, curriculum)
 
         initial_task = wrapper._current_task
 
@@ -138,7 +138,7 @@ class TestCurriculumEnvWrapper:
         # Should have gotten a new task
         assert wrapper._current_task is not initial_task
 
-    def test_curriculum_env_wrapper_step_partial_termination(self):
+    def test_curriculum_env_step_partial_termination(self):
         """Test step method when only some agents terminate."""
         mock_env = self.create_mock_env()
         # Set up partial termination
@@ -151,7 +151,7 @@ class TestCurriculumEnvWrapper:
         )
 
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnvWrapper(mock_env, curriculum)
+        wrapper = CurriculumEnv(mock_env, curriculum)
 
         initial_task = wrapper._current_task
 
@@ -165,7 +165,7 @@ class TestCurriculumEnvWrapper:
         # Should not have called set_env_cfg
         assert not mock_env.set_env_cfg.called
 
-    def test_curriculum_env_wrapper_step_partial_truncation(self):
+    def test_curriculum_env_step_partial_truncation(self):
         """Test step method when only some agents truncate."""
         mock_env = self.create_mock_env()
         # Set up partial truncation
@@ -178,7 +178,7 @@ class TestCurriculumEnvWrapper:
         )
 
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnvWrapper(mock_env, curriculum)
+        wrapper = CurriculumEnv(mock_env, curriculum)
 
         initial_task = wrapper._current_task
 
@@ -189,14 +189,14 @@ class TestCurriculumEnvWrapper:
         assert wrapper._current_task is initial_task
         assert initial_task._num_completions == 0
 
-    def test_curriculum_env_wrapper_getattr_delegation(self):
+    def test_curriculum_env_getattr_delegation(self):
         """Test that attribute access is delegated to the wrapped environment."""
         mock_env = self.create_mock_env()
         mock_env.some_attribute = "test_value"
         mock_env.some_method = Mock(return_value="method_result")
 
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnvWrapper(mock_env, curriculum)
+        wrapper = CurriculumEnv(mock_env, curriculum)
 
         # Should delegate attribute access
         assert wrapper.some_attribute == "test_value"
@@ -206,11 +206,11 @@ class TestCurriculumEnvWrapper:
         assert result == "method_result"
         mock_env.some_method.assert_called_once_with("arg1", kwarg="value")
 
-    def test_curriculum_env_wrapper_step_with_kwargs(self):
+    def test_curriculum_env_step_with_kwargs(self):
         """Test step method with keyword arguments."""
         mock_env = self.create_mock_env()
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnvWrapper(mock_env, curriculum)
+        wrapper = CurriculumEnv(mock_env, curriculum)
 
         # Step with kwargs
         wrapper.step([1, 0], render=True, mode="human")
@@ -218,11 +218,11 @@ class TestCurriculumEnvWrapper:
         # Should pass kwargs through
         mock_env.step.assert_called_once_with([1, 0], render=True, mode="human")
 
-    def test_curriculum_env_wrapper_multiple_episodes(self):
+    def test_curriculum_env_multiple_episodes(self):
         """Test wrapper behavior across multiple episodes."""
         mock_env = self.create_mock_env()
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnvWrapper(mock_env, curriculum)
+        wrapper = CurriculumEnv(mock_env, curriculum)
 
         tasks_seen = []
 
@@ -248,11 +248,11 @@ class TestCurriculumEnvWrapper:
         for task in tasks_seen:
             assert task._num_completions == 1
 
-    def test_curriculum_env_wrapper_reward_aggregation(self):
+    def test_curriculum_env_reward_aggregation(self):
         """Test that rewards are properly aggregated for task completion."""
         mock_env = self.create_mock_env()
         curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnvWrapper(mock_env, curriculum)
+        wrapper = CurriculumEnv(mock_env, curriculum)
 
         # Test with different reward arrays
         test_cases = [
@@ -279,7 +279,7 @@ class TestCurriculumEnvWrapper:
             assert abs(initial_task._total_score - expected_mean) < 1e-6
 
 
-class TestCurriculumEnvWrapperEdgeCases:
+class TestCurriculumEnvEdgeCases:
     """Test edge cases and error conditions."""
 
     def test_curriculum_env_wrapper_empty_rewards(self):
@@ -298,7 +298,7 @@ class TestCurriculumEnvWrapperEdgeCases:
         config = CurriculumConfig(task_generator_config=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
-        wrapper = CurriculumEnvWrapper(mock_env, curriculum)
+        wrapper = CurriculumEnv(mock_env, curriculum)
         initial_task = wrapper._current_task
 
         # Should handle empty arrays gracefully (no termination due to empty arrays)
@@ -324,7 +324,7 @@ class TestCurriculumEnvWrapperEdgeCases:
         config = CurriculumConfig(task_generator_config=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
-        wrapper = CurriculumEnvWrapper(mock_env, curriculum)
+        wrapper = CurriculumEnv(mock_env, curriculum)
 
         initial_task = wrapper._current_task
         wrapper.step([1])
@@ -348,7 +348,7 @@ class TestCurriculumEnvWrapperEdgeCases:
         task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
         config = CurriculumConfig(task_generator_config=task_gen_config, num_active_tasks=2)
         curriculum = Curriculum(config, seed=0)
-        wrapper = CurriculumEnvWrapper(mock_env, curriculum)
+        wrapper = CurriculumEnv(mock_env, curriculum)
 
         # Initial curriculum stats
         initial_stats = curriculum.stats()

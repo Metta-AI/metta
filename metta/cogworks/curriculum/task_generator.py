@@ -9,7 +9,7 @@ from omegaconf import OmegaConf
 from pydantic import ConfigDict, Field, field_validator
 
 from metta.common.util.config import Config
-from metta.rl.env_config import EnvConfig
+from metta.mettagrid.mettagrid_config import EnvConfig
 
 logger = logging.getLogger(__name__)
 
@@ -179,18 +179,33 @@ class ValueRange(Config):
             raise ValueError("range_min must be less than range_max")
         return v
 
+    @classmethod
+    def vr(cls, range_min: float | int, range_max: float | int) -> "ValueRange":
+        """Create a ValueRange from a range_min and range_max."""
+        return cls(range_min=range_min, range_max=range_max)
+
 
 class BucketedTaskGeneratorConfig(TaskGeneratorConfig):
     """Configuration for BucketedTaskGenerator."""
 
     child_generator_config: TaskGeneratorConfig = Field(description="Child task generator configuration")
     buckets: dict[str, list[int | float | str | ValueRange]] = Field(
-        default_factory=dict, min_length=1, description="Buckets for sampling, keys are config paths"
+        default_factory=dict, description="Buckets for sampling, keys are config paths"
     )
+
+    def add_bucket(self, path: str, values: list[int | float | str | ValueRange]) -> "BucketedTaskGeneratorConfig":
+        """Add a bucket of values for a specific configuration path."""
+        self.buckets[path] = values
+        return self
 
     def create(self) -> "BucketedTaskGenerator":
         """Create a BucketedTaskGenerator from this configuration."""
         return BucketedTaskGenerator(self)
+
+    @classmethod
+    def from_env_config(cls, env_config: EnvConfig) -> BucketedTaskGeneratorConfig:
+        """Create a BucketedTaskGeneratorConfig from an EnvConfig."""
+        return cls(child_generator_config=SingleTaskGeneratorConfig(env_config=env_config))
 
 
 class BucketedTaskGenerator(TaskGenerator):
@@ -205,6 +220,7 @@ class BucketedTaskGenerator(TaskGenerator):
     def __init__(self, config: BucketedTaskGeneratorConfig):
         super().__init__(config)
         self._config: BucketedTaskGeneratorConfig = config
+        assert config.buckets, "Buckets must be non-empty"
         self._child_generator = config.child_generator_config.create()
 
     def _get_bucket_value(self, bucket_values: list[int | float | str | ValueRange], rng: random.Random) -> Any:

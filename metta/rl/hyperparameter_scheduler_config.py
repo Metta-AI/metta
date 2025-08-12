@@ -1,9 +1,9 @@
 from typing import Any, Dict, Optional
 
-from metta.common.util.typed_config import ConfigWithBuilder
+from metta.common.util.config import Config
 
 
-class HyperparameterSchedulerConfig(ConfigWithBuilder):
+class HyperparameterSchedulerConfig(Config):
     """
     Configuration for hyperparameter scheduling in RL training.
 

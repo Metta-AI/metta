@@ -8,7 +8,7 @@ from metta.common.util.collections import remove_none_values
 from metta.common.util.config import Config
 
 
-class EnvConfig(Config):
+class SystemConfig(Config):
     vectorization: Literal["serial", "multiprocessing"] = "multiprocessing"
     seed: int = Field(default_factory=lambda: np.random.randint(0, 1000000))
     torch_deterministic: bool = Field(default=True)
@@ -21,8 +21,8 @@ class EnvConfig(Config):
     )
 
 
-def create_env_config(cfg: DictConfig) -> EnvConfig:
-    """Create env config from Hydra config.
+def create_system_config(cfg: DictConfig) -> SystemConfig:
+    """Create system config from Hydra config.
 
     Args:
         cfg: The complete Hydra config
@@ -36,4 +36,4 @@ def create_env_config(cfg: DictConfig) -> EnvConfig:
         }
     )
 
-    return EnvConfig.model_validate(config_dict)
+    return SystemConfig.model_validate(config_dict)

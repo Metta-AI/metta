@@ -5,7 +5,7 @@ from typing import Any
 from .curriculum import Curriculum
 
 
-class CurriculumEnvWrapper:
+class CurriculumEnv:
     """Environment wrapper that integrates with a curriculum system.
 
     This wrapper passes all function calls to the wrapped environment, with special

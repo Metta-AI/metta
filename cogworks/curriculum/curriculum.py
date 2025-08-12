@@ -7,7 +7,7 @@ from typing import ClassVar
 
 from pydantic import ConfigDict, Field, field_validator
 
-from metta.common.util.typed_config import ConfigWithBuilder
+from metta.common.util.config import Config
 from metta.rl.env_config import EnvConfig
 
 from .task_generator import TaskGeneratorConfig
@@ -35,7 +35,7 @@ class CurriculumTask:
         return self._env_cfg
 
 
-class CurriculumConfig(ConfigWithBuilder):
+class CurriculumConfig(Config):
     """Base configuration for Curriculum."""
 
     task_generator_config: TaskGeneratorConfig = Field(description="TaskGenerator configuration")

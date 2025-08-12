@@ -1,9 +1,9 @@
 from pydantic import Field
 
-from metta.common.util.typed_config import ConfigWithBuilder
+from metta.common.util.config import Config
 
 
-class KickstartTeacherConfig(ConfigWithBuilder):
+class KickstartTeacherConfig(Config):
     teacher_uri: str
     # Action loss coefficient: 1.0 gives equal weight to imitating teacher actions
     action_loss_coef: float = Field(default=1, ge=0)
@@ -11,7 +11,7 @@ class KickstartTeacherConfig(ConfigWithBuilder):
     value_loss_coef: float = Field(default=1, ge=0)
 
 
-class KickstartConfig(ConfigWithBuilder):
+class KickstartConfig(Config):
     teacher_uri: str | None = None
     # Action loss: Weight 1.0 for standard knowledge distillation from teacher
     action_loss_coef: float = Field(default=1, ge=0)

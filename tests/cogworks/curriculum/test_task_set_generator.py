@@ -98,7 +98,7 @@ class TestTaskGeneratorSet:
         assert env_config.torch_deterministic is False
         assert env_config.vectorization == "serial"
 
-    def test_task_set_generator_deterministic(self):
+    def test_task_generator_set_deterministic(self):
         """Test that TaskGeneratorSet is deterministic with same seed."""
         configs = [SingleTaskGeneratorConfig(env_config=EnvConfig(seed=i)) for i in range(10)]
         weights = [1.0] * 10
@@ -115,7 +115,7 @@ class TestTaskGeneratorSet:
         # All results should be the same
         assert all(r == results[0] for r in results)
 
-    def test_task_set_generator_different_seeds(self):
+    def test_task_generator_set_different_seeds(self):
         """Test that different task_ids produce different selections."""
         configs = [SingleTaskGeneratorConfig(env_config=EnvConfig(seed=i)) for i in range(10)]
         weights = [1.0] * 10
@@ -132,7 +132,7 @@ class TestTaskGeneratorSet:
         # Should have sampled from multiple configs
         assert len(seeds_seen) > 5  # Should see most of the 10 configs
 
-    def test_task_set_generator_nested_overrides(self):
+    def test_task_generator_set_nested_overrides(self):
         """Test nested key overrides work correctly."""
         config = SingleTaskGeneratorConfig(env_config=EnvConfig())
 

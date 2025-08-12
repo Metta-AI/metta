@@ -1,9 +1,9 @@
 from pydantic import Field
 
-from metta.common.util.typed_config import ConfigWithBuilder
+from metta.common.util.config import Config
 
 
-class EvalRewardSummary(ConfigWithBuilder):
+class EvalRewardSummary(Config):
     category_scores: dict[str, float] = Field(default_factory=dict, description="Average reward for each category")
     simulation_scores: dict[tuple[str, str], float] = Field(
         default_factory=dict, description="Average reward for each simulation (category, short_sim_name)"
@@ -24,6 +24,6 @@ class EvalRewardSummary(ConfigWithBuilder):
         }
 
 
-class EvalResults(ConfigWithBuilder):
+class EvalResults(Config):
     scores: EvalRewardSummary = Field(..., description="Evaluation scores")
     replay_urls: dict[str, list[str]] = Field(default_factory=dict, description="Replay URLs for each simulation")
