@@ -224,7 +224,7 @@ jobs:
 
           if [ -n "${{ steps.get_job_id.outputs.job_id }}" ]; then
             echo "- [📊 View Job Dashboard](${{ steps.get_job_id.outputs.dashboard_url }})" >> $GITHUB_STEP_SUMMARY
-            echo "- [🤗 W&B Run](https://wandb.ai/softmax-research/metta/runs/${{ steps.generate_run_name.outputs.run_name }})" >> $GITHUB_STEP_SUMMARY
+            echo "- [🤗 W&B Run](https://wandb.ai/metta-research/metta/runs/${{ steps.generate_run_name.outputs.run_name }})" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "### 📝 CLI Commands" >> $GITHUB_STEP_SUMMARY
             echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
@@ -239,7 +239,7 @@ jobs:
             echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           else
             echo "- [📊 SkyPilot Dashboard](https://skypilot-api.softmax-research.net/dashboard/jobs)" >> $GITHUB_STEP_SUMMARY
-            echo "- [🤗 W&B Run](https://wandb.ai/softmax-research/metta/runs/${{ steps.generate_run_name.outputs.run_name }})" >> $GITHUB_STEP_SUMMARY
+            echo "- [🤗 W&B Run](https://wandb.ai/metta-research/metta/runs/${{ steps.generate_run_name.outputs.run_name }})" >> $GITHUB_STEP_SUMMARY
 
             if [ -n "${{ steps.extract_request_id.outputs.request_id_short }}" ]; then
               echo "" >> $GITHUB_STEP_SUMMARY
