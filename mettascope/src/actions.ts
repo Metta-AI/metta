@@ -3,19 +3,19 @@ import { find } from './htmlutils.js'
 import { requestFrame } from './main.js'
 import { sendAction } from './replay.js'
 
-// Small timing window to combine two directional key presses (e.g., W+A -> Northwest)
+// Small timing window to combine two directional key presses (e.g., W+A -> Northwest).
 const COMBO_WINDOW_MS = 100
 let comboKeys: Set<'w' | 'a' | 's' | 'd'> = new Set()
 let comboTimer: number | null = null
 
-// queue up a key press for a directional combo
+// queue up a key press for a directional combo.
 function pushComboKey(key: 'w' | 'a' | 's' | 'd') {
   comboKeys.add(key)
   if (comboTimer != null) window.clearTimeout(comboTimer)
   comboTimer = window.setTimeout(() => flushComboIfAny(), COMBO_WINDOW_MS)
 }
 
-// flush the combo if any keys are pressed
+// flush the combo if any keys are pressed.
 function flushComboIfAny() {
   if (comboTimer != null) {
     window.clearTimeout(comboTimer)
@@ -32,7 +32,7 @@ function flushComboIfAny() {
     else if (has('s') && has('a')) param = 5 // SW
   }
   if (param === -1) {
-    // Single key or opposing keys fallback: prefer last in insertion order
+    // Single key or opposing keys fallback: prefer last in insertion order.
     let lastKey: 'w' | 'a' | 's' | 'd' | null = null
     for (const k of comboKeys) lastKey = k
     if (lastKey === 'w') param = 0
@@ -116,7 +116,7 @@ export function processActions(event: KeyboardEvent) {
     const supportsMove8 = state.replay.actionNames.includes('move_8way')
     const supportsCardinal = state.replay.actionNames.includes('move_cardinal')
 
-    // Movement handling (prefer modern movement actions if available)
+    // Movement handling.
     if (key === 'w' || key === 'ArrowUp') {
       if (supportsMove8) {
         // Collect key for potential diagonal combo
@@ -397,6 +397,7 @@ export function processGamepad() {
   if (gp.axes.length >= 2) {
     const x = gp.axes[0]
     const y = gp.axes[1]
+
     if (y < -axisThreshold) {
       directionActives.w = true
     }
