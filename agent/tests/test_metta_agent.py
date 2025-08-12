@@ -13,7 +13,7 @@ from metta.rl.system_config import SystemConfig
 
 @pytest.fixture
 def create_metta_agent():
-    # Create a mock environment for MettaAgentBuilder
+    # Create a mock environment for MettaAgent
     class MockEnv:
         def __init__(self):
             self.single_observation_space = gym.spaces.Box(

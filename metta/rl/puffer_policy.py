@@ -26,7 +26,7 @@ def _parse_weights_metadata(weights: dict[str, Any]) -> tuple[int, int, int, int
 
 
 def _init_env() -> SimpleNamespace:
-    """Create the runtime env for MettaAgentBuilder."""
+    """Create the runtime env for MettaAgent."""
     import gymnasium as gym
     import numpy as np
 

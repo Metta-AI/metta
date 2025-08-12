@@ -310,5 +310,17 @@ class MettaAgent(nn.Module):
             return self.policy.compute_weight_metrics(delta)
         return []
 
+    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
+        """Convert (action_type, action_param) pairs to discrete indices - delegates to policy."""
+        if hasattr(self.policy, "_convert_action_to_logit_index"):
+            return self.policy._convert_action_to_logit_index(flattened_action)
+        raise NotImplementedError("Policy does not implement _convert_action_to_logit_index")
+
+    def _convert_logit_index_to_action(self, logit_indices: torch.Tensor) -> torch.Tensor:
+        """Convert discrete logit indices back to (action_type, action_param) pairs - delegates to policy."""
+        if hasattr(self.policy, "_convert_logit_index_to_action"):
+            return self.policy._convert_logit_index_to_action(logit_indices)
+        raise NotImplementedError("Policy does not implement _convert_logit_index_to_action")
+
 
 PolicyAgent = MettaAgent | DistributedMettaAgent
