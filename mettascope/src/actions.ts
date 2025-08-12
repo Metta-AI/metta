@@ -8,7 +8,7 @@ const COMBO_WINDOW_MS = 100
 let comboKeys: Set<'w' | 'a' | 's' | 'd'> = new Set()
 let comboTimer: number | null = null
 
-// queue up a key press for a directional combo.
+// Queue up a key press for a directional combo.
 function pushComboKey(key: 'w' | 'a' | 's' | 'd') {
   comboKeys.add(key)
   if (comboTimer != null) window.clearTimeout(comboTimer)
