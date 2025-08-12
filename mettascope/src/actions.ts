@@ -223,7 +223,7 @@ export function processActions(event: KeyboardEvent) {
       // Get the output.
       sendAction('get_items', 0)
     }
-    // Diagonal movement with numpad (prefer 8 way, then cardinal, then fallback)
+    // Diagonal movement with numpad (prefer 8 way, then cardinal, then fallback).
     if (event.code === 'Numpad7') {
       if (supportsMove8) {
         sendAction('move_8way', 7)
