@@ -145,7 +145,8 @@ if __name__ == "__main__":
     if not webhook_url:
         print("Error: DISCORD_WEBHOOK_URL environment variable not set")
         print(
-            "Usage: DISCORD_WEBHOOK_URL=<your-webhook-url> DISCORD_CONTENT=<message> python -m metta.common.util.discord"
+            "Usage: DISCORD_WEBHOOK_URL=<your-webhook-url> DISCORD_CONTENT=<message> "
+            + "python -m metta.common.util.discord"
         )
         sys.exit(1)
 
@@ -155,7 +156,8 @@ if __name__ == "__main__":
     if not content:
         print("Error: DISCORD_CONTENT environment variable not set")
         print(
-            "Usage: DISCORD_WEBHOOK_URL=<your-webhook-url> DISCORD_CONTENT=<message> python -m metta.common.util.discord"
+            "Usage: DISCORD_WEBHOOK_URL=<your-webhook-url> DISCORD_CONTENT=<message> "
+            + "python -m metta.common.util.discord"
         )
         sys.exit(1)
 
