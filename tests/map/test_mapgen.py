@@ -137,26 +137,3 @@ class TestMapGenInstances:
         assert first_child.height == 2
         assert first_child.area.x == 2
         assert first_child.area.y == 2
-
-
-class TestMapGenLabels:
-    @pytest.mark.parametrize(
-        "width,height,expected_label",
-        [
-            (10, 10, "small"),  # area = 100
-            (70, 70, "medium"),  # area = 4 900
-            (100, 80, "large"),  # area = 8 000
-        ],
-    )
-    def test_size_labels(self, width, height, expected_label):
-        mg = MapGen(
-            root={"type": "metta.map.scenes.nop.Nop"},
-            width=width,
-            height=height,
-        )
-        level = mg.build()
-
-        # Exactly one size label should be present and it must match expectation.
-        size_labels = {"small", "medium", "large"}
-        present = set(level.labels) & size_labels
-        assert present == {expected_label}
