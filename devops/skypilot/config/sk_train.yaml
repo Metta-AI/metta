@@ -183,13 +183,14 @@ run: |
   run_cmd() {
     local START_TIME=$(date +%s)
 
-    # Start training in a new process group
-    # Using sh -c ensures we get a fresh process that can be a group leader
+    # CRITICAL: Start training in a separate process group so that when we call
+    # terminate_process() with kill -TERM -$PGID, it terminates only the training
+    # processes and NOT this SkyPilot run script. This allows us to see the final
+    # summary and exit cleanly. The & automatically creates a new process group.
     sh -c 'exec "$@"' -- ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
     local CMD_PID=$!
 
     # Make the process a group leader if it isn't already
-    # This is more reliable than relying on job control
     local PGID=$(ps -o pgid= -p "$CMD_PID" 2>/dev/null | tr -d ' ')
 
     echo "[INFO] Started training process with PID: $CMD_PID, PGID: $PGID"
