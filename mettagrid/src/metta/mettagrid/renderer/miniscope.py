@@ -110,42 +110,8 @@ class MiniscopeRenderer:
 
         self._bounds_set = True
 
-    def render(self, step: int, grid_objects: Dict[int, dict]) -> str:
-        if not self._bounds_set:
-            self._compute_bounds(grid_objects)
-
-        # Initialize grid with empty space emoji
-        grid = [[self.MINISCOPE_SYMBOLS["empty"] for _ in range(self._width)] for _ in range(self._height)]
-
-        for obj in grid_objects.values():
-            r = obj["r"] - self._min_row
-            c = obj["c"] - self._min_col
-            if 0 <= r < self._height and 0 <= c < self._width:
-                symbol = self._symbol_for(obj)
-                grid[r][c] = symbol
-
-        lines = ["".join(row) for row in grid]
-
-        # Create current buffer
-        current_buffer = "\n".join(lines)
-
-        # Add a header with step information
-        header = f"🎮 Metta AI Miniscope - Step: {step} 🎮"
-        separator = "═" * (self._width * 2)  # Double-line box drawing for better visuals
-
-        # Build entire frame as single string with clear screen for atomic update
-        frame_buffer = f"\033[2J\033[H{header}\n{separator}\n{current_buffer}\n{separator}"
-
-        # Write entire frame at once - atomic screen update
-        print(frame_buffer, end="", flush=True)
-
-        # Update last buffer
-        self._last_buffer = current_buffer
-
-        return current_buffer
-
-    def get_buffer(self, grid_objects: Dict[int, dict]) -> str:
-        """Return emoji map buffer without side effects."""
+    def _build_buffer(self, grid_objects: Dict[int, dict]) -> str:
+        """Construct emoji map buffer without printing."""
         if not self._bounds_set:
             self._compute_bounds(grid_objects)
         grid = [[self.MINISCOPE_SYMBOLS["empty"] for _ in range(self._width)] for _ in range(self._height)]
@@ -156,3 +122,17 @@ class MiniscopeRenderer:
                 grid[r][c] = self._symbol_for(obj)
         lines = ["".join(row) for row in grid]
         return "\n".join(lines)
+
+    def render(self, step: int, grid_objects: Dict[int, dict]) -> str:
+        """Render the environment buffer and print to screen."""
+        current_buffer = self._build_buffer(grid_objects)
+        header = f"🎮 Metta AI Miniscope - Step: {step} 🎮"
+        separator = "═" * (self._width * 2)
+        frame_buffer = f"\033[2J\033[H{header}\n{separator}\n{current_buffer}\n{separator}"
+        print(frame_buffer, end="", flush=True)
+        self._last_buffer = current_buffer
+        return current_buffer
+
+    def get_buffer(self, grid_objects: Dict[int, dict]) -> str:
+        """Return emoji map buffer without side effects."""
+        return self._build_buffer(grid_objects)

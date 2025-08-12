@@ -80,9 +80,20 @@ class NethackRenderer:
     def render(self, step: int, grid_objects: dict[int, dict]) -> str:
         """Render the environment buffer and print to screen."""
         buf = self._build_buffer(grid_objects)
-        frame_buffer = "\033[2J\033[H" + buf
-        print(frame_buffer, end="", flush=True)
-        self._last_buffer = buf
+
+        lines = buf.split("\n")
+        line_lengths = [len(line) for line in lines]
+        if len(set(line_lengths)) > 1:
+            print(
+                f"Warning: Inconsistent line lengths detected: {line_lengths}",
+                flush=True,
+            )
+
+        if self._last_buffer is None or buf != self._last_buffer:
+            frame_buffer = "\033[2J\033[H" + buf
+            print(frame_buffer, end="", flush=True)
+            self._last_buffer = buf
+
         return buf
 
     def get_buffer(self, grid_objects: dict[int, dict]) -> str:
