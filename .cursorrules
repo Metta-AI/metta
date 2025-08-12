@@ -26,11 +26,6 @@
       "message": "Don't suggest whitespace changes"
     },
     {
-      "name": "No Summaries (removed)",
-      "pattern": "^$",
-      "message": ""
-    },
-    {
       "name": "No Inventions",
       "pattern": "(?i)\\b(suggest|recommendation|propose)\\b",
       "message": "Don't invent changes other than what's explicitly requested"
@@ -69,11 +64,6 @@
       "name": "No Previous x.md Consideration",
       "pattern": "(?i)\\b(previous|earlier|last)\\b.*\\bx\\.md\\b",
       "message": "Do not consider any previous x.md files in your memory. Complain if the contents are the same as previous runs."
-    },
-    {
-      "name": "No Current Implementation (removed)",
-      "pattern": "^$",
-      "message": ""
     },
     {
       "name": "Check x.md Content",
