@@ -1,0 +1,9 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: coop_rewardsharing
+
+simulations:
+  coop_rewardsharing:
+    env: /env/mettagrid/arena/coop_rewardsharing
