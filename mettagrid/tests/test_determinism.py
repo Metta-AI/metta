@@ -1,24 +1,28 @@
 import numpy as np
+from numpy.random import Generator
+from numpy.typing import NDArray
 
 from metta.mettagrid.mettagrid_c import MettaGrid, dtype_actions
 from metta.mettagrid.test_support import TestEnvironmentBuilder
 
 
 class TestDeterminism:
-    def _rollout(self, base_seed: int, max_steps: int = 30):
-        builder = TestEnvironmentBuilder()
+    Signature = tuple[int, tuple[float, ...], tuple[bool, ...], tuple[bool, ...]]
+
+    def _rollout(self, base_seed: int, max_steps: int = 30) -> list[Signature]:
+        builder: TestEnvironmentBuilder = TestEnvironmentBuilder()
         env: MettaGrid = builder.create_environment(num_agents=1)
-        rng = np.random.default_rng(base_seed)
+        rng: Generator = np.random.default_rng(base_seed)
 
-        obs, _ = env.reset()
-        signatures = []
-        steps = 0
+        obs, info = env.reset()
+        signatures: list[TestDeterminism.Signature] = []
+        steps: int = 0
 
-        action_names = env.action_names()
-        num_actions = len(action_names)
+        action_names: list[str] = env.action_names()
+        num_actions: int = len(action_names)
 
         while steps < max_steps:
-            actions = np.zeros((env.num_agents, 2), dtype=dtype_actions)
+            actions: NDArray[np.int32] = np.zeros((env.num_agents, 2), dtype=dtype_actions)
             actions[:, 0] = rng.integers(0, num_actions, size=env.num_agents)
             actions[:, 1] = 0
 
@@ -39,11 +43,11 @@ class TestDeterminism:
 
         return signatures
 
-    def test_seeded_uniform_policy_is_deterministic(self):
-        sig1 = self._rollout(base_seed=1234, max_steps=30)
-        sig2 = self._rollout(base_seed=1234, max_steps=30)
+    def test_seeded_uniform_policy_is_deterministic(self) -> None:
+        sig1: list[TestDeterminism.Signature] = self._rollout(base_seed=1234, max_steps=30)
+        sig2: list[TestDeterminism.Signature] = self._rollout(base_seed=1234, max_steps=30)
         assert sig1 == sig2
 
-        sig3 = self._rollout(base_seed=4321, max_steps=30)
+        sig3: list[TestDeterminism.Signature] = self._rollout(base_seed=4321, max_steps=30)
         assert len(sig1) > 0
         assert sig1 != sig3
