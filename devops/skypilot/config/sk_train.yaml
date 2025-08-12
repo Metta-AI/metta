@@ -221,7 +221,10 @@ run: |
   # Run with timeout if MAX_RUNTIME_HOURS is set
   if [[ -n "${MAX_RUNTIME_HOURS:-}" ]] && [[ "${MAX_RUNTIME_HOURS}" != "None" ]]; then
     echo "[INFO] Running with timeout of ${MAX_RUNTIME_HOURS} hours"
-    timeout --foreground --kill-after=30s "${MAX_RUNTIME_HOURS}h" bash -c "$(declare -f run_training); run_training"
+    # Convert hours to seconds for timeout command
+    TIMEOUT_SECONDS=$(awk "BEGIN {print int(${MAX_RUNTIME_HOURS} * 3600)}")
+    echo "[INFO] Timeout in seconds: ${TIMEOUT_SECONDS}"
+    timeout --foreground --kill-after=30s "${TIMEOUT_SECONDS}s" bash -c "$(declare -f run_training); run_training"
     CMD_EXIT=$?
   else
     echo "[INFO] Running without timeout"
