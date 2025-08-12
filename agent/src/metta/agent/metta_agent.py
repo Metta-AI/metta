@@ -34,8 +34,10 @@ class MettaAgent(nn.Module):
     ):
         super().__init__()
         self.cfg = cfg
-        self.policy = policy
         self.device = device
+        self.policy = policy
+        if self.policy is not None:
+            self.policy.device = self.device
 
         self.obs_space = obs_space
         self.obs_width = obs_width
@@ -50,6 +52,7 @@ class MettaAgent(nn.Module):
         """Set the agent's policy."""
         self.policy = policy
         self.policy.agent = self
+        self.policy.device = self.device
         self.policy.to(self.device)
 
     def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> Tuple:

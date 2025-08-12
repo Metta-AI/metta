@@ -27,7 +27,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size, input_size=input_size)
 
         super().__init__(env, policy, input_size, hidden_size)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def forward(self, td: TensorDict, state: Optional[dict] = None, action=None) -> TensorDict:
         """Forward pass: encodes observations, runs LSTM, decodes into actions, value, and stats."""
