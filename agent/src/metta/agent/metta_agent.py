@@ -308,6 +308,20 @@ class MettaAgent(nn.Module):
 
                 component.register_buffer("_norm_factors", norm_tensor)
 
+    def get_original_feature_mapping(self) -> dict[str, int] | None:
+        """Get the original feature mapping for saving in metadata."""
+        return getattr(self, "original_feature_mapping", None)
+
+    def restore_original_feature_mapping(self, mapping: dict[str, int]) -> None:
+        """Restore the original feature mapping from metadata.
+
+        This should be called after loading a model from checkpoint but before
+        calling initialize_to_environment.
+        """
+        # Make a copy to avoid shared state between agents
+        self.original_feature_mapping = mapping.copy()
+        logger.info(f"Restored original feature mapping with {len(mapping)} features from metadata")
+
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Initialize action space for the agent."""
         self.device = device
@@ -342,20 +356,6 @@ class MettaAgent(nn.Module):
         if self.policy is not None:
             self.policy.action_index_tensor = self.action_index_tensor
             self.policy.cum_action_max_params = self.cum_action_max_params
-
-    def get_original_feature_mapping(self) -> dict[str, int] | None:
-        """Get the original feature mapping for saving in metadata."""
-        return getattr(self, "original_feature_mapping", None)
-
-    def restore_original_feature_mapping(self, mapping: dict[str, int]) -> None:
-        """Restore the original feature mapping from metadata.
-
-        This should be called after loading a model from checkpoint but before
-        calling initialize_to_environment.
-        """
-        # Make a copy to avoid shared state between agents
-        self.original_feature_mapping = mapping.copy()
-        logger.info(f"Restored original feature mapping with {len(mapping)} features from metadata")
 
     @property
     def lstm(self):
