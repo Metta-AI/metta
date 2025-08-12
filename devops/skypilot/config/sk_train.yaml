@@ -122,12 +122,31 @@ run: |
     echo "[RUN] GitHub status reporting is disabled (missing required credentials)"
   fi
 
-  set +e  # allow failure without aborting the wrapper script
-  echo "[RUN] Running training script..."
-  ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-}
-  TRAIN_EXIT=$?
-  set -e
-  echo "[RUN] Training script exit code: $TRAIN_EXIT"
+  export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
+  echo "[DEBUG] WANDB_DIR: ${WANDB_DIR:-'NOT SET'}"
+  echo "[DEBUG] HEARTBEAT_FILE: ${HEARTBEAT_FILE:-'NOT SET'}"
+  echo "[DEBUG] HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
+
+  # Start train.sh in background
+  ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
+  TRAIN_PID=$!
+
+  # Start heartbeat *watching the train PID*
+  if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
+    echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE (pid=$TRAIN_PID)"
+    uv run python -m metta.common.util.heartbeat monitor "$HEARTBEAT_FILE" \
+      --pid "$TRAIN_PID" --timeout "$HEARTBEAT_TIMEOUT" \
+      >/dev/null 2>&1 &
+    HEARTBEAT_PID=$!
+  fi
+
+  # Wait for training to finish, capture exit, then kill heartbeat cleanly
+  wait "$TRAIN_PID"
+  CMD_EXIT=$?
+  if [[ -n "${HEARTBEAT_PID:-}" ]]; then
+    kill "$HEARTBEAT_PID" 2>/dev/null || true
+    wait "$HEARTBEAT_PID" 2>/dev/null || true
+  fi
 
   if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
     export CMD_EXIT="$TRAIN_EXIT"
