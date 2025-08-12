@@ -125,6 +125,7 @@ run: |
   fi
 
   export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
+  export TERMINATION_REASON=""  # Track how the job ended
 
   run_training() {
     local START_TIME=$(date +%s)
@@ -187,6 +188,7 @@ run: |
             # Check if timeout exceeded
             if [ $((CURRENT_TIME - LAST_HEARTBEAT_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
               echo "[ERROR] Heartbeat timeout! No heartbeat for $HEARTBEAT_TIMEOUT seconds"
+              export TERMINATION_REASON="heartbeat_timeout"
               kill -TERM "$CMD_PID" 2>/dev/null || true
               sleep 5
               kill -KILL "$CMD_PID" 2>/dev/null || true
@@ -226,22 +228,35 @@ run: |
     echo "[INFO] Timeout in seconds: ${TIMEOUT_SECONDS}"
     timeout --foreground --kill-after=30s "${TIMEOUT_SECONDS}s" bash -c "$(declare -f run_training); run_training"
     CMD_EXIT=$?
+
+    # If timeout killed the process, set the termination reason
+    if [[ $CMD_EXIT -eq 124 ]] || [[ $CMD_EXIT -eq 143 ]] || [[ $CMD_EXIT -eq 137 ]]; then
+      export TERMINATION_REASON="max_runtime_reached"
+    fi
   else
     echo "[INFO] Running without timeout"
     run_training
     CMD_EXIT=$?
   fi
 
-  # Check exit codes
-  if [[ $CMD_EXIT -eq 124 ]] || [[ $CMD_EXIT -eq 143 ]]; then
-    echo "[ERROR] Job terminated due to timeout (--max-runtime-hours exceeded)"
+  # Check termination reason
+  if [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
+    echo "[ERROR] Job terminated due to heartbeat timeout"
+    export GITHUB_STATUS_DESCRIPTION="Job failed - no heartbeat for ${HEARTBEAT_TIMEOUT} seconds"
+    # Keep failure exit code
+  elif [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]]; then
+    echo "[INFO] Job terminated due to max runtime limit"
     export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
-    # map time out to success
+    # Map to success
     CMD_EXIT=0
-  elif [[ $CMD_EXIT -ne 0 ]]; then
-    echo "[ERROR] Job failed with exit code $CMD_EXIT"
-  else
+  elif [[ $CMD_EXIT -eq 0 ]]; then
     echo "[SUCCESS] Job completed successfully"
+    export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
+    export TERMINATION_REASON="completed"
+  else
+    echo "[ERROR] Job failed with exit code $CMD_EXIT"
+    export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
+    export TERMINATION_REASON="exit_code_${CMD_EXIT}"
   fi
 
   if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
@@ -250,7 +265,7 @@ run: |
     uv run devops/skypilot/set_github_status.py || echo "[WARN] Final status post failed"
   fi
 
-  echo "[RUN] Job complete with exit code: $CMD_EXIT"
+  echo "[RUN] Job complete with exit code: $CMD_EXIT (reason: ${TERMINATION_REASON:-unknown})"
   exit "$CMD_EXIT"
 
 envs:
