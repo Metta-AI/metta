@@ -101,9 +101,9 @@ class MettaAgent(nn.Module):
         """Legacy method for backwards compatibility - components are now built in ComponentPolicy.__init__."""
         # This method is no longer needed since ComponentPolicy builds its own components
         # Keep it for backwards compatibility with any code that might call it
-        if isinstance(self.policy, ComponentPolicy) and hasattr(self.policy, "components"):
+        if isinstance(self.policy, ComponentPolicy):
             self.components = self.policy.components
-            self.components_with_memory = getattr(self.policy, "components_with_memory", [])
+            self.components_with_memory = self.policy.components_with_memory
             self.clip_range = self.policy.clip_range
 
     def reset_memory(self) -> None:
@@ -163,12 +163,11 @@ class MettaAgent(nn.Module):
     ):
         """Initialize the agent to the current environment."""
 
-        # For ComponentPolicy, link to its components if not already done
-        if isinstance(self.policy, ComponentPolicy) and hasattr(self.policy, "components"):
-            if not hasattr(self, "components"):
-                self.components = self.policy.components
-                self.components_with_memory = getattr(self.policy, "components_with_memory", [])
-                self.clip_range = self.policy.clip_range
+        # For ComponentPolicy, link to its components
+        if isinstance(self.policy, ComponentPolicy):
+            self.components = self.policy.components
+            self.components_with_memory = self.policy.components_with_memory
+            self.clip_range = self.policy.clip_range
 
         # MettaAgent handles the initialization for all policy types
         self.activate_actions(action_names, action_max_params, device)
