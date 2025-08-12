@@ -92,7 +92,6 @@ class StorableMap:
         storable_map = StorableMap(
             grid=level.grid,
             metadata={
-                "labels": level.labels,
                 "gen_time": gen_time,
                 "timestamp": datetime.now().isoformat(),
             },

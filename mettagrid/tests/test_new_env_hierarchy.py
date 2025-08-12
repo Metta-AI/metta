@@ -6,63 +6,8 @@ works correctly while being compatible with the existing test framework.
 """
 
 import numpy as np
-import pytest
-from omegaconf import DictConfig
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-
-
-def create_test_config():
-    """Create a minimal test configuration that works reliably."""
-    return DictConfig(
-        {
-            "game": {
-                "max_steps": 20,
-                "num_agents": 2,
-                "obs_width": 5,
-                "obs_height": 5,
-                "num_observation_tokens": 25,
-                "inventory_item_names": ["heart"],
-                "groups": {"agent": {"id": 0, "sprite": 0}},
-                "agent": {
-                    "default_resource_limit": 10,
-                    "resource_limits": {"heart": 255},
-                    "freeze_duration": 0,
-                    "rewards": {"inventory": {"heart": 1.0}},
-                    "action_failure_penalty": 0.0,
-                },
-                "actions": {
-                    "noop": {"enabled": True},
-                    "move": {"enabled": True},
-                    "rotate": {"enabled": True},
-                    "put_items": {"enabled": True},
-                    "get_items": {"enabled": True},
-                    "attack": {"enabled": True},
-                    "swap": {"enabled": True},
-                    "change_color": {"enabled": False},
-                    "change_glyph": {"enabled": False, "number_of_glyphs": 0},
-                },
-                "objects": {
-                    "wall": {"type_id": 1, "swappable": False},
-                },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 2,
-                    "width": 8,
-                    "height": 8,
-                    "border_width": 1,
-                    "objects": {},
-                },
-            }
-        }
-    )
-
-
-@pytest.fixture
-def test_curriculum():
-    """Create a test curriculum."""
-    config = create_test_config()
-    return SingleTaskCurriculum("test_hierarchy", config)
+from metta.mettagrid.config.builder import make_arena
 
 
 class TestNewEnvironmentHierarchy:
@@ -71,29 +16,21 @@ class TestNewEnvironmentHierarchy:
     def test_imports(self):
         """Test that all new classes can be imported."""
         # Test basic imports - this verifies our modules are structured correctly
-        from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
+        from metta.mettagrid.gym_env import MettaGridGymEnv
         from metta.mettagrid.mettagrid_env import MettaGridEnv
         from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
         assert MettaGridEnv is not None
         assert MettaGridGymEnv is not None
-        assert SingleAgentMettaGridGymEnv is not None
         assert MettaGridPettingZooEnv is not None
 
     def test_gym_env_creation(self):
         """Test that Gymnasium environments can be created."""
-        from metta.mettagrid.gym_env import SingleAgentMettaGridGymEnv
+        from metta.mettagrid.gym_env import MettaGridGymEnv
 
-        # Create single agent config
-        config = create_test_config()
-        config.game.num_agents = 1
-        config.game.map_builder.agents = 1
-        curriculum = SingleTaskCurriculum("test_single", config)
-
-        env = SingleAgentMettaGridGymEnv(
-            curriculum=curriculum,
+        env = MettaGridGymEnv(
+            make_arena(num_agents=1),
             render_mode=None,
-            is_training=False,
         )
 
         assert env is not None
@@ -101,18 +38,11 @@ class TestNewEnvironmentHierarchy:
 
     def test_gym_env_basic_ops(self):
         """Test basic Gymnasium environment operations."""
-        from metta.mettagrid.gym_env import SingleAgentMettaGridGymEnv
+        from metta.mettagrid.gym_env import MettaGridGymEnv
 
-        # Create single agent config
-        config = create_test_config()
-        config.game.num_agents = 1
-        config.game.map_builder.agents = 1
-        curriculum = SingleTaskCurriculum("test_single", config)
-
-        env = SingleAgentMettaGridGymEnv(
-            curriculum=curriculum,
+        env = MettaGridGymEnv(
+            make_arena(num_agents=1),
             render_mode=None,
-            is_training=False,
         )
 
         # Test reset
@@ -131,27 +61,27 @@ class TestNewEnvironmentHierarchy:
 
         env.close()
 
-    def test_pettingzoo_env_creation(self, test_curriculum):
+    def test_pettingzoo_env_creation(self):
         """Test that PettingZoo environment can be created."""
         from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
+        # Create PettingZoo config
         env = MettaGridPettingZooEnv(
-            curriculum=test_curriculum,
+            make_arena(num_agents=3),
             render_mode=None,
-            is_training=False,
         )
 
         assert env is not None
         env.close()
 
-    def test_pettingzoo_env_basic_ops(self, test_curriculum):
+    def test_pettingzoo_env_basic_ops(self):
         """Test basic PettingZoo environment operations."""
         from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
+        # Create multi-agent config
         env = MettaGridPettingZooEnv(
-            curriculum=test_curriculum,
+            make_arena(num_agents=3),
             render_mode=None,
-            is_training=False,
         )
 
         # Test reset
@@ -179,10 +109,6 @@ if __name__ == "__main__":
 
     print("Running manual tests...")
 
-    # Create test curriculum
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("manual_test", config)
-
     # Test imports
     try:
         from metta.mettagrid.mettagrid_env import MettaGridEnv
@@ -194,7 +120,7 @@ if __name__ == "__main__":
 
     # Test basic creation
     try:
-        env = MettaGridEnv(curriculum=curriculum, render_mode=None, is_training=False)
+        env = MettaGridEnv(make_arena(num_agents=24), render_mode=None)
         env.close()
         print("✓ MettaGridEnv creation successful")
     except Exception as e:

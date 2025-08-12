@@ -5,7 +5,7 @@ from metta.map.scene import Scene
 from metta.map.types import Area, ChildrenAction, MapGrid
 from metta.map.utils.ascii_grid import add_pretty_border, char_grid_to_lines
 from metta.map.utils.storable_map import grid_to_lines
-from metta.mettagrid.level_builder import create_grid
+from metta.mettagrid.map_builder.utils import create_grid
 
 
 def render_scene(
