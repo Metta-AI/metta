@@ -57,9 +57,6 @@ def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
 
 def validate_policy_environment_match(policy: PolicyAgent, env: MettaGridEnv) -> None:
     """Validate that policy's observation shape matches environment's."""
-
-    logger.info(f"Env Match {env}")
-
     # Extract agent from distributed wrapper if needed
     if isinstance(policy, MettaAgent):
         agent = policy
