@@ -312,7 +312,7 @@ run: |
       if [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
           echo "[ERROR] Job terminated due to heartbeat timeout"
           export GITHUB_STATUS_DESCRIPTION="Job failed - no heartbeat for ${HEARTBEAT_TIMEOUT} seconds"
-          # Keep failure exit code
+          # Keep failure exit code for status reporting script -- but override when exiting to prevent skypilot retry
       elif [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]]; then
           echo "[INFO] Job terminated due to max runtime limit"
           export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
