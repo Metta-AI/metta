@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from metta.mettagrid.mettagrid_c import dtype_actions
 from metta.mettagrid.test_support import TestEnvironmentBuilder
