@@ -10,7 +10,7 @@ from cogworks.curriculum import (
     CurriculumTask,
     SingleTaskGeneratorConfig,
 )
-from metta.rl.env_config import EnvConfig
+from metta.mettagrid.mettagrid_config import EnvConfig
 
 
 class TestCurriculumTask:
@@ -19,7 +19,7 @@ class TestCurriculumTask:
     def test_curriculum_task_creation(self):
         """Test creating a CurriculumTask with required parameters."""
         task_id = 123
-        env_cfg = EnvConfig(seed=42)
+        env_cfg = EnvConfig()
 
         task = CurriculumTask(task_id, env_cfg)
 
@@ -32,7 +32,7 @@ class TestCurriculumTask:
 
     def test_curriculum_task_get_env_cfg(self):
         """Test that get_env_cfg returns the correct env config."""
-        env_cfg = EnvConfig(seed=42, device="cpu")
+        env_cfg = EnvConfig()
         task = CurriculumTask(123, env_cfg)
 
         assert task.get_env_cfg() is env_cfg
@@ -110,7 +110,7 @@ class TestCurriculum:
 
     def create_test_config(self):
         """Helper to create a test configuration."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=42))
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
         return CurriculumConfig(
             task_generator_config=task_gen_config, max_task_id=1000, num_active_tasks=5, new_task_rate=0.1
         )

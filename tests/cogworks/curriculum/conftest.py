@@ -2,12 +2,20 @@
 
 import pytest
 
-from metta.rl.env_config import EnvConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, AgentConfig, EnvConfig, GameConfig
 
 
 def create_test_env_config(seed: int = 42, device: str = "cpu", vectorization: str = "serial") -> EnvConfig:
     """Create a test EnvConfig with specified parameters."""
-    return EnvConfig(seed=seed, device=device, vectorization=vectorization)
+    # Create a minimal GameConfig for testing
+    game_config = GameConfig(
+        num_agents=2,
+        agent=AgentConfig(),
+        groups={"default": {"id": 0, "props": AgentConfig()}},
+        actions=ActionsConfig(noop=ActionConfig()),
+        objects={},
+    )
+    return EnvConfig(game=game_config)
 
 
 @pytest.fixture

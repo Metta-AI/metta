@@ -9,7 +9,7 @@ from omegaconf import OmegaConf
 from pydantic import ConfigDict, Field, field_validator
 
 from metta.common.util.config import Config
-from metta.rl.env_config import EnvConfig
+from metta.mettagrid.mettagrid_config import EnvConfig
 
 logger = logging.getLogger(__name__)
 
