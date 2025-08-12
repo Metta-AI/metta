@@ -1,70 +1,25 @@
-from dataclasses import dataclass
-from typing import List, Tuple
-
 import numpy as np
+import pytest
 
-from metta.mettagrid.mettagrid_c import PackedCoordinate, dtype_actions
-from metta.mettagrid.test_support import EnvConfig
+from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
+from metta.mettagrid.test_support import TestEnvironmentBuilder, TokenTypes
 
-
-# Constants from C++ code
-@dataclass
-class TokenTypes:
-    # Observation features
-    TYPE_ID_FEATURE: int = 0
-    GROUP: int = 1
-    HP: int = 2
-    FROZEN: int = 3
-    ORIENTATION: int = 4
-    COLOR: int = 5
-    CONVERTING_OR_COOLING_DOWN: int = 6
-    SWAPPABLE: int = 7
-    EPISODE_COMPLETION_PCT: int = 8
-    LAST_ACTION: int = 9
-    LAST_ACTION_ARG: int = 10
-    LAST_REWARD: int = 11
-    GLYPH: int = 12
-
-    # Object type IDs
-    WALL_TYPE_ID: int = 1
+NUM_OBS_TOKENS = 50
 
 
-class ObservationHelper:
-    """Helper class for observation-related operations."""
-
-    @staticmethod
-    def find_tokens_at_location(obs: np.ndarray, x: int, y: int) -> np.ndarray:
-        """Find all tokens at a specific location."""
-        location = PackedCoordinate.pack(y, x)
-        return obs[obs[:, 0] == location]
-
-    @staticmethod
-    def find_tokens_by_type(obs: np.ndarray, type_id: int) -> np.ndarray:
-        """Find all tokens of a specific type."""
-        return obs[obs[:, 1] == type_id]
-
-    @staticmethod
-    def count_walls(obs: np.ndarray) -> int:
-        """Count the number of wall tokens in an observation."""
-        return np.sum(obs[:, 2] == TokenTypes.WALL_TYPE_ID)
-
-    @staticmethod
-    def get_wall_positions(obs: np.ndarray) -> List[Tuple[int, int]]:
-        """Get all wall positions from an observation."""
-        positions = []
-        wall_tokens = obs[obs[:, 2] == TokenTypes.WALL_TYPE_ID]
-        for token in wall_tokens:
-            coords = PackedCoordinate.unpack(token[0])
-            if coords:
-                row, col = coords
-                positions.append((col, row))  # Return as (x, y)
-        return positions
+@pytest.fixture
+def basic_env() -> MettaGrid:
+    """Create a basic test environment."""
+    builder = TestEnvironmentBuilder()
+    game_map = builder.create_basic_grid()
+    game_map = builder.place_agents(game_map, [(1, 1), (2, 4)])
+    return builder.create_environment(game_map, obs_width=3, obs_height=3, num_observation_tokens=NUM_OBS_TOKENS)
 
 
 class TestBasicFunctionality:
     """Test basic environment functionality."""
 
-    def test_environment_initialization(self, basic_env):
+    def test_environment_initialization(self, basic_env: MettaGrid):
         """Test basic environment properties."""
         assert basic_env.map_width == 8
         assert basic_env.map_height == 4
@@ -72,14 +27,15 @@ class TestBasicFunctionality:
         assert "noop" in basic_env.action_names()
 
         obs, info = basic_env.reset()
-        assert obs.shape == (EnvConfig.NUM_AGENTS, EnvConfig.NUM_OBS_TOKENS, EnvConfig.OBS_TOKEN_SIZE)
+
+        assert obs.shape == (basic_env.num_agents, NUM_OBS_TOKENS, TokenTypes.OBS_TOKEN_SIZE)
         assert isinstance(info, dict)
 
-    def test_grid_hash(self, basic_env):
+    def test_grid_hash(self, basic_env: MettaGrid):
         """Test grid hash consistency."""
         assert basic_env.initial_grid_hash == 9437127895318323250
 
-    def test_action_interface(self, basic_env):
+    def test_action_interface(self, basic_env: MettaGrid):
         """Test action interface and basic action execution."""
         basic_env.reset()
 
@@ -89,29 +45,29 @@ class TestBasicFunctionality:
         assert "rotate" in action_names
 
         noop_idx = action_names.index("noop")
-        actions = np.full((EnvConfig.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
+        actions = np.full((basic_env.num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
 
         obs, rewards, terminals, truncations, info = basic_env.step(actions)
 
         # Check shapes and types
-        assert obs.shape == (EnvConfig.NUM_AGENTS, EnvConfig.NUM_OBS_TOKENS, EnvConfig.OBS_TOKEN_SIZE)
-        assert rewards.shape == (EnvConfig.NUM_AGENTS,)
-        assert terminals.shape == (EnvConfig.NUM_AGENTS,)
-        assert truncations.shape == (EnvConfig.NUM_AGENTS,)
+        assert obs.shape == (basic_env.num_agents, NUM_OBS_TOKENS, TokenTypes.OBS_TOKEN_SIZE)
+        assert rewards.shape == (basic_env.num_agents,)
+        assert terminals.shape == (basic_env.num_agents,)
+        assert truncations.shape == (basic_env.num_agents,)
         assert isinstance(info, dict)
 
         # Action success should be boolean and per-agent
         action_success = basic_env.action_success()
-        assert len(action_success) == EnvConfig.NUM_AGENTS
+        assert len(action_success) == basic_env.num_agents
         assert all(isinstance(x, bool) for x in action_success)
 
-    def test_environment_state_consistency(self, basic_env):
+    def test_environment_state_consistency(self, basic_env: MettaGrid):
         """Test that environment state remains consistent across operations."""
         obs1, _ = basic_env.reset()
         initial_objects = basic_env.grid_objects()
 
         noop_idx = basic_env.action_names().index("noop")
-        actions = np.full((EnvConfig.NUM_AGENTS, 2), [noop_idx, 0], dtype=dtype_actions)
+        actions = np.full((basic_env.num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
 
         obs2, _, _, _, _ = basic_env.step(actions)
         post_step_objects = basic_env.grid_objects()
