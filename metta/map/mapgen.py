@@ -4,18 +4,29 @@ import numpy as np
 from omegaconf import DictConfig, OmegaConf
 from pydantic import model_validator
 
-from metta.common.util.config import Config
 from metta.map.scene import load_class, make_scene, scene_cfg_to_dict
 from metta.map.scenes.copy_grid import CopyGrid
 from metta.map.scenes.room_grid import RoomGrid, RoomGridParams
 from metta.map.scenes.transplant_scene import TransplantScene
-from metta.mettagrid.level_builder import Level, LevelBuilder, create_grid
+from metta.mettagrid.map_builder.map_builder import (
+    GameMap,
+)
+from metta.mettagrid.map_builder.map_builder import (
+    MapBuilder as GameMapBuilder,
+)
+from metta.mettagrid.map_builder.map_builder import (
+    MapBuilderConfig as GameMapBuilderConfig,
+)
+from metta.mettagrid.map_builder.utils import create_grid
 
 from .types import Area, AreaWhere, ChildrenAction, SceneCfg
 
 
-class MapGenParams(Config):
+class MapGenParams(GameMapBuilderConfig):
     ########## Global parameters ##########
+
+    # Discriminator field for polymorphic serialization
+    type: str = "metta.map.mapgen.MapGen"
 
     # Default border_width value guarantees that agents don't see beyond the outer walls.
     # This value usually shouldn't be changed.
@@ -40,7 +51,7 @@ class MapGenParams(Config):
     # Alternative to `root`: Root map configuration.
     # Either this or `root` must be set.
     # The difference is that `root` doesn't have an intrinsic size, so you need to set `width` and `height` explicitly.
-    # `instance_map` must point to a `LevelBuilder` configuration, with the class name specified in `type`, and params
+    # `instance_map` must point to a `GameMapBuilder` configuration, with the class name specified in `type`, and params
     # specified in `params` dict.
     instance_map: dict[str, Any] | None = None
 
@@ -79,9 +90,13 @@ class MapGenParams(Config):
 
         return self
 
+    def create(self) -> "MapGen":
+        """Create a MapGen builder from this configuration."""
+        return MapGen(**self.model_dump())
+
 
 # Root map generator, based on scenes.
-class MapGen(LevelBuilder):
+class MapGen(GameMapBuilder):
     def __init__(self, **kwargs):
         params = MapGenParams(**kwargs)
         self.params = params
@@ -166,8 +181,8 @@ class MapGen(LevelBuilder):
                 # We need to prerender it to find the full size of our grid.
                 instance_map_cls = load_class(self.params.instance_map["type"], check_is_scene=False)
                 instance_map = instance_map_cls(**self.params.instance_map["params"])
-                if not isinstance(instance_map, LevelBuilder):
-                    raise ValueError("instance_map must be a LevelBuilder")
+                if not isinstance(instance_map, GameMapBuilder):
+                    raise ValueError("instance_map must be a GameMapBuilder")
 
                 instance_level = instance_map.build()
                 instance_grid = instance_level.grid
@@ -314,7 +329,7 @@ class MapGen(LevelBuilder):
         else:
             labels.append("large")
 
-        return Level(self.grid, labels=labels)
+        return GameMap(self.grid)
 
     def get_scene_tree(self) -> dict:
         return self.root_scene.get_scene_tree()

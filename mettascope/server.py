@@ -2,6 +2,7 @@ import asyncio
 import logging
 import webbrowser
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch as th
@@ -9,12 +10,13 @@ import uvicorn
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
-from omegaconf import DictConfig
 
-import mettascope.replays as replays
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.mettagrid.grid_object_formatter import format_grid_object
-from metta.util.metta_script import metta_script
+from metta.sim.simulation import Simulation
+
+if TYPE_CHECKING:
+    from tools.play import PlayToolConfig
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -55,7 +57,7 @@ class CustomStaticFiles(StaticFiles):
         return response
 
 
-def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
+def clear_memory(sim: Simulation, what: str, agent_id: int) -> None:
     """Clear the memory of the policy."""
     policy_state = sim.get_policy_state()
 
@@ -74,7 +76,7 @@ def clear_memory(sim: replays.Simulation, what: str, agent_id: int) -> None:
         policy_state.lstm_h[:, agent_id, :].normal_(mean=0, std=1)
 
 
-def copy_memory(sim: replays.Simulation, agent_id: int) -> tuple[list[float], list[float]]:
+def copy_memory(sim: Simulation, agent_id: int) -> tuple[list[float], list[float]]:
     """Copy the memory of the policy."""
     policy_state = sim.get_policy_state()
     if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
@@ -87,7 +89,7 @@ def copy_memory(sim: replays.Simulation, agent_id: int) -> tuple[list[float], li
     return lstm_c.tolist(), lstm_h.tolist()
 
 
-def paste_memory(sim: replays.Simulation, agent_id: int, memory: tuple[list[float], list[float]]):
+def paste_memory(sim: Simulation, agent_id: int, memory: tuple[list[float], list[float]]):
     """Paste the memory of the policy."""
     policy_state = sim.get_policy_state()
     if policy_state is None or policy_state.lstm_c is None or policy_state.lstm_h is None:
@@ -99,7 +101,7 @@ def paste_memory(sim: replays.Simulation, agent_id: int, memory: tuple[list[floa
     policy_state.lstm_h[:, agent_id, :] = th.tensor(lstm_h)
 
 
-def make_app(cfg: DictConfig):
+def make_app(cfg: "PlayToolConfig"):
     app = FastAPI()
 
     @app.get("/", response_class=HTMLResponse)
@@ -155,7 +157,9 @@ def make_app(cfg: DictConfig):
         await send_message(type="message", message="Connecting!")
 
         # Create a simulation that we are going to play.
-        sim = replays.create_simulation(cfg)
+        from tools.play import create_simulation
+
+        sim = create_simulation(cfg)
         sim.start_simulation()
         env = sim.get_env()
         replay = sim.get_replay()
@@ -241,7 +245,7 @@ def make_app(cfg: DictConfig):
     return app
 
 
-def run(cfg: DictConfig, open_url: str | None = None):
+def run(cfg: "PlayToolConfig", open_url: str | None = None):
     app = make_app(cfg)
 
     if open_url:
@@ -252,6 +256,3 @@ def run(cfg: DictConfig, open_url: str | None = None):
             webbrowser.open(f"{server_url}{open_url}")
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
-metta_script(run, "replay_job")

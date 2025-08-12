@@ -6,6 +6,7 @@ import pytest
 import wandb
 from omegaconf import OmegaConf
 
+from metta.common.util.config import Config
 from metta.common.util.logging_helpers import init_logging
 from metta.common.wandb.wandb_context import WandbConfigOff, WandbConfigOn, WandbContext
 
@@ -86,19 +87,22 @@ def test_structured_config(monkeypatch, dummy_init):
 
 def test_run_fields(monkeypatch, dummy_init, tmp_path):
     # Prepare enabled config
-    cfg_on = OmegaConf.create(
-        dict(
-            enabled=True,
-            project="proj",
-            entity="ent",
-            group="grp",
-            name="nm",
-            run_id="id",
-            data_dir=str(tmp_path),
-            job_type="jt",
-        )
+    cfg_on = WandbConfigOn(
+        enabled=True,
+        project="proj",
+        entity="ent",
+        group="grp",
+        name="nm",
+        run_id="id",
+        data_dir=str(tmp_path),
+        job_type="jt",
     )
-    global_cfg = OmegaConf.create({"a": 1})
+
+    # Create a proper Config object for the global_cfg
+    class TestGlobalConfig(Config):
+        a: int = 1
+
+    global_cfg = TestGlobalConfig()
 
     ctx = WandbContext(cfg_on, global_cfg)
     run = ctx.__enter__()
@@ -111,7 +115,7 @@ def test_run_fields(monkeypatch, dummy_init, tmp_path):
     assert run.job_type == "jt"
     assert run.project == "proj"
     assert run.entity == "ent"
-    assert run.config == global_cfg
+    assert run.config == global_cfg.model_dump()
     assert run.group == "grp"
     assert run.name == "nm"
     assert run.resume is True
@@ -120,22 +124,26 @@ def test_run_fields(monkeypatch, dummy_init, tmp_path):
 
 
 def test_tags_and_notes(monkeypatch, dummy_init, tmp_path):
-    cfg_on = OmegaConf.create(
-        dict(
-            enabled=True,
-            project="p",
-            entity="e",
-            group="g",
-            name="n",
-            run_id="r",
-            data_dir=str(tmp_path),
-            job_type="j",
-            tags=["a", "b"],
-            notes="hello",
-        )
+    cfg_on = WandbConfigOn(
+        enabled=True,
+        project="p",
+        entity="e",
+        group="g",
+        name="n",
+        run_id="r",
+        data_dir=str(tmp_path),
+        job_type="j",
+        tags=["a", "b"],
+        notes="hello",
     )
 
-    ctx = WandbContext(cfg_on, OmegaConf.create({}))
+    # Create a proper Config object for the global_cfg
+    class TestGlobalConfig(Config):
+        a: int = 1
+
+    global_cfg = TestGlobalConfig()
+
+    ctx = WandbContext(cfg_on, global_cfg)
     run = ctx.__enter__()
 
     assert run is not None
@@ -165,7 +173,13 @@ def test_exit_finishes_run(monkeypatch, dummy_init, tmp_path):
 
     monkeypatch.setattr(wandb, "finish", fake_finish)
 
-    ctx = WandbContext(cfg_on, global_cfg=OmegaConf.create({}))
+    # Create a proper Config object for the global_cfg
+    class TestGlobalConfig(Config):
+        a: int = 1
+
+    global_cfg = TestGlobalConfig()
+
+    ctx = WandbContext(cfg_on, global_cfg=global_cfg)
     _ = ctx.__enter__()
     ctx.__exit__(None, None, None)
     assert finished, "wandb.finish should be called on exit"

@@ -1,9 +1,13 @@
-from typing import Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.config import Config
-from metta.mettagrid.level_builder import Level
+
+if TYPE_CHECKING:
+    from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.mettagrid.map_builder import MapBuilderConfigUnion
+from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 
 # ===== Python Configuration Models =====
 
@@ -132,18 +136,18 @@ class ActionsConfig(Config):
     Omitted actions are disabled by default.
     """
 
-    noop: Optional[ActionConfig] = None
-    move: Optional[ActionConfig] = None
-    move_8way: Optional[ActionConfig] = None
-    move_cardinal: Optional[ActionConfig] = None
-    rotate: Optional[ActionConfig] = None
-    put_items: Optional[ActionConfig] = None
-    place_box: Optional[ActionConfig] = None
-    get_items: Optional[ActionConfig] = None
-    attack: Optional[AttackActionConfig] = None
-    swap: Optional[ActionConfig] = None
-    change_color: Optional[ActionConfig] = None
-    change_glyph: Optional[ChangeGlyphActionConfig] = None
+    noop: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    move_8way: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    move_cardinal: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    place_box: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    get_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    attack: AttackActionConfig = Field(default_factory=lambda: AttackActionConfig(enabled=False))
+    swap: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    change_color: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    change_glyph: ChangeGlyphActionConfig = Field(default_factory=lambda: ChangeGlyphActionConfig(enabled=False))
 
 
 class GlobalObsConfig(Config):
@@ -222,7 +226,7 @@ class GameConfig(Config):
     groups: dict[str, GroupConfig] = Field(
         default_factory=lambda: {"agent": GroupConfig(id=0, sprite=0, props=AgentConfig())}, min_length=1
     )
-    actions: ActionsConfig = Field(default_factory=ActionsConfig)
+    actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     recipe_details_obs: bool = Field(default=False)
     objects: dict[str, ConverterConfig | WallConfig | BoxConfig] = Field(default_factory=dict)
@@ -231,9 +235,7 @@ class GameConfig(Config):
     # and other parts of the template can read from there.
     params: Optional[Any] = None
 
-    # Level map - should be provided by CurriculumEnvWrapper or created directly
-    level_map: Optional[Level] = None
-    map_builder: Optional[Any] = None
+    map_builder: MapBuilderConfigUnion = RandomMapBuilderConfig(agents=24)
 
     # Movement metrics configuration
     track_movement_metrics: bool = Field(
@@ -253,3 +255,31 @@ class EnvConfig(Config):
     @model_validator(mode="after")
     def validate_fields(self) -> "EnvConfig":
         return self
+
+    def to_curriculum_cfg(self) -> "CurriculumConfig":
+        from metta.cogworks.curriculum.curriculum import CurriculumConfig
+        from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig
+
+        return CurriculumConfig(
+            task_generator=SingleTaskGeneratorConfig(env=self),
+        )
+
+    def to_curriculum(self):
+        from metta.cogworks.curriculum.curriculum import Curriculum
+
+        return Curriculum(self.to_curriculum_cfg())
+
+    @staticmethod
+    def EmptyRoom(num_agents: int, width: int = 10, height: int = 10, border_width: int = 1) -> "EnvConfig":
+        """Create an empty room environment configuration."""
+        map_builder = RandomMapBuilderConfig(agents=num_agents, width=width, height=height, border_width=border_width)
+        actions = ActionsConfig(
+            move_8way=ActionConfig(),
+            rotate=ActionConfig(),
+        )
+        objects = {}
+        if border_width > 0:
+            objects["wall"] = WallConfig(type_id=1, swappable=False)
+        return EnvConfig(
+            game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
+        )

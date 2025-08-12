@@ -65,6 +65,7 @@ dependencies = [
   "marimo>=0.14.16",
   "altair>=5.5.0",
   "pyarrow>=21.0.0",
+  "typer>=0.16.0",
 ]
 name = "metta"
 version = "0.1"
