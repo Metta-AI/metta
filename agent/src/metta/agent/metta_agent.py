@@ -62,6 +62,17 @@ class MettaAgent(nn.Module):
         if isinstance(self.policy, ComponentPolicy):
             return self.policy.forward(td, action)
 
+        # For non-ComponentPolicy policies, we need to set up BPTT fields
+        # that they expect
+        if hasattr(td, "batch_dims") and hasattr(td, "batch_size"):
+            td.bptt = 1
+            td.batch = td.batch_size.numel()
+            if td.batch_dims > 1:
+                B = td.batch_size[0]
+                TT = td.batch_size[1]
+                td.bptt = TT
+                td.batch = B
+
         return self.policy(td, state, action)
 
     def initialize_to_environment(
