@@ -6,7 +6,6 @@ import torch
 from omegaconf import DictConfig
 
 from metta.agent.metta_agent import MettaAgent
-from metta.agent.metta_agent_builder import MettaAgentBuilder
 from metta.common.util.instantiate import instantiate
 from metta.rl.system_config import SystemConfig
 
@@ -66,5 +65,4 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[Di
 
     system_cfg = SystemConfig(device=device)
 
-    builder = MettaAgentBuilder(env, system_cfg, pytorch_cfg)
-    return builder.build(policy)
+    return MettaAgent(env, system_cfg, pytorch_cfg, policy=policy)

@@ -1,12 +1,18 @@
 import logging
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Optional
 
 import gymnasium as gym
+import numpy as np
 import torch
+from omegaconf import DictConfig
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
+
+from metta.agent.component_policy import ComponentPolicy
+from metta.agent.pytorch.agent_mapper import agent_classes
+from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
 
@@ -43,30 +49,60 @@ class DistributedMettaAgent(DistributedDataParallel):
 class MettaAgent(nn.Module):
     def __init__(
         self,
-        obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
-        obs_width: int,
-        obs_height: int,
-        action_space: gym.spaces.Space,
-        feature_normalizations: dict[int, float],
-        device: str,
-        cfg,
-        policy,
+        env,
+        system_cfg: SystemConfig,
+        agent_cfg: DictConfig,
+        policy: Optional[nn.Module] = None,
     ):
         super().__init__()
-        self.cfg = cfg
-        self.device = device
+        self.cfg = agent_cfg
+        self.device = system_cfg.device
+
+        # Create observation space
+        self.obs_space = gym.spaces.Dict(
+            {
+                "grid_obs": env.single_observation_space,
+                "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(0,), dtype=np.int32),
+            }
+        )
+
+        self.obs_width = env.obs_width
+        self.obs_height = env.obs_height
+        self.action_space = env.single_action_space
+        self.feature_normalizations = env.feature_normalizations
+
+        # Create policy if not provided
+        if policy is None:
+            policy = self._create_policy(agent_cfg, env, system_cfg)
+
         self.policy = policy
         if self.policy is not None:
             self.policy.device = self.device
 
-        self.obs_space = obs_space
-        self.obs_width = obs_width
-        self.obs_height = obs_height
-        self.action_space = action_space
-        self.feature_normalizations = feature_normalizations
-
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
+
+    def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
+        """Create the appropriate policy based on configuration."""
+        if agent_cfg.get("agent_type") in agent_classes:
+            # Create PyTorch policy
+            AgentClass = agent_classes[agent_cfg.agent_type]
+            policy = AgentClass(env=env)
+            logger.info(f"Using PyTorch Policy: {policy} (type: {agent_cfg.agent_type})")
+        else:
+            # Create ComponentPolicy (YAML config)
+            policy = ComponentPolicy(
+                obs_space=self.obs_space,
+                obs_width=self.obs_width,
+                obs_height=self.obs_height,
+                action_space=self.action_space,
+                feature_normalizations=self.feature_normalizations,
+                device=system_cfg.device,
+                cfg=agent_cfg,
+            )
+            logger.info(f"Using ComponentPolicy: {type(policy).__name__}")
+
+        return policy
 
     def set_policy(self, policy):
         """Set the agent's policy."""
