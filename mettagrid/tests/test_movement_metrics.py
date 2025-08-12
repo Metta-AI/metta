@@ -1,38 +1,57 @@
 #!/usr/bin/env python3
+"""Test script to verify movement metrics appear in the info dict."""
+
 import numpy as np
-from omegaconf import OmegaConf
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    AttackActionConfig,
+    EnvConfig,
+    GameConfig,
+    GroupConfig,
+    WallConfig,
+)
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.util.hydra import get_cfg
+from metta.mettagrid.utils import make_level_map
 
 
-def test_movement_metrics():
-    """Test that movement metrics are correctly tracked"""
+def test_movement_metrics_info_dict():
+    """Test that movement metrics appear in info dict when episode ends."""
 
-    # Get the benchmark config and modify it
-    cfg = get_cfg("benchmark")
+    # Create a random level map
+    level_map = make_level_map(width=7, height=7, num_agents=1, border_width=1, seed=42)
 
-    # Simplify config for testing
-    cfg.game.num_agents = 1
-    cfg.game.max_steps = 100
-    cfg.game.episode_truncates = True
-    cfg.game.track_movement_metrics = True  # Enable movement metrics
-
-    # Create a simple level with one agent
-    cfg.game.map_builder = OmegaConf.create(
-        {
-            "_target_": "metta.mettagrid.room.random.Random",
-            "width": 5,
-            "height": 5,
-            "objects": {},
-            "agents": 1,
-            "border_width": 1,
-        }
+    actions_config = ActionsConfig(
+        noop=ActionConfig(),
+        move=ActionConfig(),
+        rotate=ActionConfig(),
+        put_items=ActionConfig(),
+        get_items=ActionConfig(),
+        attack=AttackActionConfig(),
+        swap=ActionConfig(),
     )
-    # Create curriculum and environment
-    curriculum = SingleTaskCurriculum("test", cfg)
-    env = MettaGridEnv(curriculum, render_mode=None)
+
+    game_config = GameConfig(
+        num_agents=1,
+        max_steps=20,
+        episode_truncates=True,
+        track_movement_metrics=True,
+        obs_width=11,
+        obs_height=11,
+        num_observation_tokens=200,
+        agent=AgentConfig(),
+        groups={"agent": GroupConfig(id=0)},
+        actions=actions_config,
+        objects={"wall": WallConfig(type_id=1, swappable=False)},
+        level_map=level_map,
+    )
+
+    env_config = EnvConfig(game=game_config, desync_episodes=True)
+
+    # Create environment
+    env = MettaGridEnv(env_config, render_mode=None)
 
     obs, _ = env.reset()
 
@@ -42,98 +61,77 @@ def test_movement_metrics():
     move_idx = action_names.index("move") if "move" in action_names else None
     noop_idx = action_names.index("noop") if "noop" in action_names else None
 
-    if rotate_idx is None or move_idx is None:
-        print(f"ERROR: Required actions not available. rotate: {rotate_idx}, move: {move_idx}")
-        return
-
-    print("Testing refactored movement metrics...")
+    print("Testing movement metrics in info dict...")
     print(f"Action indices - Rotate: {rotate_idx}, Move: {move_idx}, Noop: {noop_idx}")
 
-    # Test sequence to verify movement metrics:
-    # 1. Movement directions: track when agent actually moves in each direction
-    # 2. Sequential rotations: noop doesn't break the sequence
+    # Execute some movements
+    episode_ended = False
+    info_dict = None
 
-    # Expected behavior:
-    # - Move forward (should track movement.direction based on orientation)
-    # - Rotate, noop, noop, rotate, noop, rotate, move
-    #   Should count as 2 sequential rotations (only rotations that follow another rotation)
+    for step in range(25):  # Run past max_steps to force truncation
+        if step < 10:
+            # Do some movements and rotations
+            if step % 3 == 0:
+                action = move_idx
+            elif step % 3 == 1:
+                action = rotate_idx
+            else:
+                action = noop_idx
+            arg = step % 2
+        else:
+            action = noop_idx
+            arg = 0
 
-    actions_sequence = [
-        [move_idx, 0],  # Move forward (direction depends on initial orientation)
-        [rotate_idx, 1],  # Rotate to Down - start sequence
-        [noop_idx, 0],  # Noop - doesn't break sequence
-        [noop_idx, 0],  # Noop - doesn't break sequence
-        [rotate_idx, 0],  # Rotate to Up - continue sequence
-        [noop_idx, 0],  # Noop - doesn't break sequence
-        [rotate_idx, 2],  # Rotate to Left - continue sequence
-        [move_idx, 0],  # Move forward (left) - breaks sequence, tracks direction
-        [move_idx, 1],  # Move backward (right) - tracks direction
-    ]
-
-    for i, (action, arg) in enumerate(actions_sequence):
         actions = np.array([[action, arg]], dtype=np.int32)
         obs, rewards, terminals, truncations, info = env.step(actions)
 
-        print(f"\nStep {i + 1}: action={action_names[action] if action < len(action_names) else 'invalid'}, arg={arg}")
-        print(f"  Action success: {env.action_success}")
-
-        # Check if episode ended
         if terminals.any() or truncations.any():
-            stats = info.get("agent", {})
-            print_results(stats, early_end=True, step=i + 1)
-            return
-
-    # Force episode end to get final stats
-    print("\nForcing episode end to collect final stats...")
-    for _step in range(env.max_steps):
-        actions = np.array([[noop_idx or 0, 0]], dtype=np.int32)
-        obs, rewards, terminals, truncations, info = env.step(actions)
-        if terminals.any() or truncations.any():
+            episode_ended = True
+            info_dict = info
+            print(f"Episode ended at step {step + 1}")
             break
 
-    # Print final stats
-    stats = info.get("agent", {})
-    print_results(stats)
+    if not episode_ended:
+        print("ERROR: Episode did not end!")
+        return
 
+    # Check info dict structure
+    print("\nInfo dict keys:", list(info_dict.keys()))
 
-def print_results(stats, early_end=False, step=None):
-    """Print the movement metrics results."""
-    if early_end:
-        print(f"\nEpisode ended early at step {step}")
+    # Look for agent stats
+    if "agent" in info_dict:
+        agent_stats = info_dict["agent"]
+        print("\nAgent stats keys:", list(agent_stats.keys())[:20], "...")  # First 20 keys
 
-    print("\n" + "=" * 60)
-    print("MOVEMENT METRICS RESULTS (REFACTORED)")
-    print("=" * 60)
-
-    # Movement direction counts
-    print("\nMovement direction counts:")
-    print("(Number of successful moves in each direction)")
-    total_moves = 0
-    for direction in ["up", "down", "left", "right"]:
-        key = f"movement.direction.{direction}"
-        value = stats.get(key, 0)
-        total_moves += value
-        if value > 0:
+        # Look for movement metrics
+        movement_metrics = {k: v for k, v in agent_stats.items() if "movement" in k}
+        print("\nMovement metrics found in info['agent']:")
+        for key, value in sorted(movement_metrics.items()):
             print(f"  {key}: {value}")
-    print(f"  Total moves: {total_moves}")
 
-    # Sequential rotation behavior
-    print("\nSequential rotation behavior:")
-    print("(Sum of all sequential rotation sequence lengths)")
-    key = "movement.sequential_rotations"
-    value = stats.get(key, 0)
-    print(f"  {key}: {value}")
-    print("  Expected: 2 (rotations that follow another rotation, ignoring the first)")
+        # Also check for them with different patterns
+        print("\nAll keys containing 'direction':")
+        direction_keys = [k for k in agent_stats.keys() if "direction" in k]
+        for key in direction_keys:
+            print(f"  {key}: {agent_stats[key]}")
 
-    # Show existing action metrics for comparison
-    print("\nExisting action metrics (for comparison):")
-    for action_type in ["rotate", "move", "noop"]:
-        for result in ["success", "failed"]:
-            key = f"action.{action_type}.{result}"
-            value = stats.get(key, 0)
-            if value > 0:
-                print(f"  {key}: {value}")
+        print("\nAll keys containing 'sequential':")
+        sequential_keys = [k for k in agent_stats.keys() if "sequential" in k]
+        for key in sequential_keys:
+            print(f"  {key}: {agent_stats[key]}")
+    else:
+        print("\nERROR: No 'agent' key in info dict!")
+
+    # Also check if they appear at top level or under other keys
+    print("\nChecking other locations in info dict...")
+    for key, value in info_dict.items():
+        if isinstance(value, dict):
+            movement_in_subdict = {k: v for k, v in value.items() if "movement" in str(k)}
+            if movement_in_subdict:
+                print(f"\nMovement metrics found in info['{key}']:")
+                for k, v in movement_in_subdict.items():
+                    print(f"  {k}: {v}")
 
 
 if __name__ == "__main__":
-    test_movement_metrics()
+    test_movement_metrics_info_dict()

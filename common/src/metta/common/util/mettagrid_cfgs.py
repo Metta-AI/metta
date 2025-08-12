@@ -7,8 +7,8 @@ import yaml
 from omegaconf import DictConfig, OmegaConf
 from typing_extensions import TypedDict
 
+from cogworks.curriculum.util import curriculum_from_config_path
 from metta.common.util.config import config_from_path
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
 
 METTAGRID_CFG_ROOT = "env/mettagrid"
 

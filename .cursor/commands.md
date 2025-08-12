@@ -107,10 +107,10 @@ grep -r "agent_raw" train_dir/test_$TEST_ID/wandb || echo "✓ No agent_raw metr
 
 ```bash
 # Interactive simulation for manual testing and exploration
-uv run ./tools/play.py run=my_experiment wandb=off
+uv run ./tools/play.py
 
 # Interactive play with specific policy
-uv run ./tools/play.py run=play_$TEST_ID policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
+uv run ./tools/play.py --policy-uri file://./train_dir/test_$TEST_ID/checkpoints
 ```
 
 ## Navigation Evaluation Database

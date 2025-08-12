@@ -5,10 +5,11 @@ import pufferlib
 import pufferlib.vector
 from pydantic import validate_call
 
+from cogworks.curriculum.core import Curriculum
+from cogworks.curriculum.curriculum_env import CurriculumEnvWrapper
 from metta.common.util.logging_helpers import init_logging
 from metta.common.util.resolvers import register_resolvers
 from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 
@@ -32,9 +33,14 @@ def make_env_func(
         register_resolvers()
         init_logging(run_dir=run_dir)
 
-    # Create the environment instance
-    env = MettaGridEnv(
-        curriculum,
+    # Get an env_config from the curriculum to create the base environment
+    # Use a fixed seed for consistent initialization
+    initial_task = curriculum.get_task(42)
+    env_config = initial_task.get_env_config()
+
+    # Create the base environment instance with env_config
+    base_env = MettaGridEnv(
+        env_config,
         render_mode=render_mode,
         buf=buf,
         stats_writer=stats_writer,
@@ -42,6 +48,9 @@ def make_env_func(
         is_training=is_training,
         **kwargs,
     )
+
+    # Wrap with curriculum functionality
+    env = CurriculumEnvWrapper(base_env, curriculum)
     # Ensure the environment is properly initialized
     if hasattr(env, "_c_env") and env._c_env is None:
         raise ValueError("MettaGridEnv._c_env is None after hydra instantiation")

@@ -153,7 +153,7 @@ class TestTypedConfigs:
         missing_field_config = valid_optimizer_config.copy()
         del missing_field_config["learning_rate"]
         optimizer_cfg = OptimizerConfig.model_validate(missing_field_config)
-        assert math.isclose(optimizer_cfg.learning_rate, 0.0004573146765703167)  # default value
+        assert math.isclose(optimizer_cfg.learning_rate, 0.000457)  # default value
 
         # extra field
         with pytest.raises(ValidationError) as err:

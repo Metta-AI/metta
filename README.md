@@ -230,17 +230,19 @@ For more information, see [./mettascope/README.md](./mettascope/README.md).
 #### Run the interactive simulation
 
 ```bash
-./tools/play.py run=<name> [options]
+./tools/play.py [options]
 ```
 
 Arguments:
 
-- `run=<name>` - **Required**. Experiment identifier
-- `policy_uri=<path>` - Specify the policy the models follow when not manually controller with a model checkpoint (`.pt`
-  file).
+- `--config <config_path>` - Optional. Path to YAML configuration file to override defaults
+- `--policy-uri <path>` - Policy URI to specify the policy the models follow when not manually controlled with a model checkpoint (`.pt` file).
   - For local files, supply the path: `./train_dir/<run_name>/checkpoints/<checkpoint_name>.pt`. These checkpoint files
     are created during training
   - For wandb artifacts, prefix with `wandb://`
+- `--no-browser` - Don't open browser automatically
+- `--device <device>` - Device to use (cpu/cuda)
+- `--env <path>` - Environment config path
 
 ### Run the terminal simulation
 

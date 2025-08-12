@@ -10,7 +10,7 @@ from metta.map.scenes.copy_grid import CopyGrid
 from metta.map.scenes.room_grid import RoomGrid, RoomGridParams
 from metta.map.scenes.transplant_scene import TransplantScene
 from metta.map.types import MapGrid
-from metta.mettagrid.level_builder import Level, LevelBuilder
+from metta.mettagrid.level_builder import LevelBuilder, LevelMap
 
 from .types import Area, AreaWhere, ChildrenAction, SceneCfg
 
@@ -319,7 +319,7 @@ class MapGen(LevelBuilder):
         else:
             labels.append("large")
 
-        return Level(self.grid, labels=labels)
+        return LevelMap(self.grid, labels=labels)
 
     def get_scene_tree(self) -> dict:
         return self.root_scene.get_scene_tree()

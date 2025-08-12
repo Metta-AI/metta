@@ -6,11 +6,11 @@ import numpy.typing as npt
 
 
 @dataclass
-class Level:
+class LevelMap:
     """
-    Represents a level in the MettaGrid game.
+    Represents a level map in the MettaGrid game.
 
-    Note: this is intentionally called "Level" instead of "Map" because `map` is a reserved word in Python.
+    Note: this is called "LevelMap" instead of just "Map" because `map` is a reserved word in Python.
     """
 
     # Two-dimensional grid of strings.
@@ -34,4 +34,4 @@ class LevelBuilder(ABC):
     """
 
     @abstractmethod
-    def build(self) -> Level: ...
+    def build(self) -> LevelMap: ...

@@ -5,7 +5,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.map.scene import make_scene
 from metta.map.utils.storable_map import StorableMap
-from metta.mettagrid.level_builder import Level
+from metta.mettagrid.level_builder import LevelMap
 from metta.mettagrid.room.room import Room
 
 from .types import Area, SceneCfg
@@ -41,4 +41,4 @@ class Load(Room):
             root_scene = make_scene(self._extra_root, area, rng=np.random.default_rng())
             root_scene.render_with_children()
 
-        return Level(grid=grid, labels=[])
+        return LevelMap(grid=grid, labels=[])

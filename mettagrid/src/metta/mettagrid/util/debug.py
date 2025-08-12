@@ -1,3 +1,4 @@
+import datetime
 import json
 import pickle
 from pathlib import Path
@@ -5,6 +6,8 @@ from typing import Any, Dict, Optional, Set
 
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
+
+from metta.mettagrid.mettagrid_config import EnvConfig
 
 # Track objects we've already seen to prevent infinite recursion
 _seen_objects: Set[int] = set()
@@ -106,8 +109,6 @@ def save_args_for_c(
     Returns:
         dict: Paths to the saved files
     """
-    import datetime
-
     if output_dir is None:
         output_dir = "."
 
@@ -242,7 +243,7 @@ def save_args_for_c(
 
 
 def save_mettagrid_args(
-    env_cfg: DictConfig,
+    env_cfg: EnvConfig,
     env_map: np.ndarray,
     base_filename: str = "mettagrid_test_args",
     output_dir: Optional[str] = "./test_data",

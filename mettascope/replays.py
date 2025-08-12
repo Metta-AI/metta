@@ -20,8 +20,18 @@ logger = logging.getLogger(__name__)
 def create_simulation(cfg):
     logger.info(f"Replaying {cfg.run}")
 
-    # Create env config
-    env_cfg = create_env_config(cfg)
+    # Create env config - use default if no specific env provided
+    if hasattr(cfg.replay_job, "env") and cfg.replay_job.env:
+        # If env path is provided, create from that
+        from omegaconf import OmegaConf
+
+        env_cfg_dict = OmegaConf.load(cfg.replay_job.env)
+        env_cfg = create_env_config(env_cfg_dict)
+    else:
+        # Use default env config for basic play session
+        from metta.rl.env_config import EnvConfig
+
+        env_cfg = EnvConfig(device=cfg.replay_job.device)
 
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = get_policy_store_from_cfg(cfg, wandb_run)

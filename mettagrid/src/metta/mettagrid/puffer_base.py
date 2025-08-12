@@ -23,13 +23,10 @@ from __future__ import annotations
 from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
-from omegaconf import OmegaConf
 from pufferlib import PufferEnv
 from typing_extensions import override
 
 from metta.mettagrid.core import MettaGridCore
-from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.level_builder import Level
 from metta.mettagrid.mettagrid_c import (
     dtype_actions,
     dtype_observations,
@@ -37,6 +34,7 @@ from metta.mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
+from metta.mettagrid.mettagrid_config import EnvConfig
 
 # Type compatibility assertions - ensure C++ types match PufferLib expectations
 # PufferLib expects particular datatypes - see pufferlib/vector.py
@@ -63,9 +61,8 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
 
     def __init__(
         self,
-        curriculum: Curriculum,
+        env_config: EnvConfig,
         render_mode: Optional[str] = None,
-        level: Optional[Level] = None,
         buf: Optional[Any] = None,
         **kwargs: Any,
     ):
@@ -73,33 +70,18 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         Initialize PufferLib base environment.
 
         Args:
-            curriculum: Curriculum for task management
+            env_config: Environment configuration
             render_mode: Rendering mode
-            level: Optional pre-built level
             buf: PufferLib buffer object
             **kwargs: Additional arguments
         """
-        # Store curriculum
-        self._curriculum = curriculum
-        self._task = curriculum.get_task()
+        # Store environment config
+        self._env_config = env_config
 
-        # Get level from curriculum if not provided
-        if level is None:
-            level = self._task.env_cfg().game.map_builder.build()
-
-        # Ensure we have a level
-        assert level is not None, "Level must be provided or generated from curriculum"
-
-        # Get game config for core initialization
-        task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
-        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
-
-        # Initialize core environment
+        # Initialize core environment with env_cfg as first positional argument
         MettaGridCore.__init__(
             self,
-            level=level,
-            game_config_dict=game_config_dict,
+            env_cfg=env_config,
             render_mode=render_mode,
             **kwargs,
         )
@@ -137,14 +119,8 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         Returns:
             Initial observations array
         """
-        # Get task config for reset
-        assert self._task is not None, "Task not set"
-        task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
-        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
-
         # Reset the environment to get initial observations
-        observations, _ = super().reset(game_config_dict)
+        observations, _ = super().reset(self._env_config)
         return observations
 
     @override
@@ -158,14 +134,7 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         Returns:
             Tuple of (observations, info)
         """
-        # Get new task from curriculum and its config
-        assert self._curriculum is not None, "Curriculum not set"
-        self._task = self._curriculum.get_task()
-        task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
-        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
-
-        return super().reset(game_config_dict, seed)
+        return super().reset(self._env_config, seed)
 
     @override
     def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
