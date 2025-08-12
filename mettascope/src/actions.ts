@@ -15,7 +15,7 @@ function pushComboKey(key: 'w' | 'a' | 's' | 'd') {
   comboTimer = window.setTimeout(() => flushComboIfAny(), COMBO_WINDOW_MS)
 }
 
-// flush the combo if any keys are pressed.
+// Flush the combo if any keys are pressed.
 function flushComboIfAny() {
   if (comboTimer != null) {
     window.clearTimeout(comboTimer)
