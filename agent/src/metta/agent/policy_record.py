@@ -26,7 +26,7 @@ class PolicyRecord:
         self.uri: str | None = uri
         # Use the setter to ensure proper type
         self.metadata = metadata
-        self._cached_policy: "PolicyAgent | None" = None
+        self._cached_policy_value: "PolicyAgent | None" = None
 
     def extract_wandb_run_info(self) -> tuple[str, str, str, str | None]:
         if self.uri is None or not self.uri.startswith("wandb://"):
@@ -89,6 +89,17 @@ class PolicyRecord:
             self._metadata = PolicyMetadata(**value)
         else:
             raise TypeError(f"metadata must be PolicyMetadata or dict, got {type(value).__name__}")
+
+    @property
+    def _cached_policy(self) -> "PolicyAgent | None":
+        """Get the cached policy."""
+        return self._cached_policy_value
+
+    @_cached_policy.setter
+    def _cached_policy(self, value: "PolicyAgent | None") -> None:
+        """Set the cached policy."""
+        print(f"Setting cached policy to {value}")
+        self._cached_policy_value = value
 
     @property
     def file_path(self) -> str:
@@ -165,6 +176,7 @@ class PolicyRecord:
         policy = None
         if self._cached_policy is None:
             try:
+                print(f"Loading policy for {self.run_name} in repr")
                 policy = self.policy
             except Exception as e:
                 lines.append(f"Error loading policy: {str(e)}")

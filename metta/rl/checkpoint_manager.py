@@ -205,8 +205,7 @@ class CheckpointManager:
         default_model_name = self.policy_store.make_model_name(0, self.model_suffix())
         default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, default_model_name)
 
-        # First priority: checkpoint
-        policy_record: PolicyRecord | None = None
+        # First priority: checkpoin        policy_record: PolicyRecord | None = None
         policy_path: str | None = (
             (checkpoint and checkpoint.policy_path)
             or (trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri)
@@ -220,8 +219,19 @@ class CheckpointManager:
             new_policy_record = self.policy_store.create_empty_policy_record(
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
-            new_policy_record.policy = make_policy(metta_grid_env, env_cfg, agent_cfg)
+            policy = new_policy_record.policy = make_policy(metta_grid_env, env_cfg, agent_cfg)
             policy_record = self.policy_store.save(new_policy_record, self.checkpoint_cfg.checkpoint_file_type)
+
+            # this next line is a hack. the issue is that the _cached_policy is set to None by the
+            # call to policy_store.save. because it's not pickled in the safetensors file, we have lost it at that point
+            # and have to recreate it. it's a bit convoluted, but I am sending a factory function in to the policy store
+            # to recreate the policy record recreating. HOWEVER, the only place in the code where we create policy
+            # records is this code, which removes the cached_policy. so we end up in recursion. need a better way.
+            #
+            # also note that currently policy_record._cached_policy can be set in repr(), which made debugging
+            # pretty confusing, and makes behavior during debugging potentially different from not running in debugger.
+            policy_record._cached_policy = policy
+
             logger.info(f"Created and saved new policy to {policy_record.uri}")
 
         elif torch.distributed.is_initialized():

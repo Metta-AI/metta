@@ -77,6 +77,70 @@ _local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
 
 
+class PolicyInitializer:
+    def __init__(
+        self,
+        checkpoint_manager: CheckpointManager,
+        agent_cfg: DictConfig,
+        env_cfg: EnvConfig,
+        trainer_cfg: TrainerConfig,
+        checkpoint: TrainerCheckpoint | None,
+        metta_grid_env: MettaGridEnv,
+        device: torch.device,
+    ):
+        self.checkpoint_manager = checkpoint_manager
+        self.agent_cfg = agent_cfg
+        self.env_cfg = env_cfg
+        self.trainer_cfg = trainer_cfg
+        self.checkpoint = checkpoint
+        self.metta_grid_env = metta_grid_env
+        self.device = device
+
+    def get_blank_policy(self):
+        pr, __, _ = self.get_initial_policy()
+        return pr
+
+    def get_initial_policy(self):
+        import torch
+
+        # Load or initialize policy
+        initial_policy_record = latest_saved_policy_record = self.checkpoint_manager.load_or_create_policy(
+            agent_cfg=self.agent_cfg,
+            env_cfg=self.env_cfg,
+            trainer_cfg=self.trainer_cfg,
+            checkpoint=self.checkpoint,
+            metta_grid_env=self.metta_grid_env,
+        )
+
+        # Barrier before compile step
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+
+        policy: PolicyAgent = latest_saved_policy_record.policy
+
+        # Optional compile step
+        if self.trainer_cfg.compile:
+            logger.info("Compiling policy")
+            policy = cast(PolicyAgent, torch.compile(policy, mode=self.trainer_cfg.compile_mode))
+
+        # Wrap in DDP if distributed
+        if torch.distributed.is_initialized():
+            logger.info(f"Initializing DistributedDataParallel on device {self.device}")
+            torch.distributed.barrier()
+            policy = wrap_agent_distributed(policy, self.device)
+            torch.distributed.barrier()
+
+        # Initialize policy for environment after wrapping
+        initialize_policy_for_environment(
+            policy_record=latest_saved_policy_record,
+            metta_grid_env=self.metta_grid_env,
+            device=self.device,
+            restore_feature_mapping=True,
+        )
+
+        return initial_policy_record, latest_saved_policy_record, policy
+
+
 def train(
     run_dir: str,
     run: str,
@@ -156,41 +220,20 @@ def train(
         if checkpoint.stopwatch_state is not None:
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-    # Load or initialize policy with distributed coordination
-    initial_policy_record = latest_saved_policy_record = checkpoint_manager.load_or_create_policy(
+    # Load or initialize policy via TrainerInitializer
+    initializer = PolicyInitializer(
+        checkpoint_manager=checkpoint_manager,
         agent_cfg=agent_cfg,
         env_cfg=env_cfg,
         trainer_cfg=trainer_cfg,
         checkpoint=checkpoint,
         metta_grid_env=metta_grid_env,
-    )
-
-    # Don't proceed until all ranks have the policy
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
-
-    policy: PolicyAgent = latest_saved_policy_record.policy
-
-    if trainer_cfg.compile:
-        logger.info("Compiling policy")
-        # torch.compile gives a CallbackFunctionType, but it preserves the interface of the original policy
-        policy = cast(PolicyAgent, torch.compile(policy, mode=trainer_cfg.compile_mode))
-
-    # Wrap in DDP if distributed
-    if torch.distributed.is_initialized():
-        logger.info(f"Initializing DistributedDataParallel on device {device}")
-        torch.distributed.barrier()
-        policy = wrap_agent_distributed(policy, device)
-        torch.distributed.barrier()
-
-    # Initialize policy to environment after distributed wrapping
-    # This must happen after wrapping to ensure all ranks do it at the same time
-    initialize_policy_for_environment(
-        policy_record=latest_saved_policy_record,
-        metta_grid_env=metta_grid_env,
         device=device,
-        restore_feature_mapping=True,
     )
+
+    # warning - spaghetti code
+    policy_store.agent_factory = initializer.get_blank_policy
+    initial_policy_record, latest_saved_policy_record, policy = initializer.get_initial_policy()
 
     # Create kickstarter
     kickstarter = Kickstarter(

@@ -16,6 +16,7 @@ import random
 import sys
 from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 import torch
 import wandb
@@ -66,6 +67,7 @@ class PolicyStore:
         self._wandb_run: WandbRun | None = wandb_run
         self._cached_prs = PolicyCache(max_size=policy_cache_size)
         self._made_codebase_backwards_compatible = False
+        self.agent_factory = None
 
     def policy_record(
         self,
@@ -493,17 +495,28 @@ class PolicyStore:
 
         return pr
 
+    def checkpoint_name(self, url: str) -> str:
+        path = urlparse(url).path  # "/path/to/file.txt"
+        filename = os.path.basename(path)  # "file.txt"
+        name, _ = os.path.splitext(filename)  # ("file", ".txt")
+        return name
+
+    def base_path(self, url: str) -> str:
+        parsed = urlparse(url)
+        # Remove the last segment from the path
+        path = parsed.path.rsplit("/", 1)[0]
+        return parsed._replace(path=path).geturl()
+
     def _load_from_safetensorsfile(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a PolicyRecord from safetensors format with YAML metadata sidecar."""
+        path = str(Path(path))
         cached_pr = self._cached_prs.get(path)
         if cached_pr is not None:
             if metadata_only or cached_pr._cached_policy is not None:
                 return cached_pr
 
-        # For safetensors files, we need to load metadata from YAML and create a proper PolicyRecord
-        # This is handled by the _load_from_safetensorsfile method in the policy_store
-        # For now, create a basic PolicyRecord and let the caller handle the full loading
-        pr = PolicyRecord(self, os.path.basename(path), "file://" + path, PolicyMetadata())
+        pr = self.agent_factory()
+        policy_metadata_yaml_helper.restore_agent(pr.policy, self.checkpoint_name(path), Path(self.base_path(path)))
 
         self._cached_prs.put(path, pr)
         return pr

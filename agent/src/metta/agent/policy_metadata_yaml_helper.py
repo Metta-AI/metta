@@ -15,7 +15,7 @@ import yaml
 from gymnasium.spaces import MultiDiscrete
 from safetensors.torch import save_file  # type: ignore
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent, PytorchAgent
+from metta.agent.metta_agent import DistributedMettaAgent, PolicyAgent
 from metta.agent.policy_record import PolicyRecord
 
 # Module-level initialization flag
@@ -45,7 +45,7 @@ def save_policy(policy_record: PolicyRecord, checkpoint_name: str, base_path: Pa
     """Save policy record with sidecar pattern"""
     init_yaml_serializers()  # Ensure serializers are initialized
 
-    weights_ptx_path = base_path / f"{checkpoint_name}.ptx"
+    weights_ptx_path = base_path / f"{checkpoint_name}.safetensors"
     metadata_path = base_path / f"{checkpoint_name}.yaml"
 
     # Extract state dict (handle DDP wrapper)
@@ -72,13 +72,13 @@ def load_metadata_only(checkpoint_name: str, base_path: Path) -> Dict[str, Any]:
 
 def load_weights_only(checkpoint_name: str, base_path: Path) -> Dict[str, torch.Tensor]:
     """Load only model weights"""
-    weights_path = base_path / f"{checkpoint_name}.ptx"
+    weights_path = base_path / f"{checkpoint_name}.safetensors"
     return torch.load(weights_path, map_location="cpu")
 
 
 def load_weights_ptx(checkpoint_name: str, base_path: Path) -> Dict[str, torch.Tensor]:
-    """Load model weights from .ptx file"""
-    weights_ptx_path = base_path / f"{checkpoint_name}.ptx"
+    """Load model weights from .safetensors file"""
+    weights_ptx_path = base_path / f"{checkpoint_name}.safetensors"
     return torch.load(weights_ptx_path, map_location="cpu")
 
 
@@ -195,8 +195,9 @@ def _is_serializable(obj) -> bool:
         return False
 
 
+'''
 def create_from_checkpoint(
-    checkpoint_name: str, base_path: Path, device: torch.device
+    metta_grid_env: MettaGridEnv, checkpoint_name: str, base_path: Path, device: torch.device
 ) -> PolicyAgent:
     """Create and restore agent from checkpoint"""
     metadata = load_metadata_only(checkpoint_name, base_path)
@@ -243,3 +244,4 @@ def _create_distributed_metta_agent(metadata: Dict[str, Any], device: torch.devi
 
     # Wrap in DDP
     return DistributedMettaAgent(base_agent, device=device)
+'''
