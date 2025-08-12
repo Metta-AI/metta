@@ -100,23 +100,6 @@ class MettaAgent(nn.Module):
 
         return self.policy(td, state, action)
 
-    def initialize_to_environment(
-        self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
-        device,
-        is_training: bool = True,
-    ):
-        """Initialize the agent to the current environment."""
-
-        if isinstance(self.policy, ComponentPolicy):
-            self.activate_policy()
-
-        # MettaAgent handles the initialization for all policy types
-        self.activate_actions(action_names, action_max_params, device)
-        self._initialize_observations(features, device)
-
     def activate_policy(self):
         self.clip_range = self.cfg.clip_range
 
@@ -198,6 +181,23 @@ class MettaAgent(nn.Module):
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
         )
+
+    def initialize_to_environment(
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+        is_training: bool = True,
+    ):
+        """Initialize the agent to the current environment."""
+
+        if isinstance(self.policy, ComponentPolicy):
+            self.activate_policy()
+
+        # MettaAgent handles the initialization for all policy types
+        self.activate_actions(action_names, action_max_params, device)
+        self._initialize_observations(features, device)
 
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
