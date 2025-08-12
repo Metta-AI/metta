@@ -123,16 +123,18 @@ run: |
     # Send Discord notification if webhook URL is available
     if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
       echo "[RUN] Sending Discord notification..."
-      DISCORD_CONTENT="🚀 **SkyPilot Job Launched**
+      DISCORD_CONTENT=$(cat <<EOF
+🚀 **SkyPilot Job Launched**
 
-  **Repository**: ${GITHUB_REPOSITORY}
-  **Git Ref**: ${METTA_GIT_REF}
-  **Run ID**: ${METTA_RUN_ID:-N/A}
-  **Status**: Job queued on SkyPilot
-  **Time**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+**Repository**: ${GITHUB_REPOSITORY}
+**Git Ref**: ${METTA_GIT_REF}
+**Run ID**: ${METTA_RUN_ID:-N/A}
+**Status**: Job queued on SkyPilot
+**Time**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
 
-  (I am testing - we will soon change this to only alert on failed CI multinode runs.)
-  " \
+(I am testing - we will soon change this to only alert on failed CI multinode runs.)
+EOF
+) \
       uv run -m metta.common.util.discord || echo "[WARN] Discord notification failed; continuing"
     fi
   else
