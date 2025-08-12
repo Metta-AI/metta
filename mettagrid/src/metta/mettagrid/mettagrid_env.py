@@ -420,7 +420,7 @@ class MettaGridEnv(MettaGridPufferBase):
             **{
                 f"active_frac/{op}": elapsed / adjusted_wall_time if adjusted_wall_time > 0 else 0
                 for op, elapsed in elapsed_times.items()
-            },t
+            },
             "frac/thread_idle": thread_idle_time / wall_time,
         }
 
