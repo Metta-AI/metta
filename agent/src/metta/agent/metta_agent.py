@@ -73,20 +73,10 @@ class MettaAgent(nn.Module):
 
         if isinstance(self.policy, ComponentPolicy):
             self.activate_policy()
-            self.activate_actions(action_names, action_max_params, device)
-            self._initialize_observations(features, device)
 
-        else:
-            # Or we can create an another abstraction for PytorchPolicy which defines default functions
-            # for now, using metta agent's one.
-
-            if hasattr(self.policy, "initialize_to_environment"):
-                # Call the policy's specific initialization method
-                self.policy.initialize_to_environment(features, action_names, action_max_params, device, is_training)
-            else:
-                # Fallback to generic activation
-                self.activate_actions(action_names, action_max_params, device)
-                self._initialize_observations(features, device)
+        # MettaAgent handles the initialization for all policy types
+        self.activate_actions(action_names, action_max_params, device)
+        self._initialize_observations(features, device)
 
     def activate_policy(self):
         self.clip_range = self.cfg.clip_range
@@ -152,13 +142,13 @@ class MettaAgent(nn.Module):
         self.policy.clip_range = self.clip_range
 
     def reset_memory(self):
-        if isinstance(self.policy, ComponentPolicy):
+        if isinstance(self.policy, ComponentPolicy) and hasattr(self, "components_with_memory"):
             for name in self.components_with_memory:
                 self.components[name].reset_memory()
 
     def get_memory(self):
         memory = {}
-        if isinstance(self.policy, ComponentPolicy):
+        if isinstance(self.policy, ComponentPolicy) and hasattr(self, "components_with_memory"):
             for name in self.components_with_memory:
                 memory[name] = self.components[name].get_memory()
         return memory
@@ -236,7 +226,11 @@ class MettaAgent(nn.Module):
     def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
         """Apply feature remapping to observation component and update normalizations."""
         # Update observation component if it supports remapping
-        if "_obs_" in self.components and hasattr(self.components["_obs_"], "update_feature_remapping"):
+        if (
+            hasattr(self, "components")
+            and "_obs_" in self.components
+            and hasattr(self.components["_obs_"], "update_feature_remapping")
+        ):
             # Build complete remapping tensor
             remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
 
@@ -258,6 +252,8 @@ class MettaAgent(nn.Module):
     def _update_normalization_factors(self, features: dict[str, dict]):
         """Update normalization factors for components after feature remapping."""
         # Update ObsAttrValNorm components if they exist
+        if not hasattr(self, "components"):
+            return
         for comp_name, component in self.components.items():
             if hasattr(component, "__class__") and "ObsAttrValNorm" in component.__class__.__name__:
                 logger.info(f"Updating feature normalizations for {comp_name}")
@@ -289,7 +285,7 @@ class MettaAgent(nn.Module):
             for i in range(max_param + 1):
                 full_action_names.append(f"{action_name}_{i}")
 
-        if "_action_embeds_" in self.components:
+        if hasattr(self, "components") and "_action_embeds_" in self.components:
             self.components["_action_embeds_"].activate_actions(full_action_names, self.device)
 
         # Create action index tensor for conversions
@@ -322,7 +318,7 @@ class MettaAgent(nn.Module):
     @property
     def lstm(self):
         """Access to LSTM component."""
-        if "_core_" in self.components and hasattr(self.components["_core_"], "_net"):
+        if hasattr(self, "components") and "_core_" in self.components and hasattr(self.components["_core_"], "_net"):
             return self.components["_core_"]._net
         return None
 
@@ -334,6 +330,8 @@ class MettaAgent(nn.Module):
     def _apply_to_components(self, method_name, *args, **kwargs) -> list[torch.Tensor]:
         """Apply a method to all components that have it."""
         results = []
+        if not hasattr(self, "components"):
+            return results
         for _, component in self.components.items():
             if hasattr(component, method_name):
                 method = getattr(component, method_name)
@@ -355,6 +353,8 @@ class MettaAgent(nn.Module):
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics for analysis."""
         results = {}
+        if not hasattr(self, "components"):
+            return []
         for name, component in self.components.items():
             if hasattr(component, "compute_weight_metrics"):
                 result = component.compute_weight_metrics(delta)
