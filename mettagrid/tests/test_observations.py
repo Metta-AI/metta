@@ -3,7 +3,7 @@ from typing import Any
 import numpy as np
 import pytest
 
-from metta.mettagrid.level_builder import create_grid
+from metta.mettagrid.map_builder.utils import create_grid
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
 from metta.mettagrid.test_support import ObservationHelper, TestEnvironmentBuilder, TokenTypes
 

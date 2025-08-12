@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from metta.mettagrid.level_builder import create_grid
+from metta.mettagrid.map_builder.utils import create_grid
 from metta.mettagrid.mettagrid_c import (
     MettaGrid,
     dtype_actions,
