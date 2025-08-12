@@ -114,6 +114,7 @@ run: |
     echo "[RUN] GITHUB_REPOSITORY: ${GITHUB_REPOSITORY:-<not set>}"
     echo "[RUN] METTA_GIT_REF: ${METTA_GIT_REF:-<not set>}"
     echo "[RUN] METTA_RUN_ID: ${METTA_RUN_ID:-<not set>}"
+    echo "[RUN] DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:+<set>}"  # Don't print the actual url
 
     GITHUB_STATUS_STATE=pending GITHUB_STATUS_DESCRIPTION="Queued on SkyPilot…" \
       uv run devops/skypilot/set_github_status.py || echo "[WARN] Pending status post failed; continuing"

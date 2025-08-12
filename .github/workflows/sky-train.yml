@@ -141,6 +141,7 @@ jobs:
           skypilot_service_account_token: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
           observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
           commit_sha: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.commit_to_run || github.sha }}
+          discord_webhook_url: ${{ secrets.DISCORD_UPDATES_HOOK }}
           github_pat: ${{ secrets.METTA_STATUS_PAT }} # expires August 2026
 
       - name: Extract SkyPilot Request ID
