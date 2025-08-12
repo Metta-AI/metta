@@ -1,5 +1,6 @@
 from typing import Any, Tuple
 
+import numpy as np
 import torch
 from tensordict import NonTensorData, TensorDict
 from torch import Tensor
@@ -8,7 +9,8 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
-from metta.rl.loss.base_loss import BaseLoss, LossTracker
+from metta.rl.loss.base_loss import BaseLoss
+from metta.rl.loss.loss_tracker import LossTracker
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
 from metta.utils.batch import calculate_prioritized_sampling_params
@@ -33,8 +35,11 @@ class PPO(BaseLoss):
         self.advantages = torch.tensor(0.0, device=self.device)
         self.anneal_beta = 0.0
 
-    def get_experience_spec(self, nvec: list[int] | torch.Tensor, act_dtype: torch.dtype) -> Composite:
-        scalar_f32 = UnboundedContinuous(shape=(), dtype=torch.float32)
+    def get_experience_spec(self) -> Composite:
+        act_space = self.vec_env.single_action_space
+        nvec = act_space.nvec
+        act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
+        scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
         return Composite(
             rewards=scalar_f32,
@@ -49,6 +54,18 @@ class PPO(BaseLoss):
             returns=scalar_f32,
         )
 
+    def losses_to_track(self) -> list[str]:
+        return [
+            "policy_loss",
+            "value_loss",
+            "entropy",
+            "approx_kl",
+            "clipfrac",
+            "importance",
+            "current_logprobs",
+            "explained_variance",
+        ]
+
     def train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
         # # early exit if kl divergence is too high
         # if trainer_state[3] == self.policy.replay.num_minibatches - 1:  # av check this
@@ -59,7 +76,7 @@ class PPO(BaseLoss):
         #             self.early_exit = True
         # Early exit if KL divergence is too high
         if self.policy_cfg.losses.PPO.target_kl is not None and self.loss_tracker.minibatches_processed > 0:
-            average_approx_kl = self.loss_tracker.approx_kl_sum / self.loss_tracker.minibatches_processed
+            average_approx_kl = self.loss_tracker.get("approx_kl") / self.loss_tracker.minibatches_processed
             if average_approx_kl > self.policy_cfg.losses.PPO.target_kl:
                 trainer_state.early_stop_update_epoch = True
 
@@ -75,9 +92,11 @@ class PPO(BaseLoss):
         )
 
         shared_loss_data["PPO"]["sampled_mb"] = minibatch
-        shared_loss_data["PPO"]["indices"] = NonTensorData(indices) # av this breaks compile
+        shared_loss_data["PPO"]["indices"] = NonTensorData(indices)  # av this breaks compile
 
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
+        policy_td = self.policy(policy_td, action=minibatch["actions"])
+        shared_loss_data["PPO"]["policy_td"] = policy_td
 
         loss = self.process_minibatch_update(
             policy=self.policy,
@@ -93,10 +112,12 @@ class PPO(BaseLoss):
         # Calculate explained variance
         # On last minibatch of the update epoch, compute explained variance
         if trainer_state.is_last_minibatch():
-            y_pred = self.policy.replay.buffer["values"].flatten()
-            y_true = self.advantages.flatten() + self.policy.replay.buffer["values"].flatten()
-            var_y = y_true.var()
-            self.loss_tracker.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
+            with torch.no_grad():
+                y_pred = self.policy.replay.buffer["values"].flatten()
+                y_true = self.advantages.flatten() + self.policy.replay.buffer["values"].flatten()
+                var_y = y_true.var()
+                ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
+                self.loss_tracker.set("explained_variance", float(ev))
 
         # av write to shared_loss_data
 
@@ -138,9 +159,6 @@ class PPO(BaseLoss):
         indices: Tensor,
         prio_weights: Tensor,
     ) -> Tensor:
-        """Process a single minibatch update and return the total loss."""
-        policy_td = policy(policy_td, action=minibatch["actions"])
-
         old_act_log_prob = minibatch["act_log_prob"]
         new_logprob = policy_td["act_log_prob"].reshape(old_act_log_prob.shape)
         entropy = policy_td["entropy"]
@@ -177,7 +195,9 @@ class PPO(BaseLoss):
             adv,
         )
 
-        loss = pg_loss - self.policy_cfg.losses.PPO.ent_coef * entropy_loss + v_loss * self.policy_cfg.losses.PPO.vf_coef
+        loss = (
+            pg_loss - self.policy_cfg.losses.PPO.ent_coef * entropy_loss + v_loss * self.policy_cfg.losses.PPO.vf_coef
+        )
 
         # Update values and ratio in experience buffer
         update_td = TensorDict(
@@ -187,14 +207,13 @@ class PPO(BaseLoss):
         self.policy.replay.update(indices, update_td)
 
         # Update loss tracking
-        self.loss_tracker.policy_loss_sum += pg_loss.item()
-        self.loss_tracker.value_loss_sum += v_loss.item()
-        self.loss_tracker.entropy_sum += entropy_loss.item()
-        self.loss_tracker.approx_kl_sum += approx_kl.item()
-        self.loss_tracker.clipfrac_sum += clipfrac.item()
-        self.loss_tracker.importance_sum += importance_sampling_ratio.mean().item()
-        self.loss_tracker.minibatches_processed += 1
-        self.loss_tracker.current_logprobs_sum += new_logprob.mean().item()
+        self.loss_tracker.add("policy_loss", float(pg_loss.item()))
+        self.loss_tracker.add("value_loss", float(v_loss.item()))
+        self.loss_tracker.add("entropy", float(entropy_loss.item()))
+        self.loss_tracker.add("approx_kl", float(approx_kl.item()))
+        self.loss_tracker.add("clipfrac", float(clipfrac.item()))
+        self.loss_tracker.add("importance", float(importance_sampling_ratio.mean().item()))
+        self.loss_tracker.add("current_logprobs", float(new_logprob.mean().item()))
 
         return loss
 
@@ -211,7 +230,9 @@ class PPO(BaseLoss):
         # Policy loss
         pg_loss1 = -adv * importance_sampling_ratio
         pg_loss2 = -adv * torch.clamp(
-            importance_sampling_ratio, 1 - self.policy_cfg.losses.PPO.clip_coef, 1 + self.policy_cfg.losses.PPO.clip_coef
+            importance_sampling_ratio,
+            1 - self.policy_cfg.losses.PPO.clip_coef,
+            1 + self.policy_cfg.losses.PPO.clip_coef,
         )
         pg_loss = torch.max(pg_loss1, pg_loss2).mean()
         returns = minibatch["returns"]

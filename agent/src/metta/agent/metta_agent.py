@@ -138,19 +138,15 @@ class MettaAgent(nn.Module):
             # Instantiate component
             self.components[component_name] = instantiate(comp_dict)
 
-        component = self.components["_value_"]
-        self._setup_components(component)
-        component = self.components["_action_"]
-        self._setup_components(component)
+        for component_name in self.cfg.leaf_components:
+            component = self.components[component_name]
+            self._setup_components(component)
 
-        self.components_with_memory = []
         for name, component in self.components.items():
             if not getattr(component, "ready", False):
                 raise RuntimeError(
                     f"Component {name} in MettaAgent was never setup. It might not be accessible by other components."
                 )
-            if component.has_memory():
-                self.components_with_memory.append(name)
 
         # check for duplicate component names
         all_names = [c._name for c in self.components.values() if hasattr(c, "_name")]
@@ -161,27 +157,6 @@ class MettaAgent(nn.Module):
 
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
-
-    def reset_memory(self):
-        for name in self.components_with_memory:
-            self.components[name].reset_memory()
-
-    def get_memory(self):
-        memory = {}
-        for name in self.components_with_memory:
-            memory[name] = self.components[name].get_memory()
-        return memory
-
-    def get_agent_experience_spec(self) -> Composite:
-        return Composite(
-            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-        )
-
-    def attach_replay_buffer(self, experience: Experience):
-        self.replay = experience
-
-    def get_cfg(self) -> DictConfig:
-        return self.cfg
 
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
@@ -201,6 +176,29 @@ class MettaAgent(nn.Module):
             for source in component._sources:
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
+
+    def get_agent_experience_spec(self) -> Composite:
+        return Composite(
+            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+        )
+
+    def attach_replay_buffer(self, experience: Experience):
+        self.replay = experience
+
+    def get_cfg(self) -> DictConfig:
+        return self.cfg
+
+    def on_new_training_run(self):  # av is there a faster way than pythoning through all components?
+        for _, component in self.components.items():
+            component.on_new_training_run()
+
+    def on_rollout_start(self):
+        for _, component in self.components.items():
+            component.on_rollout_start()
+
+    def on_train_mb_start(self):
+        for _, component in self.components.items():
+            component.on_train_mb_start()
 
     def initialize_to_environment(
         self,
@@ -451,7 +449,6 @@ class MettaAgent(nn.Module):
             TT = 1
             td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
             td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
-
         # Forward pass through value network. This will also run the core network.
         self.components["_value_"](td)
 
@@ -464,6 +461,7 @@ class MettaAgent(nn.Module):
             output_td = self.forward_inference(td)
         else:
             output_td = self.forward_training(td, action)
+            B, TT = td.get("batch")[0], td.get("bptt")[0]
             output_td = output_td.reshape(B, TT)
 
         return output_td
@@ -513,39 +511,6 @@ class MettaAgent(nn.Module):
             assert_shape(action, ("BT", 2), "actions")
 
         return action
-
-    def _apply_to_components(self, method_name, *args, **kwargs) -> list[torch.Tensor]:
-        """
-        Apply a method to all components, collecting and returning the results.
-
-        Args:
-            method_name: Name of the method to call on each component
-            *args, **kwargs: Arguments to pass to the method
-
-        Returns:
-            list: Results from calling the method on each component
-
-        Raises:
-            AttributeError: If any component doesn't have the requested method
-            TypeError: If a component's method is not callable
-            AssertionError: If no components are available
-        """
-        assert len(self.components) != 0, "No components available to apply method"
-
-        results = []
-        for name, component in self.components.items():
-            if not hasattr(component, method_name):
-                raise AttributeError(f"Component '{name}' does not have method '{method_name}'")
-
-            method = getattr(component, method_name)
-            if not callable(method):
-                raise TypeError(f"Component '{name}' has {method_name} attribute but it's not callable")
-
-            result = method(*args, **kwargs)
-            if result is not None:
-                results.append(result)
-
-        return results
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics for all components that have weights enabled for analysis.

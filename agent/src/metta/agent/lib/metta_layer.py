@@ -118,8 +118,14 @@ class LayerBase(nn.Module):
         td[self._name] = self._net(td[self._sources[0]["name"]])
         return td
 
-    def has_memory(self):
-        return False
+    def on_new_training_run(self):
+        pass
+
+    def on_rollout_start(self):
+        pass
+
+    def on_train_mb_start(self):
+        pass
 
     def compute_weight_metrics(self, delta: float = 0.01) -> dict:
         pass
@@ -239,20 +245,6 @@ class ParamLayer(LayerBase):
         if self.clip_value > 0:
             with torch.no_grad():
                 self.weight_net.weight.data = self.weight_net.weight.data.clamp(-self.clip_value, self.clip_value)
-
-    def l2_init_loss(self) -> torch.Tensor:
-        """
-        Computes L2-init regularization loss (delta regularization).
-
-        Penalizes deviation from initial weights to help prevent catastrophic forgetting.
-
-        Returns:
-            torch.Tensor: The L2-init regularization loss scaled by l2_init_scale,
-                          or zero if regularization is disabled.
-        """
-        l2_init_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device, dtype=torch.float32)
-        l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
-        return l2_init_loss
 
     def compute_weight_metrics(self, delta: float = 0.01) -> dict:
         """

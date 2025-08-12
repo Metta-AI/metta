@@ -13,10 +13,7 @@ clip_range: 0 # set to 0 to disable clipping
 analyze_weights_interval: 300
 
 losses:
-  EMA:
-    decay: 0.996
-    loss_coef: 1.0
-
+  # NOTE: losses will be run in the order they are listed here
   PPO:
     # Core PPO hyperparameters
     clip_coef: 0.1
@@ -44,6 +41,10 @@ losses:
       rho_clip: 1.0 # Default: on-policy (no off-policy correction)
       c_clip: 1.0 # Default: on-policy bootstrapping
 
+  EMA:
+    decay: 0.996
+    loss_coef: 1.0
+
 optimizer:
   type: adam
   beta1: 0.9
@@ -52,6 +53,11 @@ optimizer:
   learning_rate: 0.000457
   weight_decay: 0
   clip_grad_norm: 0
+
+leaf_components: # output heads
+  - EMA_pred_output_2
+  - _action_
+  - _value_
 
 components:
   #necessary layers: _core_, _action_embeds_, _action_, _value_
@@ -147,3 +153,20 @@ components:
     sources:
       - name: actor_1
       - name: _action_embeds_
+
+  EMA_pred_output_1:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: _core_
+    nn_params:
+      out_features: 512
+    nonlinearity: nn.Tanh
+    effective_rank: true
+
+  EMA_pred_output_2:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: EMA_pred_output_1
+    nn_params:
+      out_features: 32
+    nonlinearity: null

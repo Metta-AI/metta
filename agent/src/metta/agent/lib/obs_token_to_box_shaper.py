@@ -34,6 +34,17 @@ class ObsTokenToBoxShaper(LayerBase):
         self._out_tensor_shape = [self.num_layers, self.out_width, self.out_height]
 
     def _forward(self, td: TensorDict):
+        # if td.batch_dims > 1:
+        #     B, TT = td.batch_size[0], td.batch_size[1]
+        #     td = td.reshape(B * TT)
+        #     td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
+        #     td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
+        # else:
+        #     B = td.batch_size.numel()
+        #     TT = 1
+        #     td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
+        #     td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
+
         token_observations = td["env_obs"]
         B_TT = td.batch_size.numel()
 

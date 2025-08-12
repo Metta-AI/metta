@@ -1,9 +1,9 @@
+import importlib
 import logging
 import os
 from collections import defaultdict
 from typing import cast
 
-import numpy as np
 import torch
 import torch.distributed
 from heavyball import ForeachMuon
@@ -28,8 +28,8 @@ from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_check
 from metta.rl.env_config import EnvConfig
 from metta.rl.evaluate import evaluate_policy, evaluate_policy_remote
 from metta.rl.experience import Experience
-from metta.rl.loss.base_loss import LossTracker
-from metta.rl.loss.ppo import PPO
+from metta.rl.loss.base_loss import BaseLoss
+from metta.rl.loss.loss_tracker import LossTracker
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
@@ -214,14 +214,24 @@ def train(
     else:
         raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
 
-    ppo_loss = PPO(policy, trainer_cfg, vecenv, device, loss_tracker, policy_store)  # av move later
-    # av change trainer_cfg to loss specific cfg
+    # Instantiate configured losses dynamically by class name
+    policy_losses = list(policy_cfg.losses.keys())
+    loss_instances: dict[str, BaseLoss] = {}
+    for loss_name in policy_losses:
+        module_name = f"metta.rl.loss.{loss_name.lower()}"
+        module = importlib.import_module(module_name)
+        loss_cls = getattr(module, loss_name)
+        loss_instances[loss_name] = loss_cls(policy, trainer_cfg, vecenv, device, loss_tracker, policy_store)
+
+    loss_tracker.configure_from_losses(list(loss_instances.values()))
 
     # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()
-    act_space = vecenv.single_action_space
-    act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
-    loss_spec = ppo_loss.get_experience_spec(act_space.nvec, act_dtype)
+    # Merge experience specs required by all losses
+    merged_spec_dict: dict = dict(policy_spec.items())
+    for inst in loss_instances.values():
+        spec = inst.get_experience_spec()
+        merged_spec_dict.update(dict(spec.items()))
 
     # Create experience buffer
     experience = Experience(
@@ -230,7 +240,7 @@ def train(
         bptt_horizon=trainer_cfg.bptt_horizon,
         minibatch_size=trainer_cfg.minibatch_size,
         max_minibatch_size=trainer_cfg.minibatch_size,
-        experience_spec=Composite({**dict(policy_spec.items()), **dict(loss_spec.items())}),
+        experience_spec=Composite(merged_spec_dict),
         device=device,
     )
     policy.attach_replay_buffer(experience)
@@ -298,7 +308,9 @@ def train(
         trainer_state.agent_step = agent_step
         trainer_state.epoch = epoch
         shared_loss_mb_data = experience.give_me_empty_md_td()
-        shared_loss_mb_data["PPO"] = experience.give_me_empty_md_td()
+        policy.on_new_training_run()
+        for _loss_name in loss_instances.keys():
+            shared_loss_mb_data[_loss_name] = experience.give_me_empty_md_td()
         record_heartbeat()
 
         with torch_profiler:
@@ -307,7 +319,7 @@ def train(
                 raw_infos = []
                 total_steps = 0
                 experience.reset_for_rollout()
-                policy.reset_memory()
+                policy.on_rollout_start()
                 buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
                 while not experience.ready_for_training:
@@ -364,8 +376,16 @@ def train(
                     trainer_state.start_update_epoch(_update_epoch, experience.num_minibatches)
                     for mb_idx in range(experience.num_minibatches):
                         trainer_state.mb_idx = mb_idx
-                        policy.reset_memory()
-                        loss, shared_loss_mb_data = ppo_loss.train(shared_loss_mb_data, trainer_state)
+                        policy.on_train_mb_start()
+                        total_loss = torch.tensor(0.0, device=device)
+                        for _lname in list(policy_losses):
+                            loss_obj = loss_instances[_lname]
+                            loss_val, shared_loss_mb_data = loss_obj.train(shared_loss_mb_data, trainer_state)
+                            total_loss = total_loss + loss_val
+
+                        # Count this minibatch once for averaging metrics
+                        loss_tracker.minibatches_processed += 1
+
                         if trainer_state.early_stop_update_epoch:
                             break
 
@@ -373,7 +393,7 @@ def train(
                         optimizer.zero_grad()
 
                         # This also serves as a barrier for all ranks
-                        loss.backward()
+                        total_loss.backward()
 
                         # av ask richard or david what was intended here
                         if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
@@ -382,6 +402,10 @@ def train(
 
                             if device.type == "cuda":
                                 torch.cuda.synchronize()
+
+                        for _lname in list(policy_losses):
+                            loss_obj = loss_instances[_lname]
+                            loss_obj.on_mb_end()
 
                         minibatch_idx += 1
                     epochs_trained += 1

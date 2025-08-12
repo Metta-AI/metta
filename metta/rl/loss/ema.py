@@ -8,7 +8,8 @@ from torch.nn import functional as F
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
-from metta.rl.loss.base_loss import BaseLoss, LossTracker
+from metta.rl.loss.base_loss import BaseLoss
+from metta.rl.loss.loss_tracker import LossTracker
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
 
@@ -47,12 +48,33 @@ class EMA(BaseLoss):
 
     def train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
         self.update_target_model()
-        policy_td = shared_loss_data["PPO"].select(*self.policy_experience_spec.keys(include_nested=True))
-        pred = self.policy.components["pred_output"](policy_td)  # here, we run this head on our own
+        policy_td = shared_loss_data["PPO"]["policy_td"]
+
+        # reshape to 1D for the head
+        B, TT = policy_td.batch_size[0], policy_td.batch_size[1]
+        policy_td = policy_td.reshape(B * TT)
+        policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
+        policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
+
+        self.policy.components["EMA_pred_output_2"](policy_td)
+        pred: Tensor = policy_td["EMA_pred_output_2"].to(dtype=torch.float32)
+
+        # target pred: you need to clear all keys except env_obs and then clone
+        target_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True)).clone()
+        target_td.set("bptt", torch.full((B * TT,), TT, device=target_td.device, dtype=torch.long))
+        target_td.set("batch", torch.full((B * TT,), B, device=target_td.device, dtype=torch.long))
+
         with torch.no_grad():
-            target_pred = self.target_model.components["pred_output"](policy_td)
-            target_pred = target_pred.detach()
-        shared_loss_data["BYOL"]["target_pred"] = target_pred  # add these in case other losses want them next
-        shared_loss_data["BYOL"]["pred"] = pred
+            self.target_model.components["EMA_pred_output_2"](target_td)
+            target_pred: Tensor = target_td["EMA_pred_output_2"].to(dtype=torch.float32)
+
+        # Store only tensors in shared_loss_data for downstream consumers
+        shared_loss_data["EMA"]["pred"] = pred.reshape(B, TT, -1)
+        shared_loss_data["EMA"]["target_pred"] = target_pred.reshape(B, TT, -1)
+
         loss = F.mse_loss(pred, target_pred) * self.ema_coef
+        self.loss_tracker.add("mse_loss", float(loss.item()))
         return loss, shared_loss_data
+
+    def losses_to_track(self) -> list[str]:
+        return ["mse_loss"]
