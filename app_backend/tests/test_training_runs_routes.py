@@ -276,6 +276,87 @@ class TestTrainingRunsRoutes:
         response = test_client.get("/training-runs/invalid-uuid", headers=auth_headers)
         assert response.status_code == 404
 
+    def test_update_training_run_status(
+        self, stats_client: StatsClient, test_client: TestClient, auth_headers: Dict[str, str]
+    ) -> None:
+        """Test updating training run status."""
+        # Create a training run
+        training_run = stats_client.create_training_run(name="test_status_update", attributes={"test": "status_update"})
+
+        # Test updating to completed
+        response = test_client.patch(
+            f"/stats/training-runs/{training_run.id}/status", json={"status": "completed"}, headers=auth_headers
+        )
+        assert response.status_code == 204
+
+        # Verify the status was updated
+        response = test_client.get(f"/training-runs/{training_run.id}", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "completed"
+        assert data["finished_at"] is not None  # Should be set when status changes from running
+
+        # Test updating to failed
+        response = test_client.patch(
+            f"/stats/training-runs/{training_run.id}/status", json={"status": "failed"}, headers=auth_headers
+        )
+        assert response.status_code == 204
+
+        # Verify the status was updated
+        response = test_client.get(f"/training-runs/{training_run.id}", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "failed"
+
+    def test_update_training_run_status_validation(
+        self, stats_client: StatsClient, test_client: TestClient, auth_headers: Dict[str, str]
+    ) -> None:
+        """Test status update validation."""
+        # Create a training run
+        training_run = stats_client.create_training_run(
+            name="test_status_validation", attributes={"test": "status_validation"}
+        )
+
+        # Test invalid status value
+        response = test_client.patch(
+            f"/stats/training-runs/{training_run.id}/status", json={"status": "invalid_status"}, headers=auth_headers
+        )
+        assert response.status_code == 400
+        assert "Invalid status" in response.json()["detail"]
+
+        # Test missing status field
+        response = test_client.patch(f"/stats/training-runs/{training_run.id}/status", json={}, headers=auth_headers)
+        assert response.status_code == 400
+        assert "Missing 'status' field" in response.json()["detail"]
+
+        # Test invalid UUID
+        response = test_client.patch(
+            "/stats/training-runs/invalid-uuid/status", json={"status": "completed"}, headers=auth_headers
+        )
+        assert response.status_code == 400
+        assert "Invalid UUID format" in response.json()["detail"]
+
+        # Test non-existent training run (the exact error message may vary)
+        import uuid
+
+        fake_id = str(uuid.uuid4())  # Generate a random UUID that definitely won't exist
+        response = test_client.patch(
+            f"/stats/training-runs/{fake_id}/status", json={"status": "completed"}, headers=auth_headers
+        )
+        assert response.status_code == 400  # Should return 400 for non-existent resource
+
+    def test_stats_client_update_training_run_status(self, stats_client: StatsClient) -> None:
+        """Test the StatsClient update_training_run_status method."""
+        # Create a training run
+        training_run = stats_client.create_training_run(
+            name="test_client_status_update", attributes={"test": "client_update"}
+        )
+
+        # Test updating status via client (should not raise any exception)
+        stats_client.update_training_run_status(training_run.id, "completed")
+        stats_client.update_training_run_status(training_run.id, "failed")
+        stats_client.update_training_run_status(training_run.id, "running")
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])

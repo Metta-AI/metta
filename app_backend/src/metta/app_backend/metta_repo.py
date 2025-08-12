@@ -639,6 +639,19 @@ class MettaRepo:
                     raise RuntimeError("Failed to find existing training run")
             return row[0]
 
+    async def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                UPDATE training_runs 
+                SET status = %s, finished_at = CASE WHEN %s != 'running' THEN CURRENT_TIMESTAMP ELSE finished_at END
+                WHERE id = %s
+                """,
+                (status, status, run_id),
+            )
+            if result.rowcount == 0:
+                raise ValueError(f"Training run with ID {run_id} not found")
+
     async def create_epoch(
         self,
         run_id: uuid.UUID,

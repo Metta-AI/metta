@@ -101,6 +101,30 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to create training run: {str(e)}") from e
 
+    @router.patch("/training-runs/{run_id}/status", status_code=204)
+    @timed_route("update_training_run_status")
+    async def update_training_run_status(run_id: str, status_update: dict[str, str], user: str = user_or_token) -> None:
+        """Update the status of a training run."""
+        # Validate status value first, outside try block so HTTPExceptions can bubble up
+        status = status_update.get("status")
+        if not status:
+            raise HTTPException(status_code=400, detail="Missing 'status' field")
+
+        valid_statuses = {"running", "completed", "failed"}
+        if status not in valid_statuses:
+            raise HTTPException(
+                status_code=400, detail=f"Invalid status '{status}'. Must be one of: {', '.join(valid_statuses)}"
+            )
+
+        try:
+            run_id_uuid = uuid.UUID(run_id)
+            await stats_repo.update_training_run_status(run_id_uuid, status)
+
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail="Invalid UUID format") from e
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to update training run status: {str(e)}") from e
+
     @router.post("/training-runs/{run_id}/epochs", response_model=EpochResponse)
     @timed_route("create_epoch")
     async def create_epoch(run_id: str, epoch: EpochCreate, user: str = user_or_token) -> EpochResponse:
