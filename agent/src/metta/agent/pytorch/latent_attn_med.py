@@ -14,7 +14,7 @@ from metta.agent.models.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, O
 logger = logging.getLogger(__name__)
 
 
-class Recurrent(pufferlib.models.LSTMWrapper):
+class LatentAttnMed(pufferlib.models.LSTMWrapper):
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
         if policy is None:
             policy = Policy(

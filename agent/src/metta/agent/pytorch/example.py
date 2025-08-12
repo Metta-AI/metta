@@ -12,7 +12,7 @@ from torch import nn
 logger = logging.getLogger(__name__)
 
 
-class Recurrent(pufferlib.models.LSTMWrapper):
+class Example(pufferlib.models.LSTMWrapper):
     """Recurrent LSTM-based policy wrapper with discrete multi-head action space."""
 
     def __init__(
