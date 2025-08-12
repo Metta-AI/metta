@@ -57,11 +57,12 @@ setup: |
 
 run: |
   set -euo pipefail
+
   cd /workspace/metta
 
-  # Note that the docker image may start with its own venv - switch to metta venv
-  if [ -n "$VIRTUAL_ENV" ]; then
-      deactivate 2>/dev/null || true
+  # Drop any preloaded venv; activate your own
+  if [ -n "${VIRTUAL_ENV:-}" ]; then
+    deactivate 2>/dev/null || true
   fi
   . .venv/bin/activate
 
@@ -75,13 +76,13 @@ run: |
   bash ./devops/skypilot/config/configure_environment.sh
 
   echo "[RUN] Starting run phase..."
-  echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
-  echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
+  echo "[RUN] METTA_RUN_ID: ${METTA_RUN_ID:-}"
+  echo "[RUN] SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
 
+  # Optional metrics (best-effort)
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
     echo "[RUN] Collecting skypilot latency..."
-    LATENCY_OUTPUT=$(uv run python common/src/metta/common/util/skypilot_latency.py 2>&1) || true
-    echo "[RUN] $LATENCY_OUTPUT"
+    uv run python common/src/metta/common/util/skypilot_latency.py || true
   else
     echo "[RUN] Latency script is missing!"
   fi
@@ -90,8 +91,8 @@ run: |
 
   if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."
-    METTA_HOURLY_COST=$(uv run python common/src/metta/common/util/cost_monitor.py 2>&1 | tail -1)
-    if [ $? -eq 0 ] && [ -n "$METTA_HOURLY_COST" ]; then
+    METTA_HOURLY_COST="$(uv run python common/src/metta/common/util/cost_monitor.py 2>/dev/null | tail -1 || true)"
+    if [ -n "${METTA_HOURLY_COST:-}" ]; then
       echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST in $METTA_ENV_FILE"
     else
       echo "[RUN] Cost monitor script failed to run or returned no value."
@@ -155,6 +156,13 @@ run: |
   exit $CMD_EXIT
 
 envs:
+  # status callback
+  GITHUB_REPOSITORY: Metta-AI/metta
+  GITHUB_STATUS_CONTEXT: ""
+  GITHUB_STATUS_DESCRIPTION: ""
+  GITHUB_STATUS_STATE: "" # success/failure/error/pending
+  GITHUB_PAT: ""
+
   METTA_RUN_ID: ""
   METTA_CMD: train
   METTA_CMD_ARGS: ""
