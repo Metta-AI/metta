@@ -9,11 +9,9 @@ seed=$RANDOM
 ./devops/skypilot/launch.py train \
   run=$USER.navigation.8way.seed$seed.$(date +%m-%d) \
   trainer.curriculum=env/mettagrid/curriculum/navigation/learning_progress \
-  --gpus=1 \
-  +trainer.env_overrides.game.num_agents=4 \
-  +trainer.env_overrides.actions.move.enabled=false \
-  +trainer.env_overrides.actions.rotate.enabled=false \
-  +trainer.env_overrides.actions.move_8way.enabled=true \
   sim=navigation \
   seed=$seed \
+  '++trainer.env_overrides.game.actions.move.enabled=false' \
+  '++trainer.env_overrides.game.actions.rotate.enabled=false' \
+  '++trainer.env_overrides.game.actions.move_8way.enabled=true' \
   "$@"
