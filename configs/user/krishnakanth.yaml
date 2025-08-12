@@ -26,7 +26,7 @@ trainer:
 wandb:
   enabled: true
   project: metta
-  entity: metta_research
+  entity: metta-research
   group: ${run}
   name: ${run}
   run_id: ${run}
