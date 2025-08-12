@@ -57,7 +57,7 @@ class MettaGridEnv(MettaGridPufferBase):
 
         Args:
             curriculum: Curriculum for task management
-            render_mode: Rendering mode (None, "human", "miniscope", "raylib")
+            render_mode: Rendering mode (None, "raylib")
             level: Optional pre-built level
             buf: PufferLib buffer object
             stats_writer: Optional stats writer

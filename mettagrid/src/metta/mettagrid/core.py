@@ -43,7 +43,7 @@ class MettaGridCore:
         Args:
             level: Level to use for the environment
             game_config_dict: Game configuration dictionary
-            render_mode: Rendering mode (None, "human", "miniscope")
+            render_mode: Rendering mode (None, "raylib")
             **kwargs: Additional arguments passed to subclasses
         """
         self._render_mode = render_mode
@@ -75,15 +75,7 @@ class MettaGridCore:
         self._renderer = None
         self._renderer_class = None
 
-        if self._render_mode == "human":
-            from metta.mettagrid.renderer.nethack import NethackRenderer
-
-            self._renderer_class = NethackRenderer
-        elif self._render_mode == "miniscope":
-            from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
-
-            self._renderer_class = MiniscopeRenderer
-        elif self._render_mode == "raylib":
+        if self._render_mode == "raylib":
             # Only initialize raylib renderer if not in CI/Docker environment
             is_ci_environment = bool(
                 os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.path.exists("/.dockerenv")
@@ -140,7 +132,7 @@ class MettaGridCore:
             and hasattr(self, "_renderer_class")
             and self._renderer_class is not None
         ):
-            self._renderer = self._renderer_class()  # (c_env.object_type_names())
+            self._renderer = self._renderer_class()
 
         if self._renderer is not None:
             self._renderer.update(c_env)
@@ -192,12 +184,11 @@ class MettaGridCore:
 
         return obs, rewards, terminals, truncations, infos
 
-    def render(self) -> Optional[str]:
+    def render(self):
         """Render the environment."""
-        if self._renderer is None or self._c_env_instance is None:
-            return None
-
-        return self._renderer.render()  # (self._c_env_instance.current_step, self._c_env_instance.grid_objects())
+        if self._renderer is not None and self._c_env_instance is not None:
+            if not self._renderer.render():
+                self._renderer = None
 
     def close(self) -> None:
         """Close the environment."""
