@@ -160,7 +160,7 @@ run: |
       terminate_watchdogs
 
       # Kill the entire process group (negative PID)
-      kill -TERM -"$pid" 2>/dev/null || true
+      kill -TERM -$pid 2>/dev/null || true
 
       # Give process time to clean up
       local count=0
@@ -172,7 +172,7 @@ run: |
       # Force kill if still running
       if kill -0 "$pid" 2>/dev/null; then
         echo "[WARN] Process group $pid didn't terminate gracefully, forcing kill"
-        kill -KILL -"$pid" 2>/dev/null || true
+        kill -KILL -$pid 2>/dev/null || true
       fi
     fi
   }
