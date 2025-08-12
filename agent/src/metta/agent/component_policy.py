@@ -20,14 +20,16 @@ class ComponentPolicy(nn.Module):
         """Forward pass of the ComponentPolicy - matches original MettaAgent forward() logic."""
 
         # Handle BPTT reshaping like the original
-        td.bptt = 1
-        td.batch = td.batch_size.numel()
         if td.batch_dims > 1:
             B = td.batch_size[0]
             TT = td.batch_size[1]
             td = td.reshape(td.batch_size.numel())  # flatten to BT
-            td.bptt = TT
-            td.batch = B
+            td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
+        else:
+            B = td.batch_size.numel()
+            td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
 
         self.components["_value_"](td)
         self.components["_action_"](td)
@@ -36,7 +38,9 @@ class ComponentPolicy(nn.Module):
             output_td = self.forward_inference(td)
         else:
             output_td = self.forward_training(td, action)
-            output_td = output_td.reshape(td.batch, td.bptt)
+            batch_size = td["batch"][0].item()
+            bptt_size = td["bptt"][0].item()
+            output_td = output_td.reshape(batch_size, bptt_size)
 
         return output_td
 
