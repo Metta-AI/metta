@@ -74,8 +74,6 @@ run: |
   echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
   echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
 
-  echo "[DEBUG] Parent process: $(ps -p $$ -o comm=)"
-
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
     echo "[RUN] Collecting skypilot latency..."
     uv run python common/src/metta/common/util/skypilot_latency.py || true
@@ -128,26 +126,93 @@ run: |
 
   export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
 
+  # Function to monitor timeout status
+  monitor_timeout_status() {
+    local start_time=$1
+    local max_hours=$2
+    local max_seconds=$(echo "$max_hours * 3600" | bc)
+
+    while true; do
+      sleep 300  # Check every 5 minutes
+
+      local elapsed=$(($(date +%s) - start_time))
+      local remaining=$((max_seconds - elapsed))
+
+      if [ $remaining -gt 0 ]; then
+        local elapsed_min=$((elapsed / 60))
+        local remaining_min=$((remaining / 60))
+        echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${max_hours}h)"
+      else
+        break
+      fi
+    done
+  }
+
   run_training() {
-    # Start train.sh in background with its own process group
-    setsid ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
+    local START_TIME=$(date +%s)
+
+    # Start timeout monitor if MAX_RUNTIME_HOURS is set
+    if [[ -n "${MAX_RUNTIME_HOURS:-}" ]] && [[ "${MAX_RUNTIME_HOURS}" != "None" ]]; then
+      monitor_timeout_status "$START_TIME" "$MAX_RUNTIME_HOURS" &
+      local TIMEOUT_MONITOR_PID=$!
+    fi
+
+    # Start train.sh in background
+    ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
     local CMD_PID=$!
 
     if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
       echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE (pid=$CMD_PID)"
-      uv run python -m metta.common.util.heartbeat monitor "$HEARTBEAT_FILE" \
-        --pid "$CMD_PID" --timeout "$HEARTBEAT_TIMEOUT" \
-        >/dev/null 2>&1 &
+
+      # Enhanced heartbeat monitor with status messages
+      (
+        LAST_HEARTBEAT_TIME=$(date +%s)
+        HEARTBEAT_COUNT=0
+
+        while kill -0 "$CMD_PID" 2>/dev/null; do
+          if [ -f "$HEARTBEAT_FILE" ]; then
+            CURRENT_MTIME=$(stat -c %Y "$HEARTBEAT_FILE" 2>/dev/null || stat -f %m "$HEARTBEAT_FILE" 2>/dev/null || echo 0)
+            CURRENT_TIME=$(date +%s)
+
+            if [ "$CURRENT_MTIME" -gt "$LAST_HEARTBEAT_TIME" ]; then
+              HEARTBEAT_COUNT=$((HEARTBEAT_COUNT + 1))
+              LAST_HEARTBEAT_TIME=$CURRENT_MTIME
+
+              # Print status every 10 heartbeats
+              if [ $((HEARTBEAT_COUNT % 10)) -eq 0 ]; then
+                echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeats)"
+              fi
+            fi
+
+            # Check if timeout exceeded
+            if [ $((CURRENT_TIME - LAST_HEARTBEAT_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
+              echo "[ERROR] Heartbeat timeout! No heartbeat for $HEARTBEAT_TIMEOUT seconds"
+              kill -TERM "$CMD_PID" 2>/dev/null || true
+              sleep 5
+              kill -KILL "$CMD_PID" 2>/dev/null || true
+              break
+            fi
+          fi
+
+          sleep 10  # Check every 10 seconds
+        done
+      ) &
       local HEARTBEAT_MONITOR_PID=$!
     fi
 
-    # Wait for training to finish, capture exit, then kill heartbeat monitor cleanly
+    # Wait for training to finish
     wait "$CMD_PID"
     local CMD_EXIT=$?
 
+    # Cleanup monitors
     if [[ -n "${HEARTBEAT_MONITOR_PID:-}" ]]; then
       kill "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
       wait "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
+    fi
+
+    if [[ -n "${TIMEOUT_MONITOR_PID:-}" ]]; then
+      kill "$TIMEOUT_MONITOR_PID" 2>/dev/null || true
+      wait "$TIMEOUT_MONITOR_PID" 2>/dev/null || true
     fi
 
     return $CMD_EXIT
@@ -156,7 +221,7 @@ run: |
   # Run with timeout if MAX_RUNTIME_HOURS is set
   if [[ -n "${MAX_RUNTIME_HOURS:-}" ]] && [[ "${MAX_RUNTIME_HOURS}" != "None" ]]; then
     echo "[INFO] Running with timeout of ${MAX_RUNTIME_HOURS} hours"
-    timeout --kill-after=30s "${MAX_RUNTIME_HOURS}h" bash -c "$(declare -f run_training); run_training"
+    timeout --foreground --kill-after=30s "${MAX_RUNTIME_HOURS}h" bash -c "$(declare -f run_training); $(declare -f monitor_timeout_status); run_training"
     CMD_EXIT=$?
   else
     echo "[INFO] Running without timeout"
