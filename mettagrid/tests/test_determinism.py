@@ -45,4 +45,5 @@ class TestDeterminism:
         assert sig1 == sig2
 
         sig3 = self._rollout(base_seed=4321, max_steps=30)
-        assert sig1 != sig3 or len(sig1) == 0
+        assert len(sig1) > 0
+        assert sig1 != sig3
