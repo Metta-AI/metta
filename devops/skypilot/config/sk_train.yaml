@@ -129,19 +129,19 @@ run: |
 
   # Start train.sh in background
   ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
-  TRAIN_PID=$!
+  CMD_PID=$!
 
   # Start heartbeat *watching the train PID*
   if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
-    echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE (pid=$TRAIN_PID)"
+    echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE (pid=$CMD_PID)"
     uv run python -m metta.common.util.heartbeat monitor "$HEARTBEAT_FILE" \
-      --pid "$TRAIN_PID" --timeout "$HEARTBEAT_TIMEOUT" \
+      --pid "$CMD_PID" --timeout "$HEARTBEAT_TIMEOUT" \
       >/dev/null 2>&1 &
     HEARTBEAT_PID=$!
   fi
 
   # Wait for training to finish, capture exit, then kill heartbeat cleanly
-  wait "$TRAIN_PID"
+  wait "$CMD_PID"
   CMD_EXIT=$?
   if [[ -n "${HEARTBEAT_PID:-}" ]]; then
     kill "$HEARTBEAT_PID" 2>/dev/null || true
@@ -149,12 +149,11 @@ run: |
   fi
 
   if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
-    export CMD_EXIT="$TRAIN_EXIT"
     uv run devops/skypilot/set_github_status.py || echo "[WARN] Final status post failed"
   fi
 
   echo "[RUN] Job complete."
-  exit "$TRAIN_EXIT"
+  exit "$CMD_EXIT"
 
 envs:
   GITHUB_REPOSITORY: Metta-AI/metta
