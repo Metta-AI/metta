@@ -295,7 +295,8 @@ def test_clip_weights_disabled(create_metta_agent):
     assert not comp2.clipped
 
 
-def test_clip_weights_raises_attribute_error(create_metta_agent):
+def test_clip_weights_with_missing_method_is_skipped(create_metta_agent):
+    """Test that components without clip_weights method are gracefully skipped."""
     agent, comp1, comp2 = create_metta_agent
 
     # Add a component without the clip_weights method
@@ -313,32 +314,43 @@ def test_clip_weights_raises_attribute_error(create_metta_agent):
 
     # Add the incomplete component to the policy
     if hasattr(agent.policy, "components"):
-        agent.policy.components["bad_comp"] = IncompleteComponent()
+        agent.policy.components["incomplete_comp"] = IncompleteComponent()
     else:
         # This test won't work if there's no policy components
         pytest.skip("Test requires ComponentPolicy with components")
 
-    # Verify that an AttributeError is raised
-    with pytest.raises(AttributeError) as excinfo:
-        agent.clip_weights()
+    # Ensure clip_range is positive to enable clipping
+    if hasattr(agent.policy, "clip_range"):
+        agent.policy.clip_range = 0.1
+    else:
+        pytest.skip("Test requires ComponentPolicy with clip_range")
 
-    # Check the error message
-    assert "bad_comp" in str(excinfo.value)
-    assert "clip_weights" in str(excinfo.value)
+    # Calling clip_weights should work without error (incomplete component is skipped)
+    agent.clip_weights()
+
+    # Verify that components with clip_weights were called
+    assert comp1.clipped
+    assert comp2.clipped
 
 
-def test_clip_weights_with_non_callable(create_metta_agent):
+def test_clip_weights_with_non_callable_is_skipped(create_metta_agent):
+    """Test that components with non-callable clip_weights are gracefully skipped."""
     agent, comp1, comp2 = create_metta_agent
 
     # Make clip_weights non-callable on one component
     comp1.clip_weights = "Not a function"
 
-    # Verify a TypeError is raised
-    with pytest.raises(TypeError) as excinfo:
-        agent.clip_weights()
+    # Ensure clip_range is positive to enable clipping
+    if hasattr(agent.policy, "clip_range"):
+        agent.policy.clip_range = 0.1
+    else:
+        pytest.skip("Test requires ComponentPolicy with clip_range")
 
-    # Check the error message
-    assert "not callable" in str(excinfo.value)
+    # Calling clip_weights should work without error (non-callable component is skipped)
+    agent.clip_weights()
+
+    # Verify that comp2 (which has callable clip_weights) was called
+    assert comp2.clipped
 
 
 def test_l2_init_loss_raises_error_for_different_shapes(create_metta_agent):

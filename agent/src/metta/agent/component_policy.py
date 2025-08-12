@@ -174,6 +174,10 @@ class ComponentPolicy(nn.Module):
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """Convert (action_type, action_param) pairs to discrete indices."""
+        # Validate that we have a non-empty batch dimension
+        if flattened_action.size(0) == 0:
+            raise ValueError("'flattened_action' dimension 0 ('BT') has invalid size 0, expected a positive value")
+
         action_type_numbers = flattened_action[:, 0].long()
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
