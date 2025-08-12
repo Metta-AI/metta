@@ -8,7 +8,7 @@ from metta.mettagrid.test_support import TestEnvironmentBuilder
 class TestDeterminism:
     def _rollout(self, base_seed: int, max_steps: int = 30):
         builder = TestEnvironmentBuilder()
-        env = builder.create_environment()
+        env = builder.create_environment(num_agents=1)
         rng = np.random.default_rng(base_seed)
 
         obs, _ = env.reset()
