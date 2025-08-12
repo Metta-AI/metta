@@ -8,6 +8,7 @@ from omegaconf import DictConfig, OmegaConf
 from metta.agent.component_policy import ComponentPolicy
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.pytorch.agent_mapper import agent_classes
+from metta.rl.system_config import SystemConfig
 
 if TYPE_CHECKING:
     from metta.mettagrid.mettagrid_env import MettaGridEnv
@@ -18,15 +19,15 @@ logger = logging.getLogger("metta_agent_builder")
 class MettaAgentBuilder:
     """Builder for constructing MettaAgent instances with validated configurations."""
 
-    def __init__(self, env: "MettaGridEnv", env_cfg: DictConfig | None, agent_cfg: DictConfig):
+    def __init__(self, env: "MettaGridEnv", system_cfg: SystemConfig, agent_cfg: DictConfig):
         """
         Args:
             env (MettaGridEnv): Environment with observation and action spaces.
-            env_cfg (DictConfig): Environment configuration.
+            system_cfg (SystemConfig): System configuration.
             agent_cfg (DictConfig): Agent configuration, expected to contain an 'agent' section.
         """
         self.env = env
-        self.env_cfg = env_cfg
+        self.system_cfg = system_cfg
         self.agent_cfg = OmegaConf.create(OmegaConf.to_container(agent_cfg, resolve=True))
         self.obs_space = self._create_observation_space()
 
@@ -55,7 +56,7 @@ class MettaAgentBuilder:
                 obs_height=self.env.obs_height,
                 action_space=self.env.single_action_space,
                 feature_normalizations=self.env.feature_normalizations,
-                device=self.env_cfg.device,
+                device=self.system_cfg.device,
                 cfg=self.agent_cfg,
             )
             logger.info(f"Using ComponentPolicy: {type(policy).__name__}")
@@ -72,7 +73,7 @@ class MettaAgentBuilder:
             obs_height=self.env.obs_height,
             action_space=self.env.single_action_space,
             feature_normalizations=self.env.feature_normalizations,
-            device=self.env_cfg.device,
+            device=self.system_cfg.device,
             cfg=self.agent_cfg,
             policy=policy,
         )

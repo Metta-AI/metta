@@ -3,11 +3,12 @@ from types import SimpleNamespace
 from typing import Any, Optional
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.metta_agent_builder import MettaAgentBuilder
 from metta.common.util.instantiate import instantiate
+from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("policy")
 
@@ -63,7 +64,7 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[Di
 
     logger.info(f"Loaded PyTorch policy config: {pytorch_cfg}")
 
-    env_config = OmegaConf.create({"device": device})
+    system_cfg = SystemConfig(device=device)
 
-    builder = MettaAgentBuilder(env, env_config, pytorch_cfg)
+    builder = MettaAgentBuilder(env, system_cfg, pytorch_cfg)
     return builder.build(policy)
