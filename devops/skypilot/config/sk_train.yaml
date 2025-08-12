@@ -127,14 +127,25 @@ run: |
   export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
   export TERMINATION_REASON=""  # Track how the job ended
 
+  # Configurable intervals
+  export TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-30}
+  export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-10}
+
+  # Create a temp directory for IPC files
+  export IPC_DIR="/tmp/metta_job_$$"
+  mkdir -p "$IPC_DIR"
+  export TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
+
   # Shared function to gracefully terminate a process
   terminate_process() {
     local pid=$1
     local reason=$2
 
     if kill -0 "$pid" 2>/dev/null; then
-      echo "[INFO] Terminating process $pid (reason: $reason)"
-      kill -TERM "$pid" 2>/dev/null || true
+      echo "[INFO] Terminating process group $pid (reason: $reason)"
+
+      # Kill the entire process group (negative PID)
+      kill -TERM -"$pid" 2>/dev/null || true
 
       # Give process time to clean up
       local count=0
@@ -145,20 +156,23 @@ run: |
 
       # Force kill if still running
       if kill -0 "$pid" 2>/dev/null; then
-        echo "[WARN] Process $pid didn't terminate gracefully, forcing kill"
-        kill -KILL "$pid" 2>/dev/null || true
+        echo "[WARN] Process group $pid didn't terminate gracefully, forcing kill"
+        kill -KILL -"$pid" 2>/dev/null || true
       fi
+
+      # Write termination reason to file for parent process
+      echo "$reason" > "$TERMINATION_REASON_FILE"
     fi
   }
 
   run_training() {
     local START_TIME=$(date +%s)
 
-    # Start training in background
-    ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
+    # Start training in a new session (process group)
+    setsid ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
     local CMD_PID=$!
 
-    echo "[INFO] Started training process with PID: $CMD_PID"
+    echo "[INFO] Started training process group with PID: $CMD_PID"
 
     # Start timeout monitor if MAX_RUNTIME_HOURS is set
     if [[ -n "${MAX_RUNTIME_HOURS:-}" ]] && [[ "${MAX_RUNTIME_HOURS}" != "None" ]]; then
@@ -166,9 +180,10 @@ run: |
         exec 2>&1
         max_seconds=$(awk "BEGIN {print ${MAX_RUNTIME_HOURS} * 3600}")
         echo "[INFO] Timeout monitor started - max runtime: ${MAX_RUNTIME_HOURS} hours (${max_seconds} seconds)"
+        echo "[INFO] Checking every ${TIMEOUT_CHECK_INTERVAL} seconds"
 
         while true; do
-          sleep 30  # Check every 30 seconds
+          sleep "$TIMEOUT_CHECK_INTERVAL"
 
           elapsed=$(($(date +%s) - START_TIME))
           remaining=$((max_seconds - elapsed))
@@ -179,7 +194,6 @@ run: |
             echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
           else
             echo "[INFO] Timeout limit reached - terminating training process"
-            export TERMINATION_REASON="max_runtime_reached"
 
             # Use shared terminate function
             terminate_process "$CMD_PID" "max_runtime_reached"
@@ -196,6 +210,7 @@ run: |
     # Start heartbeat monitor if enabled
     if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
       echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE"
+      echo "[INFO] Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
 
       (
         LAST_HEARTBEAT_TIME=$(date +%s)
@@ -219,7 +234,6 @@ run: |
             # Check if timeout exceeded
             if [ $((CURRENT_TIME - LAST_HEARTBEAT_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
               echo "[ERROR] Heartbeat timeout! No heartbeat for $HEARTBEAT_TIMEOUT seconds"
-              export TERMINATION_REASON="heartbeat_timeout"
 
               # Use shared terminate function
               terminate_process "$CMD_PID" "heartbeat_timeout"
@@ -228,7 +242,7 @@ run: |
             fi
           fi
 
-          sleep 10  # Check every 10 seconds
+          sleep "$HEARTBEAT_CHECK_INTERVAL"
         done
       ) &
       local HEARTBEAT_MONITOR_PID=$!
@@ -238,6 +252,12 @@ run: |
     # Wait for training to finish
     wait "$CMD_PID"
     local CMD_EXIT=$?
+
+    # Read termination reason from file if it exists
+    if [ -f "$TERMINATION_REASON_FILE" ]; then
+      TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE")
+      echo "[INFO] Termination reason from monitor: $TERMINATION_REASON"
+    fi
 
     # Cleanup monitors
     if [[ -n "${HEARTBEAT_MONITOR_PID:-}" ]]; then
@@ -250,10 +270,15 @@ run: |
       wait "$TIMEOUT_MONITOR_PID" 2>/dev/null || true
     fi
 
+    # Calculate total runtime
+    local END_TIME=$(date +%s)
+    local DURATION=$((END_TIME - START_TIME))
+    echo "[SUMMARY] Total runtime: $DURATION seconds ($((DURATION / 60)) minutes)"
+
     return $CMD_EXIT
   }
 
-  # Export the terminate function so it's available in run_training
+  # Export the terminate function so it's available in subshells
   export -f terminate_process
 
   # Run training without the timeout wrapper
@@ -280,6 +305,16 @@ run: |
     export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
     export TERMINATION_REASON="exit_code_${CMD_EXIT}"
   fi
+
+  # Final summary
+  echo "[SUMMARY] ===== Job Summary ====="
+  echo "[SUMMARY] Job ID: ${METTA_RUN_ID}"
+  echo "[SUMMARY] Exit code: ${CMD_EXIT}"
+  echo "[SUMMARY] Termination reason: ${TERMINATION_REASON:-unknown}"
+  echo "[SUMMARY] ======================"
+
+  # Cleanup IPC directory
+  rm -rf "$IPC_DIR"
 
   if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
     # The set_github_status.py script uses CMD_EXIT to determine status
