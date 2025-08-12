@@ -39,9 +39,14 @@ class MettaAgentBuilder:
             }
         )
 
-    def build(self, policy: Optional[ComponentPolicy] = None) -> MettaAgent:
+    def build(self, policy: Optional[ComponentPolicy] = None, build_layers: bool = True) -> MettaAgent:
         """
         Build a MettaAgent instance with either a specified policy or a default based on configuration.
+
+        Args:
+            policy: Optional policy to use. If None, creates one based on agent_cfg.
+            build_layers: If True and using ComponentPolicy, builds the neural network layers.
+                         Set to False if you need to defer layer building (e.g., for distributed training).
         """
         if self.agent_cfg.get("agent_type") in agent_classes:
             AgentClass = agent_classes[self.agent_cfg.agent_type]
@@ -52,6 +57,13 @@ class MettaAgentBuilder:
             logger.info(f"Using ComponentPolicy: {type(policy).__name__}")
 
         agent = self._create_agent(policy=policy)
+
+        # For ComponentPolicy, we need to build the layers before DDP wrapping
+        # This creates the neural network components but doesn't initialize features/actions
+        if build_layers and isinstance(policy, ComponentPolicy):
+            logger.info("Building neural network layers for ComponentPolicy")
+            agent.activate_policy()
+
         logger.info(f"Successfully built MettaAgent with policy: {type(policy).__name__}")
         return agent
 

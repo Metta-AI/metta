@@ -211,7 +211,8 @@ class MettaAgent(nn.Module):
     ):
         """Initialize the agent to the current environment."""
 
-        if isinstance(self.policy, ComponentPolicy):
+        # Only call activate_policy if components haven't been created yet
+        if isinstance(self.policy, ComponentPolicy) and not hasattr(self, "components"):
             self.activate_policy()
 
         # MettaAgent handles the initialization for all policy types
