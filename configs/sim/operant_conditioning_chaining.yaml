@@ -29,3 +29,5 @@ simulations:
     env: env/mettagrid/operant_conditioning/chaining/3_converters/bgr
   operant_conditioning_chaining/3_converters_rgb:
     env: env/mettagrid/operant_conditioning/chaining/3_converters/rgb
+  operant_conditioning_chaining/3_chain_eval:
+    env: env/mettagrid/operant_conditioning/chaining/evals/3_chain_eval
