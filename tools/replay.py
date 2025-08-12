@@ -21,7 +21,6 @@ from tools.utils import get_policy_store_from_cfg
 
 # TODO: This job can be replaced with sim now that Simulations create replays
 class ReplayJob(Config):
-    __init__ = Config.__init__
     sim: SingleEnvSimulationConfig
     policy_uri: str | None
     selector_type: str
