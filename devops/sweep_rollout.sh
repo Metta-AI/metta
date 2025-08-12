@@ -16,7 +16,13 @@ fi
 # This is needed for local sweeps.
 hardware_arg=$(echo "$args" | grep -o '+hardware=[^ ]*' || true)
 
-source ./devops/setup.env # TODO: Check this is the right sourcing.
+# TODO: review desired cmd ENV settings
+export PYTHONUNBUFFERED=1
+export PYTHONPATH=$PYTHONPATH:$(pwd)
+export PYTHONOPTIMIZE=1
+export HYDRA_FULL_ERROR=1
+export WANDB_DIR="./wandb"
+export DATA_DIR=${DATA_DIR:-./train_dir}
 
 # Parse distributed config path with unique hash per process
 DIST_ID=${DIST_ID:-localhost}
