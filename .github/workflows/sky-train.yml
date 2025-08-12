@@ -24,11 +24,11 @@ on:
       num_gpus:
         description: "Number of GPUs to request (e.g., 1, 4). If empty, defaults to SkyPilot task definition (usually 1)."
         required: false
-        type: string # Keep as string to allow empty, action handles default
+        type: string
       num_nodes:
         description: "Number of Nodes to request (e.g., 1, 2). If empty, defaults to SkyPilot task definition (usually 1)."
         required: false
-        type: string # Keep as string to allow empty, action handles default
+        type: string
   push:
     branches: [main]
 
@@ -138,12 +138,132 @@ jobs:
           timeout_hours: ${{ github.event_name == 'push' && env.DEFAULT_TIMEOUT_HOURS || github.event.inputs.timeout_hours || env.DEFAULT_TIMEOUT_HOURS }}
           num_gpus: ${{ github.event_name == 'push' && env.DEFAULT_NUM_GPUS || github.event.inputs.num_gpus || '' }}
           num_nodes: ${{ github.event_name == 'push' && env.DEFAULT_NUM_NODES || github.event.inputs.num_nodes || '' }}
-          run_name: ${{ steps.generate_run_name.outputs.run_name }} # Pass the fully generated name
+          run_name: ${{ steps.generate_run_name.outputs.run_name }}
           wandb_api_key: ${{ secrets.WANDB_API_KEY }}
           skypilot_service_account_token: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
           observatory_token: ${{ secrets.OBSERVATORY_TOKEN }}
           commit_sha: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.commit_to_run || github.sha }}
           github_pat: ${{ secrets.METTA_STATUS_PAT }} # expires August 2026
+
+      - name: Extract SkyPilot Request ID
+        id: extract_request_id
+        shell: bash
+        run: |
+          # Extract the request ID from the launch output
+          # Looking for pattern like "Submitted sky.jobs.launch request: c01f1273-4610-4949-8f1c-e24365ad0330"
+          REQUEST_ID=$(echo "${{ steps.skylaunch.outputs.launch_output }}" | grep -oP 'Submitted sky.jobs.launch request: \K[a-f0-9-]+' || true)
+
+          if [ -z "$REQUEST_ID" ]; then
+            # Try alternate extraction method from stored output
+            REQUEST_ID=$(cat /tmp/skypilot_launch_output.txt 2>/dev/null | grep -oP 'Submitted sky.jobs.launch request: \K[a-f0-9-]+' || true)
+          fi
+
+          if [ -n "$REQUEST_ID" ]; then
+            echo "Extracted request ID: $REQUEST_ID"
+            echo "request_id=$REQUEST_ID" >> $GITHUB_OUTPUT
+            echo "request_id_short=$(echo $REQUEST_ID | cut -c1-8)" >> $GITHUB_OUTPUT
+          else
+            echo "Could not extract request ID from launch output"
+            echo "request_id=" >> $GITHUB_OUTPUT
+            echo "request_id_short=" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Get SkyPilot Job ID
+        id: get_job_id
+        if: steps.extract_request_id.outputs.request_id != ''
+        shell: bash
+        run: |
+          set +e  # Don't exit on error
+
+          # Wait a bit for the job to be submitted
+          sleep 5
+
+          # Get the logs and extract the job ID
+          echo "Getting logs for request: ${{ steps.extract_request_id.outputs.request_id_short }}"
+          LOG_OUTPUT=$(sky api logs ${{ steps.extract_request_id.outputs.request_id_short }} 2>&1 | tail -20)
+
+          # Extract job ID from pattern like "Job submitted, ID: 4700"
+          JOB_ID=$(echo "$LOG_OUTPUT" | grep -oP 'Job submitted, ID: \K\d+' || true)
+
+          if [ -n "$JOB_ID" ]; then
+            echo "Extracted SkyPilot Job ID: $JOB_ID"
+            echo "job_id=$JOB_ID" >> $GITHUB_OUTPUT
+            echo "dashboard_url=https://skypilot-api.softmax-research.net/dashboard/jobs/$JOB_ID" >> $GITHUB_OUTPUT
+          else
+            echo "Could not extract Job ID from logs"
+            echo "Log output was:"
+            echo "$LOG_OUTPUT"
+            echo "job_id=" >> $GITHUB_OUTPUT
+            echo "dashboard_url=https://skypilot-api.softmax-research.net/dashboard/jobs" >> $GITHUB_OUTPUT
+          fi
+
+          set -e
+
+      - name: Create Job Summary
+        shell: bash
+        run: |
+          echo "## 🚀 SkyPilot Training Job Launched" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 📊 Job Information" >> $GITHUB_STEP_SUMMARY
+          echo "| Field | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Run Name** | \`${{ steps.generate_run_name.outputs.run_name }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trigger** | ${{ github.event_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Commit** | \`${{ github.event_name == 'workflow_dispatch' && github.event.inputs.commit_to_run || github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Trainer Env** | \`${{ github.event.inputs.trainer_env || env.DEFAULT_TRAINER_ENV }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Timeout** | ${{ github.event.inputs.timeout_hours || env.DEFAULT_TIMEOUT_HOURS }} hours |" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${{ steps.extract_request_id.outputs.request_id }}" ]; then
+            echo "| **Request ID** | \`${{ steps.extract_request_id.outputs.request_id_short }}\` |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -n "${{ steps.get_job_id.outputs.job_id }}" ]; then
+            echo "| **Job ID** | \`${{ steps.get_job_id.outputs.job_id }}\` |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
+
+          if [ -n "${{ steps.get_job_id.outputs.job_id }}" ]; then
+            echo "- [📊 View Job Dashboard](${{ steps.get_job_id.outputs.dashboard_url }})" >> $GITHUB_STEP_SUMMARY
+            echo "- [🤗 W&B Run](https://wandb.ai/softmax-research/metta/runs/${{ steps.generate_run_name.outputs.run_name }})" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### 📝 CLI Commands" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "# View job logs" >> $GITHUB_STEP_SUMMARY
+            echo "sky jobs logs ${{ steps.get_job_id.outputs.job_id }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "# Check job status" >> $GITHUB_STEP_SUMMARY
+            echo "sky jobs status ${{ steps.get_job_id.outputs.job_id }}" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "# Cancel job if needed" >> $GITHUB_STEP_SUMMARY
+            echo "sky jobs cancel ${{ steps.get_job_id.outputs.job_id }}" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- [📊 SkyPilot Dashboard](https://skypilot-api.softmax-research.net/dashboard/jobs)" >> $GITHUB_STEP_SUMMARY
+            echo "- [🤗 W&B Run](https://wandb.ai/softmax-research/metta/runs/${{ steps.generate_run_name.outputs.run_name }})" >> $GITHUB_STEP_SUMMARY
+
+            if [ -n "${{ steps.extract_request_id.outputs.request_id_short }}" ]; then
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "### 📝 CLI Commands" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+              echo "# Get request logs to find job ID" >> $GITHUB_STEP_SUMMARY
+              echo "sky api logs ${{ steps.extract_request_id.outputs.request_id_short }}" >> $GITHUB_STEP_SUMMARY
+              echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+      - name: Create Annotations
+        if: always()
+        shell: bash
+        run: |
+          if [ -n "${{ steps.get_job_id.outputs.job_id }}" ]; then
+            echo "::notice title=SkyPilot Job Launched::Job ID: ${{ steps.get_job_id.outputs.job_id }} | Run: ${{ steps.generate_run_name.outputs.run_name }} | View logs: sky jobs logs ${{ steps.get_job_id.outputs.job_id }}"
+          elif [ -n "${{ steps.extract_request_id.outputs.request_id_short }}" ]; then
+            echo "::notice title=SkyPilot Job Submitted::Request ID: ${{ steps.extract_request_id.outputs.request_id_short }} | Run: ${{ steps.generate_run_name.outputs.run_name }} | Get job ID: sky api logs ${{ steps.extract_request_id.outputs.request_id_short }}"
+          else
+            echo "::notice title=SkyPilot Job Submitted::Run: ${{ steps.generate_run_name.outputs.run_name }} | Check dashboard: https://skypilot-api.softmax-research.net/dashboard/jobs"
+          fi
 
       - name: Print Run Information
         shell: bash
@@ -151,4 +271,16 @@ jobs:
           echo "Workflow triggered by: ${{ github.event_name }}"
           echo "SkyPilot Job Name / W&B Run Name: ${{ steps.generate_run_name.outputs.run_name }}"
           echo "SkyPilot Task Name: ${{ steps.generate_run_name.outputs.run_name }}"
-          echo "To see logs for this job in SkyPilot, you might use: sky jobs logs ${{ steps.generate_run_name.outputs.run_name }} (if job was successfully submitted)"
+
+          if [ -n "${{ steps.get_job_id.outputs.job_id }}" ]; then
+            echo ""
+            echo "✅ SkyPilot Job ID: ${{ steps.get_job_id.outputs.job_id }}"
+            echo "📝 View logs: sky jobs logs ${{ steps.get_job_id.outputs.job_id }}"
+            echo "📊 Dashboard: ${{ steps.get_job_id.outputs.dashboard_url }}"
+          elif [ -n "${{ steps.extract_request_id.outputs.request_id_short }}" ]; then
+            echo ""
+            echo "⏳ Request ID: ${{ steps.extract_request_id.outputs.request_id_short }}"
+            echo "📝 Get job ID: sky api logs ${{ steps.extract_request_id.outputs.request_id_short }}"
+          else
+            echo "To see logs for this job in SkyPilot, check the dashboard at https://skypilot-api.softmax-research.net/dashboard/jobs"
+          fi
