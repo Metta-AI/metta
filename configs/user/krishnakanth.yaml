@@ -4,7 +4,7 @@ defaults:
   - /common
   - /agent/fast
   - /trainer/trainer
-  - /sim/coop_rewardsharing@sim
+  - /sim/arena@sim
   - _self_
 
 run: krishnakanth.coop_rewardsharing.lp
@@ -21,12 +21,12 @@ trainer:
     skip_git_check: true
   checkpoint:
     wandb_checkpoint_interval: 100
-  total_timesteps: 10_000_000_000
+  total_timesteps: 1_000_000_000
 
 wandb:
   enabled: true
   project: metta
-  entity: metta-research
+  entity: metta_research
   group: ${run}
   name: ${run}
   run_id: ${run}

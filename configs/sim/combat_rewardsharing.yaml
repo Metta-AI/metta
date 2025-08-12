@@ -1,9 +1,0 @@
-defaults:
-  - sim_suite
-  - _self_
-
-name: combat_rewardsharing
-
-simulations:
-  combat_rewardsharing:
-    env: /env/mettagrid/arena/combat_rewardsharing
