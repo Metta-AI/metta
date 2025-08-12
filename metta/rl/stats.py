@@ -19,12 +19,18 @@ from metta.common.util.system_monitor import SystemMonitor
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
+from metta.rl.evaluate import upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import should_run
-from metta.rl.wandb import POLICY_EVALUATOR_EPOCH_METRIC, POLICY_EVALUATOR_METRIC_PREFIX, POLICY_EVALUATOR_STEP_METRIC
+from metta.rl.wandb import (
+    POLICY_EVALUATOR_EPOCH_METRIC,
+    POLICY_EVALUATOR_METRIC_PREFIX,
+    POLICY_EVALUATOR_STEP_METRIC,
+    setup_policy_evaluator_metrics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -420,7 +426,6 @@ def process_policy_evaluator_stats(
     pr: PolicyRecord,
     eval_results: EvalResults,
 ) -> None:
-    # TODO: this should also upload replay urls
     metrics_to_log: dict[str, float] = {
         f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
         for k, v in eval_results.scores.to_wandb_metrics_format().items()
@@ -450,7 +455,26 @@ def process_policy_evaluator_stats(
         resume="must",
     )
     try:
+        try:
+            setup_policy_evaluator_metrics(run)
+        except Exception:
+            logger.warning("Failed to set default axes for policy evaluator metrics. Continuing")
+            pass
+
         run.log({**metrics_to_log, POLICY_EVALUATOR_STEP_METRIC: agent_step, POLICY_EVALUATOR_EPOCH_METRIC: epoch})
         logger.info(f"Logged {len(metrics_to_log)} metrics to wandb for policy {pr.uri}")
+        if eval_results.replay_urls:
+            try:
+                upload_replay_html(
+                    replay_urls=eval_results.replay_urls,
+                    agent_step=agent_step,
+                    epoch=epoch,
+                    wandb_run=run,
+                    metric_prefix=POLICY_EVALUATOR_METRIC_PREFIX,
+                    step_metric_key=POLICY_EVALUATOR_STEP_METRIC,
+                    epoch_metric_key=POLICY_EVALUATOR_EPOCH_METRIC,
+                )
+            except Exception as e:
+                logger.error(f"Failed to upload replays for {pr.uri}: {e}", exc_info=True)
     finally:
         run.finish()

@@ -3,7 +3,7 @@ _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy_defaults
 
 buckets:
-  game.map_builder.room.dir:
+  game.map_builder.instance_map.params.dir:
     - terrain_maps_nohearts
     - varied_terrain/balanced_large
     - varied_terrain/balanced_medium
@@ -21,6 +21,6 @@ buckets:
     - varied_terrain/cylinder-world_medium
     - varied_terrain/cylinder-world_small
 
-  game.map_builder.room.objects.altar:
+  game.map_builder.instance_map.params.objects.altar:
     range: [2, 18]
     bins: 4

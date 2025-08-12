@@ -1,0 +1,6 @@
+_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
+
+tasks:
+  /env/mettagrid/operant_conditioning/smoke_tests/3_converters/mine_red: 1
+  /env/mettagrid/operant_conditioning/smoke_tests/3_converters/mine_blue: 1
+  /env/mettagrid/operant_conditioning/smoke_tests/3_converters/mine_green: 1

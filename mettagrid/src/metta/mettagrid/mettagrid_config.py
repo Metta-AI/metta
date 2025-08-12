@@ -1,6 +1,6 @@
 from typing import Any, Literal, Optional
 
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from metta.common.util.typed_config import BaseModelWithForbidExtra
 
@@ -42,8 +42,7 @@ class PyStatsRewards(BaseModelWithForbidExtra):
     - stat_name_max: maximum cumulative reward for this stat
     """
 
-    class Config:
-        extra = "allow"  # Allow any stat names to be added dynamically
+    model_config = ConfigDict(extra="allow")  # Allow any stat names to be added dynamically
 
 
 class PyAgentRewards(BaseModelWithForbidExtra):
@@ -210,6 +209,9 @@ class PyGameConfig(BaseModelWithForbidExtra):
     # Movement metrics configuration
     track_movement_metrics: bool = Field(
         default=False, description="Enable movement metrics tracking (sequential rotations)"
+    )
+    no_agent_interference: bool = Field(
+        default=False, description="Enable agents to move through and not observe each other"
     )
 
 

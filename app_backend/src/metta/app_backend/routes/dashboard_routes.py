@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.metta_repo import MettaRepo, SavedDashboardRow
 from metta.app_backend.route_logger import timed_route
 
 # Set up logging for scorecard performance analysis
@@ -30,6 +30,19 @@ class SavedDashboardResponse(BaseModel):
     updated_at: str
     user_id: str
 
+    @classmethod
+    def from_db(cls, dashboard: SavedDashboardRow) -> "SavedDashboardResponse":
+        return cls(
+            id=str(dashboard.id),
+            name=dashboard.name,
+            description=dashboard.description,
+            type=dashboard.type,
+            dashboard_state=dashboard.dashboard_state,
+            created_at=dashboard.created_at.isoformat(),
+            updated_at=dashboard.updated_at.isoformat(),
+            user_id=dashboard.user_id,
+        )
+
 
 class SavedDashboardListResponse(BaseModel):
     dashboards: List[SavedDashboardResponse]
@@ -48,19 +61,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         """List all saved dashboards."""
         dashboards = await metta_repo.list_saved_dashboards()
         return SavedDashboardListResponse(
-            dashboards=[
-                SavedDashboardResponse(
-                    id=dashboard["id"],
-                    name=dashboard["name"],
-                    description=dashboard["description"],
-                    type=dashboard["type"],
-                    dashboard_state=dashboard["dashboard_state"],
-                    created_at=dashboard["created_at"].isoformat(),
-                    updated_at=dashboard["updated_at"].isoformat(),
-                    user_id=dashboard["user_id"],
-                )
-                for dashboard in dashboards
-            ]
+            dashboards=[SavedDashboardResponse.from_db(dashboard) for dashboard in dashboards]
         )
 
     @router.get("/saved/{dashboard_id}")
@@ -71,16 +72,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         if not dashboard:
             raise HTTPException(status_code=404, detail="Dashboard not found")
 
-        return SavedDashboardResponse(
-            id=dashboard["id"],
-            name=dashboard["name"],
-            description=dashboard["description"],
-            type=dashboard["type"],
-            dashboard_state=dashboard["dashboard_state"],
-            created_at=dashboard["created_at"].isoformat(),
-            updated_at=dashboard["updated_at"].isoformat(),
-            user_id=dashboard["user_id"],
-        )
+        return SavedDashboardResponse.from_db(dashboard)
 
     @router.post("/saved")
     @timed_route("create_saved_dashboard")
@@ -102,16 +94,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         if not dashboard:
             raise HTTPException(status_code=500, detail="Failed to create dashboard")
 
-        return SavedDashboardResponse(
-            id=dashboard["id"],
-            name=dashboard["name"],
-            description=dashboard["description"],
-            type=dashboard["type"],
-            dashboard_state=dashboard["dashboard_state"],
-            created_at=dashboard["created_at"].isoformat(),
-            updated_at=dashboard["updated_at"].isoformat(),
-            user_id=dashboard["user_id"],
-        )
+        return SavedDashboardResponse.from_db(dashboard)
 
     @router.put("/saved/{dashboard_id}")
     @timed_route("update_saved_dashboard")
@@ -135,16 +118,7 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
         if not dashboard:
             raise HTTPException(status_code=500, detail="Failed to fetch updated dashboard")
 
-        return SavedDashboardResponse(
-            id=dashboard["id"],
-            name=dashboard["name"],
-            description=dashboard["description"],
-            type=dashboard["type"],
-            dashboard_state=dashboard["dashboard_state"],
-            created_at=dashboard["created_at"].isoformat(),
-            updated_at=dashboard["updated_at"].isoformat(),
-            user_id=dashboard["user_id"],
-        )
+        return SavedDashboardResponse.from_db(dashboard)
 
     @router.delete("/saved/{dashboard_id}")
     @timed_route("delete_saved_dashboard")

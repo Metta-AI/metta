@@ -66,7 +66,7 @@ class MettaActorBig(LayerBase):
         hidden = td[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
         action_embeds = td[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
 
-        B_TT = hidden.shape[0]
+        B_TT = td.batch_size.numel()
         num_actions = action_embeds.shape[1]
 
         # input_1: [B*TT, hidden] -> [B*TT * num_actions, hidden]
@@ -136,7 +136,7 @@ class MettaActorSingleHead(LayerBase):
         hidden = td[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
         action_embeds = td[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
 
-        B_TT = hidden.shape[0]
+        B_TT = td.batch_size.numel()
         num_actions = action_embeds.shape[1]
 
         # Reshape inputs similar to Rev2 for bilinear calculation
