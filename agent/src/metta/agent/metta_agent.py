@@ -182,23 +182,6 @@ class MettaAgent(nn.Module):
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
         )
 
-    def initialize_to_environment(
-        self,
-        features: dict[str, dict],
-        action_names: list[str],
-        action_max_params: list[int],
-        device,
-        is_training: bool = True,
-    ):
-        """Initialize the agent to the current environment."""
-
-        if isinstance(self.policy, ComponentPolicy):
-            self.activate_policy()
-
-        # MettaAgent handles the initialization for all policy types
-        self.activate_actions(action_names, action_max_params, device)
-        self._initialize_observations(features, device)
-
     def _setup_components(self, component):
         """_sources is a list of dicts albeit many layers simply have one element.
         It must always have a "name" and that name should be the same as the relevant key in self.components.
@@ -217,6 +200,23 @@ class MettaAgent(nn.Module):
             for source in component._sources:
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
+
+    def initialize_to_environment(
+        self,
+        features: dict[str, dict],
+        action_names: list[str],
+        action_max_params: list[int],
+        device,
+        is_training: bool = True,
+    ):
+        """Initialize the agent to the current environment."""
+
+        if isinstance(self.policy, ComponentPolicy):
+            self.activate_policy()
+
+        # MettaAgent handles the initialization for all policy types
+        self.activate_actions(action_names, action_max_params, device)
+        self._initialize_observations(features, device)
 
     def _initialize_observations(self, features: dict[str, dict], device):
         """Initialize observation features by storing the feature mapping."""
