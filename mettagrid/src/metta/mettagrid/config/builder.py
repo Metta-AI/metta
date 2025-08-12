@@ -1,8 +1,4 @@
-"""Compact configuration builders for MettaGrid demos.
-
-This module provides simple, compact ways to create common MettaGrid configurations,
-similar to the old config/builder.py approach but using the new Pydantic models.
-"""
+"""Compact configuration builders for EnvConfig."""
 
 from metta.mettagrid.config import objects
 from metta.mettagrid.config.mettagrid_config import (

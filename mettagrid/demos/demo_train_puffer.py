@@ -238,7 +238,7 @@ def demo_env_config_modification():
     env_config_large = create_demo_config(num_agents=1, max_steps=60, map_width=12, map_height=12)
 
     # Set new configuration for next reset
-    env.set_env_cfg(env_config_large)
+    env.set_env_config(env_config_large)
 
     print("\nSecond configuration (12x12 map):")
     obs, info = env.reset(seed=123)

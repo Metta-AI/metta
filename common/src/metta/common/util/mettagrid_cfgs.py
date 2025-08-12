@@ -115,7 +115,7 @@ class MettagridCfgFile:
             with hydra.initialize(config_path="../../../../../configs", version_base=None):
                 curriculum = curriculum_from_config_path(hydra_path, OmegaConf.create({}))
             task = curriculum.get_task()
-            map_cfg = task.original_env_cfg().game.map_builder
+            map_cfg = task.unresolved_dict_cfg().game.map_builder
         else:
             raise ValueError(f"Config {self.metadata.path} is not a map or env")
 

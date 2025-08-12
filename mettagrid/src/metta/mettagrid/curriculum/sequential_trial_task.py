@@ -60,6 +60,6 @@ class SequentialTrialTask(Task):
         cfg = OmegaConf.merge(self._base_cfg, self._trial_overrides[self._current_trial_idx])
         return hydra.utils.instantiate(cfg)
 
-    def original_env_cfg(self) -> DictConfig:
+    def unresolved_dict_cfg(self) -> DictConfig:
         """Returns the original base config without trial overrides or instantiation."""
         return self._base_cfg

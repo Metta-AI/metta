@@ -12,17 +12,15 @@ import datetime
 import logging
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
-from omegaconf import OmegaConf
 from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.mettagrid.level_builder import LevelMap
+from metta.mettagrid.config import EnvConfig
 from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
-from metta.mettagrid.config import EnvConfig, PyGameConfig
 from metta.mettagrid.puffer_base import MettaGridPufferBase
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
@@ -75,7 +73,6 @@ class AutoResetEnv(MettaGridPufferBase):
         self._reset_at = datetime.datetime.now()
         self._is_training = is_training
 
-        
         # Initialize with base PufferLib functionality
         super().__init__(
             env_config=env_config,
@@ -87,26 +84,26 @@ class AutoResetEnv(MettaGridPufferBase):
         # Environment metadata
         self.labels: List[str] = env_config.level_map.labels
 
-    
-    def set_env_cfg(self, env_config: EnvConfig) -> None:
+    def set_env_config(self, env_config: EnvConfig) -> None:
         """Set the environment configuration. Only allowed when episode is finished or environment not yet initialized.
-        
+
         Args:
             env_config: New environment configuration
-            
+
         Raises:
             AssertionError: If called while game is still running
         """
         # Allow setting config if environment not initialized yet or episode is finished
-        assert self._c_env_instance is None or self._should_reset, "Cannot change env config while game is still running. Episode must be finished."
+        assert self._c_env_instance is None or self._should_reset, (
+            "Cannot change env config while game is still running. Episode must be finished."
+        )
         self._env_config = env_config
         self._level = env_config.level_map
         self.labels = env_config.level_map.labels
-    
+
     def _make_episode_id(self) -> str:
         """Generate unique episode ID."""
         return str(uuid.uuid4())
-
 
     @override
     @with_instance_timer("reset")
@@ -124,15 +121,15 @@ class AutoResetEnv(MettaGridPufferBase):
 
         # Use current env_config
         env_config = self._env_config
-        
+
         # Update internal env_config
         self._env_config = env_config
         self._level = env_config.level_map
         self._map_labels = env_config.level_map.labels
-        
+
         # Get game config dict for C++ environment
         game_config_dict = env_config.game.model_dump()
-        
+
         # Recreate C++ environment for new task (after first reset)
         if self._resets > 0:
             self._c_env_instance = self._create_c_env(game_config_dict, seed)
