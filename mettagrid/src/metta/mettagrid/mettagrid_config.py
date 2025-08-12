@@ -244,12 +244,7 @@ class GameConfig(ConfigWithBuilder):
         default=False, description="Enable agents to move through and not observe each other"
     )
 
-    @model_validator(mode="after")
-    def validate_level_map_required(self) -> "GameConfig":
-        """level_map field is required for environment creation."""
-        # The validation for level_map being required happens at the environment level, not here
-        # This allows for flexibility in testing and C++ config generation
-        return self
+
 
 
 class EnvConfig(ConfigWithBuilder):
