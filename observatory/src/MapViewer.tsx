@@ -73,20 +73,24 @@ const MAP_VIEWER_CSS = `
 }
 `
 
-const getShortName = (evalName: string) => {
-  return evalName.split('/').pop() || evalName
-}
+import { getShortName, OVERALL_EVAL_NAME } from './utils/evalNameUtils'
 
 const getMapImageUrl = (evalName: string) => {
-  if (evalName.toLowerCase() === 'overall') return ''
+  if (evalName.toLowerCase() === OVERALL_EVAL_NAME) return ''
+  
+  // Skip synthetic evaluations (same logic as backend)
+  if (evalName.startsWith('eval/')) {
+    return ''
+  }
   
   // New naming scheme: eval_category_env_name.png
   const newKey = evalName.replace('/', '_').toLowerCase()
-  return `https://softmax-public.s3.amazonaws.com/policydash/evals/img/${newKey}.png`
+  const url = `https://softmax-public.s3.amazonaws.com/policydash/evals/img/${newKey}.png`
+  return url
 }
 
 const getFallbackImageUrl = (evalName: string) => {
-  if (evalName.toLowerCase() === 'overall') return ''
+  if (evalName.toLowerCase() === OVERALL_EVAL_NAME) return ''
   
   // Old naming scheme: env_name.png (backwards compatibility)
   const shortName = getShortName(evalName)
@@ -107,6 +111,8 @@ export function MapViewer({
         <div className="map-viewer-title">{selectedEval || 'Map Viewer'}</div>
         {!selectedEval ? (
           <div className="map-viewer-placeholder">Hover over an evaluation name or cell to see the environment map</div>
+        ) : selectedEval.startsWith('eval/') ? (
+          <div className="map-viewer-placeholder">No thumbnail available for synthetic evaluation: {selectedEval}</div>
         ) : (
           <img
             key={selectedEval} // Force reload when selectedEval changes
