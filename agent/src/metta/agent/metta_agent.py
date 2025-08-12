@@ -161,9 +161,15 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
-    def reset_memory(self):
+    def reset_memory(self) -> None:
         for name in self.components_with_memory:
-            self.components[name].reset_memory()
+            comp = self.components[name]
+            if not hasattr(comp, "reset_memory"):
+                raise ValueError(
+                    f"Component '{name}' listed in components_with_memory but has no reset_memory() method."
+                    + " Perhaps an obsolete policy?"
+                )
+            comp.reset_memory()
 
     def get_memory(self):
         memory = {}
@@ -425,7 +431,7 @@ class MettaAgent(nn.Module):
         Forward pass of the MettaAgent - delegates to appropriate specialized method.
 
         Args:
-            input_td: A TensorDict containing at least "env_obs". In training, it should also contain the keys that are
+            td: A TensorDict containing at least "env_obs". In training, it should also contain the keys that are
             specified in the experience buffer spec function also defined in this class.
             action: Optional action tensor for BPTT (training mode).
 
@@ -434,14 +440,16 @@ class MettaAgent(nn.Module):
             - In inference mode, this contains data to be stored in the experience buffer.
             - In training mode, this contains data for loss calculation.
         """
-        td.bptt = 1
-        td.batch = td.batch_size.numel()
         if td.batch_dims > 1:
-            B = td.batch_size[0]
-            TT = td.batch_size[1]
-            td = td.reshape(td.batch_size.numel())
-            td.bptt = TT
-            td.batch = B
+            B, TT = td.batch_size[0], td.batch_size[1]
+            td = td.reshape(B * TT)
+            td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
+        else:
+            B = td.batch_size.numel()
+            TT = 1
+            td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
 
         # Forward pass through value network. This will also run the core network.
         self.components["_value_"](td)

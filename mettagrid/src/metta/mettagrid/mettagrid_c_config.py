@@ -193,6 +193,9 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
     # Add recipe_details_obs flag
     game_cpp_params["recipe_details_obs"] = game_config.recipe_details_obs
 
+    # Add no_agent_interference flag
+    game_cpp_params["no_agent_interference"] = game_config.no_agent_interference
+
     return CppGameConfig(**game_cpp_params)
 
 
