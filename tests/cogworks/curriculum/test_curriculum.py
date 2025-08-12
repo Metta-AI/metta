@@ -4,7 +4,7 @@ import random
 
 import pytest
 
-from cogworks.curriculum import (
+from metta.cogworks.curriculum import (
     Curriculum,
     CurriculumConfig,
     CurriculumTask,

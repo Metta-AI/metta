@@ -1,6 +1,6 @@
 """Tests for Task class."""
 
-from cogworks.curriculum import Task
+from metta.cogworks.curriculum import Task
 from metta.mettagrid.mettagrid_config import EnvConfig, GameConfig
 
 
