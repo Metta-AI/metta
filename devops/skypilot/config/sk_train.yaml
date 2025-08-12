@@ -133,7 +133,7 @@ run: |
     local max_seconds=$(echo "$max_hours * 3600" | bc)
 
     while true; do
-      sleep 300  # Check every 5 minutes
+      sleep 10  # Check every 10 seconds
 
       local elapsed=$(($(date +%s) - start_time))
       local remaining=$((max_seconds - elapsed))
