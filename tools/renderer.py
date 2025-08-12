@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from typing import Any, List, Protocol, Tuple
 
 import numpy as np
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from metta.mettagrid import (
     MettaGridEnv,
@@ -17,9 +17,8 @@ from metta.mettagrid import (
     dtype_terminals,
     dtype_truncations,
 )
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.config.builder import arena
 from metta.mettagrid.util.actions import generate_valid_random_actions
-from metta.mettagrid.util.hydra import get_cfg
 from metta.util.metta_script import metta_script
 from tools.utils import get_policy_store_from_cfg
 
@@ -219,7 +218,7 @@ class TrainedPolicyWrapper(BasePolicy):
     def __init__(self, policy: Any, env: MettaGridEnv) -> None:
         super().__init__(env)
         self.policy = policy
-        self._max_args: List[int] = env._c_env.max_action_args()
+        self._max_args: List[int] = env.max_action_args
         self._num_action_types: int = env.single_action_space.nvec[0]
 
     def predict(self, obs: np.ndarray) -> np.ndarray:
@@ -323,24 +322,10 @@ def setup_environment(cfg: DictConfig) -> Tuple[MettaGridEnv, str]:
         print(f"⚠️  Unknown renderer type '{render_mode}', using 'human' (nethack)")
         render_mode = "human"
 
-    # Create curriculum
-    if hasattr(cfg, "env") and cfg.env is not None:
-        # Use the env configuration directly
-        curriculum = SingleTaskCurriculum("renderer", cfg.env)
-        print(f"📊 Using environment config: {cfg.env.game.num_agents} agents")
-    else:
-        # Fall back to the legacy renderer_job.environment approach
-        env_cfg = get_cfg("benchmark")
-        env_cfg.game.num_agents = cfg.renderer_job.num_agents
-        env_cfg.game.max_steps = cfg.renderer_job.max_steps
+    env_cfg = arena(num_agents=cfg.renderer_job.num_agents)
+    env_cfg.game.max_steps = cfg.renderer_job.max_steps
 
-        if hasattr(cfg.renderer_job, "environment") and cfg.renderer_job.environment:
-            env_cfg.game.map_builder = OmegaConf.create(cfg.renderer_job.environment)
-            print(f"📊 Using legacy environment config: {cfg.renderer_job.num_agents} agents")
-
-        curriculum = SingleTaskCurriculum("renderer", env_cfg)
-
-    env = MettaGridEnv(curriculum, render_mode=render_mode)
+    env = MettaGridEnv(env_cfg, render_mode=render_mode)
 
     return env, render_mode
 

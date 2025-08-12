@@ -1,26 +1,28 @@
 # MettaGrid Demos README
 
-This folder contains pure, framework-specific demos that prove our adapters work without relying on Metta's internal training code. Each script is intentionally minimal and self-contained so external researchers (or CI) can copy/paste and run them with only the target library installed.
+This folder contains pure, framework-specific demos that prove our adapters work without relying on Metta's internal
+training code. Each script is intentionally minimal and self-contained so external researchers (or CI) can copy/paste
+and run them with only the target library installed.
 
 ---
 
 ## Goals of these demos
 
 1. **Prove Compatibility**
-   * Show each adapter (PettingZoo, Gymnasium/SB3, PufferLib) can reset/step/close cleanly
-   * Run a short end-to-end "training" loop in the target ecosystem to exercise the whole API
+   - Show each adapter (PettingZoo, Gymnasium/SB3, PufferLib) can reset/step/close cleanly
+   - Run a short end-to-end "training" loop in the target ecosystem to exercise the whole API
 
 2. **Keep Boundaries Clean**
-   * No calls into Metta training utilities (`train.py`, simulation loops, etc.)
-   * Only import the adapter (`MettaGridPettingZooEnv`, `SingleAgentMettaGridGymEnv`, `MettaGridPufferEnv`) + curriculum
+   - No calls into Metta training utilities (`train.py`, simulation loops, etc.)
+   - Only import the adapter (`MettaGridPettingZooEnv`, `MettaGridGymEnv`, `MettaGridPufferEnv`) + curriculum
 
 3. **Be CI-Friendly**
-   * Hard cap on steps/timesteps (≤~300) so they finish fast
-   * Deterministic seeds and simple asserts to catch regressions
+   - Hard cap on steps/timesteps (≤~300) so they finish fast
+   - Deterministic seeds and simple asserts to catch regressions
 
 4. **Serve as Reference Code**
-   * Researchers can see exactly how to wire MettaGrid into their pipelines
-   * Internal devs can sanity-check changes against real external APIs
+   - Researchers can see exactly how to wire MettaGrid into their pipelines
+   - Internal devs can sanity-check changes against real external APIs
 
 ---
 
@@ -50,7 +52,8 @@ uv run python mettagrid/demos/demo_train_puffer.py
 gh workflow run test-demo-environments.yml
 ```
 
-> **Note**: If `uv` isn't available, you can extract dependencies from the `# /// script` headers and install with pip, or run inside the project's dev environment.
+> **Note**: If `uv` isn't available, you can extract dependencies from the `# /// script` headers and install with pip,
+> or run inside the project's dev environment.
 
 ---
 
@@ -58,24 +61,24 @@ gh workflow run test-demo-environments.yml
 
 ### PettingZoo (`demo_train_pettingzoo.py`)
 
-* Passes `pettingzoo.test.parallel_api_test`
-* Executes random rollout + toy policy update loop (~300 steps)
-* Asserts non-NaN rewards, sensible shapes, and episode cycling
-* Multi-agent action spaces work correctly
+- Passes `pettingzoo.test.parallel_api_test`
+- Executes random rollout + toy policy update loop (~300 steps)
+- Asserts non-NaN rewards, sensible shapes, and episode cycling
+- Multi-agent action spaces work correctly
 
 ### Gymnasium / SB3 (`demo_train_gym.py`)
 
-* Single-agent wrapper satisfies SB3's expectations
-* Trains a PPO agent for ~256 steps without errors
-* Rollout verification shows trained model can act
-* Vectorized `DummyVecEnv` test confirms parallelism
+- Single-agent wrapper satisfies SB3's expectations
+- Trains a PPO agent for ~256 steps without errors
+- Rollout verification shows trained model can act
+- Vectorized `DummyVecEnv` test confirms parallelism
 
 ### PufferLib (`demo_train_puffer.py`)
 
-* Environment constructs and steps with correct action data types
-* Short random rollout + preference-based learning loop
-* Compatible with PufferLib's high-throughput expectations
-* Handles multi-agent Box action spaces correctly
+- Environment constructs and steps with correct action data types
+- Short random rollout + preference-based learning loop
+- Compatible with PufferLib's high-throughput expectations
+- Handles multi-agent Box action spaces correctly
 
 ---
 
@@ -85,21 +88,21 @@ We ensure MettaGrid plays nicely with the PyTorch RL stacks that game/multi-agen
 
 ### **Tier 1** (actively tested in demos + CI)
 
-* **Stable-Baselines3 (SB3)** – most common baseline suite for Gym environments
-* **PettingZoo** – standard multi-agent RL API with extensive ecosystem
-* **PufferLib** – vectorized, throughput-focused env/training toolkit
+- **Stable-Baselines3 (SB3)** – most common baseline suite for Gym environments
+- **PettingZoo** – standard multi-agent RL API with extensive ecosystem
+- **PufferLib** – vectorized, throughput-focused env/training toolkit
 
 ### **Tier 2** (compatible by design, tested in unit tests)
 
-* **Tianshou** – works through PettingZoo ParallelEnv API (test_pettingzoo_env.py)
-* **CleanRL** – works through Gymnasium/PettingZoo APIs (test_gym_env.py, test_pettingzoo_env.py)
-* **MARLlib** – built on PettingZoo ParallelEnv (test_pettingzoo_env.py)
+- **Tianshou** – works through PettingZoo ParallelEnv API (test_pettingzoo_env.py)
+- **CleanRL** – works through Gymnasium/PettingZoo APIs (test_gym_env.py, test_pettingzoo_env.py)
+- **MARLlib** – built on PettingZoo ParallelEnv (test_pettingzoo_env.py)
 
 ### **Tier 3** (should work, not regularly tested)
 
-* **TorchRL (Meta/Facebook)** – official PyTorch RL lib with env abstractions
-* **SampleFactory v2** – scalable on-policy RL for games
-* **RLlib** – distributed RL framework (Ray); PettingZoo compatible
+- **TorchRL (Meta/Facebook)** – official PyTorch RL lib with env abstractions
+- **SampleFactory v2** – scalable on-policy RL for games
+- **RLlib** – distributed RL framework (Ray); PettingZoo compatible
 
 ---
 
@@ -107,13 +110,14 @@ We ensure MettaGrid plays nicely with the PyTorch RL stacks that game/multi-agen
 
 We primarily want to slot in next to popular open-source MARL / game RL stacks:
 
-* **PettingZoo "classic" envs** (MAgent, SISL, Overcooked) – API parity, benchmarkability
-* **MiniGrid / BabyAI** – curriculum + gridworld baselines (single & multi-agent)
-* **SMAC / SMACv2** – cooperative multi-agent control benchmarks
-* **MELTINGPOT** – social dilemma / generalization focus (JAX, but PettingZoo-compatible adapters exist)
-* **SampleFactory v2 / ENVPOOL** – high-throughput env runners
+- **PettingZoo "classic" envs** (MAgent, SISL, Overcooked) – API parity, benchmarkability
+- **MiniGrid / BabyAI** – curriculum + gridworld baselines (single & multi-agent)
+- **SMAC / SMACv2** – cooperative multi-agent control benchmarks
+- **MELTINGPOT** – social dilemma / generalization focus (JAX, but PettingZoo-compatible adapters exist)
+- **SampleFactory v2 / ENVPOOL** – high-throughput env runners
 
-These demos serve as proof that MettaGrid can drop into the same pipelines as the above. Future work: add benchmark scripts that mirror their training configs for apples-to-apples comparisons.
+These demos serve as proof that MettaGrid can drop into the same pipelines as the above. Future work: add benchmark
+scripts that mirror their training configs for apples-to-apples comparisons.
 
 ---
 
@@ -129,30 +133,30 @@ strategy:
 
 Each demo runs with:
 
-* **45-second timeout** (expected completion ~5s)
-* **Deterministic execution** for consistent CI results
-* **Failure detection** for import errors, API changes, or hangs
+- **45-second timeout** (expected completion ~5s)
+- **Deterministic execution** for consistent CI results
+- **Failure detection** for import errors, API changes, or hangs
 
 ---
 
 ## Future TODOs / Nice-to-haves
 
-* **SuperSuit examples**: show how to wrap our PettingZoo env in common pre-processing stacks
-* **TorchRL/Tianshou snippets**: add 20-line demos to reassure compatibility
-* **Multi-agent Gym wrapper**: shared-reward or stacked-obs Gym env for SB3 if demand arises
-* **Performance benchmark**: quick throughput comparison vs reference envs
-* **Cleaner config injection**: CLI flags to tweak curriculum/env params from demos
-* **Notebook versions**: Jupyter notebooks for interactive exploration
+- **SuperSuit examples**: show how to wrap our PettingZoo env in common pre-processing stacks
+- **TorchRL/Tianshou snippets**: add 20-line demos to reassure compatibility
+- **Multi-agent Gym wrapper**: shared-reward or stacked-obs Gym env for SB3 if demand arises
+- **Performance benchmark**: quick throughput comparison vs reference envs
+- **Cleaner config injection**: CLI flags to tweak curriculum/env params from demos
+- **Notebook versions**: Jupyter notebooks for interactive exploration
 
 ---
 
 ## Contributing / Updating the demos
 
-* **Keep them short** (< ~2 minutes total runtime in CI)
-* **Prefer deterministic seeds**, explicit asserts, and clear prints over heavy logging
-* **If you change an adapter's API**, update the corresponding demo and tests in the same PR
-* **Use these scripts as acceptance tests** when refactoring core env APIs
-* **Follow PEP 723** for dependency specifications in script headers
+- **Keep them short** (< ~2 minutes total runtime in CI)
+- **Prefer deterministic seeds**, explicit asserts, and clear prints over heavy logging
+- **If you change an adapter's API**, update the corresponding demo and tests in the same PR
+- **Use these scripts as acceptance tests** when refactoring core env APIs
+- **Follow PEP 723** for dependency specifications in script headers
 
 ---
 
@@ -160,13 +164,15 @@ Each demo runs with:
 
 ### Common Issues
 
-**ImportErrors**: The demos only import the specific adapter + curriculum. If something else slips in, that's a red flag.
+**ImportErrors**: The demos only import the specific adapter + curriculum. If something else slips in, that's a red
+flag.
 
 **PettingZoo test closes env**: Don't try to reuse the same env instance after `parallel_api_test`; create a new one.
 
 **Action data types**: Make sure actions are `int32` for MultiDiscrete spaces (Puffer/PettingZoo).
 
-**SB3 shape complaints**: Verify you're using the single-agent wrapper and that obs/action spaces match SB3 expectations.
+**SB3 shape complaints**: Verify you're using the single-agent wrapper and that obs/action spaces match SB3
+expectations.
 
 ### Debug Commands
 
@@ -210,4 +216,3 @@ These demos exercise the **external compatibility layer** of MettaGrid's archite
 ```
 
 The demos ensure the **top layer** works correctly without involving the **bottom layer** (Softmax Studio training).
-

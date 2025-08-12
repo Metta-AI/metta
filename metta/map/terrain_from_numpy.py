@@ -9,7 +9,7 @@ from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
 
 from metta.common.util.config import Config
-from metta.mettagrid.level_builder import Level, LevelBuilder
+from metta.mettagrid.game_map import GameMap, GameMapBuilder
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ class TerrainFromNumpyParams(Config):
     file: str | None = None
 
 
-class TerrainFromNumpy(LevelBuilder):
+class TerrainFromNumpy(GameMapBuilder):
     """
     This class is used to load a terrain environment from numpy arrays on s3.
 
@@ -92,9 +92,6 @@ class TerrainFromNumpy(LevelBuilder):
         # Get coordinates of valid positions
         valid_positions = list(zip(*np.where(valid_mask), strict=False))
         return valid_positions
-
-    def get_labels(self) -> list[str]:
-        return [self.params.dir.split("/")[0]]
 
     def build(self):
         root = self.params.dir.split("/")[0]
@@ -153,4 +150,4 @@ class TerrainFromNumpy(LevelBuilder):
                 grid[pos] = obj_name
                 valid_positions_set.remove(pos)
 
-        return Level(grid=grid, labels=self.get_labels())
+        return GameMap(grid=grid)
