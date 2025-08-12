@@ -3,13 +3,12 @@ from typing import Any, Literal, Optional
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.config import Config
-from metta.common.util.typed_config import ConfigWithBuilder
 from metta.mettagrid.level_builder import Level
 
 # ===== Python Configuration Models =====
 
 
-class InventoryRewards(ConfigWithBuilder):
+class InventoryRewards(Config):
     """Inventory-based reward configuration."""
 
     ore_red: Optional[float] = Field(default=None)
@@ -34,8 +33,7 @@ class InventoryRewards(ConfigWithBuilder):
     blueprint_max: Optional[int] = Field(default=None)
 
 
-class PyStatsRewards(Config):
-class StatsRewards(ConfigWithBuilder):
+class StatsRewards(Config):
     """Agent stats-based reward configuration.
 
     Maps stat names to reward values. Stats are tracked by the StatsTracker
@@ -48,8 +46,7 @@ class StatsRewards(ConfigWithBuilder):
     model_config = ConfigDict(extra="allow")  # Allow any stat names to be added dynamically
 
 
-class PyAgentRewards(Config):
-class AgentRewards(ConfigWithBuilder):
+class AgentRewards(Config):
     """Agent reward configuration with separate inventory and stats rewards."""
 
     inventory: Optional[InventoryRewards] = Field(default_factory=InventoryRewards)
@@ -85,8 +82,7 @@ class AgentRewards(ConfigWithBuilder):
         super().__init__(**data)
 
 
-class PyAgentConfig(Config):
-class AgentConfig(ConfigWithBuilder):
+class AgentConfig(Config):
     """Python agent configuration."""
 
     default_resource_limit: Optional[int] = Field(default=0, ge=0)
@@ -97,8 +93,7 @@ class AgentConfig(ConfigWithBuilder):
     initial_inventory: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
-class PyGroupConfig(Config):
-class GroupConfig(ConfigWithBuilder):
+class GroupConfig(Config):
     """Python group configuration."""
 
     id: int
@@ -109,8 +104,7 @@ class GroupConfig(ConfigWithBuilder):
     props: AgentConfig = Field(default_factory=AgentConfig)
 
 
-class PyActionConfig(Config):
-class ActionConfig(ConfigWithBuilder):
+class ActionConfig(Config):
     """Python action configuration."""
 
     enabled: bool = Field(default=True)
@@ -131,8 +125,7 @@ class ChangeGlyphActionConfig(ActionConfig):
     number_of_glyphs: int = Field(default=0, ge=0, le=255)
 
 
-class PyActionsConfig(Config):
-class ActionsConfig(ConfigWithBuilder):
+class ActionsConfig(Config):
     """
     Actions configuration.
 
@@ -152,8 +145,7 @@ class ActionsConfig(ConfigWithBuilder):
     change_glyph: Optional[ChangeGlyphActionConfig] = None
 
 
-class PyGlobalObsConfig(Config):
-class GlobalObsConfig(ConfigWithBuilder):
+class GlobalObsConfig(Config):
     """Global observation configuration."""
 
     episode_completion_pct: bool = Field(default=True)
@@ -169,16 +161,14 @@ class GlobalObsConfig(ConfigWithBuilder):
     visitation_counts: bool = Field(default=False)
 
 
-class PyWallConfig(Config):
-class WallConfig(ConfigWithBuilder):
+class WallConfig(Config):
     """Python wall/block configuration."""
 
     type_id: int
     swappable: bool = Field(default=False)
 
 
-class PyConverterConfig(Config):
-class ConverterConfig(ConfigWithBuilder):
+class ConverterConfig(Config):
     """Python converter configuration."""
 
     input_resources: dict[str, int] = Field(default_factory=dict)
@@ -192,8 +182,7 @@ class ConverterConfig(ConfigWithBuilder):
     color: int = Field(default=0, ge=0, le=255)
 
 
-class PyGameConfig(Config):
-class GameConfig(ConfigWithBuilder):
+class GameConfig(Config):
     """Python game configuration."""
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -245,9 +234,7 @@ class GameConfig(ConfigWithBuilder):
     )
 
 
-
-
-class EnvConfig(ConfigWithBuilder):
+class EnvConfig(Config):
     """Environment configuration."""
 
     game: GameConfig
