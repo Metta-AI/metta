@@ -9,8 +9,7 @@ from metta.map.scene import load_class, make_scene, scene_cfg_to_dict
 from metta.map.scenes.copy_grid import CopyGrid
 from metta.map.scenes.room_grid import RoomGrid, RoomGridParams
 from metta.map.scenes.transplant_scene import TransplantScene
-from metta.map.types import MapGrid
-from metta.mettagrid.level_builder import Level, LevelBuilder
+from metta.mettagrid.level_builder import Level, LevelBuilder, create_grid
 
 from .types import Area, AreaWhere, ChildrenAction, SceneCfg
 
@@ -149,7 +148,7 @@ class MapGen(LevelBuilder):
                         raise ValueError("width and height must be provided if the root scene has no intrinsic size")
                     self.height, self.width = intrinsic_size
 
-                instance_grid = np.full((self.height, self.width), "empty", dtype="<U50")
+                instance_grid = create_grid(self.height, self.width)
                 instance_area = Area(x=0, y=0, width=self.width, height=self.height, grid=instance_grid, tags=[])
                 instance_scene = make_scene(self.root, instance_area, rng=self.rng)
                 instance_scene.render_with_children()
@@ -226,11 +225,7 @@ class MapGen(LevelBuilder):
 
         bw = self.params.border_width
 
-        self.grid: MapGrid = np.full(
-            (self.inner_height + 2 * bw, self.inner_width + 2 * bw),
-            "empty",
-            dtype="<U50",
-        )
+        self.grid = create_grid(self.inner_height + 2 * bw, self.inner_width + 2 * bw)
 
         # draw outer walls
         # note that the inner walls when instances > 1 will be drawn by the RoomGrid scene

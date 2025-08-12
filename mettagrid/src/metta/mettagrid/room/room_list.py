@@ -2,6 +2,7 @@ from typing import List
 
 import numpy as np
 
+from metta.mettagrid.level_builder import create_grid
 from metta.mettagrid.room.room import Room
 
 
@@ -47,7 +48,7 @@ class RoomList(Room):
             grid_cols = n_rooms
 
         # Create empty grid to hold all rooms
-        level = np.full((grid_rows * max_height, grid_cols * max_width), "empty", dtype="<U50")
+        level = create_grid(grid_rows * max_height, grid_cols * max_width)
 
         # Place rooms into grid
         for i in range(n_rooms):
