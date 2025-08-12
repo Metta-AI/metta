@@ -10,7 +10,7 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 from torchrl.data import Composite
 
-from metta.agent.metta_agent import PolicyAgent
+from metta.agent.metta_agent import DistributedMettaAgent, PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
@@ -37,7 +37,6 @@ from metta.rl.optimization import (
 )
 from metta.rl.policy_management import (
     initialize_policy_for_environment,
-    wrap_agent_distributed,
 )
 from metta.rl.rollout import get_observation, send_observation
 from metta.rl.stats import (
@@ -171,15 +170,6 @@ def train(
 
     policy: PolicyAgent = latest_saved_policy_record.policy
 
-    # Initialize policy to environment BEFORE distributed wrapping
-    # This ensures the policy has parameters that require gradients
-    initialize_policy_for_environment(
-        policy_record=latest_saved_policy_record,
-        metta_grid_env=metta_grid_env,
-        device=device,
-        restore_feature_mapping=True,
-    )
-
     if trainer_cfg.compile:
         logger.info("Compiling policy")
         # torch.compile gives a CallbackFunctionType, but it preserves the interface of the original policy
@@ -189,8 +179,17 @@ def train(
     if torch.distributed.is_initialized():
         logger.info(f"Initializing DistributedDataParallel on device {device}")
         torch.distributed.barrier()
-        policy = wrap_agent_distributed(policy, device)
+        policy = DistributedMettaAgent(policy, device)
         torch.distributed.barrier()
+
+    # Initialize policy to environment after distributed wrapping
+    # This must happen after wrapping to ensure all ranks do it at the same time
+    initialize_policy_for_environment(
+        policy_record=latest_saved_policy_record,
+        metta_grid_env=metta_grid_env,
+        device=device,
+        restore_feature_mapping=True,
+    )
 
     # Create kickstarter
     kickstarter = Kickstarter(
