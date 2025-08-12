@@ -27,8 +27,6 @@ def _to_jsonable(obj):
 class SimulationConfig(Config):
     """Configuration for a single simulation run."""
 
-    __init__ = Config.__init__
-
     # Core simulation config
     num_episodes: int
     max_time_s: int = 120
@@ -57,6 +55,10 @@ class SimulationSuiteConfig(SimulationConfig):
     @model_validator(mode="before")
     @classmethod
     def propagate_suite_fields(cls, values: dict) -> dict:
+        # Handle cases where values might not be a dict (e.g., when using custom __init__)
+        if not isinstance(values, dict):
+            return values
+
         # collect only fields that were explicitly passed (not defaults)
         # note: in `mode="before"`, `values` is raw user input
 

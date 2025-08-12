@@ -40,7 +40,6 @@ from tools.utils import get_policy_store_from_cfg
 
 
 class SimJob(Config):
-    __init__ = Config.__init__
     simulation_suite: SimulationSuiteConfig
     policy_uris: list[str]
     selector_type: PolicySelectorType = "top"

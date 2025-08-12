@@ -34,7 +34,6 @@ logger = logging.getLogger(__name__)
 
 # TODO: populate this more
 class TrainJob(Config):
-    __init__ = Config.__init__
     evals: SimulationSuiteConfig
     map_preview_uri: str | None = None
 
@@ -101,7 +100,7 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     if os.environ.get("RANK", "0") == "0":
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
-    train_job = TrainJob(cfg.train_job)
+    train_job = TrainJob.model_validate(OmegaConf.to_container(cfg.train_job, resolve=True))
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
         if cfg.trainer.scale_batches_by_world_size:
