@@ -101,6 +101,13 @@ class MettaGridEnv(MettaGridPufferBase):
         game_config_dict = OmegaConf.to_container(task_cfg.game)
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
+        # explicit code to keep level and config in sync
+        level = task_cfg.game.map_builder.build()
+        self._level = level
+        self._map_labels = level.labels
+        # Update optional labels from config
+        self.labels = task_cfg.get("labels", [])
+
         # Create new C++ environment for new trial
         self._c_env_instance = self._create_c_env(game_config_dict, self._current_seed)
 
@@ -144,6 +151,12 @@ class MettaGridEnv(MettaGridPufferBase):
         task_cfg = self._task.env_cfg()
         game_config_dict = OmegaConf.to_container(task_cfg.game)
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
+
+        level = task_cfg.game.map_builder.build()
+        self._level = level
+        self._map_labels = level.labels
+        # Update optional labels from config
+        self.labels = task_cfg.get("labels", [])
 
         # Recreate C++ environment for new task (after first reset)
         if self._resets > 0:
