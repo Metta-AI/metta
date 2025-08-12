@@ -7,9 +7,24 @@ from typing import Any, List, Optional, Tuple
 
 import numpy as np
 
-from metta.mettagrid.level_builder import create_grid
+from metta.mettagrid.config import object as obj
+from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
+from metta.mettagrid.map_builder.utils import create_grid
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions  # noqa: F401
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from metta.mettagrid.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    AgentRewards,
+    AttackActionConfig,
+    ChangeGlyphActionConfig,
+    ConverterConfig,
+    EnvConfig,
+    GameConfig,
+    GroupConfig,
+    InventoryRewards,
+)
 
 
 @dataclass
@@ -259,3 +274,170 @@ class TestEnvironmentBuilder:
             num_agents = kwargs.get("num_agents", DefaultEnvConfig.NUM_AGENTS)
 
         return TestEnvironmentBuilder.create_environment(game_map=game_map, num_agents=num_agents, **kwargs)
+
+    @staticmethod
+    def benchmark_env_config():
+        """Create a benchmark environment configuration matching benchmark.yaml."""
+        # Map builder configuration
+        map_builder = RandomMapBuilderConfig(
+            width=50,
+            height=50,
+            border_width=1,
+            seed=42,
+            agents=6,
+            objects={
+                "mine_red": 10,
+                "generator_red": 2,
+                "altar": 1,
+                "armory": 1,
+                "lasery": 1,
+                "lab": 1,
+                "factory": 1,
+                "temple": 1,
+                "block": 20,
+                "wall": 20,
+            },
+        )
+
+        # Agent configuration
+        agent_config = AgentConfig(
+            default_resource_limit=50,
+            freeze_duration=10,
+            rewards=AgentRewards(
+                inventory=InventoryRewards(
+                    ore_red=0.005,
+                    ore_blue=0.005,
+                    ore_green=0.005,
+                    battery_red=0.01,
+                    battery_blue=0.01,
+                    battery_green=0.01,
+                    battery_red_max=5,
+                    battery_blue_max=5,
+                    battery_green_max=5,
+                    heart=1,
+                ),
+            ),
+        )
+
+        # Groups configuration
+        groups = {
+            "agent": GroupConfig(id=0, sprite=0, props={}),
+            "team_1": GroupConfig(id=1, sprite=1, group_reward_pct=0.5, props={}),
+            "team_2": GroupConfig(id=2, sprite=4, group_reward_pct=0.5, props={}),
+            "team_3": GroupConfig(id=3, sprite=8, group_reward_pct=0.5, props={}),
+            "team_4": GroupConfig(id=4, sprite=1, group_reward_pct=0.5, props={}),
+            "prey": GroupConfig(id=5, sprite=12, props={}),
+            "predator": GroupConfig(id=6, sprite=6, props={}),
+        }
+
+        # Objects configuration - use pre-defined objects where possible and extend with missing fields
+        # Common converter defaults for benchmark config
+        converter_defaults = {
+            "max_output": 5,
+            "conversion_ticks": 1,
+            "initial_resource_count": 1,
+        }
+
+        objects = {
+            # Use pre-defined wall and block objects directly
+            "wall": obj.wall,
+            "block": obj.block,
+            # Use pre-defined altar with additional fields
+            "altar": obj.altar.model_copy(update={**converter_defaults}),
+            # Use pre-defined mines with additional fields and colors
+            "mine_red": obj.mine_red.model_copy(update={**converter_defaults, "color": 0}),
+            "mine_blue": obj.mine_blue.model_copy(update={**converter_defaults, "color": 1}),
+            "mine_green": obj.mine_green.model_copy(update={**converter_defaults, "color": 2}),
+            # Use pre-defined generators with additional fields and colors
+            "generator_red": obj.generator_red.model_copy(update={**converter_defaults, "color": 0}),
+            "generator_blue": obj.generator_blue.model_copy(update={**converter_defaults, "color": 1}),
+            "generator_green": obj.generator_green.model_copy(update={**converter_defaults, "color": 2}),
+            # Armory needs custom type_id (9 instead of 16 from object.py)
+            "armory": ConverterConfig(
+                type_id=9,
+                input_resources={"ore_red": 3},
+                output_resources={"armor": 1},
+                cooldown=10,
+                **converter_defaults,
+            ),
+            # Lasery needs custom type_id (10 instead of 15) and different input_resources
+            "lasery": ConverterConfig(
+                type_id=10,
+                input_resources={"ore_red": 1, "battery_red": 2},
+                output_resources={"laser": 1},
+                cooldown=10,
+                **converter_defaults,
+            ),
+            # Lab, factory, and temple are not in object.py, so define them here
+            "lab": ConverterConfig(
+                type_id=11,
+                input_resources={"ore_red": 3, "battery_red": 3},
+                output_resources={"blueprint": 1},
+                cooldown=5,
+                **converter_defaults,
+            ),
+            "factory": ConverterConfig(
+                type_id=12,
+                input_resources={"blueprint": 1, "ore_red": 5, "battery_red": 5},
+                output_resources={"armor": 5, "laser": 5},
+                cooldown=5,
+                **converter_defaults,
+            ),
+            "temple": ConverterConfig(
+                type_id=13,
+                input_resources={"heart": 1, "blueprint": 1},
+                output_resources={"heart": 5},
+                cooldown=5,
+                **converter_defaults,
+            ),
+        }
+
+        # Actions configuration
+        actions = ActionsConfig(
+            noop=ActionConfig(enabled=True),
+            move=ActionConfig(enabled=True),
+            rotate=ActionConfig(enabled=True),
+            put_items=ActionConfig(enabled=True),
+            get_items=ActionConfig(enabled=True),
+            attack=AttackActionConfig(
+                enabled=True,
+                consumed_resources={"laser": 1},
+                defense_resources={"armor": 1},
+            ),
+            swap=ActionConfig(enabled=True),
+            change_color=ActionConfig(enabled=True),
+            change_glyph=ChangeGlyphActionConfig(enabled=True, number_of_glyphs=4),
+        )
+
+        # Inventory item names
+        inventory_item_names = [
+            "ore_red",
+            "ore_blue",
+            "ore_green",
+            "battery_red",
+            "battery_blue",
+            "battery_green",
+            "heart",
+            "armor",
+            "laser",
+            "blueprint",
+        ]
+
+        # Create game configuration
+        game_config = GameConfig(
+            num_agents=24,
+            num_observation_tokens=100,
+            inventory_item_names=inventory_item_names,
+            map_builder=map_builder,
+            obs_width=11,
+            obs_height=11,
+            max_steps=1000,
+            agent=agent_config,
+            groups=groups,
+            objects=objects,
+            actions=actions,
+        )
+
+        # Create environment configuration
+        env_cfg = EnvConfig(game=game_config)
+        return env_cfg

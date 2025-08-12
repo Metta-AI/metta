@@ -6,9 +6,9 @@ import torch
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.cogworks.curriculum import Curriculum
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.mettagrid.curriculum.core import Curriculum
 from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 
@@ -44,11 +44,10 @@ def evaluate_policy(
     logger.info(f"Evaluating policy {pr.uri}")
     if training_curriculum:
         logger.info(f"Adding training task to simulation suite: {training_curriculum}")
-        task_cfg = training_curriculum.get_task().env_cfg()
         training_task_config = SingleEnvSimulationConfig(
-            env="eval/training_task",  # Just a descriptive name
+            env=training_curriculum.get_task().get_env_cfg(),  # Just a descriptive name
             num_episodes=1,
-            env_overrides={"_pre_built_env_config": task_cfg},
+            name="eval/training_task",
         )
         simulation_suite.simulations["eval/training_task"] = training_task_config
     else:

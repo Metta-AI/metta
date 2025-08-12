@@ -4,20 +4,13 @@ import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
-from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.actions import generate_valid_random_actions
-from metta.mettagrid.util.hydra import get_cfg
 
 
 @pytest.fixture
-def cfg():
-    """Create configuration for the environment."""
-    return get_cfg("benchmark")
-
-
-@pytest.fixture
-def environment(cfg, num_agents):
+def environment(num_agents: int):
     """Create and initialize the environment with specified number of agents."""
     seed = 42  # Or any fixed seed value
     random.seed(seed)
@@ -36,6 +29,8 @@ def environment(cfg, num_agents):
     if expected_grid_hash is None:
         raise ValueError(f"No expected hash defined for num_agents={num_agents}")
 
+    cfg = EnvConfig()
+
     # Override the number of agents in the configuration
     cfg.game.num_agents = num_agents
     num_rooms = min(num_agents, 4)
@@ -47,8 +42,7 @@ def environment(cfg, num_agents):
     print(f"\nConfiguring environment with {num_agents} agents")
     print(OmegaConf.to_yaml(cfg))
 
-    curriculum = SingleTaskCurriculum("test", task_cfg=cfg)
-    env = MettaGridEnv(curriculum, render_mode="human", recursive=False)
+    env = MettaGridEnv(cfg, render_mode="human", recursive=False)
 
     assert env.initial_grid_hash == expected_grid_hash
 
@@ -144,7 +138,7 @@ def test_step_performance(benchmark, environment, action_generator, num_agents):
     )
 
 
-def test_create_env_performance(benchmark, cfg):
+def test_create_env_performance(benchmark):
     """
     Benchmark environment creation.
 
@@ -155,8 +149,7 @@ def test_create_env_performance(benchmark, cfg):
 
     def create_and_reset():
         """Create a new environment and reset it."""
-        curriculum = SingleTaskCurriculum("test", task_cfg=cfg)
-        env = MettaGridEnv(curriculum, render_mode="human", recursive=False)
+        env = MettaGridEnv(EnvConfig(), render_mode="human", recursive=False)
         obs = env.reset()
         # Cleanup
         del env

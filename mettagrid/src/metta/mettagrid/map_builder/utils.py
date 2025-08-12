@@ -1,16 +1,23 @@
-# maze_utils.py
-
 from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
-from metta.map.types import MapGrid
+from metta.mettagrid.map_builder.map_builder import MapGrid, map_grid_dtype
+
+
+def create_grid(height: int, width: int, fill_value: str = "empty") -> MapGrid:
+    """
+    Creates a NumPy grid with the given height and width, pre-filled with the specified fill_value.
+    """
+    return np.full((height, width), fill_value, dtype=map_grid_dtype)
 
 
 def draw_border(grid: MapGrid, border_width: int, border_object: str) -> None:
     """
     Draws a border on the given grid in-place. The border (of thickness border_width) is set to border_object.
     """
+    if border_width == 0:
+        return
     grid[:border_width, :] = border_object
     grid[-border_width:, :] = border_object
     grid[:, :border_width] = border_object

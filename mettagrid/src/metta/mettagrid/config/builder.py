@@ -1,4 +1,5 @@
 from metta.mettagrid.config import object
+from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
@@ -71,5 +72,21 @@ def arena(
                     props=AgentConfig(),
                 ),
             },
+            map_builder=RandomMapBuilderConfig(
+                agents=num_agents,
+                width=25,
+                height=25,
+                border_object="wall",
+                border_width=1,
+                objects={
+                    "wall": 10,
+                    "altar": 3,
+                    "mine_red": 10,
+                    "generator_red": 10,
+                    "lasery": 5,
+                    "armory": 5,
+                },
+                seed=42,
+            ),
         )
     )

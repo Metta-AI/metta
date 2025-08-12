@@ -20,6 +20,12 @@ class SystemConfig(Config):
         populate_by_name=True,
     )
 
+    @staticmethod
+    def MacBookPro() -> "SystemConfig":
+        return SystemConfig(
+            vectorization="serial",
+            device="mps",
+        )
 
 def create_system_config(cfg: DictConfig) -> SystemConfig:
     """Create system config from Hydra config.

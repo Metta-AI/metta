@@ -143,7 +143,6 @@ def hydraless_metta_script(main: Callable[[], int | None]) -> None:
     if caller_globals.get("__name__") != "__main__":
         return
 
-    init_logging()
     register_resolvers()
 
     # Exit on ctrl+c

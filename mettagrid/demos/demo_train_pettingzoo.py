@@ -25,58 +25,10 @@ import time
 
 import numpy as np
 from gymnasium import spaces
-from omegaconf import DictConfig
 from pettingzoo.test import parallel_api_test
 
 # PettingZoo adapter imports
-from metta.mettagrid import MettaGridPettingZooEnv
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-
-
-def create_test_config() -> DictConfig:
-    """Create test configuration for PettingZoo integration."""
-    return DictConfig(
-        {
-            "game": {
-                "max_steps": 50,
-                "num_agents": 2,
-                "obs_width": 3,
-                "obs_height": 3,
-                "num_observation_tokens": 9,
-                "inventory_item_names": ["heart"],
-                "groups": {"agent": {"id": 0, "sprite": 0}},
-                "agent": {
-                    "default_resource_limit": 5,
-                    "resource_limits": {"heart": 255},
-                    "freeze_duration": 0,
-                    "rewards": {"heart": 1.0},
-                    "action_failure_penalty": 0.0,
-                },
-                "actions": {
-                    "noop": {"enabled": True},
-                    "move": {"enabled": True},
-                    "rotate": {"enabled": True},
-                    "put_items": {"enabled": True},
-                    "get_items": {"enabled": True},
-                    "attack": {"enabled": True},
-                    "swap": {"enabled": True},
-                    "change_color": {"enabled": False},
-                    "change_glyph": {"enabled": False, "number_of_glyphs": 0},
-                },
-                "objects": {
-                    "wall": {"type_id": 1, "swappable": False},
-                },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 2,
-                    "width": 6,
-                    "height": 6,
-                    "border_width": 1,
-                    "objects": {},
-                },
-            }
-        }
-    )
+from metta.mettagrid import EnvConfig, MettaGridPettingZooEnv
 
 
 def demo_pettingzoo_api():
@@ -84,12 +36,9 @@ def demo_pettingzoo_api():
     print("PETTINGZOO API DEMO")
     print("=" * 60)
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("pettingzoo_demo", config)
-
-    # Create PettingZoo environment
+    # Create PettingZoo environment with default config
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_cfg=EnvConfig(),
         render_mode=None,
         is_training=False,
     )
@@ -111,12 +60,9 @@ def demo_random_rollout():
     print("\nRANDOM ROLLOUT DEMO")
     print("=" * 60)
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("pettingzoo_rollout", config)
-
-    # Create PettingZoo environment
+    # Create PettingZoo environment with default config
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_cfg=EnvConfig(),
         render_mode=None,
         is_training=True,
     )
@@ -165,11 +111,9 @@ def demo_simple_marl_training():
     print("\nSIMPLE MULTI-AGENT TRAINING DEMO")
     print("=" * 60)
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("marl_training", config)
-
+    # Create PettingZoo environment with default config
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        env_cfg=EnvConfig(),
         render_mode=None,
         is_training=True,
     )

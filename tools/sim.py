@@ -26,8 +26,6 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.eval.eval_service import evaluate_policy
-from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.stats import process_policy_evaluator_stats
 from metta.rl.system_config import create_system_config
 from metta.sim.simulation_config import SimulationSuiteConfig

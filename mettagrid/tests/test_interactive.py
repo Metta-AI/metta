@@ -9,90 +9,11 @@ working and manually test different frameworks.
 import time
 
 import numpy as np
-from omegaconf import DictConfig
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
-from metta.mettagrid.gym_env import SingleAgentMettaGridGymEnv
+from metta.mettagrid.config.builder import arena
+from metta.mettagrid.gym_env import MettaGridGymEnv
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
-
-
-def create_game_config():
-    """Create a simple game configuration for interactive testing."""
-    return DictConfig(
-        {
-            "game": {
-                "max_steps": 200,
-                "num_agents": 2,
-                "obs_width": 7,
-                "obs_height": 7,
-                "num_observation_tokens": 49,
-                "inventory_item_names": ["ore_red", "ore_blue", "battery_red", "battery_blue", "heart"],
-                "groups": {"agent": {"id": 0, "sprite": 0}},
-                "agent": {
-                    "default_resource_limit": 50,
-                    "freeze_duration": 5,
-                    "rewards": {"inventory": {"heart": 5.0, "ore_red": 0.1, "battery_red": 0.2}},
-                    "action_failure_penalty": 0.1,
-                },
-                "actions": {
-                    "noop": {"enabled": True},
-                    "move": {"enabled": True},
-                    "rotate": {"enabled": True},
-                    "put_items": {"enabled": True},
-                    "get_items": {"enabled": True},
-                    "attack": {"enabled": True},
-                    "swap": {"enabled": True},
-                    "change_color": {"enabled": False},
-                    "change_glyph": {"enabled": False, "number_of_glyphs": 0},
-                },
-                "objects": {
-                    "wall": {"type_id": 1, "swappable": False},
-                    "mine_red": {
-                        "type_id": 2,
-                        "output_resources": {"ore_red": 1},
-                        "max_output": -1,
-                        "conversion_ticks": 1,
-                        "cooldown": 0,
-                        "initial_resource_count": 0,
-                        "color": 0,
-                    },
-                    "generator_red": {
-                        "type_id": 5,
-                        "input_resources": {"ore_red": 1},
-                        "output_resources": {"battery_red": 1},
-                        "max_output": -1,
-                        "conversion_ticks": 1,
-                        "cooldown": 0,
-                        "initial_resource_count": 0,
-                        "color": 0,
-                    },
-                    "altar": {
-                        "type_id": 8,
-                        "input_resources": {"battery_red": 3},
-                        "output_resources": {"heart": 1},
-                        "max_output": 5,
-                        "conversion_ticks": 1,
-                        "cooldown": 100,
-                        "initial_resource_count": 1,
-                        "color": 1,
-                    },
-                },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 2,
-                    "width": 12,
-                    "height": 12,
-                    "border_width": 1,
-                    "objects": {
-                        "mine_red": 3,
-                        "generator_red": 2,
-                        "altar": 1,
-                    },
-                },
-            }
-        }
-    )
 
 
 def test_puffer_env():
@@ -101,13 +22,9 @@ def test_puffer_env():
     print("TESTING METTAGRID ENVIRONMENT (PufferLib-based)")
     print("=" * 50)
 
-    config = create_game_config()
-    curriculum = SingleTaskCurriculum("mettagrid_interactive", config)
-
     env = MettaGridEnv(
-        curriculum=curriculum,
+        arena(num_agents=24),
         render_mode="human",
-        is_training=False,
     )
 
     print("Environment created!")
@@ -153,16 +70,9 @@ def test_gym_env():
     print("🏃 TESTING GYMNASIUM ENVIRONMENT")
     print("=" * 50)
 
-    config = create_game_config()
-    config.game.num_agents = 1  # Single agent for Gym
-    config.game.map_builder.agents = 1
-    curriculum = SingleTaskCurriculum("gym_interactive", config)
+    env_cfg = arena(num_agents=1)
 
-    env = SingleAgentMettaGridGymEnv(
-        curriculum=curriculum,
-        render_mode="human",
-        is_training=False,
-    )
+    env = MettaGridGymEnv(env_cfg, render_mode="human")
 
     print("Environment created!")
     print(f"- Agents: {env.num_agents}")
@@ -200,16 +110,9 @@ def test_pettingzoo_env():
     print("🐧 TESTING PETTINGZOO ENVIRONMENT")
     print("=" * 50)
 
-    config = create_game_config()
-    config.game.num_agents = 3  # Multi-agent for PettingZoo
-    config.game.map_builder.agents = 3
-    curriculum = SingleTaskCurriculum("pettingzoo_interactive", config)
+    env_cfg = arena(num_agents=3)
 
-    env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
-        render_mode="human",
-        is_training=False,
-    )
+    env = MettaGridPettingZooEnv(env_cfg, render_mode="human")
 
     print("Environment created!")
     print(f"- Max agents: {env.max_num_agents}")

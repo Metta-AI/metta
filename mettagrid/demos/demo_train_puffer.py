@@ -34,7 +34,7 @@ from omegaconf import DictConfig
 # MettaGrid imports
 # Note: MettaGridEnv inherits from PufferEnv, so it's fully PufferLib-compatible
 from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.config.builder import arena
 
 # Training framework imports
 try:
@@ -129,13 +129,10 @@ def demo_puffer_env():
     print("PUFFERLIB ENVIRONMENT DEMO")
     print("=" * 60)
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("puffer_demo", config)
-
     # Create MettaGridEnv - which IS a PufferLib environment!
     # MettaGridEnv inherits from PufferEnv, so it has all PufferLib functionality
     env = MettaGridEnv(
-        curriculum=curriculum,
+        env_cfg=arena(num_agents=24),
         render_mode=None,
         is_training=False,  # Disable training-specific features for this demo
     )
@@ -178,13 +175,10 @@ def demo_random_rollout():
     print("\nRANDOM ROLLOUT DEMO")
     print("=" * 60)
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("puffer_rollout", config)
-
     # Create MettaGridEnv for rollout
     # Note: is_training=True enables training features like stats collection
     env = MettaGridEnv(
-        curriculum=curriculum,
+        env_cfg=arena(num_agents=24),
         render_mode=None,
         is_training=True,
     )
@@ -249,13 +243,9 @@ def demo_pufferlib_training():
         print("   - Integration with CleanRL algorithms")
         return
 
-    config = create_test_config()
-    curriculum = SingleTaskCurriculum("puffer_training", config)
-
     # MettaGridEnv can be used directly with PufferLib training code
-    # It inherits all PufferLib functionality through MettaGridPufferBase -> PufferEnv
     env = MettaGridEnv(
-        curriculum=curriculum,
+        env_cfg=arena(num_agents=24),
         render_mode=None,
         is_training=True,
     )

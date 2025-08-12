@@ -2,21 +2,17 @@
 """Test script to verify movement metrics appear in the info dict for wandb."""
 
 import numpy as np
-from omegaconf import OmegaConf
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.config.builder import arena
+from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.util.hydra import get_cfg
 
 
 def test_wandb_movement_metrics():
     """Test that movement metrics appear in info dict when episode ends."""
 
     # Get the benchmark config and modify it
-    cfg = get_cfg("benchmark")
-
-    # Remove map_builder since we'll provide a level directly
-    del cfg.game.map_builder
+    cfg = arena(num_agents=1)
 
     # Simplify config for testing
     cfg.game.num_agents = 1
@@ -24,20 +20,10 @@ def test_wandb_movement_metrics():
     cfg.game.episode_truncates = True
     cfg.game.track_movement_metrics = True  # Enable movement metrics
 
-    cfg.game.map_builder = OmegaConf.create(
-        {
-            "_target_": "metta.mettagrid.room.random.Random",
-            "width": 5,
-            "height": 5,
-            "objects": {},
-            "agents": 1,
-            "border_width": 1,
-        }
-    )
+    cfg.game.map_builder = RandomMapBuilderConfig(width=5, height=5, objects={}, agents=1, border_width=1)
 
     # Create curriculum and environment
-    curriculum = SingleTaskCurriculum("test", cfg)
-    env = MettaGridEnv(curriculum, render_mode=None)
+    env = MettaGridEnv(cfg, render_mode=None)
 
     obs, _ = env.reset()
 
