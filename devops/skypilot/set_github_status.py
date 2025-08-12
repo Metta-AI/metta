@@ -31,6 +31,7 @@ for p in CANDIDATES:
         sys.path.insert(0, str(p))
         break
 
+from metta.common.util.git import GitError, get_matched_pr  # noqa: E402
 from metta.common.util.github import post_commit_status  # noqa: E402
 
 
@@ -49,6 +50,29 @@ def main() -> int:
     if not token:
         print("Error: GITHUB_PAT is required", file=sys.stderr)
         return 1
+
+    # Use get_matched_pr to verify commit exists on GitHub
+    # This will return None if commit gets 404 (doesn't exist in repo)
+    try:
+        pr_info = get_matched_pr(commit_sha)
+        if pr_info:
+            pr_num, pr_title = pr_info
+            print(f"[INFO] Commit {commit_sha[:8]} found, associated with PR #{pr_num}: {pr_title}")
+        else:
+            print(f"[INFO] Commit {commit_sha[:8]} found (no associated PR)")
+    except GitError as e:
+        # GitError is raised for network issues or if the commit doesn't exist
+        error_msg = str(e)
+        if "404" in error_msg or "not found" in error_msg.lower():
+            print(f"ERROR: Commit {commit_sha} not found in {repo}!", file=sys.stderr)
+            print("\nPossible causes:", file=sys.stderr)
+            print("- Commit exists in a fork, not the main repository", file=sys.stderr)
+            print("- Commit hasn't been pushed to GitHub", file=sys.stderr)
+            print("- GITHUB_REPOSITORY points to wrong repo", file=sys.stderr)
+            return 1
+        else:
+            # Network or other error - log but continue
+            print(f"[WARN] Could not check PR status: {e}")
 
     try:
         cmd_exit = int(os.getenv("CMD_EXIT", "0"))
@@ -90,9 +114,19 @@ def main() -> int:
             print(f"[OK] {repo}@{commit_sha[:8]} -> {state} ({context})")
             return 0
         except Exception as e:
+            error_msg = str(e)
+
+            # Don't retry client errors - they won't succeed
+            if "422" in error_msg or "401" in error_msg or "403" in error_msg:
+                print(f"[ERR] Failed to post status: {e}", file=sys.stderr)
+                if "422" in error_msg:
+                    print("[ERR] Error 422 usually means the commit doesn't exist in the repository", file=sys.stderr)
+                return 1
+
             if attempt == 4:
                 print(f"[ERR] Failed to post status after retries: {e}", file=sys.stderr)
                 return 2
+
             sleep_s = 2**attempt
             print(f"[WARN] Post failed (attempt {attempt}), retrying in {sleep_s}s: {e}", file=sys.stderr)
             time.sleep(sleep_s)
