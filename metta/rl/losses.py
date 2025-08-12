@@ -4,14 +4,16 @@ import logging
 from typing import Any
 
 import torch
+import torch.nn.functional as F
 from tensordict import TensorDict
-from torch import Tensor
+from torch import Tensor, nn
 from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.experience import Experience
-from metta.rl.trainer_config import TrainerConfig
+from metta.rl.modules import DynamicsModel, ProjectionHead
+from metta.rl.trainer_config import RepresentationLearningConfig, TrainerConfig
 
 logger = logging.getLogger(__name__)
 
@@ -173,3 +175,108 @@ def process_minibatch_update(
     losses.current_logprobs_sum += new_logprob.mean().item()
 
     return loss
+
+
+class RepresentationLoss(nn.Module):
+    """Representation learning loss combining contrastive, temporal consistency and prediction."""
+
+    def __init__(
+        self,
+        projection_head: ProjectionHead,
+        dynamics_model: DynamicsModel,
+        cfg: "RepresentationLearningConfig",
+    ) -> None:
+        super().__init__()
+        self.projection_head = projection_head
+        self.dynamics_model = dynamics_model
+        self.cfg = cfg
+
+    def sample_positive_offsets(self, T: int, device: torch.device) -> torch.Tensor:
+        """Sample positive offsets for each timestep using geometric distribution."""
+        if T <= 1:
+            return torch.zeros(0, dtype=torch.long, device=device)
+        dist = torch.distributions.Geometric(probs=1 - self.cfg.alpha)
+        k = dist.sample((T - 1,)).to(device).clamp(min=1)
+        max_range = torch.arange(1, T, device=device)
+        k = torch.minimum(k, max_range)
+        return k.to(torch.long)
+
+    def compute_contrastive(self, z: Tensor, mask: Tensor) -> Tensor:
+        """Compute InfoNCE contrastive loss."""
+        T, B, D = z.shape
+        device = z.device
+        offsets = self.sample_positive_offsets(T, device)
+        anchors: list[Tensor] = []
+        positives: list[Tensor] = []
+        negatives: list[Tensor] = []
+        for b in range(B):
+            for t in range(T - 1):
+                if not (mask[t, b] and mask[min(t + offsets[t].item(), T - 1), b]):
+                    continue
+                t_pos = min(t + offsets[t].item(), T - 1)
+                anchor = z[t, b]
+                pos = z[t_pos, b]
+                neg_choices = [i for i in range(T) if i not in (t, t_pos) and mask[i, b]]
+                if len(neg_choices) == 0:
+                    continue
+                neg_idx = torch.tensor(neg_choices, device=device, dtype=torch.long)
+                if len(neg_idx) < self.cfg.num_negatives:
+                    choice = torch.randint(0, len(neg_idx), (self.cfg.num_negatives,), device=device)
+                    neg_idx = neg_idx[choice]
+                else:
+                    perm = torch.randperm(len(neg_idx), device=device)[: self.cfg.num_negatives]
+                    neg_idx = neg_idx[perm]
+                negatives.append(z[neg_idx, b])
+                anchors.append(anchor)
+                positives.append(pos)
+        if not anchors:
+            return torch.tensor(0.0, device=device, dtype=torch.float32)
+        anchor_t = self.projection_head(torch.stack(anchors))
+        pos_t = self.projection_head(torch.stack(positives))
+        neg_t = self.projection_head(torch.stack(negatives))
+        anchor_t = F.normalize(anchor_t, dim=-1)
+        pos_t = F.normalize(pos_t, dim=-1)
+        neg_t = F.normalize(neg_t, dim=-1)
+        pos_sim = (anchor_t * pos_t).sum(-1, keepdim=True) / self.cfg.tau
+        neg_sim = torch.einsum("nd,nkd->nk", anchor_t, neg_t) / self.cfg.tau
+        logits = torch.cat([pos_sim, neg_sim], dim=1)
+        labels = torch.zeros(logits.shape[0], dtype=torch.long, device=device)
+        return F.cross_entropy(logits, labels)
+
+    def compute_tc(self, z: Tensor, mask: Tensor) -> Tensor:
+        z_t = z[:-1]
+        z_tp1 = z[1:]
+        valid = mask[:-1] & mask[1:]
+        if valid.sum() == 0:
+            return torch.tensor(0.0, device=z.device, dtype=torch.float32)
+        if self.cfg.loss_tc_type == "l2":
+            diff = (z_t - z_tp1).norm(dim=-1)
+        else:
+            diff = 1 - F.cosine_similarity(z_t, z_tp1, dim=-1)
+        return (diff * valid).sum() / valid.sum()
+
+    def compute_pred(self, z: Tensor, a: Tensor, mask: Tensor) -> Tensor:
+        z_t = z[:-1]
+        z_tp1 = z[1:].detach()
+        a_t = a[:-1]
+        valid = mask[:-1] & mask[1:]
+        if valid.sum() == 0:
+            return torch.tensor(0.0, device=z.device, dtype=torch.float32)
+        pred = self.dynamics_model(z_t, a_t)
+        if self.cfg.loss_pred_type == "l2":
+            diff = (pred - z_tp1).norm(dim=-1)
+        else:
+            diff = 1 - F.cosine_similarity(pred, z_tp1, dim=-1)
+        return (diff * valid).sum() / valid.sum()
+
+    def forward(self, z: Tensor, a: Tensor, mask: Tensor) -> dict[str, Tensor]:
+        contrast = self.compute_contrastive(z, mask)
+        tc = self.compute_tc(z, mask)
+        pred = self.compute_pred(z, a, mask)
+        total = self.cfg.lambda_contrast * contrast + self.cfg.lambda_tc * tc + self.cfg.lambda_pred * pred
+        return {
+            "contrast": contrast,
+            "tc": tc,
+            "pred": pred,
+            "total": total,
+        }
