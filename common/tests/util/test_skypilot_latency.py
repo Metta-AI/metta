@@ -71,11 +71,11 @@ class TestQueueLatencyS:
 
     def test_invalid_task_id(self):
         """Test queue_latency_s with invalid task ID."""
-        with patch.dict(os.environ, {'SKYPILOT_TASK_ID': 'invalid-task-id'}):
+        with patch.dict(os.environ, {"SKYPILOT_TASK_ID": "invalid-task-id"}):
             result = queue_latency_s()
             assert result is None
 
-    @patch('metta.common.util.skypilot_latency.datetime')
+    @patch("metta.common.util.skypilot_latency.datetime")
     def test_valid_task_id_with_mock_time(self, mock_datetime):
         """Test queue_latency_s with valid task ID and mocked current time."""
         # Mock current time
@@ -86,7 +86,7 @@ class TestQueueLatencyS:
         # Task submitted 5 minutes (300 seconds) earlier
         task_id = "sky-2023-12-01-14-30-45-123456_cluster_1"
 
-        with patch.dict(os.environ, {'SKYPILOT_TASK_ID': task_id}):
+        with patch.dict(os.environ, {"SKYPILOT_TASK_ID": task_id}):
             result = queue_latency_s()
 
             assert result == 300.0  # 5 minutes in seconds
@@ -95,22 +95,22 @@ class TestQueueLatencyS:
 class TestMainFunction:
     """Test cases for the main function."""
 
-    @patch('builtins.print')
-    @patch('metta.common.util.skypilot_latency.queue_latency_s')
+    @patch("builtins.print")
+    @patch("metta.common.util.skypilot_latency.queue_latency_s")
     def test_main_no_run_id_no_latency(self, mock_queue_latency, mock_print):
         """Test main function when no METTA_RUN_ID and no latency."""
         mock_queue_latency.return_value = None
 
-        with patch.dict(os.environ, {'SKYPILOT_TASK_ID': 'invalid-task'}, clear=True):
+        with patch.dict(os.environ, {"SKYPILOT_TASK_ID": "invalid-task"}, clear=True):
             result = main()
 
             assert result == 0
             mock_print.assert_called()
 
-    @patch('builtins.print')
-    @patch('wandb.init')
-    @patch('wandb.login')
-    @patch('metta.common.util.skypilot_latency.queue_latency_s')
+    @patch("builtins.print")
+    @patch("wandb.init")
+    @patch("wandb.login")
+    @patch("metta.common.util.skypilot_latency.queue_latency_s")
     def test_main_with_run_id_and_api_key(self, mock_queue_latency, mock_login, mock_init, mock_print):
         """Test main function with METTA_RUN_ID and WANDB_API_KEY."""
         mock_queue_latency.return_value = 45.6
@@ -121,9 +121,9 @@ class TestMainFunction:
         mock_init.return_value = mock_run
 
         env_vars = {
-            'METTA_RUN_ID': 'test-run-123',
-            'WANDB_API_KEY': 'test-api-key',
-            'SKYPILOT_TASK_ID': 'sky-2023-12-01-14-30-45-123456_cluster_1'
+            "METTA_RUN_ID": "test-run-123",
+            "WANDB_API_KEY": "test-api-key",
+            "SKYPILOT_TASK_ID": "sky-2023-12-01-14-30-45-123456_cluster_1",
         }
 
         with patch.dict(os.environ, env_vars, clear=True):
@@ -132,18 +132,18 @@ class TestMainFunction:
         assert result == 0
 
         # Verify wandb operations
-        mock_login.assert_called_once_with(key='test-api-key', relogin=True, anonymous="never")
+        mock_login.assert_called_once_with(key="test-api-key", relogin=True, anonymous="never")
         mock_init.assert_called_once()
 
         # Verify summary was updated
-        assert mock_run.summary['skypilot/latency_script_ran'] is True
+        assert mock_run.summary["skypilot/latency_script_ran"] is True
         # The actual code uses wandb.log() which doesn't update mock summary
         # So we check for the script execution marker instead
 
-    @patch('builtins.print')
-    @patch('os.path.exists')
-    @patch('wandb.init')
-    @patch('metta.common.util.skypilot_latency.queue_latency_s')
+    @patch("builtins.print")
+    @patch("os.path.exists")
+    @patch("wandb.init")
+    @patch("metta.common.util.skypilot_latency.queue_latency_s")
     def test_main_with_netrc_no_latency(self, mock_queue_latency, mock_init, mock_exists, mock_print):
         """Test main function with .netrc file but no latency."""
         mock_queue_latency.return_value = None
@@ -154,10 +154,7 @@ class TestMainFunction:
         mock_run.summary = {}
         mock_init.return_value = mock_run
 
-        env_vars = {
-            'METTA_RUN_ID': 'test-run-456',
-            'SKYPILOT_TASK_ID': 'invalid-task'
-        }
+        env_vars = {"METTA_RUN_ID": "test-run-456", "SKYPILOT_TASK_ID": "invalid-task"}
 
         with patch.dict(os.environ, env_vars, clear=True):
             result = main()
@@ -168,19 +165,16 @@ class TestMainFunction:
         mock_init.assert_called_once()
 
         # Verify summary for failed latency calculation
-        assert mock_run.summary['skypilot/latency_calculated'] is False
-        assert mock_run.summary['skypilot/latency_error'] == "Could not parse task ID"
+        assert mock_run.summary["skypilot/latency_calculated"] is False
+        assert mock_run.summary["skypilot/latency_error"] == "Could not parse task ID"
 
-    @patch('builtins.print')
-    @patch('os.path.exists')
+    @patch("builtins.print")
+    @patch("os.path.exists")
     def test_main_no_auth_methods(self, mock_exists, mock_print):
         """Test main function with run ID but no auth methods."""
         mock_exists.return_value = False  # No .netrc
 
-        env_vars = {
-            'METTA_RUN_ID': 'test-run-789',
-            'SKYPILOT_TASK_ID': 'test-task'
-        }
+        env_vars = {"METTA_RUN_ID": "test-run-789", "SKYPILOT_TASK_ID": "test-task"}
 
         with patch.dict(os.environ, env_vars, clear=True):
             result = main()
@@ -191,18 +185,18 @@ class TestMainFunction:
         print_calls = [call[0][0] for call in mock_print.call_args_list]
         assert any("Skipping wandb logging (no API key or .netrc found)" in call for call in print_calls)
 
-    @patch('builtins.print')
-    @patch('wandb.init')
-    @patch('metta.common.util.skypilot_latency.queue_latency_s')
+    @patch("builtins.print")
+    @patch("wandb.init")
+    @patch("metta.common.util.skypilot_latency.queue_latency_s")
     def test_main_wandb_exception_handling(self, mock_queue_latency, mock_init, mock_print):
         """Test main function when wandb operations raise exception."""
         mock_queue_latency.return_value = 78.9
         mock_init.side_effect = Exception("Wandb connection failed")
 
         env_vars = {
-            'METTA_RUN_ID': 'test-run-error',
-            'WANDB_API_KEY': 'test-key',
-            'SKYPILOT_TASK_ID': 'sky-2023-12-01-14-30-45-123456_cluster_1'
+            "METTA_RUN_ID": "test-run-error",
+            "WANDB_API_KEY": "test-key",
+            "SKYPILOT_TASK_ID": "sky-2023-12-01-14-30-45-123456_cluster_1",
         }
 
         with patch.dict(os.environ, env_vars, clear=True):
@@ -212,14 +206,14 @@ class TestMainFunction:
 
         # Should print error message to stderr
         print_calls = [call for call in mock_print.call_args_list]
-        stderr_calls = [call for call in print_calls if len(call[1]) > 0 and call[1].get('file')]
+        stderr_calls = [call for call in print_calls if len(call[1]) > 0 and call[1].get("file")]
         assert len(stderr_calls) > 0
 
     @pytest.mark.skip(reason="Low quality: Complex environment/wandb mocking test - brittle and failing")
-    @patch('builtins.print')
-    @patch('wandb.init')
-    @patch('wandb.log')
-    @patch('metta.common.util.skypilot_latency.queue_latency_s')
+    @patch("builtins.print")
+    @patch("wandb.init")
+    @patch("wandb.log")
+    @patch("metta.common.util.skypilot_latency.queue_latency_s")
     def test_main_custom_wandb_project(self, mock_queue_latency, mock_log, mock_init, mock_print):
         """Test main function with custom WANDB_PROJECT."""
         mock_queue_latency.return_value = 42.0
@@ -230,10 +224,10 @@ class TestMainFunction:
         mock_init.return_value = mock_run
 
         env_vars = {
-            'METTA_RUN_ID': 'custom-project-test',
-            'WANDB_API_KEY': 'test-key',
-            'WANDB_PROJECT': 'custom-project',
-            'SKYPILOT_TASK_ID': 'sky-2023-12-01-14-30-45-123456_cluster_1'
+            "METTA_RUN_ID": "custom-project-test",
+            "WANDB_API_KEY": "test-key",
+            "WANDB_PROJECT": "custom-project",
+            "SKYPILOT_TASK_ID": "sky-2023-12-01-14-30-45-123456_cluster_1",
         }
 
         with patch.dict(os.environ, env_vars, clear=True):
@@ -273,9 +267,9 @@ class TestMainFunction:
     def test_queue_latency_s_edge_cases(self):
         """Test queue_latency_s with edge cases."""
         # Empty SKYPILOT_TASK_ID
-        with patch.dict(os.environ, {'SKYPILOT_TASK_ID': ''}):
+        with patch.dict(os.environ, {"SKYPILOT_TASK_ID": ""}):
             assert queue_latency_s() is None
 
         # Malformed task ID (matches regex but bad timestamp)
-        with patch.dict(os.environ, {'SKYPILOT_TASK_ID': 'sky-invalid-timestamp_cluster_1'}):
+        with patch.dict(os.environ, {"SKYPILOT_TASK_ID": "sky-invalid-timestamp_cluster_1"}):
             assert queue_latency_s() is None

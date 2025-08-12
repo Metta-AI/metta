@@ -63,7 +63,7 @@ class TestCleanNumpyTypes:
             "float_val": np.float32(2.5),
             "array_val": np.array([1, 2, 3]),
             "scalar_array": np.array([42]),
-            "regular_val": "unchanged"
+            "regular_val": "unchanged",
         }
 
         result = clean_numpy_types(data)
@@ -79,13 +79,7 @@ class TestCleanNumpyTypes:
 
     def test_clean_list_with_numpy_values(self):
         """Test cleaning lists containing numpy values."""
-        data = [
-            np.int64(5),
-            np.float64(1.5),
-            np.array([10]),
-            np.array([1, 2, 3]),
-            "regular_string"
-        ]
+        data = [np.int64(5), np.float64(1.5), np.array([10]), np.array([1, 2, 3]), "regular_string"]
 
         result = clean_numpy_types(data)
 
@@ -101,14 +95,8 @@ class TestCleanNumpyTypes:
     def test_clean_nested_structures(self):
         """Test cleaning deeply nested structures."""
         data = {
-            "level1": {
-                "level2": [
-                    {"numpy_int": np.int32(100)},
-                    {"numpy_array": np.array([1.1, 2.2])},
-                    "regular_item"
-                ]
-            },
-            "numpy_list": [np.float64(x) for x in [1.0, 2.0, 3.0]]
+            "level1": {"level2": [{"numpy_int": np.int32(100)}, {"numpy_array": np.array([1.1, 2.2])}, "regular_item"]},
+            "numpy_list": [np.float64(x) for x in [1.0, 2.0, 3.0]],
         }
 
         result = clean_numpy_types(data)
@@ -129,7 +117,7 @@ class TestCleanNumpyTypes:
             "list": [1, 2, 3],
             "dict": {"nested": True},
             "none": None,
-            "bool": True
+            "bool": True,
         }
 
         result = clean_numpy_types(data)
@@ -195,10 +183,7 @@ class TestCleanNumpyTypes:
 
     def test_clean_preserves_structure_independence(self):
         """Test that cleaning creates independent structures."""
-        original = {
-            "data": np.array([1, 2, 3]),
-            "nested": {"value": np.int32(42)}
-        }
+        original = {"data": np.array([1, 2, 3]), "nested": {"value": np.int32(42)}}
 
         cleaned = clean_numpy_types(original)
 
@@ -217,7 +202,7 @@ class TestCleanNumpyTypes:
             f"key_{i}": {
                 "array": np.array([j for j in range(10)]),
                 "scalar": np.int64(i),
-                "nested": [np.float32(i + 0.5) for _ in range(5)]
+                "nested": [np.float32(i + 0.5) for _ in range(5)],
             }
             for i in range(10)
         }

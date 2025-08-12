@@ -1,6 +1,5 @@
 """Tests for metta.common.util.instantiate module."""
 
-
 import pytest
 from omegaconf import OmegaConf
 
@@ -12,40 +11,34 @@ class TestInstantiate:
 
     def test_instantiate_basic_class(self):
         """Test instantiating a basic Python class."""
-        config = {
-            "_target_": "collections.OrderedDict",
-            "data": {"a": 1, "b": 2}
-        }
+        config = {"_target_": "collections.OrderedDict", "data": {"a": 1, "b": 2}}
 
         result = instantiate(config)
 
         from collections import OrderedDict
+
         assert isinstance(result, OrderedDict)
         assert result["data"] == {"a": 1, "b": 2}
 
     def test_instantiate_with_kwargs_override(self):
         """Test that kwargs override config values."""
-        config = {
-            "_target_": "collections.OrderedDict",
-            "data": {"a": 1}
-        }
+        config = {"_target_": "collections.OrderedDict", "data": {"a": 1}}
 
         result = instantiate(config, data={"b": 2})
 
         from collections import OrderedDict
+
         assert isinstance(result, OrderedDict)
         assert result["data"] == {"b": 2}  # Kwargs override config
 
     def test_instantiate_with_dictconfig(self):
         """Test instantiating with OmegaConf DictConfig."""
-        config = OmegaConf.create({
-            "_target_": "collections.OrderedDict",
-            "data": {"x": 10, "y": 20}
-        })
+        config = OmegaConf.create({"_target_": "collections.OrderedDict", "data": {"x": 10, "y": 20}})
 
         result = instantiate(config)
 
         from collections import OrderedDict
+
         assert isinstance(result, OrderedDict)
         assert result["data"] == {"x": 10, "y": 20}
 
@@ -55,12 +48,13 @@ class TestInstantiate:
             "_target_": "collections.OrderedDict",
             "_private_": "should_be_ignored",
             "_other_meta_": "also_ignored",
-            "valid_arg": "should_be_passed"
+            "valid_arg": "should_be_passed",
         }
 
         result = instantiate(config)
 
         from collections import OrderedDict
+
         assert isinstance(result, OrderedDict)
         assert result["valid_arg"] == "should_be_passed"
         assert "_private_" not in result
@@ -107,28 +101,24 @@ class TestInstantiate:
 
     def test_instantiate_with_complex_args(self):
         """Test instantiating with complex argument structures."""
-        config = {
-            "_target_": "collections.defaultdict",
-            "default_factory": {"_target_": "builtins.list"}
-        }
+        config = {"_target_": "collections.defaultdict", "default_factory": {"_target_": "builtins.list"}}
 
         # Note: This test shows the limitation - nested configs need recursive processing
         result = instantiate(config)
 
         from collections import defaultdict
+
         assert isinstance(result, defaultdict)
         # The default_factory will be a dict, not an instantiated list
 
     def test_instantiate_recursive_simple(self):
         """Test recursive instantiation of nested configs."""
-        config = {
-            "_target_": "collections.OrderedDict",
-            "data": {"_target_": "builtins.dict", "key": "value"}
-        }
+        config = {"_target_": "collections.OrderedDict", "data": {"_target_": "builtins.dict", "key": "value"}}
 
         result = instantiate(config, _recursive_=True)
 
         from collections import OrderedDict
+
         assert isinstance(result, OrderedDict)
         assert "data" in result
         assert isinstance(result["data"], dict)
@@ -140,15 +130,14 @@ class TestInstantiate:
             "_target_": "collections.OrderedDict",
             "data": {
                 "list_factory": {"_target_": "builtins.list"},
-                "nested": {
-                    "dict_factory": {"_target_": "builtins.dict"}
-                }
-            }
+                "nested": {"dict_factory": {"_target_": "builtins.dict"}},
+            },
         }
 
         result = instantiate(config, _recursive_=True)
 
         from collections import OrderedDict
+
         assert isinstance(result, OrderedDict)
         assert isinstance(result["data"]["list_factory"], list)
         assert isinstance(result["data"]["nested"]["dict_factory"], dict)
@@ -157,16 +146,13 @@ class TestInstantiate:
         """Test recursive instantiation with lists containing configs."""
         config = {
             "_target_": "collections.OrderedDict",
-            "factories": [
-                {"_target_": "builtins.list"},
-                {"_target_": "builtins.set"},
-                "normal_string"
-            ]
+            "factories": [{"_target_": "builtins.list"}, {"_target_": "builtins.set"}, "normal_string"],
         }
 
         result = instantiate(config, _recursive_=True)
 
         from collections import OrderedDict
+
         assert isinstance(result, OrderedDict)
         assert isinstance(result["factories"][0], list)
         assert isinstance(result["factories"][1], set)
@@ -175,15 +161,12 @@ class TestInstantiate:
     def test_instantiate_omegaconf_with_metadata(self):
         """Test handling of OmegaConf with metadata."""
         # Create a DictConfig with interpolations to test metadata handling
-        config = OmegaConf.create({
-            "_target_": "collections.OrderedDict",
-            "base": "test",
-            "derived": "${base}_suffix"
-        })
+        config = OmegaConf.create({"_target_": "collections.OrderedDict", "base": "test", "derived": "${base}_suffix"})
 
         result = instantiate(config)
 
         from collections import OrderedDict
+
         assert isinstance(result, OrderedDict)
         assert result["base"] == "test"
         assert result["derived"] == "test_suffix"
@@ -191,23 +174,18 @@ class TestInstantiate:
     def test_instantiate_real_world_scenario(self):
         """Test instantiation in a realistic scenario."""
         # Simulate creating a logger with custom formatter
-        config = {
-            "_target_": "logging.Logger",
-            "name": "test_logger"
-        }
+        config = {"_target_": "logging.Logger", "name": "test_logger"}
 
         result = instantiate(config)
 
         import logging
+
         assert isinstance(result, logging.Logger)
         assert result.name == "test_logger"
 
     def test_instantiate_preserves_config_modifications(self):
         """Test that instantiate doesn't modify the original config."""
-        original_config = {
-            "_target_": "collections.OrderedDict",
-            "data": {"original": True}
-        }
+        original_config = {"_target_": "collections.OrderedDict", "data": {"original": True}}
         config_copy = original_config.copy()
 
         result = instantiate(config_copy, data={"modified": True})
@@ -253,7 +231,7 @@ class TestProcessRecursive:
             {"_target_": "builtins.list"},
             {"_target_": "builtins.set"},
             "normal_item",
-            {"nested": {"_target_": "builtins.dict"}}
+            {"nested": {"_target_": "builtins.dict"}},
         ]
 
         result = _process_recursive(config, is_top_level=False)
@@ -273,11 +251,7 @@ class TestProcessRecursive:
     def test_process_recursive_omegaconf_with_metadata(self):
         """Test processing OmegaConf with metadata - should hit line 90."""
         # Create OmegaConf with interpolations to ensure metadata exists
-        config = OmegaConf.create({
-            "_target_": "builtins.dict",
-            "base": "test",
-            "derived": "${base}_suffix"
-        })
+        config = OmegaConf.create({"_target_": "builtins.dict", "base": "test", "derived": "${base}_suffix"})
 
         # Verify it has metadata
         assert hasattr(config, "_metadata")
@@ -288,18 +262,11 @@ class TestProcessRecursive:
         assert result["base"] == "test"
         assert result["derived"] == "test_suffix"
 
-
-
     def test_process_recursive_complex_nesting(self):
         """Test processing deeply nested structures."""
         config = {
             "level1": {
-                "level2": {
-                    "factories": [
-                        {"_target_": "builtins.list"},
-                        {"config": {"_target_": "builtins.dict"}}
-                    ]
-                }
+                "level2": {"factories": [{"_target_": "builtins.list"}, {"config": {"_target_": "builtins.dict"}}]}
             }
         }
 
@@ -312,10 +279,7 @@ class TestProcessRecursive:
         """Test processing mixed OmegaConf and regular dict structures."""
         # Create a scenario where we have both OmegaConf and regular dicts
         omega_part = OmegaConf.create({"_target_": "builtins.list"})
-        config = {
-            "omega": omega_part,
-            "regular": {"_target_": "builtins.set"}
-        }
+        config = {"omega": omega_part, "regular": {"_target_": "builtins.set"}}
 
         result = _process_recursive(config, is_top_level=True)
 

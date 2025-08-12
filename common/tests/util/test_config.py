@@ -51,11 +51,7 @@ class TestConfig:
             ssl: bool = True
 
         # Create a DictConfig
-        omega_config = OmegaConf.create({
-            "host": "localhost",
-            "port": 3306,
-            "ssl": False
-        })
+        omega_config = OmegaConf.create({"host": "localhost", "port": 3306, "ssl": False})
 
         # Initialize Config with DictConfig
         config = DatabaseConfig(omega_config)
@@ -73,11 +69,7 @@ class TestConfig:
             retries: int = 3
 
         # Create with regular dict
-        data = {
-            "url": "https://api.example.com",
-            "timeout": 60,
-            "retries": 5
-        }
+        data = {"url": "https://api.example.com", "timeout": 60, "retries": 5}
 
         config = ApiConfig(data)
 
@@ -126,11 +118,7 @@ class TestConfig:
             epochs: int
             learning_rate: float
 
-        config = TrainingConfig(
-            model="bert",
-            epochs=10,
-            learning_rate=0.001
-        )
+        config = TrainingConfig(model="bert", epochs=10, learning_rate=0.001)
 
         yaml_str = config.yaml()
 
@@ -148,11 +136,9 @@ class TestConfig:
         config_instance = TestConfig()
 
         # Create DictConfig with interpolations
-        omega_config = OmegaConf.create({
-            "base_path": "/data",
-            "train_path": "${base_path}/train",
-            "val_path": "${base_path}/val"
-        })
+        omega_config = OmegaConf.create(
+            {"base_path": "/data", "train_path": "${base_path}/train", "val_path": "${base_path}/val"}
+        )
 
         result = config_instance.prepare_dict(omega_config)
 
@@ -170,11 +156,7 @@ class TestConfig:
 
         config_instance = TestConfig()
 
-        data = {
-            "key1": "value1",
-            "key2": 42,
-            "key3": [1, 2, 3]
-        }
+        data = {"key1": "value1", "key2": 42, "key3": [1, 2, 3]}
 
         result = config_instance.prepare_dict(data)
 
@@ -190,11 +172,7 @@ class TestConfig:
         config_instance = TestConfig()
 
         # Dict with non-string keys should raise AssertionError
-        invalid_data = {
-            "valid_key": "value1",
-            123: "invalid_numeric_key",
-            "another_valid": "value2"
-        }
+        invalid_data = {"valid_key": "value1", 123: "invalid_numeric_key", "another_valid": "value2"}
 
         with pytest.raises(AssertionError, match="All dictionary keys must be strings"):
             config_instance.prepare_dict(invalid_data)
@@ -239,21 +217,15 @@ class TestConfig:
         class AppConfig(Config):
             name: str
             database: dict[str, Any]  # Will contain DatabaseConfig data
-            cache: dict[str, Any]     # Will contain CacheConfig data
+            cache: dict[str, Any]  # Will contain CacheConfig data
             features: list[str] = Field(default_factory=list)
 
         # Create nested configuration
         config_data = {
             "name": "my-app",
-            "database": {
-                "host": "db.example.com",
-                "port": 5432
-            },
-            "cache": {
-                "redis_url": "redis://localhost:6379",
-                "ttl": 7200
-            },
-            "features": ["auth", "api", "websockets"]
+            "database": {"host": "db.example.com", "port": 5432},
+            "cache": {"redis_url": "redis://localhost:6379", "ttl": 7200},
+            "features": ["auth", "api", "websockets"],
         }
 
         app_config = AppConfig(config_data)
@@ -269,16 +241,12 @@ class TestConfig:
         """Test that Pydantic validation works correctly with Config."""
 
         class ValidatedConfig(Config):
-            email: str = Field(pattern=r'^[^@]+@[^@]+\.[^@]+$')
+            email: str = Field(pattern=r"^[^@]+@[^@]+\.[^@]+$")
             age: int = Field(ge=0, le=150)
             score: float = Field(ge=0.0, le=1.0)
 
         # Valid data should work
-        config = ValidatedConfig(
-            email="user@example.com",
-            age=25,
-            score=0.85
-        )
+        config = ValidatedConfig(email="user@example.com", age=25, score=0.85)
         assert config.email == "user@example.com"
         assert config.age == 25
         assert config.score == 0.85
@@ -303,11 +271,7 @@ class TestConfig:
             max_players: int
             rules: dict[str, Any] = Field(default_factory=dict)
 
-        original = GameConfig(
-            name="chess",
-            max_players=2,
-            rules={"time_limit": 900, "increment": 10}
-        )
+        original = GameConfig(name="chess", max_players=2, rules={"time_limit": 900, "increment": 10})
 
         # Convert to YAML and back
         yaml_str = original.yaml()
@@ -327,14 +291,13 @@ class TestConfigFromPath:
         with pytest.raises(ValueError, match="Config path cannot be None"):
             config_from_path(None)
 
-    @patch('hydra.compose')
+    @patch("hydra.compose")
     def test_config_from_path_basic_loading(self, mock_compose):
         """Test basic config loading from path."""
         # Mock the hydra.compose response
-        mock_config = OmegaConf.create({
-            "model": {"name": "transformer", "layers": 12},
-            "training": {"epochs": 100, "lr": 0.001}
-        })
+        mock_config = OmegaConf.create(
+            {"model": {"name": "transformer", "layers": 12}, "training": {"epochs": 100, "lr": 0.001}}
+        )
         mock_compose.return_value = mock_config
 
         result = config_from_path("model_config")
@@ -342,7 +305,7 @@ class TestConfigFromPath:
         mock_compose.assert_called_once_with(config_name="model_config")
         assert result == mock_config
 
-    @patch('hydra.compose')
+    @patch("hydra.compose")
     def test_config_from_path_with_leading_slash(self, mock_compose):
         """Test config loading with leading slash in path."""
         mock_config = OmegaConf.create({"test": "value"})
@@ -353,20 +316,13 @@ class TestConfigFromPath:
         mock_compose.assert_called_once_with(config_name="/test_config")
         assert result == mock_config
 
-    @patch('hydra.compose')
+    @patch("hydra.compose")
     def test_config_from_path_with_nested_path(self, mock_compose):
         """Test config loading with nested path structure."""
         # Create a nested config structure
-        nested_config = OmegaConf.create({
-            "level1": {
-                "level2": {
-                    "target_config": {
-                        "setting1": "value1",
-                        "setting2": 42
-                    }
-                }
-            }
-        })
+        nested_config = OmegaConf.create(
+            {"level1": {"level2": {"target_config": {"setting1": "value1", "setting2": 42}}}}
+        )
         mock_compose.return_value = nested_config
 
         result = config_from_path("/level1/level2/target_config")
@@ -375,13 +331,10 @@ class TestConfigFromPath:
         expected = nested_config.level1.level2
         assert result == expected
 
-    @patch('hydra.compose')
+    @patch("hydra.compose")
     def test_config_from_path_with_overrides_dict(self, mock_compose):
         """Test config loading with dictionary overrides."""
-        base_config = OmegaConf.create({
-            "model": {"name": "bert", "layers": 6},
-            "training": {"epochs": 50}
-        })
+        base_config = OmegaConf.create({"model": {"name": "bert", "layers": 6}, "training": {"epochs": 50}})
         mock_compose.return_value = base_config
 
         overrides = {"model": {"layers": 12}, "training": {"epochs": 100}}
@@ -393,19 +346,13 @@ class TestConfigFromPath:
         assert result.training.epochs == 100
         assert result.model.name == "bert"  # Should be preserved
 
-    @patch('hydra.compose')
+    @patch("hydra.compose")
     def test_config_from_path_with_overrides_dictconfig(self, mock_compose):
         """Test config loading with DictConfig overrides."""
-        base_config = OmegaConf.create({
-            "database": {"host": "localhost", "port": 5432},
-            "cache": {"enabled": False}
-        })
+        base_config = OmegaConf.create({"database": {"host": "localhost", "port": 5432}, "cache": {"enabled": False}})
         mock_compose.return_value = base_config
 
-        overrides = OmegaConf.create({
-            "database": {"port": 3306},
-            "cache": {"enabled": True, "ttl": 3600}
-        })
+        overrides = OmegaConf.create({"database": {"port": 3306}, "cache": {"enabled": True, "ttl": 3600}})
 
         result = config_from_path("config", overrides=overrides)
 
@@ -415,7 +362,7 @@ class TestConfigFromPath:
         assert result.cache.enabled is True
         assert result.cache.ttl == 3600  # New field added
 
-    @patch('hydra.compose')
+    @patch("hydra.compose")
     def test_config_from_path_with_empty_overrides(self, mock_compose):
         """Test that empty overrides don't affect the config."""
         base_config = OmegaConf.create({"test": "value"})
@@ -429,7 +376,7 @@ class TestConfigFromPath:
         result2 = config_from_path("config", overrides={})
         assert result2 == base_config
 
-    @patch('hydra.compose')
+    @patch("hydra.compose")
     def test_config_from_path_struct_mode_handling(self, mock_compose):
         """Test that struct mode is properly handled with overrides."""
         base_config = OmegaConf.create({"existing": "value"})
@@ -454,10 +401,7 @@ class TestCopyOmegaconfConfig:
 
     def test_copy_dictconfig(self):
         """Test copying a DictConfig."""
-        original = OmegaConf.create({
-            "model": {"name": "bert", "layers": 12},
-            "training": {"epochs": 100, "lr": 0.001}
-        })
+        original = OmegaConf.create({"model": {"name": "bert", "layers": 12}, "training": {"epochs": 100, "lr": 0.001}})
 
         copied = copy_omegaconf_config(original)
 
@@ -468,10 +412,7 @@ class TestCopyOmegaconfConfig:
 
     def test_copy_listconfig(self):
         """Test copying a ListConfig."""
-        original = OmegaConf.create([
-            {"name": "model1", "score": 0.95},
-            {"name": "model2", "score": 0.87}
-        ])
+        original = OmegaConf.create([{"name": "model1", "score": 0.95}, {"name": "model2", "score": 0.87}])
 
         copied = copy_omegaconf_config(original)
 
@@ -482,14 +423,13 @@ class TestCopyOmegaconfConfig:
 
     def test_copy_preserves_interpolations(self):
         """Test that copying preserves unresolved interpolations."""
-        original = OmegaConf.create({
-            "base_path": "/data",
-            "train_path": "${base_path}/train",
-            "model": {
-                "name": "transformer",
-                "checkpoint": "${base_path}/models/${model.name}"
+        original = OmegaConf.create(
+            {
+                "base_path": "/data",
+                "train_path": "${base_path}/train",
+                "model": {"name": "transformer", "checkpoint": "${base_path}/models/${model.name}"},
             }
-        })
+        )
 
         copied = copy_omegaconf_config(original)
 
@@ -509,23 +449,19 @@ class TestCopyOmegaconfConfig:
 
     def test_copy_with_nested_structures(self):
         """Test copying complex nested structures."""
-        original = OmegaConf.create({
-            "experiment": {
-                "name": "test_run",
-                "params": {
-                    "learning_rate": 0.001,
-                    "batch_size": 32,
-                    "model": {
-                        "type": "transformer",
-                        "config": {
-                            "layers": 6,
-                            "heads": 8
-                        }
-                    }
-                },
-                "datasets": ["train.json", "val.json"]
+        original = OmegaConf.create(
+            {
+                "experiment": {
+                    "name": "test_run",
+                    "params": {
+                        "learning_rate": 0.001,
+                        "batch_size": 32,
+                        "model": {"type": "transformer", "config": {"layers": 6, "heads": 8}},
+                    },
+                    "datasets": ["train.json", "val.json"],
+                }
             }
-        })
+        )
 
         copied = copy_omegaconf_config(original)
 
@@ -548,6 +484,7 @@ class TestConfigDataValidation:
 
     def test_config_invalid_data_type(self):
         """Test Config prepare_dict with invalid data type raises TypeError."""
+
         class SimpleConfig(Config):
             value: int
 
@@ -558,8 +495,9 @@ class TestConfigDataValidation:
         # Create something that dict() can accept but doesn't return a dict
 
         # Mock the case where OmegaConf.to_container or dict() returns non-dict data
-        with patch('metta.common.util.config.OmegaConf.to_container', return_value="not_a_dict"):
+        with patch("metta.common.util.config.OmegaConf.to_container", return_value="not_a_dict"):
             from omegaconf import DictConfig
+
             dummy_config = DictConfig({})
 
             with pytest.raises(TypeError, match="Data must be convertible to a dictionary"):

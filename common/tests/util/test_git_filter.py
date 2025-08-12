@@ -47,7 +47,7 @@ class TestFilterRepo:
                 with patch("metta.common.util.git_filter.subprocess.run") as mock_subprocess:
                     mock_subprocess.side_effect = [
                         Mock(returncode=0),  # version check
-                        Mock(returncode=0, stderr="")  # filter success
+                        Mock(returncode=0, stderr=""),  # filter success
                     ]
 
                     with patch("metta.common.util.git_filter.get_file_list", return_value=["file1.txt"]):
@@ -73,7 +73,7 @@ class TestFilterRepo:
                 with patch("metta.common.util.git_filter.subprocess.run") as mock_subprocess:
                     mock_subprocess.side_effect = [
                         Mock(returncode=0),  # version check
-                        Mock(returncode=0, stderr="")  # filter success
+                        Mock(returncode=0, stderr=""),  # filter success
                     ]
 
                     with patch("metta.common.util.git_filter.get_file_list", return_value=["file1.txt"]):
@@ -97,7 +97,7 @@ class TestFilterRepo:
                 with patch("metta.common.util.git_filter.subprocess.run") as mock_subprocess:
                     mock_subprocess.side_effect = [
                         Mock(returncode=0),  # version check
-                        Mock(returncode=0, stderr="")  # filter success
+                        Mock(returncode=0, stderr=""),  # filter success
                     ]
 
                     with patch("metta.common.util.git_filter.get_file_list", return_value=["file1.txt"]):
@@ -127,7 +127,7 @@ class TestFilterRepo:
                         # Mock successful version check but failed filter
                         mock_subprocess.side_effect = [
                             Mock(returncode=0),  # version check success
-                            Mock(returncode=1, stderr="Filter failed")  # filter failure
+                            Mock(returncode=1, stderr="Filter failed"),  # filter failure
                         ]
 
                         with pytest.raises(RuntimeError, match="git-filter-repo failed: Filter failed"):

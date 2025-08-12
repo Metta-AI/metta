@@ -46,11 +46,7 @@ class TestInitProcessGroup:
         """Test that multi-node setup with WORLD_SIZE initializes distributed training."""
         mock_is_initialized.return_value = False
 
-        env_vars = {
-            "WORLD_SIZE": "4",
-            "RANK": "0",
-            "DIST_URL": "tcp://localhost:23456"
-        }
+        env_vars = {"WORLD_SIZE": "4", "RANK": "0", "DIST_URL": "tcp://localhost:23456"}
 
         with patch.dict(os.environ, env_vars, clear=True):
             result = _init_process_group()
@@ -58,10 +54,7 @@ class TestInitProcessGroup:
             assert result is True
             mock_is_initialized.assert_called_once()
             mock_init_process_group.assert_called_once_with(
-                backend="nccl",
-                init_method="tcp://localhost:23456",
-                world_size=4,
-                rank=0
+                backend="nccl", init_method="tcp://localhost:23456", world_size=4, rank=0
             )
 
     @patch("torch.distributed.init_process_group")
@@ -83,7 +76,7 @@ class TestInitProcessGroup:
                 backend="nccl",
                 init_method="env://",  # default when DIST_URL not set
                 world_size=3,
-                rank=1
+                rank=1,
             )
 
     @patch("torch.distributed.init_process_group")
@@ -100,7 +93,7 @@ class TestInitProcessGroup:
                 backend="nccl",
                 init_method="env://",  # default
                 world_size=2,
-                rank=0  # default
+                rank=0,  # default
             )
 
     @patch("torch.distributed.init_process_group")
@@ -124,7 +117,7 @@ class TestInitProcessGroup:
                 backend="nccl",
                 init_method="env://",
                 world_size=5,  # Uses WORLD_SIZE
-                rank=2  # Uses RANK
+                rank=2,  # Uses RANK
             )
 
 
@@ -202,8 +195,9 @@ class TestRunOnce:
         mock_is_initialized.return_value = True
         mock_get_rank.return_value = 1  # This is rank 1 (not rank 0)
 
-                # Mock the broadcast to simulate receiving the result from rank 0
+        # Mock the broadcast to simulate receiving the result from rank 0
         initial_call_args = None
+
         def mock_broadcast(result_list, src):
             nonlocal initial_call_args
             initial_call_args = (result_list.copy(), src)  # Capture before modification
@@ -255,7 +249,7 @@ class TestRunOnce:
         complex_result = {
             "data": [1, 2, 3],
             "metadata": {"status": "success", "count": 3},
-            "nested": {"deep": {"value": 42}}
+            "nested": {"deep": {"value": 42}},
         }
 
         def complex_function():
@@ -271,6 +265,7 @@ class TestRunOnce:
 
     def test_function_that_raises_exception(self):
         """Test that exceptions in the function are propagated correctly."""
+
         def failing_function():
             raise ValueError("Test exception")
 
@@ -281,6 +276,7 @@ class TestRunOnce:
 
     def test_function_returns_none(self):
         """Test that functions returning None work correctly."""
+
         def none_function():
             return None
 
@@ -291,6 +287,7 @@ class TestRunOnce:
 
     def test_type_safety_with_typed_function(self):
         """Test that the function maintains type safety for the return value."""
+
         def string_function() -> str:
             return "typed_result"
 
@@ -336,5 +333,5 @@ class TestRunOnce:
         result = run_once(test_function)
 
         assert result == original_object
-        assert type(result) == type(original_object)
+        assert type(result) is type(original_object)
         test_function.assert_not_called()

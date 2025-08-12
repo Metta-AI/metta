@@ -219,7 +219,7 @@ class TestAtomicWrite:
         """Test atomic write with binary data."""
         with tempfile.TemporaryDirectory() as temp_dir:
             target_path = Path(temp_dir) / "binary_file.bin"
-            binary_data = b'\x00\x01\x02\x03\xFF\xFE'
+            binary_data = b"\x00\x01\x02\x03\xff\xfe"
 
             def write_binary(path):
                 with open(path, "wb") as f:
@@ -304,6 +304,7 @@ class TestWaitForFile:
                 test_file.write_text("delayed content")
 
             import threading
+
             thread = threading.Thread(target=create_delayed_file)
             thread.start()
 
@@ -341,16 +342,12 @@ class TestWaitForFile:
                 test_file.write_text("start + more + final")
 
             import threading
+
             thread = threading.Thread(target=write_growing_file)
             thread.start()
 
             try:
-                result = wait_for_file(
-                    test_file,
-                    timeout=2.0,
-                    check_interval=0.05,
-                    stability_duration=0.2
-                )
+                result = wait_for_file(test_file, timeout=2.0, check_interval=0.05, stability_duration=0.2)
                 assert result is True
                 assert "final" in test_file.read_text()
             finally:
@@ -388,16 +385,12 @@ class TestWaitForFile:
                 test_file.write_text("content")
 
             import threading
+
             thread = threading.Thread(target=create_file)
             thread.start()
 
             try:
-                result = wait_for_file(
-                    test_file,
-                    timeout=1.0,
-                    check_interval=0.05,
-                    progress_callback=progress_callback
-                )
+                result = wait_for_file(test_file, timeout=1.0, check_interval=0.05, progress_callback=progress_callback)
 
                 assert result is True
                 assert len(callback_calls) > 0
@@ -431,13 +424,8 @@ class TestWaitForFile:
                     raise OSError("File temporarily unavailable")
                 return original_stat(self)
 
-            with patch.object(Path, 'stat', mock_stat):
-                result = wait_for_file(
-                    test_file,
-                    timeout=1.0,
-                    check_interval=0.1,
-                    stability_duration=0.2
-                )
+            with patch.object(Path, "stat", mock_stat):
+                result = wait_for_file(test_file, timeout=1.0, check_interval=0.1, stability_duration=0.2)
 
                 # Should still succeed despite OSError
                 assert result is True

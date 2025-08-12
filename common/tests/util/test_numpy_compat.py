@@ -15,10 +15,22 @@ class TestNumpyCompat:
         # Store original attributes to restore later
         self.original_attrs = {}
         self.test_attrs = [
-            "byte", "short", "intc", "int_", "longlong",
-            "ubyte", "ushort", "uintc", "uint", "ulonglong",
-            "float_", "double", "longdouble",
-            "csingle", "cdouble", "clongdouble"
+            "byte",
+            "short",
+            "intc",
+            "int_",
+            "longlong",
+            "ubyte",
+            "ushort",
+            "uintc",
+            "uint",
+            "ulonglong",
+            "float_",
+            "double",
+            "longdouble",
+            "csingle",
+            "cdouble",
+            "clongdouble",
         ]
 
         for attr in self.test_attrs:
@@ -46,6 +58,7 @@ class TestNumpyCompat:
 
         # Re-import the module to trigger the compatibility code
         import metta.common.util.numpy_compat
+
         importlib.reload(metta.common.util.numpy_compat)
 
         # Check that the attributes were added back
@@ -73,6 +86,7 @@ class TestNumpyCompat:
 
         # Re-import the module
         import metta.common.util.numpy_compat
+
         importlib.reload(metta.common.util.numpy_compat)
 
         # Check that the attributes were added back
@@ -100,6 +114,7 @@ class TestNumpyCompat:
 
         # Re-import the module
         import metta.common.util.numpy_compat
+
         importlib.reload(metta.common.util.numpy_compat)
 
         # Check that the attributes were added back
@@ -118,6 +133,7 @@ class TestNumpyCompat:
         with patch.object(np, "float128", np.float64, create=True):
             # Re-import the module
             import metta.common.util.numpy_compat
+
             importlib.reload(metta.common.util.numpy_compat)
 
             assert hasattr(np, "longdouble")
@@ -136,6 +152,7 @@ class TestNumpyCompat:
         try:
             # Re-import the module
             import metta.common.util.numpy_compat
+
             importlib.reload(metta.common.util.numpy_compat)
 
             assert hasattr(np, "longdouble")
@@ -154,6 +171,7 @@ class TestNumpyCompat:
 
         # Re-import the module
         import metta.common.util.numpy_compat
+
         importlib.reload(metta.common.util.numpy_compat)
 
         # Check that the attributes were added back
@@ -172,6 +190,7 @@ class TestNumpyCompat:
         with patch.object(np, "complex256", np.complex128, create=True):
             # Re-import the module
             import metta.common.util.numpy_compat
+
             importlib.reload(metta.common.util.numpy_compat)
 
             assert hasattr(np, "clongdouble")
@@ -190,6 +209,7 @@ class TestNumpyCompat:
         try:
             # Re-import the module
             import metta.common.util.numpy_compat
+
             importlib.reload(metta.common.util.numpy_compat)
 
             assert hasattr(np, "clongdouble")
@@ -212,6 +232,7 @@ class TestNumpyCompat:
         try:
             # Re-import the module
             import metta.common.util.numpy_compat
+
             importlib.reload(metta.common.util.numpy_compat)
 
             # Check that our custom values were not overwritten
@@ -234,6 +255,7 @@ class TestNumpyCompat:
         # This test ensures the module-level code executes successfully
         try:
             import metta.common.util.numpy_compat
+
             importlib.reload(metta.common.util.numpy_compat)
         except Exception as e:
             pytest.fail(f"Module import failed: {e}")
@@ -242,13 +264,25 @@ class TestNumpyCompat:
         """Test that key attributes needed for WandB compatibility are present."""
         # Import the module to ensure compatibility attributes are set
         import metta.common.util.numpy_compat
+
         importlib.reload(metta.common.util.numpy_compat)
 
         # These are the key attributes that WandB expects
         wandb_required_attrs = [
-            "byte", "short", "intc", "int_", "longlong",
-            "ubyte", "ushort", "uintc", "uint", "ulonglong",
-            "float_", "double", "csingle", "cdouble"
+            "byte",
+            "short",
+            "intc",
+            "int_",
+            "longlong",
+            "ubyte",
+            "ushort",
+            "uintc",
+            "uint",
+            "ulonglong",
+            "float_",
+            "double",
+            "csingle",
+            "cdouble",
         ]
 
         for attr in wandb_required_attrs:
@@ -261,6 +295,7 @@ class TestNumpyCompat:
         """Test that compatibility attributes function as valid NumPy types."""
         # Import the module to ensure compatibility attributes are set
         import metta.common.util.numpy_compat
+
         importlib.reload(metta.common.util.numpy_compat)
 
         # Test core attributes that are essential for WandB compatibility
@@ -274,8 +309,8 @@ class TestNumpyCompat:
                 # Test that it can create arrays
                 try:
                     # Use appropriate test values for each type
-                    if attr_name in ['csingle', 'cdouble', 'complex64', 'complex128']:
-                        test_val = 1+0j  # Complex types need complex values
+                    if attr_name in ["csingle", "cdouble", "complex64", "complex128"]:
+                        test_val = 1 + 0j  # Complex types need complex values
                     else:
                         test_val = 1  # All other types can use simple integer
                     arr = np.array([test_val], dtype=attr_value)
@@ -286,12 +321,13 @@ class TestNumpyCompat:
         # Test that special types have correct kinds
         if hasattr(np, "longlong"):
             arr = np.array([1], dtype=np.longlong)
-            assert arr.dtype.kind in ['i', 'u'], "longlong should be integer type"
+            assert arr.dtype.kind in ["i", "u"], "longlong should be integer type"
 
     def test_types_can_create_arrays(self):
         """Test that the compatibility types can actually create NumPy arrays."""
         # Import the module
         import metta.common.util.numpy_compat
+
         importlib.reload(metta.common.util.numpy_compat)
 
         # Test that we can create arrays with these types
@@ -310,7 +346,7 @@ class TestNumpyCompat:
             assert arr.dtype == np.float64
 
         if hasattr(np, "csingle"):
-            arr = np.array([1+2j], dtype=np.csingle)
+            arr = np.array([1 + 2j], dtype=np.csingle)
             assert arr.dtype == np.complex64
 
     def test_wandb_compatibility_integration(self):
@@ -320,10 +356,10 @@ class TestNumpyCompat:
         try:
             # This is the actual use case - WandB using deprecated numpy attributes
             test_data = {
-                'byte_data': np.array([1, 2, 3], dtype=np.byte),
-                'ubyte_data': np.array([1, 2, 3], dtype=np.ubyte),
-                'float_data': np.array([1.0, 2.0], dtype=np.float_),
-                'complex_data': np.array([1+2j], dtype=np.csingle),
+                "byte_data": np.array([1, 2, 3], dtype=np.byte),
+                "ubyte_data": np.array([1, 2, 3], dtype=np.ubyte),
+                "float_data": np.array([1.0, 2.0], dtype=np.float_),
+                "complex_data": np.array([1 + 2j], dtype=np.csingle),
             }
 
             # All should create valid arrays

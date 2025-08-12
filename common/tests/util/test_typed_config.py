@@ -56,10 +56,7 @@ class TestBaseModelWithForbidExtra:
 
         # Valid configuration
         config = ComplexConfig(
-            database_url="postgresql://localhost/db",
-            max_connections=20,
-            enable_ssl=False,
-            tags=["prod", "primary"]
+            database_url="postgresql://localhost/db", max_connections=20, enable_ssl=False, tags=["prod", "primary"]
         )
         assert config.database_url == "postgresql://localhost/db"
         assert config.max_connections == 20
@@ -82,13 +79,10 @@ class TestBaseModelWithForbidExtra:
 
         class ValidatedConfig(BaseModelWithForbidExtra):
             positive_number: int = Field(gt=0)
-            email: str = Field(pattern=r'^[^@]+@[^@]+\.[^@]+$')
+            email: str = Field(pattern=r"^[^@]+@[^@]+\.[^@]+$")
 
         # Valid data should pass
-        config = ValidatedConfig(
-            positive_number=5,
-            email="test@example.com"
-        )
+        config = ValidatedConfig(positive_number=5, email="test@example.com")
         assert config.positive_number == 5
         assert config.email == "test@example.com"
 
@@ -105,13 +99,11 @@ class TestBaseModelWithForbidExtra:
     def test_config_dict_is_properly_set(self):
         """Test that the model_config is correctly configured."""
         # The config should be set as a class variable
-        assert hasattr(BaseModelWithForbidExtra, 'model_config')
+        assert hasattr(BaseModelWithForbidExtra, "model_config")
 
         # It should be a ConfigDict with extra="forbid"
         config = BaseModelWithForbidExtra.model_config
-        assert config.get('extra') == 'forbid'
-
-
+        assert config.get("extra") == "forbid"
 
     def test_serialization_and_deserialization(self):
         """Test that serialization works correctly with the forbid extra configuration."""

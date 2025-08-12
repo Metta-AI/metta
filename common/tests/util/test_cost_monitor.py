@@ -17,7 +17,7 @@ from metta.common.util.cost_monitor import (
 class TestGetInstanceCost:
     """Test cases for the get_instance_cost function."""
 
-    @patch('metta.common.util.cost_monitor.sky')
+    @patch("metta.common.util.cost_monitor.sky")
     def test_get_instance_cost_success(self, mock_sky):
         """Test successful instance cost retrieval."""
         mock_cloud = Mock()
@@ -32,7 +32,7 @@ class TestGetInstanceCost:
             "t3.medium", use_spot=False, region="us-west-2", zone=None
         )
 
-    @patch('metta.common.util.cost_monitor.sky')
+    @patch("metta.common.util.cost_monitor.sky")
     def test_get_instance_cost_with_spot(self, mock_sky):
         """Test instance cost retrieval with spot pricing."""
         mock_cloud = Mock()
@@ -46,7 +46,7 @@ class TestGetInstanceCost:
             "t3.medium", use_spot=True, region="us-west-2", zone=None
         )
 
-    @patch('metta.common.util.cost_monitor.sky')
+    @patch("metta.common.util.cost_monitor.sky")
     def test_get_instance_cost_with_zone(self, mock_sky):
         """Test instance cost retrieval with specific zone."""
         mock_cloud = Mock()
@@ -60,8 +60,8 @@ class TestGetInstanceCost:
             "t3.medium", use_spot=False, region="us-west-2", zone="us-west-2a"
         )
 
-    @patch('metta.common.util.cost_monitor.sky')
-    @patch('metta.common.util.cost_monitor.logger')
+    @patch("metta.common.util.cost_monitor.sky")
+    @patch("metta.common.util.cost_monitor.logger")
     def test_get_instance_cost_exception(self, mock_logger, mock_sky):
         """Test handling of exceptions in cost retrieval."""
         mock_cloud = Mock()
@@ -79,19 +79,17 @@ class TestGetInstanceCost:
 class TestGetRunningInstanceInfo:
     """Test cases for the get_running_instance_info function."""
 
-    @patch('metta.common.util.cost_monitor.logger')
+    @patch("metta.common.util.cost_monitor.logger")
     def test_get_running_instance_info_no_env_var(self, mock_logger):
         """Test when SKYPILOT_CLUSTER_INFO is not set."""
         with patch.dict(os.environ, {}, clear=True):
             result = get_running_instance_info()
 
         assert result is None
-        mock_logger.warning.assert_called_once_with(
-            "SKYPILOT_CLUSTER_INFO not set. Cannot determine instance info."
-        )
+        mock_logger.warning.assert_called_once_with("SKYPILOT_CLUSTER_INFO not set. Cannot determine instance info.")
 
-    @patch('metta.common.util.cost_monitor.json.loads')
-    @patch('metta.common.util.cost_monitor.logger')
+    @patch("metta.common.util.cost_monitor.json.loads")
+    @patch("metta.common.util.cost_monitor.logger")
     def test_get_running_instance_info_invalid_json(self, mock_logger, mock_loads):
         """Test when SKYPILOT_CLUSTER_INFO contains invalid JSON."""
         mock_loads.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
@@ -102,8 +100,8 @@ class TestGetRunningInstanceInfo:
         assert result is None
         mock_logger.error.assert_called_once()
 
-    @patch('metta.common.util.cost_monitor.json.loads')
-    @patch('metta.common.util.cost_monitor.logger')
+    @patch("metta.common.util.cost_monitor.json.loads")
+    @patch("metta.common.util.cost_monitor.logger")
     def test_get_running_instance_info_missing_field(self, mock_logger, mock_loads):
         """Test when cluster info is missing required fields."""
         mock_loads.return_value = {"region": "us-west-2"}  # Missing instance_type
@@ -114,14 +112,11 @@ class TestGetRunningInstanceInfo:
         assert result is None
         mock_logger.error.assert_called_once()
 
-    @patch('metta.common.util.cost_monitor.requests')
-    @patch('metta.common.util.cost_monitor.json.loads')
+    @patch("metta.common.util.cost_monitor.requests")
+    @patch("metta.common.util.cost_monitor.json.loads")
     def test_get_running_instance_info_success(self, mock_loads, mock_requests):
         """Test successful instance info retrieval."""
-        cluster_info = {
-            "region": "us-west-2",
-            "zone": "us-west-2a"
-        }
+        cluster_info = {"region": "us-west-2", "zone": "us-west-2a"}
         mock_loads.return_value = cluster_info
 
         # Mock AWS metadata responses
@@ -140,13 +135,11 @@ class TestGetRunningInstanceInfo:
 
         assert result == ("t3.medium", "us-west-2", "us-west-2a", True)
 
-    @patch('metta.common.util.cost_monitor.requests')
-    @patch('metta.common.util.cost_monitor.json.loads')
+    @patch("metta.common.util.cost_monitor.requests")
+    @patch("metta.common.util.cost_monitor.json.loads")
     def test_get_running_instance_info_no_zone(self, mock_loads, mock_requests):
         """Test instance info retrieval without zone."""
-        cluster_info = {
-            "region": "us-west-2"
-        }
+        cluster_info = {"region": "us-west-2"}
         mock_loads.return_value = cluster_info
 
         # Mock AWS metadata responses
@@ -169,8 +162,8 @@ class TestGetRunningInstanceInfo:
 class TestGetCostInfo:
     """Test cases for the get_cost_info function."""
 
-    @patch('metta.common.util.cost_monitor.get_running_instance_info')
-    @patch('metta.common.util.cost_monitor.get_instance_cost')
+    @patch("metta.common.util.cost_monitor.get_running_instance_info")
+    @patch("metta.common.util.cost_monitor.get_instance_cost")
     def test_get_cost_info_success(self, mock_get_cost, mock_get_info):
         """Test successful cost info retrieval."""
         mock_get_info.return_value = ("t3.medium", "us-west-2", "us-west-2a", False)
@@ -183,11 +176,11 @@ class TestGetCostInfo:
             "region": "us-west-2",
             "zone": "us-west-2a",
             "use_spot": False,
-            "instance_hourly_cost": 0.096
+            "instance_hourly_cost": 0.096,
         }
         assert result == expected
 
-    @patch('metta.common.util.cost_monitor.get_running_instance_info')
+    @patch("metta.common.util.cost_monitor.get_running_instance_info")
     def test_get_cost_info_no_instance_info(self, mock_get_info):
         """Test when instance info is not available."""
         mock_get_info.return_value = None
@@ -196,8 +189,8 @@ class TestGetCostInfo:
 
         assert result is None
 
-    @patch('metta.common.util.cost_monitor.get_running_instance_info')
-    @patch('metta.common.util.cost_monitor.get_instance_cost')
+    @patch("metta.common.util.cost_monitor.get_running_instance_info")
+    @patch("metta.common.util.cost_monitor.get_instance_cost")
     def test_get_cost_info_no_cost(self, mock_get_cost, mock_get_info):
         """Test when cost is not available."""
         mock_get_info.return_value = ("t3.medium", "us-west-2", "us-west-2a", False)
@@ -211,8 +204,8 @@ class TestGetCostInfo:
 class TestMainFunction:
     """Test cases for the main function."""
 
-    @patch('metta.common.util.cost_monitor.get_running_instance_info')
-    @patch('metta.common.util.cost_monitor.logger')
+    @patch("metta.common.util.cost_monitor.get_running_instance_info")
+    @patch("metta.common.util.cost_monitor.logger")
     def test_main_no_instance_info(self, mock_logger, mock_get_info):
         """Test main when instance info is not available."""
         mock_get_info.return_value = None
@@ -221,9 +214,9 @@ class TestMainFunction:
 
         assert result is None  # main() doesn't return explicit values
 
-    @patch('metta.common.util.cost_monitor.get_instance_cost')
-    @patch('metta.common.util.cost_monitor.get_running_instance_info')
-    @patch('metta.common.util.cost_monitor.logger')
+    @patch("metta.common.util.cost_monitor.get_instance_cost")
+    @patch("metta.common.util.cost_monitor.get_running_instance_info")
+    @patch("metta.common.util.cost_monitor.logger")
     def test_main_no_cost_info(self, mock_logger, mock_get_info, mock_get_cost):
         """Test main when cost info is not available."""
         mock_get_info.return_value = ("t3.medium", "us-west-2", "us-west-2a", False)
@@ -232,13 +225,11 @@ class TestMainFunction:
         result = main()
 
         assert result == 1
-        mock_logger.error.assert_called_once_with(
-            "Unable to retrieve cost information for t3.medium in us-west-2"
-        )
+        mock_logger.error.assert_called_once_with("Unable to retrieve cost information for t3.medium in us-west-2")
 
-    @patch('metta.common.util.cost_monitor.get_cost_info')
-    @patch('metta.common.util.cost_monitor.logger')
-    @patch('builtins.print')
+    @patch("metta.common.util.cost_monitor.get_cost_info")
+    @patch("metta.common.util.cost_monitor.logger")
+    @patch("builtins.print")
     def test_main_success_on_demand(self, mock_print, mock_logger, mock_get_cost_info):
         """Test successful main execution with on-demand instance."""
         mock_get_cost_info.return_value = {
@@ -246,10 +237,10 @@ class TestMainFunction:
             "region": "us-west-2",
             "zone": "us-west-2a",
             "use_spot": False,
-            "instance_hourly_cost": 0.096
+            "instance_hourly_cost": 0.096,
         }
 
-        with patch.dict(os.environ, {'SKYPILOT_NUM_NODES': '2'}):
+        with patch.dict(os.environ, {"SKYPILOT_NUM_NODES": "2"}):
             result = main()
 
         assert result is None  # main() doesn't return explicit values
@@ -257,8 +248,8 @@ class TestMainFunction:
         # Should call get_cost_info
         mock_get_cost_info.assert_called_once()
 
-    @patch('metta.common.util.cost_monitor.get_cost_info')
-    @patch('builtins.print')
+    @patch("metta.common.util.cost_monitor.get_cost_info")
+    @patch("builtins.print")
     def test_main_success_spot_instance(self, mock_print, mock_get_cost_info):
         """Test successful main execution with spot instance."""
         mock_get_cost_info.return_value = {
@@ -266,24 +257,15 @@ class TestMainFunction:
             "region": "us-west-2",
             "zone": None,
             "use_spot": True,
-            "instance_hourly_cost": 0.030
+            "instance_hourly_cost": 0.030,
         }
 
-        with patch.dict(os.environ, {'SKYPILOT_NUM_NODES': '1'}):
+        with patch.dict(os.environ, {"SKYPILOT_NUM_NODES": "1"}):
             result = main()
 
         assert result is None  # main() doesn't return explicit values
 
-    @patch('metta.common.util.cost_monitor.get_cost_info')
-    def test_main_no_cost_info(self, mock_get_cost_info):
-        """Test main when cost info is not available."""
-        mock_get_cost_info.return_value = None
-
-        result = main()
-
-        assert result is None  # main() doesn't return explicit values
-
-    @patch('metta.common.util.cost_monitor.get_cost_info')
+    @patch("metta.common.util.cost_monitor.get_cost_info")
     def test_main_exception_handling(self, mock_get_cost_info):
         """Test main function exception handling."""
         mock_get_cost_info.side_effect = Exception("Unexpected error")
@@ -296,16 +278,13 @@ class TestMainFunction:
 class TestIntegration:
     """Integration tests for cost monitoring."""
 
-    @patch('metta.common.util.cost_monitor.sky')
-    @patch('metta.common.util.cost_monitor.json.loads')
-    @patch('metta.common.util.cost_monitor.requests')
+    @patch("metta.common.util.cost_monitor.sky")
+    @patch("metta.common.util.cost_monitor.json.loads")
+    @patch("metta.common.util.cost_monitor.requests")
     def test_end_to_end_cost_info(self, mock_requests, mock_loads, mock_sky):
         """Test end-to-end cost info workflow."""
         # Mock SkyPilot cluster info
-        cluster_info = {
-            "region": "us-east-1",
-            "zone": "us-east-1a"
-        }
+        cluster_info = {"region": "us-east-1", "zone": "us-east-1a"}
         mock_loads.return_value = cluster_info
 
         # Mock AWS metadata service
@@ -334,7 +313,7 @@ class TestIntegration:
             assert cost_info["use_spot"] is False
             assert cost_info["instance_hourly_cost"] == 0.192
 
-    @patch('metta.common.util.cost_monitor.sky')
+    @patch("metta.common.util.cost_monitor.sky")
     def test_cost_calculation_different_instance_types(self, mock_sky):
         """Test cost calculation for different instance types."""
         mock_cloud = Mock()
@@ -346,7 +325,7 @@ class TestIntegration:
             "t3.small": 0.0416,
             "t3.medium": 0.0832,
             "m5.large": 0.192,
-            "c5.xlarge": 0.34
+            "c5.xlarge": 0.34,
         }
 
         for instance_type, expected_cost in instance_costs.items():
@@ -358,11 +337,7 @@ class TestIntegration:
     def test_spot_vs_ondemand_detection(self):
         """Test spot vs on-demand instance detection."""
         # Test spot instance detection logic
-        test_cases = [
-            ("spot", True),
-            ("normal", False),
-            ("scheduled", False)
-        ]
+        test_cases = [("spot", True), ("normal", False), ("scheduled", False)]
 
         for lifecycle, expected_spot in test_cases:
             # This would be tested in the actual implementation

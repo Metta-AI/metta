@@ -27,7 +27,9 @@ class TestSpinner:
     def test_spinner_init_custom_params(self):
         """Test Spinner initialization with custom parameters."""
         custom_chars = [".", "o", "O"]
-        custom_style = lambda x: f"[{x}]"
+
+        def custom_style(x):
+            return f"[{x}]"
 
         spin = Spinner("Custom message", custom_chars, custom_style)
 
@@ -37,7 +39,7 @@ class TestSpinner:
 
     def test_spinner_start_stop(self):
         """Test starting and stopping the spinner."""
-        with patch('sys.stdout'):
+        with patch("sys.stdout"):
             spin = Spinner("Test", style=lambda x: x)
 
             spin.start()
@@ -57,7 +59,7 @@ class TestSpinner:
 
     def test_spinner_start_multiple_times(self):
         """Test that starting an already running spinner is safe."""
-        with patch('sys.stdout'):
+        with patch("sys.stdout"):
             spin = Spinner("Test", style=lambda x: x)
 
             spin.start()
@@ -79,7 +81,7 @@ class TestSpinnerContextManager:
 
     def test_spinner_context_manager_basic(self):
         """Test basic spinner context manager usage."""
-        with patch('sys.stdout'):
+        with patch("sys.stdout"):
             with spinner("Test message") as sp:
                 assert isinstance(sp, Spinner)
                 assert sp.message == "Test message"
@@ -91,7 +93,7 @@ class TestSpinnerContextManager:
 
     def test_spinner_context_manager_with_exception(self):
         """Test that spinner stops even when exception occurs."""
-        with patch('sys.stdout'):
+        with patch("sys.stdout"):
             with pytest.raises(ValueError):
                 with spinner("Test") as sp:
                     assert sp._thread.is_alive()
@@ -103,9 +105,11 @@ class TestSpinnerContextManager:
     def test_spinner_context_manager_custom_params(self):
         """Test spinner context manager with custom parameters."""
         custom_chars = ["1", "2", "3"]
-        custom_style = lambda x: f"<{x}>"
 
-        with patch('sys.stdout'):
+        def custom_style(x):
+            return f"<{x}>"
+
+        with patch("sys.stdout"):
             with spinner("Custom", custom_chars, custom_style) as sp:
                 assert sp.spinner_chars == custom_chars
                 assert sp.style == custom_style
@@ -114,7 +118,7 @@ class TestSpinnerContextManager:
 class TestSh:
     """Test cases for the sh function."""
 
-    @patch('subprocess.check_output')
+    @patch("subprocess.check_output")
     def test_sh_success(self, mock_check_output):
         """Test successful command execution with sh."""
         mock_check_output.return_value = "Command output\n"
@@ -122,49 +126,39 @@ class TestSh:
         result = sh(["echo", "hello"])
 
         assert result == "Command output"
-        mock_check_output.assert_called_once_with(
-            ["echo", "hello"],
-            text=True
-        )
+        mock_check_output.assert_called_once_with(["echo", "hello"], text=True)
 
-    @patch('subprocess.check_output')
+    @patch("subprocess.check_output")
     def test_sh_with_spinner(self, mock_check_output):
         """Test sh with spinner enabled."""
         mock_check_output.return_value = "Output\n"
 
-        with patch('sys.stdout'):  # Suppress spinner output
+        with patch("sys.stdout"):  # Suppress spinner output
             result = sh(["echo", "test"], show_spinner=True)
 
         assert result == "Output"
-        mock_check_output.assert_called_once_with(
-            ["echo", "test"],
-            text=True
-        )
+        mock_check_output.assert_called_once_with(["echo", "test"], text=True)
 
-    @patch('subprocess.check_output')
+    @patch("subprocess.check_output")
     def test_sh_with_custom_spinner_message(self, mock_check_output):
         """Test sh with custom spinner message."""
         mock_check_output.return_value = "Output\n"
 
-        with patch('sys.stdout'):
+        with patch("sys.stdout"):
             result = sh(["long", "command"], show_spinner=True, spinner_message="Custom message")
 
         assert result == "Output"
 
-    @patch('subprocess.check_output')
+    @patch("subprocess.check_output")
     def test_sh_with_kwargs(self, mock_check_output):
         """Test sh with additional kwargs."""
         mock_check_output.return_value = "Output\n"
 
         sh(["ls"], cwd="/tmp")
 
-        mock_check_output.assert_called_once_with(
-            ["ls"],
-            text=True,
-            cwd="/tmp"
-        )
+        mock_check_output.assert_called_once_with(["ls"], text=True, cwd="/tmp")
 
-    @patch('subprocess.check_output')
+    @patch("subprocess.check_output")
     def test_sh_failure(self, mock_check_output):
         """Test sh when command fails."""
         mock_check_output.side_effect = subprocess.CalledProcessError(1, "command")
@@ -176,7 +170,7 @@ class TestSh:
 class TestGetUserConfirmation:
     """Test cases for the get_user_confirmation function."""
 
-    @patch('builtins.input')
+    @patch("builtins.input")
     def test_get_user_confirmation_yes(self, mock_input):
         """Test user confirmation with yes response."""
         mock_input.return_value = "y"
@@ -186,7 +180,7 @@ class TestGetUserConfirmation:
         assert result is True
         mock_input.assert_called_once_with("Proceed? (Y/n): ")
 
-    @patch('builtins.input')
+    @patch("builtins.input")
     def test_get_user_confirmation_empty(self, mock_input):
         """Test user confirmation with empty response (default yes)."""
         mock_input.return_value = ""
@@ -195,8 +189,8 @@ class TestGetUserConfirmation:
 
         assert result is True
 
-    @patch('builtins.input')
-    @patch('builtins.print')
+    @patch("builtins.input")
+    @patch("builtins.print")
     def test_get_user_confirmation_no(self, mock_print, mock_input):
         """Test user confirmation with no response."""
         mock_input.return_value = "n"
@@ -206,8 +200,8 @@ class TestGetUserConfirmation:
         assert result is False
         mock_print.assert_called_once()
 
-    @patch('builtins.input')
-    @patch('builtins.print')
+    @patch("builtins.input")
+    @patch("builtins.print")
     def test_get_user_confirmation_invalid(self, mock_print, mock_input):
         """Test user confirmation with invalid response."""
         mock_input.return_value = "maybe"
@@ -221,8 +215,8 @@ class TestGetUserConfirmation:
 class TestDie:
     """Test cases for the die function."""
 
-    @patch('sys.exit')
-    @patch('builtins.print')
+    @patch("sys.exit")
+    @patch("builtins.print")
     def test_die_default_code(self, mock_print, mock_exit):
         """Test die with default exit code."""
         die("Error message")
@@ -230,8 +224,8 @@ class TestDie:
         mock_print.assert_called_once_with("Error message", file=sys.stderr)
         mock_exit.assert_called_once_with(1)
 
-    @patch('sys.exit')
-    @patch('builtins.print')
+    @patch("sys.exit")
+    @patch("builtins.print")
     def test_die_custom_code(self, mock_print, mock_exit):
         """Test die with custom exit code."""
         die("Custom error", code=42)
@@ -256,7 +250,7 @@ class TestCliIntegration:
 
     def test_spinner_with_real_command(self):
         """Test spinner with real command execution."""
-        with patch('sys.stdout'):  # Suppress spinner output
+        with patch("sys.stdout"):  # Suppress spinner output
             result = sh(["echo", "test"], show_spinner=True, spinner_message="Running test")
 
         assert result == "test"
@@ -267,7 +261,7 @@ class TestSpinnerAdvanced:
 
     def test_spinner_character_cycling(self):
         """Test that spinner characters cycle properly."""
-        with patch('sys.stdout'):
+        with patch("sys.stdout"):
             spinner_obj = Spinner("Test", spinner_chars=["A", "B"], style=lambda x: x)
             spinner_obj.start()
             time.sleep(0.25)  # Let it cycle a bit
@@ -278,6 +272,7 @@ class TestSpinnerAdvanced:
 
     def test_spinner_custom_style_application(self):
         """Test custom style function application."""
+
         def custom_style(text):
             return f">>>{text}<<<"
 
@@ -286,7 +281,7 @@ class TestSpinnerAdvanced:
 
     def test_spinner_line_clearing_logic(self):
         """Test the spinner's line clearing functionality."""
-        with patch('sys.stdout') as mock_stdout:
+        with patch("sys.stdout") as mock_stdout:
             spinner_obj = Spinner("Short", style=lambda x: x)
             spinner_obj.start()
             time.sleep(0.15)
@@ -301,10 +296,10 @@ class TestSpinnerAdvanced:
 class TestMainDemo:
     """Test cases for main demo functionality."""
 
-    @patch('time.sleep')
-    @patch('builtins.input')
-    @patch('builtins.print')
-    @patch('sys.stdout')
+    @patch("time.sleep")
+    @patch("builtins.input")
+    @patch("builtins.print")
+    @patch("sys.stdout")
     def test_main_demo_basic_execution(self, mock_stdout, mock_print, mock_input, mock_sleep):
         """Test that main demo function can be called without errors."""
         from metta.common.util.cli import main
@@ -318,10 +313,10 @@ class TestMainDemo:
         # Verify some output was generated
         assert mock_print.called
 
-    @patch('subprocess.check_output')
-    @patch('time.sleep')
-    @patch('builtins.input')
-    @patch('sys.stdout')
+    @patch("subprocess.check_output")
+    @patch("time.sleep")
+    @patch("builtins.input")
+    @patch("sys.stdout")
     def test_main_demo_command_execution(self, mock_stdout, mock_input, mock_sleep, mock_subprocess):
         """Test main demo command execution section."""
         from metta.common.util.cli import main
@@ -334,9 +329,9 @@ class TestMainDemo:
         # Verify subprocess was called for the demo command
         mock_subprocess.assert_called()
 
-    @patch('time.sleep')
-    @patch('builtins.input')
-    @patch('sys.stdout')
+    @patch("time.sleep")
+    @patch("builtins.input")
+    @patch("sys.stdout")
     def test_main_demo_error_handling(self, mock_stdout, mock_input, mock_sleep):
         """Test main demo error handling section."""
         from metta.common.util.cli import main
@@ -350,7 +345,7 @@ class TestMainDemo:
 class TestNameMain:
     """Test the if __name__ == '__main__' functionality."""
 
-    @patch('metta.common.util.cli.main')
+    @patch("metta.common.util.cli.main")
     def test_name_main_calls_main(self, mock_main):
         """Test that __name__ == '__main__' calls main function."""
         # This tests the actual if __name__ == "__main__" line

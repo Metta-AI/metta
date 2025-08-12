@@ -184,6 +184,7 @@ class TestRetryEdgeCases:
     def test_retry_with_max_retries_and_logger_error(self, caplog):
         """Test retry_function with logger when all retries are exhausted."""
         import logging
+
         logger = logging.getLogger("test")
 
         def always_fail():
@@ -192,11 +193,7 @@ class TestRetryEdgeCases:
         with caplog.at_level(logging.ERROR):
             with pytest.raises(ValueError, match="Always fails"):
                 retry_function(
-                    always_fail,
-                    max_retries=2,
-                    retry_delay=0.01,
-                    error_prefix="Operation failed",
-                    logger=logger
+                    always_fail, max_retries=2, retry_delay=0.01, error_prefix="Operation failed", logger=logger
                 )
 
         # Should see the final error log (line 63)
@@ -220,6 +217,7 @@ class TestRetryEdgeCases:
 
     def test_retry_all_fail_no_last_exception(self):
         """Test retry when all attempts fail but last_exception is somehow None."""
+
         # This is a very edge case that might be hard to trigger naturally
         # But we can construct a scenario to hit line 68
         def strange_function():

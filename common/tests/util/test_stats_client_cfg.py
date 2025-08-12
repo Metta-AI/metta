@@ -21,10 +21,7 @@ class TestGetMachineToken:
             tokens_file.parent.mkdir(parents=True)
 
             # Create tokens file
-            tokens = {
-                "https://api.example.com": "token123",
-                "https://api.test.com": "token456"
-            }
+            tokens = {"https://api.example.com": "token123", "https://api.test.com": "token456"}
 
             with open(tokens_file, "w") as f:
                 yaml.dump(tokens, f)
@@ -248,10 +245,7 @@ class TestGetStatsClientDirect:
 
         assert result == mock_client_instance
         mock_get_token.assert_called_once_with("https://api.example.com")
-        mock_stats_client.assert_called_once_with(
-            backend_url="https://api.example.com",
-            machine_token="valid_token"
-        )
+        mock_stats_client.assert_called_once_with(backend_url="https://api.example.com", machine_token="valid_token")
         logger.info.assert_called_once_with("Using stats client at https://api.example.com")
 
 
@@ -318,11 +312,13 @@ class TestGetStatsClient:
         logger = Mock(spec=logging.Logger)
 
         # Test realistic config
-        cfg = OmegaConf.create({
-            "stats_server_uri": "https://observatory.example.com/api",
-            "other_setting": "value",
-            "nested": {"config": "test"}
-        })
+        cfg = OmegaConf.create(
+            {
+                "stats_server_uri": "https://observatory.example.com/api",
+                "other_setting": "value",
+                "nested": {"config": "test"},
+            }
+        )
 
         result = get_stats_client(cfg, logger)
 

@@ -30,7 +30,7 @@ class TestGroupBy:
         assert len(result) == 2
         assert set(result.keys()) == {0, 1}  # 0 for even, 1 for odd
         assert result[0] == [2, 4, 6, 8, 10]  # even numbers
-        assert result[1] == [1, 3, 5, 7, 9]   # odd numbers
+        assert result[1] == [1, 3, 5, 7, 9]  # odd numbers
 
     def test_group_by_strings_by_length(self):
         """Test group_by with strings grouped by length."""
@@ -57,6 +57,7 @@ class TestGroupBy:
 
     def test_group_by_with_dataclass(self):
         """Test group_by with custom objects (dataclass)."""
+
         @dataclass
         class Person:
             name: str
@@ -89,8 +90,6 @@ class TestGroupBy:
         assert len(sales) == 1
         assert sales[0].name == "Eve"
 
-
-
     def test_group_by_with_complex_key_function(self):
         """Test group_by with complex key extraction."""
         data = [
@@ -119,7 +118,7 @@ class TestGroupBy:
 
         # Items with same length should maintain relative order
         assert result[5] == ["first", "third", "fifth"]  # 5-letter words in order
-        assert result[6] == ["second", "fourth"]         # 6-letter words in order
+        assert result[6] == ["second", "fourth"]  # 6-letter words in order
 
     def test_group_by_returns_defaultdict(self):
         """Test that group_by returns a defaultdict that creates empty lists for missing keys."""
@@ -169,8 +168,8 @@ class TestRemoveNoneValues:
             "keep3": [],
             "remove3": None,
             "keep4": False,  # False should be kept, not removed
-            "keep5": 0,      # 0 should be kept, not removed
-            "keep6": "",     # Empty string should be kept, not removed
+            "keep5": 0,  # 0 should be kept, not removed
+            "keep6": "",  # Empty string should be kept, not removed
         }
 
         expected = {
@@ -224,8 +223,6 @@ class TestRemoveNoneValues:
 
         assert result["bool_false"] is False
         assert isinstance(result["bool_false"], bool)
-
-
 
     def test_remove_none_values_real_world_use_case(self):
         """Test remove_none_values with a real-world HTTP headers scenario."""

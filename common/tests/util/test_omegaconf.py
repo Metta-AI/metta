@@ -1,6 +1,5 @@
 """Tests for metta.common.util.omegaconf module."""
 
-
 from enum import Enum
 
 import pytest
@@ -206,8 +205,6 @@ class TestConvertToDict:
         assert "Input cfg is not an OmegaConf config object" in error_msg
         assert "NoneType" in error_msg
 
-
-
     def test_convert_regular_dict_input_raises_error(self):
         """Test that regular Python dict raises error since it's not an OmegaConf object."""
         regular_dict = {
@@ -237,13 +234,15 @@ class TestConvertToDict:
             assert isinstance(key, str)
 
         # Values can be Any type
-        config_with_various_types = OmegaConf.create({
-            "str": "text",
-            "int": 42,
-            "list": [1, 2, 3],
-            "dict": {"nested": "value"},
-            "none": None,
-        })
+        config_with_various_types = OmegaConf.create(
+            {
+                "str": "text",
+                "int": 42,
+                "list": [1, 2, 3],
+                "dict": {"nested": "value"},
+                "none": None,
+            }
+        )
         result = convert_to_dict(config_with_various_types)
 
         # Verify the types are preserved correctly
@@ -252,8 +251,6 @@ class TestConvertToDict:
         assert isinstance(result["list"], list)
         assert isinstance(result["dict"], dict)
         assert result["none"] is None
-
-
 
     def test_complex_real_world_scenario(self):
         """Test with a complex configuration similar to real-world usage."""

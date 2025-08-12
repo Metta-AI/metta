@@ -22,6 +22,7 @@ class TestTraceDecorator:
 
     def test_trace_simple_function(self):
         """Test tracing a simple function."""
+
         @trace
         def add_numbers(a, b):
             return a + b
@@ -55,6 +56,7 @@ class TestTraceDecorator:
 
     def test_trace_method_with_class(self):
         """Test tracing a method bound to a class."""
+
         class Calculator:
             @trace
             def multiply(self, a, b):
@@ -72,6 +74,7 @@ class TestTraceDecorator:
 
     def test_trace_function_with_exception(self):
         """Test that tracing works even when function raises exception."""
+
         @trace
         def failing_function():
             raise ValueError("Test error")
@@ -86,6 +89,7 @@ class TestTraceDecorator:
 
     def test_trace_nested_function_calls(self):
         """Test tracing nested function calls."""
+
         @trace
         def outer_function():
             return inner_function() + 1
@@ -111,6 +115,7 @@ class TestTraceDecorator:
 
     def test_trace_with_args_and_kwargs(self):
         """Test tracing function with various arguments."""
+
         @trace
         def complex_function(a, b, c=None, *args, **kwargs):
             return {"a": a, "b": b, "c": c, "args": args, "kwargs": kwargs}
@@ -124,6 +129,7 @@ class TestTraceDecorator:
 
     def test_trace_preserves_function_metadata(self):
         """Test that tracing preserves original function's metadata."""
+
         @trace
         def documented_function():
             """This is a test function."""
@@ -135,6 +141,7 @@ class TestTraceDecorator:
 
     def test_trace_stack_trace_generation(self):
         """Test that stack trace is properly generated."""
+
         @trace
         def test_function():
             return "result"
@@ -152,6 +159,7 @@ class TestTraceDecorator:
 
     def test_trace_timing_information(self):
         """Test that timing information is reasonable."""
+
         @trace
         def slow_function():
             time.sleep(0.01)  # Sleep for 10ms
@@ -172,6 +180,7 @@ class TestTraceDecorator:
 
     def test_trace_thread_information(self):
         """Test that thread and process information is captured."""
+
         @trace
         def threaded_function():
             return threading.get_ident()
@@ -197,7 +206,7 @@ class TestTracerContextManager:
         """Test basic usage of tracer context manager."""
         with tracer("test_section"):
             time.sleep(0.01)
-            result = 42
+            _result = 42
 
         assert len(trace_events) == 1
 
@@ -219,7 +228,7 @@ class TestTracerContextManager:
             time.sleep(0.005)
             with tracer("inner_section"):
                 time.sleep(0.005)
-                result = "nested"
+                _result = "nested"
 
         assert len(trace_events) == 2
 
@@ -307,6 +316,7 @@ class TestSaveTrace:
 
     def test_save_trace_basic(self):
         """Test basic save_trace functionality."""
+
         # Add some trace events
         @trace
         def test_function():
@@ -360,6 +370,7 @@ class TestSaveTrace:
 
     def test_save_trace_mixed_events(self):
         """Test saving trace with mixed event types."""
+
         # Add function trace
         @trace
         def traced_func():
@@ -428,6 +439,7 @@ class TestTraceEventsGlobalState:
 
     def test_trace_events_persistence(self):
         """Test that trace events persist across multiple operations."""
+
         @trace
         def func1():
             return 1
@@ -449,12 +461,13 @@ class TestTraceEventsGlobalState:
 
     def test_trace_events_modification(self):
         """Test that trace_events can be modified externally."""
+
         @trace
         def test_func():
             return "test"
 
         test_func()
-        initial_count = len(trace_events)
+        _initial_count = len(trace_events)
 
         # Clear events
         trace_events.clear()
@@ -475,6 +488,7 @@ class TestTracingIntegration:
 
     def test_realistic_tracing_scenario(self):
         """Test a realistic scenario with mixed tracing."""
+
         class DataProcessor:
             @trace
             def __init__(self):
@@ -521,6 +535,7 @@ class TestTracingIntegration:
 
     def test_chrome_tracing_format_compliance(self):
         """Test that generated events comply with Chrome tracing format."""
+
         @trace
         def sample_function():
             with tracer("inner_work"):

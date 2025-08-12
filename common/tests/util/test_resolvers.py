@@ -18,7 +18,7 @@ from metta.common.util.resolvers import (
     oc_scale,
     oc_to_odd_min3,
     register_resolvers,
-    )
+)
 
 
 class TestBasicResolvers:
@@ -82,7 +82,7 @@ class TestUtilityResolvers:
 class TestDateResolver:
     """Test the oc_date_format resolver."""
 
-    @patch('datetime.datetime')
+    @patch("datetime.datetime")
     def test_oc_date_format_simplified(self, mock_datetime):
         """Test date formatting with simplified codes."""
         mock_now = Mock()
@@ -95,7 +95,7 @@ class TestDateResolver:
         mock_now.strftime.assert_called_once_with("%Y-%m-%d")
         assert result == "2023-12-25"
 
-    @patch('datetime.datetime')
+    @patch("datetime.datetime")
     def test_oc_date_format_python_format(self, mock_datetime):
         """Test date formatting with Python format codes."""
         mock_now = Mock()
@@ -117,7 +117,7 @@ class TestResolverRegistrar:
         assert registrar.resolver_count == 0
         assert registrar.logger.name == "ResolverRegistrar"
 
-    @patch('metta.common.util.resolvers.OmegaConf.register_new_resolver')
+    @patch("metta.common.util.resolvers.OmegaConf.register_new_resolver")
     def test_register_resolvers(self, mock_register):
         """Test resolver registration."""
         registrar = ResolverRegistrar()
@@ -130,13 +130,13 @@ class TestResolverRegistrar:
         mock_register.assert_any_call("if", oc_if, replace=True)
         mock_register.assert_any_call("add", oc_add, replace=True)
 
-    @patch('metta.common.util.resolvers.OmegaConf.register_new_resolver')
+    @patch("metta.common.util.resolvers.OmegaConf.register_new_resolver")
     def test_callbacks(self, mock_register):
         """Test callback methods."""
         registrar = ResolverRegistrar()
         config = OmegaConf.create({"test": "value"})
 
-        with patch.object(registrar, 'logger') as mock_logger:
+        with patch.object(registrar, "logger") as mock_logger:
             registrar.on_run_start(config)
             registrar.on_multirun_start(config)
 
@@ -146,7 +146,7 @@ class TestResolverRegistrar:
         # on_job_start should do nothing
         registrar.on_job_start(config)
 
-    @patch('metta.common.util.resolvers.ResolverRegistrar')
+    @patch("metta.common.util.resolvers.ResolverRegistrar")
     def test_legacy_function(self, mock_registrar_class):
         """Test legacy register_resolvers function."""
         mock_instance = Mock()
@@ -206,6 +206,7 @@ class TestArithmeticResolvers:
     def test_oc_subtract(self):
         """Test oc_subtract resolver."""
         from metta.common.util.resolvers import oc_subtract
+
         assert oc_subtract(10, 3) == 7
         assert oc_subtract(5.5, 2.5) == 3.0
         assert oc_subtract(0, 5) == -5
@@ -213,6 +214,7 @@ class TestArithmeticResolvers:
     def test_oc_multiply(self):
         """Test oc_multiply resolver."""
         from metta.common.util.resolvers import oc_multiply
+
         assert oc_multiply(4, 5) == 20
         assert oc_multiply(2.5, 4) == 10.0
         assert oc_multiply(-3, 2) == -6
@@ -224,6 +226,7 @@ class TestComparisonResolvers:
     def test_oc_greater_than(self):
         """Test oc_greater_than resolver."""
         from metta.common.util.resolvers import oc_greater_than
+
         assert oc_greater_than(5, 3) is True
         assert oc_greater_than(3, 5) is False
         assert oc_greater_than(5, 5) is False
@@ -231,6 +234,7 @@ class TestComparisonResolvers:
     def test_oc_less_than(self):
         """Test oc_less_than resolver."""
         from metta.common.util.resolvers import oc_less_than
+
         assert oc_less_than(3, 5) is True
         assert oc_less_than(5, 3) is False
         assert oc_less_than(5, 5) is False
@@ -238,6 +242,7 @@ class TestComparisonResolvers:
     def test_oc_greater_than_or_equal(self):
         """Test oc_greater_than_or_equal resolver."""
         from metta.common.util.resolvers import oc_greater_than_or_equal
+
         assert oc_greater_than_or_equal(5, 3) is True
         assert oc_greater_than_or_equal(5, 5) is True
         assert oc_greater_than_or_equal(3, 5) is False
@@ -245,6 +250,7 @@ class TestComparisonResolvers:
     def test_oc_less_than_or_equal(self):
         """Test oc_less_than_or_equal resolver."""
         from metta.common.util.resolvers import oc_less_than_or_equal
+
         assert oc_less_than_or_equal(3, 5) is True
         assert oc_less_than_or_equal(5, 5) is True
         assert oc_less_than_or_equal(5, 3) is False
