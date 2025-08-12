@@ -28,6 +28,7 @@ class Example(pufferlib.models.LSTMWrapper):
 
         super().__init__(env, policy, input_size, hidden_size)
 
+
 def forward(self, td: TensorDict, state: Optional[dict] = None, action=None) -> TensorDict:
     """Forward pass: encodes observations, runs LSTM, decodes into actions, value, and stats."""
 
