@@ -1,0 +1,10 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: perfect_mazes
+
+simulations:
+  navigation/perfect_maze_11:
+    env: env/mettagrid/navigation/evals/perfect_maze_11
+
