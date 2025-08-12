@@ -17,10 +17,10 @@ trainer:
   curriculum: /env/mettagrid/curriculum/coop_rewardsharing/learning_progress
   num_workers: 4
   simulation:
-    evaluate_interval: 100
+    evaluate_interval: 50
     skip_git_check: true
   checkpoint:
-    wandb_checkpoint_interval: 100
+    wandb_checkpoint_interval: 50
   total_timesteps: 1_000_000
 
 wandb:
