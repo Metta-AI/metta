@@ -59,6 +59,7 @@ constexpr ObservationType Glyph = 12;
 constexpr ObservationType ResourceRewards = 13;
 constexpr ObservationType VisitationCounts = 14;
 constexpr ObservationType ObservationFeatureCount = 15;
+constexpr ObservationType Genome = 16;
 }  // namespace ObservationFeature
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
@@ -81,7 +82,8 @@ inline const std::map<ObservationType, std::string>& GetFeatureNames() {
       {ObservationFeature::LastReward, "last_reward"},
       {ObservationFeature::Glyph, "agent:glyph"},
       {ObservationFeature::ResourceRewards, "resource_rewards"},
-      {ObservationFeature::VisitationCounts, "agent:visitation_counts"}};
+      {ObservationFeature::VisitationCounts, "agent:visitation_counts"},
+      {ObservationFeature::Genome, "agent:genome"}};
   return feature_names;
 }
 
@@ -106,6 +108,7 @@ inline const std::map<ObservationType, float>& GetFeatureNormalizations() {
       {ObservationFeature::Glyph, 255.0},
       {ObservationFeature::ResourceRewards, 255.0},
       {ObservationFeature::VisitationCounts, 1000.0},
+      {ObservationFeature::Genome, 255.0},
   };
   return feature_normalizations;
 }

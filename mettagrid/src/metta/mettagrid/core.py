@@ -293,7 +293,6 @@ class MettaGridCore:
                 feature_dict["normalization"] = feature_info["normalization"]
 
             features[feature_name] = feature_dict
-
         return features
 
     @property

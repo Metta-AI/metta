@@ -229,6 +229,8 @@ class Conv2d(ParamLayer):
 
         self._out_tensor_shape = [self._nn_params.out_channels, self._output_height, self._output_width]
 
+        print(self._out_tensor_shape)
+
 
 class MaxPool1d(LayerBase):
     """
@@ -409,6 +411,8 @@ class Flatten(LayerBase):
 
     def _make_net(self):
         self._out_tensor_shape = [prod(self._in_tensor_shapes[0])]
+        print(f"in_tensor_shapes: {self._in_tensor_shapes}")
+        print(f"out_tensor_shape: {self._out_tensor_shape}")
         return nn.Flatten()
 
 
