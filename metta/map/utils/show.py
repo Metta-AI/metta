@@ -9,6 +9,7 @@ import mettascope.server
 from metta.common.util.config import config_from_path
 from metta.map.utils.storable_map import StorableMap, grid_to_lines
 from metta.mettagrid import AutoResetEnv
+from metta.mettagrid.config import EnvConfig
 from metta.mettagrid.level_builder import LevelMap
 from metta.sim.map_preview import write_local_map_preview
 
@@ -31,8 +32,6 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
 
         level = LevelMap(storable_map.grid, [])
         # Create EnvConfig from the DictConfig and LevelMap
-        from metta.mettagrid.config import EnvConfig
-
         env_config = EnvConfig.from_dict_config(env_cfg)
         env_config.level_map = level
         env = AutoResetEnv(env_config=env_config, render_mode="none")
