@@ -1,4 +1,4 @@
-"""Tests for TaskSetGenerator."""
+"""Tests for TaskGeneratorSet."""
 
 import pytest
 
@@ -13,8 +13,8 @@ from metta.rl.env_config import EnvConfig
 class TestTaskGeneratorSet:
     """Test cases for TaskGeneratorSet."""
 
-    def test_task_set_generator_creation(self):
-        """Test creating a TaskSetGenerator with multiple configs."""
+    def test_task_generator_set_creation(self):
+        """Test creating a TaskGeneratorSet with multiple configs."""
         # Create multiple task generator configs
         config1 = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=1))
         config2 = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=2))
@@ -31,12 +31,12 @@ class TestTaskGeneratorSet:
         assert generator._config == task_set_config
         assert len(generator._sub_task_generators) == 3
 
-    def test_task_set_generator_empty_list(self):
+    def test_task_generator_set_empty_list(self):
         """Test that TaskGeneratorSetConfig raises error with empty list."""
         with pytest.raises(ValueError):
             TaskGeneratorSetConfig(task_generator_configs=[], weights=[])
 
-    def test_task_set_generator_sampling(self):
+    def test_task_generator_set_sampling(self):
         """Test that TaskGeneratorSet samples from configs."""
         # Create configs with different seeds
         configs = [SingleTaskGeneratorConfig(env_config=EnvConfig(seed=i)) for i in range(5)]
@@ -54,7 +54,7 @@ class TestTaskGeneratorSet:
         # Should have seen multiple different seeds
         assert len(seeds_seen) > 1
 
-    def test_task_set_generator_with_overrides(self):
+    def test_task_generator_set_with_overrides(self):
         """Test TaskGeneratorSet with environment overrides."""
         # Create configs
         config1 = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=1, device="cpu"))
@@ -74,7 +74,7 @@ class TestTaskGeneratorSet:
         assert env_config.device == "cuda"
         assert env_config.torch_deterministic is False
 
-    def test_task_set_generator_with_string_overrides(self):
+    def test_task_generator_set_with_string_overrides(self):
         """Test TaskGeneratorSet with dict overrides using dot-separated keys."""
         config = SingleTaskGeneratorConfig(env_config=EnvConfig())
 
