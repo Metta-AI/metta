@@ -109,18 +109,20 @@ class TestDeterminism:
         return signatures
 
     def test_seeded_uniform_policy_is_deterministic_multi_agent(self) -> None:
-        # Ten well-spaced agents in a 25x25 map (avoid walls at borders)
+        # Ten agents in a 25x25 map (avoid walls at borders)
+        # some with a lot of space between them
+        # and other close to each other in order to test their interaction
         positions: list[tuple[int, int]] = [
-            (3, 3),
-            (3, 12),
-            (3, 21),
-            (12, 3),
+            (2, 2),
+            (2, 22),
+            (22, 2),
+            (22, 22),  # far apart (near inside corners)
             (12, 12),
-            (12, 21),
-            (21, 3),
-            (21, 12),
-            (21, 21),
+            (12, 13),
+            (13, 12),
+            (13, 13),  # tight cluster near center
             (6, 18),
+            (18, 6),  # mid-distance points
         ]
 
         # Same seed → identical multi-agent signatures
