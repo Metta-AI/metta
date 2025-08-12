@@ -55,7 +55,7 @@ class MettaAgent(nn.Module):
         self.policy.device = self.device
         self.policy.to(self.device)
 
-    def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> Tuple:
+    def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass through the policy."""
         if self.policy is None:
             raise RuntimeError("No policy set. Use set_policy() first.")
