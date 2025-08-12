@@ -5,6 +5,14 @@ resources:
   cpus: 8+
   image_id: docker:metta:latest
 
+config:
+  docker:
+    run_options:
+      - --cap-add=IPC_LOCK
+      - --ulimit memlock=-1:-1
+      - --ipc=host
+      - --userns=host
+
 file_mounts:
   /mnt/s3/softmax-public:
     source: s3://softmax-public
@@ -24,9 +32,6 @@ setup: |
   # Python environment setup
   echo "[SETUP] Setting up Python environment..."
   uv sync
-
-  # Create required directories
-  mkdir -p "$WANDB_DIR"
 
   # Note that different sets of skypilot environment variables are available in "run" vs "setup"
   # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
@@ -51,7 +56,6 @@ run: |
 
 envs:
   METTA_GIT_REF: main
-  WANDB_DIR: ./wandb
 
   # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
   SKYPILOT_DOCKER_USERNAME: ""

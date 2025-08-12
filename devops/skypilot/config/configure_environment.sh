@@ -7,6 +7,8 @@ echo "Python executable: $(python -c 'import sys; print(sys.executable)')"
 
 echo "Configuring runtime environment..."
 
+mkdir -p "./wandb"
+
 # look up the file path for storing ENV variables -- N.B. scripts run in isolated
 # context and can not directly set ENV in the parent
 

@@ -57,7 +57,7 @@ setup: |
 
 run: |
   set -euo pipefail
-
+  echo "[RUN] Starting run phase..."
   cd /workspace/metta
 
   # Drop any preloaded venv; activate your own
@@ -70,12 +70,8 @@ run: |
   echo "[SETUP] Setting up Python environment..."
   uv sync
 
-  # Create required directories
-  mkdir -p "$WANDB_DIR"
-
   bash ./devops/skypilot/config/configure_environment.sh
 
-  echo "[RUN] Starting run phase..."
   echo "[RUN] METTA_RUN_ID: ${METTA_RUN_ID:-}"
   echo "[RUN] SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
 
@@ -110,6 +106,21 @@ run: |
       echo "Pre-flight check failed!"
       exit 1
   fi
+
+  if [ -n "${GITHUB_PAT:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${METTA_GIT_REF:-}" ]; then
+    ENABLE_GITHUB_STATUS=true
+    echo "[RUN] GitHub status reporting is enabled"
+    echo "[RUN] GITHUB_PAT: ${GITHUB_PAT:+<set>}"  # Don't print the actual token
+    echo "[RUN] GITHUB_REPOSITORY: ${GITHUB_REPOSITORY:-<not set>}"
+    echo "[RUN] METTA_GIT_REF: ${METTA_GIT_REF:-<not set>}"
+    echo "[RUN] METTA_RUN_ID: ${METTA_RUN_ID:-<not set>}"
+    GITHUB_STATUS_STATE=pending GITHUB_STATUS_DESCRIPTION="Queued on SkyPilot…" \
+      uv run devops/skypilot/set_github_status.py || echo "[WARN] Pending status post failed; continuing"
+  else
+    ENABLE_GITHUB_STATUS=false
+    echo "[RUN] GitHub status reporting is disabled (missing required credentials)"
+  fi
+
 
   export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
   echo "[DEBUG] WANDB_DIR: ${WANDB_DIR:-'NOT SET'}"
@@ -167,11 +178,7 @@ envs:
   METTA_CMD: train
   METTA_CMD_ARGS: ""
   METTA_GIT_REF: main
-  WANDB_DIR: ./wandb
   HEARTBEAT_TIMEOUT: 600
-
-  # if a github token is provided, we will report training status back to the branch
-  GITHUB_TOKEN: ""
 
   # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta
   DATA_DIR: /mnt/s3/train_dir
