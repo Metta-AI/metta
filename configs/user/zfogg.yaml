@@ -12,9 +12,9 @@ defaults:
 push_metrics_to_wandb: true
 
 trainer:
-  compile: false
-  total_timesteps: 10_000_000
-  # curriculum: /env/mettagrid/navigation/training/multienv
+  compile: true
+  total_timesteps: 10_000_000_000
+  curriculum: /env/mettagrid/navigation/training/multienv
   # curriculum: /env/mettagrid/curriculum/arena/learning_progress
   checkpoint:
     checkpoint_interval: 10

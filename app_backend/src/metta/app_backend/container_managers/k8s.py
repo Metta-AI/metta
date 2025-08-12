@@ -41,6 +41,7 @@ class K8sPodManager(AbstractContainerManager):
             },
             "spec": {
                 "restartPolicy": "Never",
+                "serviceAccountName": os.getenv("KUBERNETES_SERVICE_ACCOUNT", f"orchestrator-{self._namespace}"),
                 "containers": [
                     {
                         "name": "eval-worker",

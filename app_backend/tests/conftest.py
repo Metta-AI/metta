@@ -9,9 +9,8 @@ from testcontainers.postgres import PostgresContainer
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.server import create_app
-from metta.common.tests.fixtures import docker_client_fixture
-
-from .client_adapter import create_test_stats_client
+from metta.app_backend.test_support import create_test_stats_client
+from metta.common.test_support import docker_client_fixture
 
 # Register the docker_client fixture
 docker_client = docker_client_fixture()

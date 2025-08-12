@@ -54,7 +54,7 @@ class ObsTokenToBoxShaper(LayerBase):
             dtype=atr_values.dtype,
             device=token_observations.device,
         )
-        batch_indices = torch.arange(B_TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
+        # Create mask for valid tokens
 
         valid_tokens = coords_byte != 0xFF
 
@@ -73,12 +73,22 @@ class ObsTokenToBoxShaper(LayerBase):
                 stacklevel=2,
             )
 
-        box_obs[
-            batch_indices[valid_mask],
-            atr_indices[valid_mask],
-            x_coord_indices[valid_mask],
-            y_coord_indices[valid_mask],
-        ] = atr_values[valid_mask]
+        # Use scatter-based write to avoid multi-dim advanced indexing that triggers index_put_
+        # Compute flattened spatial index and a combined index that encodes (layer, x, y)
+        flat_spatial_index = x_coord_indices * self.out_height + y_coord_indices  # [B_TT, M]
+        dim_per_layer = self.out_width * self.out_height
+        combined_index = atr_indices * dim_per_layer + flat_spatial_index  # [B_TT, M]
+
+        # Mask out invalid entries by directing them to index 0 with value 0
+        safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
+        safe_values = torch.where(valid_mask, atr_values, torch.zeros_like(atr_values))
+
+        # Scatter values into a flattened buffer, then reshape to [B_TT, L, W, H]
+        box_flat = torch.zeros(
+            (B_TT, self.num_layers * dim_per_layer), dtype=atr_values.dtype, device=token_observations.device
+        )
+        box_flat.scatter_(1, safe_index, safe_values)
+        box_obs = box_flat.view(B_TT, self.num_layers, self.out_width, self.out_height)
 
         td[self._name] = box_obs
         return td

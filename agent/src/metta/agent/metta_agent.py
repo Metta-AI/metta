@@ -144,10 +144,17 @@ class MettaAgent(nn.Module):
         self.policy.components = self.components
         self.policy.clip_range = self.clip_range
 
-    def reset_memory(self):
+    def reset_memory(self) -> None:
+        """Reset memory for all components that have memory."""
         if isinstance(self.policy, ComponentPolicy) and hasattr(self, "components_with_memory"):
             for name in self.components_with_memory:
-                self.components[name].reset_memory()
+                comp = self.components[name]
+                if not hasattr(comp, "reset_memory"):
+                    raise ValueError(
+                        f"Component '{name}' listed in components_with_memory but has no reset_memory() method."
+                        + " Perhaps an obsolete policy?"
+                    )
+                comp.reset_memory()
 
     def get_memory(self):
         memory = {}
@@ -301,8 +308,9 @@ class MettaAgent(nn.Module):
         logger.info(f"Actions initialized: {self.active_actions}")
 
         # Activate policy attributes
-        self.policy.action_index_tensor = self.action_index_tensor
-        self.policy.cum_action_max_params = self.cum_action_max_params
+        if self.policy is not None:
+            self.policy.action_index_tensor = self.action_index_tensor
+            self.policy.cum_action_max_params = self.cum_action_max_params
 
     def get_original_feature_mapping(self) -> dict[str, int] | None:
         """Get the original feature mapping for saving in metadata."""
@@ -328,7 +336,7 @@ class MettaAgent(nn.Module):
     @property
     def total_params(self):
         """Total number of parameters."""
-        return getattr(self, "_total_params", sum(p.numel() for p in self.parameters() if p.requires_grad))
+        return self._total_params
 
     def _apply_to_components(self, method_name, *args, **kwargs) -> list[torch.Tensor]:
         """Apply a method to all components that have it."""
