@@ -1,7 +1,7 @@
 """Tests for Task class."""
 
 from cogworks.curriculum import Task
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import EnvConfig, GameConfig
 
 
 class TestTask:
@@ -30,8 +30,8 @@ class TestTask:
     def test_task_with_different_env_configs(self):
         """Test tasks with different env configs."""
         # Create env configs with different values
-        env_cfg1 = EnvConfig(seed=1, device="cpu")
-        env_cfg2 = EnvConfig(seed=2, device="cuda")
+        env_cfg1 = EnvConfig(game=GameConfig(num_agents=1))
+        env_cfg2 = EnvConfig(game=GameConfig(num_agents=2))
 
         task1 = Task(task_id="task1", env_cfg=env_cfg1)
         task2 = Task(task_id="task2", env_cfg=env_cfg2)

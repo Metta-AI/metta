@@ -11,6 +11,7 @@ from cogworks.curriculum import (
     SingleTaskGeneratorConfig,
 )
 from cogworks.curriculum.curriculum_env import CurriculumEnv
+from metta.mettagrid.mettagrid_config import EnvConfig
 
 
 class TestCurriculumEnv:
@@ -18,7 +19,7 @@ class TestCurriculumEnv:
 
     def create_test_curriculum(self):
         """Helper to create a test curriculum."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=42))
+        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
         config = CurriculumConfig(task_generator_config=task_gen_config, num_active_tasks=5, new_task_rate=0.1)
         return Curriculum(config, seed=0)
 

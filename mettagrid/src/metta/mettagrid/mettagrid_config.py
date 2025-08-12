@@ -201,7 +201,7 @@ class GameConfig(Config):
             "blueprint",
         ]
     )
-    num_agents: int = Field(ge=1)
+    num_agents: int = Field(ge=1, default=24)
     # max_steps = zero means "no limit"
     max_steps: int = Field(ge=0, default=1000)
     # default is that we terminate / use "done" vs truncation
@@ -209,13 +209,15 @@ class GameConfig(Config):
     obs_width: Literal[3, 5, 7, 9, 11, 13, 15] = Field(default=11)
     obs_height: Literal[3, 5, 7, 9, 11, 13, 15] = Field(default=11)
     num_observation_tokens: int = Field(ge=1, default=200)
-    agent: AgentConfig
+    agent: AgentConfig = Field(default_factory=AgentConfig)
     # Every agent must be in a group, so we need at least one group
-    groups: dict[str, GroupConfig] = Field(min_length=1)
-    actions: ActionsConfig
+    groups: dict[str, GroupConfig] = Field(
+        default_factory=lambda: {"agent": GroupConfig(id=0, sprite=0, props=AgentConfig())}, min_length=1
+    )
+    actions: ActionsConfig = Field(default_factory=ActionsConfig)
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     recipe_details_obs: bool = Field(default=False)
-    objects: dict[str, ConverterConfig | WallConfig]
+    objects: dict[str, ConverterConfig | WallConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
@@ -237,7 +239,7 @@ class GameConfig(Config):
 class EnvConfig(Config):
     """Environment configuration."""
 
-    game: GameConfig
+    game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
 
     @model_validator(mode="after")

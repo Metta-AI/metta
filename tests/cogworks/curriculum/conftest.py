@@ -2,7 +2,7 @@
 
 import pytest
 
-from metta.mettagrid.mettagrid_config import EnvConfig, GameConfig, AgentConfig, ActionsConfig, ActionConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, AgentConfig, EnvConfig, GameConfig
 
 
 def create_test_env_config(seed: int = 42, device: str = "cpu", vectorization: str = "serial") -> EnvConfig:
@@ -13,7 +13,7 @@ def create_test_env_config(seed: int = 42, device: str = "cpu", vectorization: s
         agent=AgentConfig(),
         groups={"default": {"id": 0, "props": AgentConfig()}},
         actions=ActionsConfig(noop=ActionConfig()),
-        objects={}
+        objects={},
     )
     return EnvConfig(game=game_config)
 

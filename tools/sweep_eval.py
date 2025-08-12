@@ -21,7 +21,7 @@ from omegaconf import DictConfig, OmegaConf
 from metta.common.util.lock import run_once
 from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.env_config import create_system_config
+from metta.rl.system_config import create_system_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sweep.wandb_utils import record_protein_observation_to_wandb
@@ -50,7 +50,7 @@ def main(cfg: DictConfig) -> int:
     simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(cfg.sim, resolve=True))  # type: ignore[arg-type]
 
     # Create env config
-    env_cfg = create_system_config(cfg)
+    system_config = create_system_config(cfg)
 
     # Load run information from dist_cfg_path
     dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
@@ -92,7 +92,7 @@ def main(cfg: DictConfig) -> int:
                 policy_pr,
                 policy_store,
                 device=cfg.device,
-                vectorization=env_cfg.vectorization,
+                vectorization=system_config.vectorization,
             )
 
             # Start evaluation process

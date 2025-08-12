@@ -8,7 +8,7 @@ from omegaconf import DictConfig
 
 from metta.agent.mocks import MockPolicyRecord
 from metta.common.wandb.wandb_context import WandbContext
-from metta.rl.env_config import create_system_config
+from metta.rl.system_config import create_system_config
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.util.metta_script import metta_script
@@ -21,7 +21,7 @@ def create_simulation(cfg):
     logger.info(f"Replaying {cfg.run}")
 
     # Create env config
-    env_cfg = create_system_config(cfg)
+    system_config = create_system_config(cfg)
 
     with WandbContext(cfg.wandb, cfg) as wandb_run:
         policy_store = get_policy_store_from_cfg(cfg, wandb_run)
@@ -41,7 +41,7 @@ def create_simulation(cfg):
             policy_record,
             policy_store,
             device=cfg.device,
-            vectorization=env_cfg.vectorization,
+            vectorization=system_config.vectorization,
             stats_dir=cfg.replay_job.stats_dir,
             replay_dir=replay_dir,
         )

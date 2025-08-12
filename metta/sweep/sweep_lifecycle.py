@@ -8,7 +8,7 @@ from omegaconf import DictConfig, OmegaConf
 from cogweb.cogweb_client import CogwebClient
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.env_config import create_system_config
+from metta.rl.system_config import create_system_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sweep.protein_metta import MettaProtein
