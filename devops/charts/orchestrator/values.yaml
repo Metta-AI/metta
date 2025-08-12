@@ -8,6 +8,8 @@ image:
 
 serviceAccount:
   create: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::751442549699:role/orchestrator-eval-worker
 
 env:
   BACKEND_URL: "https://api.observatory.softmax-research.net"

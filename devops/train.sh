@@ -5,22 +5,19 @@ set -e
 # Parse arguments
 args="${@:1}"
 
-source ./devops/setup.env
-
 # Start heartbeat monitor if available
 HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
 HEARTBEAT_TIMEOUT=${HEARTBEAT_TIMEOUT:-600} # Read from env or default to 600
 
 if [ "$HEARTBEAT_TIMEOUT" -ne 0 ]; then
   echo "[INFO] Starting heartbeat monitor with timeout ${HEARTBEAT_TIMEOUT}s for file $HEARTBEAT_FILE"
-  python -m metta.common.util.heartbeat monitor "$HEARTBEAT_FILE" --pid $$ --timeout "$HEARTBEAT_TIMEOUT" &
+  uv run python -m metta.common.util.heartbeat monitor "$HEARTBEAT_FILE" --pid $$ --timeout "$HEARTBEAT_TIMEOUT" &
   HEARTBEAT_PID=$!
   trap 'kill $HEARTBEAT_PID 2>/dev/null || true' EXIT
 else
   echo "[INFO] Heartbeat monitor deactivated (timeout is 0)."
 fi
 export HEARTBEAT_FILE
-
 
 # Auto-detect GPUs if not set
 if [ -z "$NUM_GPUS" ]; then
@@ -45,10 +42,17 @@ echo "  - Master port: $MASTER_PORT"
 echo "  - Node index: $NODE_INDEX"
 echo "  - Arguments: $args"
 
+export PYTHONUNBUFFERED=1
+export PYTHONPATH=$PYTHONPATH:$(pwd)
+export PYTHONOPTIMIZE=1
+export HYDRA_FULL_ERROR=1
+export WANDB_DIR="./wandb"
+export DATA_DIR=${DATA_DIR:-./train_dir}
+
 echo "[INFO] Starting training..."
 
 set +e
-PYTHONPATH=$PYTHONPATH:. uv run torchrun \
+uv run torchrun \
   --nnodes=$NUM_NODES \
   --nproc-per-node=$NUM_GPUS \
   --master-addr=$MASTER_ADDR \

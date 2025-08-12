@@ -16,8 +16,8 @@ from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.datastruct import duplicates
 from metta.common.util.instantiate import instantiate
-from metta.rl.env_config import EnvConfig
 from metta.rl.puffer_policy import PytorchAgent
+from metta.rl.system_config import SystemConfig
 
 if TYPE_CHECKING:
     from metta.mettagrid import MettaGridEnv
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger("metta_agent")
 
 
-def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) -> "MettaAgent":
+def make_policy(env: "MettaGridEnv", system_cfg: SystemConfig, agent_cfg: DictConfig) -> "MettaAgent":
     obs_space = gym.spaces.Dict(
         {
             "grid_obs": env.single_observation_space,
@@ -49,7 +49,7 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) 
         obs_height=env.obs_height,
         action_space=env.single_action_space,
         feature_normalizations=env.feature_normalizations,
-        device=env_cfg.device,
+        device=system_cfg.device,
         **dict_agent_cfg,
     )
 
@@ -161,9 +161,15 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters())
         logger.info(f"Total number of parameters in MettaAgent: {self._total_params:,}. Setup complete.")
 
-    def reset_memory(self):
+    def reset_memory(self) -> None:
         for name in self.components_with_memory:
-            self.components[name].reset_memory()
+            comp = self.components[name]
+            if not hasattr(comp, "reset_memory"):
+                raise ValueError(
+                    f"Component '{name}' listed in components_with_memory but has no reset_memory() method."
+                    + " Perhaps an obsolete policy?"
+                )
+            comp.reset_memory()
 
     def get_memory(self):
         memory = {}

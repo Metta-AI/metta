@@ -349,7 +349,7 @@ def test_get_git_hash_for_remote_task(monkeypatch, caplog):
 
     # Test with uncommitted changes (should raise)
     monkeypatch.setattr("metta.common.util.git.is_metta_ai_repo", lambda: True)
-    monkeypatch.setattr("metta.common.util.git.has_unstaged_changes", lambda: True)
+    monkeypatch.setattr("metta.common.util.git.has_unstaged_changes", lambda: (True, "M  some_file.py"))
     with pytest.raises(GitError) as e:
         get_git_hash_for_remote_task()
     assert "uncommitted changes" in str(e.value)
@@ -360,10 +360,10 @@ def test_get_git_hash_for_remote_task(monkeypatch, caplog):
     monkeypatch.setattr("metta.common.util.git.is_commit_pushed", lambda x: True)
     result = get_git_hash_for_remote_task(skip_git_check=True, logger=logger)
     assert result == "abc123"
-    assert "Proceeding with uncommitted changes" in caplog.text
+    assert "Working tree has unstaged changes" in caplog.text
 
     # Test with unpushed commit
-    monkeypatch.setattr("metta.common.util.git.has_unstaged_changes", lambda: False)
+    monkeypatch.setattr("metta.common.util.git.has_unstaged_changes", lambda: (False, ""))
     monkeypatch.setattr("metta.common.util.git.is_commit_pushed", lambda x: False)
     with pytest.raises(GitError) as e:
         get_git_hash_for_remote_task()
@@ -373,7 +373,7 @@ def test_get_git_hash_for_remote_task(monkeypatch, caplog):
     caplog.clear()
     result = get_git_hash_for_remote_task(skip_git_check=True, skip_cmd="--skip-check", logger=logger)
     assert result == "abc123"
-    assert "Proceeding with unpushed commit" in caplog.text
+    # No specific log message for unpushed commits when skip_git_check=True
 
     # Test success case
     monkeypatch.setattr("metta.common.util.git.is_commit_pushed", lambda x: True)
@@ -494,7 +494,9 @@ def test_is_commit_pushed_fast_path(monkeypatch):
 
     # Mock successful upstream check
     def mock_run_git(*args):
-        if args == ("rev-parse", "--abbrev-ref", "main@{u}"):
+        if args == ("rev-parse", "--verify", "test-commit"):
+            return "test-commit"  # Validate commit exists
+        elif args == ("rev-parse", "--abbrev-ref", "main@{u}"):
             return "origin/main"
         elif args == ("merge-base", "--is-ancestor", "test-commit", "origin/main"):
             return ""  # Success (exit code 0)
@@ -508,7 +510,9 @@ def test_is_commit_pushed_fast_path(monkeypatch):
 
     # Test when commit is not an ancestor
     def mock_run_git_not_ancestor(*args):
-        if args == ("rev-parse", "--abbrev-ref", "main@{u}"):
+        if args == ("rev-parse", "--verify", "test-commit"):
+            return "test-commit"  # Validate commit exists
+        elif args == ("rev-parse", "--abbrev-ref", "main@{u}"):
             return "origin/main"
         elif args == ("merge-base", "--is-ancestor", "test-commit", "origin/main"):
             raise GitError("Not an ancestor")

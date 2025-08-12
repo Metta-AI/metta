@@ -1,0 +1,52 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 16
+  max_steps: 500
+  agent:
+    initial_inventory:
+      battery_blue: 1
+    rewards:
+      inventory:
+        heart: 1.0
+  inventory_item_names:
+    - battery_blue
+    - heart
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+    width: 20
+    height: 20
+    border_width: 6
+    root:
+      type: metta.map.scenes.room_grid.RoomGrid
+      params:
+        rows: 2
+        columns: 2
+        border_width: 6
+        border_object: "wall"
+      children:
+        - where:
+            tags: ["room"]
+          scene:
+            type: metta.map.scenes.random.Random
+            params:
+              agents: 4
+              objects:
+                altar: 0
+                box: 0
+  objects:
+    altar:
+      cooldown: 1000
+      initial_resource_count: 1
+      type_id: 2
+    box:
+      type_id: 12

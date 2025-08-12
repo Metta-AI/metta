@@ -2,6 +2,7 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+from tensordict import TensorDict
 
 # Import the actual class
 from metta.agent.metta_agent import MettaAgent
@@ -51,7 +52,7 @@ def create_metta_agent():
                 "_target_": "metta.agent.lib.lstm.LSTM",
                 "sources": [{"name": "encoded_obs"}],
                 "output_size": 64,
-                "nn_params": {"num_layers": 1},
+                "nn_params": {"num_layers": 1, "hidden_size": 128},
             },
             "_action_embeds_": {
                 "_target_": "metta.agent.lib.action.ActionEmbedding",
@@ -724,18 +725,28 @@ def test_forward_training_integration(create_metta_agent):
         device="cpu",
     )
 
-    # Call forward_training
-    returned_action, action_log_prob, entropy, returned_value, log_probs = agent.forward_training(value, logits, action)
+    # Create a TensorDict with the required fields
+    td = TensorDict({"_value_": value, "_action_": logits}, batch_size=torch.Size([B * T]))
 
-    # Check output shapes
-    assert returned_action.shape == (B, T, 2)
-    assert action_log_prob.shape == (B * T,)
-    assert entropy.shape == (B * T,)
-    assert returned_value.shape == (B * T, 1)
-    assert log_probs.shape == (B * T, num_total_actions)
+    # Call forward_training with the new signature
+    output_td = agent.forward_training(td, action)
 
-    # Check that returned action and value are the same as input
-    assert torch.all(returned_action == action)
+    # Extract the results from the output TensorDict
+    returned_action_logits = output_td["_action_"]  # This contains the logits
+    action_log_prob = output_td["act_log_prob"]
+    entropy = output_td["entropy"]
+    returned_value = output_td["_value_"]
+    log_probs = output_td["full_log_probs"]
+
+    # Check output shapes - all outputs are flattened (B*T, ...)
+    assert returned_action_logits.shape == (B * T, num_total_actions)  # (6, 7) - the logits
+    assert action_log_prob.shape == (B * T,)  # (6,)
+    assert entropy.shape == (B * T,)  # (6,)
+    assert returned_value.shape == (B * T, 1)  # (6, 1)
+    assert log_probs.shape == (B * T, num_total_actions)  # (6, 7)
+
+    # Check that returned logits and value are the same as input
+    assert torch.all(returned_action_logits == logits)
     assert torch.all(returned_value == value)
 
     # Additional validation: verify all actions are actually valid
@@ -753,3 +764,15 @@ def test_forward_training_integration(create_metta_agent):
         assert 0 <= action_param <= max_param, (
             f"Invalid param {action_param} for action type {action_type}, max is {max_param}"
         )
+
+    # Verify that the output tensors are valid
+    assert not torch.isnan(action_log_prob).any()
+    assert not torch.isnan(entropy).any()
+    assert not torch.isnan(log_probs).any()
+
+    # Verify entropy is non-negative
+    assert (entropy >= 0).all()
+
+    # Verify exp(log probabilities) sum to 1
+    probs = torch.exp(log_probs)
+    assert torch.allclose(probs.sum(dim=1), torch.ones(B * T), atol=1e-5)
