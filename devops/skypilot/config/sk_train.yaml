@@ -315,9 +315,6 @@ run: |
   echo "[SUMMARY] Termination reason: ${TERMINATION_REASON:-unknown}"
   echo "[SUMMARY] ======================"
 
-  # Cleanup IPC directory
-  rm -rf "$IPC_DIR"
-
   if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
     # The set_github_status.py script uses CMD_EXIT to determine status
     export CMD_EXIT
