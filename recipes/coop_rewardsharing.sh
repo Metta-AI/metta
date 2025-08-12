@@ -2,7 +2,7 @@
   --gpus=4 \
   --nodes=8 \
   --no-spot \
-  run=$USER.recipes.coop_rewardsharing.8x4.$(date +%m-%d) \
+  run=$USER.recipes.coop_rewardsharing.8x4.$(date +%m-%d_%H-%M) \
   trainer.curriculum=/env/mettagrid/curriculum/coop_rewardsharing/learning_progress \
   trainer.optimizer.learning_rate=0.0045 \
   trainer.optimizer.type=muon \
