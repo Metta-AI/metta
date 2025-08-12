@@ -99,7 +99,7 @@ def main():
     parser.add_argument(
         "--heartbeat-timeout-seconds",
         type=int,
-        default=600,
+        default=300,
         help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
     )
     parser.add_argument(
@@ -153,6 +153,7 @@ def main():
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         GITHUB_PAT=args.github_pat,
+        MAX_RUNTIME_HOURS=args.max_runtime_hours,
     )
 
     env_updates = {k: v for k, v in env_updates.items() if v is not None}

@@ -137,22 +137,35 @@ run: |
     uv run python -m metta.common.util.heartbeat monitor "$HEARTBEAT_FILE" \
       --pid "$CMD_PID" --timeout "$HEARTBEAT_TIMEOUT" \
       >/dev/null 2>&1 &
-    HEARTBEAT_PID=$!
+    HEARTBEAT_MONITOR_PID=$!
   fi
 
-  # Wait for training to finish, capture exit, then kill heartbeat cleanly
+  # Wait for training to finish, capture exit, then kill heartbeat monitor cleanly
   wait "$CMD_PID"
   CMD_EXIT=$?
-  if [[ -n "${HEARTBEAT_PID:-}" ]]; then
-    kill "$HEARTBEAT_PID" 2>/dev/null || true
-    wait "$HEARTBEAT_PID" 2>/dev/null || true
+
+  if [[ -n "${HEARTBEAT_MONITOR_PID:-}" ]]; then
+    kill "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
+    wait "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
+  fi
+
+  if [[ $CMD_EXIT -eq 124 ]] || [[ $CMD_EXIT -eq 143 ]]; then
+    echo "[ERROR] Job terminated due to timeout (--max-runtime-hours exceeded)"
+    export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
+    # map time out to success
+    CMD_EXIT=0
+  elif [[ $CMD_EXIT -ne 0 ]]; then
+    echo "[ERROR] Job failed with exit code $CMD_EXIT"
+  else
+    echo "[SUCCESS] Job completed successfully"
   fi
 
   if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
+    # The set_github_status.py script will use CMD_EXIT to determine status
     uv run devops/skypilot/set_github_status.py || echo "[WARN] Final status post failed"
   fi
 
-  echo "[RUN] Job complete."
+  echo "[RUN] Job complete with exit code: $CMD_EXIT"
   exit "$CMD_EXIT"
 
 envs:
