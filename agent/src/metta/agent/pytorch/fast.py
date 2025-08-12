@@ -7,10 +7,12 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from metta.agent.pytorch.base import PytorchAgentBase
+
 logger = logging.getLogger(__name__)
 
 
-class Recurrent(pufferlib.models.LSTMWrapper):
+class Recurrent(PytorchAgentBase):
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
         if policy is None:
             policy = Policy(
@@ -19,20 +21,6 @@ class Recurrent(pufferlib.models.LSTMWrapper):
                 hidden_size=hidden_size,
             )
         super().__init__(env, policy, input_size, hidden_size)
-
-    def get_agent_experience_spec(self):
-        """Provide experience spec for compatibility with trainer."""
-        import torch
-        from torchrl.data import Composite, UnboundedDiscrete
-
-        return Composite(
-            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-        )
-
-    def reset_memory(self):
-        """Reset LSTM memory if needed."""
-        # LSTM state is managed through TensorDict, no explicit reset needed
-        pass
 
     def initialize_to_environment(
         self,

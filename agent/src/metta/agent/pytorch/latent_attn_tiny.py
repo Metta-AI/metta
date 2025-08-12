@@ -7,8 +7,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from metta.agent.external.models.encoders import ObsLatentAttn
-from metta.agent.external.models.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
+from metta.agent.lib.obs_enc import ObsLatentAttn
+from metta.agent.lib.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,20 @@ class Recurrent(pufferlib.models.LSTMWrapper):
                 hidden_size=hidden_size,
             )
         super().__init__(env, policy, input_size, hidden_size)
+
+    def get_agent_experience_spec(self):
+        """Provide experience spec for compatibility with trainer."""
+        import torch
+        from torchrl.data import Composite, UnboundedDiscrete
+
+        return Composite(
+            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+        )
+
+    def reset_memory(self):
+        """Reset LSTM memory if needed."""
+        # LSTM state is managed through TensorDict, no explicit reset needed
+        pass
 
     def initialize_to_environment(
         self,
@@ -148,11 +162,42 @@ class Recurrent(pufferlib.models.LSTMWrapper):
 
         logger.info(f"Policy actions initialized with: {self.active_actions}")
 
-    def forward(self, observations, state=None, action=None):
-        if state is None:
-            state = {"lstm_h": None, "lstm_c": None, "hidden": None}
+    def forward(self, td, action=None):
+        """
+        Forward pass using TensorDict interface compatible with MettaAgent.
 
-        # prepare lstm state
+        Args:
+            td: TensorDict containing at least "env_obs"
+            action: Optional action tensor for training mode
+
+        Returns:
+            TensorDict with outputs
+        """
+        from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+
+        # Handle batch dimensions like MettaAgent
+        if td.batch_dims > 1:
+            B, TT = td.batch_size[0], td.batch_size[1]
+            td = td.reshape(B * TT)
+            td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
+        else:
+            B = td.batch_size.numel()
+            TT = 1
+            td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
+
+        # Get observations
+        observations = td.get("env_obs")
+        observations = observations.to(self.device)
+
+        # Prepare state for backward compatibility
+        state = {"lstm_h": td.get("lstm_h", None), "lstm_c": td.get("lstm_c", None), "hidden": td.get("hidden", None)}
+
+        # Encode observations
+        hidden = self.policy.encode_observations(observations, state)
+
+        # Prepare LSTM state
         lstm_h = state.get("lstm_h", None)
         lstm_c = state.get("lstm_c", None)
 
@@ -167,58 +212,62 @@ class Recurrent(pufferlib.models.LSTMWrapper):
         else:
             lstm_state = None
 
-        observations = observations.to(self.device)
-        hidden = self.policy.encode_observations(observations, state)
-
-        B = observations.shape[0]
-        TT = 1 if observations.dim() == 3 else observations.shape[1]
-
         # LSTM forward pass
+        batch_size = B * TT
         hidden = hidden.view(B, TT, -1).transpose(0, 1)  # Shape: (TT, B, input_size)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
-        flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)  # Shape: (B * TT, hidden_size)
+        flat_hidden = lstm_output.transpose(0, 1).reshape(batch_size, -1)
+
+        # Store LSTM states
+        td["lstm_h"] = new_lstm_h
+        td["lstm_c"] = new_lstm_c
 
         # Decode actions and value
         logits_list, value = self.policy.decode_actions(flat_hidden)
 
-        actions = []
-        selected_action_log_probs = []
-        entropies = []
+        # For simplicity, use only the first action head for now
+        # (full multi-discrete support would require action space conversion)
+        primary_logits = logits_list[0]
 
-        for _, logits in enumerate(logits_list):
-            action_log_probs = F.log_softmax(logits, dim=-1)
-            action_probs = torch.exp(action_log_probs)
+        if action is None:
+            # Inference mode - sample actions
+            action_indices, act_log_prob, entropy, full_log_probs = sample_actions(primary_logits)
 
-            # Sample action from categorical distribution
-            action = torch.multinomial(action_probs, num_samples=1).squeeze(-1)
+            # Convert to multi-dimensional action format
+            if len(logits_list) >= 2:
+                # Sample from second action head too
+                secondary_logits = logits_list[1]
+                secondary_probs = F.softmax(secondary_logits, dim=-1)
+                secondary_actions = torch.multinomial(secondary_probs, num_samples=1).squeeze(-1)
+                actions_tensor = torch.stack([action_indices, secondary_actions], dim=-1)
+            else:
+                actions_tensor = torch.stack([action_indices, torch.zeros_like(action_indices)], dim=-1)
 
-            # Gather log-prob of the sampled action
-            batch_indices = torch.arange(action.shape[0], device=action.device)
-            selected_log_prob = action_log_probs[batch_indices, action]
+            td["actions"] = actions_tensor
+            td["act_log_prob"] = act_log_prob
+            td["values"] = value.squeeze(-1) if value.dim() > 1 else value
+            td["full_log_probs"] = full_log_probs
 
-            # Entropy
-            entropy = -torch.sum(action_probs * action_log_probs, dim=-1)
-
-            actions.append(action)
-            selected_action_log_probs.append(selected_log_prob)
-            entropies.append(entropy)
-
-        # Convert actions to expected format
-        if len(actions) >= 2:
-            actions_tensor = torch.stack([actions[0], actions[1]], dim=-1)
+            output_td = td
         else:
-            actions_tensor = torch.stack([actions[0], torch.zeros_like(actions[0])], dim=-1)
+            # Training mode - evaluate given actions
+            # Extract action indices from the multi-dimensional action tensor
+            if action.dim() == 3:  # (B, TT, 2)
+                action_indices = action.reshape(batch_size, -1)[:, 0]
+            else:
+                action_indices = action[:, 0]
 
-        selected_action_log_probs = torch.stack(selected_action_log_probs, dim=-1)
-        entropy = torch.stack(entropies, dim=-1).sum(-1)
+            act_log_prob, entropy, full_log_probs = evaluate_actions(primary_logits, action_indices)
 
-        return (
-            torch.zeros(actions_tensor.shape).to(dtype=torch.int32),
-            selected_action_log_probs.mean(dim=-1),
-            entropy,
-            value,
-            logits_list,
-        )
+            td["act_log_prob"] = act_log_prob
+            td["entropy"] = entropy
+            td["value"] = value
+            td["full_log_probs"] = full_log_probs
+
+            # Reshape back to (B, TT)
+            output_td = td.reshape(B, TT)
+
+        return output_td
 
 
 class Policy(nn.Module):

@@ -38,8 +38,7 @@ def make_policy(env: "MettaGridEnv", env_cfg: EnvConfig, agent_cfg: DictConfig) 
         AgentClass = agent_classes[agent_cfg.agent_type]
         agent = AgentClass(env=env)
         logger.info(f"Using Pytorch Policy: {agent} (type: {agent_cfg.agent_type})")
-        # Wrap in PytorchAgent to provide the expected interface
-        return PytorchAgent(agent)
+        return agent
 
     # For backward compatibility with YAML configs (to be removed in future PR)
     dict_agent_cfg: dict = OmegaConf.to_container(agent_cfg, resolve=True)
