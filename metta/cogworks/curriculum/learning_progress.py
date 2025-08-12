@@ -6,7 +6,7 @@ import logging
 
 from pydantic import Field
 
-from cogworks.curriculum.curriculum import CurriculumConfig
+from .curriculum import CurriculumConfig
 
 logger = logging.getLogger(__name__)
 

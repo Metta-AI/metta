@@ -4,13 +4,13 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from cogworks.curriculum import (
+from metta.cogworks.curriculum import (
     Curriculum,
     CurriculumConfig,
     CurriculumTask,
     SingleTaskGeneratorConfig,
 )
-from cogworks.curriculum.curriculum_env import CurriculumEnv
+from metta.cogworks.curriculum.curriculum_env import CurriculumEnv
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 
