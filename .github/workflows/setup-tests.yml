@@ -119,6 +119,11 @@ jobs:
           install-mode: "testing"
 
       - name: Run metta setup integration tests
+        env:
+          METTA_TEST_ENV: 1
+          METTA_TEST_SETUP: 1
+          METTA_TEST_PROFILE: ${{ env.METTA_TEST_PROFILE }}
+          AWS_SSO_NONINTERACTIVE: 1
         run: |
-          echo "Running setup tests with METTA_TEST_PROFILE=${{env.METTA_TEST_PROFILE}}"
-          make METTA_TEST_PROFILE=${{ env.METTA_TEST_PROFILE }} test-setup
+          echo "Running setup integration tests..."
+          metta pytest tests/setup -v
