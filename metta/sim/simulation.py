@@ -38,6 +38,9 @@ from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
+# Prefix for synthetic evaluation framework simulations (not real environment evaluations)
+SYNTHETIC_EVAL_PREFIX = "eval/"
+
 logger = logging.getLogger(__name__)
 
 
@@ -334,6 +337,11 @@ class Simulation:
     def _maybe_generate_thumbnail(self) -> None:
         """Generate thumbnail if this is the first run for this eval_name."""
         try:
+            # Skip synthetic evaluation framework simulations
+            if self._name.startswith(SYNTHETIC_EVAL_PREFIX):
+                logger.debug(f"Skipping thumbnail generation for synthetic simulation: {self._name}")
+                return
+
             # Get any replay data from this simulation
             if not self._replay_writer.episodes:
                 logger.warning(f"No replay data available for thumbnail generation: {self._name}")
@@ -343,12 +351,18 @@ class Simulation:
             episode_replay = next(iter(self._replay_writer.episodes.values()))
             replay_data = episode_replay.get_replay_data()
 
+            # Extract environment name from path for thumbnail ID
+            environment_name = self._env_name.split("/")[-1]  # e.g., "emptyspace_withinsight"
+
+            # Use environment name only as thumbnail ID (thumbnails represent static environment layout)
+            eval_name = environment_name
+
             # Attempt to generate and upload thumbnail
-            success = maybe_generate_and_upload_thumbnail(replay_data, self._name)
+            success = maybe_generate_and_upload_thumbnail(replay_data, eval_name)
             if success:
-                logger.info(f"Generated thumbnail for eval_name: {self._name}")
+                logger.info(f"Generated thumbnail for eval_name: {eval_name}")
             else:
-                logger.debug(f"Thumbnail generation skipped for eval_name: {self._name}")
+                logger.debug(f"Thumbnail generation skipped for eval_name: {eval_name}")
 
         except Exception as e:
             logger.error(f"Thumbnail generation failed for {self._name}: {e}")
