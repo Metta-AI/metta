@@ -94,7 +94,7 @@ class SingleTaskGeneratorConfig(TaskGeneratorConfig):
     """Configuration for SingleTaskGenerator."""
 
     type: Literal["single"] = Field(default="single", description="Type discriminator for SingleTaskGenerator")
-    env_config: EnvConfig = Field(description="The environment configuration to always return")
+    env: EnvConfig = Field(description="The environment configuration to always return")
 
     def create(self) -> "SingleTaskGenerator":
         """Create a SingleTaskGenerator from this configuration."""
@@ -110,7 +110,7 @@ class SingleTaskGenerator(TaskGenerator):
 
     def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
         """Always return the same EnvConfig."""
-        return self._config.env_config
+        return self._config.env
 
 
 ################################################################################
@@ -122,7 +122,7 @@ class TaskGeneratorSetConfig(TaskGeneratorConfig):
     """Configuration for TaskGeneratorSet."""
 
     type: Literal["set"] = Field(default="set", description="Type discriminator for TaskGeneratorSet")
-    task_generator_configs: list[
+    task_generators: list[
         Annotated[
             Union["SingleTaskGeneratorConfig", "TaskGeneratorSetConfig", "BucketedTaskGeneratorConfig"],
             Field(discriminator="type"),
@@ -136,7 +136,7 @@ class TaskGeneratorSetConfig(TaskGeneratorConfig):
         """Ensure weights are positive."""
         if any(w <= 0 for w in v):
             raise ValueError("All weights must be positive")
-        if len(v) != len(info.data.get("task_generator_configs", [])):
+        if len(v) != len(info.data.get("task_generators", [])):
             raise ValueError("Number of weights must match number of task generator configs")
         return v
 
@@ -157,7 +157,7 @@ class TaskGeneratorSet(TaskGenerator):
 
         self._config: TaskGeneratorSetConfig = config
 
-        self._sub_task_generators = [config.create() for config in self._config.task_generator_configs]
+        self._sub_task_generators = [config.create() for config in self._config.task_generators]
         self._weights = self._config.weights
 
     def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
@@ -215,7 +215,7 @@ class BucketedTaskGeneratorConfig(TaskGeneratorConfig):
     @classmethod
     def from_env_config(cls, env_config: EnvConfig) -> BucketedTaskGeneratorConfig:
         """Create a BucketedTaskGeneratorConfig from an EnvConfig."""
-        return cls(child_generator_config=SingleTaskGeneratorConfig(env_config=env_config))
+        return cls(child_generator_config=SingleTaskGeneratorConfig(env=env_config))
 
 
 class BucketedTaskGenerator(TaskGenerator):

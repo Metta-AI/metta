@@ -252,7 +252,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         logger.debug(f"Merged {other_path} into {self.path}")
 
     def key_and_version(self, pr: PolicyRecord) -> tuple[str, int]:
-        return pr.uri, pr.metadata.epoch
+        return pr.uri or "unknown", pr.metadata.epoch or 0
 
     def _merge_db(self, other_path: Path) -> None:
         """
