@@ -86,7 +86,7 @@ class ComponentPolicy(nn.Module):
         self.cum_action_max_params = None
         self.action_index_tensor = None
 
-    def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
+    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass of the ComponentPolicy - matches original MettaAgent forward() logic."""
 
         # Handle BPTT reshaping like the original
@@ -288,3 +288,10 @@ class ComponentPolicy(nn.Module):
         """Activate action embeddings with the given action names."""
         if "_action_embeds_" in self.components:
             self.components["_action_embeds_"].activate_actions(full_action_names, device)
+
+    @property
+    def lstm(self):
+        """Access to LSTM component if it exists."""
+        if "_core_" in self.components and hasattr(self.components["_core_"], "_net"):
+            return self.components["_core_"]._net
+        return None

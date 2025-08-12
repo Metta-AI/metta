@@ -8,8 +8,6 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.component_policy import ComponentPolicy
-
 logger = logging.getLogger("metta_agent")
 
 
@@ -81,20 +79,8 @@ class MettaAgent(nn.Module):
         """Forward pass through the policy."""
         if self.policy is None:
             raise RuntimeError("No policy set. Use set_policy() first.")
-        if isinstance(self.policy, ComponentPolicy):
-            return self.policy.forward(td, action)
 
-        # For non-ComponentPolicy policies, we need to set up BPTT fields
-        # that they expect
-        if hasattr(td, "batch_dims") and hasattr(td, "batch_size"):
-            td.bptt = 1
-            td.batch = td.batch_size.numel()
-            if td.batch_dims > 1:
-                B = td.batch_size[0]
-                TT = td.batch_size[1]
-                td.bptt = TT
-                td.batch = B
-
+        # All policies should accept the same forward signature
         return self.policy(td, state, action)
 
     def reset_memory(self) -> None:
@@ -122,16 +108,13 @@ class MettaAgent(nn.Module):
         is_training: bool = True,
     ):
         """Initialize the agent to the current environment."""
-
-        # For ComponentPolicy, link to its components
-        if isinstance(self.policy, ComponentPolicy):
-            self.components = self.policy.components
-            self.components_with_memory = self.policy.components_with_memory
-            self.clip_range = self.policy.clip_range
-
         # MettaAgent handles the initialization for all policy types
         self.activate_actions(action_names, action_max_params, device)
         self._initialize_observations(features, device)
+
+        # Let the policy know about environment initialization if it has such a method
+        if hasattr(self.policy, "initialize_to_environment"):
+            self.policy.initialize_to_environment(features, action_names, action_max_params, device, is_training)
 
     def _initialize_observations(self, features: dict[str, dict], device):
         """Initialize observation features by storing the feature mapping."""
@@ -181,47 +164,31 @@ class MettaAgent(nn.Module):
 
     def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
         """Apply feature remapping to observation component and update normalizations."""
-        # Update observation component if it supports remapping
-        if (
-            hasattr(self, "components")
-            and "_obs_" in self.components
-            and hasattr(self.components["_obs_"], "update_feature_remapping")
-        ):
-            # Build complete remapping tensor
-            remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
+        # Build complete remapping tensor
+        remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
 
-            # Apply explicit remappings
-            for new_id, original_id in self.feature_id_remap.items():
-                remap_tensor[new_id] = original_id
+        # Apply explicit remappings
+        for new_id, original_id in self.feature_id_remap.items():
+            remap_tensor[new_id] = original_id
 
-            # Map unused feature IDs to UNKNOWN
-            current_feature_ids = {props["id"] for props in features.values()}
-            for feature_id in range(256):
-                if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
-                    remap_tensor[feature_id] = unknown_id
+        # Map unused feature IDs to UNKNOWN
+        current_feature_ids = {props["id"] for props in features.values()}
+        for feature_id in range(256):
+            if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
+                remap_tensor[feature_id] = unknown_id
 
-            self.components["_obs_"].update_feature_remapping(remap_tensor)
+        # Delegate feature remapping to policy if it supports it
+        if hasattr(self.policy, "update_feature_remapping"):
+            self.policy.update_feature_remapping(remap_tensor)
 
         # Update normalization factors
         self._update_normalization_factors(features)
 
     def _update_normalization_factors(self, features: dict[str, dict]):
-        """Update normalization factors for components after feature remapping."""
-        # Update ObsAttrValNorm components if they exist
-        if not hasattr(self, "components"):
-            return
-        for comp_name, component in self.components.items():
-            if hasattr(component, "__class__") and "ObsAttrValNorm" in component.__class__.__name__:
-                logger.info(f"Updating feature normalizations for {comp_name}")
-
-                # Create normalization tensor with remapped IDs
-                norm_tensor = torch.ones(256, dtype=torch.float32)
-                for name, props in features.items():
-                    if name in self.original_feature_mapping and "normalization" in props:
-                        original_id = self.original_feature_mapping[name]
-                        norm_tensor[original_id] = props["normalization"]
-
-                component.register_buffer("_norm_factors", norm_tensor)
+        """Update normalization factors after feature remapping."""
+        # Delegate normalization update to policy if it supports it
+        if hasattr(self.policy, "update_normalization_factors"):
+            self.policy.update_normalization_factors(features, getattr(self, "original_feature_mapping", None))
 
     def get_original_feature_mapping(self) -> dict[str, int] | None:
         """Get the original feature mapping for saving in metadata."""
@@ -255,8 +222,9 @@ class MettaAgent(nn.Module):
             for i in range(max_param + 1):
                 full_action_names.append(f"{action_name}_{i}")
 
-        if hasattr(self, "components") and "_action_embeds_" in self.components:
-            self.components["_action_embeds_"].activate_actions(full_action_names, self.device)
+        # Delegate action embedding activation to policy if it supports it
+        if hasattr(self.policy, "activate_action_embeddings"):
+            self.policy.activate_action_embeddings(full_action_names, self.device)
 
         # Create action index tensor for conversions
         action_index = []
@@ -284,9 +252,9 @@ class MettaAgent(nn.Module):
 
     @property
     def lstm(self):
-        """Access to LSTM component."""
-        if hasattr(self, "components") and "_core_" in self.components and hasattr(self.components["_core_"], "_net"):
-            return self.components["_core_"]._net
+        """Access to LSTM component - delegates to policy if it has one."""
+        if hasattr(self.policy, "lstm"):
+            return self.policy.lstm
         return None
 
     def l2_init_loss(self) -> torch.Tensor:

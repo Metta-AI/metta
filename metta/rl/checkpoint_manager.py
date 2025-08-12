@@ -29,11 +29,6 @@ from metta.rl.wandb import upload_policy_artifact
 logger = logging.getLogger(__name__)
 
 
-def make_policy(env: MettaGridEnv, system_cfg: SystemConfig, agent_cfg) -> MettaAgent:
-    """Helper function to create a policy using MettaAgentBuilder."""
-    return MettaAgentBuilder(env, system_cfg, agent_cfg).build()
-
-
 class CheckpointManager:
     """Manages checkpointing for both trainer state and policies."""
 
@@ -219,13 +214,13 @@ class CheckpointManager:
                 policy_record = self.policy_store.create_empty_policy_record(
                     name=name, checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir
                 )
-                policy_record.policy = make_policy(metta_grid_env, system_cfg, agent_cfg)
+                policy_record.policy = MettaAgentBuilder(metta_grid_env, system_cfg, agent_cfg).build()
         elif self.is_master:
             logger.info("No existing policy found, creating new one")
             new_policy_record = self.policy_store.create_empty_policy_record(
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
-            new_policy_record.policy = make_policy(metta_grid_env, system_cfg, agent_cfg)
+            new_policy_record.policy = MettaAgentBuilder(metta_grid_env, system_cfg, agent_cfg).build()
             policy_record = self.policy_store.save(new_policy_record)
             logger.info(f"Created and saved new policy to {policy_record.uri}")
         elif torch.distributed.is_initialized():
@@ -236,7 +231,7 @@ class CheckpointManager:
             policy_record = self.policy_store.create_empty_policy_record(
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
-            policy_record.policy = make_policy(metta_grid_env, system_cfg, agent_cfg)
+            policy_record.policy = MettaAgentBuilder(metta_grid_env, system_cfg, agent_cfg).build()
         else:
             raise RuntimeError(f"Non-master rank {self.rank} found without torch.distributed initialized")
 
