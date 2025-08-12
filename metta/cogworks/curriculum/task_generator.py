@@ -195,6 +195,7 @@ class BucketedTaskGeneratorConfig(TaskGeneratorConfig):
 
     def add_bucket(self, path: str, values: list[int | float | str | ValueRange]) -> "BucketedTaskGeneratorConfig":
         """Add a bucket of values for a specific configuration path."""
+        assert path not in self.buckets, f"Bucket {path} already exists"
         self.buckets[path] = values
         return self
 

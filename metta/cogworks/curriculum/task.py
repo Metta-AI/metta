@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from metta.rl.env_config import EnvConfig
+from metta.mettagrid.mettagrid_config import EnvConfig
 
 
 class Task:
