@@ -20,7 +20,7 @@ This avoids double-wrapping while maintaining full PufferLib compatibility.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
 import numpy as np
 from omegaconf import OmegaConf
@@ -79,20 +79,22 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
             buf: PufferLib buffer object
             **kwargs: Additional arguments
         """
-        # Store curriculum
+        # Store curriculum and pick a single task for consistent init
         self._curriculum = curriculum
-        self._task = curriculum.get_task()
+        init_task = curriculum.get_task()
 
         # Get level from curriculum if not provided
         if level is None:
-            level = self._task.env_cfg().game.map_builder.build()
+            level = init_task.env_cfg().game.map_builder.build()
 
         # Ensure we have a level
         assert level is not None, "Level must be provided or generated from curriculum"
 
+        # Use the same task for both level and config at init
+        self._task = init_task
         # Get game config for core initialization
-        task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        task_cfg = init_task.env_cfg()
+        game_config_dict = cast(Dict[str, Any], OmegaConf.to_container(task_cfg.game))
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
         # Initialize core environment
@@ -140,7 +142,7 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         # Get task config for reset
         assert self._task is not None, "Task not set"
         task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        game_config_dict = cast(Dict[str, Any], OmegaConf.to_container(task_cfg.game))
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
         # Reset the environment to get initial observations
@@ -162,7 +164,7 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         assert self._curriculum is not None, "Curriculum not set"
         self._task = self._curriculum.get_task()
         task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        game_config_dict = cast(Dict[str, Any], OmegaConf.to_container(task_cfg.game))
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
         return super().reset(game_config_dict, seed)

@@ -87,8 +87,7 @@ def train(
     wandb_run: WandbRun | None,
     policy_store: PolicyStore,
     sim_suite_config: SimulationSuiteConfig,
-    stats_client: StatsClient | None,
-) -> None:
+    stats_client: StatsClient | None,) -> None:
     """Main training loop for Metta agents."""
     logger.info(f"run_dir = {run_dir}")
 

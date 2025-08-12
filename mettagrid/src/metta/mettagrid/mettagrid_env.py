@@ -147,8 +147,12 @@ class MettaGridEnv(MettaGridPufferBase):
         self.timer.stop("thread_idle")
 
         # Get new task from curriculum
+        # the task this gets is an index in a dict specified as input to
+        # multitask curriculum
+        #
         self._task = self._curriculum.get_task()
         task_cfg = self._task.env_cfg()
+        print(f"task_cfg: {task_cfg}")
         game_config_dict = cast(Dict[str, Any], OmegaConf.to_container(task_cfg.game))
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
@@ -416,7 +420,7 @@ class MettaGridEnv(MettaGridPufferBase):
             **{
                 f"active_frac/{op}": elapsed / adjusted_wall_time if adjusted_wall_time > 0 else 0
                 for op, elapsed in elapsed_times.items()
-            },
+            },t
             "frac/thread_idle": thread_idle_time / wall_time,
         }
 
