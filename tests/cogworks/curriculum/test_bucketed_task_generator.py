@@ -9,7 +9,7 @@ from cogworks.curriculum import (
     TaskGeneratorSetConfig,
     ValueRange,
 )
-from metta.rl.env_config import EnvConfig
+from metta.rl.env_config import SystemConfig
 
 
 class TestBucketedTaskGenerator:
@@ -18,7 +18,7 @@ class TestBucketedTaskGenerator:
     def test_bucketed_generator_creation(self):
         """Test creating a BucketedTaskGenerator."""
         # Create child generator config
-        child_config = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=42))
+        child_config = SingleTaskGeneratorConfig(env_config=SystemConfig(seed=42))
 
         # Create buckets
         buckets = {
@@ -37,7 +37,7 @@ class TestBucketedTaskGenerator:
 
     def test_bucketed_generator_with_value_buckets(self):
         """Test BucketedTaskGenerator with single value buckets."""
-        child_config = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=0, device="cpu"))
+        child_config = SingleTaskGeneratorConfig(env_config=SystemConfig(seed=0, device="cpu"))
 
         buckets = {
             "seed": [100, 200, 300],
@@ -63,7 +63,7 @@ class TestBucketedTaskGenerator:
 
     def test_bucketed_generator_with_range_buckets(self):
         """Test BucketedTaskGenerator with range buckets."""
-        child_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
+        child_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
 
         buckets = {
             "seed": [
@@ -93,7 +93,7 @@ class TestBucketedTaskGenerator:
 
     def test_bucketed_generator_mixed_buckets(self):
         """Test BucketedTaskGenerator with mixed value and range buckets."""
-        child_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
+        child_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
 
         buckets = {
             "seed": [
@@ -122,7 +122,7 @@ class TestBucketedTaskGenerator:
 
     def test_bucketed_generator_deterministic(self):
         """Test that BucketedTaskGenerator is deterministic with same seed."""
-        child_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
+        child_config = SingleTaskGeneratorConfig(env_config=SystemConfig())
 
         buckets = {
             "seed": [ValueRange(range_min=0, range_max=1000)],
@@ -144,7 +144,7 @@ class TestBucketedTaskGenerator:
 
     def test_bucketed_generator_empty_buckets(self):
         """Test BucketedTaskGenerator validation rejects empty buckets."""
-        child_config = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=123, device="cpu"))
+        child_config = SingleTaskGeneratorConfig(env_config=SystemConfig(seed=123, device="cpu"))
 
         # Should reject empty buckets during validation
         with pytest.raises(ValueError):
@@ -156,7 +156,7 @@ class TestBucketedTaskGenerator:
     def test_bucketed_generator_with_complex_child(self):
         """Test BucketedTaskGenerator with a TaskGeneratorSet as child."""
         # Create multiple configs for TaskGeneratorSet
-        configs = [SingleTaskGeneratorConfig(env_config=EnvConfig(seed=i)) for i in range(3)]
+        configs = [SingleTaskGeneratorConfig(env_config=SystemConfig(seed=i)) for i in range(3)]
 
         # TaskGeneratorSet as child
         child_config = TaskGeneratorSetConfig(task_generator_configs=configs, weights=[1.0, 1.0, 1.0])
@@ -183,7 +183,7 @@ class TestBucketedTaskGenerator:
     def test_bucketed_generator_preserves_child_values(self):
         """Test that BucketedTaskGenerator preserves non-overridden values from child."""
         child_config = SingleTaskGeneratorConfig(
-            env_config=EnvConfig(seed=999, device="cpu", torch_deterministic=True, vectorization="serial")
+            env_config=SystemConfig(seed=999, device="cpu", torch_deterministic=True, vectorization="serial")
         )
 
         # Only override device
@@ -205,7 +205,7 @@ class TestBucketedTaskGenerator:
 
     def test_bucketed_generator_with_primitive_values(self):
         """Test BucketedTaskGenerator with primitive values (int, float, str) directly in buckets."""
-        child_config = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=0, device="cpu"))
+        child_config = SingleTaskGeneratorConfig(env_config=SystemConfig(seed=0, device="cpu"))
 
         # Mix primitive values with ValueRange objects
         buckets = {

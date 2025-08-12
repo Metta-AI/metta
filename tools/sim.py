@@ -28,7 +28,7 @@ from metta.common.util.stats_client_cfg import get_stats_client
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
-from metta.rl.env_config import create_env_config
+from metta.rl.env_config import create_system_config
 from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.metta_script import metta_script
@@ -97,7 +97,7 @@ def main(cfg: DictConfig) -> None:
             logger.info(f"Training curriculum:\n{training_curriculum}")
 
     # Create env config
-    env_cfg = create_env_config(cfg)
+    env_cfg = create_system_config(cfg)
 
     policy_store = get_policy_store_from_cfg(cfg)
     stats_client: StatsClient | None = get_stats_client(cfg, logger)

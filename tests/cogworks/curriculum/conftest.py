@@ -2,12 +2,12 @@
 
 import pytest
 
-from metta.rl.env_config import EnvConfig
+from metta.rl.env_config import SystemConfig
 
 
-def create_test_env_config(seed: int = 42, device: str = "cpu", vectorization: str = "serial") -> EnvConfig:
+def create_test_env_config(seed: int = 42, device: str = "cpu", vectorization: str = "serial") -> SystemConfig:
     """Create a test EnvConfig with specified parameters."""
-    return EnvConfig(seed=seed, device=device, vectorization=vectorization)
+    return SystemConfig(seed=seed, device=device, vectorization=vectorization)
 
 
 @pytest.fixture

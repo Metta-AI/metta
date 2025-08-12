@@ -8,7 +8,6 @@ from typing import ClassVar
 from pydantic import ConfigDict, Field, field_validator
 
 from metta.common.util.config import Config
-from metta.rl.env_config import EnvConfig
 
 from .task_generator import TaskGeneratorConfig
 
@@ -16,7 +15,7 @@ from .task_generator import TaskGeneratorConfig
 class CurriculumTask:
     """A task instance with a task_id and env_cfg."""
 
-    def __init__(self, task_id: int, env_cfg: EnvConfig):
+    def __init__(self, task_id: int, env_cfg: SystemConfig):
         self._task_id = task_id
         self._env_cfg = env_cfg
         self._num_completions = 0
@@ -30,7 +29,7 @@ class CurriculumTask:
         self._total_score += score
         self._mean_score = self._total_score / self._num_completions
 
-    def get_env_cfg(self) -> EnvConfig:
+    def get_env_cfg(self) -> SystemConfig:
         """Get the env_cfg for the task."""
         return self._env_cfg
 

@@ -7,7 +7,7 @@ from cogworks.curriculum import (
     TaskGeneratorSet,
     TaskGeneratorSetConfig,
 )
-from metta.rl.env_config import EnvConfig
+from metta.rl.env_config import SystemConfig
 
 
 class TestTaskGeneratorSet:
@@ -16,9 +16,9 @@ class TestTaskGeneratorSet:
     def test_task_generator_set_creation(self):
         """Test creating a TaskGeneratorSet with multiple configs."""
         # Create multiple task generator configs
-        config1 = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=1))
-        config2 = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=2))
-        config3 = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=3))
+        config1 = SingleTaskGeneratorConfig(env_config=SystemConfig(seed=1))
+        config2 = SingleTaskGeneratorConfig(env_config=SystemConfig(seed=2))
+        config3 = SingleTaskGeneratorConfig(env_config=SystemConfig(seed=3))
 
         # Create TaskGeneratorSetConfig
         task_set_config = TaskGeneratorSetConfig(
@@ -39,7 +39,7 @@ class TestTaskGeneratorSet:
     def test_task_generator_set_sampling(self):
         """Test that TaskGeneratorSet samples from configs."""
         # Create configs with different seeds
-        configs = [SingleTaskGeneratorConfig(env_config=EnvConfig(seed=i)) for i in range(5)]
+        configs = [SingleTaskGeneratorConfig(env_config=SystemConfig(seed=i)) for i in range(5)]
         weights = [1.0] * 5
 
         task_set_config = TaskGeneratorSetConfig(task_generator_configs=configs, weights=weights)
@@ -57,8 +57,8 @@ class TestTaskGeneratorSet:
     def test_task_generator_set_with_overrides(self):
         """Test TaskGeneratorSet with environment overrides."""
         # Create configs
-        config1 = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=1, device="cpu"))
-        config2 = SingleTaskGeneratorConfig(env_config=EnvConfig(seed=2, device="cpu"))
+        config1 = SingleTaskGeneratorConfig(env_config=SystemConfig(seed=1, device="cpu"))
+        config2 = SingleTaskGeneratorConfig(env_config=SystemConfig(seed=2, device="cpu"))
 
         # Create TaskGeneratorSetConfig with overrides
         task_set_config = TaskGeneratorSetConfig(
@@ -76,7 +76,7 @@ class TestTaskGeneratorSet:
 
     def test_task_generator_set_with_string_overrides(self):
         """Test TaskGeneratorSet with dict overrides using dot-separated keys."""
-        config = SingleTaskGeneratorConfig(env_config=EnvConfig())
+        config = SingleTaskGeneratorConfig(env_config=SystemConfig())
 
         # Use dict format for overrides with dot-separated keys
         task_set_config = TaskGeneratorSetConfig(
@@ -100,7 +100,7 @@ class TestTaskGeneratorSet:
 
     def test_task_generator_set_deterministic(self):
         """Test that TaskGeneratorSet is deterministic with same seed."""
-        configs = [SingleTaskGeneratorConfig(env_config=EnvConfig(seed=i)) for i in range(10)]
+        configs = [SingleTaskGeneratorConfig(env_config=SystemConfig(seed=i)) for i in range(10)]
         weights = [1.0] * 10
 
         task_set_config = TaskGeneratorSetConfig(task_generator_configs=configs, weights=weights)
@@ -117,7 +117,7 @@ class TestTaskGeneratorSet:
 
     def test_task_generator_set_different_seeds(self):
         """Test that different task_ids produce different selections."""
-        configs = [SingleTaskGeneratorConfig(env_config=EnvConfig(seed=i)) for i in range(10)]
+        configs = [SingleTaskGeneratorConfig(env_config=SystemConfig(seed=i)) for i in range(10)]
         weights = [1.0] * 10
 
         task_set_config = TaskGeneratorSetConfig(task_generator_configs=configs, weights=weights)
@@ -134,7 +134,7 @@ class TestTaskGeneratorSet:
 
     def test_task_generator_set_nested_overrides(self):
         """Test nested key overrides work correctly."""
-        config = SingleTaskGeneratorConfig(env_config=EnvConfig())
+        config = SingleTaskGeneratorConfig(env_config=SystemConfig())
 
         # Assuming EnvConfig might have nested structure in the future
         task_set_config = TaskGeneratorSetConfig(

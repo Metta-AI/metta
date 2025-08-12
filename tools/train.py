@@ -18,7 +18,7 @@ from metta.common.util.resolvers import oc_date_format
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.core.distributed import setup_device_and_distributed
-from metta.rl.env_config import create_env_config
+from metta.rl.env_config import create_system_config
 from metta.rl.trainer import train
 from metta.rl.trainer_config import create_trainer_config
 from metta.sim.simulation_config import SimulationSuiteConfig
@@ -63,7 +63,7 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     cfg = load_train_job_config_with_overrides(cfg)
 
     # Create env config early to use it throughout
-    env_cfg = create_env_config(cfg)
+    env_cfg = create_system_config(cfg)
 
     # Validation must be done after merging
     # otherwise trainer's default num_workers: null will be override the values

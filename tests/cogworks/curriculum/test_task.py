@@ -1,7 +1,7 @@
 """Tests for Task class."""
 
 from cogworks.curriculum import Task
-from metta.rl.env_config import EnvConfig
+from metta.rl.env_config import SystemConfig
 
 
 class TestTask:
@@ -9,7 +9,7 @@ class TestTask:
 
     def test_task_creation(self):
         """Test creating a Task with required parameters."""
-        env_cfg = EnvConfig()
+        env_cfg = SystemConfig()
         task_id = "test_task"
         task = Task(task_id=task_id, env_cfg=env_cfg)
 
@@ -19,7 +19,7 @@ class TestTask:
 
     def test_task_with_custom_id(self):
         """Test creating a Task with different IDs."""
-        env_cfg = EnvConfig()
+        env_cfg = SystemConfig()
         custom_id = "my_custom_task_42"
         task = Task(task_id=custom_id, env_cfg=env_cfg)
 
@@ -30,8 +30,8 @@ class TestTask:
     def test_task_with_different_env_configs(self):
         """Test tasks with different env configs."""
         # Create env configs with different values
-        env_cfg1 = EnvConfig(seed=1, device="cpu")
-        env_cfg2 = EnvConfig(seed=2, device="cuda")
+        env_cfg1 = SystemConfig(seed=1, device="cpu")
+        env_cfg2 = SystemConfig(seed=2, device="cuda")
 
         task1 = Task(task_id="task1", env_cfg=env_cfg1)
         task2 = Task(task_id="task2", env_cfg=env_cfg2)
@@ -41,7 +41,7 @@ class TestTask:
 
     def test_task_immutability_assumption(self):
         """Test that Task preserves env_config reference."""
-        env_cfg = EnvConfig()
+        env_cfg = SystemConfig()
         task = Task(task_id="test", env_cfg=env_cfg)
 
         # Task should maintain reference to the same env_config object
@@ -50,7 +50,7 @@ class TestTask:
 
     def test_task_str_representation(self):
         """Test that task has reasonable string representation."""
-        env_cfg = EnvConfig()
+        env_cfg = SystemConfig()
         task = Task(task_id="test_task", env_cfg=env_cfg)
 
         # Should be able to convert to string without error
@@ -59,7 +59,7 @@ class TestTask:
 
     def test_task_instances_are_unique(self):
         """Test that each Task instance is unique."""
-        env_cfg = EnvConfig()
+        env_cfg = SystemConfig()
 
         task1 = Task(task_id="task1", env_cfg=env_cfg)
         task2 = Task(task_id="task1", env_cfg=env_cfg)  # Same ID and config

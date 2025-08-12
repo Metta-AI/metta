@@ -27,7 +27,6 @@ from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
-from metta.rl.env_config import EnvConfig
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -45,6 +44,7 @@ from metta.rl.stats import (
     accumulate_rollout_stats,
     process_stats,
 )
+from metta.rl.system_config import SystemConfig
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import TrainerConfig
@@ -80,7 +80,7 @@ logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
 def train(
     run_dir: str,
     run: str,
-    env_cfg: EnvConfig,
+    system_cfg: SystemConfig,
     agent_cfg: DictConfig,
     device: torch.device,
     trainer_cfg: TrainerConfig,
@@ -121,7 +121,7 @@ def train(
     # Create vectorized environment
     vecenv = make_vecenv(
         curriculum,
-        env_cfg.vectorization,
+        system_cfg.vectorization,
         num_envs=num_envs,
         batch_size=batch_size,
         num_workers=trainer_cfg.num_workers,
@@ -129,7 +129,7 @@ def train(
         is_training=True,
     )
 
-    vecenv.async_reset(env_cfg.seed + rank)
+    vecenv.async_reset(system_cfg.seed + rank)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
@@ -159,7 +159,7 @@ def train(
     # Load or initialize policy with distributed coordination
     initial_policy_record = latest_saved_policy_record = checkpoint_manager.load_or_create_policy(
         agent_cfg=agent_cfg,
-        env_cfg=env_cfg,
+        system_cfg=system_cfg,
         trainer_cfg=trainer_cfg,
         checkpoint=checkpoint,
         metta_grid_env=metta_grid_env,
@@ -545,7 +545,7 @@ def train(
                         policy_record=latest_saved_policy_record,
                         simulation_suite=extended_suite_config,
                         device=device,
-                        vectorization=env_cfg.vectorization,
+                        vectorization=system_cfg.vectorization,
                         replay_dir=trainer_cfg.simulation.replay_dir,
                         stats_epoch_id=stats_tracker.stats_epoch_id,
                         wandb_policy_name=wandb_policy_name,

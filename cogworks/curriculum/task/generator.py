@@ -8,23 +8,19 @@ from typing import Any, ClassVar
 from omegaconf import OmegaConf
 from pydantic import ConfigDict, Field, field_validator
 
-from metta.common.util.config import Config
+from metta.common.util.typed_config import ConfigWithBuilder
+from metta.rl.env_config import SystemConfig
 
 logger = logging.getLogger(__name__)
 
 
-class TaskGeneratorConfig(Config):
+class TaskGeneratorConfig(ConfigWithBuilder):
     """Base configuration for TaskGenerator."""
 
-    # pydantic configuration
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
         validate_assignment=True,
         populate_by_name=True,
-    )
-
-    overrides: dict[str, Any] = Field(
-        default_factory=dict, description="Overrides to apply as dict with dot-separated keys"
     )
 
     def create(self) -> "TaskGenerator":
@@ -32,7 +28,13 @@ class TaskGeneratorConfig(Config):
 
         Subclasses should override this method to create their specific generator type.
         """
-        raise NotImplementedError("TaskGeneratorConfig.create() must be overridden by subclasses")
+        # Base TaskGeneratorConfig creates an empty WeightedTaskSetGenerator
+        # This is only reached if someone instantiates the base class directly
+        # Import here to avoid circular dependency
+        from cogworks.curriculum.task.generator import WeightedTaskSetGenerator, WeightedTaskSetGeneratorConfig
+
+        weighted_config = WeightedTaskSetGeneratorConfig(items=[])
+        return WeightedTaskSetGenerator(weighted_config)
 
 
 class TaskGenerator(ABC):
@@ -44,13 +46,11 @@ class TaskGenerator(ABC):
 
     def __init__(self, config: TaskGeneratorConfig):
         self._config = config
-        self._overrides = config.overrides
 
     def get_task(self, task_id: int) -> SystemConfig:
         """Generate a task (EnvConfig) using task_id as seed."""
-        rng = random.Random()
-        rng.seed(task_id)
-        return self._apply_overrides(self._generate_task(task_id, rng), self._config.overrides)
+        rng = self._init_rng(task_id)
+        return self._generate_task(task_id, rng)
 
     @abstractmethod
     def _generate_task(self, task_id: int, rng: random.Random) -> SystemConfig:
@@ -66,7 +66,13 @@ class TaskGenerator(ABC):
         Returns:
             An EnvConfig for the generated task
         """
-        raise NotImplementedError("TaskGenerator._generate_task() must be overridden by subclasses")
+        pass
+
+    def _init_rng(self, task_id: int) -> random.Random:
+        """Initialize and return a seeded random number generator."""
+        rng = random.Random()
+        rng.seed(task_id)
+        return rng
 
     def _apply_overrides(self, env_config: SystemConfig, overrides: dict[str, Any]) -> SystemConfig:
         """Apply overrides to an EnvConfig using dot-separated keys."""
@@ -74,7 +80,8 @@ class TaskGenerator(ABC):
             return env_config
 
         # Convert to dict, apply overrides using OmegaConf
-        config_dict = OmegaConf.create(env_config.model_dump())
+        config_dict = env_config.model_dump()
+        config_dict = OmegaConf.create(config_dict)
 
         for key, value in overrides.items():
             OmegaConf.update(config_dict, key, value, merge=True)
@@ -82,11 +89,6 @@ class TaskGenerator(ABC):
         config_dict = OmegaConf.to_container(config_dict)
 
         return SystemConfig.model_validate(config_dict)
-
-
-################################################################################
-# SingleTaskGenerator
-################################################################################
 
 
 class SingleTaskGeneratorConfig(TaskGeneratorConfig):
@@ -111,59 +113,60 @@ class SingleTaskGenerator(TaskGenerator):
         return self._config.env_config
 
 
-################################################################################
-# TaskGeneratorSet
-################################################################################
+class WeightedTaskSetGeneratorItem(ConfigWithBuilder):
+    """Configuration for an item in a WeightedTaskSetGenerator."""
+
+    task_generator_config: TaskGeneratorConfig = Field(description="Nested task generator configuration")
+    weight: float = Field(default=1.0, gt=0, description="Weight for sampling this item")
 
 
-class TaskGeneratorSetConfig(TaskGeneratorConfig):
-    """Configuration for TaskGeneratorSet."""
+class WeightedTaskSetGeneratorConfig(TaskGeneratorConfig):
+    """Configuration for WeightedTaskSetGenerator."""
 
-    task_generator_configs: list[TaskGeneratorConfig] = Field(
-        min_length=1, description="Task generator configurations to sample from"
+    items: list[WeightedTaskSetGeneratorItem] = Field(min_length=1, description="Items to sample from")
+    overrides: dict[str, Any] | None = Field(
+        default=None, description="Overrides to apply as dict with dot-separated keys"
     )
-    weights: list[float] = Field(min_length=1, description="Weights for sampling each task generator")
 
-    @field_validator("weights")
-    @classmethod
-    def validate_weights(cls, v, info):
-        """Ensure weights are positive."""
-        if any(w <= 0 for w in v):
-            raise ValueError("All weights must be positive")
-        if len(v) != len(info.data.get("task_generator_configs", [])):
-            raise ValueError("Number of weights must match number of task generator configs")
-        return v
-
-    def create(self) -> "TaskGeneratorSet":
-        """Create a TaskGeneratorSet from this configuration."""
-        return TaskGeneratorSet(self)
+    def create(self) -> "WeightedTaskSetGenerator":
+        """Create a WeightedTaskSetGenerator from this configuration."""
+        return WeightedTaskSetGenerator(self)
 
 
-class TaskGeneratorSet(TaskGenerator):
+class WeightedTaskSetGenerator(TaskGenerator):
     """TaskGenerator that contains a list of TaskGenerators with weights.
 
     When get_task() is called, rng is initialized with seed, then we sample
     from the list by weight and return child.get_task().
     """
 
-    def __init__(self, config: TaskGeneratorSetConfig):
+    def __init__(self, config: WeightedTaskSetGeneratorConfig):
         super().__init__(config)
 
-        self._config: TaskGeneratorSetConfig = config
+        self._config: WeightedTaskSetGeneratorConfig = config
 
-        self._sub_task_generators = [config.create() for config in self._config.task_generator_configs]
-        self._weights = self._config.weights
+        self._sub_task_generators: list[TaskGenerator] = []
+        self._weights: list[float] = []
+        for item_config in self._config.items:
+            task_gen = item_config.task_generator_config.create()
+            self._sub_task_generators.append(task_gen)
+            self._weights.append(item_config.weight)
+
+        self._overrides = config.overrides or {}
 
     def _generate_task(self, task_id: int, rng: random.Random) -> SystemConfig:
-        return rng.choices(self._sub_task_generators, weights=self._weights)[0].get_task(task_id)
+        """Sample from items by weight and return EnvConfig."""
+        if not self._sub_task_generators:
+            raise ValueError("No items to sample from")
+
+        # Sample by weight
+        selected_generator = rng.choices(self._sub_task_generators, weights=self._weights)[0]
+
+        task = selected_generator.get_task(task_id)
+        return self._apply_overrides(task, self._overrides)
 
 
-################################################################################
-# BucketedTaskGenerator
-################################################################################
-
-
-class ValueRange(Config):
+class ValueRange(ConfigWithBuilder):
     """A range of values with minimum and maximum bounds."""
 
     range_min: float | int = Field(description="Range minimum")
@@ -204,7 +207,6 @@ class BucketedTaskGenerator(TaskGenerator):
     def __init__(self, config: BucketedTaskGeneratorConfig):
         super().__init__(config)
         self._config: BucketedTaskGeneratorConfig = config
-        assert config.buckets, "Buckets must be non-empty"
         self._child_generator = config.child_generator_config.create()
 
     def _get_bucket_value(self, bucket_values: list[int | float | str | ValueRange], rng: random.Random) -> Any:
@@ -223,7 +225,8 @@ class BucketedTaskGenerator(TaskGenerator):
         # First, sample values from each bucket
         overrides = {}
         for key, bucket_values in self._config.buckets.items():
-            overrides[key] = self._get_bucket_value(bucket_values, rng)
+            sampled_value = self._get_bucket_value(bucket_values, rng)
+            overrides[key] = sampled_value
 
         # Get task from the child generator
         env_config = self._child_generator.get_task(task_id)
