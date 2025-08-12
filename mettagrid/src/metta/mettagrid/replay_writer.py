@@ -51,7 +51,7 @@ class EpisodeReplay:
 
         self._validate_non_empty_string_list(env.action_names, "action_names")
         self._validate_non_empty_string_list(env.inventory_item_names, "item_names")
-        self._validate_non_empty_string_list(env.object_type_names, "type_names")
+        # self._validate_non_empty_string_list(env.object_type_names, "type_names")
 
         self.replay_data = {
             "version": 2,
