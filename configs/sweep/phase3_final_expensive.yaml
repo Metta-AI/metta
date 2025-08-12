@@ -1,0 +1,130 @@
+# Phase 3: Final Push with Expensive Runs (Runs 161-250)
+# Focus: Test best configurations with high compute
+# Goal: Achieve peak performance with best hyperparameters
+
+protein:
+  num_random_samples: 0 # No random exploration
+  max_suggestion_cost: 10800 # 3 hours - expensive runs OK
+  expansion_rate: 0.2 # Some cost variation
+  resample_frequency: 3 # Very frequent exploitation
+  global_search_scale: 0.5 # Very focused search
+  random_suggestions: 128
+  suggestions_per_pareto: 256 # Many suggestions from best points
+  seed_with_search_center: false
+
+metric: heart.gained # Total hearts gained
+goal: maximize
+method: bayes
+max_observations_to_load: 160 # Load Phase 1 & 2 results
+
+parameters:
+  trainer:
+    # High timesteps for best performance
+    total_timesteps:
+      distribution: int_uniform
+      min: 1500000000 # 1.5B
+      max: 5000000000 # 5B - very expensive
+      mean: 2500000000 # 2.5B
+      scale: auto
+
+    # # Larger batch sizes for stability
+    batch_size:
+      distribution: uniform_pow2
+      min: 262144 # 2^18
+      max: 1048576 # 2^20
+      mean: 524288 # 2^19
+      scale: auto
+
+    minibatch_size:
+      distribution: uniform_pow2
+      min: 8192 # 2^13
+      max: 32768 # 2^15
+      mean: 16384 # 2^14
+      scale: auto
+
+    bptt_horizon:
+      distribution: uniform_pow2
+      min: 16 # 2^4
+      max: 32 # 2^5
+      mean: 16 # 2^4
+      scale: auto
+
+    # REFINED ranges - still allow some exploration
+    ppo:
+      gamma:
+        distribution: uniform # Still uniform for flexibility
+        min: 0.97
+        max: 0.997
+        mean: 0.99
+        scale: auto
+
+      gae_lambda:
+        distribution: uniform
+        min: 0.91
+        max: 0.98
+        mean: 0.95
+        scale: auto
+
+      clip_coef:
+        distribution: uniform
+        min: 0.1
+        max: 0.3
+        mean: 0.2
+        scale: auto
+
+      vf_coef:
+        distribution: uniform
+        min: 0.25
+        max: 0.75
+        mean: 0.5
+        scale: auto
+
+      vf_clip_coef:
+        distribution: uniform
+        min: 5.0
+        max: 25.0
+        mean: 10.0
+        scale: auto
+
+      ent_coef:
+        distribution: log_normal
+        min: 3e-4
+        max: 5e-3
+        mean: 1e-3
+        scale: auto
+
+    update_epochs:
+      distribution: int_uniform
+      min: 2
+      max: 4
+      mean: 3
+      scale: auto
+
+    optimizer:
+      learning_rate:
+        distribution: log_normal
+        min: 1e-4
+        max: 2e-3
+        mean: 3e-4
+        scale: auto
+
+      beta1:
+        distribution: uniform
+        min: 0.85
+        max: 0.93
+        mean: 0.9
+        scale: auto
+
+      beta2:
+        distribution: uniform
+        min: 0.997
+        max: 0.9995
+        mean: 0.999
+        scale: auto
+
+      eps:
+        distribution: log_normal
+        min: 5e-9
+        max: 5e-8
+        mean: 1e-8
+        scale: auto
