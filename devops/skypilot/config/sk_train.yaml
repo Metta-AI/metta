@@ -127,11 +127,10 @@ run: |
   echo "[DEBUG] HEARTBEAT_FILE: ${HEARTBEAT_FILE:-'NOT SET'}"
   echo "[DEBUG] HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 
-  # Start train.sh in background
-  ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
+  # Start train.sh in background with its own process group
+  setsid ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
   CMD_PID=$!
 
-  # Start heartbeat *watching the train PID*
   if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
     echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE (pid=$CMD_PID)"
     uv run python -m metta.common.util.heartbeat monitor "$HEARTBEAT_FILE" \
