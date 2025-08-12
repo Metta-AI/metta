@@ -673,6 +673,9 @@ export function sendAction(actionName: string, actionParam: number) {
   if (state.selectedGridObject === null) {
     return
   }
+  if (actionName === '') {
+    throw new Error('Action name must be a non-empty string')
+  }
   const agentId = state.selectedGridObject.agentId
   if (agentId != null) {
     const actionId = state.replay.actionNames.indexOf(actionName)
@@ -711,6 +714,9 @@ export function propertyName(key: string) {
 
 /** Gets the icon of a resource, type or any other property. */
 export function propertyIcon(key: string) {
+  if (key === '') {
+    console.error('propertyIcon() called with empty string!')
+  }
   if (state.replay.typeNames.includes(key)) {
     return `data/atlas/objects/${key}.png`
   } else if (state.replay.itemNames.includes(key)) {

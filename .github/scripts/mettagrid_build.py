@@ -5,7 +5,7 @@
 # ///
 
 """
-Check mettagrid build for compiler warnings and errors.
+Build mettagrid C++ project and check for compiler warnings and errors.
 This script is designed to be run in CI to surface build issues.
 """
 
@@ -55,7 +55,22 @@ class BuildChecker:
         self.repo_root = self.project_root.parent.resolve()
         self.messages: list[CompilerMessage] = []
         self.build_failed = False
-        self.runtime_issues = []  # Simple list for runtime problems
+        self.runtime_issues_list = []  # Simple list for runtime problems
+
+    @property
+    def total_warnings(self) -> int:
+        """Get total number of warnings."""
+        return len(self.get_warnings())
+
+    @property
+    def total_errors(self) -> int:
+        """Get total number of errors."""
+        return len(self.get_errors())
+
+    @property
+    def total_runtime_issues(self) -> int:
+        """Get total number of runtime issues."""
+        return len(self.runtime_issues_list)
 
     def parse_build_output(self, output: str) -> None:
         """Parse build output and extract warnings/errors."""
@@ -83,7 +98,7 @@ class BuildChecker:
                     "core dumped",
                 ]
             ):
-                self.runtime_issues.append(line_stripped)
+                self.runtime_issues_list.append(line_stripped)
                 self.build_failed = True
 
             match = self.GCC_CLANG_PATTERN.match(line_stripped)
@@ -134,8 +149,8 @@ class BuildChecker:
                     self.build_failed = True
 
         print(f"🔍 Parsed {parsed_count} compiler messages from {total_lines} lines of output")
-        if self.runtime_issues:
-            print(f"💥 Found {len(self.runtime_issues)} runtime issue(s)")
+        if self.runtime_issues_list:
+            print(f"💥 Found {len(self.runtime_issues_list)} runtime issue(s)")
 
     def get_errors(self) -> list[CompilerMessage]:
         """Get all error messages."""
@@ -179,7 +194,7 @@ class BuildChecker:
             "errors": len(by_severity["error"]),
             "warnings": len(by_severity["warning"]),
             "notes": len(by_severity["note"]),
-            "runtime_issues": len(self.runtime_issues),  # Add runtime issues count
+            "runtime_issues": len(self.runtime_issues_list),  # Use the list length
             "files_with_issues": len(by_file),
             "warnings_by_flag": dict(
                 sorted([(flag, len(msgs)) for flag, msgs in warnings_by_flag.items()], key=lambda x: x[1], reverse=True)
@@ -226,10 +241,10 @@ class BuildChecker:
             print("-" * 80)
 
         # Print runtime issues
-        if self.runtime_issues:
-            print(f"\n💥 RUNTIME ISSUES ({len(self.runtime_issues)}):")
+        if self.runtime_issues_list:
+            print(f"\n💥 RUNTIME ISSUES ({len(self.runtime_issues_list)}):")
             print("-" * 80)
-            for i, issue in enumerate(self.runtime_issues, 1):
+            for i, issue in enumerate(self.runtime_issues_list, 1):
                 print(f"[{i}] {issue}")
             print("-" * 80)
 
@@ -250,13 +265,13 @@ class BuildChecker:
 
         print("=" * 80)
 
-    def generate_github_summary(self) -> str:
+    def generate_github_summary(self, title="Build Summary") -> str:
         """Generate a GitHub Actions summary in Markdown format."""
         summary = self.get_summary()
         errors = self.get_errors()
 
         lines = []
-        lines.append("## 🔨 Build Summary\n")
+        lines.append(f"## 🔨 {title}\n")
 
         if summary["build_success"]:
             lines.append("✅ **Build Status:** Success")
@@ -301,10 +316,10 @@ class BuildChecker:
                     lines.append("\n---\n")
 
         # Add runtime issues section
-        if self.runtime_issues:
+        if self.runtime_issues_list:
             lines.append("\n### 💥 Runtime Issues\n")
             lines.append("The following runtime issues occurred:\n")
-            for i, issue in enumerate(self.runtime_issues, 1):
+            for i, issue in enumerate(self.runtime_issues_list, 1):
                 lines.append(f"{i}. `{issue}`")
             lines.append("")
 
@@ -328,8 +343,8 @@ class BuildChecker:
         return "\n".join(lines)
 
 
-def run_build(project_root: Path, with_coverage: bool = False) -> tuple[bool, str]:
-    """Run the build process and capture output."""
+def setup_build_environment(project_root: Path) -> dict:
+    """Setup build environment with virtual environment if available."""
     env = os.environ.copy()
 
     # Virtual environment is always at repository root/.venv
@@ -348,53 +363,180 @@ def run_build(project_root: Path, with_coverage: bool = False) -> tuple[bool, st
         print(f"⚠️  Virtual environment not found at {venv_path}")
         print("📦 Using system Python environment")
 
-    print("🧹 Cleaning build artifacts...")
-    clean_result = subprocess.run(["make", "clean"], cwd=project_root, capture_output=True, text=True, env=env)
+    # Force verbose output
+    env["VERBOSE"] = "1"
 
-    if clean_result.returncode != 0:
-        print(f"Warning: 'make clean' failed: {clean_result.stderr}")
+    return env
 
-    # Choose build target based on coverage requirement
-    if with_coverage:
-        print("🔨 Building project with coverage...")
-        build_target = "coverage"
-    else:
-        print("🔨 Building project...")
-        build_target = "build"
 
-    print(f"Working directory: {project_root}")
+def run_build_command(cmd: list[str], cwd: Path, env: dict) -> tuple[bool, str]:
+    """Run a build command and capture output."""
+    print(f"🏃 Running: {' '.join(cmd)}")
+    print(f"📁 Working directory: {cwd}")
 
-    # Force verbose output to capture compiler messages
-    # Many build systems suppress compiler output by default
-    build_cmd = ["make", build_target]
-
-    # Always use VERBOSE=1 to ensure we capture compiler output
-    build_cmd.append("VERBOSE=1")
-    env["VERBOSE"] = "1"  # Another common variable
-
-    build_result = subprocess.run(build_cmd, cwd=project_root, capture_output=True, text=True, env=env)
+    result = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, env=env)
 
     # Combine stdout and stderr for analysis
-    full_output = build_result.stdout + "\n" + build_result.stderr
+    full_output = result.stdout + "\n" + result.stderr
 
-    if not build_result.stdout and not build_result.stderr:
+    if not result.stdout and not result.stderr:
         print("⚠️  No output captured from build command")
     else:
-        stdout_lines = len(build_result.stdout.splitlines()) if build_result.stdout else 0
-        stderr_lines = len(build_result.stderr.splitlines()) if build_result.stderr else 0
+        stdout_lines = len(result.stdout.splitlines()) if result.stdout else 0
+        stderr_lines = len(result.stderr.splitlines()) if result.stderr else 0
         total_lines = len(full_output.splitlines())
 
         print(f"📝 Captured {total_lines} total lines of build output")
         print(f"📝   - stdout: {stdout_lines} lines")
         print(f"📝   - stderr: {stderr_lines} lines")
 
-    return build_result.returncode == 0, full_output
+    return result.returncode == 0, full_output
+
+
+def write_github_outputs(checker: BuildChecker, build_success: bool, build_output: str) -> None:
+    """Write outputs for GitHub Actions."""
+    if not (os.getenv("GITHUB_ACTIONS") and os.getenv("GITHUB_OUTPUT")):
+        return
+
+    summary = checker.get_summary()
+    with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+        f.write(f"build_success={'true' if not checker.build_failed and build_success else 'false'}\n")
+        f.write(f"total_warnings={summary['warnings']}\n")
+        f.write(f"total_errors={summary['errors']}\n")
+        f.write(f"total_messages={summary['total_messages']}\n")
+        f.write(f"runtime_issues={summary['runtime_issues']}\n")
+
+        # Add the full build output (escaped for multiline)
+        delimiter = "EOF_BUILD_OUTPUT"
+        f.write(f"full_output<<{delimiter}\n")
+        f.write(build_output)
+        f.write(f"\n{delimiter}\n")
+
+
+def write_github_summary(github_summary: str) -> None:
+    """Write GitHub step summary if available."""
+    github_step_summary = os.getenv("GITHUB_STEP_SUMMARY")
+    if github_step_summary:
+        with open(github_step_summary, "w") as f:
+            f.write(github_summary)
+
+
+def run_mettagrid_build(
+    build_type: str,
+    project_root: Path,
+    max_warnings: int = 50,
+    clean_first: bool = True,
+    with_coverage: bool = False,
+    write_summary_on_success: bool = True,
+) -> int:
+    """
+    Generic build runner for mettagrid builds.
+
+    Args:
+        build_type: Type of build ("coverage", "benchmark")
+        project_root: Path to the mettagrid project root
+        max_warnings: Maximum allowed warnings before failing
+        clean_first: Whether to run 'make clean' before building
+        with_coverage: Whether to build with coverage
+        write_summary_on_success: Whether to write GitHub summary on success
+
+    Returns:
+        Exit code (0 for success, non-zero for failure)
+    """
+    env = setup_build_environment(project_root)
+
+    # Clean if requested
+    if clean_first:
+        print("🧹 Cleaning build artifacts...")
+        clean_result = subprocess.run(["make", "clean"], cwd=project_root, capture_output=True, text=True, env=env)
+        if clean_result.returncode != 0:
+            print(f"Warning: 'make clean' failed: {clean_result.stderr}")
+
+    # Determine build command based on type
+    if build_type == "benchmark":
+        print("🔨 Building benchmarks...")
+        build_cmd = ["bash", "-c", "source ../.venv/bin/activate && make benchmark VERBOSE=1"]
+        title = "Benchmark Build Summary"
+    else:
+        # Regular build
+        if with_coverage:
+            print("🔨 Building project with coverage...")
+            build_target = "coverage"
+        else:
+            print("🔨 Building project...")
+            build_target = "build"
+        build_cmd = ["make", build_target, "VERBOSE=1"]
+        title = "Build Summary"
+
+    # Run the build
+    build_success, build_output = run_build_command(build_cmd, project_root, env)
+
+    # Analyze the build output
+    checker = BuildChecker(project_root)
+    checker.parse_build_output(build_output)
+
+    # Print summary to console
+    checker.print_summary()
+
+    # Check build quality
+    print(f"\n📊 {title.replace(' Summary', '')} Quality Check (max warnings: {max_warnings})")
+    print("=" * 50)
+
+    exit_code = 0
+    failure_reasons = []
+
+    if not build_success:
+        print("❌ Build command failed!")
+        failure_reasons.append("Build command failed")
+        exit_code = 1
+    elif checker.build_failed:
+        print("❌ Build completed with errors!")
+        failure_reasons.append(f"Build errors: {checker.total_errors}")
+        exit_code = 1
+    elif checker.total_warnings > max_warnings:
+        print(f"❌ Too many warnings! ({checker.total_warnings} > {max_warnings})")
+        failure_reasons.append(f"Too many warnings: {checker.total_warnings} > {max_warnings}")
+        exit_code = 1
+    elif checker.total_runtime_issues > 0:
+        print(f"❌ Runtime issues detected: {checker.total_runtime_issues}")
+        failure_reasons.append(f"Runtime issues: {checker.total_runtime_issues}")
+        exit_code = 1
+    else:
+        print("✅ Build quality check passed")
+
+    print("=" * 50)
+
+    # Generate GitHub summary
+    github_summary = checker.generate_github_summary(title=title)
+
+    # Add quality check result to summary
+    if exit_code != 0:
+        github_summary += f"\n\n### ❌ {title.replace(' Summary', '')} Quality Check Failed\n"
+        for reason in failure_reasons:
+            github_summary += f"- {reason}\n"
+        # Always write summary on failure
+        write_github_summary(github_summary)
+    else:
+        github_summary += f"\n\n### ✅ {title.replace(' Summary', '')} Quality Check Passed\n"
+        github_summary += f"- Warnings: {checker.total_warnings}/{max_warnings}\n"
+        # Only write summary on success if requested
+        if write_summary_on_success:
+            write_github_summary(github_summary)
+
+    # Set outputs for GitHub Actions
+    write_github_outputs(checker, build_success, build_output)
+
+    return exit_code
 
 
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(description="Check mettagrid build for compiler warnings and errors")
-    parser.add_argument("-c", "--with-coverage", action="store_true", help="Build with coverage enabled")
+    parser.add_argument("build_type", choices=["coverage", "benchmark"], help="Type of build to perform")
+
+    parser.add_argument(
+        "-w", "--max-warnings", type=int, default=50, help="Maximum allowed warnings before failing (default: 50)"
+    )
 
     args = parser.parse_args()
 
@@ -414,58 +556,27 @@ def main():
         print(f"Looking for: {project_root / 'Makefile'}")
         sys.exit(1)
 
-    # Run the build
-    build_success, build_output = run_build(project_root, args.with_coverage)
-
-    # Debug mode: show raw output
-    print("\n" + "=" * 80)
-    print("RAW BUILD OUTPUT")
-    print("=" * 80)
-    print(build_output)
-    print("=" * 80 + "\n")
-
-    # Analyze the build output
-    checker = BuildChecker(project_root)
-    checker.parse_build_output(build_output)
-
-    # Print summary to console
-    checker.print_summary()
-
-    # Generate GitHub Actions summary
-    github_summary = checker.generate_github_summary()
-
-    # Write to GitHub step summary if available
-    github_step_summary = os.getenv("GITHUB_STEP_SUMMARY")
-    if github_step_summary:
-        with open(github_step_summary, "w") as f:
-            f.write(github_summary)
-
-    # Set outputs for GitHub Actions
-    if os.getenv("GITHUB_ACTIONS") and os.getenv("GITHUB_OUTPUT"):
-        summary = checker.get_summary()
-        with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-            f.write(f"build_success={'true' if not checker.build_failed and build_success else 'false'}\n")
-            f.write(f"total_warnings={summary['warnings']}\n")
-            f.write(f"total_errors={summary['errors']}\n")
-            f.write(f"total_messages={summary['total_messages']}\n")
-            f.write(f"runtime_issues={summary['runtime_issues']}\n")
-
-            # Add the full build output (escaped for multiline)
-            # GitHub Actions requires special handling for multiline outputs
-            delimiter = "EOF_BUILD_OUTPUT"
-            f.write(f"full_output<<{delimiter}\n")
-            f.write(build_output)
-            f.write(f"\n{delimiter}\n")
-
-    # Exit with appropriate code - only fail on actual build failure or errors
-    if not build_success:
-        print("\n❌ Build command failed!")
-        sys.exit(1)
-    elif checker.build_failed:
-        print("\n❌ Build completed with errors!")
-        sys.exit(1)
+    # Set behavior based on build type
+    if args.build_type == "benchmark":
+        clean_first = False  # Benchmarks don't clean
+        write_summary_on_success = False  # Only write summary on failure
+        with_coverage = False  # Benchmarks don't use coverage
     else:
-        sys.exit(0)
+        clean_first = True  # Regular builds clean first
+        write_summary_on_success = True  # Always write summary
+        with_coverage = True  # Coverage builds use coverage
+
+    # Run the build using the common function
+    exit_code = run_mettagrid_build(
+        build_type=args.build_type,
+        project_root=project_root,
+        max_warnings=args.max_warnings,
+        clean_first=clean_first,
+        with_coverage=with_coverage,
+        write_summary_on_success=write_summary_on_success,
+    )
+
+    sys.exit(exit_code)
 
 
 if __name__ == "__main__":
