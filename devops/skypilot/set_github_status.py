@@ -37,17 +37,17 @@ from metta.common.util.github import post_commit_status  # noqa: E402
 def main() -> int:
     commit_sha = os.getenv("METTA_GIT_REF", "").strip()
     if not commit_sha:
-        print("Error: METTA_GIT_REF is required", file=sys.stderr)
+        print("Error: METTA_GIT_REF is required")
         return 1
 
     repo = os.getenv("GITHUB_REPOSITORY", "").strip()
     if not repo:
-        print("Error: GITHUB_REPOSITORY is required (e.g. Metta-AI/metta)", file=sys.stderr)
+        print("Error: GITHUB_REPOSITORY is required (e.g. Metta-AI/metta)")
         return 1
 
     token = os.getenv("GITHUB_PAT", "").strip()
     if not token:
-        print("Error: GITHUB_PAT is required", file=sys.stderr)
+        print("Error: GITHUB_PAT is required")
         return 1
 
     try:
@@ -95,11 +95,11 @@ def main() -> int:
             return 0
         except Exception as e:
             if attempt == 4:
-                print(f"[ERROR] Failed to post status after retries: {e}", file=sys.stderr)
+                print(f"[ERROR] Failed to post status after retries: {e}")
                 return 2
 
             sleep_s = 2**attempt
-            print(f"[WARN] Post failed (attempt {attempt}), retrying in {sleep_s}s: {e}", file=sys.stderr)
+            print(f"[WARN] Post failed (attempt {attempt}), retrying in {sleep_s}s: {e}")
             time.sleep(sleep_s)
 
     return 2
