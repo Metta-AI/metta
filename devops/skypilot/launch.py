@@ -63,6 +63,7 @@ def patch_task(
         # Here, COMMAND is 'bash', and its ARGs are '-c' and the script itself.
         timeout_command_parts = [
             "timeout",
+            "--kill-after=30s",  # Send SIGKILL if SIGTERM doesn't work
             f"{timeout_hours}h",  # Use 'h' suffix for hours, timeout supports floats
             "bash",
             "-c",

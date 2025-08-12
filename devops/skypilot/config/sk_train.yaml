@@ -66,11 +66,15 @@ run: |
   fi
   . .venv/bin/activate
 
-  echo "[RUN] Starting run phase..."
-  echo "[RUN] METTA_RUN_ID: ${METTA_RUN_ID:-}"
-  echo "[RUN] SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
-  echo "[RUN] HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
-  echo "[RUN] MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
+  echo "[CONFIG] Run Configuration:"
+  echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
+  echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
+  echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
+  echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
+  echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
+  echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
+
+  echo "[DEBUG] Parent process: $(ps -p $$ -o comm=)"
 
   # Optional metrics (best-effort)
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
