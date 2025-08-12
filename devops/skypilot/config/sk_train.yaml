@@ -322,7 +322,15 @@ run: |
   fi
 
   echo "[RUN] Job complete with exit code: $CMD_EXIT (reason: ${TERMINATION_REASON:-unknown})"
-  exit "$CMD_EXIT"
+
+  # Exit with 0 for planned terminations to prevent SkyPilot restarts
+  if [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]] || [[ "${TERMINATION_REASON}" == "completed" ]]; then
+    echo "[INFO] Exiting with code 0 to prevent SkyPilot restart"
+    exit 0
+  else
+    echo "[INFO] Exiting with actual exit code: $CMD_EXIT"
+    exit "$CMD_EXIT"
+  fi
 
 envs:
   GITHUB_REPOSITORY: Metta-AI/metta
