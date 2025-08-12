@@ -1,10 +1,9 @@
 """Tests for metta.common.util.mettagrid_cfgs module."""
 
-import os
 from unittest.mock import Mock, patch
 
 import pytest
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from metta.common.util.mettagrid_cfgs import (
     MettagridCfgFile,

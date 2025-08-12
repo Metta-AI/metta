@@ -2,17 +2,15 @@
 
 import json
 import os
-import signal
 import tempfile
-import time
 from unittest.mock import Mock, patch
 
 import pytest
 
 from metta.common.util.heartbeat import (
     WANDB_IPC_FILENAME,
-    _send_wandb_alert_with_timeout,
     _main,
+    _send_wandb_alert_with_timeout,
     monitor_heartbeat,
     record_heartbeat,
 )

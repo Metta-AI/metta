@@ -5,9 +5,8 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import pytest
 import yaml
-from omegaconf import DictConfig, ListConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from metta.common.util.stats_client_cfg import get_machine_token, get_stats_client, get_stats_client_direct
 

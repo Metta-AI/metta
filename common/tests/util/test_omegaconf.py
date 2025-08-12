@@ -1,10 +1,10 @@
 """Tests for metta.common.util.omegaconf module."""
 
-from typing import Any, Dict
+
+from enum import Enum
 
 import pytest
-from omegaconf import DictConfig, ListConfig, OmegaConf
-from enum import Enum
+from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.omegaconf import convert_to_dict
 

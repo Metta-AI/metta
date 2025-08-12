@@ -3,11 +3,11 @@
 import subprocess
 import sys
 import time
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import pytest
 
-from metta.common.util.cli import Spinner, get_user_confirmation, sh, spinner, die
+from metta.common.util.cli import Spinner, die, get_user_confirmation, sh, spinner
 from metta.common.util.text_styles import yellow
 
 
@@ -355,6 +355,7 @@ class TestNameMain:
         """Test that __name__ == '__main__' calls main function."""
         # This tests the actual if __name__ == "__main__" line
         import importlib
+
         import metta.common.util.cli as cli_module
 
         # Simulate running as main

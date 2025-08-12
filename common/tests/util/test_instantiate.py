@@ -1,9 +1,8 @@
 """Tests for metta.common.util.instantiate module."""
 
-from unittest.mock import Mock, patch
 
 import pytest
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 
 from metta.common.util.instantiate import _process_recursive, instantiate
 

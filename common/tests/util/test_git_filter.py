@@ -3,8 +3,8 @@
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
+
 import pytest
-import subprocess
 
 from metta.common.util.git_filter import filter_repo
 

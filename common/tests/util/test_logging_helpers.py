@@ -3,11 +3,7 @@
 import logging
 import os
 import sys
-from datetime import datetime
-from io import StringIO
 from unittest.mock import Mock, mock_open, patch
-
-import pytest
 
 from metta.common.util.logging_helpers import (
     AlwaysShowTimeRichHandler,
@@ -17,7 +13,6 @@ from metta.common.util.logging_helpers import (
     init_file_logging,
     init_logging,
     remap_io,
-    restore_io,
 )
 
 

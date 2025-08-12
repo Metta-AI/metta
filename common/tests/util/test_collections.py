@@ -2,9 +2,6 @@
 
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any
-
-import pytest
 
 from metta.common.util.collections import group_by, remove_none_values
 

@@ -1,8 +1,7 @@
 """Tests for metta.common.util.numpy_compat module."""
 
 import importlib
-import sys
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -316,7 +315,6 @@ class TestNumpyCompat:
 
     def test_wandb_compatibility_integration(self):
         """Test that numpy compatibility works in a WandB-like scenario."""
-        import metta.common.util.numpy_compat
 
         # Simulate what WandB might do with these deprecated types
         try:

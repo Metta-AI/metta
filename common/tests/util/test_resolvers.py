@@ -1,6 +1,5 @@
 """Tests for metta.common.util.resolvers module."""
 
-import datetime
 from unittest.mock import Mock, patch
 
 import pytest
