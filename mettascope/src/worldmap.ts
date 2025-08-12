@@ -453,13 +453,6 @@ function drawTrajectory() {
       const cx1 = location1[0]
       const cy1 = location1[1]
 
-      // Debug: Log the first movement to understand the issue.
-      if (i === 1) {
-        console.log(
-          `First movement: (${cx0},${cy0}) -> (${cx1},${cy1}), step=${state.step}, show=${cx0 !== cx1 || cy0 !== cy1}`
-        )
-      }
-
       if (cx0 !== cx1 || cy0 !== cy1) {
         const a = 1 - Math.abs(i - state.step) / 200
         if (a > 0) {
