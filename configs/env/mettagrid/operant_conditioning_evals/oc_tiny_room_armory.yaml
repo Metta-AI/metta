@@ -1,0 +1,30 @@
+defaults:
+  - /env/mettagrid/operant_conditioning_evals/oc_tiny_room@
+  - _self_
+
+game:
+  # Armory scenario flips the rewards
+  agent:
+    rewards:
+      inventory:
+        heart: -0.1
+        battery_red: 1.0
+  objects:
+    # Keep both generator and altar present in both scenarios
+    generator_red:
+      input_resources:
+        ore_red: 1
+      output_resources:
+        battery_red: 1
+      cooldown: 1
+      initial_resource_count: 0
+    altar:
+      input_resources:
+        ore_red: 1
+      output_resources:
+        heart: 1
+      initial_resource_count: 0
+  map_builder:
+    root:
+      params:
+        object_type: armory

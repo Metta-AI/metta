@@ -1,0 +1,50 @@
+defaults:
+  - /env/mettagrid/operant_conditioning_evals/defaults@
+  - /env/mettagrid/game/objects/combat@game.objects  # armory/lasery
+  - /env/mettagrid/game/objects/generators@game.objects
+  - _self_
+
+game:
+  max_steps: 120
+  num_agents: 1
+  # Inventory-based rewards per scenario
+  agent:
+    rewards:
+      inventory:
+        # Default (lasery scenario): heart +1, battery_red -0.1
+        heart: 1.0
+        battery_red: -0.1
+  # Make the placed object defunct (no outputs), generator + altar consume ore_red
+  objects:
+    lasery:
+      input_resources: {}
+      output_resources: {}
+      cooldown: 1
+      initial_resource_count: 0
+    armory:
+      input_resources: {}
+      output_resources: {}
+      cooldown: 1
+      initial_resource_count: 0
+    generator_red:
+      input_resources:
+        ore_red: 1
+      output_resources:
+        battery_red: 1
+      cooldown: 1
+      initial_resource_count: 0
+    altar:
+      input_resources:
+        ore_red: 1
+      output_resources:
+        heart: 1
+      initial_resource_count: 0
+
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+    border_width: 2
+    root:
+      type: metta.map.scenes.oc_two_boxes.OCTinyRoom
+      params:
+        object_type: lasery   # change to 'armory' for the armory scenario
+

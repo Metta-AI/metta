@@ -1,0 +1,37 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
+  - /env/mettagrid/game/objects/combat@game.objects
+  - /env/mettagrid/game/objects/advanced@game.objects
+  - _self_
+
+game:
+  num_agents: 24
+  max_steps: 150
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+  agent:
+    default_resource_limit: 1
+    rewards:
+      inventory:
+        ore_red: 0
+        ore_blue: 0
+        ore_green: 0
+        battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        heart: 1.0
+  map_builder:
+    target: metta.map.mapgen.MapGen
+    instances: ${..num_agents}
+    root:
+      type: metta.map.scenes.ascii.Ascii
+      params:
+        uri: ??
+

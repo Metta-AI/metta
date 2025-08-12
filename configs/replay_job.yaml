@@ -9,7 +9,7 @@ policy_uri: ???
 
 replay_job:
   sim:
-    env: /env/mettagrid/operant_conditioning_evals/maze_choice_small
+    env: /env/mettagrid/operant_conditioning_evals/oc_tiny_room_armory
   policy_uri: ${policy_uri}
   selector_type: top
   stats_dir: ${run_dir}/stats
