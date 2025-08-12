@@ -216,7 +216,7 @@ class CheckpointManager:
                 policy_record = self.policy_store.create_empty_policy_record(
                     name=name, checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir
                 )
-                policy_record.policy = make_policy(metta_grid_env, env_cfg, agent_cfg)
+                policy_record.policy = make_policy(metta_grid_env, system_cfg, agent_cfg)
         elif self.is_master:
             logger.info("No existing policy found, creating new one")
             new_policy_record = self.policy_store.create_empty_policy_record(
@@ -233,7 +233,7 @@ class CheckpointManager:
             policy_record = self.policy_store.create_empty_policy_record(
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
-            policy_record.policy = make_policy(metta_grid_env, env_cfg, agent_cfg)
+            policy_record.policy = make_policy(metta_grid_env, system_cfg, agent_cfg)
         else:
             raise RuntimeError(f"Non-master rank {self.rank} found without torch.distributed initialized")
 
