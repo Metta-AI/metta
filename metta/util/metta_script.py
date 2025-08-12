@@ -16,7 +16,7 @@ from omegaconf import DictConfig, ListConfig
 from metta.common.util.fs import get_repo_root
 from metta.common.util.logging_helpers import init_logging
 from metta.common.util.resolvers import register_resolvers
-from metta.util.init.mettagrid_environment import init_mettagrid_environment
+from metta.util.init.mettagrid_system import init_mettagrid_system_environment
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +101,7 @@ def metta_script(
         logger.info(f"Starting {main.__name__} from {script_path} with run_dir: {run_dir or 'not set'}")
 
         # Initialize the full mettagrid environment (includes device validation)
-        init_mettagrid_environment(cfg)
+        init_mettagrid_system_environment(cfg)
 
         logger.info("Environment setup completed")
 
