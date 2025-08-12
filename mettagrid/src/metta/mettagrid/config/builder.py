@@ -17,9 +17,12 @@ def arena(
     combat: bool = False,
 ) -> EnvConfig:
     objects = {
+        "wall": object.wall,
         "altar": object.altar,
         "mine_red": object.mine_red,
         "generator_red": object.generator_red,
+        "lasery": object.lasery,
+        "armory": object.armory,
     }
 
     actions = ActionsConfig(
@@ -30,20 +33,20 @@ def arena(
         rotate=ActionConfig(),
         put_items=ActionConfig(),
         get_items=ActionConfig(),
-    )
-
-    if combat:
-        objects["lasery"] = object.lasery
-        objects["armory"] = object.armory
-
-        actions.attack = AttackActionConfig(
+        attack=AttackActionConfig(
             required_resources={
                 "laser": 1,
             },
             defense_resources={
                 "armor": 1,
             },
-        )
+        ),
+        swap=ActionConfig(),
+        change_color=ActionConfig(),
+    )
+
+    if not combat:
+        actions.attack.required_resources = {"laser": 100}
 
     return EnvConfig(
         game=GameConfig(

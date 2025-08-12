@@ -179,33 +179,18 @@ class ValueRange(Config):
             raise ValueError("range_min must be less than range_max")
         return v
 
-    @classmethod
-    def vr(cls, range_min: float | int, range_max: float | int) -> "ValueRange":
-        """Create a ValueRange from a range_min and range_max."""
-        return cls(range_min=range_min, range_max=range_max)
-
 
 class BucketedTaskGeneratorConfig(TaskGeneratorConfig):
     """Configuration for BucketedTaskGenerator."""
 
     child_generator_config: TaskGeneratorConfig = Field(description="Child task generator configuration")
     buckets: dict[str, list[int | float | str | ValueRange]] = Field(
-        default_factory=dict, description="Buckets for sampling, keys are config paths"
+        default_factory=dict, min_length=1, description="Buckets for sampling, keys are config paths"
     )
-
-    def add_bucket(self, path: str, values: list[int | float | str | ValueRange]) -> "BucketedTaskGeneratorConfig":
-        """Add a bucket of values for a specific configuration path."""
-        self.buckets[path] = values
-        return self
 
     def create(self) -> "BucketedTaskGenerator":
         """Create a BucketedTaskGenerator from this configuration."""
         return BucketedTaskGenerator(self)
-
-    @classmethod
-    def from_env_config(cls, env_config: EnvConfig) -> BucketedTaskGeneratorConfig:
-        """Create a BucketedTaskGeneratorConfig from an EnvConfig."""
-        return cls(child_generator_config=SingleTaskGeneratorConfig(env_config=env_config))
 
 
 class BucketedTaskGenerator(TaskGenerator):

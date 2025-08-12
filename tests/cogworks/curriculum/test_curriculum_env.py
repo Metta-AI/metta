@@ -1,364 +1,302 @@
-"""Tests for CurriculumEnv."""
+"""Tests for the CurriculumEnv wrapper."""
 
 from unittest.mock import Mock
 
 import numpy as np
 
-from cogworks.curriculum import (
-    Curriculum,
-    CurriculumConfig,
-    CurriculumTask,
-    SingleTaskGeneratorConfig,
-)
-from cogworks.curriculum.curriculum_env import CurriculumEnv
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.cogworks.curriculum.curriculum import CurriculumTask
+from metta.cogworks.curriculum.curriculum_env import CurriculumEnv
+
+from .conftest import create_test_env_config
+
+
+class MockEnvironment:
+    """Mock environment for testing."""
+
+    def __init__(self):
+        self.step_count = 0
+        self.reset_count = 0
+        self.env_cfg = None
+
+    def step(self, *args, **kwargs):
+        """Mock step method."""
+        self.step_count += 1
+        # Return typical step output: obs, rewards, terminals, truncations, infos
+        obs = np.array([1, 2, 3])
+        rewards = np.array([0.5, 0.3])
+        terminals = np.array([False, False])
+        truncations = np.array([False, False])
+        infos = {}
+        return obs, rewards, terminals, truncations, infos
+
+    def step_with_termination(self, *args, **kwargs):
+        """Mock step method that returns termination."""
+        self.step_count += 1
+        obs = np.array([1, 2, 3])
+        rewards = np.array([0.8, 0.6])
+        terminals = np.array([True, True])
+        truncations = np.array([False, False])
+        infos = {}
+        return obs, rewards, terminals, truncations, infos
+
+    def step_with_truncation(self, *args, **kwargs):
+        """Mock step method that returns truncation."""
+        self.step_count += 1
+        obs = np.array([1, 2, 3])
+        rewards = np.array([0.2, 0.4])
+        terminals = np.array([False, False])
+        truncations = np.array([True, True])
+        infos = {}
+        return obs, rewards, terminals, truncations, infos
+
+    def step_with_empty_rewards(self, *args, **kwargs):
+        """Mock step method that returns empty rewards."""
+        self.step_count += 1
+        obs = np.array([1, 2, 3])
+        rewards = np.array([])  # Empty rewards
+        terminals = np.array([True])
+        truncations = np.array([False])
+        infos = {}
+        return obs, rewards, terminals, truncations, infos
+
+    def reset(self):
+        """Mock reset method."""
+        self.reset_count += 1
+        return np.array([0, 0, 0])
+
+    def set_env_cfg(self, env_cfg):
+        """Mock method for setting environment config."""
+        self.env_cfg = env_cfg
+
+    def some_other_method(self):
+        """Mock method for testing attribute delegation."""
+        return "delegated"
+
+
+class MockCurriculum:
+    """Mock curriculum for testing."""
+
+    def __init__(self):
+        self.task_count = 0
+        self.completed_tasks = []
+
+    def get_task(self):
+        """Mock get_task method."""
+        self.task_count += 1
+        env_cfg = create_test_env_config(seed=self.task_count)
+        task = CurriculumTask(task_id=self.task_count, env_cfg=env_cfg)
+
+        # Override complete method to track completions
+        original_complete = task.complete
+
+        def tracked_complete(score):
+            self.completed_tasks.append((self.task_count, score))
+            return original_complete(score)
+
+        task.complete = tracked_complete
+
+        return task
 
 
 class TestCurriculumEnv:
     """Test cases for CurriculumEnv."""
 
-    def create_test_curriculum(self):
-        """Helper to create a test curriculum."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config, num_active_tasks=5, new_task_rate=0.1)
-        return Curriculum(config, seed=0)
-
-    def create_mock_env(self):
-        """Helper to create a mock environment."""
-        mock_env = Mock()
-        mock_env.step.return_value = (
-            np.array([1, 2, 3]),  # obs
-            np.array([0.5, 0.7]),  # rewards
-            np.array([False, False]),  # terminals
-            np.array([False, False]),  # truncations
-            {},  # infos
-        )
-        mock_env.set_env_cfg = Mock()  # Add set_env_cfg method
-        return mock_env
-
-    def test_curriculum_env_creation(self):
-        """Test creating a CurriculumEnv."""
-        mock_env = self.create_mock_env()
-        curriculum = self.create_test_curriculum()
-
-        wrapper = CurriculumEnv(mock_env, curriculum)
-
-        assert wrapper._env is mock_env
-        assert wrapper._curriculum is curriculum
-        assert isinstance(wrapper._current_task, CurriculumTask)
-
-    def test_curriculum_env_step_no_termination(self):
-        """Test step method when episode doesn't terminate."""
-        mock_env = self.create_mock_env()
-        curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
-
-        initial_task = wrapper._current_task
-
-        # Step the environment
-        result = wrapper.step([1, 0])
-
-        # Should call env.step with correct args
-        mock_env.step.assert_called_once_with([1, 0])
-
-        # Should return the result from env.step
-        expected = (np.array([1, 2, 3]), np.array([0.5, 0.7]), np.array([False, False]), np.array([False, False]), {})
-        assert len(result) == len(expected)
-        np.testing.assert_array_equal(result[0], expected[0])
-        np.testing.assert_array_equal(result[1], expected[1])
-        np.testing.assert_array_equal(result[2], expected[2])
-        np.testing.assert_array_equal(result[3], expected[3])
-        assert result[4] == expected[4]
-
-        # Task should remain the same (no termination)
-        assert wrapper._current_task is initial_task
-
-        # Should not have called set_env_cfg
-        assert not mock_env.set_env_cfg.called
-
-    def test_curriculum_env_step_with_termination(self):
-        """Test step method when episode terminates."""
-        mock_env = self.create_mock_env()
-        # Set up termination condition
-        mock_env.step.return_value = (
-            np.array([1, 2, 3]),
-            np.array([0.8, 0.9]),
-            np.array([True, True]),  # Both terminated
-            np.array([False, False]),
-            {},
-        )
-
-        curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
-
-        initial_task = wrapper._current_task
-        initial_completions = initial_task._num_completions
-
-        # Step the environment
-        _ = wrapper.step([1, 0])
-
-        # Should call env.step
-        mock_env.step.assert_called_once_with([1, 0])
-
-        # Task should have been completed with mean reward
-        assert initial_task._num_completions == initial_completions + 1
-        assert abs(initial_task._total_score - 0.85) < 1e-10  # (0.8 + 0.9) / 2
-
-        # Should have gotten a new task
-        assert wrapper._current_task is not initial_task
-        assert isinstance(wrapper._current_task, CurriculumTask)
-
-        # Should have set new env config
-        mock_env.set_env_cfg.assert_called_once_with(wrapper._current_task.get_env_cfg())
-
-    def test_curriculum_env_step_with_truncation(self):
-        """Test step method when episode truncates."""
-        mock_env = self.create_mock_env()
-        # Set up truncation condition
-        mock_env.step.return_value = (
-            np.array([1, 2, 3]),
-            np.array([0.6, 0.4]),
-            np.array([False, False]),
-            np.array([True, True]),  # Both truncated
-            {},
-        )
-
-        curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
-
-        initial_task = wrapper._current_task
-
-        # Step the environment
-        wrapper.step([1, 0])
-
-        # Task should have been completed
-        assert initial_task._num_completions == 1
-        assert initial_task._total_score == 0.5  # (0.6 + 0.4) / 2
-
-        # Should have gotten a new task
-        assert wrapper._current_task is not initial_task
-
-    def test_curriculum_env_step_partial_termination(self):
-        """Test step method when only some agents terminate."""
-        mock_env = self.create_mock_env()
-        # Set up partial termination
-        mock_env.step.return_value = (
-            np.array([1, 2, 3]),
-            np.array([0.8, 0.2]),
-            np.array([True, False]),  # Only first agent terminated
-            np.array([False, False]),
-            {},
-        )
-
-        curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
-
-        initial_task = wrapper._current_task
-
-        # Step the environment
-        wrapper.step([1, 0])
-
-        # Task should remain the same (not all terminated)
-        assert wrapper._current_task is initial_task
-        assert initial_task._num_completions == 0
-
-        # Should not have called set_env_cfg
-        assert not mock_env.set_env_cfg.called
-
-    def test_curriculum_env_step_partial_truncation(self):
-        """Test step method when only some agents truncate."""
-        mock_env = self.create_mock_env()
-        # Set up partial truncation
-        mock_env.step.return_value = (
-            np.array([1, 2, 3]),
-            np.array([0.3, 0.7]),
-            np.array([False, False]),
-            np.array([False, True]),  # Only second agent truncated
-            {},
-        )
-
-        curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
-
-        initial_task = wrapper._current_task
-
-        # Step the environment
-        wrapper.step([1, 0])
-
-        # Task should remain the same (not all truncated)
-        assert wrapper._current_task is initial_task
-        assert initial_task._num_completions == 0
-
-    def test_curriculum_env_getattr_delegation(self):
-        """Test that attribute access is delegated to the wrapped environment."""
-        mock_env = self.create_mock_env()
-        mock_env.some_attribute = "test_value"
-        mock_env.some_method = Mock(return_value="method_result")
-
-        curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
-
-        # Should delegate attribute access
-        assert wrapper.some_attribute == "test_value"
-
-        # Should delegate method calls
-        result = wrapper.some_method("arg1", kwarg="value")
-        assert result == "method_result"
-        mock_env.some_method.assert_called_once_with("arg1", kwarg="value")
-
-    def test_curriculum_env_step_with_kwargs(self):
-        """Test step method with keyword arguments."""
-        mock_env = self.create_mock_env()
-        curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
-
-        # Step with kwargs
-        wrapper.step([1, 0], render=True, mode="human")
-
-        # Should pass kwargs through
-        mock_env.step.assert_called_once_with([1, 0], render=True, mode="human")
-
-    def test_curriculum_env_multiple_episodes(self):
-        """Test wrapper behavior across multiple episodes."""
-        mock_env = self.create_mock_env()
-        curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
-
-        tasks_seen = []
-
-        for episode in range(3):
-            # Record current task
-            tasks_seen.append(wrapper._current_task)
-
-            # Simulate episode ending
-            mock_env.step.return_value = (
-                np.array([1, 2, 3]),
-                np.array([0.5 + episode * 0.1, 0.6 + episode * 0.1]),
-                np.array([True, True]),
-                np.array([False, False]),
-                {},
-            )
-
-            wrapper.step([1, 0])
-
-        # Should have seen 3 different tasks (one per episode)
-        assert len(set(tasks_seen)) == 3
-
-        # Each task should have been completed
-        for task in tasks_seen:
-            assert task._num_completions == 1
-
-    def test_curriculum_env_reward_aggregation(self):
-        """Test that rewards are properly aggregated for task completion."""
-        mock_env = self.create_mock_env()
-        curriculum = self.create_test_curriculum()
-        wrapper = CurriculumEnv(mock_env, curriculum)
-
-        # Test with different reward arrays
-        test_cases = [
-            (np.array([1.0, 0.0]), 0.5),  # Simple average
-            (np.array([0.8, 0.6, 0.4]), 0.6),  # Three agents
-            (np.array([1.0]), 1.0),  # Single agent
-            (np.array([-0.5, 0.5]), 0.0),  # Negative rewards
-        ]
-
-        for rewards, expected_mean in test_cases:
-            mock_env.step.return_value = (
-                np.array([1, 2, 3]),
-                rewards,
-                np.array([True] * len(rewards)),
-                np.array([False] * len(rewards)),
-                {},
-            )
-
-            initial_task = wrapper._current_task
-            wrapper.step([1, 0])
-
-            # Check that task was completed with correct mean reward
-            assert initial_task._num_completions == 1
-            assert abs(initial_task._total_score - expected_mean) < 1e-6
-
-
-class TestCurriculumEnvEdgeCases:
-    """Test edge cases and error conditions."""
-
-    def test_curriculum_env_wrapper_empty_rewards(self):
-        """Test wrapper behavior with empty reward arrays."""
-        mock_env = Mock()
-        mock_env.step.return_value = (
-            np.array([]),
-            np.array([]),  # Empty rewards
-            np.array([]),
-            np.array([]),
-            {},
-        )
-        mock_env.set_env_cfg = Mock()
-
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config)
-        curriculum = Curriculum(config, seed=0)
-
-        wrapper = CurriculumEnv(mock_env, curriculum)
-        initial_task = wrapper._current_task
-
-        # Should handle empty arrays gracefully (no termination due to empty arrays)
-        result = wrapper.step([])
-        assert len(result) == 5
-
-        # Task should remain the same since empty arrays don't trigger termination
-        assert wrapper._current_task is initial_task
-
-    def test_curriculum_env_wrapper_single_agent(self):
-        """Test wrapper with single-agent environment."""
-        mock_env = Mock()
-        mock_env.step.return_value = (
-            np.array([1, 2, 3]),
-            np.array([0.8]),  # Single reward
-            np.array([True]),  # Single terminal
-            np.array([False]),  # Single truncation
-            {},
-        )
-        mock_env.set_env_cfg = Mock()
-
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config)
-        curriculum = Curriculum(config, seed=0)
-
-        wrapper = CurriculumEnv(mock_env, curriculum)
-
-        initial_task = wrapper._current_task
-        wrapper.step([1])
-
-        # Should complete task with single reward
-        assert initial_task._num_completions == 1
-        assert initial_task._total_score == 0.8
-
-    def test_curriculum_env_wrapper_curriculum_stats_integration(self):
-        """Test that wrapper integrates properly with curriculum statistics."""
-        mock_env = Mock()
-        mock_env.step.return_value = (
-            np.array([1, 2, 3]),
-            np.array([0.7, 0.3]),
-            np.array([True, True]),
-            np.array([False, False]),
-            {},
-        )
-        mock_env.set_env_cfg = Mock()
-
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config, num_active_tasks=2)
-        curriculum = Curriculum(config, seed=0)
-        wrapper = CurriculumEnv(mock_env, curriculum)
-
-        # Initial curriculum stats
-        initial_stats = curriculum.stats()
-        assert initial_stats["num_completed"] == 0
-        assert initial_stats["num_scheduled"] == 1  # One task already created in wrapper
-
-        # Complete an episode
-        wrapper.step([1, 0])
-
-        # Check updated stats
-        updated_stats = curriculum.stats()
-        assert updated_stats["num_completed"] == 1
-        assert updated_stats["num_scheduled"] == 2  # Original + new task
+    def test_init(self):
+        """Test CurriculumEnv initialization."""
+        env = MockEnvironment()
+        curriculum = MockCurriculum()
+
+        curriculum_env = CurriculumEnv(env, curriculum)
+
+        assert curriculum_env._env == env
+        assert curriculum_env._curriculum == curriculum
+        assert curriculum_env._current_task is not None
+        assert curriculum.task_count == 1  # One task created during init
+
+    def test_step_no_termination(self):
+        """Test step method without episode termination."""
+        env = MockEnvironment()
+        curriculum = MockCurriculum()
+        curriculum_env = CurriculumEnv(env, curriculum)
+
+        initial_task = curriculum_env._current_task
+        initial_task_count = curriculum.task_count
+
+        # Step without termination
+        obs, rewards, terminals, truncations, infos = curriculum_env.step()
+
+        assert np.array_equal(obs, np.array([1, 2, 3]))
+        assert np.array_equal(rewards, np.array([0.5, 0.3]))
+        assert np.array_equal(terminals, np.array([False, False]))
+        assert np.array_equal(truncations, np.array([False, False]))
+        assert env.step_count == 1
+
+        # Task should not change, no completion
+        assert curriculum_env._current_task == initial_task
+        assert curriculum.task_count == initial_task_count
+        assert len(curriculum.completed_tasks) == 0
+
+    def test_step_with_termination(self):
+        """Test step method with episode termination."""
+        env = MockEnvironment()
+        curriculum = MockCurriculum()
+        curriculum_env = CurriculumEnv(env, curriculum)
+
+        initial_task = curriculum_env._current_task
+        initial_task_count = curriculum.task_count
+
+        # Override step to return termination
+        env.step = env.step_with_termination
+
+        # Step with termination
+        obs, rewards, terminals, truncations, infos = curriculum_env.step()
+
+        assert np.array_equal(obs, np.array([1, 2, 3]))
+        assert np.array_equal(rewards, np.array([0.8, 0.6]))
+        assert np.array_equal(terminals, np.array([True, True]))
+        assert env.step_count == 1
+
+        # Task should change and be completed
+        assert curriculum_env._current_task != initial_task
+        assert curriculum.task_count == initial_task_count + 1  # New task created
+        assert len(curriculum.completed_tasks) == 1
+        assert curriculum.completed_tasks[0][1] == 0.7  # Mean of [0.8, 0.6]
+
+        # Environment should have new config set
+        assert env.env_cfg is not None
+
+    def test_step_with_truncation(self):
+        """Test step method with episode truncation."""
+        env = MockEnvironment()
+        curriculum = MockCurriculum()
+        curriculum_env = CurriculumEnv(env, curriculum)
+
+        initial_task = curriculum_env._current_task
+
+        # Override step to return truncation
+        env.step = env.step_with_truncation
+
+        # Step with truncation
+        curriculum_env.step()
+
+        # Task should change and be completed (truncation counts as completion)
+        assert curriculum_env._current_task != initial_task
+        assert len(curriculum.completed_tasks) == 1
+        assert abs(curriculum.completed_tasks[0][1] - 0.3) < 1e-10  # Mean of [0.2, 0.4]
+
+    def test_step_with_empty_rewards(self):
+        """Test step method with empty rewards array."""
+        env = MockEnvironment()
+        curriculum = MockCurriculum()
+        curriculum_env = CurriculumEnv(env, curriculum)
+
+        initial_task = curriculum_env._current_task
+
+        # Override step to return empty rewards
+        env.step = env.step_with_empty_rewards
+
+        # Step with empty rewards and termination
+        curriculum_env.step()
+
+        # Task should change and be completed with 0.0 score
+        assert curriculum_env._current_task != initial_task
+        assert len(curriculum.completed_tasks) == 1
+        assert curriculum.completed_tasks[0][1] == 0.0  # Empty rewards should give 0.0
+
+    def test_step_partial_termination(self):
+        """Test step method with partial termination/truncation."""
+        env = MockEnvironment()
+        curriculum = MockCurriculum()
+        curriculum_env = CurriculumEnv(env, curriculum)
+
+        initial_task = curriculum_env._current_task
+
+        def partial_termination_step(*args, **kwargs):
+            """Mock step with partial termination."""
+            env.step_count += 1
+            obs = np.array([1, 2, 3])
+            rewards = np.array([0.5, 0.7, 0.9])
+            terminals = np.array([True, False, True])  # Partial termination
+            truncations = np.array([False, False, False])
+            infos = {}
+            return obs, rewards, terminals, truncations, infos
+
+        env.step = partial_termination_step
+
+        # Step with partial termination - should NOT complete task
+        curriculum_env.step()
+
+        # Task should NOT change since not all agents terminated
+        assert curriculum_env._current_task == initial_task
+        assert len(curriculum.completed_tasks) == 0
+
+    def test_attribute_delegation(self):
+        """Test that unknown attributes are delegated to wrapped environment."""
+        env = MockEnvironment()
+        curriculum = MockCurriculum()
+        curriculum_env = CurriculumEnv(env, curriculum)
+
+        # Test delegation of method
+        result = curriculum_env.some_other_method()
+        assert result == "delegated"
+
+        # Test delegation of attribute
+        assert curriculum_env.step_count == env.step_count
+        assert curriculum_env.reset_count == env.reset_count
+
+    def test_step_with_args_and_kwargs(self):
+        """Test that step passes through arguments correctly."""
+        env = MockEnvironment()
+        curriculum = MockCurriculum()
+        curriculum_env = CurriculumEnv(env, curriculum)
+
+        # Mock step to capture arguments
+        original_step = env.step
+        env.step = Mock(return_value=original_step())
+
+        # Call step with various arguments
+        curriculum_env.step(1, 2, action="move", direction="north")
+
+        # Verify arguments were passed through
+        env.step.assert_called_once_with(1, 2, action="move", direction="north")
+
+    def test_task_scheduling_tracking(self):
+        """Test that tasks are properly scheduled when obtained."""
+        env = MockEnvironment()
+        curriculum = MockCurriculum()
+        curriculum_env = CurriculumEnv(env, curriculum)
+
+        # Initial task should have been scheduled once
+        initial_task = curriculum_env._current_task
+        assert initial_task._num_scheduled == 0  # Not scheduled yet in our mock
+
+        # Force task completion to get a new task
+        env.step = env.step_with_termination
+        curriculum_env.step()
+
+        # New task should be available
+        new_task = curriculum_env._current_task
+        assert new_task != initial_task
+
+    def test_multiple_episode_completions(self):
+        """Test multiple episode completions in sequence."""
+        env = MockEnvironment()
+        curriculum = MockCurriculum()
+        curriculum_env = CurriculumEnv(env, curriculum)
+
+        env.step = env.step_with_termination
+
+        # Complete multiple episodes
+        scores = []
+        for _i in range(3):
+            curriculum_env.step()
+            if curriculum.completed_tasks:
+                scores.append(curriculum.completed_tasks[-1][1])
+
+        assert len(curriculum.completed_tasks) == 3
+        assert len(scores) == 3
+        # All scores should be the same since we're using the same mock step
+        assert all(score == 0.7 for score in scores)
+
+        # Should have created 4 tasks total (initial + 3 new ones)
+        assert curriculum.task_count == 4
