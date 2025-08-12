@@ -19,9 +19,6 @@ class ComponentPolicy(nn.Module):
     def forward(self, td: TensorDict, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass of the ComponentPolicy - matches original MettaAgent forward() logic."""
 
-        if self.components is None:
-            raise ValueError("No components found. Ensure components are added in YAML.")
-
         # Handle BPTT reshaping like the original
         td.bptt = 1
         td.batch = td.batch_size.numel()
@@ -32,13 +29,9 @@ class ComponentPolicy(nn.Module):
             td.bptt = TT
             td.batch = B
 
-        # Run value head (also runs core network if present)
         self.components["_value_"](td)
-
-        # Run action head (reuses core network output)
         self.components["_action_"](td)
 
-        # Select forward pass type
         if action is None:
             output_td = self.forward_inference(td)
         else:

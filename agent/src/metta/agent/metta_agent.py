@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING, Any, Dict, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import gymnasium as gym
 import torch
@@ -13,15 +13,39 @@ from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.datastruct import duplicates
 from metta.common.util.instantiate import instantiate
 
-if TYPE_CHECKING:
-    pass
-
 logger = logging.getLogger("metta_agent")
 
 
-class MettaAgent(nn.Module):
-    """Clean and simplified MettaAgent implementation."""
+class DistributedMettaAgent(DistributedDataParallel):
+    """
+    Because this class passes through __getattr__ to its self.module, it implements everything
+    MettaAgent does. We only have a need for this class because using the DistributedDataParallel wrapper
+    returns an object of almost the same interface: you need to call .module to get the wrapped agent.
+    """
 
+    module: "MettaAgent"
+
+    def __init__(self, agent: "MettaAgent", device: torch.device):
+        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+
+        # This maintains the same interface as the input MettaAgent
+        layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
+
+        # Pass device_ids for GPU, but not for CPU
+        if device.type == "cpu":
+            super().__init__(module=layers_converted_agent)
+        else:
+            super().__init__(module=layers_converted_agent, device_ids=[device], output_device=device)
+
+    def __getattr__(self, name: str) -> Any:
+        # First try DistributedDataParallel's __getattr__, then self.module's (MettaAgent's)
+        try:
+            return super().__getattr__(name)
+        except AttributeError:
+            return getattr(self.module, name)
+
+
+class MettaAgent(nn.Module):
     def __init__(
         self,
         obs_space: Union[gym.spaces.Space, gym.spaces.Dict],
@@ -119,13 +143,8 @@ class MettaAgent(nn.Module):
 
         # First pass: instantiate all configured components
         for component_key in component_cfgs:
-            # Convert key to string to ensure compatibility
             component_name = str(component_key)
-
-            # Convert to dict and merge attributes for instantiation
             comp_dict = dict(component_cfgs[component_key], **self.agent_attributes, name=component_name)
-
-            # Instantiate component
             self.components[component_name] = instantiate(comp_dict)
 
         component = self.components["_value_"]
@@ -384,35 +403,6 @@ class MettaAgent(nn.Module):
                 if result is not None:
                     results[name] = result
         return list(results.values())
-
-
-class DistributedMettaAgent(DistributedDataParallel):
-    """
-    Because this class passes through __getattr__ to its self.module, it implements everything
-    MettaAgent does. We only have a need for this class because using the DistributedDataParallel wrapper
-    returns an object of almost the same interface: you need to call .module to get the wrapped agent.
-    """
-
-    module: "MettaAgent"
-
-    def __init__(self, agent: "MettaAgent", device: torch.device):
-        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
-
-        # This maintains the same interface as the input MettaAgent
-        layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
-
-        # Pass device_ids for GPU, but not for CPU
-        if device.type == "cpu":
-            super().__init__(module=layers_converted_agent)
-        else:
-            super().__init__(module=layers_converted_agent, device_ids=[device], output_device=device)
-
-    def __getattr__(self, name: str) -> Any:
-        # First try DistributedDataParallel's __getattr__, then self.module's (MettaAgent's)
-        try:
-            return super().__getattr__(name)
-        except AttributeError:
-            return getattr(self.module, name)
 
 
 PolicyAgent = MettaAgent | DistributedMettaAgent

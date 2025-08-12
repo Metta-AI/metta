@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import gymnasium as gym
 import numpy as np
@@ -8,6 +8,9 @@ from omegaconf import DictConfig, OmegaConf
 from metta.agent.component_policy import ComponentPolicy
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.pytorch.agent_mapper import agent_classes
+
+if TYPE_CHECKING:
+    from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger("metta_agent_builder")
 
