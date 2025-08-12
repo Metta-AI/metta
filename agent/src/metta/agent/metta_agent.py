@@ -357,6 +357,11 @@ class MettaAgent(nn.Module):
             self.policy.action_index_tensor = self.action_index_tensor
             self.policy.cum_action_max_params = self.cum_action_max_params
 
+    def clip_weights(self):
+        """Delegate weight clipping to the policy."""
+        if self.policy is not None and hasattr(self.policy, "clip_weights"):
+            self.policy.clip_weights()
+
     @property
     def total_params(self):
         """Total number of parameters."""
