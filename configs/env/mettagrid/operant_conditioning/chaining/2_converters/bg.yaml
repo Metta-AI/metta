@@ -15,7 +15,7 @@ game:
     generator_green:
       input_resources:
         battery_blue: 1
-        ore_red: 0
+        ore_green: 0
       output_resources:
         battery_green: 0
         heart: 1
