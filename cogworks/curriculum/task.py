@@ -2,22 +2,22 @@
 
 from __future__ import annotations
 
-from metta.rl.env_config import SystemConfig
+from metta.mettagrid.mettagrid_config import EnvConfig
 
 
 class Task:
     """Simple task class for backward compatibility with existing curriculum code."""
 
-    def __init__(self, task_id: str, env_cfg: SystemConfig):
+    def __init__(self, task_id: str, env_cfg: EnvConfig):
         self._task_id = task_id
         self._env_cfg = env_cfg
 
     @property
-    def env_cfg(self) -> SystemConfig:
+    def env_cfg(self) -> EnvConfig:
         """Get the environment configuration."""
         return self._env_cfg
 
-    def get_env_config(self) -> SystemConfig:
+    def get_env_config(self) -> EnvConfig:
         """Get the environment configuration (alternative method name)."""
         return self._env_cfg
 
