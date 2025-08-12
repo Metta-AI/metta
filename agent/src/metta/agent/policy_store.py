@@ -474,3 +474,59 @@ class PolicyStore:
         pr = self._load_from_file(os.path.join(artifact_path, "model.pt"))
         pr.metadata.update(artifact.metadata)
         return pr
+
+    @classmethod
+    def create(
+        cls,
+        device: str,
+        wandb_config: Any,  # WandbConfig type
+        replay_dir: str = "./train_dir/replays",
+        wandb_run: WandbRun | None = None,
+    ) -> "PolicyStore":
+        """Create a PolicyStore from a WandbConfig.
+
+        Args:
+            device: Device to load policies on (e.g., "cpu", "cuda")
+            wandb_config: WandbConfig object containing entity and project info
+            replay_dir: Directory for storing policy artifacts
+            wandb_run: Optional existing wandb run
+
+        Returns:
+            Configured PolicyStore instance
+        """
+        wandb_entity = None
+        wandb_project = None
+
+        if wandb_config.enabled:
+            wandb_entity = getattr(wandb_config, "entity", None)
+            wandb_project = getattr(wandb_config, "project", None)
+
+        return cls(
+            device=device,
+            wandb_run=wandb_run,
+            data_dir=replay_dir,
+            wandb_entity=wandb_entity,
+            wandb_project=wandb_project,
+        )
+
+    def policy_record_or_mock(
+        self,
+        policy_uri: str | None,
+        run_name: str = "mock_run",
+    ) -> PolicyRecord:
+        """Get a policy record or create a mock if no URI provided.
+
+        Args:
+            policy_uri: Optional policy URI to load
+            run_name: Name for the mock run if no URI provided
+
+        Returns:
+            PolicyRecord from URI or MockPolicyRecord
+        """
+        if policy_uri is not None:
+            return self.policy_record(policy_uri)
+        else:
+            # Import here to avoid circular dependency
+            from metta.agent.mocks import MockPolicyRecord
+
+            return MockPolicyRecord(run_name=run_name, uri=None)
