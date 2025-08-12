@@ -9,9 +9,6 @@ from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.component_policy import ComponentPolicy
-from metta.agent.util.safe_get import safe_get_from_obs_space
-from metta.common.util.datastruct import duplicates
-from metta.common.util.instantiate import instantiate
 
 logger = logging.getLogger("metta_agent")
 
@@ -101,74 +98,29 @@ class MettaAgent(nn.Module):
         return self.policy(td, state, action)
 
     def activate_policy(self):
-        self.clip_range = self.cfg.clip_range
-
-        # Validate and extract observation key
-        if not (hasattr(self.cfg.observations, "obs_key") and self.cfg.observations.obs_key is not None):
-            raise ValueError("Configuration missing required field 'observations.obs_key'")
-
-        obs_key = self.cfg.observations.obs_key
-        obs_shape = safe_get_from_obs_space(self.obs_space, obs_key, "shape")
-
-        self.agent_attributes = {
-            "clip_range": self.clip_range,
-            "action_space": self.action_space,
-            "feature_normalizations": self.feature_normalizations,
-            "obs_width": self.obs_width,
-            "obs_height": self.obs_height,
-            "obs_key": self.cfg.observations.obs_key,
-            "obs_shape": obs_shape,
-        }
-
-        self.components = nn.ModuleDict()
-        # Keep component configs as DictConfig to support both dict and attribute access
-        component_cfgs = self.cfg.components
-
-        # First pass: instantiate all configured components
-        for component_key in component_cfgs:
-            component_name = str(component_key)
-            comp_dict = dict(component_cfgs[component_key], **self.agent_attributes, name=component_name)
-            self.components[component_name] = instantiate(comp_dict)
-
-        component = self.components["_value_"]
-        self._setup_components(component)
-        component = self.components["_action_"]
-        self._setup_components(component)
-
-        self.components_with_memory = []
-        for name, component in self.components.items():
-            if not getattr(component, "ready", False):
-                raise RuntimeError(
-                    f"Component {name} in MettaAgent was never setup. It might not be accessible by other components."
-                )
-            if component.has_memory():
-                self.components_with_memory.append(name)
-
-        # logger.info(f"Components with memory: {self.components_with_memory}")
-
-        # check for duplicate component names
-        all_names = [c._name for c in self.components.values() if hasattr(c, "_name")]
-        if duplicate_names := duplicates(all_names):
-            raise ValueError(f"Duplicate component names found: {duplicate_names}")
-
-        self.components = self.components.to(self.device)
-
-        logger.info(f"MettaAgent components: {self.components}")
-
-        self.policy.components = self.components
-        self.policy.clip_range = self.clip_range
+        """Legacy method for backwards compatibility - components are now built in ComponentPolicy.__init__."""
+        # This method is no longer needed since ComponentPolicy builds its own components
+        # Keep it for backwards compatibility with any code that might call it
+        if isinstance(self.policy, ComponentPolicy) and hasattr(self.policy, "components"):
+            self.components = self.policy.components
+            self.components_with_memory = getattr(self.policy, "components_with_memory", [])
+            self.clip_range = self.policy.clip_range
 
     def reset_memory(self) -> None:
         """Reset memory for all components that have memory."""
-        if isinstance(self.policy, ComponentPolicy) and hasattr(self, "components_with_memory"):
-            for name in self.components_with_memory:
-                comp = self.components[name]
-                if not hasattr(comp, "reset_memory"):
-                    raise ValueError(
-                        f"Component '{name}' listed in components_with_memory but has no reset_memory() method."
-                        + " Perhaps an obsolete policy?"
-                    )
-                comp.reset_memory()
+        if isinstance(self.policy, ComponentPolicy):
+            # Delegate to ComponentPolicy if it has its own reset_memory
+            if hasattr(self.policy, "reset_memory"):
+                self.policy.reset_memory()
+            elif hasattr(self, "components_with_memory"):
+                for name in self.components_with_memory:
+                    comp = self.components[name]
+                    if not hasattr(comp, "reset_memory"):
+                        raise ValueError(
+                            f"Component '{name}' listed in components_with_memory but has no reset_memory() method."
+                            + " Perhaps an obsolete policy?"
+                        )
+                    comp.reset_memory()
 
     def get_memory(self):
         memory = {}
@@ -211,9 +163,12 @@ class MettaAgent(nn.Module):
     ):
         """Initialize the agent to the current environment."""
 
-        # Only call activate_policy if components haven't been created yet
-        if isinstance(self.policy, ComponentPolicy) and not hasattr(self, "components"):
-            self.activate_policy()
+        # For ComponentPolicy, link to its components if not already done
+        if isinstance(self.policy, ComponentPolicy) and hasattr(self.policy, "components"):
+            if not hasattr(self, "components"):
+                self.components = self.policy.components
+                self.components_with_memory = getattr(self.policy, "components_with_memory", [])
+                self.clip_range = self.policy.clip_range
 
         # MettaAgent handles the initialization for all policy types
         self.activate_actions(action_names, action_max_params, device)
