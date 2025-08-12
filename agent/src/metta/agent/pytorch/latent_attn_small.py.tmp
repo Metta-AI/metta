@@ -4,6 +4,7 @@ import einops
 import pufferlib.models
 import pufferlib.pytorch
 import torch
+import torch.nn.functional as F
 from torch import nn
 
 from metta.agent.pytorch.pytorch_base import PytorchAgentBase
@@ -19,11 +20,9 @@ class Recurrent(PytorchAgentBase):
                 input_size=input_size,
                 hidden_size=hidden_size,
             )
-        # LSTM input size needs to match encoder output (input_size + input_size//2)
-        lstm_input_size = input_size + input_size // 2  # 128 + 64 = 192
-        super().__init__(env, policy, lstm_input_size, hidden_size)
+        super().__init__(env, policy, input_size, hidden_size)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
+        
         # Store these for compatibility with MettaAgent's activate_actions
         self.action_index_tensor = None
         self.cum_action_max_params = None
@@ -41,16 +40,13 @@ class Policy(nn.Module):
         self.out_height = 11
         self.num_layers = 34
 
-        # Calculate CNN output size:
-        # Input: 11x11, Conv1: (11-3+1)=9x9, Conv2: (9-3+1)=7x7
-        # Output: 48 channels * 7 * 7 = 2352
         self.network = nn.Sequential(
             pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, 48, 3, stride=1)),
             nn.ReLU(),
             pufferlib.pytorch.layer_init(nn.Conv2d(48, 48, 3, stride=1)),
             nn.ReLU(),
             nn.Flatten(),
-            pufferlib.pytorch.layer_init(nn.Linear(2352, input_size)),
+            pufferlib.pytorch.layer_init(nn.Linear(1872, input_size)),
             nn.ReLU(),
         )
 

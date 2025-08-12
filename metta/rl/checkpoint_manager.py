@@ -7,7 +7,8 @@ from pathlib import Path
 import torch
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent, make_policy
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
+from metta.agent.metta_agent_builder import MettaAgentBuilder
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.common.profiling.stopwatch import Stopwatch
@@ -20,7 +21,6 @@ from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.env_config import EnvConfig
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.policy_management import cleanup_old_policies, validate_policy_environment_match
-from metta.rl.puffer_policy import PytorchAgent
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import CheckpointConfig, TrainerConfig
 from metta.rl.utils import should_run
@@ -102,9 +102,7 @@ class CheckpointManager:
         logger.info(f"Saving policy at epoch {epoch}")
 
         # Extract the actual policy module from distributed wrapper if needed
-        policy_to_save: MettaAgent | PytorchAgent = (
-            policy.module if isinstance(policy, DistributedMettaAgent) else policy
-        )
+        policy_to_save: MettaAgent = policy.module if isinstance(policy, DistributedMettaAgent) else policy
 
         # Build metadata
         name = self.policy_store.make_model_name(epoch)
@@ -208,7 +206,7 @@ class CheckpointManager:
             new_policy_record = self.policy_store.create_empty_policy_record(
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
-            new_policy_record.policy = make_policy(metta_grid_env, env_cfg, agent_cfg)
+            new_policy_record.policy = MettaAgentBuilder(metta_grid_env, env_cfg, agent_cfg).build()
             policy_record = self.policy_store.save(new_policy_record)
             logger.info(f"Created and saved new policy to {policy_record.uri}")
 

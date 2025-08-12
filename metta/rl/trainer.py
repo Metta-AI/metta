@@ -416,8 +416,7 @@ def train(
                             torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
                             optimizer.step()
 
-                            # Optional weight clipping
-                            policy.clip_weights()
+                            policy.policy.clip_weights()
 
                             if device.type == "cuda":
                                 torch.cuda.synchronize()

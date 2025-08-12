@@ -1,4 +1,7 @@
+"""Example PyTorch agent implementation."""
+
 import logging
+from typing import Optional
 
 import einops
 import pufferlib.models
@@ -12,16 +15,21 @@ logger = logging.getLogger(__name__)
 
 
 class Recurrent(PytorchAgentBase):
-    def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
+    """Example Recurrent LSTM-based policy."""
+
+    def __init__(
+        self,
+        env,
+        policy: Optional[nn.Module] = None,
+        cnn_channels: int = 128,
+        input_size: int = 512,
+        hidden_size: int = 512,
+    ):
         if policy is None:
-            policy = Policy(
-                env,
-                input_size=input_size,
-                hidden_size=hidden_size,
-            )
-        # LSTM input size needs to match encoder output (input_size + input_size//2)
-        lstm_input_size = input_size + input_size // 2  # 128 + 64 = 192
-        super().__init__(env, policy, lstm_input_size, hidden_size)
+            policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size, input_size=input_size)
+
+        # LSTM input size is just hidden_size for the example policy
+        super().__init__(env, policy, hidden_size, hidden_size)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Store these for compatibility with MettaAgent's activate_actions
@@ -30,7 +38,9 @@ class Recurrent(PytorchAgentBase):
 
 
 class Policy(nn.Module):
-    def __init__(self, env, input_size=128, hidden_size=128):
+    """Example policy network with CNN encoder and multi-head action decoder."""
+
+    def __init__(self, env, cnn_channels=128, hidden_size=512, **kwargs):
         super().__init__()
         self.hidden_size = hidden_size
         self.is_continuous = False
@@ -39,23 +49,20 @@ class Policy(nn.Module):
 
         self.out_width = 11
         self.out_height = 11
-        self.num_layers = 34
+        self.num_layers = 22
 
-        # Calculate CNN output size:
-        # Input: 11x11, Conv1: (11-3+1)=9x9, Conv2: (9-3+1)=7x7
-        # Output: 48 channels * 7 * 7 = 2352
         self.network = nn.Sequential(
-            pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, 48, 3, stride=1)),
+            pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3)),
             nn.ReLU(),
-            pufferlib.pytorch.layer_init(nn.Conv2d(48, 48, 3, stride=1)),
+            pufferlib.pytorch.layer_init(nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1)),
             nn.ReLU(),
             nn.Flatten(),
-            pufferlib.pytorch.layer_init(nn.Linear(2352, input_size)),
+            pufferlib.pytorch.layer_init(nn.Linear(cnn_channels, hidden_size // 2)),
             nn.ReLU(),
         )
 
         self.self_encoder = nn.Sequential(
-            pufferlib.pytorch.layer_init(nn.Linear(self.num_layers, input_size // 2)),
+            pufferlib.pytorch.layer_init(nn.Linear(self.num_layers, hidden_size // 2)),
             nn.ReLU(),
         )
 
@@ -83,47 +90,21 @@ class Policy(nn.Module):
                 3.0,
                 1.0,
                 2.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
-                1.0,
             ],
             dtype=torch.float32,
         )[None, :, None, None]
         self.register_buffer("max_vec", max_vec.to(self.device))
 
-        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, hidden_size))
-        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
-
-        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, hidden_size))
-
         action_nvec = self.action_space.nvec
-        num_actions = sum(action_nvec)
-
-        self.action_embeddings = nn.Embedding(num_actions, hidden_size)
-
-        self.actor_heads = nn.ModuleList(
-            [pufferlib.pytorch.layer_init(nn.Linear(hidden_size * 2, n), std=0.01) for n in action_nvec]
+        self.actor = nn.ModuleList(
+            [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in action_nvec]
         )
+        self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
         self.to(self.device)
 
-    def network_forward(self, x):
-        return self.network(x)
-
     def encode_observations(self, observations, state=None):
-        """
-        Encode observations into a hidden representation.
-        """
-
+        """Encode observations into a hidden representation."""
         observations = observations.to(self.device)
         token_observations = observations
         B = token_observations.shape[0]
@@ -135,7 +116,6 @@ class Policy(nn.Module):
         token_observations[token_observations == 255] = 0
 
         coords_byte = token_observations[..., 0].to(torch.uint8)
-
         x_coord_indices = ((coords_byte >> 4) & 0x0F).long()
         y_coord_indices = (coords_byte & 0x0F).long()
         atr_indices = token_observations[..., 1].long()
@@ -165,14 +145,7 @@ class Policy(nn.Module):
         return torch.cat([self_features, cnn_features], dim=1)
 
     def decode_actions(self, hidden):
-        critic_features = torch.tanh(self.critic_1(hidden))
-        value = self.value_head(critic_features)
-
-        actor_features = torch.tanh(self.actor_1(hidden))
-
-        action_embed = self.action_embeddings.weight.mean(dim=0).unsqueeze(0).expand(actor_features.shape[0], -1)
-        combined_features = torch.cat([actor_features, action_embed], dim=-1)
-
-        logits = torch.cat([head(combined_features) for head in self.actor_heads], dim=-1)  # (B, sum(A_i))
-
+        """Decode hidden representation into logits and value."""
+        logits = torch.cat([dec(hidden) for dec in self.actor], dim=-1)
+        value = self.value(hidden)
         return logits, value
