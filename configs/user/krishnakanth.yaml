@@ -21,7 +21,7 @@ trainer:
     skip_git_check: true
   checkpoint:
     wandb_checkpoint_interval: 50
-  total_timesteps: 1_000_000_000
+  total_timesteps: 10_000_000_000
 
 wandb:
   enabled: true
