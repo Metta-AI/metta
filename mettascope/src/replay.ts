@@ -258,8 +258,8 @@ function fixReplay() {
   for (const actionName of state.replay.actionNames) {
     let imagePath = `trace/${actionName}.png`
 
-    // Use move.png for move_8way since they're both movement actions
-    if (actionName === 'move_8way') {
+    // Use move.png for move_8way or 4way since they're both movement actions
+    if (actionName === 'move_8way' || actionName === 'move_cardinal') {
       imagePath = 'trace/move.png'
     }
 
