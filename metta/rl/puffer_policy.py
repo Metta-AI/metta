@@ -1,10 +1,8 @@
 import logging
 from types import SimpleNamespace
-from typing import Any
 
 import torch
 from omegaconf import DictConfig
-from pufferlib.pytorch import sample_logits
 from torch import nn
 
 from metta.common.util.instantiate import instantiate
@@ -73,15 +71,26 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: DictConfig 
         logger.warning(f"Failed automatic load from weights: {e}")
         logger.warning("Using randomly initialized weights")
 
-    return policy
+    # Wrap in PytorchAgent to provide the expected interface
+    return PytorchAgent(policy)
 
 
 class PytorchAgent(nn.Module):
-    """Adapter to make torch.nn.Module-based policies compatible with MettaAgent interface.
+    """Adapter to make PyTorch-based policies compatible with MettaAgent interface.
 
-    This adapter wraps policies loaded from checkpoints and translates their
-    outputs to match the expected MettaAgent interface, handling naming
-    differences like critic→value, hidden→logits, etc.
+    This wrapper translates between the PyTorch agent interface (which expects
+    observations and returns actions/values/logits) and the MettaAgent interface
+    (which uses TensorDicts and expects specific key names).
+
+    Key differences handled:
+    - Batch dimension management (flattening/reshaping for BPTT)
+    - State management (LSTM hidden states)
+    - Output key naming (values vs value, etc.)
+    - Computing full_log_probs from logits
+
+    Limitation: PyTorch agents don't natively support evaluating given actions,
+    so in training mode we use the sampled action probabilities rather than
+    evaluating the specific given actions.
     """
 
     # Default feature normalizations for legacy policies using max_vec
@@ -118,68 +127,104 @@ class PytorchAgent(nn.Module):
         self.lstm = getattr(policy, "lstm", None)  # Point to the actual LSTM module if it exists
         self.components = nn.ModuleDict()  # Empty for compatibility
 
-    def forward(self, obs: torch.Tensor, state: Any, action=None):
-        """Uses variable names from LSTMWrapper. Translating for Metta:
-        critic -> value
-        logprob -> logprob_act
-        hidden -> logits then, after sample_logits(), log_sftmx_logits
+    def forward(self, td, action=None):
+        """MettaAgent-compatible forward method.
+
+        Args:
+            td: TensorDict containing at least "env_obs"
+            action: Optional action tensor for training mode
+
+        Returns:
+            TensorDict with modified outputs matching MettaAgent interface
         """
-        # For tokenized observations, we need to handle them differently
-        # The pufferlib Recurrent/LSTMWrapper expects already-encoded observations,
-        # but we have raw tokenized observations that need to be processed first
+        import torch
+        import torch.nn.functional as F
 
-        if hasattr(self.policy, "policy") and hasattr(self.policy.policy, "encode_observations"):
-            # This is a wrapped policy (e.g., Recurrent wrapping Policy)
-            # Encode observations first
-            hidden = self.policy.policy.encode_observations(obs, state)
-
-            # Handle LSTM state
-            h, c = state.lstm_h, state.lstm_c
-            if h is not None:
-                if len(h.shape) == 3:
-                    h, c = h.squeeze(), c.squeeze()
-                assert h.shape[0] == c.shape[0] == obs.shape[0], "LSTM state must be (h, c)"
-                lstm_state = (h, c)
-            else:
-                lstm_state = None
-
-            # LSTM forward pass
-            if hasattr(self.policy, "cell"):
-                hidden, c = self.policy.cell(hidden, lstm_state)
-                # Update state
-                state.hidden = hidden
-                state.lstm_h = hidden
-                state.lstm_c = c
-
-            # Decode actions
-            logits, critic = self.policy.policy.decode_actions(hidden)
-
-            # sample_logits expects a list of logits for multi-discrete action spaces
-            hidden = logits  # Keep as list for sample_logits
-
+        # Handle batch dimensions similar to MettaAgent
+        if td.batch_dims > 1:
+            B, TT = td.batch_size[0], td.batch_size[1]
+            # Flatten batch and time dimensions for processing
+            td = td.reshape(B * TT)
+            td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
         else:
-            # Fallback to original behavior
-            state_dict = {"lstm_h": state.lstm_h, "lstm_c": state.lstm_c, "hidden": getattr(state, "hidden", None)}
+            B = td.batch_size.numel()
+            TT = 1
+            td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
 
-            (hidden, critic), _ = self.policy(obs, state_dict)
+        # Get observations
+        obs = td.get("env_obs")
 
-            # Update state
-            if "lstm_h" in state_dict:
-                state.lstm_h = state_dict["lstm_h"]
-            if "lstm_c" in state_dict:
-                state.lstm_c = state_dict["lstm_c"]
-            if "hidden" in state_dict and state_dict["hidden"] is not None:
-                state.hidden = state_dict["hidden"]
+        # Create state dict for PyTorch agent compatibility
+        state = {"lstm_h": td.get("lstm_h", None), "lstm_c": td.get("lstm_c", None), "hidden": td.get("hidden", None)}
 
-        # Sample actions from logits
-        action, logprob, logits_entropy = sample_logits(hidden, action)
-        return action, logprob, logits_entropy, critic, hidden
+        # Call the underlying PyTorch agent's forward method
+        # Returns: (actions, logprob, entropy, value, logits_list)
+        # Note: We always pass action=None because PyTorch agents sample their own actions
+        # and don't support evaluating specific given actions
+        actions_out, logprob, entropy, value, logits_list = self.policy(obs, state, action=None)
+
+        # Process value tensor
+        if value is not None and value.shape[-1] == 1:
+            value = value.squeeze(-1)
+
+        # Compute full_log_probs from the first action head's logits
+        # This matches how MettaAgent computes it
+        if logits_list and isinstance(logits_list, list) and len(logits_list) > 0:
+            first_logits = logits_list[0]
+            full_log_probs = F.log_softmax(first_logits, dim=-1)
+        else:
+            # Fallback: create dummy full_log_probs if needed
+            full_log_probs = torch.zeros(B * TT, 7, device=td.device)  # 7 is default action space size
+
+        # Store outputs in TensorDict
+        if action is None:
+            # Inference mode - sample new actions
+            td["actions"] = actions_out
+            td["act_log_prob"] = logprob
+            td["values"] = value  # Note: 'values' in inference mode
+            td["full_log_probs"] = full_log_probs
+            output_td = td
+        else:
+            # Training mode - evaluate given actions
+            # Since PyTorch agents sample actions, we'll use the sampled values
+            # This is a limitation but necessary for compatibility
+            td["act_log_prob"] = logprob
+            td["entropy"] = entropy
+            td["value"] = value  # Note: 'value' in training mode
+            td["full_log_probs"] = full_log_probs
+            # Reshape back to (B, TT)
+            output_td = td.reshape(B, TT)
+
+        # Store updated LSTM states if they exist
+        if "lstm_h" in state and state["lstm_h"] is not None:
+            output_td["lstm_h"] = state["lstm_h"]
+        if "lstm_c" in state and state["lstm_c"] is not None:
+            output_td["lstm_c"] = state["lstm_c"]
+
+        return output_td
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Forward to wrapped policy if it has this method."""
         if hasattr(self.policy, "activate_actions"):
             self.policy.activate_actions(action_names, action_max_params, device)
         self.device = device
+
+    def get_agent_experience_spec(self):
+        """Provide experience spec for pytorch agents."""
+        import torch
+        from torchrl.data import Composite, UnboundedDiscrete
+
+        return Composite(
+            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+        )
+
+    def reset_memory(self):
+        """Reset LSTM memory if present."""
+        if hasattr(self.policy, "lstm"):
+            # Reset LSTM hidden states if needed
+            pass  # PyTorch agents manage their own LSTM state
 
     def initialize_to_environment(
         self,

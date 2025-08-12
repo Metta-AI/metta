@@ -8,6 +8,7 @@ import torch
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
 from metta.agent.policy_record import PolicyRecord
 from metta.mettagrid.mettagrid_env import MettaGridEnv
+from metta.rl.puffer_policy import PytorchAgent
 
 logger = logging.getLogger(__name__)
 
@@ -62,16 +63,24 @@ def validate_policy_environment_match(policy: PolicyAgent, env: MettaGridEnv) ->
         agent = policy
     elif isinstance(policy, DistributedMettaAgent):
         agent = policy.module
-
+    elif isinstance(policy, PytorchAgent):
+        agent = policy
     elif type(policy).__name__ == "Recurrent":
         agent = policy
     else:
-        raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(policy)}")
+        raise ValueError(
+            f"Policy must be of type MettaAgent, DistributedMettaAgent, or PytorchAgent, got {type(policy)}"
+        )
 
     _env_shape = env.single_observation_space.shape
     environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-    # The rest of the validation logic continues to work with duck typing
+    # Skip validation for PytorchAgent and Recurrent agents - they have different architectures
+    if isinstance(agent, PytorchAgent) or type(agent).__name__ == "Recurrent":
+        # These agent types handle observation shapes dynamically
+        return
+
+    # The rest of the validation logic continues to work with duck typing for MettaAgent
     if hasattr(agent, "components"):
         found_match = False
         for component_name, component in agent.components.items():
