@@ -1,7 +1,8 @@
 import random
 
+from metta.mettagrid.level_builder import create_grid
 from metta.mettagrid.room.room import Room
-from metta.mettagrid.room.utils import create_grid, set_position
+from metta.mettagrid.room.utils import set_position
 
 
 # Maze generation using Prim's algorithm
