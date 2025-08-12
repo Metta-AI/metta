@@ -358,16 +358,16 @@ class MettaAgent(nn.Module):
             self.policy.cum_action_max_params = self.cum_action_max_params
 
     @property
+    def total_params(self):
+        """Total number of parameters."""
+        return self._total_params
+
+    @property
     def lstm(self):
         """Access to LSTM component."""
         if hasattr(self, "components") and "_core_" in self.components and hasattr(self.components["_core_"], "_net"):
             return self.components["_core_"]._net
         return None
-
-    @property
-    def total_params(self):
-        """Total number of parameters."""
-        return self._total_params
 
     def _apply_to_components(self, method_name, *args, **kwargs) -> list[torch.Tensor]:
         """Apply a method to all components that have it."""
