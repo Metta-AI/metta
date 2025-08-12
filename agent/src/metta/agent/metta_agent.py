@@ -152,7 +152,12 @@ class MettaAgent(nn.Module):
 
         # Let the policy know about environment initialization if it has such a method
         # This allows ComponentPolicy or other specialized policies to do their own initialization
-        if hasattr(self.policy, "initialize_to_environment"):
+        # IMPORTANT: Check that policy is not another MettaAgent to avoid infinite recursion
+        if (
+            hasattr(self.policy, "initialize_to_environment")
+            and not isinstance(self.policy, MettaAgent)
+            and not isinstance(self.policy, DistributedMettaAgent)
+        ):
             self.policy.initialize_to_environment(features, action_names, action_max_params, device, is_training)
 
     def activate_observations(self, features: dict[str, dict], device):
