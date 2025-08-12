@@ -168,9 +168,11 @@ run: |
   run_training() {
     local START_TIME=$(date +%s)
 
-    # Start training in a new session (process group)
-    setsid ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
+    # Start training in its own process group with job control to create process groups
+    set -m
+    ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
     local CMD_PID=$!
+    set +m
 
     echo "[INFO] Started training process group with PID: $CMD_PID"
 
