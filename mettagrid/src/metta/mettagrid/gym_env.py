@@ -7,7 +7,7 @@ Supports both single-agent and multi-agent modes.
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple, cast
 
 import numpy as np
 from gymnasium import Env as GymEnv
@@ -74,7 +74,7 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
 
         # Get game config for core initialization
         task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        game_config_dict = cast(Dict[str, Any], OmegaConf.to_container(task_cfg.game))
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
         # Initialize core functionality
@@ -112,7 +112,7 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
         self._rewards = np.zeros(self.num_agents, dtype=dtype_rewards)
 
         # Set buffers in C++ environment for direct writes
-        self._c_env_instance.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
+        self.c_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
 
     @override  # gymnasium.Env.reset
     def reset(
@@ -131,11 +131,20 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
         # Get new task from curriculum and its config
         self._task = self._curriculum.get_task()
         task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        game_config_dict = cast(Dict[str, Any], OmegaConf.to_container(task_cfg.game))
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
+        # Rebuild and set level for the new task to keep level and config in sync
+        level = task_cfg.game.map_builder.build()
+        self._level = level
         # Call the base reset method
         obs, info = super().reset(game_config_dict, seed)
+
+        # After recreating C++ env, reattach buffers so future steps write into our arrays
+        if self._observations is None or self._terminals is None or self._truncations is None or self._rewards is None:
+            self._allocate_buffers()
+        else:
+            self.c_env.set_buffers(self._observations, self._terminals, self._truncations, self._rewards)
 
         # Handle single-agent return format
         if self._single_agent and obs is not None:
@@ -143,7 +152,12 @@ class MettaGridGymEnv(MettaGridCore, GymEnv):
         return obs, info
 
     @override  # gymnasium.Env.step
-    def step(self, action: np.ndarray) -> Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]:
+    def step(
+        self, action: np.ndarray
+    ) -> (
+        Tuple[np.ndarray, float, bool, bool, Dict[str, Any]]
+        | Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]
+    ):
         """
         Execute one timestep of the environment dynamics.
 
