@@ -76,7 +76,6 @@ run: |
 
   echo "[DEBUG] Parent process: $(ps -p $$ -o comm=)"
 
-  # Optional metrics (best-effort)
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
     echo "[RUN] Collecting skypilot latency..."
     uv run python common/src/metta/common/util/skypilot_latency.py || true
@@ -105,7 +104,6 @@ run: |
     echo "[RUN] Cost monitor script is missing!"
   fi
 
-  # Load ENV
   if [ -f "$METTA_ENV_FILE" ]; then
     source "$METTA_ENV_FILE"
   else
@@ -130,27 +128,43 @@ run: |
 
   export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
 
-  # Start train.sh in background with its own process group
-  setsid ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
-  CMD_PID=$!
+  run_training() {
+    # Start train.sh in background with its own process group
+    setsid ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} &
+    local CMD_PID=$!
 
-  if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
-    echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE (pid=$CMD_PID)"
-    uv run python -m metta.common.util.heartbeat monitor "$HEARTBEAT_FILE" \
-      --pid "$CMD_PID" --timeout "$HEARTBEAT_TIMEOUT" \
-      >/dev/null 2>&1 &
-    HEARTBEAT_MONITOR_PID=$!
+    if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
+      echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE (pid=$CMD_PID)"
+      uv run python -m metta.common.util.heartbeat monitor "$HEARTBEAT_FILE" \
+        --pid "$CMD_PID" --timeout "$HEARTBEAT_TIMEOUT" \
+        >/dev/null 2>&1 &
+      local HEARTBEAT_MONITOR_PID=$!
+    fi
+
+    # Wait for training to finish, capture exit, then kill heartbeat monitor cleanly
+    wait "$CMD_PID"
+    local CMD_EXIT=$?
+
+    if [[ -n "${HEARTBEAT_MONITOR_PID:-}" ]]; then
+      kill "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
+      wait "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
+    fi
+
+    return $CMD_EXIT
+  }
+
+  # Run with timeout if MAX_RUNTIME_HOURS is set
+  if [[ -n "${MAX_RUNTIME_HOURS:-}" ]] && [[ "${MAX_RUNTIME_HOURS}" != "None" ]]; then
+    echo "[INFO] Running with timeout of ${MAX_RUNTIME_HOURS} hours"
+    timeout --kill-after=30s "${MAX_RUNTIME_HOURS}h" bash -c "$(declare -f run_training); run_training"
+    CMD_EXIT=$?
+  else
+    echo "[INFO] Running without timeout"
+    run_training
+    CMD_EXIT=$?
   fi
 
-  # Wait for training to finish, capture exit, then kill heartbeat monitor cleanly
-  wait "$CMD_PID"
-  CMD_EXIT=$?
-
-  if [[ -n "${HEARTBEAT_MONITOR_PID:-}" ]]; then
-    kill "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
-    wait "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
-  fi
-
+  # Check exit codes
   if [[ $CMD_EXIT -eq 124 ]] || [[ $CMD_EXIT -eq 143 ]]; then
     echo "[ERROR] Job terminated due to timeout (--max-runtime-hours exceeded)"
     export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
@@ -163,7 +177,8 @@ run: |
   fi
 
   if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
-    # The set_github_status.py script will use CMD_EXIT to determine status
+    # The set_github_status.py script uses CMD_EXIT to determine status
+    export CMD_EXIT
     uv run devops/skypilot/set_github_status.py || echo "[WARN] Final status post failed"
   fi
 

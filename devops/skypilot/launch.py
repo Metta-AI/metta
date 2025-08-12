@@ -1,7 +1,6 @@
 #!/usr/bin/env -S uv run
 import argparse
 import copy
-import shlex
 import sys
 
 import sky
@@ -25,7 +24,6 @@ def patch_task(
     gpus: int | None,
     nodes: int | None,
     no_spot: bool = False,
-    timeout_hours: float | None = None,
 ) -> sky.Task:
     overrides = {}
     if cpus:
@@ -54,24 +52,6 @@ def patch_task(
 
     if gpus or no_spot:
         task.set_resources(type(task.resources)(new_resources_list))
-
-    # Add timeout configuration if specified
-    if timeout_hours is not None:
-        current_run_script = task.run or ""
-        # Construct the command parts
-        # timeout utility takes DURATION COMMAND [ARG]...
-        # Here, COMMAND is 'bash', and its ARGs are '-c' and the script itself.
-        timeout_command_parts = [
-            "timeout",
-            "--kill-after=30s",  # Send SIGKILL if SIGTERM doesn't work
-            f"{timeout_hours}h",  # Use 'h' suffix for hours, timeout supports floats
-            "bash",
-            "-c",
-            current_run_script,
-        ]
-        # shlex.join will correctly quote each part, especially current_run_script,
-        # ensuring it's passed as a single argument to bash -c.
-        task.run = shlex.join(timeout_command_parts)
 
     return task
 
@@ -170,7 +150,6 @@ def main():
         gpus=args.gpus,
         nodes=args.nodes,
         no_spot=args.no_spot,
-        timeout_hours=args.max_runtime_hours,
     )
     set_task_secrets(task)
 
