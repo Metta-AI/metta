@@ -8,7 +8,7 @@ from typing import ClassVar
 from pydantic import ConfigDict, Field, field_validator
 
 from metta.common.util.config import Config
-from metta.rl.env_config import EnvConfig
+from metta.mettagrid.mettagrid_config import EnvConfig
 
 from .task_generator import TaskGeneratorConfig
 
