@@ -122,7 +122,7 @@ export function processActions(event: KeyboardEvent) {
     // Movement handling.
     if (key === 'w' || key === 'ArrowUp') {
       if (supportsMove8) {
-        // Collect key for potential diagonal combo
+        // Collect key for potential diagonal combo.
         pushComboKey('w')
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 0)
@@ -232,10 +232,10 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 0)
         sendAction('move_cardinal', 2)
       } else {
-        sendAction('rotate', 0) // Rotate up
-        sendAction('move', 0) // Move up
-        sendAction('rotate', 2) // Rotate left
-        sendAction('move', 0) // Move left
+        sendAction('rotate', 0) // Rotate up.
+        sendAction('move', 0) // Move up.
+        sendAction('rotate', 2) // Rotate left.
+        sendAction('move', 0) // Move left.
       }
     }
     if (event.code === 'Numpad9') {
@@ -245,10 +245,10 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 0)
         sendAction('move_cardinal', 3)
       } else {
-        sendAction('rotate', 0) // Rotate up
-        sendAction('move', 0) // Move up
-        sendAction('rotate', 3) // Rotate right
-        sendAction('move', 0) // Move right
+        sendAction('rotate', 0) // Rotate up.
+        sendAction('move', 0) // Move up.
+        sendAction('rotate', 3) // Rotate right.
+        sendAction('move', 0) // Move right.
       }
     }
     if (event.code === 'Numpad1') {
@@ -258,10 +258,10 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 1)
         sendAction('move_cardinal', 2)
       } else {
-        sendAction('rotate', 1) // Rotate down
-        sendAction('move', 0) // Move down
-        sendAction('rotate', 2) // Rotate left
-        sendAction('move', 0) // Move left
+        sendAction('rotate', 1) // Rotate down.
+        sendAction('move', 0) // Move down.
+        sendAction('rotate', 2) // Rotate left.
+        sendAction('move', 0) // Move left.
       }
     }
     if (event.code === 'Numpad3') {
@@ -271,10 +271,10 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 1)
         sendAction('move_cardinal', 3)
       } else {
-        sendAction('rotate', 1) // Rotate down
-        sendAction('move', 0) // Move down
-        sendAction('rotate', 3) // Rotate right
-        sendAction('move', 0) // Move right
+        sendAction('rotate', 1) // Rotate down.
+        sendAction('move', 0) // Move down.
+        sendAction('rotate', 3) // Rotate right.
+        sendAction('move', 0) // Move right.
       }
     }
 
