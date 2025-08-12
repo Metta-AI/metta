@@ -46,14 +46,14 @@ class TaskGenerator(ABC):
         self._config = config
         self._overrides = config.overrides
 
-    def get_task(self, task_id: int) -> SystemConfig:
+    def get_task(self, task_id: int) -> EnvConfig:
         """Generate a task (EnvConfig) using task_id as seed."""
         rng = random.Random()
         rng.seed(task_id)
         return self._apply_overrides(self._generate_task(task_id, rng), self._config.overrides)
 
     @abstractmethod
-    def _generate_task(self, task_id: int, rng: random.Random) -> SystemConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
         """Generate a task with the given task_id and RNG.
 
         This method should be overridden by subclasses to implement
@@ -68,7 +68,7 @@ class TaskGenerator(ABC):
         """
         raise NotImplementedError("TaskGenerator._generate_task() must be overridden by subclasses")
 
-    def _apply_overrides(self, env_config: SystemConfig, overrides: dict[str, Any]) -> SystemConfig:
+    def _apply_overrides(self, env_config: EnvConfig, overrides: dict[str, Any]) -> EnvConfig:
         """Apply overrides to an EnvConfig using dot-separated keys."""
         if not overrides:
             return env_config
@@ -81,7 +81,7 @@ class TaskGenerator(ABC):
 
         config_dict = OmegaConf.to_container(config_dict)
 
-        return SystemConfig.model_validate(config_dict)
+        return EnvConfig.model_validate(config_dict)
 
 
 ################################################################################
@@ -92,7 +92,7 @@ class TaskGenerator(ABC):
 class SingleTaskGeneratorConfig(TaskGeneratorConfig):
     """Configuration for SingleTaskGenerator."""
 
-    env_config: SystemConfig = Field(description="The environment configuration to always return")
+    env_config: EnvConfig = Field(description="The environment configuration to always return")
 
     def create(self) -> "SingleTaskGenerator":
         """Create a SingleTaskGenerator from this configuration."""
@@ -106,7 +106,7 @@ class SingleTaskGenerator(TaskGenerator):
         super().__init__(config)
         self._config: SingleTaskGeneratorConfig = config
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> SystemConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
         """Always return the same EnvConfig."""
         return self._config.env_config
 
@@ -154,7 +154,7 @@ class TaskGeneratorSet(TaskGenerator):
         self._sub_task_generators = [config.create() for config in self._config.task_generator_configs]
         self._weights = self._config.weights
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> SystemConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
         return rng.choices(self._sub_task_generators, weights=self._weights)[0].get_task(task_id)
 
 
@@ -218,7 +218,7 @@ class BucketedTaskGenerator(TaskGenerator):
                 bucket_value = rng.uniform(min_val, max_val)
         return bucket_value
 
-    def _generate_task(self, task_id: int, rng: random.Random) -> SystemConfig:
+    def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
         """Generate task by calling child generator then applying bucket overrides."""
         # First, sample values from each bucket
         overrides = {}
