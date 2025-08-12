@@ -7,7 +7,7 @@
 seed=$RANDOM
 
 ./devops/skypilot/launch.py train \
-  run=$USER.navigation.8way.seed$seed.$(date +%m-%d) \
+  run=$USER.navigation.cardinal.seed$seed.$(date +%m-%d) \
   trainer.curriculum=env/mettagrid/curriculum/navigation/learning_progress \
   sim=navigation \
   seed=$seed \
