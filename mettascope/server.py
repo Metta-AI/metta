@@ -271,7 +271,18 @@ def make_app(cfg: DictConfig):
                     overlay_enabled = bool(message.get("enabled", False))
                 except Exception:
                     overlay_enabled = False
-                # No immediate response; the next replay_step will include the overlay if it is enabled.
+                # Send an immediate grid snapshot so the client can render without waiting for a step.
+                if overlay_enabled:
+                    grid, width, height, vmin, vmax = extract_visual_grid(overlay_agent_id, overlay_layer_id)
+                    await send_message(
+                        type="visual_grid",
+                        agentId=int(overlay_agent_id),
+                        layerId=int(overlay_layer_id),
+                        width=int(width),
+                        height=int(height),
+                        values=grid.reshape(-1).tolist(),
+                        valueRange={"min": int(vmin), "max": int(vmax)},
+                    )
                 continue
 
             elif message["type"] == "visual_set_agent":
@@ -279,6 +290,18 @@ def make_app(cfg: DictConfig):
                     overlay_agent_id = int(message.get("agent_id", 0))
                 except Exception:
                     overlay_agent_id = 0
+                # If overlay is enabled, send an immediate grid snapshot for the new agent.
+                if overlay_enabled:
+                    grid, width, height, vmin, vmax = extract_visual_grid(overlay_agent_id, overlay_layer_id)
+                    await send_message(
+                        type="visual_grid",
+                        agentId=int(overlay_agent_id),
+                        layerId=int(overlay_layer_id),
+                        width=int(width),
+                        height=int(height),
+                        values=grid.reshape(-1).tolist(),
+                        valueRange={"min": int(vmin), "max": int(vmax)},
+                    )
                 continue
 
             elif message["type"] == "visual_set_layer":
@@ -286,6 +309,18 @@ def make_app(cfg: DictConfig):
                     overlay_layer_id = int(message.get("layer_id", 0))
                 except Exception:
                     overlay_layer_id = 0
+                # If overlay is enabled, send an immediate grid snapshot for the new layer.
+                if overlay_enabled:
+                    grid, width, height, vmin, vmax = extract_visual_grid(overlay_agent_id, overlay_layer_id)
+                    await send_message(
+                        type="visual_grid",
+                        agentId=int(overlay_agent_id),
+                        layerId=int(overlay_layer_id),
+                        width=int(width),
+                        height=int(height),
+                        values=grid.reshape(-1).tolist(),
+                        valueRange={"min": int(vmin), "max": int(vmax)},
+                    )
                 continue
 
             elif message["type"] == "clear_memory":

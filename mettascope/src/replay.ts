@@ -644,6 +644,7 @@ export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl)
   state.ws.onmessage = (event) => {
     const data = JSON.parse(event.data)
+    console.debug('WS message:', data.type, data)
     if (data.type === 'replay') {
       loadReplayJson(wsUrl, data.replay)
       Common.closeModal()
@@ -673,6 +674,7 @@ export function initWebSocket(wsUrl: string) {
   }
   state.ws.onopen = () => {
     Common.showModal('info', 'Starting environment', 'Please wait while live environment is starting...')
+    console.debug('WS open')
     // If overlay was requested before the socket opened, enable it now
     if (state.showObsOverlay) {
       sendVisualOverlayEnable(true)
@@ -685,9 +687,11 @@ export function initWebSocket(wsUrl: string) {
     }
   }
   state.ws.onclose = () => {
+    console.debug('WS close')
     Common.showModal('error', 'WebSocket closed', 'Please check your connection and refresh this page.')
   }
   state.ws.onerror = (event) => {
+    console.debug('WS error', event)
     Common.showModal('error', 'WebSocket error', `Websocket error: ${event}`)
   }
 }
@@ -728,6 +732,7 @@ export function sendAction(actionName: string, actionParam: number) {
 export function sendVisualOverlayEnable(enabled: boolean) {
   if (state.ws === null) return
   const payload = { type: 'visual_overlay_enable', enabled }
+  console.debug('WS send:', payload)
   if (state.ws.readyState === WebSocket.OPEN) {
     state.ws.send(JSON.stringify(payload))
   } else {
@@ -744,6 +749,7 @@ export function sendVisualOverlayEnable(enabled: boolean) {
 export function sendVisualSetAgent(agentId: number) {
   if (state.ws === null) return
   const payload = { type: 'visual_set_agent', agent_id: agentId }
+  console.debug('WS send:', payload)
   if (state.ws.readyState === WebSocket.OPEN) {
     state.ws.send(JSON.stringify(payload))
   } else {
@@ -760,6 +766,7 @@ export function sendVisualSetAgent(agentId: number) {
 export function sendVisualSetLayer(layerId: number) {
   if (state.ws === null) return
   const payload = { type: 'visual_set_layer', layer_id: layerId }
+  console.debug('WS send:', payload)
   if (state.ws.readyState === WebSocket.OPEN) {
     state.ws.send(JSON.stringify(payload))
   } else {

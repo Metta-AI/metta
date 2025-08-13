@@ -646,17 +646,21 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
   // Play-mode visual overlay toggle and layer cycling.
   if (state.ws !== null) {
     if (event.key === 'o' || event.key === 'O') {
+      console.debug('Overlay toggle key pressed.')
       state.showObsOverlay = !state.showObsOverlay
+      console.info('showObsOverlay', state.showObsOverlay)
       if (state.showObsOverlay) {
         // Initialize agent and layer before enabling so the server can respond immediately with a grid.
         if (state.selectedGridObject && state.selectedGridObject.isAgent) {
           const aid = state.selectedGridObject.agentId
           state.activeVisualAgentId = aid
+          console.debug('Setting overlay agent to', aid)
           sendVisualSetAgent(aid)
         }
         if (state.visualLayers.length > 0) {
           const layerId = state.activeVisualLayerId ?? state.visualLayers[0].id
           state.activeVisualLayerId = layerId
+          console.debug('Setting overlay layer to', layerId)
           sendVisualSetLayer(layerId)
         }
         sendVisualOverlayEnable(true)
@@ -669,6 +673,7 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
     }
     if ((event.key === '=' || event.key === '+') && state.visualLayers.length > 0) {
       // Next layer
+      console.info('Next layer')
       const ids = state.visualLayers.map((l) => l.id)
       const cur = state.activeVisualLayerId ?? ids[0]
       const idx = ids.indexOf(cur)
@@ -679,6 +684,7 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
     }
     if (event.key === '-' && state.visualLayers.length > 0) {
       // Prev layer
+      console.info('Prev layer')
       const ids = state.visualLayers.map((l) => l.id)
       const cur = state.activeVisualLayerId ?? ids[0]
       const idx = ids.indexOf(cur)
@@ -745,8 +751,7 @@ export function onFrame() {
     html.actionButtons.classList.add('hidden')
   }
 
-  // Simple keyboard toggle for observation overlay and layer cycling in play mode
-  // This is light UI wiring without modifying index.html
+  // TODO overlay toggle.
 
   if (state.showAgentPanel) {
     ui.agentPanel.div.classList.remove('hidden')
