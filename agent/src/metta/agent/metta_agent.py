@@ -11,6 +11,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.component_policy import ComponentPolicy
+from metta.agent.legacy_adapter import LegacyMettaAgentAdapter
 from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.rl.system_config import SystemConfig
 
@@ -29,17 +30,8 @@ class DistributedMettaAgent(DistributedDataParallel):
     def __init__(self, agent: "MettaAgent", device: torch.device):
         logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
 
-        # Check for circular reference (old checkpoints where self.policy == self)
-        if hasattr(agent, "policy") and agent.policy is agent:
-            logger.warning(
-                "Detected circular reference (self.policy == self) from old checkpoint. "
-                "Skipping SyncBatchNorm conversion to avoid recursion."
-            )
-            # Skip SyncBatchNorm conversion for agents with circular references
-            layers_converted_agent = agent
-        else:
-            # This maintains the same interface as the input MettaAgent
-            layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
+        # This maintains the same interface as the input MettaAgent
+        layers_converted_agent: "MettaAgent" = torch.nn.SyncBatchNorm.convert_sync_batchnorm(agent)  # type: ignore
 
         # Pass device_ids for GPU, but not for CPU
         if device.type == "cpu":
@@ -118,56 +110,16 @@ class MettaAgent(nn.Module):
         if self.policy is None:
             raise RuntimeError("No policy set during initialization.")
 
-        # Handle old checkpoints where self.policy == self (old MettaAgent WAS the policy)
-        if self.policy is self and hasattr(self, "components"):
-            # Old MettaAgent sets bptt/batch keys and runs value/action components
-            B = td.batch_size[0] if td.batch_dims > 1 else td.batch_size.numel()
-            if td.batch_dims > 1:
-                TT = td.batch_size[1]
-                td = td.reshape(B * TT)
-                td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
-                td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
-            else:
-                td.set("bptt", torch.ones(B, device=td.device, dtype=torch.long))
-                td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
-
-            # Run value/action components if they exist
-            if "_value_" in self.components:
-                self.components["_value_"](td)
-            if "_action_" in self.components:
-                self.components["_action_"](td)
-
-            # Delegate to appropriate method
-            if action is None and hasattr(self, "forward_inference"):
-                return self.forward_inference(td)
-            elif action is not None and hasattr(self, "forward_training"):
-                return self.forward_training(td, action)
-            # Fallback
-            td.setdefault("actions", torch.zeros((B, 2), dtype=torch.long))
-            return td
-
-        # New policies expect (td, state, action)
+        # Delegate to policy - it handles all cases including legacy
         return self.policy(td, state, action)
 
     def reset_memory(self) -> None:
         """Reset memory - delegates to policy if it supports memory."""
-        if self.policy is self and hasattr(self, "components_with_memory"):
-            # Old MettaAgent: reset components with memory
-            for name in self.components_with_memory:
-                if name in self.components and hasattr(self.components[name], "reset_memory"):
-                    self.components[name].reset_memory()
-        elif hasattr(self.policy, "reset_memory"):
+        if hasattr(self.policy, "reset_memory"):
             self.policy.reset_memory()
 
     def get_memory(self) -> dict:
         """Get memory state - delegates to policy if it supports memory."""
-        if self.policy is self and hasattr(self, "components_with_memory"):
-            # Old MettaAgent: collect memory from components
-            return {
-                name: self.components[name].get_memory()
-                for name in self.components_with_memory
-                if name in self.components and hasattr(self.components[name], "get_memory")
-            }
         return getattr(self.policy, "get_memory", lambda: {})()
 
     def get_agent_experience_spec(self) -> Composite:
@@ -364,8 +316,18 @@ class MettaAgent(nn.Module):
     def __setstate__(self, state):
         """Restore state from checkpoint."""
         self.__dict__.update(state)
+
+        # Handle old checkpoints that don't have a policy attribute
         if not hasattr(self, "policy"):
-            self.policy = self
+            # This is an old checkpoint where MettaAgent directly contained components
+            if hasattr(self, "components"):
+                logger.info("Detected old checkpoint format - wrapping in LegacyMettaAgentAdapter")
+                # Wrap self in the adapter to provide backwards compatibility
+                self.policy = LegacyMettaAgentAdapter(self)
+            else:
+                # Shouldn't happen but handle gracefully
+                logger.warning("Old checkpoint without components - setting policy to None")
+                self.policy = None
 
 
 PolicyAgent = MettaAgent | DistributedMettaAgent
