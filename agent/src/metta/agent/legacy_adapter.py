@@ -17,6 +17,10 @@ class LegacyMettaAgentAdapter(nn.Module):
 
     def __init__(self, legacy_agent):
         super().__init__()
+
+        # Break any circular references in the legacy agent before storing it
+        self._break_circular_references(legacy_agent)
+
         self.legacy_agent = legacy_agent
 
         # Copy attributes the new system expects
@@ -29,6 +33,75 @@ class LegacyMettaAgentAdapter(nn.Module):
         ]:
             if hasattr(legacy_agent, attr):
                 setattr(self, attr, getattr(legacy_agent, attr))
+
+    def _break_circular_references(self, agent):
+        """Break circular references that could cause infinite recursion."""
+        # Remove self-references that might exist in old checkpoints
+        if hasattr(agent, "policy") and agent.policy is agent:
+            agent.policy = None
+            logger.info("Broke circular reference: agent.policy = agent")
+
+        # Remove any module references that point back to the agent itself
+        if hasattr(agent, "_modules"):
+            for name, module in list(agent._modules.items()):
+                if module is agent:
+                    agent._modules[name] = None
+                    logger.info(f"Broke circular reference in _modules[{name}]")
+
+        # Check components for circular references
+        if hasattr(agent, "components"):
+            if isinstance(agent.components, nn.ModuleDict):
+                for name in list(agent.components.keys()):
+                    if agent.components[name] is agent:
+                        del agent.components[name]
+                        logger.info(f"Removed circular reference in components[{name}]")
+                    # Also check for deep circular references within components
+                    elif hasattr(agent.components[name], "_modules"):
+                        self._break_component_circular_refs(agent.components[name], agent)
+
+        # Remove any parent references that might cause cycles
+        if hasattr(agent, "_parent"):
+            agent._parent = None
+
+        # Clean up any other potential circular references in __dict__
+        for key, value in list(agent.__dict__.items()):
+            if value is agent and key not in ["_modules", "_parameters", "_buffers"]:
+                agent.__dict__[key] = None
+                logger.info(f"Broke circular reference: agent.{key} = agent")
+
+    def _break_component_circular_refs(self, component, root_agent):
+        """Recursively break circular references within a component."""
+        if hasattr(component, "_modules"):
+            for name, module in list(component._modules.items()):
+                if module is root_agent or module is component:
+                    component._modules[name] = None
+                    logger.info("Broke deep circular reference in component")
+
+        # Check component's __dict__ for references back to root
+        if hasattr(component, "__dict__"):
+            for key, value in list(component.__dict__.items()):
+                if value is root_agent and key not in ["_modules", "_parameters", "_buffers"]:
+                    component.__dict__[key] = None
+                    logger.info(f"Broke deep circular reference in component.{key}")
+
+    def named_children(self):
+        """Override to prevent infinite recursion when traversing module tree.
+
+        This is called by SyncBatchNorm.convert_sync_batchnorm and can cause
+        infinite recursion if there are circular references.
+        """
+        # Only return components that are actual nn.Modules and not self-referential
+        seen = set()
+
+        # First yield components if they exist
+        if hasattr(self, "components") and isinstance(self.components, nn.ModuleDict):
+            for name, module in self.components.items():
+                if module is not None and id(module) not in seen and module is not self:
+                    seen.add(id(module))
+                    yield f"components.{name}", module
+
+        # Don't yield legacy_agent as a child to avoid potential circular traversal
+        # The legacy agent's components are already accessible via self.components
 
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass - delegate to legacy agent's forward methods."""
