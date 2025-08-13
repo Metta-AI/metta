@@ -1,5 +1,4 @@
 defaults:
-  - /env/mettagrid/mettagrid@
   - /env/mettagrid/game/objects/in_context_learning@game.objects
   - _self_
 

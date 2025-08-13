@@ -4,13 +4,13 @@ from metta.common.util.config import Config
 from metta.map.scene import Scene
 
 
-class RandomParams(Config):
+class PerimeterParams(Config):
     objects: dict[str, int] = {}
     agents: int | dict[str, int] = 0
     too_many_is_ok: bool = True
 
 
-class Random(Scene[RandomParams]):
+class Perimeter(Scene[PerimeterParams]):
     """
     Fill the perimeter of the grid with random symbols, based on configuration.
 

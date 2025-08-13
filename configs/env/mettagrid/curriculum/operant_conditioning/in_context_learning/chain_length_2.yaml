@@ -1,9 +1,0 @@
-_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
-
-tasks:
-  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/ore_blue_0: 1
-  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/ore_blue_1: 1
-  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/ore_green_0: 1
-  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/ore_green_1: 1
-  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/ore_red_0: 1
-  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/ore_red_1: 1
