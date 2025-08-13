@@ -1,10 +1,11 @@
 # %%
 import itertools
-from itertools import permutations
+import os
 
 import numpy as np
+import yaml
 
-converter_types = [
+CONVERTER_TYPES = [
     "mine_red",
     "mine_blue",
     "mine_green",
@@ -13,11 +14,13 @@ converter_types = [
     "generator_green",
     "altar",
     "lab",
-    "factory",
-    "temple",
+    # leave out some objects for evals
+    # "factory",
+    # "temple",
+    # lasery
 ]
 
-resource_types = [
+RESOURCE_TYPES = [
     "ore_red",
     "ore_blue",
     "ore_green",
@@ -29,129 +32,123 @@ resource_types = [
     "armor",
 ]
 
-env_cfgs = []
-
-# CURRICULUM PARAMS
-num_resources = 4
-# for now, initial inventory means you are initialized with the last resource that you need  to get the heart
-# but we can extend this to allow for initializing with any resource along the chain
-maximum_chain_length = 4
-
-assert num_resources >= maximum_chain_length, "num_resources must be >= maximum_chain_length"
-
-env_cfg_template = {"game.map_builder.root.params.objects": {}, "game.objects": {}}
-# GENERATE ENV CFGS
-
-# Generate all possible combinations of num_converters converter types
-resources = resource_types[:num_resources]
-#
-# %%
-all_resource_permutations = []
-for length in range(1, min(len(resources), maximum_chain_length) + 1):
-    all_resource_permutations.extend(list(permutations(resources, length)))
-# %%
+DEFAULT_ENV_CFG = {
+    "defaults": [
+        "/env/mettagrid/operant_conditioning/in_context_learning/defaults@",
+        "_self_:",
+    ],
+    "game": {
+        "map_builder": {
+            "root": {
+                "params": {
+                    "objects": {},
+                }
+            }
+        },
+        "objects": {},
+    },
+}
 
 
-def get_env_cfg(resource_chain, sink_per_level, initial_inventory):
-    print(f"Initial inventory: {initial_inventory}")
+class InContextEnv:
+    def __init__(self, resource_types, converter_types, resource_chain, num_sinks: int):
+        self.env_cfg = DEFAULT_ENV_CFG.copy()
+        self.resource_types = resource_types
+        self.converter_types = converter_types
+        self.resource_chain = resource_chain
+        self.num_sinks = num_sinks
+        self.used_objects = []
+        self.all_input_resources = []
 
-    resource_chain = ["nothing"] + list(resource_chain) + ["heart"]
-    sink_per_level = [0] + list(sink_per_level) + [0]
-    chain_length = len(resource_chain)
+    def set_converter(self, input_resource, output_resource):
+        """
+        Get a converter, add it to the environment config, and return the converter, input, and output
+        """
+        converter = np.random.choice([c for c in self.converter_types if c not in self.used_objects])
+        self.used_objects.append(converter)
 
-    print(f"Resource chain: {resource_chain}")
-    print(f"Sink per level: {sink_per_level}")
+        self.env_cfg["game"]["map_builder"]["root"]["params"]["objects"][converter] = 1
 
-    used_objects = []
-
-    env_cfg_template["game.map_builder.root.params.objects"] = {}
-    env_cfg_template["game.objects"] = {}
-    env_cfg_template["game.agent.initial_inventory"] = {}
-
-    # for every pair along the way of our resource chain
-    for i in range(chain_length - 1):
-        # first with no sink
-        pair = resource_chain[i], resource_chain[i + 1]
-        converter = np.random.choice([c for c in converter_types if c not in used_objects])
-        used_objects.append(converter)
-
-        print(f"{converter} will convert {pair[0]} to {pair[1]}")
-
-        env_cfg_template["game.map_builder.root.params.objects"][converter] = 1
-
-        if pair[0] == "nothing":
-            env_cfg_template["game.objects"][converter] = {"output_resources": {pair[1]: 1}}
+        if input_resource == "nothing":
+            self.env_cfg["game"]["objects"][converter] = {"output_resources": {output_resource: 1}}
         else:
-            env_cfg_template["game.objects"][converter] = {
-                "input_resources": {pair[0]: 1},
-                "output_resources": {pair[1]: 1},
+            self.env_cfg["game"]["objects"][converter] = {
+                "input_resources": {input_resource: 1},
+                "output_resources": {output_resource: 1},
+            }
+            self.all_input_resources.append(input_resource)
+
+    def set_sink(self):
+        """
+        Get a sink, add it to the environment config, and return the sink, input, and output
+        """
+        sink = np.random.choice([c for c in self.converter_types if c not in self.used_objects])
+        self.used_objects.append(sink)
+
+        self.env_cfg["game"]["map_builder"]["root"]["params"]["objects"][sink] = 1
+
+        for input_resource in self.all_input_resources:
+            self.env_cfg["game"]["objects"][sink] = {
+                "input_resources": {input_resource: 1},
             }
 
-        if sink_per_level[i] == 1:
-            sink = np.random.choice([c for c in converter_types if c not in used_objects])
-            used_objects.append(sink)
+    def get_env_cfg(self):
+        # first resource is always nothing, last resource is always heart
+        resource_chain = ["nothing"] + list(self.resource_chain) + ["heart"]
 
-            print(f"Sink {sink} will sink {pair[0]} at level {i}")
+        chain_length = len(resource_chain)
 
-            env_cfg_template["game.map_builder.root.params.objects"][sink] = 1
+        # for every i/o pair along the way of our resource chain
+        for i in range(chain_length - 1):
+            input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
 
-            env_cfg_template["game.objects"][sink] = {
-                "input_resources": {pair[0]: 1},
-            }
+            self.set_converter(input_resource, output_resource)
 
-    if initial_inventory:
-        env_cfg_template["game.agent.initial_inventory"][resource_chain[-2]] = 1
+        self.set_sink()
 
-    return env_cfg_template
+        return self.env_cfg
 
 
-# %%
-# %%
+class InContextEnvGenerator:
+    def __init__(self, maximum_chain_length: int, maximum_num_sinks: int):
+        self.maximum_chain_length = maximum_chain_length
+        self.maximum_num_sinks = maximum_num_sinks
 
-env_cfgs = []
-for resource_chain in all_resource_permutations:
-    chain_length = len(resource_chain)
-    sink_per_level_options = list(itertools.product([0, 1], repeat=len(resource_chain)))
-    for sink_per_level in sink_per_level_options:
-        if sum(sink_per_level) > 2:
-            continue
-        for initial_inventory in [True]:
-            yaml_file_path = (
-                f"configs/env/mettagrid/operant_conditioning/in_context_learning/"
-                f"chain_length_{chain_length + 1}/{'-'.join(str(x) for x in resource_chain)}"
-                f"_{''.join(str(x) for x in sink_per_level)}.yaml"
-            )
+        self.resource_types = RESOURCE_TYPES[: self.maximum_chain_length]
+        self.converter_types = CONVERTER_TYPES[: self.maximum_chain_length]
 
-            f = open(yaml_file_path, "w")
-            f.write("defaults:" + "\n")
-            f.write("   - /env/mettagrid/operant_conditioning/in_context_learning/defaults@" + "\n")
-            f.write("   - _self_game:" + "\n")
+        all_resource_permutations = []
+        for length in range(1, min(len(self.resource_types), self.maximum_chain_length) + 1):
+            all_resource_permutations.extend(list(itertools.permutations(self.resource_types, length)))
 
-            env_cfg = get_env_cfg(resource_chain, sink_per_level, initial_inventory)
-            f.write("game:" + "\n")
-            f.write("  map_builder:" + "\n")
-            f.write("    root:" + "\n")
-            f.write("      params:" + "\n")
-            f.write("        objects:" + "\n")
-            for obj, count in env_cfg["game.map_builder.root.params.objects"].items():
-                f.write(f"          {obj}: {count}" + "\n")
-            f.write("  objects:" + "\n")
-            for obj, resource_dict in env_cfg["game.objects"].items():
-                f.write(f"    {obj}:" + "\n")
-                for key, value in resource_dict.items():
-                    f.write(f"      {key}:" + "\n")
-                    for resource, count in value.items():
-                        f.write(f"        {resource}: {count}" + "\n")
-            f.write("  agent:" + "\n")
-            f.write("    initial_inventory:" + "\n")
-            for resource in env_cfg["game.agent.initial_inventory"]:
-                f.write(f"      {resource}: 1" + "\n")
-            f.close()
+        self.all_resource_permutations = all_resource_permutations
 
-            # print(f"Environment cfg: {env_cfg}")
-            # env_cfgs.append(env_cfg)
-            # print("\n")
+    def generate_yaml_cfgs(self):
+        num_envs = 0
+        for resource_chain in self.all_resource_permutations:
+            chain_length = len(resource_chain)
+            for num_sinks in range(self.maximum_num_sinks):
+                env = InContextEnv(self.resource_types, self.converter_types, resource_chain, num_sinks)
+                env_cfg = env.get_env_cfg()
 
-print(f"Have {len(env_cfgs)} environments total" + "\n")
+                yaml_file_path = (
+                    f"configs/env/mettagrid/operant_conditioning/in_context_learning/"
+                    f"chain_length_{chain_length}/{num_sinks}/{'-'.join(str(x) for x in resource_chain)}.yaml"
+                )
+
+                os.makedirs(yaml_file_path, exist_ok=True)
+
+                f = open(yaml_file_path, "w")
+
+                yaml.dump(env_cfg, f)
+
+                num_envs += 1
+
+        print(f"Generated {num_envs} envs")
+
+
+if __name__ == "__main__":
+    generator = InContextEnvGenerator(maximum_chain_length=4, maximum_num_sinks=2)
+    generator.generate_yaml_cfgs()
 
 # %%
