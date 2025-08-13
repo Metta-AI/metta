@@ -9,6 +9,14 @@ wandb:
 run_id: 492
 run: ${oc.env:USER}.local.${run_id}
 
+replay_job:
+  sim:
+    env: /env/mettagrid/colortree_easy_roomgen
+    env_overrides:
+      game:
+        actions:
+          color_tree:
+            enabled: true
 
 # agent:
 #   _target_: metta.agent.external.lstm_transformer.Recurrent
@@ -28,6 +36,11 @@ trainer:
   # batch_size: 2048
   # minibatch_size: 256
   bptt_horizon: 64
+  # simulation:
+  #   evaluate_interval: 10
+  # checkpoint:
+  #   checkpoint_interval: 10
+  #   wandb_checkpoint_interval: 10
   # update_epochs: 2
   # forward_pass_minibatch_target_size: 256
 

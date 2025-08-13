@@ -4,9 +4,10 @@ defaults:
 
 game:
   num_agents: 128
-  max_steps: 64
+  max_steps: 4
   obs_width: 11
   obs_height: 11
+
 
   map_builder:
     _target_: metta.map.mapgen_ascii.MapGenAscii
