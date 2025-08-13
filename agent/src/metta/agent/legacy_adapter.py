@@ -74,7 +74,7 @@ class LegacyMettaAgentAdapter(nn.Module):
     def reset_memory(self) -> None:
         """Reset memory for components that have it."""
         for name in getattr(self, "components_with_memory", []):
-            if hasattr(self.components.get(name, None), "reset_memory"):
+            if name in self.components and hasattr(self.components[name], "reset_memory"):
                 self.components[name].reset_memory()
 
     def get_memory(self) -> dict:
@@ -82,7 +82,7 @@ class LegacyMettaAgentAdapter(nn.Module):
         return {
             name: self.components[name].get_memory()
             for name in getattr(self, "components_with_memory", [])
-            if hasattr(self.components.get(name, None), "get_memory")
+            if name in self.components and hasattr(self.components[name], "get_memory")
         }
 
     def clip_weights(self):
@@ -119,14 +119,15 @@ class LegacyMettaAgentAdapter(nn.Module):
 
     def activate_action_embeddings(self, full_action_names: list[str], device):
         """Activate action embeddings if the component exists."""
-        if "_action_embeds_" in getattr(self, "components", {}):
+        if hasattr(self, "components") and "_action_embeds_" in self.components:
             self.components["_action_embeds_"].activate_actions(full_action_names, device)
 
     def _apply_feature_remapping(self, remap_tensor: torch.Tensor):
         """Apply feature remapping to observation component."""
-        obs = getattr(self, "components", {}).get("_obs_")
-        if obs and hasattr(obs, "update_feature_remapping"):
-            obs.update_feature_remapping(remap_tensor)
+        if hasattr(self, "components") and "_obs_" in self.components:
+            obs = self.components["_obs_"]
+            if hasattr(obs, "update_feature_remapping"):
+                obs.update_feature_remapping(remap_tensor)
 
     def update_normalization_factors(self, features: dict[str, dict], original_feature_mapping: dict[str, int] | None):
         """Update normalization factors."""
@@ -138,5 +139,7 @@ class LegacyMettaAgentAdapter(nn.Module):
         """Access to LSTM component if it exists."""
         if hasattr(self.legacy_agent, "lstm"):
             return self.legacy_agent.lstm
-        core = getattr(self, "components", {}).get("_core_")
-        return getattr(core, "_net", None) if core else None
+        if hasattr(self, "components") and "_core_" in self.components:
+            core = self.components["_core_"]
+            return getattr(core, "_net", None)
+        return None
