@@ -288,12 +288,6 @@ run: |
 
     START_TIME=$(date +%s)
 
-    if command -v setsid >/dev/null 2>&1; then
-      echo "[DEBUG] setsid is available"
-    else
-      echo "[DEBUG] setsid is NOT available - falling back to standard process group"
-    fi
-
     # Start training in its own process group; tee output for postmortem
     setsid ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} 2>&1 | tee "$IPC_DIR/${METTA_CMD}_log.txt" &
     CMD_PID=$!
