@@ -9,13 +9,13 @@
 #include "objects/converter.hpp"
 #include "objects/wall.hpp"
 
-#include <raylib.h>
-
 #include <chrono>
 #include <format>
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+#include <raylib.h>
 
 #define HERMES_DEBUG 1
 
@@ -218,7 +218,7 @@ public:
 
 // Render Passes --------------------------------------------------------------
 
-// HermesNode -> Raylib world position, sized by the node's sprite.
+// HermesNode -> Raylib world position.
 static inline Vector2 Position(HermesNode node) {
     return {node.cell.x * TILE_SIZE, node.cell.y * TILE_SIZE};
 }
@@ -396,7 +396,7 @@ static void DrawInventory(Hermes& ctx) {
 
     auto draw = [&ctx, &dst](size_t item_id, float scale) {
         auto sprite = ctx.sprites[ctx.sprite_atlas.items[item_id]];
-        dst.width = sprite.width / scale;
+        dst.width  = sprite.width  / scale;
         dst.height = sprite.height / scale;
         Draw(ctx, sprite, dst);
     };
@@ -714,11 +714,23 @@ static void Hermes_Batch(Hermes& ctx) {
         : nullptr;
 }
 
-static inline void Hermes_SetupCamera(Hermes& ctx) {
+static void Hermes_SetupCamera(Hermes& ctx) {
     ctx.config.camera.offset = {GetScreenWidth() / 2.0f, GetScreenHeight() / 2.0f};
 }
 
-static inline void Hermes_ClampCamera(Hermes& ctx) {
+static void Hermes_ClampCameraZoom(Hermes& ctx) {
+    auto zoom_x = GetScreenWidth()  / (ctx.grid->width  * TILE_SIZE) / 2;
+    auto zoom_y = GetScreenHeight() / (ctx.grid->height * TILE_SIZE) / 2;
+    auto& zoom = ctx.config.camera.zoom;
+    zoom = std::clamp(zoom, std::min(zoom_x, zoom_y), 2.5f);
+}
+
+static void Hermes_ClampCameraTarget(Hermes& ctx) {
+    constexpr auto pad = TILE_SIZE / 2;
+    auto zoom = ctx.config.camera.zoom;
+    auto& target = ctx.config.camera.target;
+    target.x = std::clamp(target.x, -pad, ctx.grid->width  * TILE_SIZE - GetScreenWidth()  * zoom / 2 - pad);
+    target.y = std::clamp(target.y, -pad, ctx.grid->height * TILE_SIZE - GetScreenHeight() * zoom / 2 - pad);
 }
 
 static inline bool is_zero(float a) {
@@ -776,7 +788,6 @@ static void Hermes_Input(Hermes& ctx) {
         auto delta_x = mouse_pos.x - ctx.last_mouse_pos.x;
         auto delta_y = mouse_pos.y - ctx.last_mouse_pos.y;
         if (!is_zero(delta_x) || !is_zero(delta_y)) {
-            HERMES_DBG("Drag: {}x{}", delta_x, delta_y);
             target.x -= delta_x / delta_scale * DRAG_SPEED;
             target.y -= delta_y / delta_scale * DRAG_SPEED;
             ctx.mouse_moved = true;
@@ -787,15 +798,17 @@ static void Hermes_Input(Hermes& ctx) {
             auto world_pos = GetScreenToWorld2D(mouse_pos, ctx.config.camera);
             auto grid_x = static_cast<GridCoord>((world_pos.x + TILE_SIZE / 2) / TILE_SIZE);
             auto grid_y = static_cast<GridCoord>((world_pos.y + TILE_SIZE / 2) / TILE_SIZE);
-            Layer layer = GridLayer::GridLayerCount;
-            do {
-                auto obj = ctx.grid->object_at({grid_x, grid_y, --layer});
-                if (obj != nullptr) {
-                    HERMES_DBG("Pick: {}x{}.{} {}", grid_x, grid_y, layer, obj->id);
-                    ctx.config.selection = obj->id;
-                    break;
-                }
-            } while (layer != 0);
+            if (grid_x >= 0 && grid_x < ctx.grid->width && grid_y >= 0 && grid_y < ctx.grid->height) {
+                Layer layer = GridLayer::GridLayerCount;
+                do {
+                    auto obj = ctx.grid->object_at({grid_x, grid_y, --layer});
+                    if (obj != nullptr) {
+                        HERMES_DBG("Pick: {}x{}.{} {}", grid_x, grid_y, layer, obj->id);
+                        ctx.config.selection = obj->id;
+                        break;
+                    }
+                } while (layer != 0);
+            }
         }
         ctx.mouse_moved = false;
     }
@@ -815,16 +828,17 @@ static void Hermes_Input(Hermes& ctx) {
     #undef ZOOM
 
     if (is_zero(zoom)) {
-        Hermes_ClampCamera(ctx);
+        Hermes_ClampCameraTarget(ctx);
     }
     else {
         auto before = GetScreenToWorld2D(mouse_pos, ctx.config.camera);
         ctx.config.camera.zoom *= 1.0f + zoom;
-        Hermes_ClampCamera(ctx);
+        Hermes_ClampCameraZoom(ctx);
 
         auto after = GetScreenToWorld2D(mouse_pos, ctx.config.camera);
         target.x += before.x - after.x;
         target.y += before.y - after.y;
+        Hermes_ClampCameraTarget(ctx);
     }
 }
 
@@ -838,7 +852,10 @@ static void Hermes_Cache(Hermes& ctx) {
 
     ctx.self = ctx.next;
     ctx.grid = &ctx.self->grid();
-    ctx.config.selection = NO_SELECTION; // TODO not on first scene -> loaded config
+
+    if (ctx.config.selection >= ctx.grid->objects.size()) {
+        ctx.config.selection = NO_SELECTION;
+    }
 
     size_t grid_width = ctx.grid->width;
     size_t grid_height = ctx.grid->height;
@@ -870,7 +887,8 @@ static void Hermes_Cache(Hermes& ctx) {
             found = !(sprite.base == 0 || sprite.item == 0 || sprite.color == 0);
             HERMES_DBG("Object: {} = Sprite (base: {}, item: {}, color: {})", name_view, sprite.base, sprite.item, sprite.color);
 
-            /**/ if (name == "agent"sv) ctx.types.agent = type_id;
+            if (false) {}
+            else if (name == "agent"sv) ctx.types.agent = type_id;
             else if (name == "wall"sv)  ctx.types.wall  = type_id;
         }
 
@@ -993,6 +1011,9 @@ static void Hermes_Cache(Hermes& ctx) {
 
     // Intermediate frame memory whose size doesn't change between frames.
     ctx.visibility.resize(grid_width * grid_height);
+
+    // Validate camera settings against the new scene.
+    Hermes_ClampCameraZoom(ctx); // Requires grid size. Target is validated every frame.
 }
 
 // Initializes the Hermes instance, its Raylib window, and sprite sheet.
@@ -1139,7 +1160,6 @@ static void Hermes_Setup(Hermes& ctx) {
         ctx.config.camera.zoom = 0.25f;
     }
     Hermes_SetupCamera(ctx);
-    Hermes_ClampCamera(ctx);
 
     // One time initialization completed.
     ctx.initialized = true;
