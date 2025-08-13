@@ -21,6 +21,7 @@ class MockAgent(MettaAgent):
         self.components_with_memory = []
         self.components = torch.nn.ModuleDict()  # Use ModuleDict for proper nn.Module handling
         self.device = "cpu"
+        self.policy = None  # MockAgent doesn't have a separate policy
 
     def activate_actions(self, action_names, action_max_params, device):
         """Store action configuration for testing."""

@@ -281,8 +281,8 @@ class ComponentPolicy(nn.Module):
                 if hasattr(component, "update_normalization_tensor"):
                     component.update_normalization_tensor(norm_tensor)
 
-    def update_feature_remapping(self, remap_tensor: torch.Tensor):
-        """Update feature remapping in observation component."""
+    def _apply_feature_remapping(self, remap_tensor: torch.Tensor):
+        """Apply feature remapping to observation component."""
         if "_obs_" in self.components:
             obs_component = self.components["_obs_"]
             if hasattr(obs_component, "update_feature_remapping"):

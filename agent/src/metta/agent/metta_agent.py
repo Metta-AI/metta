@@ -65,7 +65,7 @@ class MettaAgent(nn.Module):
     Separation of Concerns:
     - Only MettaAgent has initialize_to_environment() - this is the environment interface
     - Policies only implement forward() and optionally specific methods like:
-      - update_feature_remapping() for observation components
+      - _apply_feature_remapping() for observation components
       - activate_action_embeddings() for action embeddings
       - clip_weights(), l2_init_loss(), etc. for training utilities
     """
@@ -287,8 +287,14 @@ class MettaAgent(nn.Module):
                 remap_tensor[feature_id] = unknown_id
 
         # Delegate feature remapping to policy if it supports it
-        if hasattr(self.policy, "update_feature_remapping"):
-            self.policy.update_feature_remapping(remap_tensor)
+        # Policies have _apply_feature_remapping that takes just the remap_tensor
+        if self.policy is not None and hasattr(self.policy, "_apply_feature_remapping"):
+            self.policy._apply_feature_remapping(remap_tensor)
+        elif self.policy is None and "_obs_" in self.components:
+            # MockAgent case - directly update observation component
+            obs_component = self.components["_obs_"]
+            if hasattr(obs_component, "update_feature_remapping"):
+                obs_component.update_feature_remapping(remap_tensor)
 
         # Update normalization factors
         self._update_normalization_factors(features)
