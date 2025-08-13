@@ -133,11 +133,24 @@ class MettaAgent(nn.Module):
         # Handle old checkpoints where self.policy == self (old MettaAgent WAS the policy)
         if self.policy is self:
             # Old MettaAgent from main has its own forward logic that:
-            # 1. Runs components["_value_"] and components["_action_"]
-            # 2. Then calls forward_inference or forward_training
+            # 1. Sets bptt and batch keys
+            # 2. Runs components["_value_"] and components["_action_"]
+            # 3. Then calls forward_inference or forward_training
             # The old forward expects (td, action) not (td, state, action)
             # So we need to handle this carefully
             if hasattr(self, "components") and "_value_" in self.components and "_action_" in self.components:
+                # Set bptt and batch keys like the old forward() did
+                if td.batch_dims > 1:
+                    B, TT = td.batch_size[0], td.batch_size[1]
+                    td = td.reshape(B * TT)
+                    td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
+                    td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
+                else:
+                    # In inference mode, batch size is the total number of environments
+                    B = td.batch_size.numel()
+                    td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
+                    td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
+
                 # Run the components as the old forward would
                 self.components["_value_"](td)
                 self.components["_action_"](td)
