@@ -172,13 +172,29 @@ class MettaAgent(nn.Module):
 
     def reset_memory(self) -> None:
         """Reset memory - delegates to policy if it supports memory."""
-        # Skip delegation for old checkpoints where self.policy == self (would cause infinite recursion)
-        if self.policy is not self and hasattr(self.policy, "reset_memory"):
+        # Handle old checkpoints where self.policy == self
+        if self.policy is self:
+            # Old MettaAgent had components_with_memory list
+            if hasattr(self, "components_with_memory"):
+                for name in self.components_with_memory:
+                    comp = self.components[name]
+                    if hasattr(comp, "reset_memory"):
+                        comp.reset_memory()
+        elif hasattr(self.policy, "reset_memory"):
             self.policy.reset_memory()
 
     def get_memory(self) -> dict:
         """Get memory state - delegates to policy if it supports memory."""
-        if self.policy is not self and hasattr(self.policy, "get_memory"):
+        # Handle old checkpoints where self.policy == self
+        if self.policy is self:
+            # Old MettaAgent had components_with_memory list
+            if hasattr(self, "components_with_memory"):
+                memory = {}
+                for name in self.components_with_memory:
+                    if hasattr(self.components[name], "get_memory"):
+                        memory[name] = self.components[name].get_memory()
+                return memory
+        elif hasattr(self.policy, "get_memory"):
             return self.policy.get_memory()
         return {}
 
