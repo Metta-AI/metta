@@ -178,7 +178,7 @@ class MettaAgent(nn.Module):
             return {
                 name: self.components[name].get_memory()
                 for name in self.components_with_memory
-                if hasattr(self.components.get(name), "get_memory")
+                if name in self.components and hasattr(self.components[name], "get_memory")
             }
         return getattr(self.policy, "get_memory", lambda: {})()
 
