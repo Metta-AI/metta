@@ -10,6 +10,12 @@ from omegaconf import DictConfig
 # Add tools directory to path for imports
 sys.path.insert(0, "tools")
 
+# Import the module after adding to path
+try:
+    import sweep_rollout
+except ImportError:
+    sweep_rollout = None
+
 
 class TestSweepRollout:
     """Test sweep rollout main functions."""
