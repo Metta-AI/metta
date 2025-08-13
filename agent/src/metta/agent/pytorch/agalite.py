@@ -8,7 +8,7 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.agalite import AGaLiTe
+from metta.agent.agalite import BatchedAGaLiTe
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +61,8 @@ class Agalite(nn.Module):
             nn.ReLU(),
         )
 
-        # Create the AGaLiTe core
-        self.agalite = AGaLiTe(
+        # Create the BatchedAGaLiTe core for proper batch processing
+        self.agalite = BatchedAGaLiTe(
             n_layers=n_layers,
             d_model=d_model,
             d_head=d_head,
@@ -107,33 +107,41 @@ class Agalite(nn.Module):
 
         observations = td["env_obs"].to(self.device)
 
-        # Initialize or deserialize state
-        if state is None:
-            agalite_memory = self._initialize_agalite_memory()
-        elif isinstance(state, torch.Tensor):
-            # State is passed as a serialized tensor (from td["state"] or previous forward pass)
-            agalite_memory = self._deserialize_agalite_memory(state)
-        elif isinstance(state, dict):
-            # State is passed as a dictionary
-            if "agalite_memory_serialized" in state:
-                agalite_memory = self._deserialize_agalite_memory(state["agalite_memory_serialized"])
-            else:
-                agalite_memory = state.get("agalite_memory", self._initialize_agalite_memory())
-        else:
-            # Fallback to initialization
-            agalite_memory = self._initialize_agalite_memory()
-
         # Encode observations
         hidden = self.encode_observations(observations)
 
         B = observations.shape[0]
         TT = 1 if observations.dim() == 3 else observations.shape[1]
 
-        # Prepare terminations (use zeros if not provided)
-        terminations = td.get("terminations", torch.zeros(B * TT, device=self.device))
+        # Initialize or deserialize state for batched processing
+        if state is None:
+            # Initialize batched memory for all batch elements
+            agalite_memory = self._initialize_batched_agalite_memory(B)
+        elif isinstance(state, torch.Tensor):
+            # State is passed as a serialized tensor (from td["state"] or previous forward pass)
+            agalite_memory = self._deserialize_batched_agalite_memory(state, B)
+        elif isinstance(state, dict):
+            # State is passed as a dictionary
+            if "agalite_memory_batched" in state:
+                agalite_memory = state["agalite_memory_batched"]
+            else:
+                agalite_memory = self._initialize_batched_agalite_memory(B)
+        else:
+            # Fallback to initialization
+            agalite_memory = self._initialize_batched_agalite_memory(B)
 
-        hidden = hidden.view(B * TT, -1)  # Flatten for AGaLiTe
-        agalite_out, new_agalite_memory = self.agalite(hidden, terminations, agalite_memory)
+        # Prepare terminations (use zeros if not provided) - shape (TT, B)
+        terminations = td.get("terminations", torch.zeros(B * TT, device=self.device))
+        terminations = terminations.view(B, TT).transpose(0, 1)  # Reshape to (TT, B)
+
+        # Reshape hidden for BatchedAGaLiTe: (B, TT, hidden_dim) -> (TT, B, hidden_dim)
+        hidden = hidden.view(B, TT, -1).transpose(0, 1)
+
+        # Forward through BatchedAGaLiTe
+        new_agalite_memory, agalite_out = self.agalite(agalite_memory, (hidden, terminations))
+
+        # Reshape output back to (B*TT, hidden_dim) for decoding
+        agalite_out = agalite_out.transpose(0, 1).reshape(B * TT, -1)
 
         # Decode actions and value
         logits_list, value = self.decode_actions(agalite_out)
@@ -162,12 +170,17 @@ class Agalite(nn.Module):
             if td.batch_dims > 1:
                 td = td.reshape(B, TT)
 
-        # Update state - serialize AGaLiTe memory as a single tensor (similar to LSTM state storage)
-        # NOTE: Current AGaLiTe implementation processes all batch elements through a single model
-        # with shared memory, which is not ideal for independent batch processing.
-        # For now, we skip storing state to avoid dimension mismatches.
-        # TODO: Switch to BatchedAGaLiTe for proper per-batch-element memory handling
-        pass
+        # Update state - serialize batched AGaLiTe memory as a tensor (similar to LSTM state storage)
+        if new_agalite_memory is not None:
+            serialized_memory = self._serialize_batched_agalite_memory(new_agalite_memory)
+            # serialized_memory shape: (batch_size, total_features)
+            # Ensure it matches the current batch size
+            current_batch_size = td.batch_size[0] if hasattr(td.batch_size, "__getitem__") else td.batch_size
+            if serialized_memory.shape[0] == current_batch_size:
+                td["state"] = serialized_memory
+            else:
+                # Handle batch size mismatch if needed
+                logger.warning(f"Batch size mismatch in state: {serialized_memory.shape[0]} vs {current_batch_size}")
 
         return td
 
@@ -247,60 +260,76 @@ class Agalite(nn.Module):
             torch.stack(full_log_probs, dim=-1),
         )
 
-    def _initialize_state(self, batch_size: int) -> Dict:
-        """Initialize the state dictionary."""
-        return {"agalite_memory": self._initialize_agalite_memory()}
+    def _initialize_batched_agalite_memory(self, batch_size: int) -> Dict[str, Tuple]:
+        """Initialize batched AGaLiTe memory for all batch elements."""
+        return BatchedAGaLiTe.initialize_carry(
+            batch_size=batch_size,
+            n_layers=self.n_layers,
+            n_heads=self.n_heads,
+            d_head=self.d_head,
+            eta=self.eta,
+            r=self.r,
+            device=self.device,
+        )
 
-    def _initialize_agalite_memory(self) -> Dict[str, Tuple]:
-        """Initialize AGaLiTe memory."""
-        return AGaLiTe.initialize_memory(self.n_layers, self.n_heads, self.d_head, self.eta, self.r, self.device)
-
-    def _serialize_agalite_memory(self, memory_dict: Dict[str, Tuple]) -> torch.Tensor:
+    def _serialize_batched_agalite_memory(self, memory_dict: Dict[str, Tuple]) -> torch.Tensor:
         """
-        Serialize AGaLiTe memory dictionary into a single tensor.
+        Serialize batched AGaLiTe memory dictionary into a tensor.
 
         Memory structure per layer: (tilde_k_prev, tilde_v_prev, s_prev, tick)
-        We concatenate all tensors from all layers into a single flat tensor.
+        Each tensor has batch dimension as the first dimension.
+        We concatenate all tensors from all layers along the feature dimension.
         """
-        all_tensors = []
+        batch_tensors = []
+
         for layer_idx in range(1, self.n_layers + 1):
             layer_memory = memory_dict[f"layer_{layer_idx}"]
-            # Flatten each tensor in the tuple and concatenate
+            # For each tensor in the tuple, flatten all dimensions except batch
             for tensor in layer_memory:
-                all_tensors.append(tensor.flatten())
+                # tensor shape: (batch_size, ...) -> (batch_size, flattened_features)
+                batch_size = tensor.shape[0]
+                flattened = tensor.view(batch_size, -1)
+                batch_tensors.append(flattened)
 
-        # Concatenate all flattened tensors
-        return torch.cat(all_tensors, dim=0)
+        # Concatenate all tensors along the feature dimension
+        # Result shape: (batch_size, total_features)
+        return torch.cat(batch_tensors, dim=1)
 
-    def _deserialize_agalite_memory(self, serialized: torch.Tensor) -> Dict[str, Tuple]:
+    def _deserialize_batched_agalite_memory(self, serialized: torch.Tensor, batch_size: int) -> Dict[str, Tuple]:
         """
-        Deserialize a single tensor back into AGaLiTe memory dictionary.
+        Deserialize a tensor back into batched AGaLiTe memory dictionary.
 
-        Reconstructs the original dictionary structure with proper tensor shapes.
+        Args:
+            serialized: Tensor of shape (batch_size, total_features)
+            batch_size: Number of batch elements
+
+        Reconstructs the original batched dictionary structure with proper tensor shapes.
         """
         memory_dict = {}
         offset = 0
 
-        # Calculate sizes for each tensor component
+        # Calculate sizes for each tensor component (without batch dimension)
         tilde_k_size = self.r * self.n_heads * self.eta * self.d_head
         tilde_v_size = self.r * self.n_heads * self.d_head
         s_size = self.n_heads * self.eta * self.d_head
         tick_size = 1
 
         for layer_idx in range(1, self.n_layers + 1):
-            # Extract and reshape each component
-            tilde_k_prev = serialized[offset : offset + tilde_k_size].reshape(
-                self.r, self.n_heads, self.eta * self.d_head
+            # Extract and reshape each component with batch dimension
+            tilde_k_prev = serialized[:, offset : offset + tilde_k_size].reshape(
+                batch_size, self.r, self.n_heads, self.eta * self.d_head
             )
             offset += tilde_k_size
 
-            tilde_v_prev = serialized[offset : offset + tilde_v_size].reshape(self.r, self.n_heads, self.d_head)
+            tilde_v_prev = serialized[:, offset : offset + tilde_v_size].reshape(
+                batch_size, self.r, self.n_heads, self.d_head
+            )
             offset += tilde_v_size
 
-            s_prev = serialized[offset : offset + s_size].reshape(self.n_heads, self.eta * self.d_head)
+            s_prev = serialized[:, offset : offset + s_size].reshape(batch_size, self.n_heads, self.eta * self.d_head)
             offset += s_size
 
-            tick = serialized[offset : offset + tick_size]
+            tick = serialized[:, offset : offset + tick_size]
             offset += tick_size
 
             memory_dict[f"layer_{layer_idx}"] = (tilde_k_prev, tilde_v_prev, s_prev, tick)
