@@ -60,3 +60,10 @@ temple:
   conversion_ticks: 1
   cooldown: 10
   initial_resource_count: 0
+
+altar:
+  type_id: 14
+  max_output: 1
+  conversion_ticks: 1
+  cooldown: 10
+  initial_resource_count: 0
