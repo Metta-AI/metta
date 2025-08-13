@@ -110,13 +110,33 @@ run: |
   if [ -n "${GITHUB_PAT:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${METTA_GIT_REF:-}" ]; then
     ENABLE_GITHUB_STATUS=true
     echo "[RUN] GitHub status reporting is enabled"
-    echo "[RUN] GITHUB_PAT: ${GITHUB_PAT:+<set>}"  # Don't print the actual token
+    echo "[RUN] GITHUB_PAT: ${GITHUB_PAT:+<set>}" # Don't print the actual token
     echo "[RUN] GITHUB_REPOSITORY: ${GITHUB_REPOSITORY:-<not set>}"
     echo "[RUN] METTA_GIT_REF: ${METTA_GIT_REF:-<not set>}"
     echo "[RUN] METTA_RUN_ID: ${METTA_RUN_ID:-<not set>}"
+    echo "[RUN] DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:+<set>}" # Don't print the actual url
 
+    # Set GitHub status
     GITHUB_STATUS_STATE=pending GITHUB_STATUS_DESCRIPTION="Queued on SkyPilot…" \
       uv run devops/skypilot/set_github_status.py || echo "[WARN] Pending status post failed; continuing"
+
+    # Send Discord notification if webhook URL is available
+    if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
+      echo "[RUN] Sending Discord notification..."
+      DISCORD_CONTENT=$(cat <<EOF
+🚀 **SkyPilot Job Launched**
+
+**Repository**: ${GITHUB_REPOSITORY}
+**Git Ref**: ${METTA_GIT_REF}
+**Run ID**: ${METTA_RUN_ID:-N/A}
+**Status**: Job queued on SkyPilot
+**Time**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+(I am testing - we will soon change this to only alert on failed CI multinode runs.)
+EOF
+) \
+      uv run -m metta.common.util.discord || echo "[WARN] Discord notification failed; continuing"
+    fi
   else
     ENABLE_GITHUB_STATUS=false
     echo "[RUN] GitHub status reporting is disabled (missing required credentials)"
