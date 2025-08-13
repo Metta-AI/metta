@@ -52,13 +52,13 @@ losses:
   #   begin_at_step: 0
   #   end_at_step: 30_000_000
 
-  # TLKickstarter:
-  #   teacher_uri: wandb://run/m.av.loss.leader.001
-  #   action_loss_coef: 1
-  #   value_loss_coef: 1
-  #   begin_at_step: 30_000_000
-  #   end_at_step: 1_000_000_000
-  #   anneal_ratio: 0.65 # ratio of kickstart_steps to anneal to 0 coef
+  TLKickstarter:
+    teacher_uri: wandb://run/m.av.loss.leader.006
+    action_loss_coef: 1
+    value_loss_coef: 1
+    begin_at_step: 30_000_000
+    end_at_step: 1_000_000_000
+    anneal_ratio: 0.65 # ratio of kickstart_steps to anneal to 0 coef
 
 optimizer:
   type: adam

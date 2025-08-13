@@ -345,7 +345,7 @@ def train(
                     # Inference
                     # note that each loss will modify the td, the same one that is passed to other losses. We want this
                     # because this allows other parts of the network to only run what's needed on these obs, efficiently
-                    # reusing hiddens within the network. Other losses should clear fields as necessary.
+                    # reusing hiddens within the network. Other losses should clear fields and/or clone as necessary.
                     for _lname in list(policy_losses):
                         loss_obj = loss_instances[_lname]
                         loss_obj.rollout(td)

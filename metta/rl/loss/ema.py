@@ -48,9 +48,9 @@ class EMA(BaseLoss):
 
     def train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
         self.update_target_model()
-        policy_td = shared_loss_data["PPO"]["policy_td"]
+        policy_td = shared_loss_data["policy_td"]
 
-        # reshape to 1D for the head
+        # reshape to 1D for the head ie flatten the batch and time dimension
         B, TT = policy_td.batch_size[0], policy_td.batch_size[1]
         policy_td = policy_td.reshape(B * TT)
         policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
@@ -59,7 +59,7 @@ class EMA(BaseLoss):
         self.policy.components["EMA_pred_output_2"](policy_td)
         pred: Tensor = policy_td["EMA_pred_output_2"].to(dtype=torch.float32)
 
-        # target pred: you need to clear all keys except env_obs and then clone
+        # target prediction: you need to clear all keys except env_obs and then clone
         target_td = policy_td.select(*self.policy_experience_spec.keys(include_nested=True)).clone()
         target_td.set("bptt", torch.full((B * TT,), TT, device=target_td.device, dtype=torch.long))
         target_td.set("batch", torch.full((B * TT,), B, device=target_td.device, dtype=torch.long))

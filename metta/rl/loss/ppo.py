@@ -95,12 +95,12 @@ class PPO(BaseLoss):
             prio_beta=self.anneal_beta,
         )
 
-        shared_loss_data["PPO"]["sampled_mb"] = minibatch
-        shared_loss_data["PPO"]["indices"] = NonTensorData(indices)  # av this breaks compile
+        shared_loss_data["sampled_mb"] = minibatch  # one loss should write the sampled mb for others to use
+        shared_loss_data["indices"] = NonTensorData(indices)  # av this breaks compile
 
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
         policy_td = self.policy(policy_td, action=minibatch["actions"])
-        shared_loss_data["PPO"]["policy_td"] = policy_td
+        shared_loss_data["policy_td"] = policy_td  # write the policy output td for others to reuse
 
         loss = self.process_minibatch_update(
             policy=self.policy,
