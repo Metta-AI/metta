@@ -104,6 +104,7 @@ class MettaGridEnv(MettaGridPufferBase):
         # Sync level with task config
         self._level = task_cfg.game.map_builder.build()
         self._map_labels = self._level.labels
+        
         # Create new C++ environment for new trial
         self._c_env_instance = self._create_c_env(game_config_dict, self._current_seed)
 
