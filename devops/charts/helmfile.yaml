@@ -90,7 +90,7 @@ releases:
   ########## Skypilot ##########
   - name: skypilot
     chart: ./skypilot
-    version: 0.0.8
+    version: 0.0.9
     namespace: skypilot
     values:
       - ./helm.values/skypilot-values.yaml

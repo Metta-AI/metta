@@ -13,7 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 class DashboardConfig(Config):
-    __init__ = Config.__init__
     eval_db_uri: str
     output_path: str = "/tmp/dashboard_data.json"
 
