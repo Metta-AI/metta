@@ -57,7 +57,7 @@ class MettaGridEnv(MettaGridPufferBase):
 
         Args:
             curriculum: Curriculum for task management
-            render_mode: Rendering mode (None, "raylib")
+            render_mode: Rendering mode (None, "human", "miniscope", "raylib")
             level: Optional pre-built level
             buf: PufferLib buffer object
             stats_writer: Optional stats writer
@@ -80,7 +80,7 @@ class MettaGridEnv(MettaGridPufferBase):
         # Initialize with base PufferLib functionality
         super().__init__(
             curriculum=curriculum,
-            render_mode="raylib",  # render_mode,
+            render_mode=render_mode,
             level=level,
             buf=buf,
             **kwargs,

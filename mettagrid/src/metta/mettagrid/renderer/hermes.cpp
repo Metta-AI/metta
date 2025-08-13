@@ -28,6 +28,10 @@
 
 using namespace std::literals::string_view_literals;
 
+static inline bool is_zero(float a) {
+    return std::abs(a) < 0.001f;
+}
+
 // Constants ------------------------------------------------------------------
 
 static constexpr float MOVE_SPEED = 10.0f;
@@ -733,10 +737,6 @@ static void Hermes_ClampCameraTarget(Hermes& ctx) {
     target.y = std::clamp(target.y, -pad, ctx.grid->height * TILE_SIZE - GetScreenHeight() * zoom / 2 - pad);
 }
 
-static inline bool is_zero(float a) {
-    return std::abs(a) < 0.001f;
-}
-
 // Handles user events and updates the Hermes configuration or camera in response.
 static void Hermes_Input(Hermes& ctx) {
     HermesProfileScope _hps(ctx, "Input"sv, GREEN);
@@ -965,8 +965,8 @@ static void Hermes_Cache(Hermes& ctx) {
     // Construct a wall adjacency map and assign each wall node a sprite index.
     auto wall_map_width  = grid_width  + 2; // Surround the grid with empty space to
     auto wall_map_height = grid_height + 2; // avoid testing for borders at the edges.
-    std::vector<bool> wall_map(wall_map_width * wall_map_height);
     std::vector<bool> wall_del(walls.size()); // Mark wall nodes covered by wall fills.
+    std::vector<bool> wall_map(wall_map_width * wall_map_height);
     for (auto wall : walls) {
         wall_map[(wall.cell.y + 1) * wall_map_width + wall.cell.x + 1] = true;
     }
