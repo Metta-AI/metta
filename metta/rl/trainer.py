@@ -327,7 +327,7 @@ def train(
 
                     # Inference
                     with torch.no_grad():
-                        policy(td)
+                        policy(td, state=experience.get_state(training_env_id))
 
                     # Store experience
                     experience.store(

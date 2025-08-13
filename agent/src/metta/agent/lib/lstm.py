@@ -33,7 +33,6 @@ class LSTM(LayerBase):
         super().__init__(**cfg)
         self.hidden_size = self._nn_params["hidden_size"]
         self.num_layers = self._nn_params["num_layers"]
-        self._net = self._make_net()
 
 
     def setup(self, source_components):

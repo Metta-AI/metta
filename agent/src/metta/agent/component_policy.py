@@ -1,6 +1,5 @@
-from ast import Tuple
 import logging
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 
 import gymnasium as gym
 import torch
@@ -60,6 +59,7 @@ class ComponentPolicy(nn.Module):
             comp_dict = dict(component_cfgs[component_key], **self.agent_attributes, name=component_name)
             self.components[component_name] = instantiate(comp_dict)
 
+
         # Setup components
         component = self.components["_value_"]
         self._setup_components(component)
@@ -87,8 +87,10 @@ class ComponentPolicy(nn.Module):
         self.cum_action_max_params = None
         self.action_index_tensor = None
 
-    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> Tuple[TensorDict, Tuple[torch.Tensor, torch.Tensor]]:
+    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> Tuple[TensorDict, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
         """Forward pass of the ComponentPolicy - matches original MettaAgent forward() logic."""
+
+        logger.info(f"state: {state}")
 
         # Handle BPTT reshaping like the original
         if td.batch_dims > 1:
@@ -106,6 +108,10 @@ class ComponentPolicy(nn.Module):
             td, state = self.components["__core__"](td, state)
         else:
             td = self.components["_core_"](td)
+
+        if state is not None:
+            td["lstm_h"] = state[0]
+            td["lstm_c"] = state[1]
 
         self.components["_value_"](td)
         self.components["_action_"](td)

@@ -87,7 +87,7 @@ def process_minibatch_update(
     device: torch.device,
 ) -> Tensor:
     """Process a single minibatch update and return the total loss."""
-    policy_td = policy(policy_td, action=minibatch["actions"])
+    policy_td, state = policy(policy_td, action=minibatch["actions"])
 
     old_act_log_prob = minibatch["act_log_prob"]
     new_logprob = policy_td["act_log_prob"].reshape(old_act_log_prob.shape)
