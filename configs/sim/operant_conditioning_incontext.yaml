@@ -5,10 +5,10 @@ defaults:
 name: operant_conditioning_incontext
 
 simulations:
-  operant_conditioning/chain_length_2_ore_red_0:
-    env: env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/ore_red_0
-  operant_conditioning/chain_length_2_ore_red_1:
-    env: env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/ore_red_1
+  operant_conditioning/chain_length_2_battery_red_0:
+    env: env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/battery_red_0
+  operant_conditioning/chain_length_2_battery_red_1:
+    env: env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/battery_red_1
   operant_conditioning/chain_length_3_battery_red-ore_blue_00:
     env: env/mettagrid/operant_conditioning/in_context_learning/chain_length_3/battery_red-ore_blue_00
   operant_conditioning/chain_length_3_battery_red-ore_blue_01:
