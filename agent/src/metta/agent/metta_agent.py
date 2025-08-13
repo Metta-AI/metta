@@ -129,16 +129,23 @@ class MettaAgent(nn.Module):
         """Forward pass through the policy."""
         if self.policy is None:
             raise RuntimeError("No policy set. Use set_policy() first.")
+
+        # Handle old checkpoints where self.policy == self (old MettaAgent WAS the policy)
+        if self.policy is self and hasattr(self, "forward_inference"):
+            # Old checkpoint - it has the forward methods directly
+            return self.forward_inference(td, state) if action is None else self.forward_training(td, action)
+
         return self.policy(td, state, action)
 
     def reset_memory(self) -> None:
         """Reset memory - delegates to policy if it supports memory."""
-        if hasattr(self.policy, "reset_memory"):
+        # Skip delegation for old checkpoints where self.policy == self (would cause infinite recursion)
+        if self.policy is not self and hasattr(self.policy, "reset_memory"):
             self.policy.reset_memory()
 
     def get_memory(self) -> dict:
         """Get memory state - delegates to policy if it supports memory."""
-        if hasattr(self.policy, "get_memory"):
+        if self.policy is not self and hasattr(self.policy, "get_memory"):
             return self.policy.get_memory()
         return {}
 
@@ -352,6 +359,8 @@ class MettaAgent(nn.Module):
     def __setstate__(self, state):
         """Restore state from checkpoint."""
         self.__dict__.update(state)
+        if not hasattr(self, "policy"):
+            self.policy = self
 
 
 PolicyAgent = MettaAgent | DistributedMettaAgent
