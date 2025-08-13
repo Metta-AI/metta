@@ -164,6 +164,19 @@ export function LeaderboardView({ repo }: LeaderboardViewProps) {
     }
   }, [leaderboard, policySelector, numPolicies])
 
+  // Auto-refresh when leaderboard is building (latest_episode is 0)
+  useEffect(() => {
+    if (!leaderboard || leaderboard.latest_episode > 0) {
+      return
+    }
+
+    const interval = setInterval(() => {
+      loadLeaderboard()
+    }, 5000) // Refresh every 5 seconds
+
+    return () => clearInterval(interval)
+  }, [leaderboard, leaderboardId])
+
   const loadLeaderboard = async () => {
     if (!leaderboardId) return
 
@@ -260,6 +273,19 @@ export function LeaderboardView({ repo }: LeaderboardViewProps) {
           <button className="btn btn-primary" onClick={handleBack}>
             Back to Leaderboards
           </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Check if leaderboard is still building
+  if (leaderboard.latest_episode === 0) {
+    return (
+      <div style={{ padding: '20px', background: '#f8f9fa', minHeight: 'calc(100vh - 60px)' }}>
+        <style>{LEADERBOARD_VIEW_CSS}</style>
+        <div className="loading">
+          <h3>Leaderboard building</h3>
+          <p>This may take a few minutes. The page will automatically refresh...</p>
         </div>
       </div>
     )
