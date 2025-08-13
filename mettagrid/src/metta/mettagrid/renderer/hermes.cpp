@@ -44,7 +44,6 @@ static constexpr float INVENTORY_PADDING = 16.0f;
 
 static constexpr Color VOID_COLOR = BLACK;
 static constexpr Color FLOOR_COLOR = {0xCF, 0xA9, 0x70, 0xFF};
-static constexpr Color OBJECT_COLORS[3] = {RED, GREEN, BLUE};
 static constexpr Color PANEL_COLOR = {0, 0, 0, 0x40};
 
 static constexpr uint32_t NO_SELECTION = std::numeric_limits<uint32_t>::max();
@@ -104,12 +103,7 @@ struct HermesTypes {
 // Resolved sprite names to rectangle indices in the sprite sheet.
 struct HermesSprites {
     using Sprite = uint16_t;
-    struct Object {
-        Sprite base;
-        Sprite item;
-        Sprite color;
-    };
-    std::vector<Object> objects; // Indexed by type_name_id.
+    std::vector<Sprite> objects; // Indexed by type_name_id.
     std::vector<Sprite> actions; // Indexed by action_name_id.
     std::vector<Sprite> items; // Indexed by inventory_item_name_id.
     Sprite agent[5]; // Orientation sprite indices, extra for frozen state.
@@ -270,51 +264,14 @@ static void DrawTrajectory(Hermes& ctx) {
     // TODO capture frame data across time to support drawing this.
 }
 
-#if 0
-static inline float ToDegrees(float radians) {
-    return radians / static_cast<float>(M_PI) * 180.0f;
-}
-#endif
-
 static void DrawObjects(Hermes& ctx) {
-    #if 0
-    auto converting_rot = ToDegrees(ctx.self->current_step * 0.1f);
-    #endif
-
     auto t = 0u;
     for (const auto& bucket : ctx.buckets) {
         auto type_id = t++;
-        if (type_id == ctx.types.wall || type_id == ctx.types.agent) {
-            continue;
-        }
-
-        auto sprite = ctx.sprite_atlas.objects[type_id];
-        auto sprite_base = ctx.sprites[sprite.base];
-        // Path for converters.
-        if (ctx.color_mask & (1 << type_id)) {
-            auto sprite_color = ctx.sprites[sprite.color];
-            #if 0
-            auto sprite_item = ctx.sprites[sprite.item];
-            auto sprite_converting = ctx.sprites[ctx.sprite_atlas.converting];
-            #endif
+        if (type_id != ctx.types.wall && type_id != ctx.types.agent) {
+            auto sprite = ctx.sprites[ctx.sprite_atlas.objects[type_id]];
             for (auto node : bucket) {
-                auto pos = Position(node);
-                Draw(ctx, sprite_base, pos);
-                Draw(ctx, sprite_color, pos, 0, OBJECT_COLORS[node.object]);
-                #if 0
-                if (node.output) {
-                    Draw(ctx, sprite_item, pos);
-                }
-                if (!node.active) { // TODO inverting to force display for debug
-                    Draw(ctx, sprite_converting, Vector2{pos.x, pos.y - 100}, converting_rot);
-                }
-                #endif
-            }
-        }
-        // Path for trivial objects.
-        else {
-            for (auto node : bucket) {
-                Draw(ctx, sprite_base, Position(node));
+                Draw(ctx, sprite, Position(node));
             }
         }
     }
@@ -392,13 +349,13 @@ static void DrawInventory(Hermes& ctx) {
     }
 
     Rectangle dst;
-    auto set_position = [&dst](HermesNode node) {
+    auto set_position = [&dst](HermesNode node, float offset = 16) {
         auto pos = Position(node);
         dst.x = pos.x - TILE_SIZE / 2;
-        dst.y = pos.y - TILE_SIZE / 2 + 16;
+        dst.y = pos.y - TILE_SIZE / 2 + offset;
     };
 
-    auto draw = [&ctx, &dst](size_t item_id, float scale) {
+    auto draw = [&ctx, &dst](size_t item_id, float scale = 8) {
         auto sprite = ctx.sprites[ctx.sprite_atlas.items[item_id]];
         dst.width  = sprite.width  / scale;
         dst.height = sprite.height / scale;
@@ -410,7 +367,7 @@ static void DrawInventory(Hermes& ctx) {
         auto advanceX = std::min(32.0f, (TILE_SIZE - INVENTORY_PADDING * 2) / inv.size());
         for (auto [item_id, quantity] : inv) {
             if (quantity > 0) {
-                draw(item_id, 8);
+                draw(item_id);
                 dst.x += advanceX;
             }
         }
@@ -429,17 +386,18 @@ static void DrawInventory(Hermes& ctx) {
                 continue;
             }
 
-            set_position(node);
 
             if (inv.size() == 1 && node.single) {
                 auto kv = inv.begin();
                 auto id = kv->first;
                 if (id == node.item_id && kv->second == 1) {
+                    set_position(node, 8);
                     draw(id, 2);
                     continue;
                 }
             }
 
+            set_position(node);
             multi_draw(inv);
         }
     }
@@ -867,40 +825,21 @@ static void Hermes_Cache(Hermes& ctx) {
 
     uint8_t type_id = 0;
     for (const auto& name : type_names) {
-        HermesSprites::Object sprite;
-        auto found = false;
+        HermesSprites::Sprite sprite = 0;
         if (!name.empty()) {
-            std::string_view name_view = name;
-            if (name_view.ends_with("_red"sv)) {
-                name_view = name_view.substr(0, name_view.size() - 4);
-            }
-            else if (name_view.ends_with("_green"sv)) {
-                name_view = name_view.substr(0, name_view.size() - 6);
-            }
-            else if (name_view.ends_with("_blue"sv)) {
-                name_view = name_view.substr(0, name_view.size() - 5);
-            }
-
-            sprite.base  = ctx.sprite_lookup[std::format("objects/{}.png"sv, name_view)];
-            sprite.item  = ctx.sprite_lookup[std::format("objects/{}.item.png"sv, name_view)];
-            sprite.color = ctx.sprite_lookup[std::format("objects/{}.color.png"sv, name_view)];
-            found = !(sprite.base == 0 || sprite.item == 0 || sprite.color == 0);
-            HERMES_DBG("Object: {} = Sprite (base: {}, item: {}, color: {})", name_view, sprite.base, sprite.item, sprite.color);
+            sprite = ctx.sprite_lookup[std::format("objects/{}.png"sv, name)];
+            HERMES_DBG("Object: {} = Sprite {}", name, sprite);
 
             if (false) {}
             else if (name == "agent"sv) ctx.types.agent = type_id;
             else if (name == "wall"sv)  ctx.types.wall  = type_id;
         }
 
-        if (!found) {
-            sprite = {};
-        }
-
         ctx.sprite_atlas.objects[type_id++] = sprite;
     }
 
     HERMES_DBG("Agent.type_id: {}", static_cast<int>(ctx.types.agent));
-    HERMES_DBG("Wall.type_id: {}", static_cast<int>(ctx.types.wall));
+    HERMES_DBG("Wall.type_id: {}",  static_cast<int>(ctx.types.wall));
 
     // Map action names to sprite indices.
     const auto& action_handlers = ctx.self->action_handlers();
