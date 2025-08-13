@@ -1,3 +1,7 @@
+wall:
+  type_id: 1
+  swappable: false
+
 mine_red:
   type_id: 2
   max_output: 1
@@ -67,3 +71,4 @@ altar:
   conversion_ticks: 1
   cooldown: 10
   initial_resource_count: 0
+
