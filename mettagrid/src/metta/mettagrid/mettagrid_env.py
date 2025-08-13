@@ -12,7 +12,7 @@ import datetime
 import logging
 import time
 import uuid
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Mapping, Optional, Tuple, cast
 
 import numpy as np
 from omegaconf import OmegaConf
@@ -87,7 +87,7 @@ class MettaGridEnv(MettaGridPufferBase):
         )
 
         # Environment metadata (self._task is set by base class)
-        self.cfg_labels: List[str] = self._task.env_cfg().get("labels", [])
+        self._cfg_labels: List[str] = self._task.env_cfg().get("labels", [])
 
     def _make_episode_id(self) -> str:
         """Generate unique episode ID."""
@@ -98,13 +98,13 @@ class MettaGridEnv(MettaGridPufferBase):
         # Get new task from curriculum (for new trial)
         self._task = self._curriculum.get_task()
         task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        game_config_dict = cast(Dict[str, Any], OmegaConf.to_container(task_cfg.game))
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
         # Sync level with task config
         self._level = task_cfg.game.map_builder.build()
         self._map_labels = self._level.labels
-        
+
         # Create new C++ environment for new trial
         self._c_env_instance = self._create_c_env(game_config_dict, self._current_seed)
 
@@ -146,7 +146,7 @@ class MettaGridEnv(MettaGridPufferBase):
         # Get new task from curriculum
         self._task = self._curriculum.get_task()
         task_cfg = self._task.env_cfg()
-        game_config_dict = OmegaConf.to_container(task_cfg.game)
+        game_config_dict = cast(Dict[str, Any], OmegaConf.to_container(task_cfg.game))
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
         # Sync level with task config
@@ -277,7 +277,7 @@ class MettaGridEnv(MettaGridPufferBase):
         episode_rewards_mean = episode_rewards_sum / self._c_env_instance.num_agents
 
         # Add map and label rewards
-        for label in self._map_labels + self.cfg_labels:
+        for label in self._map_labels + self._cfg_labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
         # Add curriculum stats
@@ -348,7 +348,7 @@ class MettaGridEnv(MettaGridPufferBase):
         self.timer.stop("process_episode_stats")
 
     def _write_episode_stats(
-        self, stats: Dict[str, Any], episode_rewards: np.ndarray, replay_url: Optional[str]
+        self, stats: Mapping[str, Any], episode_rewards: np.ndarray, replay_url: Optional[str]
     ) -> None:
         """Write episode statistics to stats writer."""
         if not self._stats_writer or not self._episode_id or not self._c_env_instance:
