@@ -386,7 +386,10 @@ class MettaAgent(nn.Module):
     def __setstate__(self, state):
         """Restore state from checkpoint."""
         self.__dict__.update(state)
-        if not hasattr(self, "policy"):
+        # Only set self.policy = self for old checkpoints that don't have a separate policy
+        # Check if this is an old checkpoint by looking for components attribute
+        if not hasattr(self, "policy") and hasattr(self, "components"):
+            # This is an old MettaAgent that was itself the policy
             self.policy = self
 
 
