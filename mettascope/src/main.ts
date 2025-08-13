@@ -24,12 +24,13 @@ import {
 } from './htmlutils.js'
 import { drawMiniMap } from './minimap.js'
 import { initObjectMenu } from './objmenu.js'
-import { Entity, fetchReplay, initWebSocket, readFile } from './replay.js'
+import { Entity, fetchReplay, initWebSocket, readFile, sendVisualOverlayEnable, sendVisualSetAgent, sendVisualSetLayer } from './replay.js'
 import { drawTimeline, initTimeline, onScrubberChange, onTraceMinimapChange, updateTimeline } from './timeline.js'
 import { initializeTooltips } from './tooltips.js'
 import { drawTrace, invalidateTrace } from './traces.js'
 import { Vec2f } from './vector_math.js'
 import { drawMap, focusFullMap } from './worldmap.js'
+import { setObsOverlayMenuVisibility } from './overlay.js'
 
 // Expose state to window for testing purposes (e.g., Playwright tests)
 if (typeof window !== 'undefined') {
@@ -470,6 +471,12 @@ export function updateSelection(object: Entity | null, setFollow = false) {
     setFollowSelection(true)
   }
   console.info('Selected object:', state.selectedGridObject)
+  // Sync overlay agent when playing over WS and overlay is enabled
+  if (state.ws !== null && state.showObsOverlay && state.selectedGridObject && state.selectedGridObject.isAgent) {
+    const aid = state.selectedGridObject.agentId
+    state.activeVisualAgentId = aid
+    sendVisualSetAgent(aid)
+  }
   updateAgentTable()
   requestFrame()
 }
@@ -637,6 +644,58 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
     requestFrame()
   }
 
+  // Play-mode visual overlay toggle and layer cycling.
+  if (state.ws !== null) {
+    if (event.key === 'o' || event.key === 'O') {
+      console.debug('Overlay toggle key pressed.')
+      state.showObsOverlay = !state.showObsOverlay
+      console.info('showObsOverlay', state.showObsOverlay)
+      if (state.showObsOverlay) {
+        // Initialize agent and layer before enabling so the server can respond immediately with a grid.
+        if (state.selectedGridObject && state.selectedGridObject.isAgent) {
+          const aid = state.selectedGridObject.agentId
+          state.activeVisualAgentId = aid
+          console.debug('Setting overlay agent to', aid)
+          sendVisualSetAgent(aid)
+        }
+        if (state.visualLayers.length > 0) {
+          const layerId = state.activeVisualLayerId ?? state.visualLayers[0].id
+          state.activeVisualLayerId = layerId
+          console.debug('Setting overlay layer to', layerId)
+          sendVisualSetLayer(layerId)
+        }
+        sendVisualOverlayEnable(true)
+      } else {
+        // Hide overlay immediately on the next frame.
+        sendVisualOverlayEnable(false)
+        state.visualGrid = null
+      }
+      requestFrame()
+    }
+    if ((event.key === '=' || event.key === '+') && state.visualLayers.length > 0) {
+      // Next layer
+      console.info('Next layer')
+      const ids = state.visualLayers.map((l) => l.id)
+      const cur = state.activeVisualLayerId ?? ids[0]
+      const idx = ids.indexOf(cur)
+      const next = ids[(idx + 1) % ids.length]
+      state.activeVisualLayerId = next
+      sendVisualSetLayer(next)
+      requestFrame()
+    }
+    if (event.key === '-' && state.visualLayers.length > 0) {
+      // Prev layer
+      console.info('Prev layer')
+      const ids = state.visualLayers.map((l) => l.id)
+      const cur = state.activeVisualLayerId ?? ids[0]
+      const idx = ids.indexOf(cur)
+      const prev = ids[(idx - 1 + ids.length) % ids.length]
+      state.activeVisualLayerId = prev
+      sendVisualSetLayer(prev)
+      requestFrame()
+    }
+  }
+
   processActions(event)
 
   requestFrame()
@@ -665,6 +724,7 @@ export function onFrame() {
   } else {
     ui.miniMapPanel.div.classList.add('hidden')
   }
+  setObsOverlayMenuVisibility()
 
   if (state.showTraces) {
     ui.tracePanel.div.classList.remove('hidden')
@@ -692,6 +752,11 @@ export function onFrame() {
   } else {
     html.actionButtons.classList.add('hidden')
   }
+  // TODO why is this called twice in this file?
+  // Keep the overlay menu in sync.
+  setObsOverlayMenuVisibility()
+
+  // TODO overlay toggle.
 
   if (state.showAgentPanel) {
     ui.agentPanel.div.classList.remove('hidden')
@@ -772,6 +837,13 @@ async function parseUrlParams() {
     if (urlParams.get('play') !== null) {
       setIsPlaying(urlParams.get('play') === 'true')
       console.info('Playing state via query parameter:', state.isPlaying)
+    }
+
+    // Optional: enable overlay from query param
+    if (urlParams.get('overlay') !== null) {
+      state.showObsOverlay = urlParams.get('overlay') === 'true'
+      // Defer sending overlay enable until websocket is open (handled in ws.onopen)
+      requestFrame()
     }
 
     // Set the selected object.

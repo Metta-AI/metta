@@ -4,6 +4,7 @@ import { ctx, html, state, ui } from './common.js'
 import { onResize, requestFrame, updateStep } from './main.js'
 import { focusFullMap } from './worldmap.js'
 import { validateReplayData, validateReplayStep } from './validation.js'
+import { updateObsOverlayMenu } from './overlay.js'
 
 /** This represents a sequence of values sort of like a movie timeline. */
 export class Sequence<T> {
@@ -644,6 +645,7 @@ export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl)
   state.ws.onmessage = (event) => {
     const data = JSON.parse(event.data)
+    console.debug('WS message:', data.type, data)
     if (data.type === 'replay') {
       loadReplayJson(wsUrl, data.replay)
       Common.closeModal()
@@ -652,15 +654,46 @@ export function initWebSocket(wsUrl: string) {
       loadReplayStep(data.replay_step)
     } else if (data.type === 'memory_copied') {
       navigator.clipboard.writeText(JSON.stringify(data.memory))
+    } else if (data.type === 'visual_layers') {
+      // Populate layer list for overlay UI
+      state.visualLayers = data.layers || []
+      if (state.visualLayers.length > 0 && state.activeVisualLayerId == null) {
+        state.activeVisualLayerId = state.visualLayers[0].id
+      }
+      updateObsOverlayMenu()
+    } else if (data.type === 'visual_grid') {
+      // Set current visual grid for rendering
+      state.visualGrid = {
+        width: data.width,
+        height: data.height,
+        values: data.values,
+        valueRange: data.valueRange,
+      }
+      state.activeVisualAgentId = data.agentId
+      state.activeVisualLayerId = data.layerId
+      requestFrame()
     }
   }
   state.ws.onopen = () => {
     Common.showModal('info', 'Starting environment', 'Please wait while live environment is starting...')
+    console.debug('WS open')
+    // If overlay was requested before the socket opened, enable it now
+    if (state.showObsOverlay) {
+      sendVisualOverlayEnable(true)
+      if (state.selectedGridObject && state.selectedGridObject.isAgent) {
+        sendVisualSetAgent(state.selectedGridObject.agentId)
+      }
+      if (state.activeVisualLayerId != null) {
+        sendVisualSetLayer(state.activeVisualLayerId)
+      }
+    }
   }
   state.ws.onclose = () => {
+    console.debug('WS close')
     Common.showModal('error', 'WebSocket closed', 'Please check your connection and refresh this page.')
   }
   state.ws.onerror = (event) => {
+    console.debug('WS error', event)
     Common.showModal('error', 'WebSocket error', `Websocket error: ${event}`)
   }
 }
@@ -694,6 +727,58 @@ export function sendAction(actionName: string, actionParam: number) {
     )
   } else {
     console.error('No selected grid object')
+  }
+}
+
+// ---- Play mode overlay controls ----
+export function sendVisualOverlayEnable(enabled: boolean) {
+  if (state.ws === null) return
+  const payload = { type: 'visual_overlay_enable', enabled }
+  console.debug('WS send:', payload)
+  if (state.ws.readyState === WebSocket.OPEN) {
+    state.ws.send(JSON.stringify(payload))
+  } else {
+    state.ws.addEventListener(
+      'open',
+      () => {
+        state.ws && state.ws.send(JSON.stringify(payload))
+      },
+      { once: true }
+    )
+  }
+}
+
+export function sendVisualSetAgent(agentId: number) {
+  if (state.ws === null) return
+  const payload = { type: 'visual_set_agent', agent_id: agentId }
+  console.debug('WS send:', payload)
+  if (state.ws.readyState === WebSocket.OPEN) {
+    state.ws.send(JSON.stringify(payload))
+  } else {
+    state.ws.addEventListener(
+      'open',
+      () => {
+        state.ws && state.ws.send(JSON.stringify(payload))
+      },
+      { once: true }
+    )
+  }
+}
+
+export function sendVisualSetLayer(layerId: number) {
+  if (state.ws === null) return
+  const payload = { type: 'visual_set_layer', layer_id: layerId }
+  console.debug('WS send:', payload)
+  if (state.ws.readyState === WebSocket.OPEN) {
+    state.ws.send(JSON.stringify(payload))
+  } else {
+    state.ws.addEventListener(
+      'open',
+      () => {
+        state.ws && state.ws.send(JSON.stringify(payload))
+      },
+      { once: true }
+    )
   }
 }
 

@@ -8,6 +8,7 @@ import { updateSelection } from './main.js'
 import { renderMinimapObjects, renderMinimapVisualRanges } from './minimap.js'
 import type { PanelInfo } from './panels.js'
 import { Entity, sendAction } from './replay.js'
+import { drawObservationOverlay } from './overlay.js'
 import { search, searchMatch } from './search.js'
 import { Vec2f } from './vector_math.js'
 
@@ -936,6 +937,9 @@ export function drawMap(panel: PanelInfo) {
     drawVisibility()
     drawGrid()
     drawThoughtBubbles()
+
+    // Draw observation overlay numbers (play mode only)
+    drawObservationOverlay()
   }
 
   if (search.active) {
