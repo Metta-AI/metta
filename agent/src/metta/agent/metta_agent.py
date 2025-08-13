@@ -85,6 +85,9 @@ class MettaAgent(nn.Module):
         self.action_space = env.single_action_space
         self.feature_normalizations = env.feature_normalizations
 
+        self.hidden_size = agent_cfg.hidden_size
+        self.num_lstm_layers = agent_cfg.num_lstm_layers
+
         # Create policy if not provided
         if policy is None:
             policy = self._create_policy(agent_cfg, env, system_cfg)

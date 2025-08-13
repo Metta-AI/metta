@@ -215,6 +215,8 @@ def train(
         max_minibatch_size=trainer_cfg.minibatch_size,
         experience_spec=Composite({**dict(policy_spec.items()), **dict(loss_spec.items())}),
         device=device,
+        hidden_size=policy.hidden_size,
+        num_lstm_layers=policy.num_lstm_layers,
         cpu_offload=trainer_cfg.cpu_offload,
     )
 

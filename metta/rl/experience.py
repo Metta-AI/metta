@@ -37,6 +37,8 @@ class Experience:
         max_minibatch_size: int,
         experience_spec: Composite,
         device: torch.device | str,
+        hidden_size: int,
+        num_lstm_layers: int,
         cpu_offload: bool = False,
     ):
         """Initialize experience buffer with segmented storage."""
@@ -101,7 +103,7 @@ class Experience:
         self.states = {}  # Dict[env_id, Tuple[h, c]]
         for i in range(0, total_agents, batch_size):
             batch_size_actual = min(batch_size, total_agents - i)
-            self.lstm_states[i] = (
+            self.states[i] = (
                 torch.zeros(num_lstm_layers, batch_size_actual, hidden_size, device=self.device),
                 torch.zeros(num_lstm_layers, batch_size_actual, hidden_size, device=self.device),
             )
