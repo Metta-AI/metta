@@ -213,12 +213,13 @@ def _(
     create_demo_eval_finder_widget,
     fetch_eval_data_for_policies,
     mo,
+    policy_context_msg,
     policy_selector,
     training_run_policies,
 ):
     def _():
         # Create widget with policy-aware data
-        live_widget = EvalFinderWidget()
+        live_widget = mo.ui.anywidget(EvalFinderWidget())
 
         try:
             # Determine which are training runs vs standalone policies
@@ -253,20 +254,14 @@ def _(
                 # categories=eval_data["categories"], # you can leave this unset to fetch all categories
             )
 
-            policy_context_msg = ""
-            if eval_data.get("has_policy_context"):
-                policy_context_msg = f"""
-                **Policy Context:**
-                - 🔥 {len(eval_data.get("recommendations", []))} recommendations
-                """
-
             print(
                 f"📊 Loaded {len(eval_data['evaluations'])} evaluations{policy_context_msg}"
             )
 
+            # You can define a callback to react to selection changes with a function like this:
             def on_selected_changed(selection):
-                print(f"selection = {selection}")
                 print(f"live_widget.value = {live_widget.value}")
+                print(f"selection = {selection}")
 
             live_widget.on_selection_changed(on_selected_changed)
 
