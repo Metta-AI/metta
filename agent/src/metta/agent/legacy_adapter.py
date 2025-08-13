@@ -7,6 +7,8 @@ import torch
 from tensordict import TensorDict
 from torch import nn
 
+from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+
 logger = logging.getLogger("legacy_adapter")
 
 
@@ -52,7 +54,7 @@ class LegacyMettaAgentAdapter(nn.Module):
             if "_action_" in self.components:
                 self.components["_action_"](td)
 
-        # Delegate to appropriate legacy method
+        # Check if legacy agent has the forward methods (unlikely for real old checkpoints)
         if action is None and hasattr(self.legacy_agent, "forward_inference"):
             return self.legacy_agent.forward_inference(td)
         elif action is not None and hasattr(self.legacy_agent, "forward_training"):
@@ -63,13 +65,92 @@ class LegacyMettaAgentAdapter(nn.Module):
                 T = td["bptt"][0].item()
                 result = result.reshape(B, T)
             return result
+
+        # Implement the forward logic for old checkpoints that don't have these methods
+        if action is None:
+            # Inference mode - sample actions
+            return self._forward_inference(td)
         else:
-            # Fallback - return td with minimal required fields
-            # This path is for legacy agents that don't have the expected methods
+            # Training mode - evaluate actions
+            result = self._forward_training(td, action)
+            if needs_reshape:
+                B = td["batch"][0].item()
+                T = td["bptt"][0].item()
+                result = result.reshape(B, T)
+            return result
+
+    def _forward_inference(self, td: TensorDict) -> TensorDict:
+        """Inference mode - sample actions from the policy."""
+        # Get value and action logits from components
+        value = td.get("_value_")
+        logits = td.get("_action_")
+
+        if value is None or logits is None:
+            # Fallback if components didn't produce expected outputs
             flat_batch = td.batch_size.numel()
-            td.setdefault("actions", torch.zeros((flat_batch, 2), dtype=torch.long, device=td.device))
-            td.setdefault("values", torch.zeros(flat_batch, device=td.device))
+            td["actions"] = torch.zeros((flat_batch, 2), dtype=torch.long, device=td.device)
+            td["values"] = torch.zeros(flat_batch, device=td.device)
             return td
+
+        # Sample actions from logits
+        action_logit_index, action_log_prob, _, full_log_probs = sample_actions(logits)
+
+        # Convert logit indices to actions
+        if hasattr(self, "action_index_tensor") and self.action_index_tensor is not None:
+            action = self.action_index_tensor[action_logit_index]
+        else:
+            # Fallback if action conversion not available
+            action = torch.zeros((td.batch_size.numel(), 2), dtype=torch.long, device=td.device)
+
+        # Store outputs in td
+        td["actions"] = action
+        td["act_log_prob"] = action_log_prob
+        td["values"] = value.flatten()
+        td["full_log_probs"] = full_log_probs
+
+        return td
+
+    def _forward_training(self, td: TensorDict, action: torch.Tensor) -> TensorDict:
+        """Training mode - evaluate given actions."""
+        # Get value and action logits from components
+        value = td.get("_value_")
+        logits = td.get("_action_")
+
+        if value is None or logits is None:
+            # Fallback if components didn't produce expected outputs
+            logger.warning("Components did not produce _value_ or _action_ outputs")
+            flat_batch = td.batch_size.numel()
+            td["act_log_prob"] = torch.zeros(flat_batch, device=td.device)
+            td["value"] = torch.zeros((flat_batch, 1), device=td.device)
+            td["entropy"] = torch.zeros(flat_batch, device=td.device)
+            return td
+
+        # Handle action reshaping
+        if action.dim() == 3:  # [B, T, 2]
+            B, T, A = action.shape
+            flattened_action = action.view(B * T, A)
+        else:  # Already flattened
+            flattened_action = action
+
+        # Convert actions to logit indices
+        if hasattr(self, "cum_action_max_params") and self.cum_action_max_params is not None:
+            action_type_numbers = flattened_action[:, 0].long()
+            action_params = flattened_action[:, 1].long()
+            action_logit_index = action_type_numbers + self.cum_action_max_params[action_type_numbers] + action_params
+        else:
+            # Fallback - assume simple action space
+            action_logit_index = flattened_action[:, 0]
+
+        # Evaluate actions to get log probs and entropy
+        action_log_prob, entropy, full_log_probs = evaluate_actions(logits, action_logit_index)
+
+        # Store outputs in td
+        td["act_log_prob"] = action_log_prob
+        td["entropy"] = entropy
+        td["value"] = value
+        td["full_log_probs"] = full_log_probs
+
+        return td
 
     def reset_memory(self) -> None:
         """Reset memory for components that have it."""
