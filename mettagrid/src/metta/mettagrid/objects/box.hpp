@@ -42,7 +42,7 @@ public:
         features.reserve(3);
         features.push_back({ObservationFeature::TypeId, static_cast<ObservationType>(this->type_id)});
         features.push_back({ObservationFeature::Group, static_cast<ObservationType>(creator_agent_id)});
-        // Optionally, add inventory info if needed
+        //  Optionally, add inventory info if needed
         for (const auto& [item, amount] : this->inventory) {
             if (amount > 0) {
                 features.push_back({static_cast<ObservationType>(InventoryFeatureOffset + item),

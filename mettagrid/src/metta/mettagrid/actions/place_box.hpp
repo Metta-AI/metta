@@ -57,8 +57,7 @@ protected:
 
     actor->stats.add("box.created", 1.0f);
     return true;
-
   }
 };
 
-#endif  // ACTIONS_PUT_RECIPE_ITEMS_HPP_
+#endif  // ACTIONS_PLACE_BOX_HPP_

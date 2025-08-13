@@ -190,7 +190,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
       const BoxConfig* box_config = dynamic_cast<const BoxConfig*>(object_cfg);
       if (box_config) {
-        Box* box = new Box(r, c, *box_config, 255, 255); // Default creator values
+        Box* box = new Box(r, c, *box_config, 255, 255);  // Default creator values
         _grid->add_object(box);
         _stats->incr("objects." + cell);
         continue;
@@ -229,9 +229,9 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
           agent->init_visitation_grid(height, width);
         }
         // add agent box
-        if(cfg.objects.contains("box")) {
+        if (cfg.objects.contains("box")) {
           const BoxConfig* local_box_cfg = dynamic_cast<const BoxConfig*>(cfg.objects.at("box").get());
-          if(local_box_cfg) {
+          if (local_box_cfg) {
             agent->box = new Box(0, 0, *local_box_cfg, agent->id, static_cast<unsigned char>(agent->agent_id));
             _grid->ghost_add_object(agent->box);
           }

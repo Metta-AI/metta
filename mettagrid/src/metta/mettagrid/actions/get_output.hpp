@@ -31,7 +31,7 @@ protected:
       return false;
     }
     // If converter, get output from converter
-    if(converter) {
+    if (converter) {
       if (!converter->inventory_is_accessible()) {
         return false;
       }
@@ -57,7 +57,7 @@ protected:
     }
 
     // If box, pick up box if allowed
-    if(box) {
+    if (box) {
       if (actor->agent_id == box->creator_agent_id) {
         // Creator cannot open their own box
         return false;
