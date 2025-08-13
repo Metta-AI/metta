@@ -41,5 +41,7 @@ game:
       type_id: 2
     box:
       type_id: 12
+      resources_to_create:
+        battery_blue: 1
 
   no_agent_interference: true
