@@ -24,11 +24,11 @@ on:
       num_gpus:
         description: "Number of GPUs to request (e.g., 1, 4). If empty, defaults to SkyPilot task definition (usually 1)."
         required: false
-        type: string # Keep as string to allow empty, action handles default
+        type: string
       num_nodes:
         description: "Number of Nodes to request (e.g., 1, 4). If empty, defaults to SkyPilot task definition (usually 1)."
         required: false
-        type: string # Keep as string to allow empty, action handles default
+        type: string
   push:
     branches: [main]
 
