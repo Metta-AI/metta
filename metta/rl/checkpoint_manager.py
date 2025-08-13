@@ -202,18 +202,12 @@ class CheckpointManager:
                 logger.info(f"Loading policy from {policy_path}")
                 policy_record = self.policy_store.policy_record(policy_path)
             elif torch.distributed.is_initialized():
-                # Non-master ranks: do not load from file. Create a fresh policy locally.
-                logger.info(
-                    (
-                        f"Rank {self.rank}: Skipping file load for policy. "
-                        f"Creating local policy and syncing metadata via NCCL"
-                    )
-                )
-                name = os.path.basename(policy_path) if policy_path.endswith(".pt") else default_model_name
-                policy_record = self.policy_store.create_empty_policy_record(
-                    name=name, checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir
-                )
-                policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+                # Non-master ranks: Load the checkpoint to get the same structure as master
+                # DDP will overwrite the weights, but we need matching architecture
+                logger.info(f"Rank {self.rank}: Loading policy structure from {policy_path} for DDP sync")
+                # Load the checkpoint to get the same module structure
+                policy_record = self.policy_store.policy_record(policy_path)
+                # The weights will be overwritten by DDP broadcast from rank 0
         elif self.is_master:
             logger.info("No existing policy found, creating new one")
             new_policy_record = self.policy_store.create_empty_policy_record(
