@@ -9,13 +9,13 @@ from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
-from metta.mettagrid.mettagrid_config import PyBoxConfig, PyConverterConfig, PyGameConfig, PyWallConfig
+from metta.mettagrid.mettagrid_config import ConverterConfig, GameConfig, WallConfig, BoxConfig
 
 
 def convert_to_cpp_game_config(mettagrid_config_dict: dict):
-    """Convert a PyGameConfig to a CppGameConfig."""
+    """Convert a GameConfig to a CppGameConfig."""
 
-    game_config = PyGameConfig(**mettagrid_config_dict)
+    game_config = GameConfig(**mettagrid_config_dict)
 
     resource_names = list(game_config.inventory_item_names)
     resource_name_to_id = {name: i for i, name in enumerate(resource_names)}
@@ -92,7 +92,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
 
     # Convert other objects
     for object_type, object_config in game_config.objects.items():
-        if isinstance(object_config, PyConverterConfig):
+        if isinstance(object_config, ConverterConfig):
             cpp_converter_config = CppConverterConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,
@@ -115,7 +115,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                 recipe_details_obs=game_config.recipe_details_obs,
             )
             objects_cpp_params[object_type] = cpp_converter_config
-        elif isinstance(object_config, PyWallConfig):
+        elif isinstance(object_config, WallConfig):
             cpp_wall_config = CppWallConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,
