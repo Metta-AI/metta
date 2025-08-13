@@ -1,10 +1,10 @@
 # metta/sim/simulation_config.py
 
 import json
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Literal, Optional
 
 from omegaconf import DictConfig, OmegaConf
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from metta.common.util.config import Config
 
@@ -41,6 +41,7 @@ class SingleEnvSimulationConfig(SimulationConfig):
 
     __init__ = SimulationConfig.__init__
 
+    type: Literal["single"] = Field(default="single", description="Type discriminator for SingleEnvSimulationConfig")
     env: str
     env_overrides: dict = {}
 
@@ -48,6 +49,7 @@ class SingleEnvSimulationConfig(SimulationConfig):
 class SimulationSuiteConfig(SimulationConfig):
     """A suite of named simulations, with suite-level defaults injected."""
 
+    type: Literal["suite"] = Field(default="suite", description="Type discriminator for SimulationSuiteConfig")
     name: str
     simulations: Dict[str, SingleEnvSimulationConfig]
     episode_tags: list[str] = []
