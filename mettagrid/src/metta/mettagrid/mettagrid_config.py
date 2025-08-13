@@ -137,6 +137,7 @@ class PyActionsConfig(BaseModelWithForbidExtra):
     move_cardinal: Optional[PyActionConfig] = None
     rotate: Optional[PyActionConfig] = None
     put_items: Optional[PyActionConfig] = None
+    place_box: Optional[PyActionConfig] = None
     get_items: Optional[PyActionConfig] = None
     attack: Optional[PyAttackActionConfig] = None
     swap: Optional[PyActionConfig] = None
@@ -165,6 +166,13 @@ class PyWallConfig(BaseModelWithForbidExtra):
 
     type_id: int
     swappable: bool = Field(default=False)
+
+
+class PyBoxConfig(BaseModelWithForbidExtra):
+    """Python box configuration."""
+
+    type_id: int = Field(default=0, ge=0, le=255)
+    resources_to_create: dict[str, int] = Field(default_factory=dict)
 
 
 class PyConverterConfig(BaseModelWithForbidExtra):
@@ -199,7 +207,7 @@ class PyGameConfig(BaseModelWithForbidExtra):
     actions: PyActionsConfig
     global_obs: PyGlobalObsConfig = Field(default_factory=PyGlobalObsConfig)
     recipe_details_obs: bool = Field(default=False)
-    objects: dict[str, PyConverterConfig | PyWallConfig]
+    objects: dict[str, PyConverterConfig | PyWallConfig | PyBoxConfig]
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
