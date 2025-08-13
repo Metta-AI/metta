@@ -56,20 +56,6 @@ class DistributedMettaAgent(DistributedDataParallel):
 
 
 class MettaAgent(nn.Module):
-    """Wrapper that bridges between environments and policies.
-
-    Architecture:
-    - MettaAgent: Handles environment interface, feature remapping, action conversion
-    - Policy (ComponentPolicy/PyTorch agents): Handles forward pass and network architecture
-
-    Separation of Concerns:
-    - Only MettaAgent has initialize_to_environment() - this is the environment interface
-    - Policies only implement forward() and optionally specific methods like:
-      - _apply_feature_remapping() for observation components
-      - activate_action_embeddings() for action embeddings
-      - clip_weights(), l2_init_loss(), etc. for training utilities
-    """
-
     def __init__(
         self,
         env,
@@ -197,24 +183,13 @@ class MettaAgent(nn.Module):
         device,
         is_training: bool = True,
     ):
-        """Initialize the agent to the current environment.
-
-        This is the main entry point for environment initialization.
-        Only MettaAgent should have this method - policies should not.
-        """
+        """Initialize the agent to the current environment."""
         # MettaAgent handles all initialization
         self.activate_actions(action_names, action_max_params, device)
         self.activate_observations(features, device)
 
     def activate_observations(self, features: dict[str, dict], device):
-        """Activate observation features by storing the feature mapping.
-
-        This method handles feature remapping for policies that don't understand
-        feature ID changes between training and evaluation environments.
-
-        This is a MettaAgent-level concern - policies shouldn't need to know about
-        feature remapping, they just work with the remapped observations.
-        """
+        """Activate observation features by storing the feature mapping."""
         self.active_features = features
         self.device = device
 
@@ -303,11 +278,7 @@ class MettaAgent(nn.Module):
         return getattr(self, "original_feature_mapping", None)
 
     def restore_original_feature_mapping(self, mapping: dict[str, int]) -> None:
-        """Restore the original feature mapping from metadata.
-
-        This should be called after loading a model from checkpoint but before
-        calling initialize_to_environment.
-        """
+        """Restore the original feature mapping from metadata."""
         # Make a copy to avoid shared state between agents
         self.original_feature_mapping = mapping.copy()
         logger.info(f"Restored original feature mapping with {len(mapping)} features from metadata")
@@ -319,7 +290,7 @@ class MettaAgent(nn.Module):
         self.action_names = action_names
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
-        # Precompute cumulative sums for action conversion
+        # Precompute cumulative sums for faster conversion
         self.cum_action_max_params = torch.cumsum(
             torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )
@@ -347,7 +318,6 @@ class MettaAgent(nn.Module):
 
     @property
     def total_params(self):
-        """Total number of parameters."""
         return self._total_params
 
     @property
