@@ -7,7 +7,8 @@ import { parseHtmlColor } from './htmlutils.js'
 import { updateSelection } from './main.js'
 import { renderMinimapObjects, renderMinimapVisualRanges } from './minimap.js'
 import type { PanelInfo } from './panels.js'
-import { Entity, sendAction, sendVisualOverlayEnable, sendVisualSetLayer } from './replay.js'
+import { Entity, sendAction } from './replay.js'
+import { drawObservationOverlay } from './overlay.js'
 import { search, searchMatch } from './search.js'
 import { Vec2f } from './vector_math.js'
 
@@ -607,52 +608,7 @@ function drawThoughtBubbles() {
   }
 }
 
-/** Draws the observation tensor overlay around the selected agent (play mode only). */
-function drawObservationOverlay() {
-  if (state.ws === null || !state.showObsOverlay || state.visualGrid === null) {
-    return
-  }
-  const g = state.visualGrid
-
-  if (g.values.length < g.width * g.height) {
-    return
-  }
-  const aid = state.activeVisualAgentId
-  if (aid == null || aid < 0 || aid >= state.replay.agents.length) {
-    return
-  }
-  const agentObj = state.replay.agents[aid]
-  const loc = agentObj.location.get()
-  const ax = loc[0]
-  const ay = loc[1]
-  const halfW = Math.floor(g.width / 2)
-  const halfH = Math.floor(g.height / 2)
-  // Draw values in obs window centered on agent.
-  for (let r = 0; r < g.height; r++) {
-    for (let c = 0; c < g.width; c++) {
-      const idx = r * g.width + c
-      if (idx < 0 || idx >= g.values.length) continue
-      const v = (g.values as any)[idx] || 0
-      if (v === 0) continue
-      const wx = ax + (c - halfW)
-      const wy = ay + (r - halfH)
-      if (wx < 0 || wy < 0 || wx >= state.replay.mapSize[0] || wy >= state.replay.mapSize[1]) continue
-      const alpha = g.valueRange && g.valueRange.max !== g.valueRange.min
-        ? Math.min(1, Math.max(0, (v - g.valueRange.min) / (g.valueRange.max - g.valueRange.min)))
-        : 1
-      const color: [number, number, number, number] = [1, 0, 0, 0.4 + 0.6 * alpha]
-      ctx.save()
-      ctx.drawSolidRect(
-        wx * Common.TILE_SIZE - Common.TILE_SIZE / 2 + 6,
-        wy * Common.TILE_SIZE - Common.TILE_SIZE / 2 + 6,
-        Common.TILE_SIZE - 12,
-        10,
-        color
-      )
-      ctx.restore()
-    }
-  }
-}
+// Observation overlay drawing has been moved to overlay.ts.
 
 /** Draws the visibility map, either agent view ranges or fog of war. */
 function drawVisibility() {
@@ -985,7 +941,7 @@ export function drawMap(panel: PanelInfo) {
     drawThoughtBubbles()
 
     // Draw observation overlay numbers (play mode only)
-    // drawObservationOverlay()
+    drawObservationOverlay()
   }
 
   if (search.active) {

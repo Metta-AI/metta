@@ -4,6 +4,7 @@ import { ctx, html, state, ui } from './common.js'
 import { onResize, requestFrame, updateStep } from './main.js'
 import { focusFullMap } from './worldmap.js'
 import { validateReplayData, validateReplayStep } from './validation.js'
+import { updateObsOverlayMenu } from './overlay.js'
 
 /** This represents a sequence of values sort of like a movie timeline. */
 export class Sequence<T> {
@@ -659,6 +660,7 @@ export function initWebSocket(wsUrl: string) {
       if (state.visualLayers.length > 0 && state.activeVisualLayerId == null) {
         state.activeVisualLayerId = state.visualLayers[0].id
       }
+      updateObsOverlayMenu()
     } else if (data.type === 'visual_grid') {
       // Set current visual grid for rendering
       state.visualGrid = {
