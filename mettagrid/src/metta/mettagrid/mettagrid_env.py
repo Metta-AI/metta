@@ -93,13 +93,6 @@ class MettaGridEnv(MettaGridPufferBase):
         """Generate unique episode ID."""
         return str(uuid.uuid4())
 
-    def set_level(self, level: Level) -> None:
-        """Set the level for the environment."""
-        self._level = level
-        self._map_labels = level.labels
-        # Update optional labels from config
-        self.labels = level.labels
-
     def _reset_trial(self) -> None:
         """Reset the environment for a new trial within the same episode."""
         # Get new task from curriculum (for new trial)
@@ -108,8 +101,10 @@ class MettaGridEnv(MettaGridPufferBase):
         game_config_dict = OmegaConf.to_container(task_cfg.game)
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
-        level = task_cfg.game.map_builder.build()
-        self.set_level(level)
+        # Sync level with task config
+        self._level = task_cfg.game.map_builder.build()
+        self._map_labels = self._level.labels
+        self.labels = self._level.labels
 
         # Create new C++ environment for new trial
         self._c_env_instance = self._create_c_env(game_config_dict, self._current_seed)
@@ -155,9 +150,10 @@ class MettaGridEnv(MettaGridPufferBase):
         game_config_dict = OmegaConf.to_container(task_cfg.game)
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
 
-        # need to make sure that level is synced with config
-        level = task_cfg.game.map_builder.build()
-        self.set_level(level)
+        # Sync level with task config
+        self._level = task_cfg.game.map_builder.build()
+        self._map_labels = self._level.labels
+        self.labels = self._level.labels
 
         # Recreate C++ environment for new task (after first reset)
         if self._resets > 0:
