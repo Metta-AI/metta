@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Union, Tuple
+from typing import Optional, Tuple, Union
 
 import gymnasium as gym
 import torch
@@ -59,7 +59,6 @@ class ComponentPolicy(nn.Module):
             comp_dict = dict(component_cfgs[component_key], **self.agent_attributes, name=component_name)
             self.components[component_name] = instantiate(comp_dict)
 
-
         # Setup components
         component = self.components["_value_"]
         self._setup_components(component)
@@ -87,7 +86,9 @@ class ComponentPolicy(nn.Module):
         self.cum_action_max_params = None
         self.action_index_tensor = None
 
-    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> Tuple[TensorDict, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
+    def forward(
+        self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None
+    ) -> Tuple[TensorDict, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
         """Forward pass of the ComponentPolicy - matches original MettaAgent forward() logic."""
 
         logger.info(f"state: {state}")

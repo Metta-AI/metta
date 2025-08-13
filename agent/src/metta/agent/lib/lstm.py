@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Tuple
 
 import torch
 import torch.nn as nn
@@ -33,7 +33,6 @@ class LSTM(LayerBase):
         super().__init__(**cfg)
         self.hidden_size = self._nn_params["hidden_size"]
         self.num_layers = self._nn_params["num_layers"]
-
 
     def setup(self, source_components):
         """Setup the layer and create the network."""
@@ -74,7 +73,6 @@ class LSTM(LayerBase):
         B = td["batch"][0]
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
-
 
         if state is None:
             h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
