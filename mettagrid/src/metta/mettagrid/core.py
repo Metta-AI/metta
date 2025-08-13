@@ -43,7 +43,7 @@ class MettaGridCore:
         Args:
             level: Level to use for the environment
             game_config_dict: Game configuration dictionary
-            render_mode: Rendering mode (None, "raylib")
+            render_mode: Rendering mode (None, "human", "miniscope", "raylib")
             **kwargs: Additional arguments passed to subclasses
         """
         self._render_mode = render_mode
@@ -74,8 +74,16 @@ class MettaGridCore:
         """Initialize renderer class based on render mode."""
         self._renderer = None
         self._renderer_class = None
+        self._renderer_native = False
+        if self._render_mode == "human":
+            from metta.mettagrid.renderer.nethack import NethackRenderer
 
-        if self._render_mode == "raylib":
+            self._renderer_class = NethackRenderer
+        elif self._render_mode == "miniscope":
+            from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
+
+            self._renderer_class = MiniscopeRenderer
+        elif self._render_mode == "raylib":
             # Only initialize raylib renderer if not in CI/Docker environment
             is_ci_environment = bool(
                 os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.path.exists("/.dockerenv")
@@ -85,6 +93,7 @@ class MettaGridCore:
                     from metta.mettagrid.mettagrid_c import Hermes
 
                     self._renderer_class = Hermes
+                    self._renderer_native = True
                 except ImportError:
                     logger.warning("Raylib renderer requested but raylib not available")
             else:
@@ -132,9 +141,12 @@ class MettaGridCore:
             and hasattr(self, "_renderer_class")
             and self._renderer_class is not None
         ):
-            self._renderer = self._renderer_class()
+            if self._renderer_native:
+                self._renderer = self._renderer_class()
+            else:
+                self._renderer = self._renderer_class(c_env.object_type_names())
 
-        if self._renderer is not None:
+        if self._renderer_native:
             self._renderer.update(c_env)
 
         return c_env
@@ -184,11 +196,17 @@ class MettaGridCore:
 
         return obs, rewards, terminals, truncations, infos
 
-    def render(self):
+    def render(self) -> Optional[str]:
         """Render the environment."""
-        if self._renderer is not None and self._c_env_instance is not None:
-            if not self._renderer.render():
-                self._renderer = None
+        if self._c_env_instance is not None:
+            if self._renderer_native:
+                if not self._renderer.render():
+                    self._renderer = None
+                    self._renderer_native = False
+            elif self._renderer is not None:
+                return self._renderer.render(self._c_env_instance.current_step, self._c_env_instance.grid_objects())
+
+        return None
 
     def close(self) -> None:
         """Close the environment."""
