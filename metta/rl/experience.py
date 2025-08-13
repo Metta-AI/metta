@@ -149,7 +149,12 @@ class Experience:
         self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
         self.ep_lengths[env_id] = 0
 
-        self.states[env_id.start] = (None, None)
+
+        self.states[env_id.start] = (
+            torch.zeros(num_lstm_layers, batch_size_actual, hidden_size, device=self.device),
+            torch.zeros(num_lstm_layers, batch_size_actual, hidden_size, device=self.device),
+        )
+
 
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
