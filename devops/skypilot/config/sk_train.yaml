@@ -88,6 +88,10 @@ run: |
   export NODE_INDEX="${SKYPILOT_NODE_RANK:-0}"
   export NCCL_SHM_DISABLE=1
 
+  # Create a temp directory for IPC files
+  export IPC_DIR="/tmp/metta_job_$$"
+  mkdir -p "$IPC_DIR"
+
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
 
   export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
