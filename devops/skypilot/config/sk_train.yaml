@@ -128,42 +128,88 @@ run: |
     touch "$METTA_ENV_FILE"
   fi
 
+  # Set up feature flags based on available credentials
+  if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
+    export ENABLE_DISCORD=true
+    echo "[RUN] DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:+<set>}" # Don't print the actual url
+    echo "[RUN] Discord notifications are enabled"
+  else
+    export ENABLE_DISCORD=false
+    echo "[RUN] Discord notifications are disabled (no webhook URL)"
+  fi
+
   if [ -n "${GITHUB_PAT:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${METTA_GIT_REF:-}" ]; then
-    ENABLE_GITHUB_STATUS=true
+    export ENABLE_GITHUB_STATUS=true
     echo "[RUN] GitHub status reporting is enabled"
     echo "[RUN] GITHUB_PAT: ${GITHUB_PAT:+<set>}" # Don't print the actual token
     echo "[RUN] GITHUB_REPOSITORY: ${GITHUB_REPOSITORY:-<not set>}"
     echo "[RUN] METTA_GIT_REF: ${METTA_GIT_REF:-<not set>}"
     echo "[RUN] METTA_RUN_ID: ${METTA_RUN_ID:-<not set>}"
-    echo "[RUN] DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:+<set>}" # Don't print the actual url
-
-    # Set GitHub status
-    GITHUB_STATUS_STATE=pending GITHUB_STATUS_DESCRIPTION="Queued on SkyPilot…" \
-      uv run devops/skypilot/set_github_status.py || echo "[WARN] Pending status post failed; continuing"
-
-    # Send Discord notification if webhook URL is available
-    if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
-      echo "[RUN] Sending Discord notification..."
-
-      # Write Discord message to file line by line
-      echo "🚀 **SkyPilot Job Launched**" > "$IPC_DIR/discord_message.txt"
-      echo "" >> "$IPC_DIR/discord_message.txt"
-      echo "**Repository**: ${GITHUB_REPOSITORY}" >> "$IPC_DIR/discord_message.txt"
-      echo "**Git Ref**: ${METTA_GIT_REF}" >> "$IPC_DIR/discord_message.txt"
-      echo "**Run ID**: ${METTA_RUN_ID:-N/A}" >> "$IPC_DIR/discord_message.txt"
-      echo "**Status**: Job queued on SkyPilot" >> "$IPC_DIR/discord_message.txt"
-      echo "**Time**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> "$IPC_DIR/discord_message.txt"
-      echo "" >> "$IPC_DIR/discord_message.txt"
-      echo "(I am testing - we will soon change this to only alert on failed CI multinode runs.)" >> "$IPC_DIR/discord_message.txt"
-
-      DISCORD_CONTENT="$(cat "$IPC_DIR/discord_message.txt")"
-      export DISCORD_CONTENT
-      uv run -m metta.common.util.discord || echo "[WARN] Discord notification failed; continuing"
-    fi
   else
-    ENABLE_GITHUB_STATUS=false
+    export ENABLE_GITHUB_STATUS=false
     echo "[RUN] GitHub status reporting is disabled (missing required credentials)"
   fi
+
+  # Function to conditionally send Discord notifications
+  maybe_send_discord_notification() {
+    local emoji="$1"
+    local title="$2"
+    local status_msg="$3"
+    local additional_info="${4:-}"
+
+    if [ "$ENABLE_DISCORD" != "true" ]; then
+      return 0
+    fi
+
+    echo "[RUN] Sending Discord notification: $title"
+
+    # Calculate runtime if START_TIME is set
+    local runtime_msg=""
+    if [ -n "${START_TIME:-}" ] && [ "${START_TIME}" -ne 0 ]; then
+      local current_time=$(date +%s)
+      local duration=$((current_time - START_TIME))
+      local hours=$((duration / 3600))
+      local minutes=$(((duration % 3600) / 60))
+      runtime_msg="**Runtime**: ${hours}h ${minutes}m"
+    fi
+
+    # Build Discord message
+    {
+      echo "$emoji **$title**"
+      echo ""
+      echo "**Repository**: ${GITHUB_REPOSITORY}"
+      echo "**Git Ref**: ${METTA_GIT_REF}"
+      echo "**Run ID**: ${METTA_RUN_ID:-N/A}"
+      echo "**Status**: $status_msg"
+      [ -n "$runtime_msg" ] && echo "$runtime_msg"
+      echo "**Time**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+      [ -n "$additional_info" ] && echo "" && echo "$additional_info"
+    } > "$IPC_DIR/discord_message.txt"
+
+    DISCORD_CONTENT="$(cat "$IPC_DIR/discord_message.txt")"
+    export DISCORD_CONTENT
+    uv run -m metta.common.util.discord || echo "[WARN] Discord notification failed; continuing"
+  }
+
+  # Function to conditionally set GitHub status
+  maybe_set_github_status() {
+    if [ "$ENABLE_GITHUB_STATUS" != "true" ]; then
+      return 0
+    fi
+
+    echo "[RUN] Setting GitHub status: ${GITHUB_STATUS_STATE:-} - ${GITHUB_STATUS_DESCRIPTION:-}"
+    uv run devops/skypilot/set_github_status.py || echo "[WARN] GitHub status update failed; continuing"
+  }
+
+  # Export the functions so they're available in subshells
+  export -f maybe_send_discord_notification
+  export -f maybe_set_github_status
+
+  # Initial setup and notifications
+  # Set GitHub status
+  export GITHUB_STATUS_STATE=pending
+  export GITHUB_STATUS_DESCRIPTION="Queued on SkyPilot…"
+  maybe_set_github_status
 
   graceful_shutdown() {
     echo "[WRAP] Caught INT/TERM/HUP; initiating graceful shutdown..."
@@ -178,7 +224,7 @@ run: |
     if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ] && kill -0 "$CMD_PID" 2>/dev/null; then
       echo "[WRAP] Sending SIGINT to training PGID ${CMD_PGID}"
       kill -INT -"${CMD_PGID}" 2>/dev/null || true
-      # Wait for training to exit, but don’t fail wrapper if it returns nonzero
+      # Wait for training to exit, but don't fail wrapper if it returns nonzero
       wait "${CMD_PID}" 2>/dev/null || true
     fi
 
@@ -198,10 +244,8 @@ run: |
     echo "[INFO] Termination reason: ${TERMINATION_REASON}"
     echo "[INFO] Exiting wrapper with code 0 (controlled shutdown)"
 
-    if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
-      export CMD_EXIT
-      uv run devops/skypilot/set_github_status.py || echo "[WARN] Final status post failed"
-    fi
+    export CMD_EXIT
+    maybe_set_github_status
 
     exit 0
   }
@@ -372,24 +416,30 @@ run: |
       echo "[INFO] Termination reason from monitor: $TERMINATION_REASON"
     fi
 
-    # Check termination reason
+    # Check termination reason and set appropriate status
     if [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
       echo "[ERROR] Job terminated due to heartbeat timeout"
       export GITHUB_STATUS_DESCRIPTION="Job failed - no heartbeat for ${HEARTBEAT_TIMEOUT} seconds"
-      # Keep failure exit code for status reporting script -- but override when exiting to prevent skypilot retry
+      maybe_send_discord_notification "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
+
     elif [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]]; then
       echo "[INFO] Job terminated due to max runtime limit"
       export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
+      maybe_send_discord_notification "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
       # Map to success
       CMD_EXIT=0
+
     elif [[ $CMD_EXIT -eq 0 ]]; then
       echo "[SUCCESS] Job completed successfully"
       export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
       export TERMINATION_REASON="completed"
+      maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
+
     else
       echo "[ERROR] Job failed with exit code $CMD_EXIT"
       export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
       export TERMINATION_REASON="exit_code_${CMD_EXIT}"
+      maybe_send_discord_notification "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
     fi
 
     # Final summary
@@ -399,11 +449,9 @@ run: |
     echo "[SUMMARY] Termination reason: ${TERMINATION_REASON:-unknown}"
     echo "[SUMMARY] ======================"
 
-    if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
-      # The set_github_status.py script uses CMD_EXIT to determine status
-      export CMD_EXIT
-      uv run devops/skypilot/set_github_status.py || echo "[WARN] Final status post failed"
-    fi
+    # The set_github_status.py script uses CMD_EXIT to determine status
+    export CMD_EXIT
+    maybe_set_github_status
 
     echo "[RUN] Job complete with exit code: $CMD_EXIT (reason: ${TERMINATION_REASON:-unknown})"
 
