@@ -1,0 +1,51 @@
+defaults:
+  - /env/mettagrid/operant_conditioning/in_context_learning/defaults@
+  - _self_
+game:
+  map_builder:
+    root:
+      params:
+        objects:
+          generator_green: 1
+          mine_green: 1
+          generator_blue: 1
+          generator_red: 1
+          mine_red: 1
+          lab: 1
+          altar: 1
+          mine_blue: 1
+  objects:
+    generator_green:
+      input_resources:
+        ore_blue: 1
+      output_resources:
+        ore_red: 1
+    mine_green:
+      input_resources:
+        ore_blue: 1
+      output_resources:
+        battery_red: 1
+    generator_blue:
+      output_resources:
+        ore_green: 1
+    generator_red:
+      input_resources:
+        battery_red: 1
+      output_resources:
+        heart: 1
+    mine_red:
+      input_resources:
+        battery_red: 1
+    lab:
+      input_resources:
+        battery_red: 1
+      output_resources:
+        heart: 1
+    altar:
+      input_resources:
+        ore_green: 1
+      output_resources:
+        ore_blue: 1
+    mine_blue:
+      output_resources:
+        ore_green: 1
