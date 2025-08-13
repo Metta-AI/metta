@@ -226,10 +226,10 @@ class MettaAgent(nn.Module):
             device: Device to place tensors on
         """
         # Use PyTorch's built-in training mode detection
-        self._initialize_observations(features, device)
+        self.activate_observations(features, device)
         self.activate_actions(action_names, action_max_params, device)
 
-    def _initialize_observations(self, features: dict[str, dict], device):
+    def activate_observations(self, features: dict[str, dict], device):
         """Initialize observation features by storing the feature mapping."""
         self.active_features = features
         self.device = device
