@@ -225,25 +225,12 @@ class CheckpointManager:
         elif torch.distributed.is_initialized():
             # Non-master ranks: Create the same policy structure as master
             # DDP will sync the actual weights from rank 0, but we need the same architecture
-            logger.info((f"No existing policy found. Rank {self.rank}: Creating local policy for DDP sync"))
+            logger.info(f"No existing policy found. Rank {self.rank}: Creating local policy for DDP sync")
             policy_record = self.policy_store.create_empty_policy_record(
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
-            # Suppress logging during policy creation on non-master ranks to avoid sync issues
-            import logging
-
-            # Save current log level and temporarily set to WARNING to suppress INFO logs
-            original_level = logging.getLogger("metta_agent").level
-            logging.getLogger("metta_agent").setLevel(logging.WARNING)
-            logging.getLogger("component_policy").setLevel(logging.WARNING)
-
-            try:
-                # Create the same policy type as master - DDP will broadcast weights from rank 0
-                policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
-            finally:
-                # Restore original log levels
-                logging.getLogger("metta_agent").setLevel(original_level)
-                logging.getLogger("component_policy").setLevel(original_level)
+            # Create the same policy type as master - DDP will broadcast weights from rank 0
+            policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
         else:
             raise RuntimeError(f"Non-master rank {self.rank} found without torch.distributed initialized")
 
