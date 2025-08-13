@@ -239,6 +239,10 @@ export function processActions(event: KeyboardEvent) {
       // Put recipe items.
       sendAction('put_items', 0)
     }
+    if (event.key === 'b') {
+      // Place box.
+      sendAction('place_box', 0)
+    }
     if (event.key === 'e') {
       // Get the output.
       sendAction('get_items', 0)
