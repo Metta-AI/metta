@@ -107,9 +107,21 @@ class Agalite(nn.Module):
 
         observations = td["env_obs"].to(self.device)
 
-        # Initialize state if needed
+        # Initialize or deserialize state
         if state is None:
-            state = self._initialize_state(observations.shape[0])
+            agalite_memory = self._initialize_agalite_memory()
+        elif isinstance(state, torch.Tensor):
+            # State is passed as a serialized tensor (from td["state"] or previous forward pass)
+            agalite_memory = self._deserialize_agalite_memory(state)
+        elif isinstance(state, dict):
+            # State is passed as a dictionary
+            if "agalite_memory_serialized" in state:
+                agalite_memory = self._deserialize_agalite_memory(state["agalite_memory_serialized"])
+            else:
+                agalite_memory = state.get("agalite_memory", self._initialize_agalite_memory())
+        else:
+            # Fallback to initialization
+            agalite_memory = self._initialize_agalite_memory()
 
         # Encode observations
         hidden = self.encode_observations(observations)
@@ -120,8 +132,6 @@ class Agalite(nn.Module):
         # Prepare terminations (use zeros if not provided)
         terminations = td.get("terminations", torch.zeros(B * TT, device=self.device))
 
-        # Forward through AGaLiTe
-        agalite_memory = state.get("agalite_memory", self._initialize_agalite_memory())
         hidden = hidden.view(B * TT, -1)  # Flatten for AGaLiTe
         agalite_out, new_agalite_memory = self.agalite(hidden, terminations, agalite_memory)
 
@@ -152,10 +162,12 @@ class Agalite(nn.Module):
             if td.batch_dims > 1:
                 td = td.reshape(B, TT)
 
-        # Update state
-        # Note: AGaLiTe memory is a complex nested structure that can't be stored directly in TensorDict
-        # For now, we skip storing it in td["state"] to avoid errors
-        # TODO: Implement proper state serialization for AGaLiTe memory
+        # Update state - serialize AGaLiTe memory as a single tensor (similar to LSTM state storage)
+        # NOTE: Current AGaLiTe implementation processes all batch elements through a single model
+        # with shared memory, which is not ideal for independent batch processing.
+        # For now, we skip storing state to avoid dimension mismatches.
+        # TODO: Switch to BatchedAGaLiTe for proper per-batch-element memory handling
+        pass
 
         return td
 
@@ -242,6 +254,58 @@ class Agalite(nn.Module):
     def _initialize_agalite_memory(self) -> Dict[str, Tuple]:
         """Initialize AGaLiTe memory."""
         return AGaLiTe.initialize_memory(self.n_layers, self.n_heads, self.d_head, self.eta, self.r, self.device)
+
+    def _serialize_agalite_memory(self, memory_dict: Dict[str, Tuple]) -> torch.Tensor:
+        """
+        Serialize AGaLiTe memory dictionary into a single tensor.
+
+        Memory structure per layer: (tilde_k_prev, tilde_v_prev, s_prev, tick)
+        We concatenate all tensors from all layers into a single flat tensor.
+        """
+        all_tensors = []
+        for layer_idx in range(1, self.n_layers + 1):
+            layer_memory = memory_dict[f"layer_{layer_idx}"]
+            # Flatten each tensor in the tuple and concatenate
+            for tensor in layer_memory:
+                all_tensors.append(tensor.flatten())
+
+        # Concatenate all flattened tensors
+        return torch.cat(all_tensors, dim=0)
+
+    def _deserialize_agalite_memory(self, serialized: torch.Tensor) -> Dict[str, Tuple]:
+        """
+        Deserialize a single tensor back into AGaLiTe memory dictionary.
+
+        Reconstructs the original dictionary structure with proper tensor shapes.
+        """
+        memory_dict = {}
+        offset = 0
+
+        # Calculate sizes for each tensor component
+        tilde_k_size = self.r * self.n_heads * self.eta * self.d_head
+        tilde_v_size = self.r * self.n_heads * self.d_head
+        s_size = self.n_heads * self.eta * self.d_head
+        tick_size = 1
+
+        for layer_idx in range(1, self.n_layers + 1):
+            # Extract and reshape each component
+            tilde_k_prev = serialized[offset : offset + tilde_k_size].reshape(
+                self.r, self.n_heads, self.eta * self.d_head
+            )
+            offset += tilde_k_size
+
+            tilde_v_prev = serialized[offset : offset + tilde_v_size].reshape(self.r, self.n_heads, self.d_head)
+            offset += tilde_v_size
+
+            s_prev = serialized[offset : offset + s_size].reshape(self.n_heads, self.eta * self.d_head)
+            offset += s_size
+
+            tick = serialized[offset : offset + tick_size]
+            offset += tick_size
+
+            memory_dict[f"layer_{layer_idx}"] = (tilde_k_prev, tilde_v_prev, s_prev, tick)
+
+        return memory_dict
 
     def clip_weights(self):
         """Clip weights to prevent large updates."""
