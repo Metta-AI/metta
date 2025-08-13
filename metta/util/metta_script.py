@@ -85,7 +85,12 @@ def metta_script(
                 # Convert py_agent string to a DictConfig with agent_type
                 # Remove .py extension if present
                 agent_type = cfg.py_agent.replace(".py", "")
-                cfg.agent = DictConfig({"agent_type": agent_type})
+                cfg.agent = DictConfig({
+                    "agent_type": agent_type,
+                    "clip_range": 0,  # Default: no clipping
+                    "analyze_weights_interval": 300,  # Default interval
+                    "observations": {"obs_key": "grid_obs"}  # Default observation config
+                })
         except AttributeError:
             logger.info("No py_agent specified, using the default agent.")
 
