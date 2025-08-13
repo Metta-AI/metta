@@ -582,33 +582,42 @@ def train(
                 wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
                 break
 
-    # All ranks wait until training is complete before closing vecenv
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
+        # All ranks wait until training is complete before closing vecenv
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
 
-    vecenv.close()
+        vecenv.close()
 
-    if not is_master:
-        return
+        if not is_master:
+            return
 
-    logger.info("Training complete!")
-    timing_summary = timer.get_all_summaries()
-    for name, summary in timing_summary.items():
-        logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
+        logger.info("Training complete!")
 
-    maybe_establish_checkpoint(
-        checkpoint_manager=checkpoint_manager,
-        epoch=epoch,
-        policy=policy,
-        agent_step=agent_step,
-        eval_scores=eval_scores,
-        timer=timer,
-        initial_policy_record=initial_policy_record,
-        optimizer=optimizer,
-        run_dir=run_dir,
-        kickstarter=kickstarter,
-        force=True,
-        wandb_run=wandb_run,
-    )
+        # Update training run status to completed
+        if stats_client and stats_tracker.stats_run_id:
+            try:
+                stats_client.update_training_run_status(stats_tracker.stats_run_id, "completed")
+                logger.info("Training run status updated to 'completed'")
+            except Exception as e:
+                logger.warning(f"Failed to update training run status to completed: {e}", exc_info=True)
+
+        timing_summary = timer.get_all_summaries()
+        for name, summary in timing_summary.items():
+            logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
+
+        maybe_establish_checkpoint(
+            checkpoint_manager=checkpoint_manager,
+            epoch=epoch,
+            policy=policy,
+            agent_step=agent_step,
+            eval_scores=eval_scores,
+            timer=timer,
+            initial_policy_record=initial_policy_record,
+            optimizer=optimizer,
+            run_dir=run_dir,
+            kickstarter=kickstarter,
+            force=True,
+            wandb_run=wandb_run,
+        )
 
     cleanup_monitoring(memory_monitor, system_monitor)
