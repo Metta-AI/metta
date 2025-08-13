@@ -153,6 +153,8 @@ class MettaAgent(nn.Module):
             td["actions"] = torch.zeros((batch_size, 2), dtype=torch.long)
             return td
 
+        # New policies (ComponentPolicy, Fast, etc.) all expect (td, state, action)
+        # Pass the parameters as provided to us
         return self.policy(td, state, action)
 
     def reset_memory(self) -> None:
