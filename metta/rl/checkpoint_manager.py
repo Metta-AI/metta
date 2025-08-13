@@ -223,14 +223,17 @@ class CheckpointManager:
             policy_record = self.policy_store.save(new_policy_record)
             logger.info(f"Created and saved new policy to {policy_record.uri}")
         elif torch.distributed.is_initialized():
-            # Non-master ranks: do not wait for file. Create a fresh policy locally.
-            logger.info(
-                (f"No existing policy found. Rank {self.rank}: Creating local policy and syncing metadata via NCCL")
-            )
+            # Non-master ranks: Create a dummy MettaAgent that will be overwritten by DDP broadcast
+            # We pass a dummy policy to avoid creating a real policy that would be immediately discarded
+            logger.info((f"No existing policy found. Rank {self.rank}: Creating placeholder policy for DDP sync"))
             policy_record = self.policy_store.create_empty_policy_record(
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
-            policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+            # Create a minimal dummy policy to avoid expensive initialization that will be overwritten
+            from metta.agent.mocks.mock_agent import MockAgent
+
+            dummy_policy = MockAgent()
+            policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg, policy=dummy_policy)
         else:
             raise RuntimeError(f"Non-master rank {self.rank} found without torch.distributed initialized")
 
