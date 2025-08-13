@@ -72,6 +72,11 @@ class EvalFinderWidget(anywidget.AnyWidget):
         self.observe(self._on_selection_changed, names="selection_changed")
         self.observe(self._on_filter_changed, names="filter_changed")
 
+    @property
+    def value(self):
+        """Return the current selection - this makes it work like other marimo UI elements!"""
+        return self.selected_evals
+
     def _on_selection_changed(self, change):
         """Handle eval selection events from JavaScript."""
         if change["new"]:

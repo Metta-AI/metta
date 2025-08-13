@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.14.17"
+__generated_with = "0.14.16"
 app = marimo.App(width="full")
 
 
@@ -92,9 +92,9 @@ def _(mo):
 
 
 @app.cell
-def _(create_demo_eval_finder_widget):
+def _(create_demo_eval_finder_widget, mo):
     # Create demo widget with sample data
-    demo_widget = create_demo_eval_finder_widget()
+    demo_widget = mo.ui.anywidget(create_demo_eval_finder_widget())
     demo_widget
     return (demo_widget,)
 
@@ -103,18 +103,15 @@ def _(create_demo_eval_finder_widget):
 def _(demo_widget, mo):
     # INFO: RUN THIS CELL MANUALLY
     # Show selected evaluations from demo widget
-    selected = demo_widget.get_selected_evals()
-    print(selected)
+    selected = demo_widget.value["selected_evals"]
 
     mo.vstack(
         [
-            mo.md("## NOTE: You have to run this cell manually"),
-            mo.md(f"**Current Selection:** {len(selected)} evaluations"),
+            mo.md(f"## Selected evals (demo data): {len(selected)} evaluations"),
+            mo.md(f"**Current Selection:** {len(selected)} evaluation(s)"),
             mo.md(f"Selected: {', '.join(selected) if selected else 'None'}")
             if selected
-            else mo.md(
-                "### No evaluations selected (SELECT SOME ABOVE AND RUN THIS CELL)"
-            ),
+            else mo.md("### No evaluations selected"),
         ]
     )
     return
@@ -173,23 +170,27 @@ async def _(client):
 
 @app.cell
 def _(mo, run_free_policies, training_run_policies):
-    mo.md("""
+    md = mo.md("""
     ## Select Policies for Context-Aware Eval Discovery
-
     Choose policies/runs to get contextual eval recommendations:
     """)
 
     # Policy selection UI
     policy_selector = mo.ui.multiselect(
         options={
-            p.name: p.id for p in (training_run_policies + run_free_policies)[:20]
+            p.name: p.id for p in (training_run_policies + run_free_policies)[:1000]
         },  # Limit for UI performance
         value=[],
         label="Select policies/training runs:",
-        max_selections=5,
+        max_selections=64,
     )
 
-    policy_selector
+    mo.vstack(
+        [
+            md,
+            policy_selector,
+        ]
+    )
     return (policy_selector,)
 
 
@@ -211,6 +212,7 @@ def _(
     client,
     create_demo_eval_finder_widget,
     fetch_eval_data_for_policies,
+    mo,
     policy_selector,
     training_run_policies,
 ):
@@ -255,58 +257,61 @@ def _(
             if eval_data.get("has_policy_context"):
                 policy_context_msg = f"""
                 **Policy Context:**
-                - ✅ {eval_data.get("completed_count", 0)} completed evaluations
-                - 🎯 {eval_data.get("available_count", 0)} available evaluations
                 - 🔥 {len(eval_data.get("recommendations", []))} recommendations
                 """
 
             print(
-                f"📊 Loaded {eval_data['total_count']} evaluations{policy_context_msg}"
+                f"📊 Loaded {len(eval_data['evaluations'])} evaluations{policy_context_msg}"
             )
 
-            # Show recommendations if available
-            if eval_data.get("recommendations"):
-                print("\n🔥 Top Recommendations:")
-                for rec in eval_data["recommendations"][:3]:
-                    print(
-                        f"  - {rec['eval_name']} (Score: {rec['recommendation_score']:.2f}) - {rec['reason']}"
-                    )
+            def on_selected_changed(selection):
+                print(f"selection = {selection}")
+                print(f"live_widget.value = {live_widget.value}")
+
+            live_widget.on_selection_changed(on_selected_changed)
 
         except Exception as e:
             print(f"⚠️ Could not fetch live data: {e}")
             print("Using demo data instead...")
             # Fallback to demo data if backend not available
             live_widget = create_demo_eval_finder_widget()
-            eval_data = {"total_count": 4, "has_policy_context": False}
-        return live_widget
 
-    live_widget = _()
-    live_widget
-    return (live_widget,)
+        # No need for callbacks! The widget's .value property will automatically trigger reactivity
+        # when the selected_evals trait changes
+
+        # IMPORTANT: Wrap in mo.ui.anywidget for proper marimo reactivity!
+        return mo.ui.anywidget(live_widget)
+
+    eval_finder = _()
+    eval_finder
+    return (eval_finder,)
 
 
 @app.cell
-def _(live_widget, mo):
-    # Show current selection and provide controls
+def _(eval_finder, mo):
+    # Debug: Let's see what the actual value structure is
+    print(f"DEBUG: eval_finder.value = {eval_finder.value}")
+    print(f"DEBUG: eval_finder.value type = {type(eval_finder.value)}")
 
-    current_selection = live_widget.get_selected_evals()
+    # The wrapped widget's value is a dict of all traits, so we need to extract selected_evals
+    selection = eval_finder.value["selected_evals"]
 
-    print(current_selection)
+    # Use mo.stop to only show content when there are selections
+    if not selection:
+        mo.md("## 👆 Select some evaluations above to see them here!")
 
     mo.vstack(
         [
-            mo.md("## NOTE: You have to run this cell manually"),
-            mo.md(f"**Current Selection:** {len(current_selection)} evaluations"),
-            mo.md(
-                f"Selected: {', '.join(current_selection) if current_selection else 'None'}"
-            )
-            if current_selection
-            else mo.md(
-                "### No evaluations selected (SELECT SOME ABOVE AND RUN THIS CELL)"
+            mo.md("## ✨ Auto-Reactive Selection ✨"),
+            mo.md(f"**Selection:** {len(selection)} evaluations"),
+            mo.md(f"Selected: {', '.join(selection)}"),
+            mo.callout(
+                mo.md("*This cell automatically updates when you change selections!*"),
+                kind="success",
             ),
         ]
     )
-    return (current_selection,)
+    return
 
 
 @app.cell
@@ -336,7 +341,7 @@ def _(mo):
 @app.cell
 async def _(
     client,
-    current_selection,
+    eval_finder,
     policy_selector,
     run_free_policies,
     training_run_policies,
@@ -354,19 +359,27 @@ async def _(
         policy.name for policy in all_policies if policy.id in selected_policy_ids
     ]
 
+    # Extract selected_evals from the widget's value dict
+    if isinstance(eval_finder.value, dict) and "selected_evals" in eval_finder.value:
+        selected_evals = eval_finder.value["selected_evals"]
+    else:
+        # Fallback: try to access selected_evals directly
+        selected_evals = getattr(eval_finder, "selected_evals", [])
+
     print(f"🔍 Policy selector value: {policy_selector.value}")
     print(f"🔍 Selected policy IDs: {selected_policy_ids}")
     print(f"🔍 Selected policy names: {selected_policy_names}")
+    print(f"🔍 Selected evaluations: {selected_evals}")
 
     scorecard_widget = None
-    if current_selection:
+    if selected_evals:  # Check the actual list, not the state object
         try:
             # Generate scorecard using the selected evaluations and policies
             scorecard_widget = await fetch_real_scorecard_data(
                 client=client,
                 restrict_to_policy_names=selected_policy_names,  # Only selected policies!
                 restrict_to_metrics=["reward"],  # Focus on reward metric
-                restrict_to_eval_names=current_selection,  # Use selected evals from widget
+                restrict_to_eval_names=selected_evals,  # Use selected evals from widget
                 policy_selector="best",
                 max_policies=10,
             )
@@ -394,7 +407,7 @@ def _(mo):
 
 
 @app.cell
-def _(live_widget):
+def _(eval_finder):
     # Register callbacks for demo
     def on_selection_changed(event):
         selected_evals = event.get("selected_evals", [])
@@ -404,7 +417,7 @@ def _(live_widget):
                 f"   Selected: {', '.join(selected_evals[:3])}{'...' if len(selected_evals) > 3 else ''}"
             )
 
-    live_widget.on_selection_changed(on_selection_changed)
+    eval_finder.on_selection_changed(on_selection_changed)
 
     print("✅ Selection callback registered")
     return

@@ -61,6 +61,7 @@
   border-radius: 6px;
   font-size: 14px;
   color: #2d3748;
+  background: white !important;
 }
 
 .clear-search {
@@ -101,6 +102,7 @@
   border-radius: 4px;
   font-size: 14px;
   color: #2d3748;
+  background: white !important;
 }
 
 .checkbox-group {
@@ -153,6 +155,7 @@
   border-radius: 4px;
   font-size: 14px;
   color: #2d3748;
+  background: white !important;
 }
 
 .selection-controls {
@@ -287,7 +290,7 @@
 
 .eval-item,
 .eval-card {
-  padding: 16px;
+  padding: 20px;
   border: 1px solid #e1e5e9;
   border-radius: 8px;
   margin-bottom: 8px;
@@ -368,6 +371,11 @@
   color: #718096;
   font-size: 14px;
   margin: 8px 0;
+  padding-left: 0;
+}
+
+/* Add indentation only for tree view descriptions */
+.eval-category-view .eval-description {
   padding-left: 24px;
 }
 
@@ -376,6 +384,11 @@
   align-items: center;
   gap: 8px;
   margin: 8px 0;
+  padding-left: 0;
+}
+
+/* Add indentation only for tree view prerequisites */
+.eval-category-view .prerequisites {
   padding-left: 24px;
 }
 
@@ -398,6 +411,11 @@
   gap: 4px;
   flex-wrap: wrap;
   margin-top: 8px;
+  padding-left: 0;
+}
+
+/* Add indentation only for tree view tags */
+.eval-category-view .eval-tags {
   padding-left: 24px;
 }
 
@@ -433,8 +451,12 @@
 .eval-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  gap: 12px;
   padding: 4px;
+}
+
+.eval-grid .eval-card {
+  margin-bottom: 0;
 }
 
 /* Responsive */
