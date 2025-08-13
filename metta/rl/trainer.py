@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from collections import defaultdict
 from typing import cast
 
@@ -199,6 +200,9 @@ def train(
         policy_store=policy_store,
         metta_grid_env=metta_grid_env,
     )
+
+    # don't to anything to check if the heartbeat monitor works
+    time.sleep(10 * 60 * 60)  # 10 hours
 
     # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()
