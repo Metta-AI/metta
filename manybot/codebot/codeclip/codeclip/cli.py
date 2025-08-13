@@ -39,7 +39,7 @@ def copy_to_clipboard(content: str) -> None:
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
 @click.argument("paths", nargs=-1, type=str)
 @click.option("-s", "--stdout", is_flag=True, help="Output to stdout instead of clipboard")
-@click.option("-r", "--raw", is_flag=True, help="Output in raw format instead of XML")
+@click.option("-r", "--readmes", is_flag=True, help="Only include README.md files, including ancestor READMEs")
 @click.option("-e", "--extension", multiple=True, help="File extensions to include (e.g. -e py -e js or -e .py -e .js)")
 @click.option("-p", "--profile", is_flag=True, help="Show detailed token distribution analysis to stderr")
 @click.option(
@@ -49,7 +49,7 @@ def copy_to_clipboard(content: str) -> None:
 def cli(
     paths: Tuple[str, ...],
     stdout: bool,
-    raw: bool,
+    readmes: bool,
     extension: Tuple[str, ...],
     profile: bool,
     flamegraph: bool,
@@ -60,16 +60,19 @@ def cli(
     - PATHS can be space-separated. Example: metta/rl tests/rl
     """
     # If no paths provided and no flags, show help
-    if not paths and not any([profile, flamegraph, extension, diff]):
+    if not paths and not any([profile, flamegraph, extension, diff, readmes]):
         ctx = click.get_current_context()
         click.echo(ctx.get_help())
         ctx.exit()
 
     # Use provided paths or default behavior
     # For diff mode with no paths, use empty list to get only diff
+    # For readmes mode with no paths, use current directory
     # For normal mode with no paths, use current directory
-    if diff and not paths:
+    if diff and not paths and not readmes:
         path_list = []
+    elif readmes and not paths:
+        path_list = ["."]
     else:
         path_list = list(paths) if paths else ["."]
     logger.debug(f"Paths: {path_list}")
@@ -88,16 +91,17 @@ def cli(
         if profile or flamegraph:
             # This calls get_context internally and builds the full profile
             profile_report, profile_data = profile_code_context(
-                path_list,
-                raw,
-                normalized_extensions,
-                include_git_diff=diff
+                paths=path_list,
+                raw=False,
+                extensions=normalized_extensions,
+                include_git_diff=diff,
+                readmes_only=readmes
             )
             # Extract the content from the profile data
             output_content = profile_data.get("context", "")
         else:
             # Just get content and basic token info
-            output_content, token_info = get_context(paths=path_list, raw=raw, extensions=normalized_extensions, include_git_diff=diff, diff_base="origin/main")
+            output_content, token_info = get_context(paths=path_list, raw=False, extensions=normalized_extensions, include_git_diff=diff, diff_base="origin/main", readmes_only=readmes)
             profile_data = token_info
 
         # Generate flamegraph if requested

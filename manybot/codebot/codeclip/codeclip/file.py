@@ -546,7 +546,7 @@ def _format_document(doc: Document, raw: bool) -> str:
 
 
 def get_context(
-    paths: Optional[List[Union[str, Path]]], raw: bool = False, extensions: Optional[Tuple[str, ...]] = None, include_git_diff: bool = False, diff_base: str = "origin/main",
+    paths: Optional[List[Union[str, Path]]], raw: bool = False, extensions: Optional[Tuple[str, ...]] = None, include_git_diff: bool = False, diff_base: str = "origin/main", readmes_only: bool = False,
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Load and format context from specified paths, with basic token counting.
@@ -557,6 +557,7 @@ def get_context(
         extensions: Optional tuple of file extensions to filter
         include_git_diff: Whether to include git diff as a virtual file
         diff_base: Base reference for git diff
+        readmes_only: Whether to only include README.md files
 
     Returns:
         Tuple of (formatted context string, token info dict)
@@ -641,6 +642,10 @@ def get_context(
 
             # Count tokens for new docs
             for doc in new_docs:
+                # Skip non-README files if readmes_only is enabled
+                if readmes_only and not doc.is_readme:
+                    continue
+
                 tokens = len(encoding.encode(doc.content))
                 path_token_count += tokens
                 path_file_count += 1
@@ -658,8 +663,10 @@ def get_context(
                 except ValueError:
                     pass
 
-            next_index += len(new_docs)
-            documents.extend(new_docs)
+                # Add document to the list
+                documents.append(doc)
+
+            next_index += len([doc for doc in new_docs if not readmes_only or doc.is_readme])
 
             # Store path summary
             if path_file_count > 0:
