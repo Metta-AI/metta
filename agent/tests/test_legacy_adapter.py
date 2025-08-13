@@ -1,11 +1,11 @@
-"""Test backwards compatibility with old checkpoint formats using LegacyMettaAgentAdapter."""
+"""Test backwards compatibility with old checkpoint formats."""
 
 import torch
 import torch.nn as nn
 from tensordict import TensorDict
 from torch.nn import ModuleDict
 
-from metta.agent.legacy_adapter import LegacyMettaAgentAdapter
+from metta.agent.component_policy import ComponentPolicy
 from metta.agent.metta_agent import MettaAgent
 
 
@@ -19,7 +19,13 @@ def create_mock_old_metta_agent():
             self.ready = True
 
         def forward(self, td):
-            td[self._name] = torch.randn(td.batch_size.numel(), 1)
+            # Simulate component output
+            batch_size = td.batch_size.numel()
+            if self._name == "_value_":
+                td[self._name] = torch.randn(batch_size, 1)
+            elif self._name == "_action_":
+                # Simulate action logits for 6 actions
+                td[self._name] = torch.randn(batch_size, 6)
 
         def has_memory(self):
             return False
@@ -37,35 +43,27 @@ def create_mock_old_metta_agent():
             )
             self.components_with_memory = []
             self.clip_range = 0.1
-            self.cum_action_max_params = torch.tensor([0, 3, 6, 9])
+            # For 2 action types with 3 params each (param values 0, 1, 2)
+            # The formula is: logit_index = action_type + cum_action_max_params[action_type] + action_param
+            # We want actions [0,0],[0,1],[0,2] to map to indices 0,1,2
+            # and actions [1,0],[1,1],[1,2] to map to indices 3,4,5
+            # So cum_action_max_params[0] = 0 and cum_action_max_params[1] = 2
+            # This gives us the correct mapping
+            self.cum_action_max_params = torch.tensor([0, 2])
             self.action_index_tensor = torch.tensor([[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]])
-
-        def forward_inference(self, td):
-            td["actions"] = torch.zeros((td.batch_size.numel(), 2), dtype=torch.long)
-            td["values"] = torch.randn(td.batch_size.numel())
-            return td
-
-        def forward_training(self, td, action):
-            # Add training outputs to the td
-            batch_size = td.batch_size.numel()
-            td["act_log_prob"] = torch.randn(batch_size)
-            td["value"] = torch.randn(batch_size, 1)
-            td["entropy"] = torch.randn(batch_size)
-            return td
+            self.cfg = {"clip_range": 0.1}
+            self.agent_attributes = {}
 
     return OldMettaAgent()
 
 
 def test_old_checkpoint_loading():
-    """Test that old checkpoints are properly wrapped in the adapter."""
+    """Test that old checkpoints are properly converted to new structure."""
     # Create an old-style agent
     old_agent = create_mock_old_metta_agent()
 
-    # Copy methods to simulate what would happen with a real old checkpoint
-    # In real checkpoints, the MettaAgent instance would have these methods
+    # Get the state dict to simulate what would be in a checkpoint
     old_agent_dict = old_agent.__dict__.copy()
-    old_agent_dict["forward_inference"] = old_agent.forward_inference
-    old_agent_dict["forward_training"] = old_agent.forward_training
 
     # Create new MettaAgent and restore old state
     class TempMettaAgent(MettaAgent):
@@ -76,84 +74,68 @@ def test_old_checkpoint_loading():
     new_agent = TempMettaAgent()
     new_agent.__setstate__(old_agent_dict)
 
-    # Verify the policy is wrapped in adapter
+    # Verify the policy was created and is a ComponentPolicy
     assert hasattr(new_agent, "policy"), "MettaAgent should have policy attribute"
-    assert isinstance(new_agent.policy, LegacyMettaAgentAdapter), (
-        f"Policy should be LegacyMettaAgentAdapter, got {type(new_agent.policy)}"
+    assert isinstance(new_agent.policy, ComponentPolicy), (
+        f"Policy should be ComponentPolicy, got {type(new_agent.policy)}"
     )
 
-    # Test forward pass
+    # Verify components were transferred to policy
+    assert hasattr(new_agent.policy, "components"), "Policy should have components"
+    assert "_value_" in new_agent.policy.components, "Policy should have _value_ component"
+    assert "_action_" in new_agent.policy.components, "Policy should have _action_ component"
+
+    # Verify other attributes were transferred correctly
+    assert new_agent.policy.clip_range == 0.1, f"clip_range should be 0.1, got {new_agent.policy.clip_range}"
+    assert hasattr(new_agent.policy, "cum_action_max_params"), "Policy should have cum_action_max_params"
+    assert hasattr(new_agent.policy, "action_index_tensor"), "Policy should have action_index_tensor"
+
+    # Test forward pass with inference
     batch_size = 4
     td = TensorDict({"env_obs": torch.randn(batch_size, 200, 3)}, batch_size=[batch_size])
 
-    # Test inference
-    result = new_agent.forward(td, state=None, action=None)
+    # Run components to generate _value_ and _action_
+    new_agent.policy.components["_value_"](td)
+    new_agent.policy.components["_action_"](td)
+
+    # Now run forward_inference
+    result = new_agent.policy.forward_inference(td)
     assert "actions" in result, "Forward should return actions"
     assert "values" in result, "Forward should return values"
 
-    # Test training - For simplicity, just test that it doesn't crash
-    # The exact reshaping behavior is complex and depends on the specific legacy implementation
+    # Test training forward with action evaluation
     td_train = TensorDict({"env_obs": torch.randn(2, 3, 200, 3)}, batch_size=[2, 3])
-    action = torch.zeros((2, 3, 2), dtype=torch.long)
-    # Check that forward_training is accessible
-    assert hasattr(new_agent.policy.legacy_agent, "forward_training"), (
-        "Legacy agent should have forward_training method"
-    )
 
-    result = new_agent.forward(td_train, state=None, action=action)
-    # Just check that we got some result back with expected fields
-    # The batch size handling is implementation-specific for legacy agents
-    has_training_outputs = any(k in ["act_log_prob", "value", "entropy"] for k in result.keys())
-    if not has_training_outputs:
-        # Also check if it's in the reshaped result
-        flat_result = result.reshape(-1) if result.batch_dims > 1 else result
-        has_training_outputs = any(k in ["act_log_prob", "value", "entropy"] for k in flat_result.keys())
-    assert has_training_outputs, f"Training forward should return training outputs, got keys: {list(result.keys())}"
+    # Flatten for components
+    flat_td = td_train.reshape(6)
+    new_agent.policy.components["_value_"](flat_td)
+    new_agent.policy.components["_action_"](flat_td)
 
+    # Test with valid actions - ensure they map to valid logit indices (0-5)
+    # With cum_action_max_params = [0, 3], action [0,i] maps to 0+0+i = i, action [1,i] maps to 1+3+i = 4+i
+    # But wait, that doesn't work. Let me think about this...
+    # Actually, the formula is: action_type + cum_action_max_params[action_type] + action_param
+    # So action [0,i] maps to 0 + 0 + i = i (indices 0,1,2)
+    # And action [1,i] maps to 1 + 3 + i = 4+i? No that's wrong too.
+    # The issue is cum_action_max_params needs to be the right cumulative sum
+    action = torch.tensor([[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]], dtype=torch.long).reshape(2, 3, 2)
+    result = new_agent.policy.forward_training(flat_td, action)
 
-def test_adapter_methods():
-    """Test that adapter properly delegates methods."""
-
-    old_agent = create_mock_old_metta_agent()
-    adapter = LegacyMettaAgentAdapter(old_agent)
-
-    # Test that components are accessible
-    assert hasattr(adapter, "components"), "Adapter should have components"
-    assert "_value_" in adapter.components, "Adapter should have _value_ component"
-    assert "_action_" in adapter.components, "Adapter should have _action_ component"
-
-    # Test clip_range
-    assert hasattr(adapter, "clip_range"), "Adapter should have clip_range"
-    assert adapter.clip_range == 0.1, f"clip_range should be 0.1, got {adapter.clip_range}"
-
-    # Test action conversion attributes
-    assert hasattr(adapter, "cum_action_max_params"), "Adapter should have cum_action_max_params"
-    assert hasattr(adapter, "action_index_tensor"), "Adapter should have action_index_tensor"
-
-    # Test memory methods (even with no memory components)
-    adapter.reset_memory()  # Should not crash
-    memory = adapter.get_memory()
-    assert isinstance(memory, dict), "get_memory should return dict"
-
-    # Test action conversion
-    action = torch.tensor([[0, 1], [1, 1]], dtype=torch.long)  # Use valid indices
-    indices = adapter._convert_action_to_logit_index(action)
-    assert indices.shape == (2,), f"Should return 1D tensor, got shape {indices.shape}"
-
-    # Only test reverse conversion with valid indices (within bounds)
-    valid_indices = torch.tensor([0, 3], dtype=torch.long)  # Indices within action_index_tensor bounds
-    back = adapter._convert_logit_index_to_action(valid_indices)
-    assert back.shape == (2, 2), f"Should return 2D tensor, got shape {back.shape}"
+    # Check for training outputs
+    assert "act_log_prob" in result, "Training should return act_log_prob"
+    assert "value" in result, "Training should return value"
+    assert "entropy" in result, "Training should return entropy"
 
 
 def test_no_circular_references():
-    """Verify no circular references exist."""
+    """Verify no circular references exist after conversion."""
 
     # Create a mock agent with old checkpoint format
     old_agent = create_mock_old_metta_agent()
     old_agent_dict = old_agent.__dict__.copy()
-    old_agent_dict["forward_inference"] = old_agent.forward_inference
-    old_agent_dict["forward_training"] = old_agent.forward_training
+
+    # Simulate circular reference that might exist in old checkpoints
+    old_agent_dict["policy"] = old_agent_dict  # Circular reference
 
     class TempMettaAgent(MettaAgent):
         def __init__(self):
@@ -182,16 +164,36 @@ def test_no_circular_references():
     assert module_count > 0, "Should be able to count modules without recursion"
 
     # Test that DistributedDataParallel would work (simulate the check)
-    if hasattr(agent, "policy") and agent.policy is agent:
-        raise AssertionError("Circular reference detected")
+    assert agent.policy is not agent, "No circular reference for DDP"
 
 
 def test_new_checkpoint_format():
     """Test that new checkpoints (with separate policy) still work."""
 
-    from metta.agent.component_policy import ComponentPolicy
+    # Create a new checkpoint format with policy already separated
+    class TempMettaAgent(MettaAgent):
+        def __init__(self):
+            nn.Module.__init__(self)
 
-    # This would normally be created through proper initialization
-    # Here we just verify the structure works
-    # Full test would need environment setup
-    assert ComponentPolicy is not None
+    agent = TempMettaAgent()
+
+    # Create a mock ComponentPolicy
+    policy = ComponentPolicy.__new__(ComponentPolicy)
+    nn.Module.__init__(policy)
+    policy.components = ModuleDict()
+    policy.components_with_memory = []
+
+    # Create state with new format (has policy, not components)
+    new_state = {
+        "policy": policy,
+        "device": "cpu",
+        "_total_params": 1000,
+    }
+
+    # Restore state
+    agent.__setstate__(new_state)
+
+    # Verify it was restored correctly
+    assert agent.policy is policy, "Policy should be the same object"
+    assert agent.device == "cpu", "Device should be restored"
+    assert agent._total_params == 1000, "Total params should be restored"
