@@ -219,14 +219,12 @@ class CheckpointManager:
             policy_record = self.policy_store.save(new_policy_record)
             logger.info(f"Created and saved new policy to {policy_record.uri}")
         elif torch.distributed.is_initialized():
-            # Non-master ranks: do not wait for file. Create a fresh policy locally.
-            logger.info(
-                (f"No existing policy found. Rank {self.rank}: Creating local policy and syncing metadata via NCCL")
-            )
-            policy_record = self.policy_store.create_empty_policy_record(
-                checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
-            )
-            policy_record.policy = make_policy(metta_grid_env, system_cfg, agent_cfg)
+            # Non-master ranks: Load the checkpoint to get the same structure as master
+            # DDP will overwrite the weights, but we need matching architecture
+            logger.info(f"Rank {self.rank}: Loading policy structure from {policy_path} for DDP sync")
+            # Load the checkpoint to get the same module structure
+            policy_record = self.policy_store.policy_record(policy_path)
+            # The weights will be overwritten by DDP broadcast from rank 0
         else:
             raise RuntimeError(f"Non-master rank {self.rank} found without torch.distributed initialized")
 
