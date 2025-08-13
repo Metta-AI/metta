@@ -87,8 +87,7 @@ class ConverterConfig(GridObjectConfig):
     cooldown: int
     initial_resource_count: int
     color: int
-    transmits_to_agents: bool 
-    transmits_to_converters: bool
+    can_transmit: bool 
     transmission_radius: int 
 
 class ActionConfig:

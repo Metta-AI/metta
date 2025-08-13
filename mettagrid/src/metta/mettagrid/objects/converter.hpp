@@ -28,8 +28,7 @@ struct ConverterConfig : public GridObjectConfig {
                   InventoryQuantity initial_resource_count,
                   ObservationType color,
                   bool recipe_details_obs,
-                  bool transmits_to_agents,
-                  bool transmits_to_converters,
+                  bool can_transmit,
                   unsigned short transmission_radius)
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
@@ -40,8 +39,7 @@ struct ConverterConfig : public GridObjectConfig {
         cooldown(cooldown),
         initial_resource_count(initial_resource_count),
         color(color),
-        transmits_to_agents(transmits_to_agents),
-        transmits_to_converters(transmits_to_converters),
+        can_transmit(can_transmit),
         transmission_radius(transmission_radius),
         recipe_details_obs(recipe_details_obs),
         // These are always 0 when this is created, since we want a single constructor, and these
@@ -57,8 +55,7 @@ struct ConverterConfig : public GridObjectConfig {
   unsigned short cooldown;
   InventoryQuantity initial_resource_count;
   ObservationType color;
-  bool transmits_to_agents;
-  bool transmits_to_converters;
+  bool can_transmit;
   unsigned short transmission_radius;
   bool recipe_details_obs;
   ObservationType input_recipe_offset;
@@ -140,8 +137,7 @@ public:
   bool converting;                  // Currently in production phase
   bool cooling_down;                // Currently in cooldown phase
   unsigned char color;
-  bool transmits_to_agents;
-  bool transmits_to_converters;
+  bool can_transmit;
   unsigned short transmission_radius;
   bool recipe_details_obs;
   EventManager* event_manager;
@@ -160,8 +156,7 @@ public:
         converting(false),
         cooling_down(false),
         color(cfg.color),
-        transmits_to_agents(cfg.transmits_to_agents),
-        transmits_to_converters(cfg.transmits_to_converters),
+        can_transmit(cfg.can_transmit),
         transmission_radius(cfg.transmission_radius),
         recipe_details_obs(cfg.recipe_details_obs),
         event_manager(nullptr),
@@ -198,13 +193,9 @@ public:
     }
 
     // Attempt to transmit output to a nearby agent or converter
-
-
-
-
-
-
-    //////////////////////////////////////////////////////////////
+    if (this->can_transmit) {
+      this->attempt_transmission();
+    }
 
     if (this->cooldown > 0) {
       // Start cooldown phase
@@ -221,6 +212,29 @@ public:
     this->cooling_down = false;
     stats.incr("cooldown.completed");
     this->maybe_start_converting();
+  }
+
+  void attempt_transmission(){
+    Grid* grid = this->event_manager->grid;
+    for (int rad = 0; rad <= this->transmission_radius; rad++) {
+      for (int orientation = 0; orientation<4; orientation++) {
+        if (grid->is_valid_location(grid->relative_location(this->location, static_cast<Orientation>(orientation), rad, 0))) {
+
+          // check and see if anything's there to begin with
+          GridObject* obj = grid->object_at(grid->relative_location(this->location, static_cast<Orientation>(orientation), rad, 0));
+          if (obj->type_id == TypeId::Agent || obj->type_id == TypeId::Converter) {
+
+            if (static_cast<HasInventory*>(obj)->update_inventory(this->output_resources.begin()->first, 1) != 0){
+
+              this->update_inventory(this->output_resources.begin()->first, -1);
+            }
+            // if we fail, then just abort mission - consider that an agent might block the transmission in some way intentionally.
+            // hower, this is will intentionally also mean only one transmission happens even if successful.
+            return;
+          }
+        }
+      }
+    }
   }
 
   InventoryDelta update_inventory(InventoryItem item, InventoryDelta attempted_delta) override {

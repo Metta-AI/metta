@@ -111,8 +111,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                 cooldown=object_config.cooldown,
                 initial_resource_count=object_config.initial_resource_count,
                 color=object_config.color,
-                transmits_to_agents=object_config.transmits_to_agents,
-                transmits_to_converters=object_config.transmits_to_converters,
+                can_transmit=object_config.can_transmit,
                 transmission_radius=object_config.transmission_radius,
                 recipe_details_obs=game_config.recipe_details_obs,
             )
