@@ -24,7 +24,7 @@ Build the widget assets:
 ```bash
 cd experiments/notebooks/utils/eval_finder_widget
 npm install
-npx vite build
+npm run build
 ```
 
 The widget is now ready to use in your notebooks.
@@ -114,7 +114,6 @@ eval_data = fetch_eval_data_for_policies(
 widget.set_eval_data(
     evaluations=eval_data["evaluations"],
     categories=eval_data["categories"], 
-    available_categories=eval_data["available_categories"]
 )
 
 widget

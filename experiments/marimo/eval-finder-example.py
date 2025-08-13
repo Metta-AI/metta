@@ -61,8 +61,8 @@ def _():
         EvalFinderWidget,
     )
     from experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.util import (
-        fetch_eval_data_for_policies,
         create_demo_eval_finder_widget,
+        fetch_eval_data_for_policies,
     )
     from metta.app_backend.clients.scorecard_client import ScorecardClient
 
@@ -213,99 +213,88 @@ def _(
     create_demo_eval_finder_widget,
     fetch_eval_data_for_policies,
     mo,
-    policy_context_msg,
     policy_selector,
     training_run_policies,
 ):
-    def _():
-        # Create widget with policy-aware data
-        live_widget = mo.ui.anywidget(EvalFinderWidget())
+    # Create the raw widget first
+    _widget = EvalFinderWidget()
 
-        try:
-            # Determine which are training runs vs standalone policies
-            selected_policy_ids = policy_selector.value
-            print(policy_selector.value)
-            selected_training_runs = []
-            selected_policies = []
+    try:
+        # Determine which are training runs vs standalone policies
+        _selected_policy_ids = policy_selector.value
+        print(policy_selector.value)
+        _selected_training_runs = []
+        _selected_policies = []
 
-            for policy_id in selected_policy_ids:
-                # Check if it's a training run
-                is_training_run = any(p.id == policy_id for p in training_run_policies)
-                if is_training_run:
-                    selected_training_runs.append(policy_id)
-                else:
-                    selected_policies.append(policy_id)
+        for policy_id in _selected_policy_ids:
+            # Check if it's a training run
+            is_training_run = any(p.id == policy_id for p in training_run_policies)
+            if is_training_run:
+                _selected_training_runs.append(policy_id)
+            else:
+                _selected_policies.append(policy_id)
 
-            print(
-                f"🎯 Fetching evals for {len(selected_training_runs)} training runs and {len(selected_policies)} policies"
-            )
+        print(
+            f"🎯 Fetching evals for {len(_selected_training_runs)} training runs and {len(_selected_policies)} policies"
+        )
 
-            # Fetch policy-aware eval data
-            eval_data = fetch_eval_data_for_policies(
-                training_run_ids=selected_training_runs,
-                run_free_policy_ids=selected_policies,
-                category_filter=[],
-                client=client,
-            )
+        # Fetch policy-aware eval data
+        _eval_data = fetch_eval_data_for_policies(
+            training_run_ids=_selected_training_runs,
+            run_free_policy_ids=_selected_policies,
+            category_filter=[],
+            client=client,
+        )
 
-            # Set the data on the widget
-            live_widget.set_eval_data(
-                evaluations=eval_data["evaluations"],
-                # categories=eval_data["categories"], # you can leave this unset to fetch all categories
-            )
+        # Set the data on the raw widget
+        _widget.set_eval_data(
+            evaluations=_eval_data["evaluations"],
+            # categories=_eval_data["categories"], # you can leave this unset to fetch all categories
+        )
 
-            print(
-                f"📊 Loaded {len(eval_data['evaluations'])} evaluations{policy_context_msg}"
-            )
+        print(f"📊 Loaded {len(_eval_data['evaluations'])} evaluations")
 
-            # You can define a callback to react to selection changes with a function like this:
-            def on_selected_changed(selection):
-                print(f"live_widget.value = {live_widget.value}")
-                print(f"selection = {selection}")
+    except Exception as e:
+        print(f"⚠️ Could not fetch live data: {e}")
+        print("Using demo data instead...")
+        # Fallback to demo data if backend not available
+        _widget = create_demo_eval_finder_widget()
 
-            live_widget.on_selection_changed(on_selected_changed)
+    # Wrap the configured widget
+    eval_finder = mo.ui.anywidget(_widget)
 
-        except Exception as e:
-            print(f"⚠️ Could not fetch live data: {e}")
-            print("Using demo data instead...")
-            # Fallback to demo data if backend not available
-            live_widget = create_demo_eval_finder_widget()
-
-        # No need for callbacks! The widget's .value property will automatically trigger reactivity
-        # when the selected_evals trait changes
-
-        # IMPORTANT: Wrap in mo.ui.anywidget for proper marimo reactivity!
-        return mo.ui.anywidget(live_widget)
-
-    eval_finder = _()
     eval_finder
     return (eval_finder,)
 
 
 @app.cell
 def _(eval_finder, mo):
-    # Debug: Let's see what the actual value structure is
-    print(f"DEBUG: eval_finder.value = {eval_finder.value}")
-    print(f"DEBUG: eval_finder.value type = {type(eval_finder.value)}")
-
     # The wrapped widget's value is a dict of all traits, so we need to extract selected_evals
     selection = eval_finder.value["selected_evals"]
 
-    # Use mo.stop to only show content when there are selections
-    if not selection:
-        mo.md("## 👆 Select some evaluations above to see them here!")
+    def _():
+        # Show different content based on selection
+        if not selection:
+            return mo.callout(
+                mo.md("## 👆 Select some evaluations above to see them here!"),
+                kind="danger",
+            )
 
-    mo.vstack(
-        [
-            mo.md("## ✨ Auto-Reactive Selection ✨"),
-            mo.md(f"**Selection:** {len(selection)} evaluations"),
-            mo.md(f"Selected: {', '.join(selection)}"),
-            mo.callout(
-                mo.md("*This cell automatically updates when you change selections!*"),
-                kind="success",
-            ),
-        ]
-    )
+        return mo.vstack(
+            [
+                mo.md("## ✨ Auto-Reactive Selection ✨"),
+                mo.md(f"**Selection:** {len(selection)} evaluations"),
+                mo.md(f"Selected: {', '.join(selection)}"),
+                mo.callout(
+                    mo.md(
+                        "*This cell automatically updates when you change selections!*"
+                    ),
+                    kind="success",
+                ),
+            ]
+        )
+
+    _()
     return
 
 
@@ -355,13 +344,8 @@ async def _(
     ]
 
     # Extract selected_evals from the widget's value dict
-    if isinstance(eval_finder.value, dict) and "selected_evals" in eval_finder.value:
-        selected_evals = eval_finder.value["selected_evals"]
-    else:
-        # Fallback: try to access selected_evals directly
-        selected_evals = getattr(eval_finder, "selected_evals", [])
+    selected_evals = eval_finder.value["selected_evals"]
 
-    print(f"🔍 Policy selector value: {policy_selector.value}")
     print(f"🔍 Selected policy IDs: {selected_policy_ids}")
     print(f"🔍 Selected policy names: {selected_policy_names}")
     print(f"🔍 Selected evaluations: {selected_evals}")
@@ -406,7 +390,6 @@ def _(eval_finder):
     # Register callbacks for demo
     def on_selection_changed(event):
         selected_evals = event.get("selected_evals", [])
-        print(f"🎯 Selection changed: {len(selected_evals)} evaluations selected")
         if selected_evals:
             print(
                 f"   Selected: {', '.join(selected_evals[:3])}{'...' if len(selected_evals) > 3 else ''}"

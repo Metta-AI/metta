@@ -66,7 +66,7 @@ class EvalFinderWidget(anywidget.AnyWidget):
             "filter_changed": [],
         }
 
-        print("🔍 EvalFinderWidget initialized successfully!")
+        # print("🔍 EvalFinderWidget initialized successfully!")
 
         # Set up observers
         self.observe(self._on_selection_changed, names="selection_changed")
@@ -108,7 +108,7 @@ class EvalFinderWidget(anywidget.AnyWidget):
     def set_eval_data(
         self,
         evaluations: List[Dict[str, Any]],
-        categories: List[Dict[str, Any]] = None,
+        categories: List[Dict[str, Any]] | None = None,
     ):
         """Set the eval finder data.
 
@@ -121,23 +121,18 @@ class EvalFinderWidget(anywidget.AnyWidget):
         if categories is None:
             categories = self._build_categories_from_evaluations(evaluations)
 
-        # Extract available categories from the categories structure
-        available_categories = [cat["name"] for cat in categories] if categories else []
-
         self.eval_data = {
             "evaluations": evaluations,
             "categories": categories,
-            "availableCategories": available_categories,
         }
-        print(f"📊 Eval data set with {len(evaluations)} evaluations")
-        print(f"📈 Categories: {', '.join(available_categories)}")
-        print(f"📂 Category structure: {len(categories)} categories")
-        if categories:
-            for category in categories:
-                children_count = len(category.get("children", []))
-                print(
-                    f"📂   - {category.get('name', 'unknown')}: {children_count} evaluations"
-                )
+        # print(f"📊 Eval data set with {len(evaluations)} evaluations")
+        # print(f"📂 Category structure: {len(categories)} categories")
+        # if categories:
+        #     for category in categories:
+        #         children_count = len(category.get("children", []))
+        #         print(
+        #             f"📂   - {category.get('name', 'unknown')}: {children_count} evaluations"
+        #         )
 
     def _build_categories_from_evaluations(
         self, evaluations: List[Dict[str, Any]]
@@ -179,8 +174,8 @@ class EvalFinderWidget(anywidget.AnyWidget):
             categories: List of categories to include (empty means all)
         """
         self.category_filter = categories
-        filter_desc = ", ".join(categories) if categories else "all"
-        print(f"🗂️ Category filter set to: {filter_desc}")
+        # filter_desc = ", ".join(categories) if categories else "all"
+        # print(f"🗂️ Category filter set to: {filter_desc}")
 
     def set_view_mode(self, mode: str):
         """Set the display view mode.
@@ -190,7 +185,7 @@ class EvalFinderWidget(anywidget.AnyWidget):
         """
         if mode in ["tree", "list", "category"]:
             self.view_mode = mode
-            print(f"👁️ View mode set to: {mode}")
+            # print(f"👁️ View mode set to: {mode}")
 
     def get_selected_evals(self) -> List[str]:
         """Get the currently selected evaluation names.
@@ -207,12 +202,12 @@ class EvalFinderWidget(anywidget.AnyWidget):
             eval_names: List of evaluation names to select
         """
         self.selected_evals = eval_names
-        print(f"✅ Selected {len(eval_names)} evaluations")
+        # print(f"✅ Selected {len(eval_names)} evaluations")
 
     def clear_selection(self):
         """Clear all selected evaluations."""
         self.selected_evals = []
-        print("🗑️ Selection cleared")
+        # print("🗑️ Selection cleared")
 
     def set_search_term(self, term: str):
         """Set the search filter term.
@@ -221,7 +216,7 @@ class EvalFinderWidget(anywidget.AnyWidget):
             term: Search string to filter evaluations
         """
         self.search_term = term
-        print(f"🔍 Search term set to: '{term}'")
+        # print(f"🔍 Search term set to: '{term}'")
 
 
 def create_eval_finder_widget(**kwargs) -> EvalFinderWidget:

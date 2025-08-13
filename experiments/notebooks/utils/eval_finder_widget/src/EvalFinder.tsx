@@ -23,7 +23,7 @@ export const EvalFinder: React.FC<EvalFinderProps> = ({ model }) => {
     const updateFromModel = () => {
       const newEvalData = model.get("eval_data");
       if (newEvalData) {
-        console.log("🔍 EvalFinder: Received eval data:", newEvalData);
+        //console.log("🔍 EvalFinder: Received eval data:", newEvalData);
         setEvalData(newEvalData);
       }
 
@@ -64,11 +64,11 @@ export const EvalFinder: React.FC<EvalFinderProps> = ({ model }) => {
   // Filter evaluations based on current filters
   const filteredEvaluations = useMemo(() => {
     if (!evalData?.evaluations) {
-      console.log("🔍 EvalFinder: No eval data or evaluations found", evalData);
+      //console.log("🔍 EvalFinder: No eval data or evaluations found", evalData);
       return [];
     }
 
-    console.log("🔍 EvalFinder: Filtering", evalData.evaluations.length, "evaluations");
+    //console.log("🔍 EvalFinder: Filtering", evalData.evaluations.length, "evaluations");
 
     const filtered = evalData.evaluations.filter((evaluation: EvalMetadata) => {
       // Search filter
@@ -92,7 +92,7 @@ export const EvalFinder: React.FC<EvalFinderProps> = ({ model }) => {
       return true;
     });
 
-    console.log("🔍 EvalFinder: Filtered to", filtered.length, "evaluations");
+    //console.log("🔍 EvalFinder: Filtered to", filtered.length, "evaluations");
     return filtered;
   }, [evalData, searchTerm, categoryFilter]);
 
@@ -209,12 +209,6 @@ export const EvalFinder: React.FC<EvalFinderProps> = ({ model }) => {
             ) : (
               <div>
                 <p>No evaluation data available.</p>
-                {evalData?.has_policy_context && (
-                  <div className="eval-counts">
-                    <p>📊 <strong>Total evaluations found:</strong> {evalData?.total_count || 0}</p>
-                    <p>These are evaluations that have been run on your selected policies.</p>
-                  </div>
-                )}
               </div>
             )}
           </div>
