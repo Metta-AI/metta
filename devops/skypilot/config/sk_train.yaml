@@ -181,6 +181,8 @@ run: |
   }
 
   run_cmd() {
+    echo "[INFO] Starting process $METTA_CMD"
+
     local START_TIME=$(date +%s)
 
     # Debug: Check if setsid is available
@@ -190,7 +192,7 @@ run: |
         echo "[DEBUG] setsid is NOT available - falling back to standard process group"
     fi
 
-    # CRITICAL: Start training in a separate process group so that when we call
+    # CRITICAL: Start cmd process in a separate process group so that when we call
     # terminate_process() with kill -TERM -$PGID, it terminates only the training
     # processes and NOT this SkyPilot run script. This allows us to see the final
     # summary and exit cleanly.
@@ -200,7 +202,7 @@ run: |
     # Make the process a group leader if it isn't already
     local PGID=$(ps -o pgid= -p "$CMD_PID" 2>/dev/null | tr -d ' ')
 
-    echo "[INFO] Started training process with PID: $CMD_PID, PGID: $PGID"
+    echo "[INFO] Started $METTA_CMD process with PID: $CMD_PID, PGID: $PGID"
 
     # Start timeout monitor if MAX_RUNTIME_HOURS is set
     if [[ -n "${MAX_RUNTIME_HOURS:-}" ]] && [[ "${MAX_RUNTIME_HOURS}" != "None" ]]; then
