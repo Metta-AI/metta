@@ -11,8 +11,8 @@ game:
 
   map_builder:
     _target_: metta.map.mapgen.MapGen
-    width: 35
-    height: 35
+    width: 155
+    height: 75
     root:
       type: metta.map.scenes.room_grid.RoomGrid
       params:
