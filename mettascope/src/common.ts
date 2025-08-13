@@ -132,6 +132,18 @@ export const state = {
   // Playing over a WebSocket
   ws: null as WebSocket | null,
   isOneToOneAction: false,
+
+  // Visual observation overlay (play mode only)
+  showObsOverlay: false,
+  visualLayers: [] as { id: number; name: string }[],
+  activeVisualLayerId: null as number | null,
+  activeVisualAgentId: null as number | null,
+  visualGrid: null as null | {
+    width: number
+    height: number
+    values: number[] | Float32Array
+    valueRange?: { min: number; max: number }
+  },
 }
 
 export const html = {

@@ -14,6 +14,7 @@ from omegaconf import DictConfig
 import mettascope.replays as replays
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.mettagrid.grid_object_formatter import format_grid_object
+from metta.mettagrid.mettagrid_c import PackedCoordinate
 from metta.util.metta_script import metta_script
 
 # Set up logging
@@ -162,6 +163,60 @@ def make_app(cfg: DictConfig):
         actions = np.zeros((env.num_agents, 2))
         total_rewards = np.zeros(env.num_agents)
 
+        # ---- Visual overlay state (play mode only) ----
+        overlay_enabled: bool = False
+        overlay_agent_id: int = 0
+        overlay_layer_id: int = 0
+
+        # Build and send available observation layers once
+        try:
+            feature_spec = env.get_observation_features()
+            # feature_spec: name -> {"id": int, ...}
+            layers = [{"id": int(spec["id"]), "name": str(name)} for name, spec in feature_spec.items() if "id" in spec]
+            # Sort by id for stable order
+            layers.sort(key=lambda x: x["id"])  # type: ignore
+            await send_message(type="visual_layers", layers=layers)
+        except Exception as e:
+            logger.warning(f"Failed to fetch observation features for visual overlay: {e}")
+
+        def extract_visual_grid(agent_id: int, layer_id: int):
+            """
+            Extract a (height, width) grid for the given agent and feature layer from the observation buffer.
+
+            Observations are token-encoded as uint8 triplets per token: [packed_coord, feature_id, feature_value].
+            packed_coord of 0xFF indicates padding/empty. Coordinates are within the observation window
+            centered on the agent with size (obs_height, obs_width).
+            """
+            obs = env.observations  # shape: [num_agents, tokens_per_agent, 3], dtype uint8
+            height = int(env.obs_height)
+            width = int(env.obs_width)
+            grid = np.zeros((height, width), dtype=np.int32)
+
+            if agent_id < 0 or agent_id >= obs.shape[0]:
+                return grid, width, height, 0, 0
+
+            tokens = obs[agent_id]
+            # tokens shape: [M, 3]
+            for token in tokens:
+                packed = int(token[0])
+                if PackedCoordinate.is_empty(packed):
+                    # Past this point is padding
+                    break
+                fid = int(token[1])
+                if fid != int(layer_id):
+                    continue
+                coords = PackedCoordinate.unpack(packed)
+                if coords is None:
+                    continue
+                row, col = int(coords[0]), int(coords[1])
+                if 0 <= row < height and 0 <= col < width:
+                    grid[row, col] = int(token[2])
+
+            nonzero = grid[grid != 0]
+            vmin = int(nonzero.min()) if nonzero.size > 0 else 0
+            vmax = int(nonzero.max()) if nonzero.size > 0 else 0
+            return grid, width, height, vmin, vmax
+
         async def send_replay_step():
             grid_objects = []
             for i, grid_object in enumerate(env.grid_objects.values()):
@@ -177,6 +232,19 @@ def make_app(cfg: DictConfig):
                 grid_objects[i] = update_object
 
             await send_message(type="replay_step", replay_step={"step": current_step, "objects": grid_objects})
+
+            # If the visual overlay is enabled, send the current agent/layer grid as well
+            if overlay_enabled:
+                grid, width, height, vmin, vmax = extract_visual_grid(overlay_agent_id, overlay_layer_id)
+                await send_message(
+                    type="visual_grid",
+                    agentId=int(overlay_agent_id),
+                    layerId=int(overlay_layer_id),
+                    width=int(width),
+                    height=int(height),
+                    values=grid.reshape(-1).tolist(),
+                    valueRange={"min": int(vmin), "max": int(vmax)},
+                )
 
         # Send the first replay step.
         await send_replay_step()
@@ -195,6 +263,28 @@ def make_app(cfg: DictConfig):
 
             elif message["type"] == "advance":
                 action_message = None
+
+            elif message["type"] == "visual_overlay_enable":
+                try:
+                    overlay_enabled = bool(message.get("enabled", False))
+                except Exception:
+                    overlay_enabled = False
+                # No immediate response; next replay_step will include overlay if enabled
+                continue
+
+            elif message["type"] == "visual_set_agent":
+                try:
+                    overlay_agent_id = int(message.get("agent_id", 0))
+                except Exception:
+                    overlay_agent_id = 0
+                continue
+
+            elif message["type"] == "visual_set_layer":
+                try:
+                    overlay_layer_id = int(message.get("layer_id", 0))
+                except Exception:
+                    overlay_layer_id = 0
+                continue
 
             elif message["type"] == "clear_memory":
                 clear_memory(sim, message["what"], message["agent_id"])
