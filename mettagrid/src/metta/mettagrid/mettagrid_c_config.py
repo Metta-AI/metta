@@ -9,7 +9,7 @@ from metta.mettagrid.mettagrid_c import ConverterConfig as CppConverterConfig
 from metta.mettagrid.mettagrid_c import GameConfig as CppGameConfig
 from metta.mettagrid.mettagrid_c import GlobalObsConfig as CppGlobalObsConfig
 from metta.mettagrid.mettagrid_c import WallConfig as CppWallConfig
-from metta.mettagrid.mettagrid_config import ConverterConfig, GameConfig, WallConfig, BoxConfig
+from metta.mettagrid.mettagrid_config import BoxConfig, ConverterConfig, GameConfig, WallConfig
 
 
 def convert_to_cpp_game_config(mettagrid_config_dict: dict):
@@ -122,7 +122,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                 swappable=object_config.swappable,
             )
             objects_cpp_params[object_type] = cpp_wall_config
-        elif isinstance(object_config, PyBoxConfig):
+        elif isinstance(object_config, BoxConfig):
             cpp_box_config = CppBoxConfig(
                 type_id=object_config.type_id,
                 type_name=object_type,

@@ -1,9 +1,14 @@
+set -e
+
+# Create configs/user/gregorypylypovych.yaml with the specified contents
+mkdir -p configs/user
+cat > configs/user/gregorypylypovych.yaml <<EOF
 # @package __global__
 
 # This file is private property of Greg.
 # DO NOT MODIFY.
 
-run: gregorypylypovych_2025_08_12_training_process_2
+run: gregorypylypovych_2025_08_12_train_process_2
 # seed: 0
 # sim: navigation
 trainer:
@@ -25,4 +30,18 @@ replay_job:
     env_overrides:
       game:
         no_agent_interference: true
+EOF
+
+# Sync dependencies
+uv sync
+
+# Activate venv if present
+if [ -f .venv/bin/activate ]; then
+  source .venv/bin/activate
+fi
+
+# Run the training script with the specified run argument
+python3 tools/train.py +user=gregorypylypovych
+
+
 

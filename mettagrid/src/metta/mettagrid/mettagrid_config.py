@@ -131,6 +131,7 @@ class ActionsConfig(Config):
 
     Omitted actions are disabled by default.
     """
+
     noop: Optional[ActionConfig] = None
     move: Optional[ActionConfig] = None
     move_8way: Optional[ActionConfig] = None
