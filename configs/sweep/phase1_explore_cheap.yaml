@@ -16,6 +16,7 @@ metric: heart.gained # Total hearts gained (better signal than avg)
 goal: maximize
 method: bayes
 max_observations_to_load: 0 # Don't load previous runs
+# TODO: Check that we are not cutting off loading at the API level.
 
 parameters:
   trainer:

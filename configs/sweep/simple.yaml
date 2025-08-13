@@ -1,0 +1,53 @@
+# Simple sweep configuration for testing
+# Minimal parameters with reasonable defaults
+
+protein:
+  num_random_samples: 10
+  max_suggestion_cost: 3600
+  expansion_rate: 0.2
+  resample_frequency: 5
+  suggestions_per_pareto: 64
+  seed_with_search_center: true
+
+metric: reward
+goal: maximize
+method: bayes
+
+parameters:
+  trainer:
+    total_timesteps:
+      distribution: int_uniform
+      min: 500000000
+      max: 1000000000
+      mean: 750000000
+      scale: auto
+
+    batch_size:
+      distribution: uniform_pow2
+      min: 262144
+      max: 524288
+      mean: 262144
+      scale: auto
+
+    ppo:
+      gamma:
+        distribution: uniform
+        min: 0.98
+        max: 0.995
+        mean: 0.99
+        scale: auto
+
+      clip_coef:
+        distribution: uniform
+        min: 0.1
+        max: 0.3
+        mean: 0.2
+        scale: auto
+
+    optimizer:
+      learning_rate:
+        distribution: log_normal
+        min: 1e-4
+        max: 1e-3
+        mean: 3e-4
+        scale: auto

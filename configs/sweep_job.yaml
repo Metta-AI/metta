@@ -1,5 +1,13 @@
-# Phased sweep job configuration
-# This loads all phase configs upfront so they're available
+# Sweep job configuration with automatic phase progression
+#
+# This configuration automatically switches between different sweep configs
+# based on the number of completed runs:
+#   - Runs 1-80: phase1_explore_cheap (fast, wide exploration)
+#   - Runs 81-160: phase2_exploit_medium (medium cost, exploitation)
+#   - Runs 161+: phase3_final_expensive (expensive, final optimization)
+#
+# To use a single-phase sweep instead, override with:
+#   sweep=full or sweep=simple
 
 defaults:
   - common
@@ -28,7 +36,7 @@ settings:
       num_runs: 80
       sweep: ${phase2_config} # Reference the loaded config
     - phase: 3
-      num_runs: 90
+      num_runs: 10000
       sweep: ${phase3_config} # Reference the loaded config
 
 # Otherwise common will mess with us
