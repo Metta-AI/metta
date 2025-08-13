@@ -172,10 +172,18 @@ class PolicyRecord:
         else:
             policy = self._cached_policy
 
+        # Check for circular reference to avoid recursion
+        has_circular_ref = hasattr(policy, "policy") and policy.policy is policy
+
         # Add total parameter count
         total_params = sum(p.numel() for p in policy.parameters())
         trainable_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
         lines.append(f"Total parameters: {total_params:,} (trainable: {trainable_params:,})")
+
+        if has_circular_ref:
+            lines.append("\nWARNING: Old checkpoint with circular reference (self.policy = self)")
+            lines.append("Module structure traversal skipped to avoid recursion")
+            return "\n".join(lines)
 
         # Add module structure with detailed weight shapes
         lines.append("\nModule Structure with Weight Shapes:")
