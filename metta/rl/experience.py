@@ -15,7 +15,7 @@ Key features:
 - Manages minibatch creation for training
 """
 
-from typing import Dict
+from typing import Dict, Tuple
 
 import torch
 from tensordict import TensorDict
@@ -48,6 +48,7 @@ class Experience:
         self.bptt_horizon: int = bptt_horizon
         self.device = device if isinstance(device, torch.device) else torch.device(device)
         self.cpu_offload = cpu_offload
+
 
         # Calculate segments
         self.segments = batch_size // bptt_horizon
@@ -96,6 +97,17 @@ class Experience:
         # Pre-allocate tensor to stores how many agents we have for use during environment reset
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
+
+        self.states = {}  # Dict[env_id, Tuple[h, c]]
+        for i in range(0, total_agents, batch_size):
+            batch_size_actual = min(batch_size, total_agents - i)
+            self.lstm_states[i] = (
+                torch.zeros(num_lstm_layers, batch_size_actual, hidden_size, device=self.device),
+                torch.zeros(num_lstm_layers, batch_size_actual, hidden_size, device=self.device),
+            )
+
+
+
     def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
         """Check for duplicate keys in the experience spec."""
         all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
@@ -112,7 +124,7 @@ class Experience:
         """Check if buffer has enough data for training."""
         return self.full_rows >= self.segments
 
-    def store(self, data_td: TensorDict, env_id: slice) -> None:
+    def store(self, data_td: TensorDict, env_id: slice, state: Tuple[torch.Tensor, torch.Tensor] | None = None) -> None:
         """Store a batch of experience."""
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
@@ -126,6 +138,9 @@ class Experience:
         # Update episode tracking
         self.ep_lengths[env_id] += 1
 
+        if "lstm_h" in data_td and "lstm_c" in data_td:
+            self.states[env_id.start] = (data_td["lstm_h"].detach(), data_td["lstm_c"].detach())
+
         # Check if episodes are complete and reset if needed
         if episode_lengths + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
@@ -135,8 +150,21 @@ class Experience:
         num_full = env_id.stop - env_id.start
         self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
         self.ep_lengths[env_id] = 0
+
+        self.states[env_id.start] = (
+                    torch.zeros_like(self.states[env_id.start][0]),
+                    torch.zeros_like(self.states[env_id.start][1]),
+        )
+
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
+
+    def get_state(self, env_id: slice) -> Tuple[torch.Tensor | None, torch.Tensor | None] :
+        """Get the state for a given environment id."""
+        return self.states.get(env_id.start, (None, None))
+
+
+
 
     def reset_for_rollout(self) -> None:
         """Reset tracking variables for a new rollout."""

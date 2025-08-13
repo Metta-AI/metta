@@ -1,3 +1,4 @@
+from ast import Tuple
 import logging
 from typing import Optional, Union
 
@@ -86,7 +87,7 @@ class ComponentPolicy(nn.Module):
         self.cum_action_max_params = None
         self.action_index_tensor = None
 
-    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
+    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> Tuple[TensorDict, Tuple[torch.Tensor, torch.Tensor]]:
         """Forward pass of the ComponentPolicy - matches original MettaAgent forward() logic."""
 
         # Handle BPTT reshaping like the original
@@ -101,6 +102,11 @@ class ComponentPolicy(nn.Module):
             td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
             td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
 
+        if "__core__" in self.components:
+            td, state = self.components["__core__"](td, state)
+        else:
+            td = self.components["_core_"](td)
+
         self.components["_value_"](td)
         self.components["_action_"](td)
 
@@ -112,7 +118,7 @@ class ComponentPolicy(nn.Module):
             bptt_size = td["bptt"][0].item()
             output_td = output_td.reshape(batch_size, bptt_size)
 
-        return output_td
+        return output_td, state
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
         """Inference mode - sample actions and store them in td."""
