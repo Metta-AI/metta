@@ -8,7 +8,9 @@ with special handling for READMEs and support for both XML and raw output format
 import fnmatch
 import logging
 import os
+import subprocess
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -66,6 +68,56 @@ def _find_git_root(start_path: Path) -> Optional[Path]:
         current = current.parent
 
     return None
+
+
+def _build_git_diff_document(base_ref: str, start_path: Path, index: int) -> Optional[Document]:
+    """
+    Build a Document that contains a git diff against base_ref.
+    Runs 'git fetch' first. If the repo or base_ref is missing, return a header-only doc.
+    """
+    repo_root = _find_git_root(start_path) or _find_git_root(Path.cwd())
+    if not repo_root:
+        header = [
+            f"===== Git diff against {base_ref} =====",
+            "repo: (not a git repository)",
+            f"generated: {datetime.now().isoformat(timespec='seconds')}",
+            "",
+            "(no diff available)",
+        ]
+        return Document(index=index, source=f"GIT_DIFF:{base_ref}", content="\n".join(header))
+
+    def _run(cmd: List[str]) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["git", "-C", str(repo_root), *cmd],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+
+    _run(["fetch"])
+
+    base_ok = _run(["rev-parse", "--verify", "--quiet", base_ref]).returncode == 0
+    if not base_ok:
+        header = [
+            f"===== Git diff against {base_ref} =====",
+            f"repo: {repo_root}",
+            f"generated: {datetime.now().isoformat(timespec='seconds')}",
+            "",
+            f"(warning, base ref not found: {base_ref})",
+        ]
+        return Document(index=index, source=f"GIT_DIFF:{base_ref}", content="\n".join(header))
+
+    diff_cp = _run(["diff", base_ref])
+    diff_text = diff_cp.stdout or ""
+    header_lines = [
+        f"===== Git diff against {base_ref} =====",
+        f"repo: {repo_root}",
+        f"generated: {datetime.now().isoformat(timespec='seconds')}",
+        "",
+    ]
+    body = diff_text if diff_text.strip() else "(working tree matches base, no changes)"
+    return Document(index=index, source=f"GIT_DIFF:{base_ref}@{repo_root}", content="\n".join(header_lines + [body]))
 
 
 def _find_parent_readmes(path: Path) -> List[Path]:
@@ -173,7 +225,7 @@ def _should_ignore(
     if basename == "README.md":
         return False
 
-    # If filtering by extension for files, and this file doesn’t match, ignore it.
+    # If filtering by extension for files, and this file doesn't match, ignore it.
     if extensions and path.is_file() and not any(path.name.endswith(ext) for ext in extensions):
         return True
 
@@ -494,7 +546,7 @@ def _format_document(doc: Document, raw: bool) -> str:
 
 
 def get_context(
-    paths: Optional[List[Union[str, Path]]], raw: bool = False, extensions: Optional[Tuple[str, ...]] = None
+    paths: Optional[List[Union[str, Path]]], raw: bool = False, extensions: Optional[Tuple[str, ...]] = None, include_git_diff: bool = False, diff_base: str = "origin/main",
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Load and format context from specified paths, with basic token counting.
@@ -503,6 +555,8 @@ def get_context(
         paths: List of paths to load context from, or None for no context
         raw: Whether to use raw format instead of XML
         extensions: Optional tuple of file extensions to filter
+        include_git_diff: Whether to include git diff as a virtual file
+        diff_base: Base reference for git diff
 
     Returns:
         Tuple of (formatted context string, token info dict)
@@ -510,7 +564,33 @@ def get_context(
     # Handle empty paths
     if not paths:
         content = "" if raw else "<documents></documents>"
-        return content, {"total_tokens": 0, "total_files": 0}
+        token_info_empty = {"total_tokens": 0, "total_files": 0}
+
+        # If only diff requested, still process it
+        if include_git_diff:
+            # Use current directory as start path for git operations
+            start_for_git = Path.cwd()
+            diff_doc = _build_git_diff_document(diff_base, start_for_git, 1)
+            if diff_doc:
+                # Initialize tokenizer for counting
+                encoding = tiktoken.get_encoding("cl100k_base")
+                tokens = len(encoding.encode(diff_doc.content))
+
+                # Format the diff document
+                if raw:
+                    content = _format_document(diff_doc, raw)
+                else:
+                    content = "<documents>\n" + _format_document(diff_doc, raw) + "\n</documents>"
+
+                return content, {
+                    "total_tokens": tokens,
+                    "total_files": 1,
+                    "path_summaries": {},
+                    "file_token_counts": {diff_doc.source: tokens},
+                    "documents": [diff_doc],
+                }
+
+        return content, token_info_empty
 
     # Initialize tokenizer for counting
     encoding = tiktoken.get_encoding("cl100k_base")
@@ -592,6 +672,26 @@ def get_context(
 
         except Exception as e:
             print(f"Error processing path {path_str}: {e}")
+
+    # Add git diff document if requested
+    if include_git_diff:
+        # Choose a sensible start path to locate the repo
+        if paths and len(paths) > 0:
+            try:
+                start_for_git = resolve_codebase_path(paths[0])
+            except Exception:
+                start_for_git = Path.cwd()
+        else:
+            start_for_git = Path.cwd()
+
+        diff_doc = _build_git_diff_document(diff_base, start_for_git, next_index)
+        if diff_doc:
+            documents.append(diff_doc)
+
+            tokens = len(encoding.encode(diff_doc.content))
+            total_tokens += tokens
+            file_token_counts[diff_doc.source] = tokens
+            next_index += 1
 
     # Sort documents (READMEs first, then by path)
     documents.sort(key=lambda d: (not d.is_readme, d.source))

@@ -234,7 +234,7 @@ def extract_files_from_context(context: str, raw: bool) -> Dict[str, str]:
 
 
 def profile_code_context(
-    paths: List[Union[str, Path]], raw: bool = False, extensions: Optional[Tuple[str, ...]] = None
+    paths: List[Union[str, Path]], raw: bool = False, extensions: Optional[Tuple[str, ...]] = None, include_git_diff: bool = False
 ) -> Tuple[str, Dict]:
     """
     Profile token distribution for the given paths.
@@ -243,12 +243,19 @@ def profile_code_context(
         paths: List of paths to profile
         raw: Whether context is in raw format or XML
         extensions: Optional file extensions to filter by
+        include_git_diff: Whether to include git diff as a virtual file
 
     Returns:
         Tuple of (formatted report, profile data)
     """
     # Get the context and token info first
-    context, token_info = get_context(paths=paths, raw=raw, extensions=extensions)
+    context, token_info = get_context(
+        paths=paths,
+        raw=raw,
+        extensions=extensions,
+        include_git_diff=include_git_diff,
+        diff_base="origin/main"
+    )
 
     # Use documents from token_info
     documents = token_info.get("documents", [])
