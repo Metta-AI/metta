@@ -101,10 +101,10 @@ def discounted_sum_parallel(start_state: torch.Tensor, x: torch.Tensor, discount
         Discounted sum tensor of shape (T, *)
     """
     T = x.shape[0]
-    
+
     if T == 0:
         return x
-    
+
     # For small sequences, use the simple loop (it's actually efficient for small T)
     if T <= 16:
         result = []
@@ -113,38 +113,38 @@ def discounted_sum_parallel(start_state: torch.Tensor, x: torch.Tensor, discount
             state = discounts[t] * state + x[t]
             result.append(state)
         return torch.stack(result, dim=0)
-    
+
     # For larger sequences, use a more efficient batched approach
     # This implements an associative scan in log(T) parallel steps
     # The key insight: we can express y[t] in terms of cumulative products and sums
-    
+
     device = x.device
     dtype = x.dtype
-    
+
     # Prepare arrays for the scan
     # We'll compute: result[t] = start_state * prod(discounts[0:t+1]) + sum of properly discounted x values
-    
+
     # Step 1: Compute cumulative products of discounts
     discount_cumprod = torch.zeros_like(discounts)
     discount_cumprod[0] = discounts[0]
     for i in range(1, T):
-        discount_cumprod[i] = discount_cumprod[i-1] * discounts[i]
-    
+        discount_cumprod[i] = discount_cumprod[i - 1] * discounts[i]
+
     # Step 2: Compute the contribution from start_state
     start_contrib = start_state.unsqueeze(0) * discount_cumprod
-    
+
     # Step 3: Compute the contribution from x values
     # x[i] contributes to result[j] (for j >= i) with factor prod(discounts[i+1:j+1])
     x_contrib = torch.zeros_like(x)
     x_contrib[0] = x[0]
-    
+
     for t in range(1, T):
         # x_contrib[t] accumulates all contributions up to time t
-        x_contrib[t] = discounts[t] * x_contrib[t-1] + x[t]
-    
+        x_contrib[t] = discounts[t] * x_contrib[t - 1] + x[t]
+
     # Step 4: Combine contributions
     result = start_contrib + x_contrib
-    
+
     return result
 
 
@@ -609,72 +609,66 @@ class BatchedAGaLiTe(nn.Module):
         for layer_idx, encoder in enumerate(self.model.encoders):
             layer_key = f"layer_{layer_idx + 1}"
             layer_memory = carry[layer_key]
-            
+
             # Process the entire batch through this layer
             # We need to handle the batched memory properly
-            u_i, memory_updated = self._forward_batched_layer(
-                encoder, u_i, resets, layer_memory
-            )
+            u_i, memory_updated = self._forward_batched_layer(encoder, u_i, resets, layer_memory)
             new_memory[layer_key] = memory_updated
 
         return new_memory, u_i
 
     def _forward_batched_layer(
-        self, encoder: RecurrentLinearTransformerEncoder, 
-        inputs: torch.Tensor, terminations: torch.Tensor,
-        batched_memory: Tuple[torch.Tensor, ...]
+        self,
+        encoder: RecurrentLinearTransformerEncoder,
+        inputs: torch.Tensor,
+        terminations: torch.Tensor,
+        batched_memory: Tuple[torch.Tensor, ...],
     ) -> Tuple[torch.Tensor, Tuple]:
         """
         Forward pass through a single encoder layer for all batch elements.
-        
+
         Args:
             encoder: The encoder layer
             inputs: Input tensor of shape (T, B, d_model)
             terminations: Termination signals of shape (T, B)
             batched_memory: Batched memory tuple for this layer
-        
+
         Returns:
             - output: Encoded output of shape (T, B, d_model)
             - new_memory: Updated batched memory tuple
         """
         T, B, d_model = inputs.shape
-        
+
         # Reshape for batch processing: (T, B, d_model) -> (T*B, d_model)
         inputs_flat = inputs.reshape(T * B, d_model)
         terminations_flat = terminations.reshape(T * B)
-        
+
         # Unpack and reshape batched memory for processing
         tilde_k_prev, tilde_v_prev, s_prev, tick = batched_memory
-        
+
         # Process with batched attention
         # Note: We need to modify the encoder to handle batched inputs properly
         # For now, we'll process sequentially but this is where optimization should happen
         outputs = []
         new_memories = []
-        
+
         for b in range(B):
             # Extract memory for this batch element
-            batch_memory = (
-                tilde_k_prev[b],
-                tilde_v_prev[b], 
-                s_prev[b],
-                tick[b]
-            )
-            
+            batch_memory = (tilde_k_prev[b], tilde_v_prev[b], s_prev[b], tick[b])
+
             # Process this batch element
             output, new_mem = encoder(inputs[:, b], terminations[:, b], batch_memory)
             outputs.append(output)
             new_memories.append(new_mem)
-        
+
         # Stack results back into batched tensors
         outputs = torch.stack(outputs, dim=1)  # (T, B, d_model)
-        
+
         # Stack memories
         new_memory = tuple(
-            torch.stack([new_memories[b][i] for b in range(B)], dim=0)
-            for i in range(len(new_memories[0]))
+            torch.stack([new_memories[b][i] for b in range(B)], dim=0) for i in range(len(new_memories[0]))
         )
-        
+
         return outputs, new_memory
 
     @staticmethod
