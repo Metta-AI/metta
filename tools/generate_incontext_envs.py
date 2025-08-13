@@ -35,7 +35,7 @@ RESOURCE_TYPES = [
 DEFAULT_ENV_CFG = {
     "defaults": [
         "/env/mettagrid/operant_conditioning/in_context_learning/defaults@",
-        "_self_:",
+        "_self_",
     ],
     "game": {
         "map_builder": {
@@ -48,6 +48,25 @@ DEFAULT_ENV_CFG = {
         "objects": {},
     },
 }
+
+
+def to_builtin(value):
+    """Recursively convert numpy scalars/arrays and keys to plain Python types."""
+    if isinstance(value, dict):
+        return {str(to_builtin(k)): to_builtin(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [to_builtin(v) for v in value]
+    if isinstance(value, np.generic):  # numpy scalar types (including numpy.str_)
+        try:
+            return value.item()
+        except Exception:
+            return str(value)
+    return value
+
+
+class IndentDumper(yaml.SafeDumper):
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, False)
 
 
 class InContextEnv:
@@ -64,7 +83,8 @@ class InContextEnv:
         """
         Get a converter, add it to the environment config, and return the converter, input, and output
         """
-        converter = np.random.choice([c for c in self.converter_types if c not in self.used_objects])
+        converter = str(np.random.choice([c for c in self.converter_types if c not in self.used_objects]))
+        print(f"Converter: {converter} will convert {input_resource} to {output_resource}")
         self.used_objects.append(converter)
 
         self.env_cfg["game"]["map_builder"]["root"]["params"]["objects"][converter] = 1
@@ -82,7 +102,7 @@ class InContextEnv:
         """
         Get a sink, add it to the environment config, and return the sink, input, and output
         """
-        sink = np.random.choice([c for c in self.converter_types if c not in self.used_objects])
+        sink = str(np.random.choice([c for c in self.converter_types if c not in self.used_objects]))
         self.used_objects.append(sink)
 
         self.env_cfg["game"]["map_builder"]["root"]["params"]["objects"][sink] = 1
@@ -91,6 +111,7 @@ class InContextEnv:
             self.env_cfg["game"]["objects"][sink] = {
                 "input_resources": {input_resource: 1},
             }
+        print(f"Sink: {sink} will convert {self.all_input_resources} to {sink}")
 
     def get_env_cfg(self):
         # first resource is always nothing, last resource is always heart
@@ -131,17 +152,27 @@ class InContextEnvGenerator:
                 env = InContextEnv(self.resource_types, self.converter_types, resource_chain, num_sinks)
                 env_cfg = env.get_env_cfg()
 
-                yaml_file_path = (
+                yaml_file_dir = (
                     f"configs/env/mettagrid/operant_conditioning/in_context_learning/"
-                    f"chain_length_{chain_length}/{num_sinks}/{'-'.join(str(x) for x in resource_chain)}.yaml"
+                    f"chain_length_{chain_length}/{num_sinks}_sinks"
                 )
 
-                os.makedirs(yaml_file_path, exist_ok=True)
+                os.makedirs(yaml_file_dir, exist_ok=True)
 
-                f = open(yaml_file_path, "w")
+                yaml_file_path = os.path.join(yaml_file_dir, f"{'-'.join(str(x) for x in resource_chain)}.yaml")
 
-                yaml.dump(env_cfg, f)
-
+                # Sanitize to pure Python types and dump safely
+                clean_cfg = to_builtin(env_cfg)
+                with open(yaml_file_path, "w") as f:
+                    yaml.safe_dump(
+                        clean_cfg,
+                        f,
+                        sort_keys=False,
+                        allow_unicode=True,
+                        default_flow_style=False,
+                        Dumper=IndentDumper,
+                        indent=2,
+                    )
                 num_envs += 1
 
         print(f"Generated {num_envs} envs")
