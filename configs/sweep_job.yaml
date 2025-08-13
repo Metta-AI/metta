@@ -30,7 +30,7 @@ settings:
   # Reference the loaded configs
   phase_schedule:
     - phase: 1
-      num_runs: 80
+      num_runs: 120
       sweep: ${phase1_config} # Reference the loaded config
     - phase: 2
       num_runs: 80
@@ -48,7 +48,7 @@ sweep_job_overrides:
     curriculum: /env/mettagrid/arena/basic_easy_shaped
     total_timesteps: 10000
     simulation:
-      # evaluate_interval: 0 # No evaluation during training for speed
+      evaluate_interval: 0 # No evaluation during training for speed
       replay_dir: "" # No replays for sweeps
 
 cmd: sweep
