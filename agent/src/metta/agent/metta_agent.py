@@ -337,11 +337,6 @@ class MettaAgent(nn.Module):
                 if hasattr(self.policy, attr):
                     setattr(self.policy, attr, getattr(self, attr))
 
-    def clip_weights(self):
-        """Delegate weight clipping to the policy."""
-        if self.policy is not None and hasattr(self.policy, "clip_weights"):
-            self.policy.clip_weights()
-
     @property
     def total_params(self):
         """Total number of parameters."""
@@ -359,6 +354,11 @@ class MettaAgent(nn.Module):
         if hasattr(self.policy, "l2_init_loss"):
             return self.policy.l2_init_loss()
         return torch.tensor(0.0, dtype=torch.float32, device=self.device)
+
+    def clip_weights(self):
+        """Delegate weight clipping to the policy."""
+        if self.policy is not None and hasattr(self.policy, "clip_weights"):
+            self.policy.clip_weights()
 
     def update_l2_init_weight_copy(self):
         """Update L2 initialization weight copies - delegates to policy."""
