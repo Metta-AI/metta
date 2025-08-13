@@ -608,8 +608,6 @@ function drawThoughtBubbles() {
   }
 }
 
-// Observation overlay drawing has been moved to overlay.ts.
-
 /** Draws the visibility map, either agent view ranges or fog of war. */
 function drawVisibility() {
   if (state.showVisualRanges || state.showFogOfWar) {
