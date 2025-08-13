@@ -1,284 +1,175 @@
-# Complete Testing Guide for YAML Serialization
+# Testing Guide for Experiments Framework
 
-This guide provides step-by-step instructions for testing the YAML serialization system that transfers training configuration to Skypilot jobs.
+This guide provides instructions for testing the experiments framework with YAML serialization for Skypilot jobs.
 
 ## Overview
 
 The system works by:
 1. Creating a `TrainingRunConfig` with all training parameters
-2. Serializing it to a temporary YAML file
+2. Serializing it to a temporary YAML file with complete Hydra-compatible configuration
 3. Transferring the YAML via Skypilot's file_mounts to `/tmp/metta_train_config.yaml`
-4. Loading the config on the remote using Hydra's `--config-path` and `--config-name`
+4. Loading the config on the remote using Hydra's `--config-path=/tmp --config-name=metta_train_config`
 
-## Test Commands
+## Quick Test Commands
 
-### 1. Basic Dry Run (Preview Mode)
+### 1. Preview Mode (No Launch)
 
-First, test locally without launching to see the YAML that will be generated:
+Test locally without launching to see what will be generated:
 
 ```bash
-# Preview mode - shows YAML without launching
-uv run experiments/recipes/arena_experiment.py --no-launch
+# Basic preview - shows YAML without launching
+uv run experiments/runner.py single --name test_experiment --no-launch
 
 # Preview with custom parameters
-uv run experiments/recipes/arena_experiment.py \
+uv run experiments/runner.py single \
+  --name test_experiment \
   --no-launch \
-  --gpus=4 \
-  --nodes=2 \
-  --total-timesteps=1000000 \
-  --learning-rate=0.0003
+  --gpus 4 \
+  --nodes 2 \
+  --total-timesteps 1000000 \
+  --learning-rate 0.0003
 ```
 
 This will:
 - Generate the YAML configuration
-- Display the full config that will be sent
-- Show the file path where it's temporarily stored
+- Display the config details that will be sent
+- Show local testing commands with `tools/train.py`
+- Create YAML files in `/tmp/metta_configs/` and `~/.metta_test_configs/`
 - NOT launch to Skypilot
 
-### 2. Test YAML Generation and Verification
+### 2. Test Local YAML with tools/train.py
 
-Check that the YAML file is correctly generated:
-
-```bash
-# Run in preview mode and capture the YAML path
-uv run experiments/recipes/arena_experiment.py --no-launch 2>&1 | grep "YAML config saved to"
-
-# The output will show something like:
-# YAML config saved to: /var/folders/.../metta_configs/train_config_20250113_123456_789012.yaml
-
-# Inspect the generated YAML
-cat /var/folders/.../metta_configs/train_config_20250113_123456_789012.yaml
-```
-
-Expected YAML structure:
-```yaml
-# @package _global_
-agent: latent_attn_tiny
-curriculum: env/mettagrid/curriculum/arena/learning_progress
-wandb:
-  entity: softmax-ai
-  project: metta
-  tags:
-  - arena
-  - experiments
-trainer:
-  total_timesteps: 10000000
-  num_workers: 4
-  batch_size: 4096
-  # ... (full trainer config with all nested objects)
-```
-
-### 3. Launch with Skypilot (Real Test)
+The preview mode provides a command to test locally:
 
 ```bash
-# Launch a real job
-uv run experiments/recipes/arena_experiment.py \
-  --gpus=1 \
-  --nodes=1 \
-  --total-timesteps=100000 \
-  arena_test_$(date +%Y%m%d_%H%M%S)
+# Run preview mode first
+uv run experiments/runner.py single --name test_local --no-launch
 
-# The command will:
-# 1. Generate YAML config
-# 2. Launch Skypilot job with the config mounted
-# 3. Show the job name for tracking
+# Look for output like:
+# To test locally with tools/train.py:
+#   uv run ./tools/train.py --config-path=/Users/you/.metta_test_configs --config-name=test_config_20250113_123456
+
+# Copy and run that command to test the YAML locally
+uv run ./tools/train.py --config-path=/Users/you/.metta_test_configs --config-name=test_config_20250113_123456 --cfg job
 ```
 
-### 4. Verify Config Transfer in Skypilot Logs
+### 3. Full Launch to Skypilot
 
-After launching, check that the config was transferred and loaded:
+When ready to launch:
 
 ```bash
-# Get the job name (shown in launch output)
-JOB_NAME="arena_test_20250113_123456"
+# Basic launch
+uv run experiments/runner.py single --name my_training_run
 
-# Stream the logs
-sky logs $JOB_NAME
-
-# Or check status
-sky status $JOB_NAME
-
-# Look for these key indicators in the logs:
-# 1. File mount confirmation:
-#    "Mounting /tmp/metta_train_config.yaml"
-# 
-# 2. Hydra loading the config:
-#    "Loading config from /tmp/metta_train_config.yaml"
-#
-# 3. Training starting with correct parameters:
-#    "Starting training with config:"
-#    "  total_timesteps: 100000"
-#    "  agent: latent_attn_tiny"
+# With custom settings
+uv run experiments/runner.py single \
+  --name my_training_run \
+  --gpus 2 \
+  --total-timesteps 500000 \
+  --batch-size 1024 \
+  --curriculum "env/mettagrid/curriculum/arena/learning_progress"
 ```
 
-### 5. SSH and Verify Config on Remote
+## Verifying YAML Structure
 
-For deeper inspection, SSH into the running job:
+### Check Generated YAML
+
+After running in preview mode, examine the generated YAML:
 
 ```bash
-# SSH into the job
-sky exec $JOB_NAME bash
+# Find YAML files
+ls -la /tmp/metta_configs/
+ls -la ~/.metta_test_configs/
 
-# Once connected, verify:
-# 1. Config file exists
-ls -la /tmp/metta_train_config.yaml
-
-# 2. Check contents
-cat /tmp/metta_train_config.yaml
-
-# 3. Check environment variables
-env | grep METTA
-
-# Expected output:
-# METTA_RUN_ID=arena_test_20250113_123456
-# METTA_CMD=train
-# METTA_CMD_ARGS=--config-path=/tmp --config-name=metta_train_config
-# METTA_CONFIG_FILE=/tmp/metta_train_config.yaml
-
-# 4. Check that training process is using the config
-ps aux | grep train.py
-# Should show: python tools/train.py --config-path=/tmp --config-name=metta_train_config
+# Inspect the content
+cat ~/.metta_test_configs/test_config_*.yaml
 ```
 
-### 6. Test Different Configurations
+The YAML should contain:
+- `defaults:` section with Hydra config composition
+- `trainer:` section with all training parameters
+- `seed:`, `py_agent:`, `train_job:` and other required fields
+- No `# @package _global_` directive (that's only for local testing files)
 
-Test various parameter combinations:
+### Verify with Hydra
 
-```bash
-# Minimal config
-uv run experiments/recipes/arena_experiment.py minimal_test --no-launch
-
-# Custom curriculum
-uv run experiments/recipes/arena_experiment.py \
-  --curriculum="env/mettagrid/curriculum/navigation/progressive" \
-  --no-launch \
-  nav_test
-
-# Different agent architecture
-uv run experiments/recipes/arena_experiment.py \
-  --no-launch \
-  --total-timesteps=5000000 \
-  --learning-rate=0.001 \
-  --batch-size=8192 \
-  large_batch_test
-
-# With specific wandb tags
-uv run experiments/recipes/arena_experiment.py \
-  --wandb-tags=experiment \
-  --wandb-tags=yaml_test \
-  --wandb-tags=v2 \
-  --no-launch \
-  tagged_test
-```
-
-### 7. Verify Hydra Integration
-
-Test that the generated YAML works with Hydra directly:
+Test that Hydra can load the config:
 
 ```bash
-# First generate a config
-uv run experiments/recipes/arena_experiment.py --no-launch test_config
-
-# Copy the shown YAML path
-YAML_PATH="/var/folders/.../metta_configs/train_config_*.yaml"
-
-# Copy to a test location
-cp $YAML_PATH /tmp/test_config.yaml
-
-# Test loading with Hydra (dry run)
+# This shows the composed config without running training
 uv run ./tools/train.py \
-  --config-path=/tmp \
-  --config-name=test_config \
+  --config-path=/path/to/yaml/dir \
+  --config-name=config_name \
   --cfg job \
   hydra.mode=MULTIRUN \
   hydra.dry=true
-
-# This should show the merged configuration without actually running
 ```
 
-### 8. Check Error Handling
+## Checking Skypilot Logs
 
-Test various error conditions:
+After launching, monitor the job:
 
 ```bash
-# Invalid parameters should fail with clear errors
-uv run experiments/recipes/arena_experiment.py \
-  --learning-rate=-1.0 \
-  --no-launch \
-  invalid_test
+# Check job status
+sky jobs queue
 
-# Missing required fields (if any)
-uv run experiments/recipes/arena_experiment.py \
-  --no-launch \
-  incomplete_test
+# View logs (replace JOB_ID with actual ID)
+sky jobs logs JOB_ID
+
+# Check the transferred config file
+sky exec JOB_ID 'cat /tmp/metta_train_config.yaml'
+
+# Check that tools/train.py received the config correctly
+sky exec JOB_ID 'grep "config-path=/tmp" /tmp/sky_logs/*.log'
 ```
 
-## Common Issues and Solutions
+## Troubleshooting
 
-### Issue 1: YAML file not found on remote
-**Solution**: Check that file_mounts is working:
+### Common Issues
+
+1. **"Could not load 'wandb: metta_research'"**
+   - This happens when testing locally with custom config paths
+   - The YAML references configs that aren't in the custom path
+   - This is expected; the remote has all configs available
+
+2. **FileNotFoundError for YAML**
+   - Check that the path shown in preview mode exists
+   - Ensure `/tmp/metta_configs/` or `~/.metta_test_configs/` directories are writable
+
+3. **Skypilot launch fails**
+   - Check git state: `git status` (should be clean)
+   - Verify AWS/wandb credentials are set
+   - Check that launch.py has --config-file support
+
+### Debug Commands
+
 ```bash
-sky logs $JOB_NAME | grep "file_mounts"
+# Check that TrainingRunConfig serialization works
+uv run python -c "
+from experiments.training_run_config import TrainingRunConfig
+config = TrainingRunConfig()
+path, yaml_dict = config.serialize_to_yaml_file()
+print(f'Created: {path}')
+print(f'Keys: {list(yaml_dict.keys())}')
+"
+
+# Test SingleJobExperiment config generation
+uv run python -c "
+from experiments.experiment import SingleJobExperimentConfig, SingleJobExperiment
+config = SingleJobExperimentConfig(name='test', launch=False)
+exp = SingleJobExperiment(config)
+exp.load_or_launch_training_jobs()
+"
 ```
 
-### Issue 2: Hydra can't load config
-**Solution**: Verify YAML syntax:
+## Running Tests
+
 ```bash
-python -c "import yaml; yaml.safe_load(open('/tmp/metta_train_config.yaml'))"
+# Run all experiments tests
+uv run pytest tests/experiments/ -v
+
+# Run specific test suites
+uv run pytest tests/experiments/test_yaml_contract.py -v  # YAML structure tests
+uv run pytest tests/experiments/test_train_integration.py -v  # Integration with train.py
+uv run pytest tests/experiments/test_experiment_workflows.py -v  # User workflow tests
 ```
-
-### Issue 3: Training using wrong parameters
-**Solution**: Check that METTA_CMD_ARGS is set correctly:
-```bash
-sky exec $JOB_NAME 'env | grep METTA_CMD_ARGS'
-```
-
-### Issue 4: Config overrides not applied
-**Solution**: Ensure trainer overrides are properly nested in YAML
-
-## Expected Success Indicators
-
-✅ Preview mode shows complete YAML configuration
-✅ YAML file is created in temp directory
-✅ Skypilot mounts file to `/tmp/metta_train_config.yaml`
-✅ Training starts with correct parameters from YAML
-✅ WandB shows correct experiment tags and config
-✅ No command-line length errors
-✅ Config changes reflected in training behavior
-
-## Advanced Testing
-
-### Test with Multiple Jobs
-```bash
-# Launch multiple experiments with different configs
-for i in {1..3}; do
-  uv run experiments/recipes/arena_experiment.py \
-    --learning-rate=0.000$i \
-    --total-timesteps=$((1000000 * i)) \
-    multi_test_$i
-done
-```
-
-### Test Config Persistence
-```bash
-# Verify configs are saved and can be reused
-ls -la /tmp/metta_configs/
-# Each run creates a unique timestamped YAML
-```
-
-### Integration with WandB
-```bash
-# After job completes, check WandB for:
-# 1. Correct config logged
-# 2. Tags applied properly  
-# 3. Hyperparameters tracked
-```
-
-## Summary
-
-The YAML serialization system enables:
-1. **Clean separation** between infrastructure (Skypilot) and training configs
-2. **No command-line length limits** - complex configs transferred as files
-3. **Type-safe configuration** with Pydantic validation
-4. **Reproducible experiments** with versioned config files
-5. **Easy debugging** - configs are human-readable YAML files
