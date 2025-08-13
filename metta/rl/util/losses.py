@@ -118,7 +118,12 @@ def compute_contrastive_loss(
             while mask.any():
                 num_to_replace = mask.sum().item()
                 if num_to_replace > 0:
-                    new_indices = torch.randint(0, all_lstm_flat.shape[0], size=(num_to_replace,), device=device)
+                    new_indices = torch.randint(
+                        0,
+                        all_lstm_flat.shape[0],
+                        (int(num_to_replace),),
+                        device=device,
+                    )
                     negative_indices[i, mask] = new_indices
                 mask = (negative_indices[i] == current_indices[i]) | (negative_indices[i] == positive_indices[i])
 
@@ -158,14 +163,15 @@ def compute_contrastive_loss(
 
     return contrastive_loss, metrics
 
+
 @torch.no_grad()
 def _future_deltas(
-    dones: Tensor,               # [segments, T] bool
-    gamma: float,                # geometric parameter
-) -> Tensor:                     # [segments, T] int64
+    dones: Tensor,  # [segments, T] bool
+    gamma: float,  # geometric parameter
+) -> Tensor:  # [segments, T] int64
     """
-    Geometrically-distributed offsets, clipped so we never cross an episode boundary.
-    No Python loops; all on GPU.
+    Geometrically-distributed offsets, clipped so we never cross an episode boundary
+    (or the end of the segment). Fully vectorised on GPU.
     """
     seg_len = dones.size(1)
     segs = dones.size(0)
@@ -175,23 +181,27 @@ def _future_deltas(
     deltas = torch.floor(torch.log1p(-u) / torch.log(torch.tensor(gamma, device=dones.device))).long()
     deltas.clamp_(min=1, max=seg_len - 1)
 
-    # 2) Compute distance-to-done for every position
-    #    E.g. [F F T F] →   [2 1 0 0]   (2 steps until 'done')
-    # Reverse for a cumsum, then flip back.
-    dist_to_done = torch.cumsum(dones.flip(1), dim=1).flip(1)
-    # For timesteps *after* final done of a segment, dist_to_done will be > seg_len.
-    dist_to_done.clamp_(max=seg_len)
+    # Compute distance to the nearest future 'done' for every timestep.
+    # Example: dones=[F F T F] → distances=[2, 1, 0, 0]
+    # If there is no future 'done', allow moving up to the segment end: distances = (seg_len-1 - t)
+    t_idx = torch.arange(seg_len, device=dones.device, dtype=torch.long).expand(segs, seg_len)
+    INF = torch.full_like(t_idx, fill_value=seg_len * 2)
+    done_pos = torch.where(dones, t_idx, INF)
+    suffix_min, _ = torch.cummin(done_pos.flip(1), dim=1)
+    next_done_idx = suffix_min.flip(1)
+    boundary_idx = torch.where(next_done_idx < INF, next_done_idx, torch.full_like(t_idx, seg_len - 1))
+    dist_to_boundary = boundary_idx - t_idx
 
-    # 3) Clip deltas so we never step past a 'done'
-    deltas = torch.minimum(deltas, dist_to_done)
+    # Clip deltas so we never step past a 'done' or segment end
+    deltas = torch.minimum(deltas, dist_to_boundary)
 
-    return deltas        # [segments, T]
+    return deltas  # [segments, T]
 
 
 def compute_contrastive_loss_fast(
     minibatch: Dict[str, Tensor],
-    lstm_hidden: Tensor,       # [Bseg, T, H]
-    all_lstm_hidden: Tensor,   # [S, T, H]  (huge replay window on-device)
+    lstm_hidden: Tensor,  # [Bseg, T, H]
+    all_lstm_hidden: Tensor,  # [S, T, H]  (huge replay window on-device)
     trainer_cfg: Any,
     device: torch.device,
 ) -> Tuple[Tensor, Dict[str, float]]:
@@ -205,47 +215,69 @@ def compute_contrastive_loss_fast(
     logsumexp_coef = trainer_cfg.contrastive.logsumexp_coef
 
     # flatten views
-    batch_flat = lstm_hidden.reshape(B, H)                 # current states
-    all_flat   = all_lstm_hidden.reshape(-1, H)            # replay window
+    batch_flat = lstm_hidden.reshape(B, H)  # current states
+    all_flat = all_lstm_hidden.reshape(-1, H)  # replay window
 
     # positive indices
-    seg_idx   = minibatch["indices"].to(device, dtype=torch.long)            # [Bseg]
-    base_ids  = seg_idx[:, None] * T + torch.arange(T, device=device, dtype=torch.long)  # [Bseg, T]
-    delta     = _future_deltas(minibatch["dones"].to(device), gamma)   # [Bseg, T]
-    pos_ids   = (base_ids + delta).reshape(-1).clamp(max=all_flat.size(0)-1).to(device, dtype=torch.long)
+    seg_idx = minibatch["indices"].to(device, dtype=torch.long)  # [Bseg]
+    base_ids = seg_idx[:, None] * T + torch.arange(T, device=device, dtype=torch.long)  # [Bseg, T]
+    # Correct distance-to-boundary clipping (no crossing 'done' or segment end)
+    delta = _future_deltas(minibatch["dones"].to(device), gamma)  # [Bseg, T]
+    pos_ids_full = (base_ids + delta).reshape(-1).clamp(max=all_flat.size(0) - 1).to(device, dtype=torch.long)
+    base_ids_full = base_ids.reshape(-1)
+    valid_mask = delta.reshape(-1) >= 1
+    # If no valid positions, return zero loss to avoid NaNs
+    if not torch.any(valid_mask):
+        zero = torch.tensor(0.0, device=device, dtype=torch.float32)
+        metrics = {
+            "contrastive_loss": 0.0,
+            "contrastive_infonce": 0.0,
+            "contrastive_logsumexp": 0.0,
+            "contrastive_pos_sim": 0.0,
+            "contrastive_neg_sim": 0.0,
+            "contrastive_var_loss": 0.0,
+            "contrastive_batch_std": 0.0,
+        }
+        return zero, metrics
+    pos_ids = pos_ids_full[valid_mask]
+    base_flat_ids = base_ids_full[valid_mask]
+    batch_flat = batch_flat[valid_mask]
 
     # negative indices
-    neg_ids = torch.randint(
-        0, all_flat.size(0),
-        (B, K + 2),
-        device=device
-    )
-    # replace first two columns with current and positive
-    neg_ids[:, 0] = base_ids.reshape(-1)
-    neg_ids[:, 1] = pos_ids
-    # shuffle
-    neg_ids = neg_ids[:, torch.randperm(K + 2, device=device)]
-    neg_ids = neg_ids[:, :K]                              # [B, K]
+    # Sample K negatives that are NOT equal to current or positive indices
+    eff_B = batch_flat.size(0)
+    neg_ids = torch.randint(0, all_flat.size(0), (eff_B, K), device=device)
+    collisions = (neg_ids == base_flat_ids.unsqueeze(1)) | (neg_ids == pos_ids.unsqueeze(1))
+    resample_round = 0
+    # Re-sample colliding slots until none remain (expected to converge quickly)
+    while torch.any(collisions) and resample_round < 10:
+        num_replace = int(collisions.sum().item())
+        if num_replace > 0:
+            neg_ids[collisions] = torch.randint(0, all_flat.size(0), (num_replace,), device=device)
+        collisions = (neg_ids == base_flat_ids.unsqueeze(1)) | (neg_ids == pos_ids.unsqueeze(1))
+        resample_round += 1
 
     # fetch states
-    pos_states  = all_flat[pos_ids]                       # [B, H]
-    neg_states  = all_flat[neg_ids]                       # [B, K, H]
+    pos_states = all_flat[pos_ids]  # [eff_B, H]
+    neg_states = all_flat[neg_ids]  # [eff_B, K, H]
 
     # cosine similarities
-    q   = torch.nn.functional.normalize(batch_flat, dim=-1)
-    kp  = torch.nn.functional.normalize(pos_states,  dim=-1)
-    kn  = torch.nn.functional.normalize(neg_states,  dim=-1)
+    q = torch.nn.functional.normalize(batch_flat, dim=-1)
+    kp = torch.nn.functional.normalize(pos_states, dim=-1)
+    kn = torch.nn.functional.normalize(neg_states, dim=-1)
 
-    pos_sim = (q * kp).sum(-1, keepdim=True) / tau        # [B, 1]
-    neg_sim = (q[:, None, :] * kn).sum(-1)      / tau     # [B, K]
+    pos_sim = (q * kp).sum(-1, keepdim=True) / tau  # [eff_B, 1]
+    neg_sim = (q[:, None, :] * kn).sum(-1) / tau  # [eff_B, K]
+
+    print("I AM COMPUTING CONTRASTIVE LOSS PROBABLY")
 
     # infonce
-    logits  = torch.cat((pos_sim, neg_sim), dim=1)        # [B, 1+K]
-    targets = torch.zeros(B, dtype=torch.long, device=device)
+    logits = torch.cat((pos_sim, neg_sim), dim=1)  # [eff_B, 1+K]
+    targets = torch.zeros(eff_B, dtype=torch.long, device=device)
     infonce = torch.nn.functional.cross_entropy(logits, targets)
 
     var_target = trainer_cfg.contrastive.var_reg_target
-    z = q.detach()                 # (B, H)  stop-grad to avoid wasting mem
+    z = q.detach()  # (eff_B, H)  stop-grad to avoid wasting mem
     std = torch.sqrt(z.var(dim=0, unbiased=False) + 1e-04)
 
     var_loss = torch.mean(torch.relu(var_target - std))
@@ -257,13 +289,13 @@ def compute_contrastive_loss_fast(
 
     # metrics
     metrics = {
-        "contrastive_loss":        loss.item(),
-        "contrastive_infonce":     infonce.item(),
-        "contrastive_logsumexp":   reg.item(),
-        "contrastive_pos_sim":     pos_sim.mean().item(),
-        "contrastive_neg_sim":     neg_sim.mean().item(),
-        "contrastive_var_loss":    var_loss.item(),
-        "contrastive_batch_std":   std.mean().item(),
+        "contrastive_loss": loss.item(),
+        "contrastive_infonce": infonce.item(),
+        "contrastive_logsumexp": reg.item(),
+        "contrastive_pos_sim": pos_sim.mean().item(),
+        "contrastive_neg_sim": neg_sim.mean().item(),
+        "contrastive_var_loss": var_loss.item(),
+        "contrastive_batch_std": std.mean().item(),
     }
     return loss, metrics
 
@@ -322,7 +354,13 @@ def process_minibatch_update(
         # L2 init loss
         l2_init_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
         if trainer_cfg.ppo.l2_init_loss_coef > 0:
-            l2_init_loss = trainer_cfg.ppo.l2_init_loss_coef * policy.l2_init_loss()
+            l2_init_fn = getattr(policy, "l2_init_loss", None)
+            if callable(l2_init_fn):
+                init_val = l2_init_fn()
+                if torch.is_tensor(init_val):
+                    l2_init_loss = trainer_cfg.ppo.l2_init_loss_coef * init_val
+                else:
+                    l2_init_loss = torch.tensor(0.0, device=device, dtype=torch.float32)
 
         # Contrastive loss
         contrastive_loss = torch.tensor(0.0, device=device)

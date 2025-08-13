@@ -28,7 +28,7 @@
     {
       "name": "No Summaries",
       "pattern": "(?i)\\b(summary|summarize|overview)\\b",
-      "message": "Don't summarize changes made"
+      "message": "Don't summarize changes made. It is ok to summarize code when the user asks for it, but don't do it by default."
     },
     {
       "name": "No Inventions",
