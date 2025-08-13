@@ -53,4 +53,4 @@ public:
     }
 };
 
-#endif  //OBJECTS_BOX_HPP_
+#endif  //  OBJECTS_BOX_HPP_
