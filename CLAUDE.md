@@ -356,7 +356,7 @@ uv run ./tools/train.py wandb=off
 - Example: `action_names()` → `action_names` (property)
 
 #### Policy and Agent Management
-- Validate policy types with runtime checking using `policy_as_metta_agent()`
+- Validate policy types with runtime checking
 - Use Union types for policies: `Union[MettaAgent, DistributedMettaAgent]`
 - Ensure proper type safety for policy handling throughout the system
 - Policy URIs follow format: `file://path/to/checkpoint` or `wandb://project/run/artifact`

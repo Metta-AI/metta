@@ -127,17 +127,10 @@ class MettaAgent(nn.Module):
 
         return policy
 
-    def set_policy(self, policy):
-        """Set the agent's policy."""
-        self.policy = policy
-        if hasattr(self.policy, "device"):
-            self.policy.device = self.device
-        self.policy.to(self.device)
-
     def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass through the policy."""
         if self.policy is None:
-            raise RuntimeError("No policy set. Use set_policy() first.")
+            raise RuntimeError("No policy set during initialization.")
 
         # Handle old checkpoints where self.policy == self (old MettaAgent WAS the policy)
         if self.policy is self and hasattr(self, "components"):
