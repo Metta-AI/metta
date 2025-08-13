@@ -97,6 +97,10 @@ class MettaAgent(nn.Module):
             # Create PyTorch policy
             AgentClass = agent_classes[agent_cfg.agent_type]
             policy = AgentClass(env=env)
+            # Move policy to correct device
+            policy = policy.to(system_cfg.device)
+            if hasattr(policy, "device"):
+                policy.device = system_cfg.device
             logger.info(f"Using PyTorch Policy: {policy} (type: {agent_cfg.agent_type})")
         else:
             # Create ComponentPolicy (YAML config)
