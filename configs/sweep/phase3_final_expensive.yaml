@@ -15,7 +15,7 @@ protein:
 metric: heart.gained # Total hearts gained
 goal: maximize
 method: bayes
-max_observations_to_load: 160 # Load Phase 1 & 2 results
+max_observations_to_load: 300 # Load Phase 1 & 2 results
 
 parameters:
   trainer:
@@ -24,7 +24,7 @@ parameters:
       distribution: int_uniform
       min: 1500000000 # 1.5B
       max: 5000000000 # 5B - very expensive
-      mean: 2500000000 # 2.5B
+      mean: 3250000000 # 3.25B
       scale: auto
 
     # # Larger batch sizes for stability
