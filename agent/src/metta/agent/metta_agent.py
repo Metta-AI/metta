@@ -49,7 +49,7 @@ class DistributedMettaAgent(DistributedDataParallel):
 class MettaAgent(nn.Module):
     """Wrapper that bridges between environments and policies.
 
-    Architecture Overview:
+    Architecture:
     - MettaAgent: Handles environment interface, feature remapping, action conversion
     - Policy (ComponentPolicy/PyTorch agents): Handles forward pass and network architecture
 
@@ -59,9 +59,6 @@ class MettaAgent(nn.Module):
       - update_feature_remapping() for observation components
       - activate_action_embeddings() for action embeddings
       - clip_weights(), l2_init_loss(), etc. for training utilities
-
-    This design prevents recursion issues and maintains clean separation between
-    environment-specific logic (MettaAgent) and network architecture (policies).
     """
 
     def __init__(
@@ -124,29 +121,14 @@ class MettaAgent(nn.Module):
     def set_policy(self, policy):
         """Set the agent's policy."""
         self.policy = policy
-        # Don't create circular reference - it causes recursion during serialization
-        # self.policy.agent = self  # REMOVED - causes recursion errors
         if hasattr(self.policy, "device"):
             self.policy.device = self.device
         self.policy.to(self.device)
 
     def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
-        """Forward pass through the policy.
-
-        If policy is None (old checkpoint compatibility), this MettaAgent
-        acts as the policy itself and should have the necessary components.
-        """
+        """Forward pass through the policy."""
         if self.policy is None:
-            # Backward compatibility: MettaAgent IS the policy
-            # This means we have components directly on this MettaAgent
-            if hasattr(self, "components") and self.components:
-                # Old-style MettaAgent with components - delegate to ComponentPolicy behavior
-                # This is a compatibility shim for old checkpoints
-                return self._legacy_forward(td, state, action)
-            else:
-                raise RuntimeError("No policy set. Use set_policy() first.")
-
-        # Normal case: delegate to the policy
+            raise RuntimeError("No policy set. Use set_policy() first.")
         return self.policy(td, state, action)
 
     def reset_memory(self) -> None:
@@ -181,21 +163,6 @@ class MettaAgent(nn.Module):
         # MettaAgent handles all initialization
         self.activate_actions(action_names, action_max_params, device)
         self.activate_observations(features, device)
-
-    def _legacy_forward(
-        self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None
-    ) -> TensorDict:
-        """Legacy forward pass for backward compatibility with old checkpoints.
-
-        This handles the case where MettaAgent has components directly (pre-refactor).
-        """
-        # This would need to implement the old MettaAgent forward logic
-        # For now, raise an informative error
-        raise RuntimeError(
-            "This checkpoint uses the old MettaAgent architecture where MettaAgent was the policy. "
-            "Please re-train or convert your checkpoint to the new architecture where MettaAgent "
-            "is a wrapper and policies are separate."
-        )
 
     def activate_observations(self, features: dict[str, dict], device):
         """Activate observation features by storing the feature mapping.
@@ -383,22 +350,8 @@ class MettaAgent(nn.Module):
         raise NotImplementedError("Policy does not implement _convert_logit_index_to_action")
 
     def __setstate__(self, state):
-        """Restore state from checkpoint and handle backward compatibility.
-
-        For old checkpoints where MettaAgent was the policy itself (pre-refactor),
-        we don't set self.policy = self to avoid recursion. Instead, we set
-        policy to None and let the forward pass handle it gracefully.
-        """
+        """Restore state from checkpoint."""
         self.__dict__.update(state)
-
-        # Handle backward compatibility for old checkpoints
-        if not hasattr(self, "policy"):
-            # Old checkpoint - MettaAgent was the policy itself
-            # Set policy to None to avoid recursion issues
-            self.policy = None
-            logger.warning(
-                "Loading old checkpoint where MettaAgent was the policy. Consider re-saving with the new architecture."
-            )
 
 
 PolicyAgent = MettaAgent | DistributedMettaAgent
