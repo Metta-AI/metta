@@ -38,6 +38,10 @@ inputs:
     description: "GitHub PAT for status reporting"
     required: false
     default: ""
+  discord_webhook_url:
+    description: "Discord webhook URL for status reporting"
+    required: false
+    default: ""
 
 outputs:
   launch_output:
@@ -94,6 +98,10 @@ runs:
 
         if [ -n "${{ inputs.github_pat }}" ]; then
           LAUNCH_ARGS+=( "--github-pat=${{ inputs.github_pat }}" )
+        fi
+
+        if [ -n "${{ inputs.discord_webhook_url }}" ]; then
+          LAUNCH_ARGS+=( "--discord-webhook-url=${{ inputs.discord_webhook_url }}" )
         fi
 
         LAUNCH_ARGS+=(

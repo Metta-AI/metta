@@ -96,6 +96,10 @@ def main():
     parser.add_argument(
         "--github-pat", type=str, default=None, help="GitHub PAT token for posting status updates (repo scope)"
     )
+    parser.add_argument(
+        "--discord-webhook-url", type=str, default=None, help="Discord webhook URL for status update channel"
+    )
+
     (args, cmd_args) = parser.parse_known_args(filtered_args)
 
     if run_id is None:
@@ -137,6 +141,7 @@ def main():
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         GITHUB_PAT=args.github_pat,
         MAX_RUNTIME_HOURS=args.max_runtime_hours,
+        DISCORD_WEBHOOK_URL=args.discord_webhook_url,
     )
 
     env_updates = {k: v for k, v in env_updates.items() if v is not None}
