@@ -11,7 +11,7 @@
 
 #2 converters - 64 bptt
 ./devops/skypilot/launch.py train \
-  run=$USER.operant_conditioning.in_context_learning.7x7.chain_length_2.256.$(date +%m-%d) \
+  run=$USER.operant_conditioning.in_context_learning.8x8.512steps.chain_length_2.256.$(date +%m-%d) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_2 \
   sim=operant_conditioning_incontext \
   trainer.bptt_horizon=256 \
@@ -29,7 +29,7 @@
 #   "$@"
 
 ./devops/skypilot/launch.py train \
-  run=$USER.operant_conditioning.in_context_learning.7x7.chain_length_3.256.$(date +%m-%d) \
+  run=$USER.operant_conditioning.in_context_learning.8x8.512steps.chain_length_3.256.$(date +%m-%d) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_3 \
   sim=operant_conditioning_incontext \
   trainer.bptt_horizon=256 \
@@ -46,7 +46,7 @@
 #   "$@"
 
 ./devops/skypilot/launch.py train \
-  run=$USER.operant_conditioning.in_context_learning.7x7.chain_length_4.256.$(date +%m-%d) \
+  run=$USER.operant_conditioning.in_context_learning.8x8.512steps.chain_length_4.256.$(date +%m-%d) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_4 \
   sim=operant_conditioning_incontext \
   trainer.bptt_horizon=256 \
@@ -63,7 +63,7 @@
 #   "$@"
 
 ./devops/skypilot/launch.py train \
-  run=$USER.operant_conditioning.in_context_learning.7x7.all.256.$(date +%m-%d) \
+  run=$USER.operant_conditioning.in_context_learning.8x8.512steps.all.256.$(date +%m-%d) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/in_context_learning/all \
   sim=operant_conditioning_incontext \
   trainer.bptt_horizon=256 \
