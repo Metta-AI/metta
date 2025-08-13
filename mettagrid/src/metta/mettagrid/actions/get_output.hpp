@@ -74,11 +74,9 @@ protected:
             creator->update_inventory(item, amount);
           }
         }
-        if (creator->reward) *creator->reward -= 1.0f;
       }
 
       // Reward the agent for opening the box and teleport back to top-left corner
-      if (actor->reward) *actor->reward += 1.0f;
       _grid->ghost_move_object(box->id, GridLocation(0, 0, GridLayer::ObjectLayer));
       actor->stats.add("box.opened", 1.0f);
       return true;
