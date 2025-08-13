@@ -93,3 +93,12 @@ def validate_policy_environment_match(policy: PolicyAgent, env: MettaGridEnv) ->
                 "No component with observation shape found in policy. "
                 f"Environment observation shape: {environment_shape}"
             )
+
+
+def wrap_agent_distributed(agent: PolicyAgent, device: torch.device) -> PolicyAgent:
+    """Wrap agent with DistributedDataParallel if distributed training is initialized."""
+    if torch.distributed.is_initialized():
+        # Always use DistributedMettaAgent for its __getattr__ forwarding
+        agent = DistributedMettaAgent(agent, device)
+
+    return agent

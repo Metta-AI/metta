@@ -10,7 +10,7 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 from torchrl.data import Composite
 
-from metta.agent.metta_agent import DistributedMettaAgent, PolicyAgent
+from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
@@ -36,6 +36,7 @@ from metta.rl.optimization import (
 )
 from metta.rl.policy_management import (
     initialize_policy_for_environment,
+    wrap_agent_distributed,
 )
 from metta.rl.rollout import get_observation, send_observation
 from metta.rl.stats import (
@@ -179,7 +180,7 @@ def train(
     if torch.distributed.is_initialized():
         logger.info(f"Initializing DistributedDataParallel on device {device}")
         torch.distributed.barrier()
-        policy = DistributedMettaAgent(policy, device)
+        policy = wrap_agent_distributed(policy, device)
         torch.distributed.barrier()
 
     # Initialize policy to environment after distributed wrapping
