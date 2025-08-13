@@ -1,15 +1,20 @@
 """Service class for interacting with Skypilot."""
 
 import logging
-import subprocess
 import re
+import subprocess
+import yaml
 from dataclasses import dataclass
-from typing import Optional, List, Dict
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
-
 from metta.common.util.fs import get_repo_root
+from metta.common.util.git import (
+    get_current_commit,
+)
+from experiments.training_job import TrainingJob
 
 
 @dataclass
@@ -26,169 +31,289 @@ class SkypilotService:
     def __init__(self):
         self.log = logging.getLogger(__name__)
         # Track all jobs launched through this service
-        self._tracked_jobs: Dict[str, "TrainingJob"] = {}  # job_id -> TrainingJob
-        self._jobs_by_name: Dict[str, "TrainingJob"] = {}  # run_name -> TrainingJob
+        self._tracked_jobs: Dict[str, TrainingJob] = {}  # job_id -> TrainingJob
+        self._jobs_by_name: Dict[str, TrainingJob] = {}  # run_name -> TrainingJob
+
+    def run_preflight_checks(self, git_check: bool = True) -> bool:
+        """Run preflight checks using existing utilities.
+
+        Args:
+            git_check: Whether to check git state
+
+        Returns:
+            True if all checks pass
+        """
+        all_good = True
+
+        # Git checks (using existing utilities)
+        if git_check:
+            from devops.skypilot.utils import check_git_state
+
+            commit_hash = get_current_commit()
+            error = check_git_state(commit_hash)
+            if error:
+                print(error)
+                all_good = False
+            else:
+                print("✅ Git state is clean and pushed")
+
+        # AWS check (using existing setup module)
+        try:
+            from metta.setup.components.aws import AWSSetup
+
+            aws = AWSSetup()
+            account = aws.check_connected_as()
+            if account:
+                print(f"✅ AWS configured (Account: {account})")
+            else:
+                print("⚠️  AWS credentials may not be configured")
+        except Exception as e:
+            self.log.debug(f"AWS check failed: {e}")
+            print("⚠️  Could not verify AWS credentials")
+
+        # Wandb check (using existing setup module)
+        try:
+            from metta.setup.components.wandb import WandbSetup
+
+            wandb = WandbSetup()
+            if wandb.check_installed():
+                print("✅ W&B configured")
+            else:
+                print("⚠️  W&B not configured (run: wandb login)")
+        except Exception as e:
+            self.log.debug(f"W&B check failed: {e}")
+
+        return all_good
 
     def launch_training(
         self,
         run_name: str,
-        curriculum: str,
-        gpus: int = 1,
-        nodes: int = 1,
-        spot: bool = True,
-        skip_git_check: bool = False,
-        wandb_tags: Optional[List[str]] = None,
-        additional_args: Optional[List[str]] = None,
-        training_job: Optional["TrainingJob"] = None,
+        training_job: TrainingJob,
     ) -> LaunchResult:
         """Launch a training job via Skypilot.
 
         Args:
             run_name: Name for the training run
-            curriculum: Path to curriculum config
-            gpus: Number of GPUs per node
-            nodes: Number of nodes
-            spot: Whether to use spot instances
-            skip_git_check: Whether to skip git check
-            wandb_tags: Tags for wandb
-            additional_args: Additional command line arguments
-            training_job: Optional TrainingJob object to update
+            training_job: TrainingJob with full configuration
 
         Returns:
             LaunchResult with success status and job_id if successful
         """
-        # Build command
-        cmd = self._build_command(
+        if not training_job or not training_job.config:
+            raise ValueError("TrainingJob with config is required")
+
+        # Build command with YAML config
+        cmd, config_file = self._build_command(
             run_name=run_name,
-            curriculum=curriculum,
-            gpus=gpus,
-            nodes=nodes,
-            spot=spot,
-            skip_git_check=skip_git_check,
-            wandb_tags=wandb_tags,
-            additional_args=additional_args,
+            training_job=training_job,
         )
 
         # Execute command
         result = self._execute_command(cmd)
 
+        # Clean up config file if we created one
+        if config_file and config_file.exists():
+            try:
+                config_file.unlink()
+            except Exception as e:
+                self.log.debug(f"Failed to clean up config file {config_file}: {e}")
+
         # Track the job if successful
         if result.success and result.job_id:
-            if training_job:
-                # Update the provided TrainingJob
-                training_job.job_id = result.job_id
-                training_job.launched = True
-                training_job.success = result.success
-                training_job.launch_time = datetime.now()
-                self._tracked_jobs[result.job_id] = training_job
-                self._jobs_by_name[run_name] = training_job
-            else:
-                # Create a minimal TrainingJob for tracking
-                from experiments.training_job import TrainingJob, TrainingJobConfig
-
-                job = TrainingJob(name=run_name)
-                job.job_id = result.job_id
-                job.launched = True
-                job.success = result.success
-                job.launch_time = datetime.now()
-                job.config = TrainingJobConfig(
-                    curriculum=curriculum,
-                    gpus=gpus,
-                    nodes=nodes,
-                    spot=spot,
-                    skip_git_check=skip_git_check,
-                    wandb_tags=wandb_tags,
-                    additional_args=additional_args,
-                )
-                self._tracked_jobs[result.job_id] = job
-                self._jobs_by_name[run_name] = job
+            # Update the provided TrainingJob
+            training_job.job_id = result.job_id
+            training_job.launched = True
+            training_job.success = result.success
+            training_job.launch_time = datetime.now()
+            self._tracked_jobs[result.job_id] = training_job
+            self._jobs_by_name[run_name] = training_job
 
         return result
 
     def _build_command(
         self,
         run_name: str,
-        curriculum: str,
-        gpus: int,
-        nodes: int,
-        spot: bool,
-        skip_git_check: bool,
-        wandb_tags: Optional[List[str]],
-        additional_args: Optional[List[str]],
-    ) -> List[str]:
-        """Build the skypilot launch command."""
+        training_job: Optional[TrainingJob],
+    ) -> Tuple[List[str], Path]:
+        """Build the skypilot launch command from a TrainingJob.
+
+        Args:
+            run_name: Name for the run
+            training_job: The TrainingJob with full configuration
+
+        Returns:
+            Tuple of (command arguments list, config file path)
+        """
+        if not training_job or not training_job.config:
+            raise ValueError("TrainingJob with config is required")
+
+        config = training_job.config
+
+        # Serialize training config to YAML file
+        config_file, full_config = config.training.serialize_to_yaml_file()
+
+        # Build command with infrastructure settings from skypilot config
+        skypilot = config.skypilot
         cmd = [
             "./devops/skypilot/launch.py",
             "train",
             f"run={run_name}",
-            f"--gpus={gpus}",
-            f"--nodes={nodes}",
+            f"--gpus={skypilot.gpus}",
+            f"--nodes={skypilot.nodes}",
         ]
 
-        if not spot:
+        # Core Skypilot options
+        if not skypilot.spot:
             cmd.append("--no-spot")
 
-        if skip_git_check:
+        if not skypilot.git_check:
             cmd.append("--skip-git-check")
 
-        cmd.append(f"trainer.curriculum={curriculum}")
+        if skypilot.dry_run:
+            cmd.append("--dry-run")
 
-        if wandb_tags:
-            # Hydra expects list values as comma-separated strings in square brackets
-            tags_str = "[" + ",".join(wandb_tags) + "]"
-            cmd.append(f"+wandb.tags={tags_str}")
+        # Pass the config file path to launch.py
+        cmd.append(f"--config-file={config_file}")
 
-        if additional_args:
-            cmd.extend(additional_args)
+        self.log.info(f"Using serialized config from: {config_file}")
+        self.log.debug(
+            f"Config contents:\n{yaml.dump(full_config, default_flow_style=False)}"
+        )
 
-        return cmd
+        return cmd, config_file
 
     def _execute_command(self, cmd: List[str]) -> LaunchResult:
         """Execute the command and parse results."""
         self.log.info(f"Launching: {' '.join(cmd)}")
+        print(f"\n📋 Full command:\n  {' '.join(cmd)}\n")
+        print(f"📁 Working directory: {get_repo_root()}\n")
 
         job_id = None
         success = False
+        output_lines = []
+        error_lines = []
 
         try:
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
+                stderr=subprocess.PIPE,
                 text=True,
                 cwd=get_repo_root(),
             )
 
+            # Read stdout
             for line in process.stdout or []:
                 print(line, end="")
+                output_lines.append(line.strip())
 
                 # Extract job ID from output
                 parsed_id = self._parse_job_id(line)
                 if parsed_id:
                     job_id = parsed_id
 
+            # Read stderr
+            stderr_output = process.stderr.read() if process.stderr else ""
+            if stderr_output:
+                error_lines = stderr_output.strip().split("\n")
+                print(f"\n⚠️  Stderr output:\n{stderr_output}")
+
             process.wait()
-            success = process.returncode == 0
+
+            # Consider it a success if we got a job ID (even request ID) or return code is 0
+            success = process.returncode == 0 or job_id is not None
 
             if success:
-                self.log.info(f"✓ Job launched successfully! Job ID: {job_id}")
+                if job_id and job_id.startswith("request-"):
+                    request_id = job_id[8:]  # Remove "request-" prefix
+                    self.log.info(
+                        f"✓ Job submitted successfully! Request ID: {request_id}"
+                    )
+                    print(f"\n✅ Job submitted! Request ID: {request_id}")
+                    print("   The job is being scheduled. Check status with:")
+                    print("   - sky jobs queue")
+                    print(f"   - sky api logs {request_id[:8]}")
+                elif job_id:
+                    self.log.info(f"✓ Job launched successfully! Job ID: {job_id}")
+                    print(f"\n✅ Success! Job ID: {job_id}")
+                else:
+                    self.log.info(
+                        "✓ Job appeared to launch (return code 0) but no ID captured"
+                    )
+                    print(
+                        "\n✅ Launch completed (return code 0) - check `sky jobs queue` for status"
+                    )
             else:
                 self.log.error(
                     f"✗ Launch failed with return code: {process.returncode}"
                 )
+                print(f"\n❌ Launch failed with return code: {process.returncode}")
 
+                # Print debugging information
+                print("\n🔍 Debugging information:")
+                print(f"  - Command: {' '.join(cmd)}")
+                print(f"  - Working directory: {get_repo_root()}")
+                print(f"  - Return code: {process.returncode}")
+
+                if error_lines:
+                    print("\n  Error details:")
+                    for line in error_lines[-10:]:  # Show last 10 error lines
+                        if line.strip():
+                            print(f"    {line}")
+
+                # Check for common issues
+                if "git" in " ".join(error_lines).lower():
+                    print("\n  💡 Hint: This might be a git-related issue. Try:")
+                    print("     - Ensure your git repo is clean: `git status`")
+                    print("     - Or use --git-check=false to skip git checks")
+
+                if (
+                    "authentication" in " ".join(error_lines).lower()
+                    or "credentials" in " ".join(error_lines).lower()
+                ):
+                    print("\n  💡 Hint: This might be an authentication issue. Try:")
+                    print("     - Check your cloud credentials: `sky check`")
+                    print("     - Ensure you're logged into wandb: `wandb login`")
+
+                if (
+                    "resources" in " ".join(error_lines).lower()
+                    or "quota" in " ".join(error_lines).lower()
+                ):
+                    print("\n  💡 Hint: This might be a resource issue. Try:")
+                    print("     - Check available resources: `sky show-gpus`")
+                    print("     - Use fewer GPUs or nodes")
+                    print("     - Use --spot=true for spot instances")
+
+        except FileNotFoundError:
+            self.log.error(f"✗ Command not found: {cmd[0]}")
+            print(f"\n❌ Error: Command not found: {cmd[0]}")
+            print(
+                f"  Make sure the launch script exists at: {get_repo_root() / cmd[0]}"
+            )
         except Exception as e:
             self.log.error(f"✗ Error launching job: {str(e)}")
+            print(f"\n❌ Unexpected error: {str(e)}")
+            print(f"  Error type: {type(e).__name__}")
 
         return LaunchResult(success=success, job_id=job_id)
 
     def _parse_job_id(self, line: str) -> Optional[str]:
         """Parse job ID from output line."""
-        if "Job ID:" in line or "sky-" in line:
+        # Look for standard Sky job ID format: sky-YYYY-MM-DD-HH-MM-SS-XXXXXX
+        if "sky-" in line:
             parts = line.split()
             for part in parts:
                 if part.startswith("sky-") and "-" in part[4:]:
                     return part
+
+        # Also handle API request IDs (when job is submitted but ID not immediately available)
+        if "Submitted sky.jobs.launch request:" in line:
+            parts = line.split(":")
+            if len(parts) > 1:
+                request_id = parts[-1].strip()
+                # Return a placeholder that indicates submission success
+                return f"request-{request_id}"
+
         return None
 
     def cancel_job(self, job_id: str) -> bool:

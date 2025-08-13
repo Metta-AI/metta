@@ -5,8 +5,6 @@ This demonstrates a simple experiment that launches arena training runs.
 Based on the arena.sh recipe.
 """
 
-from typing import List
-
 from experiments.experiment import SingleJobExperiment, SingleJobExperimentConfig
 from experiments.runner import runner
 
@@ -14,12 +12,11 @@ from experiments.runner import runner
 class ArenaExperimentConfig(SingleJobExperimentConfig):
     """Configuration specific to Arena experiments."""
 
-    # Experiment overrides
-    curriculum: str = "env/mettagrid/curriculum/arena/learning_progress"
+    # Experiment metadata
     name: str = "arena_experiment"
 
-    # Training job overrides
-    wandb_tags: List[str] = ["arena"]
+    # Note: We don't redefine defaults here - they're inherited from the composed configs
+    # Users can override via CLI: --curriculum=... --wandb-tags=...
 
 
 def main():

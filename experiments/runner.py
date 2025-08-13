@@ -1,262 +1,171 @@
 #!/usr/bin/env python3
-"""Generic experiment runner that handles CLI parsing and name extraction.
-
-This module provides a reusable runner function that:
-1. Extracts an optional name parameter as the first positional argument
-2. Handles all the pydantic-settings CLI parsing
-3. Creates and runs the experiment
-
-Usage:
-    from experiments.runner import runner
-    from experiments.experiment import SingleJobExperiment, SingleJobExperimentConfig
-
-    class MyExperimentConfig(SingleJobExperimentConfig):
-        # Your config customizations
-        pass
-
-    if __name__ == "__main__":
-        exit(runner(SingleJobExperiment, MyExperimentConfig))
-"""
+"""Typer-based experiment runner with proper CLI structure."""
 
 import sys
-import os
-from typing import Type, TypeVar
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Type, TypeVar, Optional, List
+from pathlib import Path
+
+import typer
+from typing_extensions import Annotated
+from rich.console import Console
+from pydantic import ValidationError
 
 from experiments.experiment import Experiment, ExperimentConfig
-from experiments.cli_formatter import format_help_with_defaults
 
 T = TypeVar("T", bound=ExperimentConfig)
 E = TypeVar("E", bound=Experiment)
+
+console = Console()
 
 
 def runner(
     experiment_class: Type[E],
     config_class: Type[T],
 ) -> int:
-    """Run an experiment with standard CLI parsing and name handling.
+    """Run an experiment using typer.
 
     Args:
-        experiment_class: The experiment class to instantiate and run
-        config_class: The config class to use for parsing arguments
+        experiment_class: The experiment class to instantiate
+        config_class: The config class for parameters
+
     Returns:
-        Exit code (0 for success, 1 for error)
+        Exit code (0 for success)
     """
-    try:
-        # Extract name from first positional argument if present
-        name = None
-        args_to_parse = sys.argv[1:]
+    # Get program name
+    prog_name = Path(sys.argv[0]).stem
 
-        if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):
-            name = sys.argv[1]
-            args_to_parse = sys.argv[2:]  # Remove the name from args to parse
+    # Create the app without subcommands
+    app = typer.Typer(
+        add_completion=False,
+        pretty_exceptions_show_locals=False,
+    )
 
-        # Default name to config default or script name
+    @app.command()
+    def main(
+        # Positional argument
+        name: Annotated[Optional[str], typer.Argument(help="Experiment name")] = None,
+        # Core parameters
+        gpus: Annotated[int, typer.Option(help="Number of GPUs per node")] = 1,
+        nodes: Annotated[int, typer.Option(help="Number of nodes")] = 1,
+        spot: Annotated[bool, typer.Option(help="Use spot instances")] = True,
+        # Launch control
+        launch: Annotated[bool, typer.Option(help="Launch the job to Skypilot")] = True,
+        git_check: Annotated[bool, typer.Option(help="Check git status")] = True,
+        # Advanced
+        curriculum: Annotated[
+            Optional[str], typer.Option(help="Curriculum path")
+        ] = None,
+        wandb_tags: Annotated[
+            Optional[List[str]], typer.Option(help="W&B tags")
+        ] = None,
+        # Trainer overrides
+        total_timesteps: Annotated[
+            Optional[int], typer.Option(help="Total training timesteps")
+        ] = None,
+        batch_size: Annotated[Optional[int], typer.Option(help="Batch size")] = None,
+        learning_rate: Annotated[
+            Optional[float], typer.Option(help="Learning rate")
+        ] = None,
+        previous_job_ids: Annotated[
+            Optional[List[str]], typer.Option(help="Previous job IDs")
+        ] = None,
+    ):
+        """Run an experiment with the specified configuration."""
+
+        # Typer has built-in help, we don't need custom help formatting
+
+        # Determine name
         if name is None:
-            # Try to get default from config class
-            if hasattr(config_class, "name") and config_class.name:
-                name = config_class.name
-            else:
-                # Fall back to script name
-                script_name = os.path.basename(sys.argv[0])
-                if script_name.endswith(".py"):
-                    script_name = script_name[:-3]
-                name = script_name
-
-        # Get program name for help
-        prog_name = os.path.basename(sys.argv[0])
-        if prog_name.endswith(".py"):
-            prog_name = prog_name[:-3]
-
-        # Check if user wants custom help
-        if (
-            "--help" in args_to_parse
-            or "-h" in args_to_parse
-            or "--help-compact" in args_to_parse
-        ):
-            # Parse the arguments to get user overrides
-            user_overrides = {}
-            for i, arg in enumerate(args_to_parse):
-                if (
-                    arg.startswith("--")
-                    and "=" in arg
-                    and arg not in ["--help", "-h", "--help-compact"]
-                ):
-                    key, value = arg[2:].split("=", 1)
-                    key = key.replace("-", "_")
-                    # Try to parse the value
-                    try:
-                        # Try as boolean
-                        if value.lower() in ["true", "false"]:
-                            value = value.lower() == "true"
-                        # Try as int
-                        elif value.isdigit() or (
-                            value.startswith("-") and value[1:].isdigit()
-                        ):
-                            value = int(value)
-                        # Try as float
-                        elif "." in value:
-                            try:
-                                value = float(value)
-                            except ValueError:
-                                pass  # Keep as string
-                    except:
-                        pass  # Keep as string
-                    user_overrides[key] = value
-
-            # Patch in the computed default for output_dir
-            patched_defaults = {}
-
-            # Only handle output_dir if it's a field in the config class
             if (
                 hasattr(config_class, "model_fields")
-                and "output_dir" in config_class.model_fields
+                and "name" in config_class.model_fields
             ):
-                # Check if the config class has an explicit default for output_dir
-                has_explicit_default = False
-                field_info = config_class.model_fields["output_dir"]
-                if field_info.default is not None and field_info.default != "":
-                    # Use the explicit default from the config class
-                    patched_defaults["output_dir"] = field_info.default
-                    has_explicit_default = True
+                field_info = config_class.model_fields["name"]
+                name = field_info.default if field_info.default else prog_name
+            else:
+                name = prog_name
 
-                if not has_explicit_default:
-                    try:
-                        from metta.common.util.fs import get_repo_root
+        # Build config - check if this is a SingleJobExperimentConfig
+        from experiments.experiment import SingleJobExperimentConfig
 
-                        repo_root = get_repo_root()
-                        patched_defaults["output_dir"] = str(
-                            repo_root / "experiments" / "scratch"
-                        )
-                    except:
-                        patched_defaults["output_dir"] = "experiments/scratch"
+        config_dict = {
+            "name": name,
+            "launch": launch,
+        }
 
-            # Default is expanded, use --help-compact for collapsed view
-            collapse = "--help-compact" in args_to_parse
-            help_text = format_help_with_defaults(
-                config_class,
-                prog_name,
-                has_positional_name=True,
-                collapse=collapse,
-                user_overrides=user_overrides,
-                patched_defaults=patched_defaults,
-            )
-            print(help_text)
-            return 0
+        if previous_job_ids:
+            config_dict["previous_job_ids"] = previous_job_ids
 
-        # Create a CLI wrapper that uses pydantic-settings for parsing
-        class CLIWrapper(BaseSettings, config_class):
-            model_config = SettingsConfigDict(
-                cli_parse_args=args_to_parse,
-                cli_prog_name=prog_name,
-                cli_use_class_docs_for_groups=True,
-                env_prefix="METTA_EXP_",
-                env_nested_delimiter="__",
+        # If it's a SingleJobExperimentConfig, we need to set the nested configs
+        if issubclass(config_class, SingleJobExperimentConfig):
+            from experiments.skypilot_job_config import SkypilotJobConfig
+            from experiments.training_run_config import TrainingRunConfig
+
+            # Create skypilot config with CLI overrides
+            config_dict["skypilot"] = SkypilotJobConfig(
+                gpus=gpus,
+                nodes=nodes,
+                spot=spot,
+                git_check=git_check,
             )
 
-        # Parse CLI args
-        cli_config = CLIWrapper()
+            # Create training config with CLI overrides
+            training_dict = {}
+            if curriculum:
+                training_dict["curriculum"] = curriculum
+            if wandb_tags:
+                training_dict["wandb_tags"] = wandb_tags
 
-        # Create the actual config from parsed values
-        config_dict = cli_config.model_dump()
-        config_dict["name"] = name  # Override with our determined name
+            if training_dict:
+                config_dict["training"] = TrainingRunConfig(**training_dict)
+            else:
+                config_dict["training"] = TrainingRunConfig()
 
-        # Only handle output_dir if it's a field in the config class
-        if (
-            hasattr(config_class, "model_fields")
-            and "output_dir" in config_class.model_fields
-        ):
-            # Handle string "None" -> actual None conversion
-            if "output_dir" in config_dict and config_dict["output_dir"] == "None":
-                config_dict["output_dir"] = None
-
-            # Set default output_dir if not specified
-            if "output_dir" not in config_dict or config_dict["output_dir"] is None:
-                # Check if the config class has a non-None default for output_dir
-                has_explicit_default = False
-                field_info = config_class.model_fields["output_dir"]
-                if field_info.default is not None and field_info.default != "":
-                    # Use the explicit default from the config class
-                    config_dict["output_dir"] = field_info.default
-                    has_explicit_default = True
-
-                if not has_explicit_default:
-                    # Try to find repo root for a more stable path
-                    try:
-                        from metta.common.util.fs import get_repo_root
-
-                        repo_root = get_repo_root()
-                        config_dict["output_dir"] = str(
-                            repo_root / "experiments" / "scratch"
-                        )
-                    except:
-                        # Fallback to relative path if we can't find repo root
-                        config_dict["output_dir"] = "experiments/scratch"
-
-        config = config_class(**config_dict)
+            # Add trainer override fields
+            if total_timesteps is not None:
+                config_dict["total_timesteps"] = total_timesteps
+            if batch_size is not None:
+                config_dict["batch_size"] = batch_size
+            if learning_rate is not None:
+                config_dict["learning_rate"] = learning_rate
+        else:
+            # For base ExperimentConfig, just pass through the values
+            config_dict.update(
+                {
+                    "gpus": gpus,
+                    "nodes": nodes,
+                    "spot": spot,
+                    "git_check": git_check,
+                }
+            )
+            if curriculum:
+                config_dict["curriculum"] = curriculum
+            if wandb_tags:
+                config_dict["wandb_tags"] = wandb_tags
 
         # Create and run experiment
-        experiment = experiment_class(config)
-        notebook_path = experiment.run()
+        try:
+            config = config_class(**config_dict)
+            experiment = experiment_class(config)
 
-        # The notebook opening logic is handled by metta CLI
-        # Just return success
-        return 0
+            console.print(f"[bold blue]Running experiment: {name}[/bold blue]")
+            notebook_path = experiment.run()
 
-    except SystemExit:
-        # This happens when pydantic-settings shows help or validation errors
-        raise
-    except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        return 1
+            if notebook_path:
+                console.print(f"[green]✓[/green] Notebook: {notebook_path}")
 
+            return 0
 
-def main():
-    """Main entry point that dispatches to different experiment recipes.
-
-    Usage: runner.py <recipe> [name] [options...]
-
-    Examples:
-        runner.py arena my_test_v1 --gpus 2
-        runner.py arena --gpus 4  # Uses default name
-    """
-    if len(sys.argv) < 2:
-        print("Usage: runner.py <recipe> [name] [options...]", file=sys.stderr)
-        print("Available recipes: arena", file=sys.stderr)
-        return 1
-
-    # Extract recipe name
-    recipe = sys.argv[1]
-
-    # Remove recipe from argv so the rest of runner() works normally
-    original_argv = sys.argv[:]
-    sys.argv = [sys.argv[0]] + sys.argv[2:]
-
-    try:
-        if recipe == "arena":
-            from experiments.recipes.arena_experiment import ArenaExperimentConfig
-            from experiments.experiment import SingleJobExperiment
-
-            return runner(
-                SingleJobExperiment,
-                ArenaExperimentConfig,
-            )
-        # Add new recipes here:
-        # elif recipe == "your_recipe":
-        #     from experiments.recipes.your_recipe import YourExperimentConfig
-        #     return runner(
-        #         SingleJobExperiment,  # or your custom experiment class
-        #         YourExperimentConfig,
-        #     )
-        else:
-            print(f"Unknown recipe: {recipe}", file=sys.stderr)
-            print("Available recipes: arena", file=sys.stderr)
+        except ValidationError as e:
+            console.print("[red]Configuration error:[/red]", e)
+            return 1
+        except Exception as e:
+            console.print(f"[red]Error:[/red] {e}")
             return 1
 
-    finally:
-        # Restore original argv
-        sys.argv = original_argv
-
-
-if __name__ == "__main__":
-    exit(main())
+    # Run the app
+    try:
+        app()
+        return 0
+    except SystemExit as e:
+        return e.code if e.code else 0

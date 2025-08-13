@@ -99,7 +99,9 @@ def main():
     parser.add_argument(
         "--discord-webhook-url", type=str, default=None, help="Discord webhook URL for status update channel"
     )
-
+    parser.add_argument(
+        "--config-file", type=str, default=None, help="Path to YAML config file to transfer and use for training"
+    )
     (args, cmd_args) = parser.parse_known_args(filtered_args)
 
     if run_id is None:
@@ -125,18 +127,42 @@ def main():
                 sys.exit(1)
 
     # check that the files referenced in the cmd exist
-    if not check_config_files(cmd_args):
+    # Skip this check if we're using a config file (args will be in the file)
+    if not args.config_file and not check_config_files(cmd_args):
         sys.exit(1)
 
     assert commit_hash
 
     task = sky.Task.from_yaml("./devops/skypilot/config/sk_train.yaml")
 
+    # If config file is provided, mount it and set environment variable
+    if args.config_file:
+        import os
+
+        if not os.path.exists(args.config_file):
+            print(red(f"❌ Config file not found: {args.config_file}"))
+            sys.exit(1)
+
+        # Mount the config file to a known location on the remote
+        remote_config_path = "/tmp/metta_train_config.yaml"
+        task.file_mounts = task.file_mounts or {}
+        task.file_mounts[remote_config_path] = args.config_file
+
+        # Set environment variable to tell the remote script where the config is
+        metta_config_file = remote_config_path
+        # When using a config file, we don't need to pass individual args
+        # Hydra expects config name without .yaml extension
+        metta_cmd_args = "--config-path=/tmp --config-name=metta_train_config"
+    else:
+        metta_config_file = None
+        metta_cmd_args = " ".join(cmd_args)
+
     # Prepare environment variables including status parameters
     env_updates = dict(
         METTA_RUN_ID=run_id,
         METTA_CMD=args.cmd,
-        METTA_CMD_ARGS=" ".join(cmd_args),
+        METTA_CMD_ARGS=metta_cmd_args,
+        METTA_CONFIG_FILE=metta_config_file,
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         GITHUB_PAT=args.github_pat,
@@ -162,11 +188,13 @@ def main():
         extra_details = {}
         if args.copies > 1:
             extra_details["copies"] = args.copies
+        if args.config_file:
+            extra_details["config_file"] = args.config_file
 
         display_job_summary(
             job_name=run_id,
             cmd=args.cmd,
-            task_args=cmd_args,
+            task_args=cmd_args if not args.config_file else ["(using config file)"],
             commit_hash=commit_hash,
             git_ref=args.git_ref,
             timeout_hours=args.max_runtime_hours,

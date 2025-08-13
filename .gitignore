@@ -82,4 +82,5 @@ gpu_names_cache.json
 sweep_id
 
 # Notebooks
-experiments/scratch/
+experiments/notebooks/.ipynb_checkpoints
+experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
