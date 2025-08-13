@@ -46,6 +46,9 @@ class LSTM(LayerBase):
     def on_train_mb_start(self):
         self.reset_memory()
 
+    def on_eval_start(self):
+        self.reset_memory()
+
     def get_memory(self):
         return self.lstm_h, self.lstm_c
 

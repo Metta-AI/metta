@@ -343,8 +343,12 @@ def train(
                     )
 
                     # Inference
-                    with torch.no_grad():
-                        policy(td)
+                    # note that each loss will modify the td, the same one that is passed to other losses. We want this
+                    # because this allows other parts of the network to only run what's needed on these obs, efficiently
+                    # reusing hiddens within the network. Other losses should clear fields as necessary.
+                    for _lname in list(policy_losses):
+                        loss_obj = loss_instances[_lname]
+                        loss_obj.rollout(td)
 
                     # Store experience
                     experience.store(data_td=td, env_id=training_env_id)
@@ -377,6 +381,7 @@ def train(
                     for mb_idx in range(experience.num_minibatches):
                         trainer_state.mb_idx = mb_idx
                         policy.on_train_mb_start()
+
                         total_loss = torch.tensor(0.0, device=device)
                         for _lname in list(policy_losses):
                             loss_obj = loss_instances[_lname]

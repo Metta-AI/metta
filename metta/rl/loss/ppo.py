@@ -66,6 +66,10 @@ class PPO(BaseLoss):
             "explained_variance",
         ]
 
+    def rollout(self, td: TensorDict) -> None:
+        with torch.no_grad():
+            self.policy(td)
+
     def train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
         # # early exit if kl divergence is too high
         # if trainer_state[3] == self.policy.replay.num_minibatches - 1:  # av check this

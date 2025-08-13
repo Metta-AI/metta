@@ -41,9 +41,24 @@ losses:
       rho_clip: 1.0 # Default: on-policy (no off-policy correction)
       c_clip: 1.0 # Default: on-policy bootstrapping
 
-  EMA:
-    decay: 0.996
-    loss_coef: 1.0
+  # EMA:
+  #   decay: 0.996
+  #   loss_coef: 1.0
+
+  # SLKickstarter:
+  #   teacher_uri: wandb://run/m.av.loss.leader.001
+  #   action_loss_coef: 1
+  #   value_loss_coef: 1
+  #   begin_at_step: 0
+  #   end_at_step: 30_000_000
+
+  # TLKickstarter:
+  #   teacher_uri: wandb://run/m.av.loss.leader.001
+  #   action_loss_coef: 1
+  #   value_loss_coef: 1
+  #   begin_at_step: 30_000_000
+  #   end_at_step: 1_000_000_000
+  #   anneal_ratio: 0.65 # ratio of kickstart_steps to anneal to 0 coef
 
 optimizer:
   type: adam

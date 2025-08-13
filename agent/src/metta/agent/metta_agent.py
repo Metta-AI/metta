@@ -200,6 +200,10 @@ class MettaAgent(nn.Module):
         for _, component in self.components.items():
             component.on_train_mb_start()
 
+    def on_eval_start(self):
+        for _, component in self.components.items():
+            component.on_eval_start()
+
     def initialize_to_environment(
         self,
         features: dict[str, dict],

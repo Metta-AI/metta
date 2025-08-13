@@ -63,13 +63,8 @@ class BaseLoss(ABC):
         """
         return Composite()
 
-    # av fix
-    # def roll_out(self) -> None:
-    #     """Uses trainer to work with the env to generate experience."""
-    #     while not self.policy.experience.full:
-    #         # expecting trainer.roll_out() to get obs from env, run policy, get td from policy, populate with env attr
-    #         # like rewards, dones, truncateds, etc., then for policy.experience to take what it wants from the td
-    #         self.policy.trainer.roll_out()
+    def rollout(self, td: TensorDict) -> None:
+        return
 
     # av consider eliminating trainer_state
     @abstractmethod

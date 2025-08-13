@@ -122,10 +122,7 @@ class TestMetricsFormattingMain:
         trainer_config.ppo.l2_reg_loss_coef = 0
         trainer_config.ppo.l2_init_loss_coef = 0
 
-        kickstarter = MagicMock()
-        kickstarter.enabled = False
-
-        result = process_training_stats(raw_stats, losses, experience, trainer_config, kickstarter)
+        result = process_training_stats(raw_stats, losses, experience, trainer_config)
 
         assert result["mean_stats"]["reward"] == 2.0
         assert result["mean_stats"]["episode_length"] == 20
