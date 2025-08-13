@@ -25,8 +25,9 @@ class LatentAttnTiny(pufferlib.models.LSTMWrapper):
         super().__init__(env, policy, input_size, hidden_size)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         
-        # Initialize action space tensors
-        self._initialize_action_tensors(env)
+        # Initialize placeholders for action tensors that MettaAgent will set
+        self.action_index_tensor = None
+        self.cum_action_max_params = None
 
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"].to(self.device)
@@ -96,26 +97,6 @@ class LatentAttnTiny(pufferlib.models.LSTMWrapper):
 
         return td
 
-    def _initialize_action_tensors(self, env):
-        """Initialize action conversion tensors based on the environment's action space."""
-        if hasattr(env.single_action_space, 'nvec'):
-            action_nvec = env.single_action_space.nvec
-        else:
-            # Default fallback
-            action_nvec = [100]
-        
-        # Build cumulative sum for action offsets
-        self.cum_action_max_params = torch.cumsum(
-            torch.tensor([0] + list(action_nvec), device=self.device, dtype=torch.long), dim=0
-        )
-        
-        # Build action index tensor for converting between flat and structured actions
-        self.action_index_tensor = torch.tensor(
-            [[idx, j] for idx, nvec in enumerate(action_nvec) for j in range(nvec)],
-            device=self.device,
-            dtype=torch.int32,
-        )
-    
     def clip_weights(self):
         for p in self.parameters():
             p.data.clamp_(-1, 1)
