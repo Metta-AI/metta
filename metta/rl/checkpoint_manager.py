@@ -192,38 +192,47 @@ class CheckpointManager:
 
         # First priority: checkpoint
         policy_record: PolicyRecord | None = None
-        policy_path: str | None = (
-            (checkpoint and checkpoint.policy_path)
-            or (trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri)
-            or (default_path if os.path.exists(default_path) else None)
-        )
+
+        # Master determines the policy path
+        if self.is_master:
+            policy_path: str | None = (
+                (checkpoint and checkpoint.policy_path)
+                or (trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri)
+                or (default_path if os.path.exists(default_path) else None)
+            )
+        else:
+            policy_path = None
+
+        # Synchronize policy_path across all ranks if using distributed training
+        if torch.distributed.is_initialized():
+            policy_path = get_from_master(policy_path)
+            logger.info(f"Rank {self.rank}: Synchronized policy_path = {policy_path}")
+        elif not self.is_master:
+            # Non-master rank without distributed training should not happen
+            raise RuntimeError(
+                f"Non-master rank {self.rank} found without torch.distributed initialized. "
+                "This likely indicates a configuration error in distributed training setup."
+            )
+
+        # Now all ranks have the same policy_path and can load/create consistently
         if policy_path:
-            if self.is_master:
-                logger.info(f"Loading policy from {policy_path}")
-                policy_record = self.policy_store.policy_record(policy_path)
-            elif torch.distributed.is_initialized():
-                # Non-master ranks: Load the checkpoint to get the same structure as master
-                # DDP will overwrite the weights, but we need matching architecture
-                logger.info(f"Rank {self.rank}: Loading policy structure from {policy_path} for DDP sync")
-                # Load the checkpoint to get the same module structure
-                policy_record = self.policy_store.policy_record(policy_path)
-        elif self.is_master:
-            logger.info("No existing policy found, creating new one")
+            logger.info(f"Rank {self.rank}: Loading policy from {policy_path}")
+            policy_record = self.policy_store.policy_record(policy_path)
+        else:
+            # No existing policy - all ranks create new one with same structure
+            logger.info(f"Rank {self.rank}: No existing policy found, creating new one")
             new_policy_record = self.policy_store.create_empty_policy_record(
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
             new_policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
-            policy_record = self.policy_store.save(new_policy_record)
-            logger.info(f"Created and saved new policy to {policy_record.uri}")
-        elif torch.distributed.is_initialized():
-            # Non-master ranks: Load the checkpoint to get the same structure as master
-            # DDP will overwrite the weights, but we need matching architecture
-            logger.info(f"Rank {self.rank}: Loading policy structure from {policy_path} for DDP sync")
-            # Load the checkpoint to get the same module structure
-            policy_record = self.policy_store.policy_record(policy_path)
-            # The weights will be overwritten by DDP broadcast from rank 0
-        else:
-            raise RuntimeError(f"Non-master rank {self.rank} found without torch.distributed initialized")
+
+            # Only master saves the new policy to disk
+            if self.is_master:
+                policy_record = self.policy_store.save(new_policy_record)
+                logger.info(f"Master saved new policy to {policy_record.uri}")
+            else:
+                policy_record = new_policy_record
+                logger.info(f"Rank {self.rank}: Created policy structure for DDP sync")
 
         # Synchronize policy metadata from master using NCCL broadcast of objects.
         # This avoids file I/O on non-master ranks while ensuring consistent metadata.
