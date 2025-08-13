@@ -138,8 +138,8 @@ class PolicyRecord:
     def policy_as_metta_agent(self):
         """Return the policy, ensuring it's a MettaAgent type."""
         policy = self.policy
-        if type(policy).__name__ not in {"MettaAgent", "DistributedMettaAgent"}:
-            raise TypeError(f"Expected MettaAgent or DistributedMettaAgent, got {type(policy).__name__}")
+        if type(policy).__name__ not in {"MettaAgent", "DistributedMettaAgent", "PytorchAgent"}:
+            raise TypeError(f"Expected MettaAgent, DistributedMettaAgent, or PytorchAgent, got {type(policy).__name__}")
         return policy
 
     def num_params(self) -> int:
