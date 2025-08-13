@@ -23,6 +23,7 @@ class LatentAttnSmall(pufferlib.models.LSTMWrapper):
                 hidden_size=hidden_size,
             )
         super().__init__(env, policy, input_size, hidden_size)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"].to(self.device)
