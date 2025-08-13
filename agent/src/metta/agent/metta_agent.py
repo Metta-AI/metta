@@ -131,72 +131,56 @@ class MettaAgent(nn.Module):
             raise RuntimeError("No policy set. Use set_policy() first.")
 
         # Handle old checkpoints where self.policy == self (old MettaAgent WAS the policy)
-        if self.policy is self:
-            # Old MettaAgent from main has its own forward logic that:
-            # 1. Sets bptt and batch keys
-            # 2. Runs components["_value_"] and components["_action_"]
-            # 3. Then calls forward_inference or forward_training
-            # The old forward expects (td, action) not (td, state, action)
-            # So we need to handle this carefully
-            if hasattr(self, "components") and "_value_" in self.components and "_action_" in self.components:
-                # Set bptt and batch keys like the old forward() did
-                if td.batch_dims > 1:
-                    B, TT = td.batch_size[0], td.batch_size[1]
-                    td = td.reshape(B * TT)
-                    td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
-                    td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
-                else:
-                    # In inference mode, batch size is the total number of environments
-                    B = td.batch_size.numel()
-                    td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
-                    td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
+        if self.policy is self and hasattr(self, "components"):
+            # Old MettaAgent sets bptt/batch keys and runs value/action components
+            B = td.batch_size[0] if td.batch_dims > 1 else td.batch_size.numel()
+            if td.batch_dims > 1:
+                TT = td.batch_size[1]
+                td = td.reshape(B * TT)
+                td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
+                td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
+            else:
+                td.set("bptt", torch.ones(B, device=td.device, dtype=torch.long))
+                td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
 
-                # Run the components as the old forward would
+            # Run value/action components if they exist
+            if "_value_" in self.components:
                 self.components["_value_"](td)
+            if "_action_" in self.components:
                 self.components["_action_"](td)
 
-                # Now delegate to the appropriate method
-                if action is None and hasattr(self, "forward_inference"):
-                    return self.forward_inference(td)
-                elif action is not None and hasattr(self, "forward_training"):
-                    return self.forward_training(td, action)
-
-            # Fallback if something is missing
-            batch_size = td.batch_size[0] if hasattr(td, "batch_size") else 1
-            td["actions"] = torch.zeros((batch_size, 2), dtype=torch.long)
+            # Delegate to appropriate method
+            if action is None and hasattr(self, "forward_inference"):
+                return self.forward_inference(td)
+            elif action is not None and hasattr(self, "forward_training"):
+                return self.forward_training(td, action)
+            # Fallback
+            td.setdefault("actions", torch.zeros((B, 2), dtype=torch.long))
             return td
 
-        # New policies (ComponentPolicy, Fast, etc.) all expect (td, state, action)
-        # Pass the parameters as provided to us
+        # New policies expect (td, state, action)
         return self.policy(td, state, action)
 
     def reset_memory(self) -> None:
         """Reset memory - delegates to policy if it supports memory."""
-        # Handle old checkpoints where self.policy == self
-        if self.policy is self:
-            # Old MettaAgent had components_with_memory list
-            if hasattr(self, "components_with_memory"):
-                for name in self.components_with_memory:
-                    comp = self.components[name]
-                    if hasattr(comp, "reset_memory"):
-                        comp.reset_memory()
+        if self.policy is self and hasattr(self, "components_with_memory"):
+            # Old MettaAgent: reset components with memory
+            for name in self.components_with_memory:
+                if name in self.components and hasattr(self.components[name], "reset_memory"):
+                    self.components[name].reset_memory()
         elif hasattr(self.policy, "reset_memory"):
             self.policy.reset_memory()
 
     def get_memory(self) -> dict:
         """Get memory state - delegates to policy if it supports memory."""
-        # Handle old checkpoints where self.policy == self
-        if self.policy is self:
-            # Old MettaAgent had components_with_memory list
-            if hasattr(self, "components_with_memory"):
-                memory = {}
-                for name in self.components_with_memory:
-                    if hasattr(self.components[name], "get_memory"):
-                        memory[name] = self.components[name].get_memory()
-                return memory
-        elif hasattr(self.policy, "get_memory"):
-            return self.policy.get_memory()
-        return {}
+        if self.policy is self and hasattr(self, "components_with_memory"):
+            # Old MettaAgent: collect memory from components
+            return {
+                name: self.components[name].get_memory()
+                for name in self.components_with_memory
+                if hasattr(self.components.get(name), "get_memory")
+            }
+        return getattr(self.policy, "get_memory", lambda: {})()
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
@@ -327,37 +311,31 @@ class MettaAgent(nn.Module):
         self.action_names = action_names
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
-        # Precompute cumulative sums for efficient action conversion
+        # Precompute cumulative sums for action conversion
         self.cum_action_max_params = torch.cumsum(
-            torch.tensor([0] + action_max_params, device=self.device, dtype=torch.long), dim=0
+            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )
 
-        # Build full action names and activate embeddings
-        full_action_names = []
-        for action_name, max_param in self.active_actions:
-            for i in range(max_param + 1):
-                full_action_names.append(f"{action_name}_{i}")
+        # Build full action names for embeddings
+        full_action_names = [f"{name}_{i}" for name, max_param in self.active_actions for i in range(max_param + 1)]
 
-        # Delegate action embedding activation to policy if it supports it
+        # Activate embeddings if policy supports it
         if hasattr(self.policy, "activate_action_embeddings"):
-            self.policy.activate_action_embeddings(full_action_names, self.device)
+            self.policy.activate_action_embeddings(full_action_names, device)
 
-        # Create action index tensor for conversions
-        action_index = []
-        for action_type_idx, max_param in enumerate(action_max_params):
-            for j in range(max_param + 1):
-                action_index.append([action_type_idx, j])
-
-        self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
+        # Create action index tensor
+        self.action_index_tensor = torch.tensor(
+            [[idx, j] for idx, max_param in enumerate(action_max_params) for j in range(max_param + 1)],
+            device=device,
+            dtype=torch.int32,
+        )
         logger.info(f"Actions initialized: {self.active_actions}")
 
-        # Pass action conversion tensors to policy if it needs them
-        # ComponentPolicy uses these for action conversion, vanilla policies don't need them
+        # Pass tensors to policy if needed
         if self.policy is not None:
-            if hasattr(self.policy, "action_index_tensor"):
-                self.policy.action_index_tensor = self.action_index_tensor
-            if hasattr(self.policy, "cum_action_max_params"):
-                self.policy.cum_action_max_params = self.cum_action_max_params
+            for attr in ["action_index_tensor", "cum_action_max_params"]:
+                if hasattr(self.policy, attr):
+                    setattr(self.policy, attr, getattr(self, attr))
 
     def clip_weights(self):
         """Delegate weight clipping to the policy."""
