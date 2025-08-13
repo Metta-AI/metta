@@ -109,10 +109,6 @@ class ComponentPolicy(nn.Module):
         else:
             td = self.components["_core_"](td)
 
-        if state is not None:
-            td["lstm_h"] = state[0]
-            td["lstm_c"] = state[1]
-
         self.components["_value_"](td)
         self.components["_action_"](td)
 

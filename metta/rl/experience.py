@@ -126,7 +126,7 @@ class Experience:
         """Check if buffer has enough data for training."""
         return self.full_rows >= self.segments
 
-    def store(self, data_td: TensorDict, env_id: slice) -> None:
+    def store(self, data_td: TensorDict, env_id: slice, state: Tuple[torch.Tensor, torch.Tensor] | None = None) -> None:
         """Store a batch of experience."""
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
@@ -142,10 +142,8 @@ class Experience:
 
 
 
-        print(f"data_td: {data_td}")
-
-        if "lstm_h" in data_td and "lstm_c" in data_td:
-            self.states[env_id.start] = (data_td["lstm_h"].detach(), data_td["lstm_c"].detach())
+        if state is not None:
+            self.states[env_id.start] = state
 
         # Check if episodes are complete and reset if needed
         if episode_lengths + 1 >= self.bptt_horizon:
@@ -157,10 +155,7 @@ class Experience:
         self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
         self.ep_lengths[env_id] = 0
 
-        self.states[env_id.start] = (
-                    torch.zeros_like(self.states[env_id.start][0]),
-                    torch.zeros_like(self.states[env_id.start][1]),
-        )
+        self.states[env_id.start] = (None, None)
 
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
