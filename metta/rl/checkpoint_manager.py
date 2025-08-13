@@ -7,7 +7,7 @@ from pathlib import Path
 import torch
 from omegaconf import DictConfig
 
-from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
+from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent, make_policy
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.distribution_utils import get_from_master
@@ -19,6 +19,7 @@ from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.policy_management import cleanup_old_policies, validate_policy_environment_match
+from metta.rl.puffer_policy import PytorchAgent
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import CheckpointConfig, TrainerConfig
@@ -101,7 +102,9 @@ class CheckpointManager:
         logger.info(f"Saving policy at epoch {epoch}")
 
         # Extract the actual policy module from distributed wrapper if needed
-        policy_to_save: MettaAgent = policy.module if isinstance(policy, DistributedMettaAgent) else policy
+        policy_to_save: MettaAgent | PytorchAgent = (
+            policy.module if isinstance(policy, DistributedMettaAgent) else policy
+        )
 
         # Build metadata
         name = self.policy_store.make_model_name(epoch)
@@ -202,27 +205,35 @@ class CheckpointManager:
                 logger.info(f"Loading policy from {policy_path}")
                 policy_record = self.policy_store.policy_record(policy_path)
             elif torch.distributed.is_initialized():
-                # Non-master ranks: Load the checkpoint to get the same structure as master
-                # DDP will overwrite the weights, but we need matching architecture
-                logger.info(f"Rank {self.rank}: Loading policy structure from {policy_path} for DDP sync")
-                # Load the checkpoint to get the same module structure
-                policy_record = self.policy_store.policy_record(policy_path)
-                # The weights will be overwritten by DDP broadcast from rank 0
+                # Non-master ranks: do not load from file. Create a fresh policy locally.
+                logger.info(
+                    (
+                        f"Rank {self.rank}: Skipping file load for policy. "
+                        f"Creating local policy and syncing metadata via NCCL"
+                    )
+                )
+                name = os.path.basename(policy_path) if policy_path.endswith(".pt") else default_model_name
+                policy_record = self.policy_store.create_empty_policy_record(
+                    name=name, checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir
+                )
+                policy_record.policy = make_policy(metta_grid_env, system_cfg, agent_cfg)
         elif self.is_master:
             logger.info("No existing policy found, creating new one")
             new_policy_record = self.policy_store.create_empty_policy_record(
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
-            new_policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+            new_policy_record.policy = make_policy(metta_grid_env, system_cfg, agent_cfg)
             policy_record = self.policy_store.save(new_policy_record)
             logger.info(f"Created and saved new policy to {policy_record.uri}")
         elif torch.distributed.is_initialized():
             # Non-master ranks: do not wait for file. Create a fresh policy locally.
-            logger.info(f"No existing policy found. Rank {self.rank}: Creating local policy for DDP sync")
+            logger.info(
+                (f"No existing policy found. Rank {self.rank}: Creating local policy and syncing metadata via NCCL")
+            )
             policy_record = self.policy_store.create_empty_policy_record(
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
-            policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+            policy_record.policy = make_policy(metta_grid_env, system_cfg, agent_cfg)
         else:
             raise RuntimeError(f"Non-master rank {self.rank} found without torch.distributed initialized")
 
