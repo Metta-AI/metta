@@ -7,7 +7,7 @@ desync_episodes: false
 
 game:
   num_agents: 24
-  max_steps: 512
+  max_steps: 256
   actions:
     attack:
       enabled: false
@@ -25,10 +25,10 @@ game:
   map_builder:
     _target_: metta.map.mapgen.MapGen
     instances: ${..num_agents}
-    width: 7
-    height: 7
+    width: 5
+    height: 5
     root:
-      type: metta.map.scenes.random.Random
+      type: metta.map.scenes.perimeter.Perimeter
       params:
         agents: 1
         objects: ??
