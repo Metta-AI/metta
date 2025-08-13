@@ -4,6 +4,7 @@ import os
 
 import numpy as np
 import yaml
+import copy
 
 CONVERTER_TYPES = [
     "mine_red",
@@ -71,7 +72,8 @@ class IndentDumper(yaml.SafeDumper):
 
 class InContextEnv:
     def __init__(self, resource_types, converter_types, resource_chain, num_sinks: int):
-        self.env_cfg = DEFAULT_ENV_CFG.copy()
+        # Use deep copy to ensure complete isolation
+        self.env_cfg = copy.deepcopy(DEFAULT_ENV_CFG)
         self.resource_types = resource_types
         self.converter_types = converter_types
         self.resource_chain = resource_chain
@@ -84,6 +86,7 @@ class InContextEnv:
         Get a converter, add it to the environment config, and return the converter, input, and output
         """
         converter = str(np.random.choice([c for c in self.converter_types if c not in self.used_objects]))
+        print(f"Converter: {converter} will convert {input_resource} to {output_resource}")
         self.used_objects.append(converter)
 
         self.env_cfg["game"]["map_builder"]["root"]["params"]["objects"][converter] = 1
@@ -106,26 +109,43 @@ class InContextEnv:
 
         self.env_cfg["game"]["map_builder"]["root"]["params"]["objects"][sink] = 1
 
+        # Initialize the sink object first
+        self.env_cfg["game"]["objects"][sink] = {"input_resources": {}}
+
+        # Then add all input resources
         for input_resource in self.all_input_resources:
-            self.env_cfg["game"]["objects"][sink] = {
-                "input_resources": {input_resource: 1},
-            }
+            self.env_cfg["game"]["objects"][sink]["input_resources"][input_resource] = 1
+
         print(f"Sink: {sink} will convert {self.all_input_resources} to {sink}")
 
     def get_env_cfg(self):
+        # Reset state for this environment
+        self.used_objects = []
+        self.all_input_resources = []
+
         # first resource is always nothing, last resource is always heart
         resource_chain = ["nothing"] + list(self.resource_chain) + ["heart"]
 
         chain_length = len(resource_chain)
 
+        print(f"Resource chain: {resource_chain}, num sinks: {self.num_sinks}")
+        print(f"Expected converters needed: {chain_length - 1}")
+
         # for every i/o pair along the way of our resource chain
         for i in range(chain_length - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
+            print(f"Creating converter {i+1}: {input_resource} -> {output_resource}")
 
             self.set_converter(input_resource, output_resource)
 
-        self.set_sink()
+        # Only create sinks if num_sinks > 0
+        if self.num_sinks > 0:
+            for _ in range(self.num_sinks):
+                self.set_sink()
 
+        print(f"Total objects created: {len(self.used_objects)}")
+        print(f"Objects: {self.used_objects}")
+        print(f"Expected: {chain_length - 1 + self.num_sinks}")
         return self.env_cfg
 
 
@@ -134,7 +154,9 @@ class InContextEnvGenerator:
         self.maximum_chain_length = maximum_chain_length
         self.maximum_num_sinks = maximum_num_sinks
 
+        # Don't limit resource types - let the permutation logic handle it
         self.resource_types = RESOURCE_TYPES[: self.maximum_chain_length]
+        # Use all available converter types - no need to limit
         self.converter_types = CONVERTER_TYPES
 
         all_resource_permutations = []
@@ -162,6 +184,7 @@ class InContextEnvGenerator:
 
                 # Sanitize to pure Python types and dump safely
                 clean_cfg = to_builtin(env_cfg)
+                print(f"Dumping {clean_cfg} to {yaml_file_path}")
                 with open(yaml_file_path, "w") as f:
                     yaml.dump(
                         clean_cfg,
@@ -173,6 +196,7 @@ class InContextEnvGenerator:
                         indent=2,
                     )
                 num_envs += 1
+                # raise
 
         print(f"Generated {num_envs} envs")
 

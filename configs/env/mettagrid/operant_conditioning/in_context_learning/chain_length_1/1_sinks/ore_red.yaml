@@ -6,28 +6,18 @@ game:
     root:
       params:
         objects:
-          generator_green: 1
-          mine_green: 1
-          generator_blue: 1
-          generator_red: 1
           mine_red: 1
+          generator_blue: 1
+          generator_green: 1
   objects:
-    generator_green:
-      input_resources:
-        ore_red: 1
+    mine_red:
       output_resources:
-        heart: 1
-    mine_green:
-      input_resources:
         ore_red: 1
-      output_resources:
-        heart: 1
     generator_blue:
       input_resources:
         ore_red: 1
-    generator_red:
       output_resources:
-        ore_red: 1
-    mine_red:
+        heart: 1
+    generator_green:
       input_resources:
         ore_red: 1

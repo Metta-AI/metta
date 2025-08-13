@@ -6,26 +6,12 @@ game:
     root:
       params:
         objects:
-          generator_green: 1
-          mine_green: 1
-          generator_blue: 1
           generator_red: 1
           mine_red: 1
-          lab: 1
           altar: 1
-          mine_blue: 1
+          lab: 1
+          mine_green: 1
   objects:
-    generator_green:
-      input_resources:
-        ore_green: 1
-    mine_green:
-      output_resources:
-        ore_red: 1
-    generator_blue:
-      input_resources:
-        ore_red: 1
-      output_resources:
-        ore_green: 1
     generator_red:
       output_resources:
         ore_red: 1
@@ -34,14 +20,16 @@ game:
         ore_red: 1
       output_resources:
         ore_green: 1
-    lab:
+    altar:
       input_resources:
         ore_green: 1
       output_resources:
         heart: 1
-    altar:
+    lab:
       input_resources:
-        ore_green: 1
-    mine_blue:
-      output_resources:
         ore_red: 1
+        ore_green: 1
+    mine_green:
+      input_resources:
+        ore_red: 1
+        ore_green: 1
