@@ -33,13 +33,17 @@ class Example(pufferlib.models.LSTMWrapper):
         """Forward pass: encodes observations, runs LSTM, decodes into actions, value, and stats."""
 
         # Handle BPTT reshaping
-        td.set("bptt", torch.full((td.batch_size.numel(),), 1, device=td.device, dtype=torch.long))
-        td.set("batch", torch.full((td.batch_size.numel(),), td.batch_size.numel(), device=td.device, dtype=torch.long))
         if td.batch_dims > 1:
             B, TT = td.batch_size
-            td = td.reshape(td.batch_size.numel())
-            td.set("bptt", torch.full((B,), TT, device=td.device, dtype=torch.long))
-            td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
+            total_batch = B * TT
+            td = td.reshape(total_batch)
+            # After reshaping, create tensors matching the new flattened batch size
+            td.set("bptt", torch.full((total_batch,), TT, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((total_batch,), B, device=td.device, dtype=torch.long))
+        else:
+            batch_size = td.batch_size[0] if hasattr(td.batch_size, "__getitem__") else td.batch_size
+            td.set("bptt", torch.full((batch_size,), 1, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((batch_size,), batch_size, device=td.device, dtype=torch.long))
 
         observations = td["env_obs"].to(self.device)
         state = state or {"lstm_h": None, "lstm_c": None, "hidden": None}
