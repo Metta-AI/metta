@@ -9,7 +9,7 @@ policy_uri: ???
 
 replay_job:
   sim:
-    env: /env/mettagrid/operant_conditioning/in_context_learning/chain_length_1/0_sinks/ore_blue
+    env: /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/2_sinks/battery_red-ore_blue-ore_green-ore_red
   policy_uri: ${policy_uri}
   selector_type: top
   stats_dir: ${run_dir}/stats

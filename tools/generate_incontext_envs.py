@@ -1,10 +1,10 @@
 # %%
+import copy
 import itertools
 import os
 
 import numpy as np
 import yaml
-import copy
 
 CONVERTER_TYPES = [
     "mine_red",
@@ -134,7 +134,7 @@ class InContextEnv:
         # for every i/o pair along the way of our resource chain
         for i in range(chain_length - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
-            print(f"Creating converter {i+1}: {input_resource} -> {output_resource}")
+            print(f"Creating converter {i + 1}: {input_resource} -> {output_resource}")
 
             self.set_converter(input_resource, output_resource)
 
@@ -169,7 +169,7 @@ class InContextEnvGenerator:
         num_envs = 0
         for resource_chain in self.all_resource_permutations:
             chain_length = len(resource_chain)
-            for num_sinks in range(self.maximum_num_sinks+1):
+            for num_sinks in range(self.maximum_num_sinks + 1):
                 env = InContextEnv(self.resource_types, self.converter_types, resource_chain, num_sinks)
                 env_cfg = env.get_env_cfg()
 

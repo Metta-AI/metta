@@ -32,11 +32,18 @@ class Perimeter(Scene[PerimeterParams]):
 
         # Top and bottom rows
         perimeter_mask[0, :] = True
-        perimeter_mask[height-1, :] = True
+        perimeter_mask[height - 1, :] = True
 
         # Left and right columns
         perimeter_mask[:, 0] = True
-        perimeter_mask[:, width-1] = True
+        perimeter_mask[:, width - 1] = True
+
+        # Exclude the four corners from placement
+        if height >= 2 and width >= 2:
+            perimeter_mask[0, 0] = False
+            perimeter_mask[0, width - 1] = False
+            perimeter_mask[height - 1, 0] = False
+            perimeter_mask[height - 1, width - 1] = False
 
         # Find empty perimeter cells
         empty_perimeter_mask = (self.grid == "empty") & perimeter_mask
@@ -50,7 +57,9 @@ class Perimeter(Scene[PerimeterParams]):
         symbols.extend(agents)
 
         if not params.too_many_is_ok and len(symbols) > empty_perimeter_count:
-            raise ValueError(f"Too many objects for available perimeter cells: {len(symbols)} > {empty_perimeter_count}")
+            raise ValueError(
+                f"Too many objects for available perimeter cells: {len(symbols)} > {empty_perimeter_count}"
+            )
         else:
             # everything will be filled with symbols, oh well
             symbols = symbols[:empty_perimeter_count]
