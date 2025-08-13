@@ -91,8 +91,6 @@ class ComponentPolicy(nn.Module):
     ) -> Tuple[TensorDict, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
         """Forward pass of the ComponentPolicy - matches original MettaAgent forward() logic."""
 
-        logger.info(f"state: {state}")
-
         # Handle BPTT reshaping like the original
         if td.batch_dims > 1:
             B = td.batch_size[0]
