@@ -28,14 +28,14 @@
 #include "stats_tracker.hpp"
 #include "types.hpp"
 
-#include <pybind11/numpy.h>
-#include <pybind11/stl.h>
-
 #include <algorithm>
 #include <cmath>
 #include <numeric>
 #include <random>
 #include <iostream>
+
+#include <pybind11/numpy.h>
+#include <pybind11/stl.h>
 
 namespace py = pybind11;
 
