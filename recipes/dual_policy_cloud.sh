@@ -10,13 +10,13 @@ export METTA_VECENV_RECV_TIMEOUT=300
 # Configuration
 WANDB_CHECKPOINT_URI="${1:-wandb://metta-research/dual_policy_training/model/bullm_dual_policy_against_roomba_v9:v2}"
 TOTAL_TIMESTEPS="${2:-1000000000}"
-NUM_WORKERS="${3:-4}"
+NUM_WORKERS="${3:-2}"
 GPUS="${4:-4}"
 NODES="${5:-8}"
 ZERO_COPY="${6:-false}"
 
 # Generate unique run name
-RUN_NAME="dual_policy_cloud.$(date +%m-%d).$(date +%H%M)"
+RUN_NAME="dual_policy_cloud.$(date +%m-%d).$(date +%H%M).g${GPUS}n${NODES}"
 
 echo "Starting dual-policy training with WandB checkpoint NPC on cloud"
 echo "Run name: $RUN_NAME"
@@ -41,7 +41,7 @@ export HYDRA_FULL_ERROR=1
   trainer.dual_policy.enabled=true \
   trainer.dual_policy.checkpoint_npc.uri="$WANDB_CHECKPOINT_URI" \
   trainer.dual_policy.training_agents_pct=0.5 \
-  trainer.curriculum=/env/mettagrid/arena/basic_easy_shaped \
+  trainer.curriculum=/env/mettagrid/curriculum/arena/learning_progress \
   trainer.optimizer.learning_rate=0.0045 \
   trainer.optimizer.type=muon \
   trainer.simulation.evaluate_interval=50 \
