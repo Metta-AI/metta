@@ -19,3 +19,7 @@ replay_job:
             enabled: true
           move_8way:
             enabled: false
+
+trainer:
+  simulation:
+    skip_git_check: true

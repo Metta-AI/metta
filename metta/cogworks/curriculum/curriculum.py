@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import random
-from typing import ClassVar
+from typing import Annotated, ClassVar, Union
 
 from pydantic import ConfigDict, Field, field_validator
 
 from metta.common.util.config import Config
 from metta.mettagrid.mettagrid_config import EnvConfig
 
-from .task_generator import TaskGeneratorConfig
+from .task_generator import (
+    BucketedTaskGeneratorConfig,
+    SingleTaskGeneratorConfig,
+    TaskGeneratorSetConfig,
+)
 
 
 class CurriculumTask:
@@ -38,7 +42,10 @@ class CurriculumTask:
 class CurriculumConfig(Config):
     """Base configuration for Curriculum."""
 
-    task_generator_config: TaskGeneratorConfig = Field(description="TaskGenerator configuration")
+    task_generator_config: Annotated[
+        Union[SingleTaskGeneratorConfig, TaskGeneratorSetConfig, BucketedTaskGeneratorConfig],
+        Field(discriminator="type", description="TaskGenerator configuration"),
+    ]
     max_task_id: int = Field(default=1000000, gt=0, description="Maximum task id to generate")
 
     num_active_tasks: int = Field(default=100, gt=0, description="Number of active tasks to maintain")
