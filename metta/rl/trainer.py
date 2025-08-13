@@ -327,6 +327,11 @@ def train(
                     o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
                     total_steps += num_steps
 
+                    # check if any dones are true
+                    if any(d):
+                        print("dones are true")
+                        breakpoint()
+
                     td = buffer_step[training_env_id].clone()
                     td["env_obs"] = o
                     td["rewards"] = r

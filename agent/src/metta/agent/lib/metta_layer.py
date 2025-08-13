@@ -127,6 +127,9 @@ class LayerBase(nn.Module):
     def on_train_mb_start(self):
         pass
 
+    def on_eval_start(self):
+        pass
+
     def compute_weight_metrics(self, delta: float = 0.01) -> dict:
         pass
 
