@@ -80,10 +80,20 @@ def run_single_rollout(cfg: DictConfig, original_args: list[str] | None = None) 
 
     # Generate configuration for the sweep run - get run name and protein suggestion
     # Only rank 0 does this, others wait
-    run_name, protein_suggestion, phase_index = run_once(
+    prepare_result = run_once(
         lambda: prepare_sweep_run(cfg, logger),
     )
-    cfg.sweep = cfg.settings.phase_schedule[phase_index].sweep
+    # Support both 2- and 3-tuple returns for tests/backward-compat
+    if isinstance(prepare_result, tuple) and len(prepare_result) == 3:
+        run_name, protein_suggestion, phase_index = prepare_result
+        # Phase-aware config
+        if getattr(cfg.settings, "phase_schedule", None):
+            cfg.sweep = cfg.settings.phase_schedule[phase_index].sweep
+    elif isinstance(prepare_result, tuple) and len(prepare_result) == 2:
+        run_name, protein_suggestion = prepare_result
+        phase_index = 0
+    else:
+        raise RuntimeError("prepare_sweep_run returned unexpected value")
     if run_name is None:
         logger.error("Failed to prepare sweep run")
         return 1

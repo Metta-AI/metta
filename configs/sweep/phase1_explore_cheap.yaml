@@ -1,131 +1,81 @@
-# Phase 1: Cheap Exploration (Runs 1-80)
+# Phase 1: Cheap Exploration (Runs 1-120)
 # Focus: Quickly explore hyperparameter space with cheap runs
 # Goal: Identify promising regions without burning compute
 
 protein:
-  num_random_samples: 30 # More random exploration for broad coverage
+  acquisition_fn: ucb # UCB for exploration
+  beta_ucb: 2.5 # High exploration parameter
+  xi_ei: 0.05 # High exploration for EI fallback
+  num_random_samples: 15 # Reduced random sampling
   max_suggestion_cost: 1800 # 30 minutes max - keep costs very low
   expansion_rate: 0.1 # Low expansion - stay in cheap territory
-  resample_frequency: 0 # No resampling - pure exploration
   global_search_scale: 1.2 # Slightly wider exploration
-  random_suggestions: 512 # More random candidates
-  suggestions_per_pareto: 64 # Fewer per pareto point (faster)
+  random_suggestions: 512 # Large candidate pool for exploration
+  suggestions_per_pareto: 32 # Fewer per pareto point (faster)
   seed_with_search_center: true
+  phase: 1 # Phase identifier for logging
 
 metric: heart.gained # Total hearts gained (better signal than avg)
 goal: maximize
 method: bayes
 max_observations_to_load: 0 # Don't load previous runs
-# TODO: Check that we are not cutting off loading at the API level.
 
 parameters:
   trainer:
-    # Keep timesteps LOW for fast iteration
+    # 1. Training scale - most impactful for cost/performance
     total_timesteps:
       distribution: int_uniform
-      min: 100000000 # 100M - very cheap
-      max: 500000000 # 500M - still cheap
-      mean: 250000000 # 250M
+      min: 100000000 # 100M - FIXED across all phases
+      max: 5000000000 # 5B - FIXED across all phases
+      mean: 500000000 # 500M - bias toward cheap
       scale: auto
 
-    # Small batches for fast runs
+    # 2. Batch size - critical for training dynamics
     batch_size:
       distribution: uniform_pow2
-      min: 65536 # 2^16 - small
-      max: 262144 # 2^18 - moderate
-      mean: 131072 # 2^17
+      min: 65536 # 2^16 - FIXED across all phases
+      max: 1048576 # 2^20 - FIXED across all phases
+      mean: 131072 # 2^17 - bias toward small
       scale: auto
 
-    minibatch_size:
-      distribution: uniform_pow2
-      min: 2048 # 2^11
-      max: 8192 # 2^13
-      mean: 4096 # 2^12
-      scale: auto
-
-    bptt_horizon:
-      distribution: uniform_pow2
-      min: 8 # 2^3
-      max: 32 # 2^5
-      mean: 16 # 2^4
-      scale: auto
-
-    # WIDE ranges for exploration
-    ppo:
-      gamma:
-        distribution: uniform # Simple uniform for exploration
-        min: 0.95
-        max: 0.999
-        mean: 0.98
-        scale: auto
-
-      gae_lambda:
-        distribution: uniform
-        min: 0.85
-        max: 0.99
-        mean: 0.95
-        scale: auto
-
-      clip_coef:
-        distribution: uniform
-        min: 0.05
-        max: 0.4
-        mean: 0.2
-        scale: auto
-
-      vf_coef:
-        distribution: uniform
-        min: 0.1
-        max: 1.0
-        mean: 0.5
-        scale: auto
-
-      vf_clip_coef:
-        distribution: uniform
-        min: 1.0
-        max: 50.0
-        mean: 10.0
-        scale: auto
-
-      ent_coef:
-        distribution: log_normal
-        min: 1e-4
-        max: 1e-2
-        mean: 1e-3
-        scale: auto
-
-    update_epochs:
-      distribution: int_uniform
-      min: 1
-      max: 5
-      mean: 2
-      scale: auto
-
+    # 3. Learning rate - most important optimizer parameter
     optimizer:
       learning_rate:
         distribution: log_normal
-        min: 5e-5
-        max: 1e-2
-        mean: 3e-4
+        min: 1e-5 # FIXED across all phases
+        max: 1e-2 # FIXED across all phases
+        mean: 3e-4 # Standard bias
         scale: auto
 
-      beta1:
+    # 4. Discount factor - core RL parameter
+    ppo:
+      gamma:
         distribution: uniform
-        min: 0.8
-        max: 0.95
-        mean: 0.9
+        min: 0.95 # FIXED across all phases
+        max: 0.999 # FIXED across all phases
+        mean: 0.99 # Standard bias
         scale: auto
 
-      beta2:
+      # 5. GAE lambda - advantage estimation
+      gae_lambda:
         distribution: uniform
-        min: 0.99
-        max: 0.9999
-        mean: 0.999
+        min: 0.85 # FIXED across all phases
+        max: 0.99 # FIXED across all phases
+        mean: 0.95 # Standard bias
         scale: auto
 
-      eps:
+      # 6. PPO clipping - core algorithm parameter
+      clip_coef:
+        distribution: uniform
+        min: 0.05 # FIXED across all phases
+        max: 0.4 # FIXED across all phases
+        mean: 0.2 # Standard bias
+        scale: auto
+
+      # 7. Entropy coefficient - exploration vs exploitation
+      ent_coef:
         distribution: log_normal
-        min: 1e-10
-        max: 1e-6
-        mean: 1e-8
+        min: 1e-4 # FIXED across all phases
+        max: 1e-2 # FIXED across all phases
+        mean: 1e-3 # Standard bias
         scale: auto

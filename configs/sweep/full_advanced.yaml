@@ -1,0 +1,147 @@
+# Advanced Protein configuration with proper acquisition functions
+# This config uses the new ProteinAdvanced implementation
+
+protein:
+  # Acquisition function: 'ei' (Expected Improvement) or 'ucb' (Upper Confidence Bound)
+  acquisition_fn: ei
+
+  # Number of random samples before switching to Bayesian optimization
+  num_random_samples: 20
+
+  # Maximum cost (in seconds) for a single suggestion
+  max_suggestion_cost: 3600 # 1 hour
+
+  # Scale for global search (1.0 = normal, higher = more exploration)
+  global_search_scale: 1.0
+
+  # Number of random suggestions to evaluate acquisition function on
+  random_suggestions: 256 # Reduced from 1024 for efficiency
+
+  # Number of suggestions per Pareto point
+  suggestions_per_pareto: 64 # Reduced from 256 for efficiency
+
+  # Expansion rate for cost diversity
+  expansion_rate: 0.15
+
+  # Whether to start with the mean values as first suggestion
+  seed_with_search_center: true
+
+  # Exploration parameters for acquisition functions
+  beta_ucb: 2.0 # For UCB: higher = more exploration (only used if acquisition_fn='ucb')
+  xi_ei: 0.01 # For EI: higher = more exploration (only used if acquisition_fn='ei')
+
+# Optimization metric and goal
+metric: heart.gained # or 'reward', 'heart.get', etc.
+goal: maximize
+method: bayes
+max_observations_to_load: 250
+
+# Parameter search space (unchanged from original)
+parameters:
+  trainer:
+    total_timesteps:
+      distribution: int_uniform
+      min: 500000000 # 500M
+      max: 2000000000 # 2B
+      mean: 1000000000 # 1B
+      scale: auto
+
+    batch_size:
+      distribution: uniform_pow2
+      min: 262144 # 2^18
+      max: 2097152 # 2^21
+      mean: 524288 # 2^19
+      scale: auto
+
+    minibatch_size:
+      distribution: uniform_pow2
+      min: 2048 # 2^11
+      max: 32768 # 2^15
+      mean: 8192 # 2^13
+      scale: auto
+
+    bptt_horizon:
+      distribution: uniform_pow2
+      min: 8 # 2^3
+      max: 32 # 2^5
+      mean: 16 # 2^4
+      scale: auto
+
+    ppo:
+      gamma:
+        distribution: logit_normal
+        min: 0.95
+        max: 0.999
+        mean: 0.99
+        scale: auto
+
+      gae_lambda:
+        distribution: logit_normal
+        min: 0.9
+        max: 0.99
+        mean: 0.95
+        scale: auto
+
+      clip_coef:
+        distribution: logit_normal
+        min: 0.1
+        max: 0.3
+        mean: 0.2
+        scale: auto
+
+      vf_coef:
+        distribution: logit_normal
+        min: 0.3
+        max: 0.8
+        mean: 0.5
+        scale: auto
+
+      vf_clip_coef:
+        distribution: log_normal
+        min: 5.0
+        max: 20.0
+        mean: 10.0
+        scale: auto
+
+      ent_coef:
+        distribution: log_normal
+        min: 5e-4
+        max: 5e-3
+        mean: 1e-3
+        scale: auto
+
+    update_epochs:
+      distribution: int_uniform
+      min: 1
+      max: 6
+      mean: 3
+      scale: auto
+
+    optimizer:
+      learning_rate:
+        distribution: log_normal
+        min: 1e-4
+        max: 1e-2
+        mean: 3e-4
+        scale: auto
+
+      beta1:
+        distribution: logit_normal
+        min: 0.8
+        max: 0.95
+        mean: 0.9
+        scale: auto
+
+      beta2:
+        distribution: logit_normal
+        min: 0.99
+        max: 0.999
+        mean: 0.999
+        scale: auto
+
+      eps:
+        distribution: log_normal
+        min: 1e-9
+        max: 1e-7
+        mean: 1e-8
+        scale: auto

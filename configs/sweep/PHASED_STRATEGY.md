@@ -12,32 +12,32 @@ exploration-exploitation-cost tradeoff.
 
 **Goal**: Map the hyperparameter landscape quickly
 
-- **Timesteps**: 100M-500M (very cheap)
+- **Timesteps**: Full range (100M-5B), biased toward 500M
+- **Cost limit**: 30 minutes max (naturally limits to ~100M-500M)
 - **Ranges**: WIDE - exploring full parameter space
 - **Random samples**: 30 (high exploration)
-- **Cost limit**: 30 minutes max
 - **Resampling**: Disabled (pure exploration)
 
 **Key decisions**:
 
 - Wide ranges to discover unexpected good regions
 - Many random samples to build good initial GP model
-- Cheap runs for fast iteration
+- Cost control keeps runs cheap despite wide timestep range
 
 ### Phase 2: Exploitation with Medium Cost (80 runs)
 
 **Goal**: Refine promising regions with better signal
 
-- **Timesteps**: 500M-1.5B (medium cost)
-- **Ranges**: MODERATELY narrowed (70-80% of Phase 1)
+- **Timesteps**: Same range (100M-5B), biased toward 1.5B
+- **Cost limit**: 1 hour (naturally selects ~500M-1.5B)
+- **Ranges**: SAME as Phase 1 (avoids normalization issues!)
 - **Random samples**: 5 (mostly guided)
-- **Cost limit**: 1 hour
 - **Resampling**: Every 5 runs (balanced)
 
 **Key decisions**:
 
-- Still maintaining decent range width to avoid premature convergence
-- Higher timesteps for more reliable signal
+- CRITICAL: Same parameter ranges prevent observation corruption
+- Higher cost limit for more reliable signal
 - Frequent resampling from Pareto frontier
 - Loading Phase 1 results as prior
 
@@ -45,10 +45,10 @@ exploration-exploitation-cost tradeoff.
 
 **Goal**: Achieve peak performance
 
-- **Timesteps**: 1.5B-5B (expensive)
-- **Ranges**: REFINED but not too narrow (50-60% of Phase 1)
+- **Timesteps**: Same range (100M-5B), biased toward 3B
+- **Cost limit**: 3 hours (naturally selects ~1.5B-5B)
+- **Ranges**: SAME as previous phases
 - **Random samples**: 0 (pure exploitation)
-- **Cost limit**: 3 hours
 - **Resampling**: Every 3 runs (heavy exploitation)
 
 **Key decisions**:
@@ -60,18 +60,25 @@ exploration-exploitation-cost tradeoff.
 
 ## Range Progression Philosophy
 
+### CRITICAL INSIGHT: Parameter Range Consistency
+
+**The Bug We Fixed**: When phases have different parameter ranges, observations from earlier phases get **corrupted**
+when loaded into later phases. A 300M timestep value from Phase 1 (middle of 100M-500M range) gets clamped to 500M when
+loaded into Phase 2 (which expected 500M-1.5B range), destroying the learned knowledge!
+
 ### What We AVOID:
 
+- **Different ranges across phases**: This corrupts observations!
 - **Over-narrowing**: Ranges that are too tight can miss better nearby optima
 - **Premature convergence**: Getting stuck in local optima from Phase 1
 - **Over-reliance on cheap runs**: Phase 1 results may not generalize
 
 ### What We DO:
 
-- **Gradual narrowing**: Phase 2 keeps 70-80% of Phase 1's range
-- **Maintained exploration**: Even Phase 3 keeps 50-60% range
+- **Consistent ranges**: ALL phases use the SAME parameter ranges
+- **Cost control**: Use `max_suggestion_cost` to control run expense
+- **Mean biasing**: Different `mean` values guide exploration
 - **Uniform distributions**: Simpler than logit_normal for most parameters
-- **Strategic parameters**: Only tighten ranges where we have high confidence
 
 ## Parameter-Specific Strategy
 

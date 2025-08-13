@@ -1,11 +1,11 @@
 import logging
-from typing import Any, Tuple
+from typing import Any, Tuple, cast
 
 from omegaconf import DictConfig, OmegaConf
 
 from metta.common.util.numpy_helpers import clean_numpy_types
 
-from .protein import Protein
+from .protein_advanced import ProteinAdvanced
 
 logger = logging.getLogger("wandb_protein")
 
@@ -27,7 +27,7 @@ class MettaProtein:
         self._cfg = cfg
 
         # Convert OmegaConf to regular dict
-        parameters_dict = OmegaConf.to_container(cfg.parameters, resolve=True)
+        parameters_dict = cast(dict[str, Any], OmegaConf.to_container(cfg.parameters, resolve=True))
 
         # Create the config structure that Protein expects
         protein_config = {
@@ -36,10 +36,37 @@ class MettaProtein:
             "method": cfg.method,
             **parameters_dict,  # Add flattened parameters at top level
         }
-        protein_settings = OmegaConf.to_container(cfg.protein, resolve=True)
+        raw_settings = cast(dict[str, Any], OmegaConf.to_container(cfg.protein, resolve=True))
+
+        # Filter unsupported keys and map deprecated ones
+        allowed_keys = {
+            "acquisition_fn",
+            "max_suggestion_cost",
+            "num_random_samples",
+            "global_search_scale",
+            "random_suggestions",
+            "suggestions_per_pareto",
+            "seed_with_search_center",
+            "expansion_rate",
+            "constraint_tolerance",
+            "multi_fidelity",
+            "beta_ucb",
+            "xi_ei",
+        }
+
+        protein_settings: dict[str, Any] = {}
+        for k, v in raw_settings.items():
+            if k == "resample_frequency":
+                # Deprecated in advanced optimizer; ignore
+                continue
+            if k == "phase":
+                # Metadata only; ignore for constructor
+                continue
+            if k in allowed_keys:
+                protein_settings[k] = v
 
         # Initialize Protein with sweep config and protein-specific settings
-        self._protein = Protein(protein_config, **protein_settings)
+        self._protein = ProteinAdvanced(protein_config, **protein_settings)
 
     def suggest(self, fill=None) -> Tuple[dict[str, Any], dict[str, Any]]:
         """
@@ -76,4 +103,10 @@ class MettaProtein:
         """
         Get the number of observations.
         """
-        return len(self._protein.success_observations) + len(self._protein.failure_observations)
+        # ProteinAdvanced stores unified observations
+        if hasattr(self._protein, "observations"):
+            return len(self._protein.observations)  # type: ignore[attr-defined]
+        # Fallback for legacy implementations
+        success = getattr(self._protein, "success_observations", [])
+        failure = getattr(self._protein, "failure_observations", [])
+        return len(success) + len(failure)

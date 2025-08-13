@@ -46,6 +46,7 @@ sim_name: arena
 sweep_job_overrides:
   trainer:
     curriculum: /env/mettagrid/arena/basic_easy_shaped
+    total_timesteps: 10000
     simulation:
       # evaluate_interval: 0 # No evaluation during training for speed
       replay_dir: "" # No replays for sweeps

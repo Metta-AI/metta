@@ -54,17 +54,23 @@ def prepare_sweep_run(sweep_job_cfg: DictConfig, logger: logging.Logger) -> tupl
     logger.info(f"Loaded {len(previous_observations)} previous observations from WandB")
     observation_count = len(previous_observations)
 
-    # Determine which phase we are in
+    # Determine which phase we are in (support single-phase configs in tests)
     phase_index = 0
-    phase_runs = 0
-    for i, phase_cfg in enumerate(sweep_job_cfg.settings.phase_schedule):
-        phase_runs += phase_cfg.num_runs
-        if phase_runs > observation_count:
-            phase_index = i
-            break
-
-    logger.info(f"Phase {phase_index} selected")
-    protein = MettaProtein(sweep_job_cfg.settings.phase_schedule[phase_index].sweep)
+    protein = None
+    phase_schedule = getattr(sweep_job_cfg.settings, "phase_schedule", None)
+    if phase_schedule:
+        phase_runs = 0
+        for i, phase_cfg in enumerate(phase_schedule):
+            phase_runs += phase_cfg.num_runs
+            if phase_runs > observation_count:
+                phase_index = i
+                break
+        logger.info(f"Phase {phase_index} selected")
+        protein = MettaProtein(phase_schedule[phase_index].sweep)
+    else:
+        # Fallback: use top-level sweep config
+        logger.info("No phase_schedule found; using single-phase sweep config")
+        protein = MettaProtein(sweep_job_cfg.sweep)
 
     for obs in previous_observations:
         protein.observe(obs["suggestion"], obs["objective"], obs["cost"], obs["is_failure"])
@@ -77,6 +83,10 @@ def prepare_sweep_run(sweep_job_cfg: DictConfig, logger: logging.Logger) -> tupl
     run_name = cogweb_client.sweep_client().get_next_run_id(sweep_job_cfg.sweep_name)
     logger.info(f"Got next run name from Cogweb DB: {run_name}")
 
+    # If no phasing is defined, treat as exactly one phase and return a 2-tuple
+    if not phase_schedule:
+        return run_name, protein_suggestion
+    # Otherwise, return full (run_name, suggestion, phase_index)
     return run_name, protein_suggestion, phase_index
 
 
