@@ -136,6 +136,57 @@ run: |
   mkdir -p "$IPC_DIR"
   export TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
 
+  # ==== globals + graceful exit trap ====
+  export CMD_PID=""
+  export CMD_PGID=""
+  export TRAIN_START_TIME=0
+
+  graceful_shutdown() {
+    echo "[WRAP] Caught INT/TERM/HUP; initiating graceful shutdown..."
+
+    # If a monitor set a reason, keep it; otherwise set a generic one.
+    if [ -z "${TERMINATION_REASON:-}" ] && [ -f "$TERMINATION_REASON_FILE" ]; then
+      TERMINATION_REASON="$(cat "$TERMINATION_REASON_FILE" || true)"
+    fi
+    TERMINATION_REASON="${TERMINATION_REASON:-controlled_shutdown}"
+
+    # Ask the whole training group to stop cleanly (SIGINT)
+    if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ] && kill -0 "$CMD_PID" 2>/dev/null; then
+      echo "[WRAP] Sending SIGINT to training PGID ${CMD_PGID}"
+      kill -INT -"${CMD_PGID}" 2>/dev/null || true
+      # Wait for training to exit, but don’t fail wrapper if it returns nonzero
+      wait "${CMD_PID}" 2>/dev/null || true
+    fi
+
+    terminate_monitors
+
+    # Compute duration (best-effort)
+    if [ -n "${TRAIN_START_TIME:-}" ]; then
+      local end_time
+      end_time=$(date +%s)
+      local dur=$((end_time - TRAIN_START_TIME))
+      echo "[SUMMARY] Total runtime: ${dur} seconds ($((dur/60)) minutes)"
+    fi
+
+    # Report success on controlled shutdown
+    CMD_EXIT=0
+    FINAL_EXIT_CODE=0
+    echo "[INFO] Termination reason: ${TERMINATION_REASON}"
+    echo "[INFO] Exiting wrapper with code 0 (controlled shutdown)"
+
+    if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
+      export CMD_EXIT
+      uv run devops/skypilot/set_github_status.py || echo "[WARN] Final status post failed"
+    fi
+
+    exit 0
+  }
+
+  # Trap signals on the parent (the process SkyPilot watches)
+  trap graceful_shutdown INT TERM HUP
+  # ======================================
+
+
   terminate_monitors() {
     if [[ -n "${HEARTBEAT_MONITOR_PID:-}" ]]; then
       kill "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
@@ -154,50 +205,31 @@ run: |
     local pid=$1
     local reason=$2
 
-    # Get the current PGID of the process (in case it changed)
-    local current_pgid=$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')
+    echo "[INFO] Requesting graceful shutdown (reason: $reason)"
+    echo "$reason" > "$TERMINATION_REASON_FILE"
+    TERMINATION_REASON="$reason"
 
-    if [[ -n "$current_pgid" ]] && kill -0 "$pid" 2>/dev/null; then
-      echo "[INFO] Terminating process group $current_pgid (PID: $pid, reason: $reason)"
-      echo "$reason" > "$TERMINATION_REASON_FILE"
-      terminate_monitors
+    # Stop monitors first so they don’t race
+    terminate_monitors
 
-      # Kill the entire process group
-      kill -TERM -$current_pgid 2>/dev/null || true
-
-      # Give process time to clean up
-      local count=0
-      while kill -0 "$pid" 2>/dev/null && [ $count -lt 5 ]; do
-        sleep 1
-        count=$((count + 1))
-      done
-
-      # Force kill if still running
-      if kill -0 "$pid" 2>/dev/null; then
-        echo "[WARN] Process group $current_pgid didn't terminate gracefully, forcing kill"
-        kill -KILL -$current_pgid 2>/dev/null || true
-      fi
-    fi
+    # Trigger our own trap; the trap will SIGINT the training PGID and exit 0
+    kill -TERM $$ 2>/dev/null || true
   }
 
   run_cmd() {
     echo "[INFO] Starting process $METTA_CMD"
 
-    local START_TIME=$(date +%s)
+    TRAIN_START_TIME=$(date +%s)
 
-    # Debug: Check if setsid is available
     if command -v setsid >/dev/null 2>&1; then
-        echo "[DEBUG] setsid is available"
+      echo "[DEBUG] setsid is available"
     else
-        echo "[DEBUG] setsid is NOT available - falling back to standard process group"
+      echo "[DEBUG] setsid is NOT available - falling back to standard process group"
     fi
 
-    # CRITICAL: Start cmd process in a separate process group so that when we call
-    # terminate_process() with kill -TERM -$PGID, it terminates only the training
-    # processes and NOT this SkyPilot run script. This allows us to see the final
-    # summary and exit cleanly.
+    # Start training in its own process group; tee output for postmortem
     setsid ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} 2>&1 | tee "$IPC_DIR/${METTA_CMD}_log.txt" &
-    local CMD_PID=$!
+    CMD_PID=$!
 
     sleep 1
     if ! kill -0 "$CMD_PID" 2>/dev/null; then
@@ -205,10 +237,8 @@ run: |
       CMD_EXIT=1
     fi
 
-    # Make the process a group leader if it isn't already
-    local PGID=$(ps -o pgid= -p "$CMD_PID" 2>/dev/null | tr -d ' ')
-
-    echo "[INFO] Started $METTA_CMD process with PID: $CMD_PID, PGID: $PGID"
+    CMD_PGID=$(ps -o pgid= -p "$CMD_PID" 2>/dev/null | tr -d ' ')
+    echo "[INFO] Started $METTA_CMD process with PID: $CMD_PID, PGID: $CMD_PGID"
 
     # Start timeout monitor if MAX_RUNTIME_HOURS is set
     if [[ -n "${MAX_RUNTIME_HOURS:-}" ]] && [[ "${MAX_RUNTIME_HOURS}" != "None" ]]; then
@@ -373,9 +403,6 @@ run: |
   export FINAL_EXIT_CODE=""
   export -f terminate_process
   export -f terminate_monitors
-
-  # Trap SIGTERM in parent to prevent immediate exit
-  trap 'echo "[INFO] Parent script received SIGTERM, ignoring to complete cleanup"' TERM
 
   # Set up cleanup trap
   trap cleanup EXIT
