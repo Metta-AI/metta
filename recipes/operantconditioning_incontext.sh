@@ -63,7 +63,8 @@
 
 ./devops/skypilot/launch.py train \
   run=$USER.operant_conditioning.in_context_learning.all.256.$(date +%m-%d) \
-  trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/in_context_learning/all \
+  trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/in_context_learning.0
+  0/all \
   sim=operant_conditioning_incontext \
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
