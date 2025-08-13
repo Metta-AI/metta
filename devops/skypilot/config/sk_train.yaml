@@ -85,6 +85,10 @@ run: |
   export NODE_INDEX="${SKYPILOT_NODE_RANK:-0}"
   export NCCL_SHM_DISABLE=1
 
+  # Create a temp directory for IPC files
+  export IPC_DIR="/tmp/metta_job_$$"
+  mkdir -p "$IPC_DIR"
+
   METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
 
   if [ -f common/src/metta/common/util/cost_monitor.py ]; then
@@ -123,18 +127,20 @@ run: |
     # Send Discord notification if webhook URL is available
     if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
       echo "[RUN] Sending Discord notification..."
-      DISCORD_CONTENT=$(cat <<EOF
-🚀 **SkyPilot Job Launched**
 
-**Repository**: ${GITHUB_REPOSITORY}
-**Git Ref**: ${METTA_GIT_REF}
-**Run ID**: ${METTA_RUN_ID:-N/A}
-**Status**: Job queued on SkyPilot
-**Time**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+      # Write Discord message to file line by line
+      echo "🚀 **SkyPilot Job Launched**" > "$IPC_DIR/discord_message.txt"
+      echo "" >> "$IPC_DIR/discord_message.txt"
+      echo "**Repository**: ${GITHUB_REPOSITORY}" >> "$IPC_DIR/discord_message.txt"
+      echo "**Git Ref**: ${METTA_GIT_REF}" >> "$IPC_DIR/discord_message.txt"
+      echo "**Run ID**: ${METTA_RUN_ID:-N/A}" >> "$IPC_DIR/discord_message.txt"
+      echo "**Status**: Job queued on SkyPilot" >> "$IPC_DIR/discord_message.txt"
+      echo "**Time**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> "$IPC_DIR/discord_message.txt"
+      echo "" >> "$IPC_DIR/discord_message.txt"
+      echo "(I am testing - we will soon change this to only alert on failed CI multinode runs.)" >> "$IPC_DIR/discord_message.txt"
 
-(I am testing - we will soon change this to only alert on failed CI multinode runs.)
-EOF
-) \
+      DISCORD_CONTENT="$(cat "$IPC_DIR/discord_message.txt")"
+      export DISCORD_CONTENT
       uv run -m metta.common.util.discord || echo "[WARN] Discord notification failed; continuing"
     fi
   else
