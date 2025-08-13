@@ -112,12 +112,10 @@ def test_old_checkpoint_loading():
     new_agent.policy.components["_action_"](flat_td)
 
     # Test with valid actions - ensure they map to valid logit indices (0-5)
-    # With cum_action_max_params = [0, 3], action [0,i] maps to 0+0+i = i, action [1,i] maps to 1+3+i = 4+i
-    # But wait, that doesn't work. Let me think about this...
-    # Actually, the formula is: action_type + cum_action_max_params[action_type] + action_param
+    # With cum_action_max_params = [0, 2], the formula is:
+    # logit_index = action_type + cum_action_max_params[action_type] + action_param
     # So action [0,i] maps to 0 + 0 + i = i (indices 0,1,2)
-    # And action [1,i] maps to 1 + 3 + i = 4+i? No that's wrong too.
-    # The issue is cum_action_max_params needs to be the right cumulative sum
+    # And action [1,i] maps to 1 + 2 + i = 3+i (indices 3,4,5)
     action = torch.tensor([[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]], dtype=torch.long).reshape(2, 3, 2)
     result = new_agent.policy.forward_training(flat_td, action)
 
