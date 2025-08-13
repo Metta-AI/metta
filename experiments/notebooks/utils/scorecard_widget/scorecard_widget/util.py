@@ -61,13 +61,8 @@ async def fetch_real_scorecard_data(
         raise Exception("No evaluations found for selected training runs")
 
     # Step 3: Get available metrics
-    # Flatten eval_names structure - it comes as [('category', ['eval1', 'eval2', ...])]
-    flat_eval_names = []
-    for category, evals in eval_names:
-        flat_eval_names.extend(evals)
-
     available_metrics = await client.get_available_metrics(
-        training_run_ids, run_free_policy_ids, flat_eval_names
+        training_run_ids, run_free_policy_ids, eval_names
     )
     if not available_metrics:
         warning("No metrics found")
@@ -94,7 +89,7 @@ async def fetch_real_scorecard_data(
     scorecard_data: ScorecardData = await client.generate_scorecard(
         training_run_ids=training_run_ids,
         run_free_policy_ids=[],
-        eval_names=flat_eval_names,
+        eval_names=eval_names,
         metric=primary_metric,
         policy_selector=policy_selector,
     )

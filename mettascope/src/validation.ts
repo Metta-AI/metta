@@ -55,12 +55,7 @@ function validateNonNegativeNumber(value: any, fieldName: string, issues: Valida
   }
 }
 
-function validateStringList(
-  lst: any,
-  fieldName: string,
-  issues: ValidationIssue[],
-  allowEmpty: boolean = false
-): void {
+function validateStringList(lst: any, fieldName: string, issues: ValidationIssue[], allowEmpty: boolean = false): void {
   validateType(lst, 'array', fieldName, issues)
 
   if (Array.isArray(lst)) {

@@ -25,8 +25,6 @@ from metta.common.util.git_filter import filter_repo
 class FilterRepoConfig(Config):
     """Child repository configuration."""
 
-    __init__ = Config.__init__
-
     name: str
     paths: list[str]
     remote: str

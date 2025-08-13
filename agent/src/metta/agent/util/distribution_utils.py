@@ -1,6 +1,7 @@
-from typing import Tuple
+from typing import Any, Tuple
 
 import torch
+import torch.distributed as dist
 import torch.jit
 import torch.nn.functional as F
 from torch import Tensor
@@ -77,3 +78,22 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
     entropy = -torch.sum(action_probs * action_log_probs, dim=-1)  # [batch_size]
 
     return log_probs, entropy, action_log_probs
+
+
+def get_from_master(x: Any) -> Any:
+    """Return the value from rank 0 across all ranks.
+    Works for everything that can be pickled.
+    """
+    if not dist.is_available() or not dist.is_initialized() or dist.get_world_size() == 1:
+        return x
+
+    if isinstance(x, torch.Tensor):
+        # All ranks must provide a tensor of the same shape/dtype; contents will be overwritten with rank 0's
+        dist.broadcast(x, src=0)
+        return x
+
+    # Generic object path
+    rank = dist.get_rank()
+    obj_list = [x] if rank == 0 else [None]
+    dist.broadcast_object_list(obj_list, src=0)
+    return obj_list[0]

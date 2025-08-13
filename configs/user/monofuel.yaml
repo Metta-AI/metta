@@ -14,3 +14,18 @@ wandb:
 trainer:
   simulation:
     replay_dir: ${run_dir}/replays/local # disable uploading replays to s3
+
+
+replay_job:
+  sim:
+    env_overrides:
+      game:
+        actions:
+          move:
+            enabled: false
+          rotate:
+            enabled: false
+          move_cardinal:
+            enabled: false
+          move_8way:
+            enabled: true

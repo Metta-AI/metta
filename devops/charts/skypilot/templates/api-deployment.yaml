@@ -4,10 +4,24 @@ metadata:
   name: {{ .Release.Name }}-api-server
   namespace: {{ .Release.Namespace }}
 spec:
-  # Note: replicas > 1 is not well tested, and requires a PVC that supports ReadWriteMany.
+  # Note: replicas > 1 is not well tested.
   replicas: {{ .Values.apiService.replicas }}
+  {{- if eq .Values.apiService.upgradeStrategy "RollingUpdate" }}
+  {{- if and (not .Values.apiService.dbConnectionSecretName) (not .Values.apiService.dbConnectionString) }}
+  {{- fail "External database must be configured via .apiService.dbConnectionSecretName or .apiService.dbConnectionString when using RollingUpdate strategy" }}
+  {{- end }}
+  {{- if .Values.storage.enabled }}
+  {{- fail "Local storage is not supported when using RollingUpdate strategy. Use recreate upgrade strategy or set storage.enabled to false." }}
+  {{- end }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  {{- else }}
   strategy:
     type: Recreate
+  {{- end }}
   selector:
     matchLabels:
       app: {{ .Release.Name }}-api
@@ -47,6 +61,9 @@ spec:
         resources:
           {{- toYaml .Values.apiService.resources | nindent 10 }}
         env:
+        {{- if .Values.apiService.extraEnvs }}
+        {{- toYaml .Values.apiService.extraEnvs | nindent 8 }}
+        {{- end }}
         - name: SKYPILOT_DEV
           value: {{ .Values.apiService.skypilotDev | quote }}
         - name: SKYPILOT_RELEASE_NAME
@@ -58,7 +75,7 @@ spec:
               name: {{ include "skypilot.initialBasicAuthSecretName" . }}
               key: auth
         {{- end }}
-        {{- if .Values.apiService.enableServiceAccounts }}
+        {{- if include "skypilot.serviceAccountAuthEnabled" . | trim | eq "true" }}
         - name: ENABLE_SERVICE_ACCOUNTS
           value: "true"
         {{- end }}
@@ -80,17 +97,35 @@ spec:
             secretKeyRef:
               name: {{ .Values.apiService.dbConnectionSecretName }}
               key: connection_string
+        {{- else if .Values.apiService.dbConnectionString }}
+        - name: SKYPILOT_DB_CONNECTION_URI
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Release.Name }}-db-connection
+              key: connection_string
         {{- end }}
         {{- if .Values.apiService.authUserHeaderName }}
         - name: SKYPILOT_AUTH_USER_HEADER
           value: {{ .Values.apiService.authUserHeaderName | quote }}
         {{- end }}
+        - name: SKYPILOT_GRACE_PERIOD_SECONDS
+          value: {{ .Values.apiService.terminationGracePeriodSeconds | quote}}
+        {{- if eq .Values.apiService.upgradeStrategy "RollingUpdate" }}
+        - name: SKYPILOT_APISERVER_UUID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        {{- end }}
         {{- if .Values.apiService.metrics.enabled }}
         - name: SKY_API_SERVER_METRICS_ENABLED
           value: "true"
         {{- end }}
-        - name: SKYPILOT_GRACE_PERIOD_SECONDS
-          value: {{ .Values.apiService.terminationGracePeriodSeconds | quote}}
+        {{- if .Values.auth.oauth.enabled }}
+        - name: SKYPILOT_AUTH_OAUTH2_PROXY_ENABLED
+          value: "true"
+        - name: SKYPILOT_AUTH_OAUTH2_PROXY_BASE_URL
+          value: {{ include "skypilot.oauth2ProxyURL" . }}
+        {{- end }}
         # Use tini as the init process
         command: ["tini", "--"]
         # Start API server in foreground (if supported) to:
@@ -109,7 +144,7 @@ spec:
           cat << 'PATCH' > /tmp/ecr.patch
 {{ .Files.Get "files/ecr.patch" | indent 10 }}
           PATCH
-          patch -p0 -d /opt/conda/lib/python3.10/site-packages </tmp/ecr.patch
+          patch -p0 -d /usr/local/lib/python3.10/site-packages </tmp/ecr.patch
 
           {{- if .Values.apiService.preDeployHook }}
           {{ .Values.apiService.preDeployHook | nindent 10 }}
@@ -197,7 +232,17 @@ spec:
           httpGet:
             path: /api/health
             port: 46580
+          {{- if eq .Values.apiService.upgradeStrategy "RollingUpdate" }}
+          # When using RollingUpdate strategy, be more patient with the new
+          # API server to avoid flaky serving where one of the server process
+          # returns ready of the healthz check endpoint while others may still
+          # be starting up.
+          successThreshold: 3
+          {{- else }}
+          # For fast startup, just serve when healthz check passes. There is no
+          # other replica to serve requests anyway.
           successThreshold: 1
+          {{- end }}
           failureThreshold: 3
           periodSeconds: 5
           initialDelaySeconds: 5
@@ -256,9 +301,21 @@ spec:
           mountPath: /root/.lambda_cloud
           readOnly: true
         {{- end }}
+        {{- if .Values.vastCredentials.enabled }}
+        - name: vast-config
+          mountPath: /root/.config/vastai
+          readOnly: true
+        {{- end }}
         {{- if .Values.nebiusCredentials.enabled }}
         - name: nebius-credentials
           mountPath: /root/.nebius_credentials
+        {{- end }}
+        {{- if .Values.r2Credentials.enabled }}
+        - name: r2-credentials
+          mountPath: /root/.cloudflare
+        {{- end }}
+        {{- if .Values.apiService.extraVolumeMounts }}
+        {{- toYaml .Values.apiService.extraVolumeMounts | nindent 8 }}
         {{- end }}
       initContainers:
       {{- if .Values.awsCredentials.enabled }}
@@ -377,6 +434,35 @@ spec:
         - name: lambda-config
           mountPath: /root/.lambda_cloud
       {{- end }}
+      {{- if .Values.vastCredentials.enabled }}
+      - name: create-vast-credentials
+        {{- with .Values.securityContext }}
+        securityContext:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        image: {{ .Values.apiService.image }}
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+          echo "Setting up Vast credentials..."
+          if [ -n "$VAST_API_KEY" ]; then
+            echo "Vast credentials found in environment variable."
+            mkdir -p /root/.config/vastai
+            echo "$VAST_API_KEY" > /root/.config/vastai/vast_api_key
+          else
+            echo "Vast credentials not found in environment variables. Skipping credentials setup."
+            sleep 600
+          fi
+        env:
+        - name: VAST_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.vastCredentials.vastSecretName }}
+              key: api_key
+        volumeMounts:
+        - name: vast-config
+          mountPath: /root/.config/vastai
+      {{- end }}
       {{- if .Values.extraInitContainers }}
       {{- toYaml .Values.extraInitContainers | nindent 6 }}
       {{- end }}
@@ -409,10 +495,19 @@ spec:
       - name: lambda-config
         emptyDir: {}
       {{- end }}
+      {{- if .Values.vastCredentials.enabled }}
+      - name: vast-config
+        emptyDir: {}
+      {{- end }}
       {{- if .Values.nebiusCredentials.enabled }}
       - name: nebius-credentials
         secret:
           secretName: {{ .Values.nebiusCredentials.nebiusSecretName }}
+      {{- end }}
+      {{- if .Values.r2Credentials.enabled }}
+      - name: r2-credentials
+        secret:
+          secretName: {{ .Values.r2Credentials.r2SecretName }}
       {{- end }}
       {{- if .Values.kubernetesCredentials.useKubeconfig }}
       - name: kube-config
@@ -431,5 +526,8 @@ spec:
       - name: skypilot-ssh-identity
         secret:
           secretName: {{ .Values.apiService.sshKeySecret }}
-          defaultMode: 0600 
+          defaultMode: 0600
+      {{- end }}
+      {{- if .Values.apiService.extraVolumes }}
+      {{- toYaml .Values.apiService.extraVolumes | nindent 6 }}
       {{- end }}
