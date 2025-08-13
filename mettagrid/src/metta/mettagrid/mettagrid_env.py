@@ -87,7 +87,7 @@ class MettaGridEnv(MettaGridPufferBase):
         )
 
         # Environment metadata (self._task is set by base class)
-        self.labels: List[str] = self._task.env_cfg().get("labels", [])
+        self.cfg_labels: List[str] = self._task.env_cfg().get("labels", [])
 
     def _make_episode_id(self) -> str:
         """Generate unique episode ID."""
@@ -104,8 +104,6 @@ class MettaGridEnv(MettaGridPufferBase):
         # Sync level with task config
         self._level = task_cfg.game.map_builder.build()
         self._map_labels = self._level.labels
-        self.labels = self._level.labels
-
         # Create new C++ environment for new trial
         self._c_env_instance = self._create_c_env(game_config_dict, self._current_seed)
 
@@ -153,7 +151,6 @@ class MettaGridEnv(MettaGridPufferBase):
         # Sync level with task config
         self._level = task_cfg.game.map_builder.build()
         self._map_labels = self._level.labels
-        self.labels = self._level.labels
 
         # Recreate C++ environment for new task (after first reset)
         if self._resets > 0:
@@ -279,7 +276,7 @@ class MettaGridEnv(MettaGridPufferBase):
         episode_rewards_mean = episode_rewards_sum / self._c_env_instance.num_agents
 
         # Add map and label rewards
-        for label in self._map_labels + self.labels:
+        for label in self._map_labels + self.cfg_labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
         # Add curriculum stats
