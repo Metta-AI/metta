@@ -131,9 +131,27 @@ class MettaAgent(nn.Module):
             raise RuntimeError("No policy set. Use set_policy() first.")
 
         # Handle old checkpoints where self.policy == self (old MettaAgent WAS the policy)
-        if self.policy is self and hasattr(self, "forward_inference"):
-            # Old checkpoint - it has the forward methods directly
-            return self.forward_inference(td, state) if action is None else self.forward_training(td, action)
+        if self.policy is self:
+            # Old MettaAgent from main has its own forward logic that:
+            # 1. Runs components["_value_"] and components["_action_"]
+            # 2. Then calls forward_inference or forward_training
+            # The old forward expects (td, action) not (td, state, action)
+            # So we need to handle this carefully
+            if hasattr(self, "components") and "_value_" in self.components and "_action_" in self.components:
+                # Run the components as the old forward would
+                self.components["_value_"](td)
+                self.components["_action_"](td)
+
+                # Now delegate to the appropriate method
+                if action is None and hasattr(self, "forward_inference"):
+                    return self.forward_inference(td)
+                elif action is not None and hasattr(self, "forward_training"):
+                    return self.forward_training(td, action)
+
+            # Fallback if something is missing
+            batch_size = td.batch_size[0] if hasattr(td, "batch_size") else 1
+            td["actions"] = torch.zeros((batch_size, 2), dtype=torch.long)
+            return td
 
         return self.policy(td, state, action)
 
