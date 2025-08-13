@@ -1,4 +1,3 @@
-from typing import Tuple
 
 import torch
 import torch.nn as nn
@@ -63,36 +62,32 @@ class LSTM(LayerBase):
         return net
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
-    def _forward(self, td: TensorDict, state: Tuple[torch.Tensor, torch.Tensor] | None = None) -> Tuple:
-        assert (
-            getattr(self, "_sources", None) is not None and isinstance(self._sources, list) and len(self._sources) > 0
-        ), "LSTM requires at least one source component"
-        hidden = td[self._sources[0]["name"]]  # → (2, num_layers, batch, hidden_size)
+    def _forward(self, td: TensorDict, state: tuple | None = None) -> tuple[TensorDict, tuple]:
+        assert self._sources and isinstance(self._sources, list), "LSTM requires at least one source component"
 
+        hidden = td[self._sources[0]["name"]]  # (B*TT, hidden_dim)
         TT = td["bptt"][0]
         B = td["batch"][0]
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
+        # If state is None, init zeros; otherwise treat it as opaque (h, c)
         if state is None:
-            h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
-            c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
+            h, c = (
+                torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device),
+                torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device),
+            )
         else:
-            h_0, c_0 = state
-            assert h_0.shape == (self.num_layers, B, self.hidden_size), "Invalid h_0 shape"
-            assert c_0.shape == (self.num_layers, B, self.hidden_size), "Invalid c_0 shape"
+            h, c = state
 
-        dones = td.get("dones", None)
-        truncateds = td.get("truncateds", None)
-        if dones is not None and truncateds is not None:
-            reset_mask = dones.bool() | truncateds.bool()
-            h_0[:, reset_mask, :] = 0
-            c_0[:, reset_mask, :] = 0
+        # Reset memory for done/truncated episodes
+        if "dones" in td and "truncateds" in td:
+            reset_mask = td["dones"].bool() | td["truncateds"].bool()
+            h[:, reset_mask, :] = 0
+            c[:, reset_mask, :] = 0
 
-        hidden, (h_n, c_n) = self._net(hidden, (h_0, c_0))
+        out, new_state = self._net(hidden, (h, c))
+        out = rearrange(out, "t b h -> (b t) h")
 
-        hidden = rearrange(hidden, "t b h -> (b t) h")
-
-        td[self._name] = hidden
-
-        return td, (h_n.detach(), c_n.detach())
+        td[self._name] = out
+        return td, tuple(s.detach() for s in new_state)

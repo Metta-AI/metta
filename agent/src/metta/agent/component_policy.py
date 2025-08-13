@@ -65,13 +65,9 @@ class ComponentPolicy(nn.Module):
         component = self.components["_action_"]
         self._setup_components(component)
 
-        # Track components with memory
-        self.components_with_memory = []
         for name, component in self.components.items():
             if not getattr(component, "ready", False):
                 raise RuntimeError(f"Component {name} in ComponentPolicy was never setup.")
-            if component.has_memory():
-                self.components_with_memory.append(name)
 
         # Check for duplicate component names
         all_names = [c._name for c in self.components.values() if hasattr(c, "_name")]
@@ -218,17 +214,6 @@ class ComponentPolicy(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
-    def reset_memory(self) -> None:
-        """Reset memory for all components that have memory."""
-        for name in self.components_with_memory:
-            comp = self.components[name]
-            if not hasattr(comp, "reset_memory"):
-                raise ValueError(
-                    f"Component '{name}' listed in components_with_memory but has no reset_memory() method."
-                    + " Perhaps an obsolete policy?"
-                )
-            comp.reset_memory()
-
     def _apply_to_components(self, method_name, *args, **kwargs):
         """Apply a method to all components that have it."""
         results = []
@@ -240,13 +225,6 @@ class ComponentPolicy(nn.Module):
                     if result is not None:
                         results.append(result)
         return results
-
-    def get_memory(self) -> dict:
-        """Get memory state from all components that have memory."""
-        memory = {}
-        for name in self.components_with_memory:
-            memory[name] = self.components[name].get_memory()
-        return memory
 
     def l2_init_loss(self) -> torch.Tensor:
         """Calculate L2 initialization loss for all components."""
@@ -299,10 +277,3 @@ class ComponentPolicy(nn.Module):
         """Activate action embeddings with the given action names."""
         if "_action_embeds_" in self.components:
             self.components["_action_embeds_"].activate_actions(full_action_names, device)
-
-    @property
-    def lstm(self):
-        """Access to LSTM component if it exists."""
-        if "_core_" in self.components and hasattr(self.components["_core_"], "_net"):
-            return self.components["_core_"]._net
-        return None
