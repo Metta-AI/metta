@@ -27,7 +27,10 @@ struct ConverterConfig : public GridObjectConfig {
                   unsigned short cooldown,
                   InventoryQuantity initial_resource_count,
                   ObservationType color,
-                  bool recipe_details_obs)
+                  bool recipe_details_obs,
+                  bool transmits_to_agents,
+                  bool transmits_to_converters,
+                  unsigned short transmission_radius)
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
         output_resources(output_resources),
@@ -37,6 +40,9 @@ struct ConverterConfig : public GridObjectConfig {
         cooldown(cooldown),
         initial_resource_count(initial_resource_count),
         color(color),
+        transmits_to_agents(transmits_to_agents),
+        transmits_to_converters(transmits_to_converters),
+        transmission_radius(transmission_radius),
         recipe_details_obs(recipe_details_obs),
         // These are always 0 when this is created, since we want a single constructor, and these
         // shouldn't be provided by Python.
@@ -51,6 +57,9 @@ struct ConverterConfig : public GridObjectConfig {
   unsigned short cooldown;
   InventoryQuantity initial_resource_count;
   ObservationType color;
+  bool transmits_to_agents;
+  bool transmits_to_converters;
+  unsigned short transmission_radius;
   bool recipe_details_obs;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
@@ -131,6 +140,9 @@ public:
   bool converting;                  // Currently in production phase
   bool cooling_down;                // Currently in cooldown phase
   unsigned char color;
+  bool transmits_to_agents;
+  bool transmits_to_converters;
+  unsigned short transmission_radius;
   bool recipe_details_obs;
   EventManager* event_manager;
   StatsTracker stats;
@@ -148,6 +160,9 @@ public:
         converting(false),
         cooling_down(false),
         color(cfg.color),
+        transmits_to_agents(cfg.transmits_to_agents),
+        transmits_to_converters(cfg.transmits_to_converters),
+        transmission_radius(cfg.transmission_radius),
         recipe_details_obs(cfg.recipe_details_obs),
         event_manager(nullptr),
         input_recipe_offset(cfg.input_recipe_offset),
@@ -181,6 +196,15 @@ public:
       HasInventory::update_inventory(item, static_cast<InventoryDelta>(amount));
       stats.add(stats.inventory_item_name(item) + ".produced", static_cast<float>(amount));
     }
+
+    // Attempt to transmit output to a nearby agent or converter
+
+
+
+
+
+
+    //////////////////////////////////////////////////////////////
 
     if (this->cooldown > 0) {
       // Start cooldown phase

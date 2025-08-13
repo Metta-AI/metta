@@ -180,6 +180,9 @@ class PyConverterConfig(BaseModelWithForbidExtra):
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0)
     color: int = Field(default=0, ge=0, le=255)
+    transmits_to_agents: bool = Field(default=False)
+    transmits_to_converters: bool = Field(default=False)
+    transmission_radius: int = Field(default=0)
 
 
 class PyGameConfig(BaseModelWithForbidExtra):
