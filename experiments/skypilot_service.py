@@ -169,8 +169,7 @@ class SkypilotService:
         if not skypilot.git_check:
             cmd.append("--skip-git-check")
 
-        if skypilot.dry_run:
-            cmd.append("--dry-run")
+        # Remove dry_run check - we removed this flag
 
         # Pass the config file path to launch.py
         cmd.append(f"--config-file={config_file}")

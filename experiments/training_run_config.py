@@ -43,6 +43,9 @@ class TrainingRunConfig(Config):
     bypass_mac_overrides: bool = False
     run_name_pattern: Optional[str] = None
 
+    # Store the path where YAML was saved for local testing
+    _saved_yaml_path: Optional[Path] = None
+
     def get_trainer_config(self) -> TrainerConfig:
         """Get the trainer config object.
 
@@ -151,8 +154,35 @@ class TrainingRunConfig(Config):
         # Get the full config
         full_config = self.serialize_to_yaml()
 
-        # Write to YAML file
+        # Write to YAML file with package directive
         with open(yaml_path, "w") as f:
+            f.write("# @package _global_\n")
             yaml.dump(full_config, f, default_flow_style=False, sort_keys=False)
 
         return yaml_path, full_config
+
+    def save_for_local_testing(self) -> str:
+        """Save YAML to a persistent location for local testing.
+
+        Returns:
+            Command to run tools/train.py with this config
+        """
+        # Save to a more persistent location for testing
+        test_dir = Path.home() / ".metta_test_configs"
+        test_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        yaml_path = test_dir / f"test_config_{timestamp}.yaml"
+
+        # Get the full config
+        full_config = self.serialize_to_yaml()
+
+        # Write to YAML file with package directive
+        with open(yaml_path, "w") as f:
+            f.write("# @package _global_\n")
+            yaml.dump(full_config, f, default_flow_style=False, sort_keys=False)
+
+        self._saved_yaml_path = yaml_path
+
+        # Return the command to run
+        return f"uv run ./tools/train.py --config-path={yaml_path.parent} --config-name={yaml_path.stem}"

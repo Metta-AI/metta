@@ -232,6 +232,11 @@ class Experiment(ABC):
 
                 print(f"\n  To view full YAML: cat {yaml_path}")
 
+                # Show local testing command
+                test_command = config.training.save_for_local_testing()
+                print("\n  To test locally with tools/train.py:")
+                print(f"    {test_command}")
+
             print("\n" + "=" * 60)
             print("To launch these jobs, remove --no-launch flag")
             print("=" * 60)
