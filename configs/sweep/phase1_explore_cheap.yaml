@@ -33,9 +33,9 @@ parameters:
     # 2. Batch size - critical for training dynamics
     batch_size:
       distribution: uniform_pow2
-      min: 65536 # 2^16 - FIXED across all phases
+      min: 524288 # 2^19 - FIXED across all phases (minimum ~516k)
       max: 1048576 # 2^20 - FIXED across all phases
-      mean: 131072 # 2^17 - bias toward small
+      mean: 524288 # 2^19 - bias toward minimum
       scale: auto
 
     # 3. Learning rate - most important optimizer parameter
