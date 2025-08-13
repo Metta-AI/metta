@@ -86,7 +86,7 @@ class MockAgent(MettaAgent):
         self.activate_actions(action_names, action_max_params, device)
 
         # Initialize observations to support feature remapping
-        self._initialize_observations(features, device)
+        self.activate_observations(features, device)
 
     def reset_memory(self):
         """Mock implementation - no memory to reset."""

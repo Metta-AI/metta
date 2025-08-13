@@ -48,10 +48,10 @@ class Recurrent(pufferlib.models.LSTMWrapper):
             device: Device to place tensors on
             is_training: Deprecated. Training mode is now automatically detected.
         """
-        self._initialize_observations(features, device, is_training)
+        self.activate_observations(features, device, is_training)
         self.activate_actions(action_names, action_max_params, device)
 
-    def _initialize_observations(self, features: dict[str, dict], device, is_training: bool):
+    def activate_observations(self, features: dict[str, dict], device, is_training: bool):
         """Initialize observation features by storing the feature mapping."""
         self.active_features = features
         self.device = device
