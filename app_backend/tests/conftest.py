@@ -1,4 +1,5 @@
-from typing import Dict
+import time
+from typing import Any, Dict
 from unittest import mock
 
 import pytest
@@ -133,3 +134,84 @@ def isolated_stats_client(isolated_test_client: TestClient) -> StatsClient:
 
     # Create stats client that works with TestClient
     return create_test_stats_client(isolated_test_client, machine_token=token)
+
+
+@pytest.fixture
+def create_test_data(stats_client: StatsClient):
+    def _create(run_name: str, num_policies: int = 2, create_run_free_policies: int = 0) -> dict[str, Any]:
+        data: dict[str, Any] = {"policies": [], "policy_names": []}
+
+        if num_policies > 0:
+            timestamp = int(time.time() * 1_000_000)
+            training_run = stats_client.create_training_run(
+                name=f"{run_name}_{timestamp}",
+                attributes={"environment": "test_env", "algorithm": "test_alg"},
+                url="https://example.com/run",
+                tags=["test_tag", "scorecard_test"],
+            )
+
+            epoch1 = stats_client.create_epoch(
+                run_id=training_run.id,
+                start_training_epoch=0,
+                end_training_epoch=100,
+                attributes={"learning_rate": "0.001"},
+            )
+            epoch2 = stats_client.create_epoch(
+                run_id=training_run.id,
+                start_training_epoch=100,
+                end_training_epoch=200,
+                attributes={"learning_rate": "0.0005"},
+            )
+
+            data["training_run"] = training_run
+            data["epochs"] = [epoch1, epoch2]
+
+            timestamp = int(time.time() * 1_000_000)
+            for i in range(num_policies):
+                epoch = epoch1 if i == 0 else epoch2
+                policy_name = f"policy_{run_name}_{i}_{timestamp}"
+                policy = stats_client.create_policy(
+                    name=policy_name,
+                    description=f"Test policy {i} for {run_name}",
+                    epoch_id=epoch.id,
+                )
+                data["policies"].append(policy)
+                data["policy_names"].append(policy_name)
+
+        timestamp = int(time.time() * 1_000_000)
+        for i in range(create_run_free_policies):
+            policy_name = f"runfree_policy_{run_name}_{i}_{timestamp}"
+            policy = stats_client.create_policy(
+                name=policy_name,
+                description=f"Run-free test policy {i} for {run_name}",
+                epoch_id=None,
+            )
+            data["policies"].append(policy)
+            data["policy_names"].append(policy_name)
+
+        return data
+
+    return _create
+
+
+@pytest.fixture
+def record_episodes(stats_client: StatsClient):
+    def _record(test_data: dict, eval_category: str, env_names: list[str], metric_values: dict[str, float]) -> None:
+        epochs = test_data.get("epochs", [])
+        for i, policy in enumerate(test_data["policies"]):
+            epoch_id = epochs[i % len(epochs)].id if epochs and i < len(epochs) else None
+            for env_name in env_names:
+                eval_name = f"{eval_category}/{env_name}"
+                metric_key = f"policy_{i}_{env_name}"
+                metric_value = metric_values.get(metric_key, 50.0)
+                stats_client.record_episode(
+                    agent_policies={0: policy.id},
+                    agent_metrics={0: {"reward": metric_value}},
+                    primary_policy_id=policy.id,
+                    stats_epoch=epoch_id,
+                    eval_name=eval_name,
+                    simulation_suite=eval_category,
+                    replay_url=f"https://example.com/replay/{policy.id}/{eval_name}",
+                )
+
+    return _record
