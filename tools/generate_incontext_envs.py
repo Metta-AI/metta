@@ -84,7 +84,6 @@ class InContextEnv:
         Get a converter, add it to the environment config, and return the converter, input, and output
         """
         converter = str(np.random.choice([c for c in self.converter_types if c not in self.used_objects]))
-        print(f"Converter: {converter} will convert {input_resource} to {output_resource}")
         self.used_objects.append(converter)
 
         self.env_cfg["game"]["map_builder"]["root"]["params"]["objects"][converter] = 1
@@ -136,7 +135,7 @@ class InContextEnvGenerator:
         self.maximum_num_sinks = maximum_num_sinks
 
         self.resource_types = RESOURCE_TYPES[: self.maximum_chain_length]
-        self.converter_types = CONVERTER_TYPES[: self.maximum_chain_length]
+        self.converter_types = CONVERTER_TYPES
 
         all_resource_permutations = []
         for length in range(1, min(len(self.resource_types), self.maximum_chain_length) + 1):
@@ -148,7 +147,7 @@ class InContextEnvGenerator:
         num_envs = 0
         for resource_chain in self.all_resource_permutations:
             chain_length = len(resource_chain)
-            for num_sinks in range(self.maximum_num_sinks):
+            for num_sinks in range(self.maximum_num_sinks+1):
                 env = InContextEnv(self.resource_types, self.converter_types, resource_chain, num_sinks)
                 env_cfg = env.get_env_cfg()
 
@@ -164,7 +163,7 @@ class InContextEnvGenerator:
                 # Sanitize to pure Python types and dump safely
                 clean_cfg = to_builtin(env_cfg)
                 with open(yaml_file_path, "w") as f:
-                    yaml.safe_dump(
+                    yaml.dump(
                         clean_cfg,
                         f,
                         sort_keys=False,
