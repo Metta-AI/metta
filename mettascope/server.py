@@ -163,17 +163,17 @@ def make_app(cfg: DictConfig):
         actions = np.zeros((env.num_agents, 2))
         total_rewards = np.zeros(env.num_agents)
 
-        # ---- Visual overlay state (play mode only) ----
+        # Visual overlay state for play mode only.
         overlay_enabled: bool = False
         overlay_agent_id: int = 0
         overlay_layer_id: int = 0
 
-        # Build and send available observation layers once
+        # Build and send the available observation layers once.
         try:
             feature_spec = env.get_observation_features()
             # feature_spec: name -> {"id": int, ...}
             layers = [{"id": int(spec["id"]), "name": str(name)} for name, spec in feature_spec.items() if "id" in spec]
-            # Sort by id for stable order
+            # Sort by id for a stable order.
             layers.sort(key=lambda x: x["id"])  # type: ignore
             await send_message(type="visual_layers", layers=layers)
         except Exception as e:
@@ -187,7 +187,9 @@ def make_app(cfg: DictConfig):
             packed_coord of 0xFF indicates padding/empty. Coordinates are within the observation window
             centered on the agent with size (obs_height, obs_width).
             """
-            obs = env.observations  # shape: [num_agents, tokens_per_agent, 3], dtype uint8
+            obs = (
+                env.observations
+            )  # The observation buffer has shape [num_agents, tokens_per_agent, 3] with dtype uint8.
             height = int(env.obs_height)
             width = int(env.obs_width)
             grid = np.zeros((height, width), dtype=np.int32)
@@ -196,11 +198,11 @@ def make_app(cfg: DictConfig):
                 return grid, width, height, 0, 0
 
             tokens = obs[agent_id]
-            # tokens shape: [M, 3]
+            # Tokens have shape [M, 3].
             for token in tokens:
                 packed = int(token[0])
                 if PackedCoordinate.is_empty(packed):
-                    # Past this point is padding
+                    # Values beyond this token are padding.
                     break
                 fid = int(token[1])
                 if fid != int(layer_id):
@@ -233,7 +235,7 @@ def make_app(cfg: DictConfig):
 
             await send_message(type="replay_step", replay_step={"step": current_step, "objects": grid_objects})
 
-            # If the visual overlay is enabled, send the current agent/layer grid as well
+            # If the visual overlay is enabled, send the current agent/layer grid as well.
             if overlay_enabled:
                 grid, width, height, vmin, vmax = extract_visual_grid(overlay_agent_id, overlay_layer_id)
                 await send_message(
@@ -269,7 +271,7 @@ def make_app(cfg: DictConfig):
                     overlay_enabled = bool(message.get("enabled", False))
                 except Exception:
                     overlay_enabled = False
-                # No immediate response; next replay_step will include overlay if enabled
+                # No immediate response; the next replay_step will include the overlay if it is enabled.
                 continue
 
             elif message["type"] == "visual_set_agent":

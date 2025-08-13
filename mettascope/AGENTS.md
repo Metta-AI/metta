@@ -40,7 +40,8 @@ Follow the repository-wide rules described in `/AGENTS.md`:
 
 ## Programming Guidelines
 
-- Important: all code comments should be full sentences and include a period at the end.
+- Important: all code comments should be full sentences that start with a capital letter and include a period at the end.
+  - for example: `// This is a great comment.`
 - do not write comments that are redundant with code.
 - common.ts is imported by most parts of mettascope and contains all the state.
 - Most 'magic number' constants should live in ./mettascope/src/common.ts

@@ -643,13 +643,12 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
     requestFrame()
   }
 
-  // Play-mode visual overlay toggle and layer cycling
+  // Play-mode visual overlay toggle and layer cycling.
   if (state.ws !== null) {
     if (event.key === 'o' || event.key === 'O') {
       state.showObsOverlay = !state.showObsOverlay
-      sendVisualOverlayEnable(state.showObsOverlay)
       if (state.showObsOverlay) {
-        // Initialize agent/layer on enable
+        // Initialize agent and layer before enabling so the server can respond immediately with a grid.
         if (state.selectedGridObject && state.selectedGridObject.isAgent) {
           const aid = state.selectedGridObject.agentId
           state.activeVisualAgentId = aid
@@ -660,6 +659,11 @@ onEvent('keydown', 'body', (_target: HTMLElement, e: Event) => {
           state.activeVisualLayerId = layerId
           sendVisualSetLayer(layerId)
         }
+        sendVisualOverlayEnable(true)
+      } else {
+        // Hide overlay immediately on the next frame.
+        sendVisualOverlayEnable(false)
+        state.visualGrid = null
       }
       requestFrame()
     }
