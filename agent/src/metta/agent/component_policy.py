@@ -82,6 +82,9 @@ class ComponentPolicy(nn.Module):
         self.cum_action_max_params = None
         self.action_index_tensor = None
 
+        self.hidden_size = self.components["_core_"].hidden_size
+        self.num_lstm_layers = self.components["_core_"].num_layers
+
     def forward(
         self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None
     ) -> Tuple[TensorDict, Optional[Tuple[torch.Tensor, torch.Tensor]]]:

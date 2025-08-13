@@ -80,13 +80,6 @@ class MettaAgent(nn.Module):
             }
         )
 
-        self.hidden_size = 128
-        self.num_lstm_layers = 2
-
-        logger.info(
-            f"MettaAgent initialized with hidden_size={self.hidden_size} and num_lstm_layers={self.num_lstm_layers}"
-        )
-
         self.obs_width = env.obs_width
         self.obs_height = env.obs_height
         self.action_space = env.single_action_space
@@ -99,6 +92,9 @@ class MettaAgent(nn.Module):
         self.policy = policy
         if self.policy is not None and hasattr(self.policy, "device"):
             self.policy.device = self.device
+
+        self.hidden_size = self.policy.hidden_size
+        self.num_lstm_layers = self.policy.num_lstm_layers
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
