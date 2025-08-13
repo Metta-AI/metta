@@ -12,6 +12,10 @@ TOTAL_TIMESTEPS="${2:-1000000000}"
 NUM_WORKERS="${3:-4}"
 GPUS="${4:-4}"
 NODES="${5:-8}"
+# Rendezvous params (used only when NODES>1); can be overridden via env or CLI positionals
+MASTER_ADDR="${6:-${MASTER_ADDR:-127.0.0.1}}"
+MASTER_PORT="${7:-${MASTER_PORT:-29500}}"
+NODE_RANK="${8:-${NODE_RANK:-0}}"
 
 # Generate unique run name with counter
 TIMESTAMP=$(date +%m-%d)
@@ -31,6 +35,11 @@ echo "Total timesteps: $TOTAL_TIMESTEPS"
 echo "Num workers: $NUM_WORKERS"
 echo "GPUs: $GPUS"
 echo "Nodes: $NODES"
+if [ "$NODES" -gt 1 ]; then
+echo "MASTER_ADDR: $MASTER_ADDR"
+echo "MASTER_PORT: $MASTER_PORT"
+echo "NODE_RANK: $NODE_RANK"
+fi
 
 # Set up environment
 export PYTHONPATH="${PYTHONPATH}:$(pwd)"
@@ -62,8 +71,8 @@ TRAIN_ARGS=(
     "trainer.dual_policy.training_agents_pct=0.5"
 )
 
-# Forward any additional overrides after the first 5 positionals
-EXTRA_ARGS=("${@:6}")
+# Forward any additional overrides after the first 8 positionals
+EXTRA_ARGS=("${@:9}")
 
 # Launch locally with optional multi-GPU / multi-node via torchrun
 if [ "$NODES" -eq 1 ] && [ "$GPUS" -eq 1 ]; then
@@ -75,11 +84,8 @@ elif [ "$NODES" -eq 1 ]; then
         "${TRAIN_ARGS[@]}" \
         "${EXTRA_ARGS[@]}"
 else
-    # For multi-node local runs, require rendezvous env to be set by the user
-    : "${MASTER_ADDR:?MASTER_ADDR must be set for multi-node runs}"
-    : "${MASTER_PORT:?MASTER_PORT must be set for multi-node runs}"
-    : "${NODE_RANK:?NODE_RANK must be set for multi-node runs}"
-
+    # Export rendezvous env (can still be overridden by caller)
+    export MASTER_ADDR MASTER_PORT NODE_RANK
     torchrun \
         --nproc_per_node="$GPUS" \
         --nnodes="$NODES" \
