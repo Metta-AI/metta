@@ -50,6 +50,8 @@ class Experience:
         self.bptt_horizon: int = bptt_horizon
         self.device = device if isinstance(device, torch.device) else torch.device(device)
         self.cpu_offload = cpu_offload
+        self.hidden_size = hidden_size
+        self.num_lstm_layers = num_lstm_layers
 
         # Calculate segments
         self.segments = batch_size // bptt_horizon
@@ -149,12 +151,10 @@ class Experience:
         self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
         self.ep_lengths[env_id] = 0
 
-
         self.states[env_id.start] = (
-            torch.zeros(num_lstm_layers, batch_size_actual, hidden_size, device=self.device),
-            torch.zeros(num_lstm_layers, batch_size_actual, hidden_size, device=self.device),
+            torch.zeros(self.num_lstm_layers, num_full, self.hidden_size, device=self.device),
+            torch.zeros(self.num_lstm_layers, num_full, self.hidden_size, device=self.device),
         )
-
 
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
