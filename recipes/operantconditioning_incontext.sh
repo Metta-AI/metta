@@ -16,9 +16,10 @@
   sim=operant_conditioning_incontext \
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
+  trainer.env_overrides.game.
   "$@"
 
-#3 converters
+# 3 converters
 ./devops/skypilot/launch.py train \
   run=$USER.operant_conditioning.in_context_learning.chain_length_3.128.$(date +%m-%d) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_3 \
@@ -35,7 +36,7 @@
   trainer.batch_size=2064384 \
   "$@"
 
-#4 converters
+# 4 converters
 ./devops/skypilot/launch.py train \
   run=$USER.operant_conditioning.in_context_learning.chain_length_4.128.$(date +%m-%d) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_4 \
@@ -52,7 +53,7 @@
   trainer.batch_size=2064384 \
   "$@"
 
-#all
+# all
 ./devops/skypilot/launch.py train \
   run=$USER.operant_conditioning.in_context_learning.all.128.$(date +%m-%d) \
   trainer.curriculum=env/mettagrid/curriculum/operant_conditioning/in_context_learning/all \
