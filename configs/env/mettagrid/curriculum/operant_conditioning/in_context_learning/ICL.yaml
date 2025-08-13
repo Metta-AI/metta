@@ -1,0 +1,6 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_2: 1
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_3: 1
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_4: 1

@@ -1,0 +1,22 @@
+defaults:
+   - /env/mettagrid/operant_conditioning/in_context_learning/defaults@
+   - _self_game:
+game:
+  map_builder:
+    root:
+      params:
+        objects:
+          mine_red: 1
+          generator_green: 1
+  objects:
+    mine_red:
+      output_resources:
+        ore_green: 1
+    generator_green:
+      input_resources:
+        ore_green: 1
+      output_resources:
+        heart: 1
+  agent:
+    initial_inventory:
+      ore_green: 1

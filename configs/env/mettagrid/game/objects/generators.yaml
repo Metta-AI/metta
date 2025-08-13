@@ -24,12 +24,22 @@ generator_blue:
 
 generator_green:
   type_id: 7
-  input_resources:
-    ore_green: 1
-  output_resources:
-    battery_green: 1
   color: 2
   max_output: 5
   conversion_ticks: 1
   cooldown: 25
+  initial_resource_count: 0
+
+armory:
+  type_id: 9
+  max_output: 5
+  conversion_ticks: 1
+  cooldown: 10
+  initial_resource_count: 0
+
+lasery:
+  type_id: 10
+  max_output: 5
+  conversion_ticks: 1
+  cooldown: 10
   initial_resource_count: 0
