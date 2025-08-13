@@ -9,9 +9,8 @@ from testcontainers.postgres import PostgresContainer
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.server import create_app
-from metta.common.tests.fixtures import docker_client_fixture
-
-from .client_adapter import create_test_stats_client
+from metta.app_backend.test_support import create_test_stats_client
+from metta.common.test_support import docker_client_fixture, isolated_test_schema_uri
 
 # Register the docker_client fixture
 docker_client = docker_client_fixture()
@@ -92,3 +91,45 @@ def stats_client(test_client: TestClient) -> StatsClient:
 
     # Create stats client that works with TestClient
     return create_test_stats_client(test_client, machine_token=token)
+
+
+# Isolated fixtures for function-scoped testing
+@pytest.fixture(scope="function")
+def isolated_db_context(db_uri: str) -> str:
+    """Create an isolated schema context for a single test."""
+    schema_uri = isolated_test_schema_uri(db_uri)
+    return schema_uri
+
+
+@pytest.fixture(scope="function")
+def isolated_stats_repo(isolated_db_context: str) -> MettaRepo:
+    """Create a MettaRepo instance with an isolated schema."""
+    return MettaRepo(isolated_db_context)
+
+
+@pytest.fixture(scope="function")
+def isolated_test_app(isolated_stats_repo: MettaRepo) -> FastAPI:
+    """Create a test FastAPI app with isolated database."""
+    return create_app(isolated_stats_repo)
+
+
+@pytest.fixture(scope="function")
+def isolated_test_client(isolated_test_app: FastAPI) -> TestClient:
+    """Create a test client with isolated database."""
+    return TestClient(isolated_test_app)
+
+
+@pytest.fixture(scope="function")
+def isolated_stats_client(isolated_test_client: TestClient) -> StatsClient:
+    """Create a stats client with isolated database for testing."""
+    # First create a machine token
+    token_response = isolated_test_client.post(
+        "/tokens",
+        json={"name": "test_token", "permissions": ["read", "write"]},
+        headers={"X-Auth-Request-Email": "test_user@example.com"},
+    )
+    assert token_response.status_code == 200, f"Failed to create token: {token_response.text}"
+    token = token_response.json()["token"]
+
+    # Create stats client that works with TestClient
+    return create_test_stats_client(isolated_test_client, machine_token=token)

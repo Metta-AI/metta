@@ -3,10 +3,12 @@ import os
 from collections import defaultdict
 from typing import cast
 
+import numpy as np
 import torch
 import torch.distributed
 from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
+from torchrl.data import Composite
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
@@ -20,36 +22,29 @@ from metta.core.monitoring import (
     setup_monitoring,
 )
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.mettagrid import MettaGridEnv
+from metta.eval.eval_service import evaluate_policy
+from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
-from metta.rl.checkpoint_manager import CheckpointManager
-from metta.rl.env_config import EnvConfig
-from metta.rl.evaluate import evaluate_policy
+from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
+from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
-from metta.rl.losses import Losses, process_minibatch_update
+from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
     compute_gradient_stats,
-    maybe_update_l2_weights,
 )
 from metta.rl.policy_management import (
-    load_or_initialize_policy,
-    validate_policy_environment_match,
+    initialize_policy_for_environment,
     wrap_agent_distributed,
 )
-from metta.rl.rollout import (
-    get_lstm_config,
-    get_observation,
-    run_dual_policy_rollout,
-    run_policy_inference,
-    send_observation,
-)
+from metta.rl.rollout import get_observation, send_observation
 from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
     process_stats,
 )
+from metta.rl.system_config import SystemConfig
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import TrainerConfig
@@ -62,9 +57,8 @@ from metta.rl.wandb import (
     abort_requested,
     log_model_parameters,
     setup_wandb_metrics,
-    upload_policy_artifact,
 )
-from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
+from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
 
 try:
@@ -78,15 +72,15 @@ except ImportError:
 torch.set_float32_matmul_precision("high")
 
 # Get rank for logger name
-rank = int(os.environ.get("RANK", 0))
-local_rank = int(os.environ.get("LOCAL_RANK", 0))
-logger = logging.getLogger(f"trainer-{rank}-{local_rank}")
+_rank = int(os.environ.get("RANK", 0))
+_local_rank = int(os.environ.get("LOCAL_RANK", 0))
+logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
 
 
 def train(
     run_dir: str,
     run: str,
-    env_cfg: EnvConfig,
+    system_cfg: SystemConfig,
     agent_cfg: DictConfig,
     device: torch.device,
     trainer_cfg: TrainerConfig,
@@ -127,7 +121,7 @@ def train(
     # Create vectorized environment
     vecenv = make_vecenv(
         curriculum,
-        env_cfg.vectorization,
+        system_cfg.vectorization,
         num_envs=num_envs,
         batch_size=batch_size,
         num_workers=trainer_cfg.num_workers,
@@ -135,7 +129,7 @@ def train(
         is_training=True,
     )
 
-    vecenv.async_reset(env_cfg.seed + rank)
+    vecenv.async_reset(system_cfg.seed + rank)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
@@ -162,61 +156,25 @@ def train(
         if checkpoint.stopwatch_state is not None:
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-    # Load or initialize policy
-    policy, initial_policy_record, latest_saved_policy_record = load_or_initialize_policy(
+    # Load or initialize policy with distributed coordination
+    initial_policy_record = latest_saved_policy_record = checkpoint_manager.load_or_create_policy(
         agent_cfg=agent_cfg,
-        env_cfg=env_cfg,
+        system_cfg=system_cfg,
         trainer_cfg=trainer_cfg,
         checkpoint=checkpoint,
-        policy_store=policy_store,
         metta_grid_env=metta_grid_env,
-        is_master=is_master,
-        rank=rank,
     )
 
-    # Load NPC policy for dual-policy training if enabled
-    npc_policy_record = None
-    npc_policy = None
-    if trainer_cfg.dual_policy.enabled:
-        if not trainer_cfg.dual_policy.checkpoint_npc.uri:
-            raise ValueError("checkpoint_npc.uri must be set when dual_policy.enabled is True")
-        try:
-            npc_policy_record = policy_store.policy_record(
-                trainer_cfg.dual_policy.checkpoint_npc.uri, selector_type="latest"
-            )
-            logger.info(f"Loaded NPC policy from {trainer_cfg.dual_policy.checkpoint_npc.uri}")
-            logger.info(f"NPC policy run name: {npc_policy_record.run_name}")
-            logger.info(
-                f"Dual-policy training enabled: {trainer_cfg.dual_policy.training_agents_pct:.1%} training agents"
-            )
+    # Don't proceed until all ranks have the policy
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
 
-            # Get the NPC policy module and prepare it
-            npc_policy = npc_policy_record.policy
-            npc_policy = npc_policy.to(device)  # Move to correct device
-            npc_policy.eval()  # Set to evaluation mode
-
-            # NPC policy loaded successfully
-            logger.info("NPC policy loaded successfully for dual-policy training")
-
-        except Exception as e:
-            logger.error(f"Failed to load NPC policy: {e}")
-            raise ValueError(f"Could not load NPC policy from {trainer_cfg.dual_policy.checkpoint_npc.uri}") from e
-
-    # Validate that policy matches environment
-    validate_policy_environment_match(policy, metta_grid_env)
+    policy: PolicyAgent = latest_saved_policy_record.policy
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")
         # torch.compile gives a CallbackFunctionType, but it preserves the interface of the original policy
         policy = cast(PolicyAgent, torch.compile(policy, mode=trainer_cfg.compile_mode))
-
-    # Create kickstarter
-    kickstarter = Kickstarter(
-        cfg=trainer_cfg.kickstart,
-        device=device,
-        policy_store=policy_store,
-        metta_grid_env=metta_grid_env,
-    )
 
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
@@ -227,59 +185,38 @@ def train(
 
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
-    features = metta_grid_env.get_observation_features()
-    policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
+    initialize_policy_for_environment(
+        policy_record=latest_saved_policy_record,
+        metta_grid_env=metta_grid_env,
+        device=device,
+        restore_feature_mapping=True,
+    )
 
-    # Initialize NPC policy to environment if dual-policy is enabled
-    if trainer_cfg.dual_policy.enabled and npc_policy_record is not None:
-        npc_policy_record.policy.initialize_to_environment(
-            features, metta_grid_env.action_names, metta_grid_env.max_action_args, device
-        )
-        logger.info("NPC policy initialized to environment")
+    # Create kickstarter
+    kickstarter = Kickstarter(
+        cfg=trainer_cfg.kickstart,
+        device=device,
+        policy_store=policy_store,
+        metta_grid_env=metta_grid_env,
+    )
 
-    # Get LSTM configuration
-    hidden_size, num_lstm_layers = get_lstm_config(policy)
-
-    #####################################################################below
-    # Calculate the number of agents that need LSTM states
-    # In dual-policy mode, only training agents need LSTM states
-    total_agents = vecenv.num_agents  # type: ignore[attr-defined]
-    if trainer_cfg.dual_policy.enabled and npc_policy_record is not None:
-        lstm_agents = int(total_agents * trainer_cfg.dual_policy.training_agents_pct)
-    else:
-        lstm_agents = total_agents
-    #####################################################################
+    # Get the experience buffer specification from the policy
+    policy_spec = policy.get_agent_experience_spec()
+    act_space = vecenv.single_action_space
+    act_dtype = torch.int32 if np.issubdtype(act_space.dtype, np.integer) else torch.float32
+    loss_spec = get_loss_experience_spec(act_space.nvec, act_dtype)
 
     # Create experience buffer
-    # In dual-policy mode, don't pass agents_per_batch - let it default to lstm_agents
-    if trainer_cfg.dual_policy.enabled and npc_policy_record is not None:
-        agents_per_batch_param = None  # Let Experience default it to lstm_agents
-    else:
-        agents_per_batch_param = getattr(vecenv, "agents_per_batch", None)
-
     experience = Experience(
-        total_agents=vecenv.num_agents,  # type: ignore[attr-defined]
-        batch_size=trainer_cfg.batch_size,  # Already scaled if needed
+        total_agents=vecenv.num_agents,
+        batch_size=trainer_cfg.batch_size,
         bptt_horizon=trainer_cfg.bptt_horizon,
         minibatch_size=trainer_cfg.minibatch_size,
         max_minibatch_size=trainer_cfg.minibatch_size,
-        obs_space=vecenv.single_observation_space,  # type: ignore[attr-defined]
-        atn_space=vecenv.single_action_space,  # type: ignore[attr-defined]
+        experience_spec=Composite({**dict(policy_spec.items()), **dict(loss_spec.items())}),
         device=device,
-        hidden_size=hidden_size,
         cpu_offload=trainer_cfg.cpu_offload,
-        num_lstm_layers=num_lstm_layers,
-        agents_per_batch=agents_per_batch_param,
-        #####################################################################below
-        lstm_agents=lstm_agents,  # Pass the number of agents that need LSTM states
-        #####################################################################
     )
-
-    # Get action dtype for environment
-    # MettaGrid uses int32 for actions (MultiDiscrete action space)
-    import numpy as np
-
-    dtype_actions = np.dtype(np.int32)
 
     # Create optimizer
     optimizer_type = trainer_cfg.optimizer.type
@@ -330,18 +267,19 @@ def train(
     stats_tracker = StatsTracker(rollout_stats=defaultdict(list))
     if stats_client is not None:
         # Extract wandb attributes with defaults
-        name = url = description = "unknown"
+        name = url = "unknown"
+        description: str | None = None
         tags: list[str] | None = None
         if wandb_run:
             name = wandb_run.name or name
             url = wandb_run.url
             if wandb_run.tags:
                 tags = list(wandb_run.tags)
-        description = wandb_run.notes if wandb_run else None
+            description = wandb_run.notes
 
         try:
             stats_tracker.stats_run_id = stats_client.create_training_run(
-                name=name, attributes={}, url=url, description=description, tags=tags
+                name=name, url=url, description=description, tags=tags
             ).id
         except Exception as e:
             logger.warning(f"Failed to create training run: {e}", exc_info=True)
@@ -362,89 +300,41 @@ def train(
                 experience.reset_for_rollout()
                 total_steps = 0
 
+                policy.reset_memory()
+                buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
+
                 while not experience.ready_for_training:
                     # Get observation
-                    o, r, d, t, info, training_env_id, mask, num_steps = get_observation(vecenv, device, timer)
+                    o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
                     total_steps += num_steps
 
-                    # Run policy inference (dual-policy or single-policy)
-                    if trainer_cfg.dual_policy.enabled and npc_policy_record is not None:
-                        # Dual-policy training: some agents use training policy, others use NPC policy
-                        actions, selected_action_log_probs, values, lstm_state_to_store = run_dual_policy_rollout(
-                            training_policy=policy,
-                            npc_policy=npc_policy_record.policy,
-                            observations=o,
-                            experience=experience,
-                            training_env_id_start=training_env_id.start,
-                            device=device,
-                            training_agents_pct=trainer_cfg.dual_policy.training_agents_pct,
-                            num_agents_per_env=vecenv.num_agents,  # type: ignore
-                            num_envs=vecenv.num_envs,  # type: ignore
-                        )
+                    td = buffer_step[training_env_id].clone()
+                    td["env_obs"] = o
+                    td["rewards"] = r
+                    td["dones"] = d.float()
+                    td["truncateds"] = t.float()
+                    td.set(
+                        "training_env_id_start",
+                        torch.full(
+                            td.batch_size,
+                            training_env_id.start,
+                            device=td.device,
+                            dtype=torch.long,
+                        ),
+                    )
 
-                        # In dual-policy mode, we need to filter data to training agents only for experience storage
-                        # Calculate how many training agents we have
-                        num_training_agents = int(o.shape[0] * trainer_cfg.dual_policy.training_agents_pct)
+                    # Inference
+                    with torch.no_grad():
+                        policy(td)
 
-                        # Filter all data to only training agents (first N agents by convention)
-                        training_obs = o[:num_training_agents]
-                        training_actions = actions[:num_training_agents]  # Get training agent actions
-                        training_logprobs = selected_action_log_probs[:num_training_agents]  # Filter log_probs
-                        training_values = values[:num_training_agents]  # Filter values
-                        training_rewards = r[:num_training_agents]
-                        training_dones = d[:num_training_agents]
-                        training_truncations = t[:num_training_agents]
-                        training_mask = (
-                            mask[:num_training_agents]
-                            if mask is not None
-                            else torch.ones(num_training_agents, device=device)
-                        )
-
-                        # In dual-policy mode, create env_id for training agents only
-                        # Training agents are always the first N agents in the batch
-                        training_env_id_adjusted = slice(0, num_training_agents)
-
-                        # Store only training policy experience
-                        experience.store(
-                            obs=training_obs,
-                            actions=training_actions,
-                            logprobs=training_logprobs,
-                            rewards=training_rewards,
-                            dones=training_dones,
-                            truncations=training_truncations,
-                            values=training_values,
-                            env_id=training_env_id_adjusted,
-                            mask=training_mask,
-                            lstm_state=lstm_state_to_store,
-                        )
-                    else:
-                        # Single-policy training: all agents use training policy
-                        actions, selected_action_log_probs, values, lstm_state_to_store = run_policy_inference(
-                            policy, o, experience, training_env_id.start, device
-                        )
-
-                        # Store experience (all agents are training agents)
-                        experience.store(
-                            obs=o,
-                            actions=actions,
-                            logprobs=selected_action_log_probs,
-                            rewards=r,
-                            dones=d,
-                            truncations=t,
-                            values=values,
-                            env_id=training_env_id,
-                            mask=mask,
-                            lstm_state=lstm_state_to_store,
-                        )
+                    # Store experience
+                    experience.store(
+                        data_td=td,
+                        env_id=training_env_id,
+                    )
 
                     # Send observation
-                    # Debug actions shape for dual-policy
-                    if trainer_cfg.dual_policy.enabled and agent_step < 100:
-                        logger.info(f"[Dual-Policy Debug] Actions shape: {actions.shape}, dtype: {actions.dtype}")
-                        logger.info(f"[Dual-Policy Debug] Observations shape: {o.shape}")
-                        logger.info(f"[Dual-Policy Debug] Expected agents: {vecenv.num_agents}")  # type: ignore
-
-                    send_observation(vecenv, actions, dtype_actions, timer)
+                    send_observation(vecenv, td["actions"], dtype_actions, timer)
 
                     if info:
                         raw_infos.extend(info)
@@ -468,13 +358,13 @@ def train(
                 )
 
                 # Compute initial advantages
-                advantages = torch.zeros(experience.values.shape, device=device)
-                initial_importance_sampling_ratio = torch.ones_like(experience.values)
+                advantages = torch.zeros(experience.buffer["values"].shape, device=device)
+                initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
 
                 advantages = compute_advantage(
-                    experience.values,
-                    experience.rewards,
-                    experience.dones,
+                    experience.buffer["values"],
+                    experience.buffer["rewards"],
+                    experience.buffer["dones"],
                     initial_importance_sampling_ratio,
                     advantages,
                     trainer_cfg.ppo.gamma,
@@ -485,27 +375,30 @@ def train(
                 )
 
                 # Train for multiple epochs
-                total_minibatches = experience.num_minibatches * trainer_cfg.update_epochs
                 minibatch_idx = 0
                 epochs_trained = 0
+                policy_spec = policy.get_agent_experience_spec()
 
                 for _update_epoch in range(trainer_cfg.update_epochs):
                     for _ in range(experience.num_minibatches):
+                        policy.reset_memory()
                         # Sample minibatch
-                        minibatch = experience.sample_minibatch(
+                        minibatch, indices, prio_weights = experience.sample_minibatch(
                             advantages=advantages,
                             prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
                             prio_beta=anneal_beta,
-                            minibatch_idx=minibatch_idx,
-                            total_minibatches=total_minibatches,
                         )
+
+                        policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
 
                         # Process minibatch
                         loss = process_minibatch_update(
                             policy=policy,
                             experience=experience,
                             minibatch=minibatch,
-                            advantages=advantages,
+                            policy_td=policy_td,
+                            indices=indices,
+                            prio_weights=prio_weights,
                             trainer_cfg=trainer_cfg,
                             kickstarter=kickstarter,
                             agent_step=agent_step,
@@ -515,6 +408,8 @@ def train(
 
                         # Optimizer step
                         optimizer.zero_grad()
+
+                        # This also serves as a barrier for all ranks
                         loss.backward()
 
                         if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
@@ -522,10 +417,9 @@ def train(
                             optimizer.step()
 
                             # Optional weight clipping
-                            if hasattr(policy, "clip_weights"):
-                                policy.clip_weights()
+                            policy.clip_weights()
 
-                            if str(device).startswith("cuda"):
+                            if device.type == "cuda":
                                 torch.cuda.synchronize()
 
                         minibatch_idx += 1
@@ -538,18 +432,26 @@ def train(
                             break
 
                 # Calculate explained variance
-                y_pred = experience.values.flatten()
-                y_true = advantages.flatten() + experience.values.flatten()
+                y_pred = experience.buffer["values"].flatten()
+                y_true = advantages.flatten() + experience.buffer["values"].flatten()
                 var_y = y_true.var()
                 losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             epoch += epochs_trained
 
+        # Safe to proceed to next rollout phase only once all ranks have completed training
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+
+        if not is_master:
+            # Only master needs to do bookkeeping
+            continue
+
         torch_profiler.on_epoch_end(epoch)
 
-        # Process stats
         with timer("_process_stats"):
-            if is_master and wandb_run:
+            if wandb_run:
                 process_stats(
+                    agent_cfg=agent_cfg,
                     stats=stats_tracker.rollout_stats,
                     losses=losses,
                     evals=eval_scores,
@@ -560,98 +462,52 @@ def train(
                     trainer_cfg=trainer_cfg,
                     agent_step=agent_step,
                     epoch=epoch,
-                    world_size=world_size,
                     wandb_run=wandb_run,
-                    memory_monitor=memory_monitor,
-                    system_monitor=system_monitor,
+                    # We know these exist within master
+                    memory_monitor=memory_monitor,  # type: ignore[arg-type]
+                    system_monitor=system_monitor,  # type: ignore[arg-type]
                     latest_saved_policy_record=latest_saved_policy_record,
-                    initial_policy_record=initial_policy_record,
                     optimizer=optimizer,
                     kickstarter=kickstarter,
                 )
-
-                # Add dual-policy specific logging if enabled
-                if is_master and wandb_run and trainer_cfg.dual_policy.enabled and npc_policy_record is not None:
-                    # Log dual-policy configuration and status
-                    dual_policy_stats = {
-                        "dual_policy/enabled": True,
-                        "dual_policy/training_agents_pct": trainer_cfg.dual_policy.training_agents_pct,
-                        "dual_policy/npc_policy_uri": trainer_cfg.dual_policy.checkpoint_npc.uri,
-                        "dual_policy/npc_policy_run_name": npc_policy_record.run_name,
-                        "dual_policy/npc_policy_generation": npc_policy_record.metadata.get("generation", 0),
-                    }
-                    wandb_run.log(dual_policy_stats, step=agent_step)
-
-                    # Enable dual-policy stats on the underlying environment
-                    # TODO: Re-enable when dual-policy stats are properly integrated
-                    # metta_grid_env._dual_policy_enabled = True
-
             # Clear stats after processing
             stats_tracker.clear_rollout_stats()
             stats_tracker.clear_grad_stats()
 
-        # Log training status
-        if is_master:
-            log_training_progress(
-                epoch=epoch,
-                agent_step=agent_step,
-                prev_agent_step=steps_before,
-                total_timesteps=trainer_cfg.total_timesteps,
-                train_time=timer.get_last_elapsed("_train"),
-                rollout_time=timer.get_last_elapsed("_rollout"),
-                stats_time=timer.get_last_elapsed("_process_stats"),
-                run_name=run,
-            )
+        log_training_progress(
+            epoch=epoch,
+            agent_step=agent_step,
+            prev_agent_step=steps_before,
+            total_timesteps=trainer_cfg.total_timesteps,
+            train_time=timer.get_last_elapsed("_train"),
+            rollout_time=timer.get_last_elapsed("_rollout"),
+            stats_time=timer.get_last_elapsed("_process_stats"),
+            run_name=run,
+        )
+        checkpoint_result = maybe_establish_checkpoint(
+            checkpoint_manager=checkpoint_manager,
+            epoch=epoch,
+            policy=policy,
+            agent_step=agent_step,
+            eval_scores=eval_scores,
+            timer=timer,
+            initial_policy_record=initial_policy_record,
+            optimizer=optimizer,
+            run_dir=run_dir,
+            kickstarter=kickstarter,
+            wandb_run=wandb_run,
+        )
+        if checkpoint_result:
+            # TODO: wandb_policy_name should come directly from last_saved_policy_record
+            latest_saved_policy_record, wandb_policy_name = checkpoint_result
 
-        # Update L2 weights if configured
-        if interval := getattr(policy, "l2_init_weight_update_interval", 0):
-            maybe_update_l2_weights(policy, epoch, interval, is_master)
-
-        # Save policy - all ranks must participate in checkpoint decision
-        if should_run(epoch, trainer_cfg.checkpoint.checkpoint_interval, is_master):
-            saved_record = checkpoint_manager.save_policy(
-                policy=policy,
-                epoch=epoch,
-                agent_step=agent_step,
-                evals=eval_scores,
-                timer=timer,
-                initial_policy_record=initial_policy_record,
-            )
-
-            if saved_record:
-                initial_policy_record = saved_record  # Update initial_policy_record
-
-                # Only master saves training state
-                if is_master:
-                    checkpoint_manager.save_checkpoint(
-                        agent_step=agent_step,
-                        epoch=epoch,
-                        optimizer=optimizer,
-                        policy_path=saved_record.uri,
-                        timer=timer,
-                        run_dir=run_dir,
-                        kickstarter=kickstarter,
-                    )
-
-            # All ranks must synchronize after checkpoint operations
-            # This barrier must be outside the if saved_record block so all ranks hit it
-            if torch.distributed.is_initialized():
-                torch.distributed.barrier()
-
-        # Upload to wandb
-        if should_run(epoch, trainer_cfg.checkpoint.wandb_checkpoint_interval, is_master):
-            wandb_policy_name = upload_policy_artifact(wandb_run, policy_store, initial_policy_record)
-
-        # Evaluate policy (with remote evaluation support)
-        if should_run(epoch, trainer_cfg.simulation.evaluate_interval, is_master):
-            if initial_policy_record:
-                # Create stats epoch if needed
-                if stats_client is not None and stats_tracker.stats_run_id is not None:
+        if should_run(epoch, trainer_cfg.simulation.evaluate_interval):
+            if latest_saved_policy_record:
+                if stats_client and stats_tracker.stats_run_id:
                     stats_tracker.stats_epoch_id = stats_client.create_epoch(
                         run_id=stats_tracker.stats_run_id,
                         start_training_epoch=stats_tracker.stats_epoch_start,
                         end_training_epoch=epoch,
-                        attributes={},
                     ).id
 
                 # Create extended simulation suite that includes the training task
@@ -659,9 +515,6 @@ def train(
                 merged_env_overrides: dict = OmegaConf.to_container(  # type: ignore
                     OmegaConf.merge(sim_suite_config.env_overrides, trainer_cfg.env_overrides)
                 )
-                # Ensure merged_env_overrides is a dict (to_container may return various types)
-                if not isinstance(merged_env_overrides, dict):
-                    merged_env_overrides = {}
                 extended_suite_config = SimulationSuiteConfig(
                     name=sim_suite_config.name,
                     simulations=dict(sim_suite_config.simulations),
@@ -669,91 +522,93 @@ def train(
                     num_episodes=sim_suite_config.num_episodes,
                 )
 
-                # Add training task to the suite
-                # Pass the config as _pre_built_env_config to avoid Hydra loading
-                task_cfg = curriculum.get_task().env_cfg()
-                training_task_config = SingleEnvSimulationConfig(
-                    env="eval/training_task",  # Just a descriptive name
-                    num_episodes=1,
-                    env_overrides={"_pre_built_env_config": task_cfg},
-                )
-                extended_suite_config.simulations["eval/training_task"] = training_task_config
+                evaluate_local = trainer_cfg.simulation.evaluate_local
 
-                # Evaluate policy using the extracted evaluation function
-                eval_scores = evaluate_policy(
-                    policy_record=initial_policy_record,
-                    sim_suite_config=extended_suite_config,
-                    device=device,
-                    vectorization=env_cfg.vectorization,
-                    replay_dir=trainer_cfg.simulation.replay_dir,
-                    stats_epoch_id=stats_tracker.stats_epoch_id,
-                    wandb_policy_name=wandb_policy_name,
-                    policy_store=policy_store,
-                    stats_client=stats_client,
-                    wandb_run=wandb_run,
-                    trainer_cfg=trainer_cfg,
-                    agent_step=agent_step,
-                    epoch=epoch,
-                )
+                if trainer_cfg.simulation.evaluate_remote:
+                    try:
+                        evaluate_policy_remote(
+                            policy_record=latest_saved_policy_record,
+                            sim_suite_config=extended_suite_config,
+                            stats_epoch_id=stats_tracker.stats_epoch_id,
+                            wandb_policy_name=wandb_policy_name,
+                            stats_client=stats_client,
+                            wandb_run=wandb_run,
+                            trainer_cfg=trainer_cfg,
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
+                        logger.error("Falling back to local evaluation")
+                        evaluate_local = True
+
+                if evaluate_local:
+                    evaluation_results = evaluate_policy(
+                        policy_record=latest_saved_policy_record,
+                        simulation_suite=extended_suite_config,
+                        device=device,
+                        vectorization=system_cfg.vectorization,
+                        replay_dir=trainer_cfg.simulation.replay_dir,
+                        stats_epoch_id=stats_tracker.stats_epoch_id,
+                        wandb_policy_name=wandb_policy_name,
+                        policy_store=policy_store,
+                        stats_client=stats_client,
+                        logger=logger,
+                        training_curriculum=curriculum,
+                    )
+                    logger.info("Simulation complete")
+                    eval_scores = evaluation_results.scores
+                    category_scores = list(eval_scores.category_scores.values())
+                    if category_scores and latest_saved_policy_record:
+                        latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+                    if wandb_run is not None and evaluation_results.replay_urls:
+                        upload_replay_html(
+                            replay_urls=evaluation_results.replay_urls,
+                            agent_step=agent_step,
+                            epoch=epoch,
+                            wandb_run=wandb_run,
+                        )
 
                 stats_tracker.update_epoch_tracking(epoch + 1)
 
         # Compute gradient stats
-        if should_run(epoch, trainer_cfg.grad_mean_variance_interval, is_master):
+        if should_run(epoch, trainer_cfg.grad_mean_variance_interval):
             with timer("grad_stats"):
                 stats_tracker.grad_stats = compute_gradient_stats(policy)
 
         # Check for abort every 5 epochs
-        if should_run(epoch, 5, is_master):
+        if should_run(epoch, 5):
             if wandb_run and abort_requested(wandb_run, min_interval_sec=60):
                 logger.info("Abort tag detected. Stopping the run.")
                 trainer_cfg.total_timesteps = int(agent_step)
                 wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
                 break
 
-    if is_master:
-        logger.info("Training complete!")
-        timing_summary = timer.get_all_summaries()
-        for name, summary in timing_summary.items():
-            logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
-
-    # Force final saves - all ranks must participate
-    if is_master:
-        saved_record = checkpoint_manager.save_policy(
-            policy=policy,
-            epoch=epoch,
-            agent_step=agent_step,
-            evals=eval_scores,
-            timer=timer,
-            initial_policy_record=initial_policy_record,
-            force=True,
-        )
-        if saved_record:
-            initial_policy_record = saved_record  # Update initial_policy_record
-
-            # Save final training state
-            checkpoint_manager.save_checkpoint(
-                agent_step=agent_step,
-                epoch=epoch,
-                optimizer=optimizer,
-                policy_path=saved_record.uri,
-                timer=timer,
-                run_dir=run_dir,
-                kickstarter=kickstarter,
-                force=True,
-            )
-
-    # All ranks must synchronize after final save operations
+    # All ranks wait until training is complete before closing vecenv
     if torch.distributed.is_initialized():
         torch.distributed.barrier()
 
-    if wandb_run and initial_policy_record:
-        upload_policy_artifact(wandb_run, policy_store, initial_policy_record)
-
-    # Final synchronization before cleanup
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
-
-    # Cleanup
     vecenv.close()
+
+    if not is_master:
+        return
+
+    logger.info("Training complete!")
+    timing_summary = timer.get_all_summaries()
+    for name, summary in timing_summary.items():
+        logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
+
+    maybe_establish_checkpoint(
+        checkpoint_manager=checkpoint_manager,
+        epoch=epoch,
+        policy=policy,
+        agent_step=agent_step,
+        eval_scores=eval_scores,
+        timer=timer,
+        initial_policy_record=initial_policy_record,
+        optimizer=optimizer,
+        run_dir=run_dir,
+        kickstarter=kickstarter,
+        force=True,
+        wandb_run=wandb_run,
+    )
+
     cleanup_monitoring(memory_monitor, system_monitor)

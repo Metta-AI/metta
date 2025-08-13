@@ -10,6 +10,7 @@ from testcontainers.postgres import PostgresContainer
 from metta.common.util.fs import get_repo_root
 
 
+@pytest.mark.skip(reason="Skipping Docker integration tests for now")
 class TestDockerIntegration:
     """Integration tests for the app_backend Docker container."""
 

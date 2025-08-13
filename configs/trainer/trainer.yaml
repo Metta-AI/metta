@@ -17,7 +17,8 @@ checkpoint:
 simulation:
   evaluate_interval: 200
   replay_dir: s3://softmax-public/replays/${run}
-  evaluate_remote: false
+  evaluate_remote: true
+  evaluate_local: true
   git_hash: null
   skip_git_check: false
 

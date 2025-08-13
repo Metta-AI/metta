@@ -5,6 +5,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.app_backend.metta_repo import MettaRepo
 
 
 @pytest.mark.slow
@@ -124,19 +125,15 @@ class TestPolicyScorecardRoutes:
         )
 
         # Get all policies without search
-        response = test_client.post("/heatmap/policies", json={"pagination": {"page": 1, "page_size": 25}})
+        response = test_client.get("/heatmap/policies")
         assert response.status_code == 200
         result = response.json()
 
         # Verify response structure
         assert "policies" in result
-        assert "total_count" in result
-        assert "page" in result
-        assert "page_size" in result
 
         # Should have 2 total policies (1 training run + 1 run-free policy)
         assert len(result["policies"]) >= 2
-        assert result["total_count"] >= 2
 
         # Find training run and policy in unified list
         training_run = next(p for p in result["policies"] if p["type"] == "training_run")
@@ -163,99 +160,6 @@ class TestPolicyScorecardRoutes:
         assert policy["type"] == "policy"
         assert isinstance(policy["tags"], list)
         assert policy["tags"] == []  # Run-free policies have empty tags
-
-    def test_get_policies_with_search(self, test_client: TestClient, stats_client: StatsClient) -> None:
-        """Test policy filtering with search text."""
-        # Create test data first
-        test_data = self._create_test_data(stats_client, "search_test", num_policies=2)
-
-        # Record episodes so policies appear in wide_episodes view
-        self._record_episodes(
-            stats_client,
-            test_data,
-            eval_category="navigation",
-            env_names=["test_env"],
-            metric_values={"policy_0_test_env": 75.0, "policy_1_test_env": 85.0},
-        )
-
-        # Search by training run name
-        response = test_client.post(
-            "/heatmap/policies",
-            json={"search_text": "search_test", "pagination": {"page": 1, "page_size": 25}},
-        )
-        assert response.status_code == 200
-        result = response.json()
-
-        # Should return the matching training run
-        assert len(result["policies"]) >= 1
-        policy_names = [p["name"] for p in result["policies"]]
-        assert any("search_test" in name for name in policy_names)
-
-        # Search by user (should match all since same user created all)
-        response = test_client.post(
-            "/heatmap/policies",
-            json={"search_text": "test_user", "pagination": {"page": 1, "page_size": 25}},
-        )
-        assert response.status_code == 200
-        result = response.json()
-        # Should have at least our test training run
-        assert len(result["policies"]) >= 1
-
-    def test_get_policies_with_tag_search(self, test_client: TestClient, stats_client: StatsClient) -> None:
-        """Test policy filtering with tag search."""
-        # Create test data first
-        test_data = self._create_test_data(stats_client, "tag_search_test", num_policies=2)
-
-        # Record episodes so policies appear in wide_episodes view
-        self._record_episodes(
-            stats_client,
-            test_data,
-            eval_category="navigation",
-            env_names=["test_env"],
-            metric_values={"policy_0_test_env": 75.0, "policy_1_test_env": 85.0},
-        )
-
-        # Search by tag (tags are ["test_tag", "scorecard_test"] from _create_test_data)
-        response = test_client.post(
-            "/heatmap/policies",
-            json={"search_text": "test_tag", "pagination": {"page": 1, "page_size": 25}},
-        )
-        assert response.status_code == 200
-        result = response.json()
-
-        # Should return the matching training run
-        assert len(result["policies"]) >= 1
-        training_run = next(p for p in result["policies"] if p["type"] == "training_run")
-        assert "test_tag" in training_run["tags"]
-
-        # Search by partial tag match
-        response = test_client.post(
-            "/heatmap/policies",
-            json={"search_text": "scorecard", "pagination": {"page": 1, "page_size": 25}},
-        )
-        assert response.status_code == 200
-        result = response.json()
-
-        # Should return the matching training run
-        assert len(result["policies"]) >= 1
-        training_run = next(p for p in result["policies"] if p["type"] == "training_run")
-        assert any("scorecard" in tag for tag in training_run["tags"])
-
-        # Search by non-existent tag
-        response = test_client.post(
-            "/heatmap/policies",
-            json={"search_text": "nonexistent_tag", "pagination": {"page": 1, "page_size": 25}},
-        )
-        assert response.status_code == 200
-        result = response.json()
-
-        # Should not return any training runs matching this tag
-        tag_match_count = sum(
-            1
-            for p in result["policies"]
-            if p["type"] == "training_run" and any("nonexistent_tag" in tag for tag in p["tags"])
-        )
-        assert tag_match_count == 0
 
     def test_get_eval_categories(self, test_client: TestClient, stats_client: StatsClient) -> None:
         """Test getting evaluation categories for selected policies."""
@@ -672,10 +576,7 @@ class TestPolicyScorecardRoutes:
             )
 
         # Get all policies
-        response = test_client.post(
-            "/heatmap/policies",
-            json={"search_text": base_name, "pagination": {"page": 1, "page_size": 25}},
-        )
+        response = test_client.get("/heatmap/policies")
         assert response.status_code == 200
         policies_data = response.json()
 
@@ -2264,6 +2165,226 @@ class TestPolicyScorecardRoutes:
         # The average should be dominated by the large value, so should be quite large
         assert actual_avg > 200000.0  # Much larger than the other values
         assert actual_avg < 1000000.0  # But less than the max value
+
+    @pytest.mark.asyncio
+    async def test_leaderboard_scorecard_integration(
+        self, isolated_test_client: TestClient, isolated_stats_client: StatsClient, isolated_stats_repo: MettaRepo
+    ) -> None:
+        """Integration test for leaderboard scorecard functionality.
+
+        This test:
+        1. Sets up test data with multiple training runs and run-free policies
+        2. Creates a leaderboard
+        3. Runs the leaderboard updater to populate scores
+        4. Gets the leaderboard scorecard
+        5. Compares it with individually selected policies to validate consistency
+        """
+        import datetime
+
+        stats_client = isolated_stats_client
+        test_client = isolated_test_client
+        stats_repo = isolated_stats_repo
+
+        # Create test data with multiple training runs and run-free policies
+        test_data1 = self._create_test_data(stats_client, "leaderboard_integration_run1", num_policies=3)
+        test_data2 = self._create_test_data(stats_client, "leaderboard_integration_run2", num_policies=2)
+        run_free_data = self._create_test_data(
+            stats_client, "leaderboard_integration_runfree", num_policies=0, create_run_free_policies=2
+        )
+
+        # Record episodes with varied performance across different categories
+        categories_and_envs = [
+            ("navigation", ["maze1", "maze2"]),
+            ("combat", ["arena1", "arena2"]),
+            ("cooperation", ["team1"]),
+        ]
+
+        # Training run 1: policy 2 is best (highest average)
+        run1_metrics = {
+            "policy_0_maze1": 60.0,
+            "policy_0_maze2": 65.0,  # avg: 62.5
+            "policy_0_arena1": 55.0,
+            "policy_0_arena2": 60.0,  # avg: 57.5
+            "policy_0_team1": 50.0,  # Overall avg: 56.67
+            "policy_1_maze1": 70.0,
+            "policy_1_maze2": 75.0,  # avg: 72.5
+            "policy_1_arena1": 65.0,
+            "policy_1_arena2": 70.0,  # avg: 67.5
+            "policy_1_team1": 60.0,  # Overall avg: 66.67
+            "policy_2_maze1": 85.0,
+            "policy_2_maze2": 90.0,  # avg: 87.5
+            "policy_2_arena1": 80.0,
+            "policy_2_arena2": 85.0,  # avg: 82.5
+            "policy_2_team1": 75.0,  # Overall avg: 81.67 (best)
+        }
+        self._record_episodes(stats_client, test_data1, "navigation", ["maze1", "maze2"], run1_metrics)
+        self._record_episodes(stats_client, test_data1, "combat", ["arena1", "arena2"], run1_metrics)
+        self._record_episodes(stats_client, test_data1, "cooperation", ["team1"], run1_metrics)
+
+        # Training run 2: policy 1 is best
+        run2_metrics = {
+            "policy_0_maze1": 50.0,
+            "policy_0_maze2": 55.0,  # avg: 52.5
+            "policy_0_arena1": 45.0,
+            "policy_0_arena2": 50.0,  # avg: 47.5
+            "policy_0_team1": 40.0,  # Overall avg: 46.67
+            "policy_1_maze1": 90.0,
+            "policy_1_maze2": 95.0,  # avg: 92.5
+            "policy_1_arena1": 85.0,
+            "policy_1_arena2": 90.0,  # avg: 87.5
+            "policy_1_team1": 80.0,  # Overall avg: 86.67 (best)
+        }
+        self._record_episodes(stats_client, test_data2, "navigation", ["maze1", "maze2"], run2_metrics)
+        self._record_episodes(stats_client, test_data2, "combat", ["arena1", "arena2"], run2_metrics)
+        self._record_episodes(stats_client, test_data2, "cooperation", ["team1"], run2_metrics)
+
+        # Run-free policies: high performance
+        runfree_metrics = {
+            "policy_0_maze1": 95.0,
+            "policy_0_maze2": 98.0,  # avg: 96.5
+            "policy_0_arena1": 92.0,
+            "policy_0_arena2": 95.0,  # avg: 93.5
+            "policy_0_team1": 90.0,  # Overall avg: 93.33
+            "policy_1_maze1": 88.0,
+            "policy_1_maze2": 92.0,  # avg: 90.0
+            "policy_1_arena1": 85.0,
+            "policy_1_arena2": 88.0,  # avg: 86.5
+            "policy_1_team1": 82.0,  # Overall avg: 86.17
+        }
+        self._record_episodes(stats_client, run_free_data, "navigation", ["maze1", "maze2"], runfree_metrics)
+        self._record_episodes(stats_client, run_free_data, "combat", ["arena1", "arena2"], runfree_metrics)
+        self._record_episodes(stats_client, run_free_data, "cooperation", ["team1"], runfree_metrics)
+
+        # Create leaderboard
+        eval_names = [f"{cat}/{env}" for cat, envs in categories_and_envs for env in envs]
+        start_date = datetime.datetime.now() - datetime.timedelta(days=1)
+
+        leaderboard_response = test_client.post(
+            "/leaderboards",
+            json={
+                "name": "Integration Test Leaderboard",
+                "evals": eval_names,
+                "metric": "reward",
+                "start_date": start_date.isoformat(),
+            },
+            headers={"X-Auth-Request-Email": "test_user@example.com"},
+        )
+        assert leaderboard_response.status_code == 200, f"Failed to create leaderboard: {leaderboard_response.text}"
+        leaderboard = leaderboard_response.json()
+        leaderboard_id = leaderboard["id"]
+
+        # Now we need to manually trigger the leaderboard update process
+        # to populate the leaderboard_policy_scores table. We'll do this by
+        # manually running the update logic using the stats_repo fixture.
+
+        # Import the necessary components for manual leaderboard update
+        import uuid
+
+        from metta.app_backend.leaderboard_updater import LeaderboardUpdater
+
+        # Create a leaderboard updater instance
+        updater = LeaderboardUpdater(stats_repo)
+
+        # Get the leaderboard from the database
+        leaderboard_uuid = uuid.UUID(leaderboard_id)
+        leaderboard_row = await stats_repo.get_leaderboard(leaderboard_uuid)
+
+        # Manually trigger the update for this specific leaderboard
+        await updater._update_leaderboard(leaderboard_row)
+
+        # Get the leaderboard scorecard
+        leaderboard_scorecard_response = test_client.post(
+            "/scorecard/leaderboard",
+            json={
+                "leaderboard_id": leaderboard_id,
+                "selector": "best",
+                "num_policies": 4,
+            },
+        )
+        assert leaderboard_scorecard_response.status_code == 200, (
+            f"Failed to get leaderboard scorecard: {leaderboard_scorecard_response.text}"
+        )
+        leaderboard_scorecard = leaderboard_scorecard_response.json()
+
+        # The leaderboard scorecard endpoint is working correctly!
+        # After running the leaderboard updater, it should now return populated data.
+
+        # Now get the same data by individually selecting the policies
+        # Based on our test data, the top 4 policies should be:
+        # 1. Run-free policy 0 (avg: 93.33)
+        # 2. Run-free policy 1 (avg: 86.17)
+        # 3. Training run 1 policy 2 (avg: 81.67)
+        # 4. Training run 2 policy 1 (avg: 86.67)
+
+        # Get training run IDs
+        training_run_ids = [
+            str(test_data1["training_run"].id),
+            str(test_data2["training_run"].id),
+        ]
+
+        # Get run-free policy IDs
+        run_free_policy_ids = [str(p.id) for p in run_free_data["policies"]]
+
+        # Get individual scorecard with best selector
+        individual_scorecard_response = test_client.post(
+            "/scorecard/scorecard",
+            json={
+                "training_run_ids": training_run_ids,
+                "run_free_policy_ids": run_free_policy_ids,
+                "eval_names": eval_names,
+                "training_run_policy_selector": "best",
+                "metric": "reward",
+            },
+        )
+        assert individual_scorecard_response.status_code == 200, (
+            f"Failed to get individual scorecard: {individual_scorecard_response.text}"
+        )
+        individual_scorecard = individual_scorecard_response.json()
+
+        # Now compare the leaderboard scorecard with the individual scorecard
+        # to validate that they return exactly the same data
+
+        # Both should have the same evaluation names
+        assert leaderboard_scorecard["evalNames"] == individual_scorecard["evalNames"]
+
+        # Both scorecards should now return exactly the same policies and data
+        # since the leaderboard scorecard now correctly applies the num_policies limit
+        # and policy selection logic
+        leaderboard_policies = set(leaderboard_scorecard["policyNames"])
+        individual_policies = set(individual_scorecard["policyNames"])
+
+        # Both should have exactly 4 policies (as configured with num_policies: 4)
+        assert len(leaderboard_policies) == 4, (
+            f"Leaderboard should have exactly 4 policies, got {len(leaderboard_policies)}"
+        )
+        assert len(individual_policies) == 4, (
+            f"Individual scorecard should have exactly 4 policies, got {len(individual_policies)}"
+        )
+
+        # Both should have the same policies
+        assert leaderboard_policies == individual_policies, (
+            f"Leaderboard and individual scorecards should have identical policies. "
+            f"Leaderboard: {leaderboard_policies}, Individual: {individual_policies}"
+        )
+
+        # Verify that all data is identical between both scorecards
+        for policy_name in leaderboard_policies:
+            # Check that all evaluation values match exactly
+            for eval_name in eval_names:
+                leaderboard_cell = leaderboard_scorecard["cells"][policy_name][eval_name]
+                individual_cell = individual_scorecard["cells"][policy_name][eval_name]
+
+                assert leaderboard_cell["value"] == individual_cell["value"], (
+                    f"Value mismatch for {policy_name}/{eval_name}"
+                )
+                assert leaderboard_cell["replayUrl"] == individual_cell["replayUrl"], (
+                    f"Replay URL mismatch for {policy_name}/{eval_name}"
+                )
+
+        # Verify that average scores and other metadata are also identical
+        assert leaderboard_scorecard["policyAverageScores"] == individual_scorecard["policyAverageScores"]
+        assert leaderboard_scorecard["evalAverageScores"] == individual_scorecard["evalAverageScores"]
+        assert leaderboard_scorecard["evalMaxScores"] == individual_scorecard["evalMaxScores"]
 
 
 if __name__ == "__main__":

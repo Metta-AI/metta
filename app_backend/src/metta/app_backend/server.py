@@ -9,12 +9,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic.main import BaseModel
 
 from metta.app_backend.auth import user_from_header_or_token
+from metta.app_backend.leaderboard_updater import LeaderboardUpdater
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes import (
     dashboard_routes,
     entity_routes,
-    episode_routes,
     eval_task_routes,
+    leaderboard_routes,
     scorecard_routes,
     sql_routes,
     stats_routes,
@@ -71,6 +72,10 @@ def setup_logging():
     scorecard_routes_logger = logging.getLogger("policy_scorecard_routes")
     scorecard_routes_logger.setLevel(logging.INFO)
 
+    # Configure leaderboard updater logger
+    leaderboard_updater_logger = logging.getLogger("leaderboard_updater")
+    leaderboard_updater_logger.setLevel(logging.INFO)
+
     # Ensure the loggers don't duplicate messages from root logger
     scorecard_logger.propagate = True
     db_logger.propagate = True
@@ -105,8 +110,8 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
     # Create routers with the provided StatsRepo
     dashboard_router = dashboard_routes.create_dashboard_router(stats_repo)
-    episode_router = episode_routes.create_episode_router(stats_repo)
     eval_task_router = eval_task_routes.create_eval_task_router(stats_repo)
+    leaderboard_router = leaderboard_routes.create_leaderboard_router(stats_repo)
     sql_router = sql_routes.create_sql_router(stats_repo)
     stats_router = stats_routes.create_stats_router(stats_repo)
     token_router = token_routes.create_token_router(stats_repo)
@@ -115,8 +120,8 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
     entity_router = entity_routes.create_entity_router(stats_repo)
 
     app.include_router(dashboard_router)
-    app.include_router(episode_router)
     app.include_router(eval_task_router)
+    app.include_router(leaderboard_router)
     app.include_router(sql_router)
     app.include_router(stats_router)
     app.include_router(token_router)
@@ -142,5 +147,7 @@ if __name__ == "__main__":
 
     stats_repo = MettaRepo(stats_db_uri)
     app = create_app(stats_repo)
+    leaderboard_updater = LeaderboardUpdater(stats_repo)
+    leaderboard_updater.start()
 
     uvicorn.run(app, host=host, port=port)

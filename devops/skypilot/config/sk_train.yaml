@@ -27,14 +27,20 @@ resources:
     strategy: EAGER_NEXT_REGION
     max_restarts_on_errors: 20
 
+file_mounts:
+  /mnt/s3/softmax-public:
+    source: s3://softmax-public
+    mode: MOUNT_CACHED
+  /mnt/s3/train_dir:
+    source: s3://softmax-train-dir
+    mode: MOUNT_CACHED
+
 setup: |
   set -e
-  echo "[SETUP] Starting setup phase..."
-
   cd /workspace/metta
 
   echo "[SETUP] Fetching latest from origin..."
-  git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
+  git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
 
   echo "[SETUP] Checking out ref: $METTA_GIT_REF"
   git checkout $METTA_GIT_REF
@@ -50,62 +56,117 @@ setup: |
   echo "[SETUP] Setup complete."
 
 run: |
-  set -e
-
-  echo "[RUN] Starting run phase..."
-  echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
-  echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
+  set -euo pipefail
 
   cd /workspace/metta
-  source ./devops/setup.env
 
+  # Drop any preloaded venv; activate your own
+  if [ -n "${VIRTUAL_ENV:-}" ]; then
+    deactivate 2>/dev/null || true
+  fi
+  . .venv/bin/activate
+
+  echo "[RUN] Starting run phase..."
+  echo "[RUN] METTA_RUN_ID: ${METTA_RUN_ID:-}"
+  echo "[RUN] SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
+
+  # Optional metrics (best-effort)
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
     echo "[RUN] Collecting skypilot latency..."
-    LATENCY_OUTPUT=$(uv run python common/src/metta/common/util/skypilot_latency.py 2>&1) || true
-    echo "$LATENCY_OUTPUT"
+    uv run python common/src/metta/common/util/skypilot_latency.py || true
   else
     echo "[RUN] Latency script is missing!"
   fi
 
-  export NUM_GPUS=$SKYPILOT_NUM_GPUS_PER_NODE
-  export NUM_NODES=$SKYPILOT_NUM_NODES
-  export MASTER_ADDR=$(echo "$SKYPILOT_NODE_IPS" | head -n1)
+  export NUM_GPUS="${SKYPILOT_NUM_GPUS_PER_NODE:-1}"
+  export NUM_NODES="${SKYPILOT_NUM_NODES:-1}"
+  export MASTER_ADDR="$(echo "${SKYPILOT_NODE_IPS:-}" | head -n1)"
   export MASTER_PORT=8008
-  export NODE_INDEX=$SKYPILOT_NODE_RANK
+  export NODE_INDEX="${SKYPILOT_NODE_RANK:-0}"
   export NCCL_SHM_DISABLE=1
 
-    if [ -f common/src/metta/common/util/cost_monitor.py ]; then
+  # Create a temp directory for IPC files
+  export IPC_DIR="/tmp/metta_job_$$"
+  mkdir -p "$IPC_DIR"
+
+  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+
+  if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."
-    if uv run python common/src/metta/common/util/cost_monitor.py; then
-      source ~/.bashrc || true
-      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
+    METTA_HOURLY_COST="$(uv run python common/src/metta/common/util/cost_monitor.py 2>/dev/null | tail -1 || true)"
+    if [ -n "${METTA_HOURLY_COST:-}" ]; then
+      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST in $METTA_ENV_FILE"
     else
-      echo "[RUN] Cost monitor script failed to run."
+      echo "[RUN] Cost monitor script failed to run or returned no value."
     fi
   else
     echo "[RUN] Cost monitor script is missing!"
   fi
 
+  # Load ENV
+  if [ -f "$METTA_ENV_FILE" ]; then
+    source "$METTA_ENV_FILE"
+  else
+    echo "Warning: $METTA_ENV_FILE does not exist. Creating empty file."
+    touch "$METTA_ENV_FILE"
+  fi
+
+  if [ -n "${GITHUB_PAT:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${METTA_GIT_REF:-}" ]; then
+    ENABLE_GITHUB_STATUS=true
+    echo "[RUN] GitHub status reporting is enabled"
+    echo "[RUN] GITHUB_PAT: ${GITHUB_PAT:+<set>}" # Don't print the actual token
+    echo "[RUN] GITHUB_REPOSITORY: ${GITHUB_REPOSITORY:-<not set>}"
+    echo "[RUN] METTA_GIT_REF: ${METTA_GIT_REF:-<not set>}"
+    echo "[RUN] METTA_RUN_ID: ${METTA_RUN_ID:-<not set>}"
+    echo "[RUN] DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:+<set>}" # Don't print the actual url
+
+    # Set GitHub status
+    GITHUB_STATUS_STATE=pending GITHUB_STATUS_DESCRIPTION="Queued on SkyPilot…" \
+      uv run devops/skypilot/set_github_status.py || echo "[WARN] Pending status post failed; continuing"
+
+    # Send Discord notification if webhook URL is available
+    if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
+      echo "[RUN] Sending Discord notification..."
+
+      # Write Discord message to file line by line
+      echo "🚀 **SkyPilot Job Launched**" > "$IPC_DIR/discord_message.txt"
+      echo "" >> "$IPC_DIR/discord_message.txt"
+      echo "**Repository**: ${GITHUB_REPOSITORY}" >> "$IPC_DIR/discord_message.txt"
+      echo "**Git Ref**: ${METTA_GIT_REF}" >> "$IPC_DIR/discord_message.txt"
+      echo "**Run ID**: ${METTA_RUN_ID:-N/A}" >> "$IPC_DIR/discord_message.txt"
+      echo "**Status**: Job queued on SkyPilot" >> "$IPC_DIR/discord_message.txt"
+      echo "**Time**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> "$IPC_DIR/discord_message.txt"
+      echo "" >> "$IPC_DIR/discord_message.txt"
+      echo "(I am testing - we will soon change this to only alert on failed CI multinode runs.)" >> "$IPC_DIR/discord_message.txt"
+
+      DISCORD_CONTENT="$(cat "$IPC_DIR/discord_message.txt")"
+      export DISCORD_CONTENT
+      uv run -m metta.common.util.discord || echo "[WARN] Discord notification failed; continuing"
+    fi
+  else
+    ENABLE_GITHUB_STATUS=false
+    echo "[RUN] GitHub status reporting is disabled (missing required credentials)"
+  fi
+
+  set +e  # allow failure without aborting the wrapper script
   echo "[RUN] Running training script..."
-  ./devops/$METTA_CMD.sh \
-    run=$METTA_RUN_ID \
-    $METTA_CMD_ARGS
+  ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-}
   TRAIN_EXIT=$?
+  set -e
   echo "[RUN] Training script exit code: $TRAIN_EXIT"
 
-  echo "[RUN] Job complete."
-  exit $TRAIN_EXIT
+  if [ "$ENABLE_GITHUB_STATUS" = "true" ]; then
+    export CMD_EXIT="$TRAIN_EXIT"
+    uv run devops/skypilot/set_github_status.py || echo "[WARN] Final status post failed"
+  fi
 
-file_mounts:
-  /mnt/s3/softmax-public:
-    source: s3://softmax-public
-    mode: MOUNT_CACHED
-  /mnt/s3/train_dir:
-    name: softmax-train-dir
-    store: s3
-    mode: MOUNT_CACHED
+  echo "[RUN] Job complete."
+  exit "$TRAIN_EXIT"
 
 envs:
+  GITHUB_REPOSITORY: Metta-AI/metta
+  GITHUB_PAT: ""
+
   METTA_RUN_ID: ""
   METTA_CMD: train
   METTA_CMD_ARGS: ""

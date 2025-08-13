@@ -1,9 +1,0 @@
-_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
-
-env_cfg_template_path: /env/mettagrid/multiagent/experiments/defaults_cfg
-
-buckets:
-  game.objects.altar.initial_resource_count:
-    - [0, 0, 0, 1]
-  game.objects.generator_red.initial_resource_count:
-    - [0, 0, 0, 1]

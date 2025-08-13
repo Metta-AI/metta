@@ -10,6 +10,7 @@ import wandb
 from metta.common.wandb.wandb_context import WandbRun
 from metta.mettagrid.util.file import http_url, is_public_uri, write_file
 from metta.rl.trainer_config import TorchProfilerConfig
+from metta.rl.utils import should_run
 
 logger = logging.getLogger(__name__)
 
@@ -50,14 +51,8 @@ class TorchProfiler:
         self._first_profile_epoch = 300
 
     def on_epoch_end(self, epoch: int) -> None:
-        should_profile_this_epoch = False
-        if not self._active:
-            should_profile_this_epoch = (
-                self._profiler_config.enabled
-                and (epoch % self._profiler_config.interval_epochs == 0 or epoch == self._first_profile_epoch)
-                and self._master
-            )
-        if should_profile_this_epoch:
+        force = (epoch == self._first_profile_epoch) if not self._active else False
+        if should_run(epoch, self._profiler_config.interval_epochs, force=force):
             self.setup_profiler(epoch)
 
     def setup_profiler(self, epoch):

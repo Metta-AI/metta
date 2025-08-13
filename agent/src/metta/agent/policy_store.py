@@ -229,7 +229,7 @@ class PolicyStore:
             logger.warning(f"Metric '{metric}' not found in policy metadata")
             return {p: None for p in prs}
 
-    def make_model_name(self, epoch: int):
+    def make_model_name(self, epoch: int) -> str:
         return f"model_{epoch:04d}.pt"
 
     def create_empty_policy_record(self, name: str, checkpoint_dir: str) -> PolicyRecord:

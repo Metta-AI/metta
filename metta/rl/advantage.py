@@ -1,7 +1,6 @@
 """Advantage computation functions for Metta training."""
 
 from contextlib import nullcontext
-from typing import Union
 
 import einops
 import torch
@@ -21,11 +20,9 @@ def compute_advantage(
     gae_lambda: float,
     vtrace_rho_clip: float,
     vtrace_c_clip: float,
-    device: Union[torch.device, str],
+    device: torch.device,
 ) -> Tensor:
     """CUDA kernel for puffer advantage with automatic CPU & MPS fallback."""
-    # Get correct device
-    device = torch.device(device) if isinstance(device, str) else device
 
     # Move tensors to device and compute advantage
     if str(device) == "mps":
@@ -39,7 +36,7 @@ def compute_advantage(
     values, rewards, dones, importance_sampling_ratio, advantages = tensors
 
     # Create context manager that only applies CUDA device context if needed
-    device_context = torch.cuda.device(device) if str(device).startswith("cuda") else nullcontext()
+    device_context = torch.cuda.device(device) if device.type == "cuda" else nullcontext()
     with device_context:
         torch.ops.pufferlib.compute_puff_advantage(
             values,

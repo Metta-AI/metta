@@ -256,7 +256,7 @@ def generate_test_data():
         )
 
         # Update description and tags
-        run_id = uuid.UUID(training_run.id)
+        run_id = training_run.id
         update_training_run_metadata(
             base_url, run_config["token"], run_id, run_config["description"], run_config["tags"]
         )
@@ -267,7 +267,7 @@ def generate_test_data():
         policies: List[PolicyData] = []
         for _i, epoch_config in enumerate(run_config["epochs"]):
             epoch = stats_client.create_epoch(
-                run_id=uuid.UUID(training_run.id),
+                run_id=training_run.id,
                 start_training_epoch=epoch_config["start"],
                 end_training_epoch=epoch_config["end"],
                 attributes={"learning_rate": epoch_config["lr"], "performance_stage": epoch_config["performance"]},
@@ -279,7 +279,7 @@ def generate_test_data():
                 name=policy_name,
                 description=f"Policy after {epoch_config['end']} epochs - {epoch_config['performance']} stage",
                 url=f"https://storage.example.com/policies/{policy_name}.pt",
-                epoch_id=uuid.UUID(epoch.id),
+                epoch_id=epoch.id,
             )
             policies.append({"policy": policy, "epoch": epoch, "config": epoch_config, "name": policy_name})
 
@@ -351,7 +351,7 @@ def generate_test_data():
                                 # Add some noise
                                 import random
 
-                                policy_id = uuid.UUID(policy.id)
+                                policy_id = policy.id
                                 random.seed(hash((policy_id, task, metric, agent_id)) % (2**32))
                                 noise = random.uniform(0.8, 1.2)
                                 metrics[metric] = final_reward * noise
@@ -360,7 +360,7 @@ def generate_test_data():
                                 base_rate = base_performance * difficulty_factor
                                 import random
 
-                                policy_id = uuid.UUID(policy.id)
+                                policy_id = policy.id
                                 random.seed(hash((policy_id, task, metric, agent_id)) % (2**32))
                                 noise = random.uniform(0.9, 1.1)
                                 metrics[metric] = min(1.0, base_rate * noise)
@@ -372,7 +372,7 @@ def generate_test_data():
                                 performance_factor = 2.0 - base_performance
                                 import random
 
-                                policy_id = uuid.UUID(policy.id)
+                                policy_id = policy.id
                                 random.seed(hash((policy_id, task, metric, agent_id)) % (2**32))
                                 noise = random.uniform(0.8, 1.2)
                                 metrics[metric] = base_value * performance_factor * noise
@@ -382,7 +382,7 @@ def generate_test_data():
                                 base_value = 0.8
                                 import random
 
-                                policy_id = uuid.UUID(policy.id)
+                                policy_id = policy.id
                                 random.seed(hash((policy_id, task, metric, agent_id)) % (2**32))
                                 noise = random.uniform(0.9, 1.1)
                                 metrics[metric] = base_value * base_performance * noise
@@ -390,8 +390,8 @@ def generate_test_data():
                         agent_metrics[agent_id] = metrics
 
                     # Create episode
-                    policy_id = uuid.UUID(policy.id)
-                    epoch_id = uuid.UUID(epoch.id)
+                    policy_id = policy.id
+                    epoch_id = epoch.id
                     stats_client.record_episode(
                         agent_policies={aid: policy_id for aid in range(num_agents)},
                         agent_metrics=agent_metrics,

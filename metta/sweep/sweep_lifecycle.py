@@ -8,7 +8,7 @@ from omegaconf import DictConfig, OmegaConf
 from cogweb.cogweb_client import CogwebClient
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.env_config import create_env_config
+from metta.rl.system_config import create_system_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sweep.protein_metta import MettaProtein
@@ -183,7 +183,7 @@ def _evaluate_sweep_run(
     simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(train_job_cfg.sim, resolve=True))  # type: ignore[arg-type]
 
     # Create env config
-    env_cfg = create_env_config(train_job_cfg)
+    env_cfg = create_system_config(train_job_cfg)
 
     if not wandb_run.name:
         raise ValueError("WandB run has no name")

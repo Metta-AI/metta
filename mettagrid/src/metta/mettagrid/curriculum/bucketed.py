@@ -21,6 +21,7 @@ class BucketedCurriculum(LearningProgressCurriculum):
     def __init__(
         self,
         *,
+        # This is named "env_cfg_template", but really it's a task config template.
         env_cfg_template: DictConfig | None = None,
         env_cfg_template_path: str | None = None,
         buckets: Dict[str, Any],

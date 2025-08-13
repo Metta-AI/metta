@@ -10,15 +10,11 @@ logger = logging.getLogger(__name__)
 def should_run(
     epoch: int,
     interval: int,
-    is_master: bool = True,
-    force: bool = False,
     *,
-    non_master_ok: bool = False,
+    force: bool = False,
 ) -> bool:
-    """Check if a periodic task should run based on interval and master status."""
+    """Check if a periodic task should run based on interval. It is assumed this is only called on master."""
     if not interval:
-        return False
-    if not (non_master_ok or is_master):
         return False
 
     if force:
@@ -36,7 +32,7 @@ def log_training_progress(
     train_time: float,
     rollout_time: float,
     stats_time: float,
-    run_name: str | None = None,
+    run_name: str,
 ) -> None:
     """Log training progress with timing breakdown.
 

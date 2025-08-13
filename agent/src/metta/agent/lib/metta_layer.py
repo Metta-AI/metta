@@ -121,13 +121,10 @@ class LayerBase(nn.Module):
     def clip_weights(self):
         pass
 
-    def l2_reg_loss(self):
-        pass
+    def has_memory(self):
+        return False
 
     def l2_init_loss(self):
-        pass
-
-    def update_l2_init_weight_copy(self):
         pass
 
     def compute_weight_metrics(self, delta: float = 0.01) -> dict:
@@ -262,20 +259,6 @@ class ParamLayer(LayerBase):
         l2_init_loss = torch.tensor(0.0, device=self.weight_net.weight.data.device, dtype=torch.float32)
         l2_init_loss = torch.sum((self.weight_net.weight.data - self.initial_weights) ** 2) * self.l2_init_scale
         return l2_init_loss
-
-    def update_l2_init_weight_copy(self, alpha: float = 0.9):
-        """
-        Updates the initial weights reference for L2-init regularization.
-
-        Potentially useful to prevent catastrophic forgetting by gradually adapting
-        the reference weights used in L2-init regularization.
-
-        Args:
-            alpha (float): Weight for exponential moving average (0.9 means 90% old weights,
-                          10% new weights)
-        """
-        if self.initial_weights is not None:
-            self.initial_weights = (self.initial_weights * alpha + self.weight_net.weight.data * (1 - alpha)).clone()
 
     def compute_weight_metrics(self, delta: float = 0.01) -> dict:
         """

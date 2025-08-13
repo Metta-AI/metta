@@ -4,9 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Claude Code Guidance - How to Work on Tasks
 
+### Learning User Preferences
+
+**When receiving general directions that might apply to the codebase:**
+
+1. **Identify patterns** - When the user gives instructions that seem like general preferences or patterns that should be applied across the codebase
+2. **Propose updates** - Suggest adding these preferences to CLAUDE.md with specific text
+3. **Ask for confirmation** - Present the proposed update and ask: "Should I add this preference to CLAUDE.md so I remember it for future work?"
+4. **Apply if approved** - Update CLAUDE.md only after receiving explicit approval
+
+This allows Claude to learn and remember user preferences over time, building a personalized understanding of how to work with this specific codebase.
+
 ### Plan & Review Process
 
-**IMPORTANT: Always start in plan mode before implementing any changes.**
+Preferred: Start in plan mode for larger or ambiguous tasks. For small, surgical changes, you may proceed directly with implementation.
 
 1. **Enter plan mode first** - Use the ExitPlanMode tool only after presenting a complete plan
 2. **Create a task plan** - Write your plan to `.claude/tasks/TASK_NAME.md` with:
@@ -15,8 +26,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    - Step-by-step implementation plan
    - Success criteria
 3. **Use appropriate tools** - If the task requires external knowledge or complex searches, use the Task tool with appropriate agents
-4. **Request review** - After writing the plan, explicitly ask: "Please review this plan before I proceed with implementation"
-5. **Wait for approval** - Only exit plan mode and begin implementation after receiving approval
+4. **Optional review** - If the plan is non-trivial or high-risk, request a quick review before implementing
+5. **Proceed when ready** - If low-risk and scoped, you may proceed without explicit approval
 
 #### Plan Template (.claude/tasks/TASK_NAME.md)
 
@@ -57,6 +68,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
    ```
 3. **Track deviations** - If you need to deviate from the plan, document why and update the approach
 4. **Keep it concise** - Focus on what changed and why, not how (the code shows how)
+5. **CRITICAL: Always format Python code** - After editing any Python file (*.py), immediately run:
+   ```bash
+   ruff format [file_path]
+   ruff check --fix [file_path]
+   ```
+   Note: Only run these commands on Python files, not on other file types like Markdown, YAML, etc.
 
 ### After Implementation
 
@@ -137,6 +154,11 @@ metta configure --profile=softmax    # Reconfigure for different profile
 metta install aws wandb              # Install specific components
 
 # Run `metta -h` to see all available commands
+
+# If you encounter missing dependencies or import errors (like pufferlib), run:
+metta install                        # Reinstall all components
+# or
+metta install core                   # Reinstall core dependencies only
 ```
 
 ### Key Entry Points
@@ -166,7 +188,7 @@ metta install aws wandb              # Install specific components
 
 4. **Interactive Play**: `tools/play.py` - Manual testing and exploration
    ```bash
-   uv run ./tools/play.py run=play
+   uv run ./tools/play.py
    ```
 
 #### Visualization Tools
@@ -277,6 +299,10 @@ uv run ./tools/train.py wandb=off
 
 ### Code Style Guidelines
 
+- **Import placement**: All imports MUST be at the top of the file, never inside functions or methods
+  - Follow PEP 8 import ordering: standard library, third-party, local imports
+  - Each group separated by a blank line
+  - No imports inside function bodies, even for lazy loading
 - Use modern Python typing syntax (PEP 585: `list[str]` instead of `List[str]`)
 - Use Union type syntax for Python 3.10+ (`type | None` instead of `Optional[type]`)
 - Follow selective type annotation guidelines:
@@ -298,6 +324,29 @@ uv run ./tools/train.py wandb=off
 - Prefer properties over methods for computed attributes using `@property` decorator
 - Implement proper error handling with clear, actionable error messages
 
+### Class Member Naming Conventions
+
+- **Private members**: All class attributes and methods that are internal implementation details MUST start with underscore (`_`)
+  - Example: `self._internal_state`, `def _process_data(self):`
+- **Public members**: Only expose class members without underscore if they are part of the public API
+  - Example: `self.name` (if users should access it), `def process(self):` (if users should call it)
+- **Protected members**: Use single underscore for "protected" members that subclasses might need
+- **Name mangling**: Use double underscore (`__`) sparingly, only when you need Python's name mangling to avoid subclass conflicts
+- **Test access exception**: Tests are allowed to access private members (those starting with `_`) for thorough testing
+  - This allows tests to verify internal state and implementation details
+  - Tests can directly access `_private_method()` or `self._private_attribute`
+  - Rationale: While private members indicate "internal use", tests need deep access to verify correctness
+- **Properties**: Use `@property` decorator to expose computed values or controlled access to private attributes
+  ```python
+  class Example:
+      def __init__(self):
+          self._value = 0  # Private attribute
+      
+      @property
+      def value(self):  # Public property
+          return self._value
+  ```
+
 ### Project-Specific Patterns
 
 #### Environment Properties
@@ -307,7 +356,7 @@ uv run ./tools/train.py wandb=off
 - Example: `action_names()` → `action_names` (property)
 
 #### Policy and Agent Management
-- Validate policy types with runtime checking using `policy_as_metta_agent()`
+- Validate policy types with runtime checking
 - Use Union types for policies: `Union[MettaAgent, DistributedMettaAgent]`
 - Ensure proper type safety for policy handling throughout the system
 - Policy URIs follow format: `file://path/to/checkpoint` or `wandb://project/run/artifact`
@@ -325,6 +374,7 @@ See @.cursor/docs.md for testing examples and quick test commands.
 - Tests should be focused on testing one thing
 - Tests should cover edge cases and boundary conditions
 - Tests are organized in the `tests/` directory, mirroring the project structure
+- **Always use `uv run` for testing Python files** - This ensures proper environment activation and dependency resolution
 - Test organization:
   - `tests/rl/` - Reinforcement learning components
   - `tests/sim/` - Simulation and evaluation

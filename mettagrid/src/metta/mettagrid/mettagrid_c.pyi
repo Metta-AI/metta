@@ -63,6 +63,12 @@ class WallConfig(GridObjectConfig):
     type_name: str
     swappable: bool
 
+class BoxConfig(GridObjectConfig):
+    def __init__(self, type_id: int, type_name: str, resources_to_create: dict[int, int]): ...
+    type_id: int
+    type_name: str
+    resources_to_create: dict[int, int]
+
 class AgentConfig(GridObjectConfig):
     type_id: int
     type_name: str
@@ -74,6 +80,7 @@ class AgentConfig(GridObjectConfig):
     resource_rewards: dict[int, float]
     resource_reward_max: dict[int, float]
     group_reward_pct: float
+    initial_inventory: dict[int, int]
 
 class ConverterConfig(GridObjectConfig):
     type_id: int
