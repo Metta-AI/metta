@@ -196,8 +196,13 @@ run: |
     # terminate_process() with kill -TERM -$PGID, it terminates only the training
     # processes and NOT this SkyPilot run script. This allows us to see the final
     # summary and exit cleanly.
-    setsid bash -c 'exec "$@"' -- ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} 2>&1 &
+    setsid ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} 2>&1 &
     local CMD_PID=$!
+
+    sleep 1
+    if ! kill -0 "$CMD_PID" 2>/dev/null; then
+      echo "[ERROR] Command process died immediately!"
+    fi
 
     # Make the process a group leader if it isn't already
     local PGID=$(ps -o pgid= -p "$CMD_PID" 2>/dev/null | tr -d ' ')
