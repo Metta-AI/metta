@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 16
+  num_agents: 4
   max_steps: 500
   agent:
     initial_inventory:
@@ -11,9 +11,6 @@ game:
     rewards:
       inventory:
         heart: 1.0
-  inventory_item_names:
-    - battery_blue
-    - heart
   actions:
     attack:
       enabled: false
@@ -21,16 +18,18 @@ game:
       enabled: false
     change_color:
       enabled: false
+    place_box:
+      enabled: true
   map_builder:
     _target_: metta.map.mapgen.MapGen
-    width: 20
-    height: 20
-    border_width: 6
+    width: 5
+    height: 5
+    border_width: 1
     root:
       type: metta.map.scenes.room_grid.RoomGrid
       params:
-        rows: 2
-        columns: 2
+        rows: 1
+        columns: 1
         border_width: 6
         border_object: "wall"
       children:
@@ -42,7 +41,6 @@ game:
               agents: 4
               objects:
                 altar: 0
-                box: 0
   objects:
     altar:
       cooldown: 1000
@@ -50,3 +48,5 @@ game:
       type_id: 2
     box:
       type_id: 12
+      resources_to_create:
+        battery_blue: 1
