@@ -83,6 +83,157 @@ def save_all_results_json(
         logger.error(f"Failed to save results: {e}")
 
 
+def measure_p2p_bandwidth(
+    device: torch.device,
+    src_rank: int = 0,
+    dst_rank: int = 1,
+    message_size_mb: int = 64,
+    num_iterations: int = 10,
+    num_warmup: int = 5,
+) -> Optional[dict[str, float]]:
+    """
+    Measure point-to-point bandwidth between two specific ranks.
+    Fixed version with proper synchronization.
+    """
+    rank = dist.get_rank()
+    world_size = dist.get_world_size()
+
+    # Skip if only one rank
+    if world_size < 2:
+        return None
+
+    # All ranks must participate in barriers
+    if rank not in [src_rank, dst_rank]:
+        # Non-participating ranks just wait at barriers
+        dist.barrier()  # Initial sync
+        dist.barrier()  # After warmup
+        dist.barrier()  # After measurement
+        return None
+
+    # Create tensor
+    message_size = (message_size_mb * 1024 * 1024) // 4  # Convert to float32 elements
+    tensor = torch.randn(message_size, dtype=torch.float32, device=device)
+    bytes_transferred = tensor.numel() * tensor.element_size()
+
+    # Initial synchronization
+    dist.barrier()
+
+    # Warmup
+    for _ in range(num_warmup):
+        if rank == src_rank:
+            dist.send(tensor, dst=dst_rank)
+        elif rank == dst_rank:
+            dist.recv(tensor, src=src_rank)
+
+    # Synchronize after warmup
+    torch.cuda.synchronize()
+    dist.barrier()
+
+    # Measure bandwidth
+    start = time.perf_counter()
+
+    for _ in range(num_iterations):
+        if rank == src_rank:
+            dist.send(tensor, dst=dst_rank)
+        elif rank == dst_rank:
+            dist.recv(tensor, src=src_rank)
+
+    torch.cuda.synchronize()
+
+    # Final synchronization
+    dist.barrier()
+
+    end = time.perf_counter()
+
+    if rank == dst_rank:
+        elapsed_seconds = (end - start) / num_iterations
+        bandwidth_gbps = (bytes_transferred / elapsed_seconds) / 1e9
+
+        return {
+            "src_rank": src_rank,
+            "dst_rank": dst_rank,
+            "message_size_mb": message_size_mb,
+            "bandwidth_gbps": bandwidth_gbps,
+            "time_ms": elapsed_seconds * 1000,
+        }
+
+    return None
+
+
+def test_nccl_benchmarks() -> bool:
+    """Run NCCL bandwidth benchmarks with proper error handling."""
+    global _benchmark_results
+
+    try:
+        local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        torch.cuda.set_device(local_rank)
+        device = torch.device(f"cuda:{local_rank}")
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+
+        # Log start
+        if rank == 0:
+            logger.info("Starting NCCL benchmarks...")
+
+        # Ensure all ranks are ready
+        dist.barrier()
+
+        # Collect results
+        results = {}
+
+        # 1. P2P Bandwidth Test (if we have at least 2 ranks)
+        if world_size >= 2:
+            if rank == 0:
+                logger.info("Running P2P bandwidth test...")
+
+            p2p_result = measure_p2p_bandwidth(device)
+
+            # Gather results from rank 1 to rank 0
+            if rank == 1 and p2p_result:
+                dist.send(torch.tensor([p2p_result["bandwidth_gbps"]], device=device), dst=0)
+            elif rank == 0:
+                if world_size >= 2:
+                    bandwidth_tensor = torch.zeros(1, device=device)
+                    dist.recv(bandwidth_tensor, src=1)
+                    results["p2p_bandwidth"] = {
+                        "src_rank": 0,
+                        "dst_rank": 1,
+                        "message_size_mb": 64,
+                        "bandwidth_gbps": float(bandwidth_tensor.item()),
+                        "time_ms": 0,  # Will be calculated
+                    }
+
+        # Ensure all ranks complete P2P test
+        dist.barrier()
+
+        # 2. Allreduce Bandwidth Test
+        if rank == 0:
+            logger.info("Running allreduce bandwidth test...")
+
+        allreduce_results = measure_allreduce_bandwidth(device)
+        if rank == 0 and allreduce_results:
+            results["allreduce_bandwidth"] = allreduce_results
+
+        # Final synchronization
+        dist.barrier()
+
+        # Store results for later use
+        if rank == 0:
+            _benchmark_results = results
+            print_benchmark_results(results)
+
+        return True
+
+    except Exception as e:
+        logger.error(f"Rank {rank}: Benchmark test failed: {e}", exc_info=True)
+        # Try to sync remaining ranks
+        try:
+            dist.barrier()
+        except Exception:
+            pass
+        return False
+
+
 def measure_allreduce_bandwidth(
     device: torch.device,
     sizes_mb: list[int] | None = None,
@@ -90,16 +241,7 @@ def measure_allreduce_bandwidth(
     num_warmup: int = 5,
 ) -> list[dict[str, float]]:
     """
-    Measure allreduce bandwidth for key message sizes.
-
-    Args:
-        device: CUDA device to use
-        sizes_mb: List of sizes to test in megabytes
-        num_iterations: Number of iterations per size
-        num_warmup: Number of warmup iterations
-
-    Returns:
-        List of bandwidth measurements for each size
+    Measure allreduce bandwidth with better error handling.
     """
     if sizes_mb is None:
         sizes_mb = [1, 4, 16, 64]
@@ -112,10 +254,22 @@ def measure_allreduce_bandwidth(
         size_elements = (size_mb * 1024 * 1024) // 4  # Convert MB to float32 elements
 
         try:
+            # Check available memory first
+            free_memory = torch.cuda.mem_get_info(device.index)[0]
+            required_memory = size_elements * 4 * 2  # float32 * 2 for safety
+
+            if free_memory < required_memory:
+                if rank == 0:
+                    logger.warning(f"Skipping size {size_mb}MB - insufficient memory")
+                continue
+
             # Allocate tensor
             tensor = torch.randn(size_elements, dtype=torch.float32, device=device)
             bytes_per_element = tensor.element_size()
             total_bytes = size_elements * bytes_per_element
+
+            # Ensure all ranks are ready
+            dist.barrier()
 
             # Warmup
             for _ in range(num_warmup):
@@ -132,7 +286,10 @@ def measure_allreduce_bandwidth(
                 dist.all_reduce(tensor)
 
             torch.cuda.synchronize()
+
+            # Ensure all ranks complete
             dist.barrier()
+
             end = time.perf_counter()
 
             # Calculate bandwidth
@@ -152,125 +309,30 @@ def measure_allreduce_bandwidth(
                 results.append(result)
                 logger.info(f"Allreduce {size_mb}MB: {algo_bandwidth_gbps:.2f} GB/s")
 
+            # Clean up tensor
+            del tensor
+            torch.cuda.empty_cache()
+
         except torch.cuda.OutOfMemoryError:
             if rank == 0:
                 logger.warning(f"Out of memory at size {size_mb}MB")
+            # Ensure all ranks sync even on error
+            try:
+                dist.barrier()
+            except Exception:
+                pass
             break
         except Exception as e:
             if rank == 0:
                 logger.error(f"Error at size {size_mb}MB: {e}")
+            # Ensure all ranks sync even on error
+            try:
+                dist.barrier()
+            except Exception:
+                pass
             break
 
     return results if rank == 0 else []
-
-
-def measure_p2p_bandwidth(
-    device: torch.device,
-    src_rank: int = 0,
-    dst_rank: int = 1,
-    message_size_mb: int = 64,
-    num_iterations: int = 10,
-    num_warmup: int = 5,
-) -> Optional[dict[str, float]]:
-    """
-    Measure point-to-point bandwidth between two specific ranks.
-
-    Args:
-        device: CUDA device to use
-        src_rank: Source rank
-        dst_rank: Destination rank
-        message_size_mb: Size of message in megabytes
-        num_iterations: Number of iterations
-        num_warmup: Number of warmup iterations
-
-    Returns:
-        Bandwidth statistics or None for non-participating ranks
-    """
-    rank = dist.get_rank()
-
-    if rank not in [src_rank, dst_rank]:
-        dist.barrier()
-        return None
-
-    # Create tensor
-    message_size = (message_size_mb * 1024 * 1024) // 4  # Convert to float32 elements
-    tensor = torch.randn(message_size, dtype=torch.float32, device=device)
-    bytes_transferred = tensor.numel() * tensor.element_size()
-
-    # Warmup
-    for _ in range(num_warmup):
-        if rank == src_rank:
-            dist.send(tensor, dst=dst_rank)
-        elif rank == dst_rank:
-            dist.recv(tensor, src=src_rank)
-
-    # Synchronize
-    torch.cuda.synchronize()
-    dist.barrier()
-
-    # Measure bandwidth
-    start = time.perf_counter()
-
-    for _ in range(num_iterations):
-        if rank == src_rank:
-            dist.send(tensor, dst=dst_rank)
-        elif rank == dst_rank:
-            dist.recv(tensor, src=src_rank)
-
-    torch.cuda.synchronize()
-    dist.barrier()
-    end = time.perf_counter()
-
-    if rank == dst_rank:
-        elapsed_seconds = (end - start) / num_iterations
-        bandwidth_gbps = (bytes_transferred / elapsed_seconds) / 1e9
-
-        return {
-            "src_rank": src_rank,
-            "dst_rank": dst_rank,
-            "message_size_mb": message_size_mb,
-            "bandwidth_gbps": bandwidth_gbps,
-            "time_ms": elapsed_seconds * 1000,
-        }
-
-    return None
-
-
-def test_nccl_benchmarks() -> bool:
-    """Run NCCL bandwidth benchmarks: P2P and allreduce."""
-    global _benchmark_results
-
-    try:
-        local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        torch.cuda.set_device(local_rank)
-        device = torch.device(f"cuda:{local_rank}")
-        rank = dist.get_rank()
-        world_size = dist.get_world_size()
-
-        # Collect results
-        results = {}
-
-        # 1. P2P Bandwidth Test (if we have at least 2 ranks)
-        if world_size >= 2:
-            p2p_result = measure_p2p_bandwidth(device)
-            if p2p_result:
-                results["p2p_bandwidth"] = p2p_result
-
-        # 2. Allreduce Bandwidth Test
-        allreduce_results = measure_allreduce_bandwidth(device)
-        if allreduce_results:
-            results["allreduce_bandwidth"] = allreduce_results
-
-        # Store results for later use
-        if rank == 0:
-            _benchmark_results = results
-            print_benchmark_results(results)
-
-        return True
-
-    except Exception as e:
-        logger.error(f"Benchmark test failed: {e}", exc_info=True)
-        return False
 
 
 def print_benchmark_results(results: dict[str, Any]) -> None:
@@ -556,7 +618,7 @@ def print_system_diagnostics(diagnostics: dict[str, Any]) -> None:
     print("\n  Communication Modes:")
     print(f"    • P2P (GPU Direct)   : {'✓ Enabled' if not nccl_p2p_disable else '✗ Disabled'}")
     print(f"    • Shared Memory      : {'✓ Enabled' if not nccl_shm_disable else '✗ Disabled'}")
-    print(f"    • InfiniBand/RDMA    : {'✓ Enabled' if not nccl_ib_disable else '✗ Disabled'}")
+    print(f"    • InfiniBand/EFA     : {'✓ Enabled' if not nccl_ib_disable else '✗ Disabled'}")
 
 
 def print_diagnostics(diagnostics: dict[str, Any]) -> None:
