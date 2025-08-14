@@ -26,8 +26,8 @@ logger = logging.getLogger("leaderboard_updater")
 
 
 class LeaderboardUpdater:
-    def __init__(self, repo: MettaRepo):
-        self.repo = repo
+    def __init__(self, db_uri: str):
+        self.repo = MettaRepo(db_uri)
 
     def start(self):
         self.running = True

@@ -155,7 +155,7 @@ if __name__ == "__main__":
 
     stats_repo = MettaRepo(stats_db_uri)
     app = create_app(stats_repo)
-    leaderboard_updater = LeaderboardUpdater(stats_repo)
+    leaderboard_updater = LeaderboardUpdater(stats_db_uri)
     leaderboard_updater.start()
 
     uvicorn.run(app, host=host, port=port)

@@ -2168,7 +2168,11 @@ class TestPolicyScorecardRoutes:
 
     @pytest.mark.asyncio
     async def test_leaderboard_scorecard_integration(
-        self, isolated_test_client: TestClient, isolated_stats_client: StatsClient, isolated_stats_repo: MettaRepo
+        self,
+        isolated_test_client: TestClient,
+        isolated_stats_client: StatsClient,
+        isolated_stats_repo: MettaRepo,
+        isolated_db_context: str,
     ) -> None:
         """Integration test for leaderboard scorecard functionality.
 
@@ -2283,7 +2287,7 @@ class TestPolicyScorecardRoutes:
         from metta.app_backend.leaderboard_updater import LeaderboardUpdater
 
         # Create a leaderboard updater instance
-        updater = LeaderboardUpdater(stats_repo)
+        updater = LeaderboardUpdater(isolated_db_context)
 
         # Get the leaderboard from the database
         leaderboard_uuid = uuid.UUID(leaderboard_id)
