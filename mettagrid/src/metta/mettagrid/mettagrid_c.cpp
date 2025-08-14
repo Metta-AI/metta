@@ -104,7 +104,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       // Use optimized template-based implementation
       _action_handlers.push_back(createMoveAction(*action_config, _track_movement_metrics, _no_agent_interference));
     } else if (action_name_str == "move_8way") {
-      _action_handlers.push_back(std::make_unique<Move8Way>(*action_config));
+      _action_handlers.push_back(std::make_unique<Move8Way>(*action_config, _no_agent_interference));
     } else if (action_name_str == "move_cardinal") {
       _action_handlers.push_back(std::make_unique<MoveCardinal>(*action_config));
     } else if (action_name_str == "rotate") {
