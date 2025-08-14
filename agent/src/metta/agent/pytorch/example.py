@@ -2,12 +2,13 @@ import logging
 from typing import Optional
 
 import einops
-import pufferlib.models
-import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
+
+import pufferlib.models
+import pufferlib.pytorch
 
 logger = logging.getLogger(__name__)
 
@@ -148,11 +149,39 @@ class Policy(nn.Module):
             nn.ReLU(),
         )
 
+        # Use values that avoid division by very small numbers
+        # These values represent the expected maximum for each feature layer
         max_vec = torch.tensor(
-            [9, 1, 1, 10, 3, 254, 1, 1, 235, 8, 9, 250, 29, 1, 1, 8, 1, 1, 6, 3, 1, 2],
+            [
+                9.0,
+                1.0,
+                1.0,
+                10.0,
+                3.0,
+                254.0,
+                1.0,
+                1.0,
+                235.0,
+                8.0,
+                9.0,
+                250.0,
+                29.0,
+                1.0,
+                1.0,
+                8.0,
+                1.0,
+                1.0,
+                6.0,
+                3.0,
+                1.0,
+                2.0,
+            ],
             dtype=torch.float32,
-        )[None, :, None, None]
-        self.register_buffer("max_vec", max_vec.to(self.device))
+        )
+        # Clamp minimum value to 1.0 to avoid near-zero divisions
+        max_vec = torch.maximum(max_vec, torch.ones_like(max_vec))
+        max_vec = max_vec[None, :, None, None]
+        self.register_buffer("max_vec", max_vec)
 
         self.actor = nn.ModuleList(
             [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in self.action_space.nvec]
@@ -196,7 +225,8 @@ class Policy(nn.Module):
             atr_values[valid_tokens]
         )
 
-        features = box_obs / self.max_vec
+        # Normalize features with epsilon for numerical stability
+        features = box_obs / (self.max_vec + 1e-8)
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
 
