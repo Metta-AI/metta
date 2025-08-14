@@ -34,7 +34,7 @@ from omegaconf import DictConfig
 # MettaGrid imports
 # Note: MettaGridEnv inherits from PufferEnv, so it's fully PufferLib-compatible
 from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.config.builder import arena
+from metta.mettagrid.config.builder import make_arena
 
 # Training framework imports
 try:
@@ -132,7 +132,7 @@ def demo_puffer_env():
     # Create MettaGridEnv - which IS a PufferLib environment!
     # MettaGridEnv inherits from PufferEnv, so it has all PufferLib functionality
     env = MettaGridEnv(
-        env_cfg=arena(num_agents=24),
+        env_cfg=make_arena(num_agents=24),
         render_mode=None,
         is_training=False,  # Disable training-specific features for this demo
     )
@@ -178,7 +178,7 @@ def demo_random_rollout():
     # Create MettaGridEnv for rollout
     # Note: is_training=True enables training features like stats collection
     env = MettaGridEnv(
-        env_cfg=arena(num_agents=24),
+        env_cfg=make_arena(num_agents=24),
         render_mode=None,
         is_training=True,
     )
@@ -245,7 +245,7 @@ def demo_pufferlib_training():
 
     # MettaGridEnv can be used directly with PufferLib training code
     env = MettaGridEnv(
-        env_cfg=arena(num_agents=24),
+        env_cfg=make_arena(num_agents=24),
         render_mode=None,
         is_training=True,
     )
