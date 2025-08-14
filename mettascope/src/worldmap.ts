@@ -544,7 +544,7 @@ function drawThoughtBubbles() {
         continue
       }
       const actionName = state.replay.actionNames[actionId]
-      if (actionName === 'noop' || actionName === 'rotate' || actionName === 'move') {
+      if (actionName === 'noop' || actionName === 'rotate' || actionName === 'move' || actionName === 'move_cardinal' || actionName === 'move_8way') {
         continue
       }
       keyAction = [actionId, actionParam]

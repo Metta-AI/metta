@@ -54,6 +54,8 @@ game:
       enabled: true
     put_items:
       enabled: true
+    place_box:
+      enabled: false
     get_items:
       enabled: true
     attack:

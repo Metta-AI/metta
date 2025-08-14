@@ -2,11 +2,13 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+from omegaconf import DictConfig
 from tensordict import TensorDict
 
 # Import the actual class
 from metta.agent.metta_agent import MettaAgent
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+from metta.rl.system_config import SystemConfig
 
 
 @pytest.fixture
@@ -95,10 +97,6 @@ def create_metta_agent():
             self.feature_normalizations = feature_normalizations
 
     # Create system config
-    from omegaconf import DictConfig
-
-    from metta.rl.system_config import SystemConfig
-
     system_cfg = SystemConfig(device="cpu")
     agent_cfg = DictConfig(config_dict)
 

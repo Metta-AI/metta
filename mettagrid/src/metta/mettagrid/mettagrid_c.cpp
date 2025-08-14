@@ -7,6 +7,7 @@
 #include <cmath>
 #include <numeric>
 #include <random>
+#include <iostream>
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
@@ -18,6 +19,7 @@
 #include "actions/move_8way.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
+#include "actions/place_box.hpp"
 #include "actions/rotate.hpp"
 #include "actions/swap.hpp"
 #include "event.hpp"
@@ -28,6 +30,7 @@
 #include "objects/converter.hpp"
 #include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
+#include "objects/box.hpp"
 #include "observation_encoder.hpp"
 #include "packed_coordinate.hpp"
 #include "stats_tracker.hpp"
@@ -83,6 +86,15 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
     if (action_name_str == "put_items") {
       _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
+    } else if (action_name_str == "place_box") {
+      // Pass in resources to create box from box config so that we know how many resources to take away
+      for (const auto& [key, object_cfg] : cfg.objects) {
+        const BoxConfig* box_cfg = dynamic_cast<const BoxConfig*>(object_cfg.get());
+        if (box_cfg) {
+          _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config, box_cfg->resources_to_create));
+          break;
+        }
+      }
     } else if (action_name_str == "get_items") {
       _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
     } else if (action_name_str == "noop") {
@@ -176,6 +188,14 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
         continue;
       }
 
+      const BoxConfig* box_config = dynamic_cast<const BoxConfig*>(object_cfg);
+      if (box_config) {
+        Box* box = new Box(r, c, *box_config, 255, 255);  // Default creator values
+        _grid->add_object(box);
+        _stats->incr("objects." + cell);
+        continue;
+      }
+
       const ConverterConfig* converter_config = dynamic_cast<const ConverterConfig*>(object_cfg);
       if (converter_config) {
         // Create a new ConverterConfig with the recipe offsets from the observation encoder
@@ -207,6 +227,14 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
         // Only initialize visitation grid if visitation counts are enabled
         if (_global_obs_config.visitation_counts) {
           agent->init_visitation_grid(height, width);
+        }
+        // add agent box
+        if (cfg.objects.contains("box")) {
+          const BoxConfig* local_box_cfg = dynamic_cast<const BoxConfig*>(cfg.objects.at("box").get());
+          if (local_box_cfg) {
+            agent->box = new Box(0, 0, *local_box_cfg, agent->id, static_cast<unsigned char>(agent->agent_id));
+            _grid->ghost_add_object(agent->box);
+          }
         }
         add_agent(agent);
         _group_sizes[agent->group] += 1;
@@ -941,6 +969,17 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("type_id", &WallConfig::type_id)
       .def_readwrite("type_name", &WallConfig::type_name)
       .def_readwrite("swappable", &WallConfig::swappable);
+
+  py::class_<BoxConfig, GridObjectConfig, std::shared_ptr<BoxConfig>>(m, "BoxConfig")
+      .def(py::init<TypeId,
+                    const std::string&,
+                    const std::map<InventoryItem, InventoryQuantity>&>(),
+           py::arg("type_id"),
+           py::arg("type_name") = "box",
+           py::arg("resources_to_create"))
+      .def_readwrite("type_id", &BoxConfig::type_id)
+      .def_readwrite("type_name", &BoxConfig::type_name)
+      .def_readwrite("resources_to_create", &BoxConfig::resources_to_create);
 
   // ##MettagridConfig
   // We expose these as much as we can to Python. Defining the initializer (and the object's constructor) means

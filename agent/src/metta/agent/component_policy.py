@@ -17,6 +17,10 @@ logger = logging.getLogger("component_policy")
 
 
 class ComponentPolicy(nn.Module):
+    # ============================================================================
+    # Initialization and Setup
+    # ============================================================================
+
     def __init__(
         self,
         obs_space: Optional[Union[gym.spaces.Space, gym.spaces.Dict]] = None,
@@ -85,9 +89,36 @@ class ComponentPolicy(nn.Module):
         self.hidden_size = self.components["_core_"].hidden_size
         self.num_lstm_layers = self.components["_core_"].num_layers
 
-    def forward(
-        self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None
-    ) -> Tuple[TensorDict, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
+
+    def _setup_components(self, component):
+        """Setup component connections - matching old MettaAgent logic.
+        _sources is a list of dicts albeit many layers simply have one element.
+        It must always have a "name" and that name should be the same as the relevant key in self.components.
+        source_components is a dict of components that are sources for the current component.
+        """
+        # Skip if already setup
+        if getattr(component, "ready", False):
+            return
+
+        # recursively setup all source components first
+        if hasattr(component, "_sources") and component._sources is not None:
+            for source in component._sources:
+                logger.info(f"setting up {component._name} with source {source['name']}")
+                self._setup_components(self.components[source["name"]])
+
+        # setup the current component and pass in the source components
+        source_components = None
+        if hasattr(component, "_sources") and component._sources is not None:
+            source_components = {}
+            for source in component._sources:
+                source_components[source["name"]] = self.components[source["name"]]
+        component.setup(source_components)
+
+    # ============================================================================
+    # Forward Pass Methods
+    # ============================================================================
+
+    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> Tuple[TensorDict, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
         """Forward pass of the ComponentPolicy - matches original MettaAgent forward() logic."""
 
         # Handle BPTT reshaping like the original
@@ -178,6 +209,10 @@ class ComponentPolicy(nn.Module):
 
         return td
 
+    # ============================================================================
+    # Action Conversion Methods
+    # ============================================================================
+
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """Convert (action_type, action_param) pairs to discrete indices."""
         # Validate that we have a non-empty batch dimension
@@ -193,29 +228,14 @@ class ComponentPolicy(nn.Module):
         """Convert logit indices back to action pairs."""
         return self.action_index_tensor[action_logit_index]
 
-    def _setup_components(self, component):
-        """Setup component connections - matching old MettaAgent logic.
-        _sources is a list of dicts albeit many layers simply have one element.
-        It must always have a "name" and that name should be the same as the relevant key in self.components.
-        source_components is a dict of components that are sources for the current component.
-        """
-        # Skip if already setup
-        if getattr(component, "ready", False):
-            return
+    def activate_action_embeddings(self, full_action_names: list[str], device):
+        """Activate action embeddings with the given action names."""
+        if "_action_embeds_" in self.components:
+            self.components["_action_embeds_"].activate_actions(full_action_names, device)
 
-        # recursively setup all source components first
-        if hasattr(component, "_sources") and component._sources is not None:
-            for source in component._sources:
-                logger.info(f"setting up {component._name} with source {source['name']}")
-                self._setup_components(self.components[source["name"]])
-
-        # setup the current component and pass in the source components
-        source_components = None
-        if hasattr(component, "_sources") and component._sources is not None:
-            source_components = {}
-            for source in component._sources:
-                source_components[source["name"]] = self.components[source["name"]]
-        component.setup(source_components)
+    # ============================================================================
+    # Memory-related Methods
+    # ============================================================================
 
     def _apply_to_components(self, method_name, *args, **kwargs):
         """Apply a method to all components that have it."""
@@ -228,6 +248,11 @@ class ComponentPolicy(nn.Module):
                     if result is not None:
                         results.append(result)
         return results
+
+    def clip_weights(self):
+        """Apply weight clipping if enabled."""
+        if self.clip_range > 0:
+            self._apply_to_components("clip_weights")
 
     def l2_init_loss(self) -> torch.Tensor:
         """Calculate L2 initialization loss for all components."""
@@ -248,10 +273,16 @@ class ComponentPolicy(nn.Module):
                     results[name] = result
         return list(results.values())
 
-    def clip_weights(self):
-        """Apply weight clipping if enabled."""
-        if self.clip_range > 0:
-            self._apply_to_components("clip_weights")
+    # ============================================================================
+    # Feature/Normalization Methods
+    # ============================================================================
+
+    def _apply_feature_remapping(self, remap_tensor: torch.Tensor):
+        """Apply feature remapping to observation component."""
+        if "_obs_" in self.components:
+            obs_component = self.components["_obs_"]
+            if hasattr(obs_component, "update_feature_remapping"):
+                obs_component.update_feature_remapping(remap_tensor)
 
     def update_normalization_factors(self, features: dict[str, dict], original_feature_mapping: dict[str, int] | None):
         """Update normalization factors for ObsAttrValNorm components after feature remapping."""
@@ -269,14 +300,24 @@ class ComponentPolicy(nn.Module):
                 if hasattr(component, "update_normalization_tensor"):
                     component.update_normalization_tensor(norm_tensor)
 
-    def update_feature_remapping(self, remap_tensor: torch.Tensor):
-        """Update feature remapping in observation component."""
-        if "_obs_" in self.components:
-            obs_component = self.components["_obs_"]
-            if hasattr(obs_component, "update_feature_remapping"):
-                obs_component.update_feature_remapping(remap_tensor)
+    # ============================================================================
+    # Helper Methods and Properties
+    # ============================================================================
 
     def activate_action_embeddings(self, full_action_names: list[str], device):
         """Activate action embeddings with the given action names."""
         if "_action_embeds_" in self.components:
             self.components["_action_embeds_"].activate_actions(full_action_names, device)
+
+    def _apply_to_components(self, method_name, *args, **kwargs):
+        """Apply a method to all components that have it."""
+        results = []
+        for _, component in self.components.items():
+            if hasattr(component, method_name):
+                method = getattr(component, method_name)
+                if callable(method):
+                    result = method(*args, **kwargs)
+                    if result is not None:
+                        results.append(result)
+        return results
+
