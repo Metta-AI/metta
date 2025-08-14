@@ -9,7 +9,6 @@ for distributed PyTorch training environments.
 """
 
 import datetime
-import json
 import logging
 import os
 import subprocess
@@ -23,64 +22,6 @@ import torch.distributed as dist
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
-
-# Store benchmark results globally so we can access them in main()
-_benchmark_results = {}
-
-
-def save_all_results_json(
-    test_results: list[tuple[str, str]], benchmark_results: dict[str, Any], all_passed: bool, rank: int
-) -> None:
-    """Save all test and benchmark results to a single JSON file in IPC directory."""
-    if rank != 0:  # Only save from rank 0
-        return
-
-    # Get IPC directory from environment
-    ipc_dir = os.environ.get("IPC_DIR", "/tmp")
-
-    # Build comprehensive output
-    output = {
-        "timestamp": datetime.datetime.now().isoformat(),
-        "hostname": os.uname().nodename,
-        "cluster_config": {
-            "num_nodes": int(os.environ.get("NUM_NODES", "1")),
-            "num_gpus": int(os.environ.get("NUM_GPUS", "1")),
-            "world_size": int(os.environ.get("WORLD_SIZE", "1")),
-            "master_addr": os.environ.get("MASTER_ADDR", "localhost"),
-            "master_port": os.environ.get("MASTER_PORT", "29500"),
-        },
-        "all_tests_passed": all_passed,
-        "test_results": [
-            {"test_name": name, "result": result, "passed": "PASSED" in result} for name, result in test_results
-        ],
-        "benchmarks": benchmark_results,
-    }
-
-    # Extract key metrics for easy access at top level
-    if benchmark_results:
-        if "p2p_bandwidth" in benchmark_results:
-            output["p2p_bandwidth_gbps"] = benchmark_results["p2p_bandwidth"]["bandwidth_gbps"]
-
-        if "allreduce_bandwidth" in benchmark_results:
-            allreduce_results = benchmark_results["allreduce_bandwidth"]
-            if allreduce_results:
-                # Find peak bandwidth
-                peak_result = max(allreduce_results, key=lambda x: x["bandwidth_gbps"])
-                output["peak_allreduce_bandwidth_gbps"] = peak_result["bandwidth_gbps"]
-                output["peak_allreduce_size_mb"] = peak_result["size_mb"]
-
-                # Also save bandwidth at common sizes for easy access
-                for r in allreduce_results:
-                    output[f"allreduce_{r['size_mb']}mb_gbps"] = r["bandwidth_gbps"]
-
-    # Save to JSON file
-    json_path = os.path.join(ipc_dir, "nccl_results.json")
-    try:
-        with open(json_path, "w") as f:
-            json.dump(output, f, indent=2)
-        logger.info(f"All results saved to {json_path}")
-    except Exception as e:
-        logger.error(f"Failed to save results: {e}")
 
 
 def measure_p2p_bandwidth(
@@ -162,8 +103,6 @@ def measure_p2p_bandwidth(
 
 def test_nccl_benchmarks() -> bool:
     """Run NCCL bandwidth benchmarks with proper error handling."""
-    global _benchmark_results
-
     try:
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
         torch.cuda.set_device(local_rank)
@@ -219,7 +158,6 @@ def test_nccl_benchmarks() -> bool:
 
         # Store results for later use
         if rank == 0:
-            _benchmark_results = results
             print_benchmark_results(results)
 
         return True
@@ -1056,9 +994,6 @@ def main():
         else:
             print("                    ✗ SOME TESTS FAILED ✗")
         print("═" * 75 + "\n")
-
-        # Save all results to JSON
-        save_all_results_json(test_results, _benchmark_results, all_ranks_passed, rank)
 
     return_code = 0 if all_passed else 1
 
