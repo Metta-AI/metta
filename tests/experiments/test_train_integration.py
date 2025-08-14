@@ -3,7 +3,6 @@
 These tests verify that our generated YAML configs work with the actual training script.
 """
 
-import yaml
 
 from experiments.training_run_config import TrainingRunConfig
 from metta.rl.trainer_config import TrainerConfig
@@ -97,10 +96,20 @@ class TestTrainIntegration:
         try:
             # Load the saved YAML
             with open(yaml_path) as f:
-                # Skip the package directive
-                lines = f.readlines()
-                yaml_content = "".join(lines[1:])  # Skip first line
-                loaded = yaml.safe_load(yaml_content)
+                content = f.read()
+
+            # The YAML file has a package directive at the top
+            # Parse the YAML while handling the directive
+            import yaml
+
+            # Remove the package directive line if present
+            if content.startswith("#"):
+                lines = content.split("\n")
+                yaml_content = "\n".join(lines[1:])
+            else:
+                yaml_content = content
+
+            loaded = yaml.safe_load(yaml_content)
 
             # Verify trainer overrides were applied
             assert loaded["trainer"]["total_timesteps"] == 12345
