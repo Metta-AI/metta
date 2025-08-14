@@ -449,19 +449,64 @@ trap cleanup EXIT
 # Run comprehensive GPU diagnostics and NCCL tests
 echo "[RUN] Running GPU diagnostics and NCCL tests..."
 uv run python ./devops/skypilot/test_nccl.py
+
+# Helper function to read JSON values using Python
+read_json_value() {
+    local json_file="$1"
+    local key_path="$2"
+    local default="${3:-N/A}"
+
+    python3 -c "
+import json
+import sys
+try:
+    with open('$json_file', 'r') as f:
+        data = json.load(f)
+    # Support dot notation for nested keys
+    keys = '$key_path'.split('.')
+    value = data
+    for key in keys:
+        value = value.get(key, '$default')
+    print(value)
+except:
+    print('$default')
+"
+}
+
 if [ -f "$IPC_DIR/nccl_results.json" ]; then
-    if jq -e '.all_tests_passed' "$IPC_DIR/nccl_results.json" > /dev/null; then
+    # Check if all tests passed
+    ALL_PASSED=$(read_json_value "$IPC_DIR/nccl_results.json" "all_tests_passed" "false")
+
+    if [ "$ALL_PASSED" = "True" ] || [ "$ALL_PASSED" = "true" ]; then
         echo "[RUN] All NCCL tests passed!"
+
         # Extract and display key metrics
-        P2P_BW=$(jq -r '.p2p_bandwidth_gbps // "N/A"' "$IPC_DIR/nccl_results.json")
-        PEAK_ALLREDUCE=$(jq -r '.peak_allreduce_bandwidth_gbps // "N/A"' "$IPC_DIR/nccl_results.json")
+        P2P_BW=$(read_json_value "$IPC_DIR/nccl_results.json" "p2p_bandwidth_gbps")
+        PEAK_ALLREDUCE=$(read_json_value "$IPC_DIR/nccl_results.json" "peak_allreduce_bandwidth_gbps")
+
         echo "[RUN] P2P Bandwidth: ${P2P_BW} GB/s"
         echo "[RUN] Peak Allreduce: ${PEAK_ALLREDUCE} GB/s"
     else
         echo "[RUN] Some NCCL tests failed!"
-        jq -r '.test_results[] | select(.passed == false) | .test_name' "$IPC_DIR/nccl_results.json"
-        exit EXIT_NCCL_TEST_FAILURE
+
+        # List failed tests
+        python3 -c "
+import json
+try:
+    with open('$IPC_DIR/nccl_results.json', 'r') as f:
+        data = json.load(f)
+    failed_tests = [t['test_name'] for t in data.get('test_results', []) if not t.get('passed', False)]
+    for test in failed_tests:
+        print(f'  - {test}')
+except Exception as e:
+    print(f'Error reading test results: {e}')
+"
+        exit $EXIT_NCCL_TEST_FAILURE
     fi
+else
+    echo "[RUN] NCCL test results file not found at $IPC_DIR/nccl_results.json"
+    # Don't fail here - the Python script might have failed to write results
+    # but we should see that in the logs above
 fi
 
 # Run the command
