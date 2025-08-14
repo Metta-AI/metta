@@ -76,6 +76,14 @@ def setup_logging():
     leaderboard_updater_logger = logging.getLogger("leaderboard_updater")
     leaderboard_updater_logger.setLevel(logging.INFO)
 
+    # Configure metta repo logger
+    metta_repo_logger = logging.getLogger("metta_repo")
+    metta_repo_logger.setLevel(logging.INFO)
+
+    # Configure psycopg pool logger
+    psycopg_pool_logger = logging.getLogger("psycopg.pool")
+    psycopg_pool_logger.setLevel(logging.WARNING)
+
     # Ensure the loggers don't duplicate messages from root logger
     scorecard_logger.propagate = True
     db_logger.propagate = True
