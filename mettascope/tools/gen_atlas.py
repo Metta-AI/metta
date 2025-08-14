@@ -35,19 +35,19 @@ GLYPH_INNER_PADDING = 2
 def _get_font_config():
     """Return the current font-related configuration that should trigger rebuilds when changed."""
     cfg = {
-        "FONT_ID": FONT_ID,
-        "FONT_PATH": FONT_PATH,
-        "FONT_SIZE": FONT_SIZE,
-        "FONT_CHARSET": FONT_CHARSET,
-        "GLYPH_INNER_PADDING": GLYPH_INNER_PADDING,
+        "FontID": FONT_ID,
+        "FontPath": FONT_PATH,
+        "FontSize": FONT_SIZE,
+        "FontCharset": FONT_CHARSET,
+        "GlyphInnerPadding": GLYPH_INNER_PADDING,
     }
     if os.path.exists(FONT_PATH):
         st = os.stat(FONT_PATH)
-        cfg["FONT_PATH_MTIME"] = int(st.st_mtime)
-        cfg["FONT_PATH_SIZE"] = int(st.st_size)
+        cfg["FontPathMTime"] = int(st.st_mtime)
+        cfg["FontPathSize"] = int(st.st_size)
     else:
-        cfg["FONT_PATH_MTIME"] = None
-        cfg["FONT_PATH_SIZE"] = None
+        cfg["FontPathMTime"] = None
+        cfg["FontPathSize"] = None
 
     return cfg
 

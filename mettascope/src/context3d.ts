@@ -59,11 +59,11 @@ interface FontMeta {
 }
 
 interface FontConfig {
-  FONT_ID: string
-  FONT_PATH: string
-  FONT_SIZE: number
-  FONT_CHARSET: string
-  GLYPH_INNER_PADDING: number
+  FontID: string
+  FontPath: string
+  FontSize: number
+  FontCharset: string
+  GlyphInnerPadding: number
 }
 
 /** Type definition for atlas data. */
@@ -625,7 +625,7 @@ export class Context3d {
 
     const fonts = this.atlasData!.fonts
     const font = fonts[fontId]
-    const glyphInnerPadding = this.atlasData!.fontConfig.GLYPH_INNER_PADDING
+    const glyphInnerPadding = this.atlasData!.fontConfig.GlyphInnerPadding
     const mBase = this.atlasMargin
 
     let penX = x
