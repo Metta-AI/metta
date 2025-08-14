@@ -98,8 +98,9 @@ class MettaAgent(nn.Module):
             # Create PyTorch policy with device parameter if supported
             AgentClass = agent_classes[agent_cfg.agent_type]
             import inspect
+
             sig = inspect.signature(AgentClass.__init__)
-            if 'device' in sig.parameters:
+            if "device" in sig.parameters:
                 # Pass device to constructor if supported
                 policy = AgentClass(env=env, device=system_cfg.device)
             else:

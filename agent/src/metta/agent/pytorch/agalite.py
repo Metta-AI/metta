@@ -4,7 +4,6 @@ This version uses the TransformerWrapper for proper BPTT handling.
 """
 
 import logging
-import math
 from typing import Dict, Optional, Tuple
 
 import einops
@@ -18,6 +17,7 @@ from metta.agent.modules.transformer_wrapper import TransformerWrapper
 from metta.agent.pytorch.layer_init import init_layer
 
 logger = logging.getLogger(__name__)
+
 
 class AGaLiTeCore(nn.Module):
     """
@@ -89,7 +89,8 @@ class AGaLiTeCore(nn.Module):
 
     @staticmethod
     def initialize_memory(
-        batch_size: int, n_layers: int, n_heads: int, d_head: int, eta: int, r: int) -> Dict[str, Tuple]:
+        batch_size: int, n_layers: int, n_heads: int, d_head: int, eta: int, r: int
+    ) -> Dict[str, Tuple]:
         """Initialize memory for all layers."""
         memory_dict = {}
         for layer in range(1, n_layers + 1):
@@ -97,6 +98,7 @@ class AGaLiTeCore(nn.Module):
                 batch_size, n_heads, d_head, eta, r, device
             )
         return memory_dict
+
 
 class AGaLiTePolicy(nn.Module):
     """
@@ -207,6 +209,7 @@ class AGaLiTePolicy(nn.Module):
             dtype=torch.float32,
         )[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
+
     def network_forward(self, x: torch.Tensor) -> torch.Tensor:
         """CNN feature extraction from grid observations."""
         x = x / self.max_vec
@@ -313,6 +316,7 @@ class AGaLiTePolicy(nn.Module):
             r=self.r,
         )
 
+
 class AGaLiTe(TransformerWrapper):
     """
     AGaLiTe implementation using TransformerWrapper for proper BPTT handling.
@@ -358,6 +362,7 @@ class AGaLiTe(TransformerWrapper):
         self.cum_action_max_params = None
 
         # Move to device if needed
+
     def forward(self, td: TensorDict, state: Optional[Dict] = None, action: Optional[torch.Tensor] = None):
         """
         Forward pass compatible with MettaAgent expectations.

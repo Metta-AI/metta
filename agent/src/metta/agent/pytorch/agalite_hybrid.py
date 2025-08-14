@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Optional, Tuple
+from typing import Tuple
 
 import einops
 import torch
@@ -12,6 +12,7 @@ from metta.agent.modules.lstm_base import LSTMBase
 from metta.agent.pytorch.layer_init import init_layer
 
 logger = logging.getLogger(__name__)
+
 
 class AgaliteHybrid(LSTMBase):
     """Hybrid AGaLiTe-LSTM architecture for efficient RL training.
@@ -37,6 +38,7 @@ class AgaliteHybrid(LSTMBase):
         self.cum_action_max_params = None
 
         # Move to device
+
     def forward(self, td: TensorDict, state=None, action=None):
         """Forward pass compatible with MettaAgent expectations."""
         observations = td["env_obs"]
@@ -173,6 +175,7 @@ class AgaliteHybrid(LSTMBase):
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
         return cumulative_sum + action_params
+
 
 class AgalitePolicy(nn.Module):
     """Inner policy using AGaLiTe architecture."""

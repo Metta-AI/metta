@@ -4,10 +4,11 @@ Ported from JAX implementation to PyTorch.
 """
 
 import math
+from typing import Tuple
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Tuple, Dict, Optional
 
 
 def discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:

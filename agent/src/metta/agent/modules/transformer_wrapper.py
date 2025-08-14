@@ -3,9 +3,10 @@ Transformer wrapper for recurrent policies in PufferLib/Metta infrastructure.
 Similar to LSTMWrapper but handles transformer-style memory states and full sequences.
 """
 
+from typing import Any, Dict, Optional, Tuple
+
 import torch
 import torch.nn as nn
-from typing import Dict, Any, Optional, Tuple
 
 
 class TransformerWrapper(nn.Module):
@@ -170,11 +171,11 @@ class TransformerWrapper(nn.Module):
     def reset_memory(self, batch_size: Optional[int] = None, device: Optional[torch.device] = None) -> Dict[str, Any]:
         """
         Initialize memory for a batch of environments.
-        
+
         This method can be called in two ways:
         1. With explicit batch_size and device (for initialization)
         2. Without arguments (when MettaAgent calls it during reset)
-        
+
         When called without arguments, we return empty state that will be
         initialized lazily on first forward pass.
 
@@ -193,7 +194,7 @@ class TransformerWrapper(nn.Module):
                 "hidden": None,
                 "needs_init": True,  # Flag to indicate lazy initialization needed
             }
-        
+
         # Explicit initialization with batch_size and device
         if hasattr(self.policy, "initialize_memory"):
             memory = self.policy.initialize_memory(batch_size, device)

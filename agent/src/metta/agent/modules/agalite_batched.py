@@ -4,7 +4,7 @@ This version processes entire batches in parallel without loops.
 """
 
 import math
-from typing import Dict, Optional, Tuple
+from typing import Dict, Tuple
 
 import torch
 import torch.nn as nn
