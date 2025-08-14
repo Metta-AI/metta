@@ -37,9 +37,10 @@ def aggregate_dual_policy_stats(stats: Dict[str, Any], device: torch.device) -> 
     union_keys = sorted(set().union(*gathered_key_sets))
 
     if not union_keys:
+        logger.debug("No dual_policy stats found on any node to aggregate")
         return
 
-    logger.debug(f"Aggregating {len(union_keys)} dual_policy stats across {world_size} nodes")
+    logger.debug(f"Aggregating {len(union_keys)} dual_policy stats across {world_size} nodes: {union_keys}")
 
     for key in union_keys:
         values = stats.get(key, [])

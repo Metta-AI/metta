@@ -85,9 +85,7 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Log dual policy configuration for debugging
         if self._dual_policy_enabled:
-            print(
-                f"[MettaGridEnv] Dual policy ENABLED with training_agents_pct={self._dual_policy_training_agents_pct}"
-            )
+            logger.debug(f"Dual policy ENABLED with training_agents_pct={self._dual_policy_training_agents_pct}")
 
         # Initialize with base PufferLib functionality
         super().__init__(
@@ -214,8 +212,8 @@ class MettaGridEnv(MettaGridPufferBase):
             npc_ids = list(range(num_trained, num_agents))
             # First group is NPC in logging; keep consistency with logging block
             self._dual_policy_agent_groups = [npc_ids, trained_ids]
-            print(
-                f"[MettaGridEnv] Dual policy groups set: NPC={len(npc_ids)} agents, Trained={len(trained_ids)} agents"
+            logger.debug(
+                f"Dual policy groups set in reset: NPC={len(npc_ids)} agents, Trained={len(trained_ids)} agents"
             )
 
         self.timer.start("thread_idle")
@@ -227,10 +225,22 @@ class MettaGridEnv(MettaGridPufferBase):
         if not self._dual_policy_enabled or self._c_env_instance is None:
             return stats
 
-        # Get agent groups
+        # Get agent groups - try multiple sources
         agent_groups = self._get_agent_groups()
-        if (not agent_groups or len(agent_groups) < 2) and getattr(self, "_dual_policy_agent_groups", None):
-            agent_groups = self._dual_policy_agent_groups or []
+
+        # If no groups from grid objects, use or generate agent groups
+        if not agent_groups or len(agent_groups) < 2:
+            if hasattr(self, "_dual_policy_agent_groups") and self._dual_policy_agent_groups:
+                agent_groups = self._dual_policy_agent_groups
+            else:
+                # Auto-generate groups for subprocess environments
+                num_agents = self._c_env_instance.num_agents
+                num_trained = int(round(num_agents * self._dual_policy_training_agents_pct))
+                num_trained = max(1, min(num_agents - 1, num_trained))  # Ensure at least 1 of each
+                trained_ids = list(range(num_trained))
+                npc_ids = list(range(num_trained, num_agents))
+                agent_groups = [npc_ids, trained_ids]  # NPC first, trained second
+                self._dual_policy_agent_groups = agent_groups
 
         if len(agent_groups) >= 2:
             npc_group = agent_groups[0]
@@ -374,11 +384,23 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Add dual-policy specific logging if enabled
         if hasattr(self, "_dual_policy_enabled") and self._dual_policy_enabled:
-            # Get agent groups (assuming first group is NPC, second is trained policy)
+            # Get agent groups - try multiple sources
             agent_groups = self._get_agent_groups()
-            # Fallback to trainer-provided grouping if core env doesn't expose groups
-            if (not agent_groups or len(agent_groups) < 2) and getattr(self, "_dual_policy_agent_groups", None):
-                agent_groups = self._dual_policy_agent_groups or []
+
+            # If no groups from grid objects, use or generate agent groups
+            if not agent_groups or len(agent_groups) < 2:
+                if hasattr(self, "_dual_policy_agent_groups") and self._dual_policy_agent_groups:
+                    agent_groups = self._dual_policy_agent_groups
+                else:
+                    # Auto-generate groups for subprocess environments
+                    num_agents = self._c_env_instance.num_agents
+                    num_trained = int(round(num_agents * self._dual_policy_training_agents_pct))
+                    num_trained = max(1, min(num_agents - 1, num_trained))  # Ensure at least 1 of each
+                    trained_ids = list(range(num_trained))
+                    npc_ids = list(range(num_trained, num_agents))
+                    agent_groups = [npc_ids, trained_ids]  # NPC first, trained second
+                    self._dual_policy_agent_groups = agent_groups
+
             if len(agent_groups) >= 2:
                 npc_group = agent_groups[0]  # First group is NPC
                 trained_group = agent_groups[1]  # Second group is trained policy
