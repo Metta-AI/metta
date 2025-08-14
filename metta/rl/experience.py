@@ -145,6 +145,14 @@ class Experience:
         if episode_lengths + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
 
+    def reset_memory(self) -> None:
+        """Reset memory for all environments."""
+        for env_id in self.states.keys():
+            self.states[env_id] = (
+                torch.zeros(self.num_lstm_layers, self.batch_size, self.hidden_size, device=self.device),
+                torch.zeros(self.num_lstm_layers, self.batch_size, self.hidden_size, device=self.device),
+            )
+
     def _reset_completed_episodes(self, env_id) -> None:  # av used to be not tensor
         """Reset episode tracking for completed episodes."""
         num_full = env_id.stop - env_id.start

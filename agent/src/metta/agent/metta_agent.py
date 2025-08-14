@@ -164,26 +164,6 @@ class MettaAgent(nn.Module):
         # New policies expect (td, state, action)
         return self.policy(td, state, action)
 
-    def reset_memory(self) -> None:
-        """Reset memory - delegates to policy if it supports memory."""
-        if self.policy is self and hasattr(self, "components_with_memory"):
-            # Old MettaAgent: reset components with memory
-            for name in self.components_with_memory:
-                if name in self.components and hasattr(self.components[name], "reset_memory"):
-                    self.components[name].reset_memory()
-        elif hasattr(self.policy, "reset_memory"):
-            self.policy.reset_memory()
-
-    def get_memory(self) -> dict:
-        """Get memory state - delegates to policy if it supports memory."""
-        if self.policy is self and hasattr(self, "components_with_memory"):
-            # Old MettaAgent: collect memory from components
-            return {
-                name: self.components[name].get_memory()
-                for name in self.components_with_memory
-                if name in self.components and hasattr(self.components[name], "get_memory")
-            }
-        return getattr(self.policy, "get_memory", lambda: {})()
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
