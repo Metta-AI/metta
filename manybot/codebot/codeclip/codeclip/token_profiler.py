@@ -206,42 +206,32 @@ class TokenProfiler:
         return "\n".join(lines)
 
 
-def extract_files_from_context(context: str, raw: bool) -> Dict[str, str]:
+def extract_files_from_context(context: str) -> Dict[str, str]:
     """Extract file paths and contents from context string."""
     files = {}
 
-    if raw:
-        # Parse raw format
-        pattern = r"(.*?)\n---\n(?:### README START ###\n)?(.*?)(?:\n### README END ###)?(?=\n---|\Z)"
-        matches = re.findall(pattern, context, re.DOTALL)
-        for path, content in matches:
-            path = path.strip()
-            if path:
-                files[path] = content
-    else:
-        # Parse XML format
-        pattern = (
-            r"<document .*?>\s*<source>(.*?)</source>.*?"
-            r"(?:<document_content>(.*?)</document_content>|<instructions>(.*?)</instructions>).*?</document>"
-        )
-        matches = re.findall(pattern, context, re.DOTALL)
-        for match in matches:
-            path = match[0].strip()
-            content = match[1] if match[1] else match[2]
-            files[path] = content
+    # Parse XML format
+    pattern = (
+        r"<document .*?>\s*<source>(.*?)</source>.*?"
+        r"(?:<document_content>(.*?)</document_content>|<instructions>(.*?)</instructions>).*?</document>"
+    )
+    matches = re.findall(pattern, context, re.DOTALL)
+    for match in matches:
+        path = match[0].strip()
+        content = match[1] if match[1] else match[2]
+        files[path] = content
 
     return files
 
 
 def profile_code_context(
-    paths: List[Union[str, Path]], raw: bool = False, extensions: Optional[Tuple[str, ...]] = None, include_git_diff: bool = False, readmes_only: bool = False
+    paths: List[Union[str, Path]], extensions: Optional[Tuple[str, ...]] = None, include_git_diff: bool = False, readmes_only: bool = False
 ) -> Tuple[str, Dict]:
     """
     Profile token distribution for the given paths.
 
     Args:
         paths: List of paths to profile
-        raw: Whether context is in raw format or XML
         extensions: Optional file extensions to filter by
         include_git_diff: Whether to include git diff as a virtual file
         readmes_only: Whether to only include README.md files
@@ -252,7 +242,6 @@ def profile_code_context(
     # Get the context and token info first
     context, token_info = get_context(
         paths=paths,
-        raw=raw,
         extensions=extensions,
         include_git_diff=include_git_diff,
         diff_base="origin/main",

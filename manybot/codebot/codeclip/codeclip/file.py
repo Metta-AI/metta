@@ -2,7 +2,7 @@
 File loading and context extraction utilities.
 
 Provides methods for collecting and formatting files from different project structures,
-with special handling for READMEs and support for both XML and raw output formats.
+with special handling for READMEs and XML output format.
 """
 
 import fnmatch
@@ -524,36 +524,25 @@ def _find_gitignore(start_path: Path) -> Optional[Path]:
     return None
 
 
-def _format_document(doc: Document, raw: bool) -> str:
-    """Format a document according to output format."""
-    if raw:
-        lines = [doc.source, "---"]
-        if doc.is_readme:
-            lines.append("### README START ###")
-        lines.append(doc.content)
-        if doc.is_readme:
-            lines.append("### README END ###")
-        lines.append("---")
+def _format_document(doc: Document) -> str:
+    """Format a document in XML format."""
+    lines = [f'<document index="{doc.index}">', f"<source>{doc.source}</source>"]
+    if doc.is_readme:
+        lines.extend(["<type>readme</type>", "<instructions>", doc.content, "</instructions>"])
     else:
-        lines = [f'<document index="{doc.index}">', f"<source>{doc.source}</source>"]
-        if doc.is_readme:
-            lines.extend(["<type>readme</type>", "<instructions>", doc.content, "</instructions>"])
-        else:
-            lines.extend(["<document_content>", doc.content, "</document_content>"])
-        lines.append("</document>")
-
+        lines.extend(["<document_content>", doc.content, "</document_content>"])
+    lines.append("</document>")
     return "\n".join(lines)
 
 
 def get_context(
-    paths: Optional[List[Union[str, Path]]], raw: bool = False, extensions: Optional[Tuple[str, ...]] = None, include_git_diff: bool = False, diff_base: str = "origin/main", readmes_only: bool = False,
+    paths: Optional[List[Union[str, Path]]], extensions: Optional[Tuple[str, ...]] = None, include_git_diff: bool = False, diff_base: str = "origin/main", readmes_only: bool = False,
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Load and format context from specified paths, with basic token counting.
 
     Args:
         paths: List of paths to load context from, or None for no context
-        raw: Whether to use raw format instead of XML
         extensions: Optional tuple of file extensions to filter
         include_git_diff: Whether to include git diff as a virtual file
         diff_base: Base reference for git diff
@@ -564,7 +553,7 @@ def get_context(
     """
     # Handle empty paths
     if not paths:
-        content = "" if raw else "<documents></documents>"
+        content = "<documents></documents>"
         token_info_empty = {"total_tokens": 0, "total_files": 0}
 
         # If only diff requested, still process it
@@ -578,10 +567,7 @@ def get_context(
                 tokens = len(encoding.encode(diff_doc.content))
 
                 # Format the diff document
-                if raw:
-                    content = _format_document(diff_doc, raw)
-                else:
-                    content = "<documents>\n" + _format_document(diff_doc, raw) + "\n</documents>"
+                content = "<documents>\n" + _format_document(diff_doc) + "\n</documents>"
 
                 return content, {
                     "total_tokens": tokens,
@@ -709,14 +695,12 @@ def get_context(
 
     # Generate output
     output_lines = []
-    if not raw:
-        output_lines.append("<documents>")
+    output_lines.append("<documents>")
 
     for doc in documents:
-        output_lines.append(_format_document(doc, raw))
+        output_lines.append(_format_document(doc))
 
-    if not raw:
-        output_lines.append("</documents>")
+    output_lines.append("</documents>")
 
     content = "\n".join(output_lines)
 

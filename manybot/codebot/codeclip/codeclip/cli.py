@@ -92,7 +92,6 @@ def cli(
             # This calls get_context internally and builds the full profile
             profile_report, profile_data = profile_code_context(
                 paths=path_list,
-                raw=False,
                 extensions=normalized_extensions,
                 include_git_diff=diff,
                 readmes_only=readmes
@@ -101,7 +100,13 @@ def cli(
             output_content = profile_data.get("context", "")
         else:
             # Just get content and basic token info
-            output_content, token_info = get_context(paths=path_list, raw=False, extensions=normalized_extensions, include_git_diff=diff, diff_base="origin/main", readmes_only=readmes)
+            output_content, token_info = get_context(
+                paths=path_list,
+                extensions=normalized_extensions,
+                include_git_diff=diff,
+                diff_base="origin/main",
+                readmes_only=readmes
+            )
             profile_data = token_info
 
         # Generate flamegraph if requested
