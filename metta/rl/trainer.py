@@ -117,7 +117,10 @@ def train(
         trainer_cfg.num_workers,
         trainer_cfg.async_factor,
     )
-
+    print("VECENV STATS:")
+    print("--------------------------------")
+    print(f"num_envs: {num_envs}, batch_size: {batch_size}, target_batch_size: {target_batch_size}")
+    print("--------------------------------")
     # Create vectorized environment
     vecenv = make_vecenv(
         curriculum,
