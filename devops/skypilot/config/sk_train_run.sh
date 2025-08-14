@@ -47,12 +47,6 @@ fi
 bash ./devops/skypilot/config/configure_environment.sh
 source "$METTA_ENV_FILE"
 
-# Run comprehensive GPU diagnostics and NCCL tests
-echo "[RUN] Running GPU diagnostics and NCCL tests..."
-if ! uv run python ./devops/skypilot/test_nccl.py; then
-    echo "Pre-flight check failed!"
-    exit 1
-fi
 
 # Create a temp directory for IPC files
 export IPC_DIR="/tmp/metta_job_$$"
@@ -71,6 +65,28 @@ export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
 
 # Flag to prevent multiple shutdowns
 export SHUTDOWN_IN_PROGRESS=0
+
+# Run comprehensive GPU diagnostics and NCCL tests
+echo "[RUN] Running GPU diagnostics and NCCL tests..."
+if ! uv run python ./devops/skypilot/test_nccl.py; then
+    echo "Pre-flight check failed!"
+    exit 1
+fi
+
+if [ -f "$IPC_DIR/nccl_results.json" ]; then
+    if jq -e '.all_tests_passed' "$IPC_DIR/nccl_results.json" > /dev/null; then
+        echo "[RUN] All NCCL tests passed!"
+        # Extract and display key metrics
+        P2P_BW=$(jq -r '.p2p_bandwidth_gbps // "N/A"' "$IPC_DIR/nccl_results.json")
+        PEAK_ALLREDUCE=$(jq -r '.peak_allreduce_bandwidth_gbps // "N/A"' "$IPC_DIR/nccl_results.json")
+        echo "[RUN] P2P Bandwidth: ${P2P_BW} GB/s"
+        echo "[RUN] Peak Allreduce: ${PEAK_ALLREDUCE} GB/s"
+    else
+        echo "[RUN] Some NCCL tests failed!"
+        jq -r '.test_results[] | select(.passed == false) | .test_name' "$IPC_DIR/nccl_results.json"
+        exit 1
+    fi
+fi
 
 # Set up feature flags based on available credentials
 if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
