@@ -186,7 +186,9 @@ class Policy(nn.Module):
         max_vec = max_vec[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
-        self.actor = nn.ModuleList([pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in self.action_space.nvec])
+        self.actor = nn.ModuleList(
+            [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in self.action_space.nvec]
+        )
         self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
