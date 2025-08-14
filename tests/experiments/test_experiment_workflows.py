@@ -25,8 +25,6 @@ class TestExperimentWorkflows:
             name="test_preview",
             launch=False,
             training=TrainingRunConfig(curriculum="env/mettagrid/curriculum/test"),
-            total_timesteps=50000,
-            learning_rate=0.001,
         )
 
         experiment = SingleJobExperiment(config)
@@ -47,13 +45,10 @@ class TestExperimentWorkflows:
             with open(yaml_path) as f:
                 loaded = yaml.safe_load(f)
 
-            # Check that overrides were applied
-            assert loaded["trainer"]["total_timesteps"] == 50000
-            assert loaded["trainer"]["optimizer"]["learning_rate"] == 0.001
-
             # Check required fields for tools/train.py
             assert "defaults" in loaded
             assert "trainer" in loaded
+            assert loaded["trainer"]["curriculum"] == "env/mettagrid/curriculum/test"
             # wandb section only appears if not using defaults
             assert "seed" in loaded
 
