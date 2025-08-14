@@ -10,6 +10,7 @@ Generate texture atlas for Mettascope by packing images using Skyline bin packin
 """
 
 import json
+import math
 import os
 import sys
 
@@ -23,6 +24,10 @@ atlas_image = pixie.Image(ATLAS_SIZE, ATLAS_SIZE)
 images = {}
 heights = [0] * atlas_image.width
 padding = 64
+FONT_ID = "plexSans"
+FONT_PATH = "data/fonts/IBMPlexSans-Regular.ttf"
+FONT_SIZES = [64]
+FONT_CHARSET = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 
 
 def needs_rebuild(atlas_dir):
@@ -120,6 +125,95 @@ def put_image(img, name):
     return images[name]
 
 
+def _cp_label(cp: int) -> str:
+    return f"U+{cp:04X}"
+
+
+def _generate_font_glyphs():
+    """Render glyphs for the mandatory font, pack them into the atlas, and return font metadata."""
+    if not os.path.exists(FONT_PATH):
+        print(f"Error: Font file not found: {FONT_PATH}", file=sys.stderr)
+        sys.exit(1)
+
+    typeface = pixie.read_typeface(FONT_PATH)
+
+    fonts_meta = {FONT_ID: {}}
+    cps = [ord(ch) for ch in FONT_CHARSET]
+
+    for size in FONT_SIZES:
+        font = typeface.new_font()
+        font.size = float(size)
+        # Ensure white fill for glyphs
+        white = pixie.Paint(pixie.SOLID_PAINT)
+        white.color = pixie.Color(1.0, 1.0, 1.0, 1.0)
+        font.paint = white
+        scale = font.scale()
+        ascent_px = typeface.ascent() * scale
+        descent_px = typeface.descent() * scale
+        line_height_px = font.default_line_height()
+
+        glyphs = {}
+        added_count = 0
+        # Render and pack glyphs using font typesetting to ensure correct pixel sizes.
+        for cp in cps:
+            if not typeface.has_glyph(cp):
+                continue
+            ch = chr(cp)
+            arrangement = font.typeset(ch)
+            bounds = arrangement.compute_bounds()
+            w = int(math.ceil(bounds.w))
+            h = int(math.ceil(bounds.h))
+            bearing_x = float(bounds.x)
+            bearing_y = float(bounds.y)
+
+            rect = None
+            if w > 0 and h > 0:
+                img = pixie.Image(w, h)
+                img.fill(pixie.Color(0, 0, 0, 0))
+                # Draw the arrangement translated to start at (0,0)
+                img.arrangement_fill_text(arrangement, pixie.translate(-bounds.x, -bounds.y))
+                name = f"fonts/{FONT_ID}/{size}/{_cp_label(cp)}"
+                x, y, rw, rh = put_image(img, name)
+                rect = [x, y, rw, rh]
+                print(f"Added {name} to atlas")
+                added_count += 1
+
+            advance = float(typeface.get_advance(cp))
+            glyphs[_cp_label(cp)] = {
+                "rect": rect,
+                "advance": advance,
+                "bearingX": bearing_x,
+                "bearingY": bearing_y,
+            }
+
+        # Kerning table: nested map with only non-zero pairs.
+        kerning = {}
+        present_cps = [cp for cp in cps if _cp_label(cp) in glyphs]
+        for left in present_cps:
+            left_label = _cp_label(left)
+            row = None
+            for right in present_cps:
+                adjust = float(typeface.get_kerning_adjustment(left, right))
+
+                if adjust != 0.0:
+                    if row is None:
+                        row = {}
+                    row[_cp_label(right)] = adjust
+            if row:
+                kerning[left_label] = row
+
+        fonts_meta[FONT_ID][str(size)] = {
+            "ascent": float(ascent_px),
+            "descent": float(descent_px),
+            "lineHeight": float(line_height_px),
+            "glyphs": glyphs,
+            "kerning": kerning,
+        }
+        print(f"Packed {added_count} glyphs for {FONT_ID} size {size}")
+
+    return fonts_meta
+
+
 def main():
     """Main entry point for atlas generation."""
     # Ensure output directory exists
@@ -139,6 +233,8 @@ def main():
         return
 
     print(f"Rebuilding atlas: {reason}")
+
+    fonts_meta = _generate_font_glyphs()
 
     image_count = 0
     for root, _dirs, files in os.walk(atlas_dir):
@@ -162,8 +258,10 @@ def main():
 
     # Write the atlas image and the atlas json file.
     try:
+        atlas_out = dict(images)
+        atlas_out["fonts"] = fonts_meta
         with open("dist/atlas.json", "w") as f:
-            json.dump(images, f, indent=2)
+            json.dump(atlas_out, f, indent=2)
         atlas_image.write_file("dist/atlas.png")
         print("Atlas generation complete: dist/atlas.png and dist/atlas.json")
     except Exception as e:
