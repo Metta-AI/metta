@@ -1,13 +1,13 @@
 # Experiments Framework
 
-A Python-based framework for defining, launching, and managing distributed training experiments on Skypilot.
+A Python-based framework for defining, launching, managing, analyzing distributed training experiments on Skypilot.
 
 ## Overview
 
 The experiments framework provides:
 - **Type-safe configuration** using Pydantic models that serialize to Hydra-compatible YAML
 - **Clean separation** between infrastructure (Skypilot) and training (Hydra) configuration
-- **File-based config transfer** via Skypilot's file_mounts (no git commits required)
+- **YAML-based config transfer** via Skypilot's file_mounts (no git commits required)
 - **Service layer architecture** for integration with analysis tools
 
 ## Quick Start
@@ -36,7 +36,7 @@ from experiments.training_run_config import TrainingRunConfig
 
 class MyABTestConfig(SingleJobExperimentConfig):
     """A/B test comparing two learning rates."""
-    
+
     name: str = "lr_ab_test"
     training: TrainingRunConfig = TrainingRunConfig(
         curriculum="env/mettagrid/curriculum/arena/learning_progress",
