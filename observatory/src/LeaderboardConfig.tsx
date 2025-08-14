@@ -153,12 +153,15 @@ interface LeaderboardConfigProps {
 export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
   const navigate = useNavigate()
 
+  const formatDate = (date: Date) => {
+    return date.toISOString().split('T')[0]
+  }
+
   // Form state
   const [name, setName] = useState('')
   const [startDate, setStartDate] = useState(() => {
-    const date = new Date()
-    date.setMonth(date.getMonth() - 1) // Default to 1 month ago
-    return date.toISOString().split('T')[0]
+    const date = new Date() // default to today
+    return formatDate(date)
   })
   const [selectedEvalNames, setSelectedEvalNames] = useState<Set<string>>(new Set())
   const [selectedMetric, setSelectedMetric] = useState<string>('reward')
@@ -179,18 +182,14 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
   const [error, setError] = useState<string | null>(null)
 
   // Get filtered policies based on start date
-  const filteredPolicies = policies.filter(policy => {
-    const policyDate = new Date(policy.created_at).toISOString().split('T')[0]
-    return policyDate >= startDate
+  const filteredPolicies = policies.filter((policy) => {
+    const policyDate = new Date(policy.created_at)
+    return policyDate >= new Date(startDate)
   })
 
-  const trainingRunIds = filteredPolicies
-    .filter(p => p.type === 'training_run')
-    .map(p => p.id)
+  const trainingRunIds = filteredPolicies.filter((p) => p.type === 'training_run').map((p) => p.id)
 
-  const runFreePolicyIds = filteredPolicies
-    .filter(p => p.type === 'policy')
-    .map(p => p.id)
+  const runFreePolicyIds = filteredPolicies.filter((p) => p.type === 'policy').map((p) => p.id)
 
   // Load policies on mount
   useEffect(() => {
@@ -219,39 +218,39 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
 
   const loadPolicies = async () => {
     try {
-      setLoading(prev => ({ ...prev, policies: true }))
+      setLoading((prev) => ({ ...prev, policies: true }))
       setError(null)
       const response = await repo.getPolicies()
       setPolicies(response.policies)
     } catch (err: any) {
       setError(`Failed to load policies: ${err.message}`)
     } finally {
-      setLoading(prev => ({ ...prev, policies: false }))
+      setLoading((prev) => ({ ...prev, policies: false }))
     }
   }
 
   const loadEvalNames = async () => {
     try {
-      setLoading(prev => ({ ...prev, evalCategories: true }))
+      setLoading((prev) => ({ ...prev, evalCategories: true }))
       setError(null)
       const evalNamesData = await repo.getEvalNames({
         training_run_ids: trainingRunIds,
         run_free_policy_ids: runFreePolicyIds,
       })
       setEvalNames(evalNamesData)
-      setSelectedEvalNames(prev => new Set([...prev].filter(evalName => evalNamesData.has(evalName))))
+      setSelectedEvalNames((prev) => new Set([...prev].filter((evalName) => evalNamesData.has(evalName))))
     } catch (err: any) {
       setError(`Failed to load eval names: ${err.message}`)
       setEvalNames(new Set())
       setSelectedEvalNames(new Set())
     } finally {
-      setLoading(prev => ({ ...prev, evalCategories: false }))
+      setLoading((prev) => ({ ...prev, evalCategories: false }))
     }
   }
 
   const loadMetrics = async () => {
     try {
-      setLoading(prev => ({ ...prev, metrics: true }))
+      setLoading((prev) => ({ ...prev, metrics: true }))
       setError(null)
       const metricsData = await repo.getAvailableMetrics({
         training_run_ids: trainingRunIds,
@@ -274,7 +273,7 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
       setAvailableMetrics([])
       setSelectedMetric('')
     } finally {
-      setLoading(prev => ({ ...prev, metrics: false }))
+      setLoading((prev) => ({ ...prev, metrics: false }))
     }
   }
 
@@ -295,7 +294,7 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
     }
 
     try {
-      setLoading(prev => ({ ...prev, saving: true }))
+      setLoading((prev) => ({ ...prev, saving: true }))
 
       // Only creation is supported - editing is removed
       const createData: LeaderboardCreate = {
@@ -310,7 +309,7 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
     } catch (err: any) {
       alert(`Failed to create leaderboard: ${err.message}`)
     } finally {
-      setLoading(prev => ({ ...prev, saving: false }))
+      setLoading((prev) => ({ ...prev, saving: false }))
     }
   }
 
@@ -350,9 +349,7 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
 
       <div className="config-container">
         <div className="config-header">
-          <h1 className="config-title">
-            Create New Leaderboard
-          </h1>
+          <h1 className="config-title">Create New Leaderboard</h1>
           <p className="config-subtitle">
             Configure leaderboard settings to track and compare policy performance across evaluations.
           </p>
@@ -360,7 +357,9 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
 
         {/* Basic Information */}
         <div className="form-group">
-          <label className="form-label" htmlFor="name">Leaderboard Name</label>
+          <label className="form-label" htmlFor="name">
+            Leaderboard Name
+          </label>
           <input
             id="name"
             type="text"
@@ -374,14 +373,10 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
         {/* Start Date Filter */}
         <div className="widget">
           <h3 className="widget-title">Policy Filter</h3>
-          <DateSelector
-            value={startDate}
-            onChange={setStartDate}
-            label="Training Start Date"
-          />
+          <DateSelector value={startDate} onChange={setStartDate} label="Training Start Date" />
           <p style={{ color: '#666', fontSize: '14px', marginTop: '8px' }}>
-            Only policies created after this date will be included.
-            Currently showing {filteredPolicies.length} policies.
+            Only policies created after this date will be included. Currently showing {filteredPolicies.length}{' '}
+            policies.
           </p>
         </div>
 
@@ -414,11 +409,7 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
 
         {/* Form Actions */}
         <div className="form-actions">
-          <button
-            className="btn btn-secondary"
-            onClick={handleCancel}
-            disabled={loading.saving}
-          >
+          <button className="btn btn-secondary" onClick={handleCancel} disabled={loading.saving}>
             Cancel
           </button>
           <button
