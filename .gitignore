@@ -48,6 +48,8 @@ dist/
 
 # Project directories
 /checkpoints/
+# Generated experiment configs (passed via file_mounts to Skypilot)
+/configs/experiments/
 /wandb/
 /deps/*
 outputs/
