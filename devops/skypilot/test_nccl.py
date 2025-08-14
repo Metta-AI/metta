@@ -969,7 +969,7 @@ def main():
         # Check if we're still initialized (test might have destroyed it)
         if dist.is_initialized():
             # Gather results from all ranks
-            all_passed_tensor = torch.tensor([1.0 if all_passed else 0.0]).cuda()
+            all_passed_tensor = torch.tensor([1.0 if all_passed else 0.0], dtype=torch.float32).cuda()
             dist.all_reduce(all_passed_tensor)
             all_ranks_passed = all_passed_tensor.item() == float(world_size)
         else:
