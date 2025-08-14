@@ -28,18 +28,19 @@ def batched_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts
     if T == 0:
         return x
 
-    # Efficient implementation using cumulative operations
-    # Prepare for parallel scan
-    result = torch.zeros_like(x)
+    # Efficient implementation without inplace operations
+    result_list = []
 
     # First timestep
-    result[0] = discounts[0] * start_state + x[0]
+    prev = discounts[0] * start_state + x[0]
+    result_list.append(prev)
 
     # Remaining timesteps - vectorized across batch
     for t in range(1, T):
-        result[t] = discounts[t] * result[t - 1] + x[t]
+        prev = discounts[t] * prev + x[t]
+        result_list.append(prev)
 
-    return result
+    return torch.stack(result_list, dim=0)
 
 
 class BatchedAttentionAGaLiTeLayer(nn.Module):
@@ -128,8 +129,8 @@ class BatchedAttentionAGaLiTeLayer(nn.Module):
         beta = torch.sigmoid(beta)  # (T, B, head_num, head_dim)
 
         # Update tick and compute oscillatory terms
-        tick_inc = torch.arange(1, T + 1, device=device).unsqueeze(1)  # (T, 1)
-        ticks = tick.unsqueeze(0) + tick_inc  # (T, B, 1)
+        tick_inc = torch.arange(1, T + 1, device=device).view(T, 1, 1)  # (T, 1, 1)
+        ticks = tick.unsqueeze(0) + tick_inc  # (T, B, 1) - broadcast B dimension
 
         omegas = torch.linspace(-math.pi, math.pi, self.r, device=device)
         occil = torch.cos(torch.einsum("tbi,j->tbj", ticks, omegas))  # (T, B, r)

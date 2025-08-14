@@ -114,7 +114,12 @@ class Agalite(nn.Module):
         # Get or initialize memory
         if state is not None and "agalite_memory" in state:
             # Deserialize state from tensor
-            memory = self._deserialize_memory(state["agalite_memory"], B)
+            state_memory = state["agalite_memory"]
+            # If we're in BPTT mode and memory was expanded, take only first B elements
+            if state_memory.shape[0] == total_batch and TT > 1:
+                # Memory was expanded to B*TT, we only need the first occurrence for each batch
+                state_memory = state_memory[::TT]  # Take every TT-th element to get B elements
+            memory = self._deserialize_memory(state_memory, B)
         else:
             # Initialize new memory
             memory = BatchedAGaLiTe.initialize_memory(
@@ -179,11 +184,23 @@ class Agalite(nn.Module):
 
         # Serialize and store memory state
         serialized_memory = self._serialize_memory(new_memory)
-        td["agalite_memory"] = serialized_memory
-
-        # Reshape back if needed
+        
+        # Handle memory storage based on batch dimensions
         if original_shape != td.batch_size:
+            # We're in BPTT mode - need to handle memory carefully
+            # Memory is per-batch-element (B), not per-timestep (B*TT)
+            # We need to expand memory to match flattened batch or store separately
+            
+            # Option 1: Expand memory to match all timesteps (memory is same for all timesteps in sequence)
+            # This is needed because the TensorDict is flattened to (B*TT)
+            serialized_expanded = serialized_memory.repeat_interleave(TT, dim=0)
+            td["agalite_memory"] = serialized_expanded
+            
+            # Now reshape back to original shape
             td = td.reshape(original_shape)
+        else:
+            # Single batch dimension, store directly
+            td["agalite_memory"] = serialized_memory
 
         return td
 
