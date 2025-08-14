@@ -14,7 +14,7 @@ export const EvalFinder: React.FC<EvalFinderProps> = ({ model }) => {
   const [evalData, setEvalData] = useState<any>(null);
   const [selectedEvals, setSelectedEvals] = useState<string[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<"tree" | "list" | "category">("tree");
+  const [viewMode, setViewMode] = useState<"tree" | "list" | "category">("category");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [showPrerequisites, setShowPrerequisites] = useState<boolean>(true);
 
@@ -33,7 +33,7 @@ export const EvalFinder: React.FC<EvalFinderProps> = ({ model }) => {
       }
 
       setCategoryFilter(model.get("category_filter") || []);
-      setViewMode(model.get("view_mode") || "tree");
+      // setViewMode(model.get("view_mode") || "tree");
       setSearchTerm(model.get("search_term") || "");
       setShowPrerequisites(model.get("show_prerequisites") !== false);
     };
@@ -181,16 +181,16 @@ export const EvalFinder: React.FC<EvalFinderProps> = ({ model }) => {
         </div>
 
         <div className="selection-controls">
-          <button 
-            onClick={handleSelectAll} 
+          <button
+            onClick={handleSelectAll}
             className="btn-select-all"
             disabled={selectedEvals.length === filteredEvaluations.length}
             title={`Select all ${filteredEvaluations.length} evaluations`}
           >
             📋 Select All ({filteredEvaluations.length})
           </button>
-          <button 
-            onClick={handleClearAll} 
+          <button
+            onClick={handleClearAll}
             className="btn-clear-all"
             disabled={selectedEvals.length === 0}
             title="Clear all selections"

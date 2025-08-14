@@ -25,17 +25,13 @@ def _(mo):
 
     The Eval Finder Widget provides:
 
-    - **🌳 Tree View**: Hierarchical organization by category
-    - **📋 List View**: Flat list of all evaluations
-    - **🏷️ Category View**: Grid layout grouped by category
+    - **🪟 Views**: Tree view, list view, category view
     - **🔍 Search**: Filter by name
-    - **🎯 Multi-select**: Choose multiple evaluations at once
-    - **🔗 Prerequisites**: Shows evaluation dependencies
-    - **🏷️ Tags**: Additional categorization
+    - **🎯 Multi-select**: Choose as many as you like!
 
     ## Integration with Scorecard
 
-    Selected evaluations can be used directly with the scorecard widget for evaluation:
+    Selected evaluations can be used directly with the scorecard widget for evaluation (I'll show you; scroll down...)
     """
     )
     return
@@ -67,8 +63,8 @@ def _():
     from metta.app_backend.clients.scorecard_client import ScorecardClient
 
     # Comment one of these out, uncomment the other.
-    client = ScorecardClient()  # production
-    # client = ScorecardClient(backend_url="http://localhost:8000")  # development
+    # client = ScorecardClient()  # production: https://api.observatory.softmax-research.net
+    client = ScorecardClient(backend_url="http://localhost:8000")  # development
 
     print("🎯 Eval Finder Widget imported successfully!")
     return (
@@ -103,7 +99,7 @@ def _(create_demo_eval_finder_widget, mo):
 def _(demo_widget, mo):
     # INFO: RUN THIS CELL MANUALLY
     # Show selected evaluations from demo widget
-    selected = demo_widget.value["selected_evals"]
+    selected = demo_widget.selected_evals
 
     mo.vstack(
         [
@@ -134,6 +130,7 @@ async def _(client):
     async def _():
         # Get available policies and training runs
         try:
+            print("🔗 Testing connection to backend...")
             policies_response = await client.get_policies()
             all_policies = policies_response.policies
 
@@ -150,18 +147,27 @@ async def _(client):
             # Show a few examples
             if training_run_policies:
                 print("🏃 Sample training runs:")
-                for p in training_run_policies[:3]:
+                for p in training_run_policies[:5]:
                     print(f"  - {p.name} ({p.id[:8]}...)")
+                if len(training_run_policies) > 5:
+                    print("  - ...")
 
             if run_free_policies:
-                print("🤖 Sample policies:")
-                for p in run_free_policies[:3]:
+                print("🤖 Sample standalone policies:")
+                for p in run_free_policies[:5]:
                     print(f"  - {p.name} ({p.id[:8]}...)")
+                if len(run_free_policies) > 5:
+                    print("  - ...")
 
             return training_run_policies, run_free_policies
 
         except Exception as e:
+            import traceback
+
             print(f"⚠️ Could not fetch policies: {e}")
+            print(f"Exception type: {type(e).__name__}")
+            print("Traceback:")
+            traceback.print_exc()
             return [], []
 
     training_run_policies, run_free_policies = await _()
@@ -216,61 +222,58 @@ def _(
     policy_selector,
     training_run_policies,
 ):
-    # Create the raw widget first
-    _widget = EvalFinderWidget()
+    # Make a widget and wrap it
+    eval_finder = EvalFinderWidget()
+    mo_eval_finder = mo.ui.anywidget(eval_finder)
 
     try:
         # Determine which are training runs vs standalone policies
-        _selected_policy_ids = policy_selector.value
-        print(policy_selector.value)
-        _selected_training_runs = []
+        selected_training_runs = []
         _selected_policies = []
 
-        for policy_id in _selected_policy_ids:
+        for policy_id in policy_selector.value:
             # Check if it's a training run
             is_training_run = any(p.id == policy_id for p in training_run_policies)
             if is_training_run:
-                _selected_training_runs.append(policy_id)
+                selected_training_runs.append(policy_id)
             else:
                 _selected_policies.append(policy_id)
 
         print(
-            f"🎯 Fetching evals for {len(_selected_training_runs)} training runs and {len(_selected_policies)} policies"
+            f"🎯 Fetching evals for {len(selected_training_runs)} training runs and {len(_selected_policies)} policies"
         )
 
         # Fetch policy-aware eval data
-        _eval_data = fetch_eval_data_for_policies(
-            training_run_ids=_selected_training_runs,
+        eval_data = fetch_eval_data_for_policies(
+            training_run_ids=selected_training_runs,
             run_free_policy_ids=_selected_policies,
             category_filter=[],
             client=client,
         )
 
         # Set the data on the raw widget
-        _widget.set_eval_data(
-            evaluations=_eval_data["evaluations"],
-            # categories=_eval_data["categories"], # you can leave this unset to fetch all categories
+        eval_finder.set_eval_data(
+            evaluations=eval_data["evaluations"],
+            # categories=eval_data["categories"], # you can leave this unset to fetch all categories
         )
 
-        print(f"📊 Loaded {len(_eval_data['evaluations'])} evaluations")
+        print(f"📊 Loaded {len(eval_data['evaluations'])} evaluations")
 
     except Exception as e:
         print(f"⚠️ Could not fetch live data: {e}")
         print("Using demo data instead...")
         # Fallback to demo data if backend not available
-        _widget = create_demo_eval_finder_widget()
+        eval_finder = create_demo_eval_finder_widget()
+        mo_eval_finder = mo.ui.anywidget(eval_finder)
 
-    # Wrap the configured widget
-    eval_finder = mo.ui.anywidget(_widget)
-
-    eval_finder
-    return (eval_finder,)
+    mo_eval_finder
+    return eval_finder, mo_eval_finder
 
 
 @app.cell
-def _(eval_finder, mo):
+def _(mo, mo_eval_finder):
     # The wrapped widget's value is a dict of all traits, so we need to extract selected_evals
-    selection = eval_finder.value["selected_evals"]
+    selection = mo_eval_finder.value["selected_evals"]
 
     def _():
         # Show different content based on selection
@@ -325,7 +328,7 @@ def _(mo):
 @app.cell
 async def _(
     client,
-    eval_finder,
+    mo_eval_finder,
     policy_selector,
     run_free_policies,
     training_run_policies,
@@ -344,7 +347,7 @@ async def _(
     ]
 
     # Extract selected_evals from the widget's value dict
-    selected_evals = eval_finder.value["selected_evals"]
+    selected_evals = mo_eval_finder.value["selected_evals"]
 
     print(f"🔍 Selected policy IDs: {selected_policy_ids}")
     print(f"🔍 Selected policy names: {selected_policy_names}")

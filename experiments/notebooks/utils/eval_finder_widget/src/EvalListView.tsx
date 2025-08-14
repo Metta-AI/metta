@@ -22,9 +22,9 @@ export const EvalListView: React.FC<EvalListViewProps> = ({
       medium: "#f59e0b",
       hard: "#ef4444"
     };
-    
+
     return (
-      <span 
+      <span
         className="difficulty-badge"
         style={{ backgroundColor: colorMap[difficulty as keyof typeof colorMap] }}
       >
@@ -35,7 +35,7 @@ export const EvalListView: React.FC<EvalListViewProps> = ({
 
   const renderPrerequisites = (prerequisites: string[]) => {
     if (!showPrerequisites || prerequisites.length === 0) return null;
-    
+
     return (
       <div className="prerequisites">
         <span className="prereq-label">Requires:</span>
@@ -50,7 +50,7 @@ export const EvalListView: React.FC<EvalListViewProps> = ({
 
   const renderAgentRequirements = (agentRequirements: string[]) => {
     if (agentRequirements.includes("any")) return null;
-    
+
     return (
       <div className="agent-requirements">
         {agentRequirements.map((req, idx) => (
@@ -80,10 +80,10 @@ export const EvalListView: React.FC<EvalListViewProps> = ({
             <div className="eval-grid">
               {categoryEvals.map((metadata) => {
                 const isSelected = selectedEvals.includes(metadata.name);
-                
+
                 return (
-                  <div 
-                    key={metadata.name} 
+                  <div
+                    key={metadata.name}
                     className={`eval-card ${isSelected ? "selected" : ""}`}
                     onClick={() => onEvalToggle(metadata.name)}
                   >
@@ -97,18 +97,7 @@ export const EvalListView: React.FC<EvalListViewProps> = ({
                       <span className="eval-name">
                         {metadata.name.split('/').pop()}
                       </span>
-                      {renderDifficultyBadge(metadata.difficulty)}
                     </div>
-                    
-                    {renderAgentRequirements(metadata.agent_requirements)}
-                    
-                    {metadata.description && (
-                      <div className="eval-description">
-                        {metadata.description}
-                      </div>
-                    )}
-                    
-                    {renderPrerequisites(metadata.prerequisites)}
                   </div>
                 );
               })}
@@ -124,10 +113,10 @@ export const EvalListView: React.FC<EvalListViewProps> = ({
     <div className="eval-list-view">
       {evaluations.map((metadata) => {
         const isSelected = selectedEvals.includes(metadata.name);
-        
+
         return (
-          <div 
-            key={metadata.name} 
+          <div
+            key={metadata.name}
             className={`eval-item ${isSelected ? "selected" : ""}`}
             onClick={() => onEvalToggle(metadata.name)}
           >
@@ -139,17 +128,7 @@ export const EvalListView: React.FC<EvalListViewProps> = ({
                 onClick={(e) => e.stopPropagation()}
               />
               <span className="eval-name">{metadata.name}</span>
-              {renderDifficultyBadge(metadata.difficulty)}
-              {renderAgentRequirements(metadata.agent_requirements)}
             </div>
-            
-            {metadata.description && (
-              <div className="eval-description">
-                {metadata.description}
-              </div>
-            )}
-            
-            {renderPrerequisites(metadata.prerequisites)}
           </div>
         );
       })}

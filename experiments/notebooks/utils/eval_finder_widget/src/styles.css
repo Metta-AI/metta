@@ -290,7 +290,7 @@
 
 .eval-item,
 .eval-card {
-  padding: 20px;
+  padding: 14px;
   border: 1px solid #e1e5e9;
   border-radius: 8px;
   margin-bottom: 8px;
@@ -440,19 +440,20 @@
 
 .category-title {
   color: #2d3748;
-  margin: 0 0 16px 0;
+  margin: 14px 0 8px 0;
   font-size: 18px;
   font-weight: 600;
   text-transform: capitalize;
   padding-bottom: 8px;
   border-bottom: 2px solid #e1e5e9;
+  padding-left: 12px;
 }
 
 .eval-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
-  padding: 4px;
+  padding: 8px;
 }
 
 .eval-grid .eval-card {
@@ -465,13 +466,13 @@
     flex-direction: column;
     gap: 16px;
   }
-  
+
   .view-controls {
     flex-direction: column;
     gap: 12px;
     align-items: stretch;
   }
-  
+
   .eval-grid {
     grid-template-columns: 1fr;
   }

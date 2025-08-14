@@ -11,6 +11,7 @@ from typing import Any, Callable, Dict, List
 import anywidget
 import traitlets
 
+# FIXME: dev mode is actually broken for some reason. marybe it's marimo?
 # FIXME: we need something like `dotenv` and `.env.local` files up in here.
 _DEV = False
 # _DEV = True
@@ -71,11 +72,6 @@ class EvalFinderWidget(anywidget.AnyWidget):
         # Set up observers
         self.observe(self._on_selection_changed, names="selection_changed")
         self.observe(self._on_filter_changed, names="filter_changed")
-
-    @property
-    def value(self):
-        """Return the current selection - this makes it work like other marimo UI elements!"""
-        return self.selected_evals
 
     def _on_selection_changed(self, change):
         """Handle eval selection events from JavaScript."""
