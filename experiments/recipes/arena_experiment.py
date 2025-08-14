@@ -14,16 +14,10 @@ class ArenaExperimentConfig(SingleJobExperimentConfig):
     """Configuration specific to Arena experiments."""
 
     name: str = "arena_experiment"
-
-    def __init__(self, **kwargs):
-        # Set default training config with arena curriculum and tags
-        if "training" not in kwargs:
-            kwargs["training"] = TrainingRunConfig(
-                curriculum="env/mettagrid/curriculum/arena/learning_progress",
-                wandb_tags=["arena", "experiment"],
-            )
-
-        super().__init__(**kwargs)
+    training: TrainingRunConfig = TrainingRunConfig(
+        curriculum="env/mettagrid/curriculum/arena/learning_progress",
+        wandb_tags=["arena", "experiment"],
+    )
 
 
 def main():
