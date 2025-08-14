@@ -23,6 +23,13 @@ export HYDRA_FULL_ERROR=1
 export WANDB_DIR="./wandb"
 export DATA_DIR=${DATA_DIR:-./train_dir}
 
+# Copy config file to experiments directory if needed
+if [ -n "${METTA_CONFIG_COPY_TO:-}" ] && [ -n "${METTA_CONFIG_FILE:-}" ]; then
+  echo "[INFO] Copying config from $METTA_CONFIG_FILE to $METTA_CONFIG_COPY_TO"
+  mkdir -p "$(dirname "$METTA_CONFIG_COPY_TO")"
+  cp "$METTA_CONFIG_FILE" "$METTA_CONFIG_COPY_TO"
+fi
+
 echo "[INFO] Starting training..."
 
 # run torchrun; preserve exit code and print a friendly line

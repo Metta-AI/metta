@@ -12,6 +12,7 @@ from experiments.training_job import TrainingJob, TrainingJobConfig
 from experiments.skypilot_job_config import SkypilotJobConfig
 from experiments.training_run_config import TrainingRunConfig
 from metta.common.util.config import Config
+from pydantic import PrivateAttr
 
 
 class ExperimentConfig(Config):
@@ -25,6 +26,21 @@ class ExperimentConfig(Config):
     #     default=None,
     #     description="Directory to save notebook, None to skip notebook generation",
     # )
+
+    # Store instance_name as a private attribute to avoid Pydantic validation
+    _instance_name: str = PrivateAttr(default=None)
+
+    def __init__(self, **kwargs):
+        """Initialize experiment config and compute instance name."""
+        super().__init__(**kwargs)
+        # Compute instance name once with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self._instance_name = f"{self.name}_{timestamp}"
+
+    @property
+    def instance_name(self) -> str:
+        """Get the instance name for this experiment."""
+        return self._instance_name
 
 
 class SingleJobExperimentConfig(ExperimentConfig):
@@ -110,6 +126,7 @@ class Experiment(ABC):
     def __init__(self, config: ExperimentConfig):
         self.config = config
         self.name = config.name
+        self.instance_name = config.instance_name  # Use the pre-computed instance name
         self.user = config.user or os.environ.get("USER", "unknown")
         self.created_at = datetime.now().isoformat()
         self.launched_training_jobs: List[TrainingJob] = []
@@ -124,8 +141,17 @@ class Experiment(ABC):
         """Convert training job configs to TrainingJob objects."""
         jobs = []
         for i, config in enumerate(self.training_job_configs):
-            job_name = f"{self.name}_job_{i}"
-            jobs.append(TrainingJob(name=job_name, config=config))
+            # Use instance_name for consistency
+            job_name = (
+                f"{self.instance_name}_job_{i}"
+                if len(self.training_job_configs) > 1
+                else self.instance_name
+            )
+            jobs.append(
+                TrainingJob(
+                    name=job_name, config=config, instance_name=self.instance_name
+                )
+            )
         return jobs
 
     def run(self) -> Optional[str]:
@@ -212,7 +238,9 @@ class Experiment(ABC):
                 print(f"  Spot: {config.skypilot.spot}")
 
                 # Show YAML serialization details
-                yaml_path, full_config = config.training.serialize_to_yaml_file()
+                yaml_path, full_config = config.training.serialize_to_yaml_file(
+                    instance_name=self.instance_name
+                )
                 print(f"\n  YAML Config Created: {yaml_path}")
                 print("  Key Settings:")
                 print(f"    - Curriculum: {config.training.curriculum}")
@@ -233,7 +261,9 @@ class Experiment(ABC):
                 print(f"\n  To view full YAML: cat {yaml_path}")
 
                 # Show local testing command
-                test_command = config.training.save_for_local_testing()
+                test_command = (
+                    f"uv run ./tools/train.py +experiments={self.instance_name}"
+                )
                 print("\n  To test locally with tools/train.py:")
                 print(f"    {test_command}")
 

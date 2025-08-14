@@ -22,14 +22,21 @@ class TrainingJobConfig(Config):
 class TrainingJob:
     """Represents a launched training job with its identifiers."""
 
-    def __init__(self, name: str, config: Optional[TrainingJobConfig] = None):
+    def __init__(
+        self,
+        name: str,
+        config: Optional[TrainingJobConfig] = None,
+        instance_name: Optional[str] = None,
+    ):
         """Initialize a training job.
 
         Args:
             name: Name for the training job
             config: Complete job configuration
+            instance_name: Instance name for the experiment (includes timestamp)
         """
         self.name = name
+        self.instance_name = instance_name or name  # Fallback to name if not provided
         self.config = config or TrainingJobConfig()
         self.job_id: Optional[str] = None
         self.launched: bool = False
@@ -53,6 +60,7 @@ class TrainingJob:
         service.launch_training(
             run_name=self.name,
             training_job=self,  # Pass self with full config
+            instance_name=self.instance_name,
         )
 
         # Job state is updated by the service

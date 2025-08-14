@@ -138,24 +138,37 @@ def main():
     # If config file is provided, mount it and set environment variable
     if args.config_file:
         import os
+        from pathlib import Path
 
         if not os.path.exists(args.config_file):
             print(red(f"❌ Config file not found: {args.config_file}"))
             sys.exit(1)
 
-        # Mount the config file to a known location on the remote
+        config_path = Path(args.config_file)
+
+        # Always mount to /tmp first
         remote_config_path = "/tmp/metta_train_config.yaml"
         task.file_mounts = task.file_mounts or {}
         task.file_mounts[remote_config_path] = args.config_file
 
         # Set environment variable to tell the remote script where the config is
         metta_config_file = remote_config_path
-        # When using a config file, we don't need to pass individual args
-        # Hydra expects config name without .yaml extension
-        metta_cmd_args = "--config-path=/tmp --config-name=metta_train_config"
+
+        # Check if this is an experiments config that should be copied to configs/experiments
+        if "experiment" in config_path.stem:
+            # Tell the remote to copy to experiments directory and use from there
+            config_name = config_path.stem
+            metta_cmd_args = f"+experiments={config_name}"
+            # Set flag to copy the config
+            metta_config_copy_to = f"configs/experiments/{config_name}.yaml"
+        else:
+            # Use from /tmp as before (backwards compatibility)
+            metta_cmd_args = "--config-path=/tmp --config-name=metta_train_config"
+            metta_config_copy_to = None
     else:
         metta_config_file = None
         metta_cmd_args = " ".join(cmd_args)
+        metta_config_copy_to = None
 
     # Prepare environment variables including status parameters
     env_updates = dict(
@@ -163,6 +176,7 @@ def main():
         METTA_CMD=args.cmd,
         METTA_CMD_ARGS=metta_cmd_args,
         METTA_CONFIG_FILE=metta_config_file,
+        METTA_CONFIG_COPY_TO=metta_config_copy_to or "",
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         GITHUB_PAT=args.github_pat,

@@ -3,7 +3,6 @@
 These tests verify that our generated YAML configs work with the actual training script.
 """
 
-
 from experiments.training_run_config import TrainingRunConfig
 from metta.rl.trainer_config import TrainerConfig
 
@@ -119,8 +118,8 @@ class TestTrainIntegration:
 
             # Test command should work
             assert "tools/train.py" in test_command
-            assert f"--config-path={yaml_path.parent}" in test_command
-            assert f"--config-name={yaml_path.stem}" in test_command
+            assert "+test=" in test_command
+            assert yaml_path.stem in test_command
 
         finally:
             # Clean up

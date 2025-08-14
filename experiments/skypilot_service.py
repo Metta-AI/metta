@@ -89,12 +89,14 @@ class SkypilotService:
         self,
         run_name: str,
         training_job: TrainingJob,
+        instance_name: str,
     ) -> LaunchResult:
         """Launch a training job via Skypilot.
 
         Args:
             run_name: Name for the training run
             training_job: TrainingJob with full configuration
+            instance_name: Instance name for the experiment (includes timestamp)
 
         Returns:
             LaunchResult with success status and job_id if successful
@@ -106,6 +108,7 @@ class SkypilotService:
         cmd, config_file = self._build_command(
             run_name=run_name,
             training_job=training_job,
+            instance_name=instance_name,
         )
 
         # Execute command
@@ -134,12 +137,14 @@ class SkypilotService:
         self,
         run_name: str,
         training_job: Optional[TrainingJob],
+        instance_name: str,
     ) -> Tuple[List[str], Path]:
         """Build the skypilot launch command from a TrainingJob.
 
         Args:
             run_name: Name for the run
             training_job: The TrainingJob with full configuration
+            instance_name: Instance name for the experiment (includes timestamp)
 
         Returns:
             Tuple of (command arguments list, config file path)
@@ -150,7 +155,9 @@ class SkypilotService:
         config = training_job.config
 
         # Serialize training config to YAML file
-        config_file, full_config = config.training.serialize_to_yaml_file()
+        config_file, full_config = config.training.serialize_to_yaml_file(
+            instance_name=instance_name
+        )
 
         # Build command with infrastructure settings from skypilot config
         skypilot = config.skypilot

@@ -2,9 +2,7 @@
 
 from typing import Optional, List, Dict, Any, Tuple
 from pathlib import Path
-from datetime import datetime
 import yaml
-import tempfile
 
 from metta.common.util.config import Config
 from metta.rl.trainer_config import TrainerConfig, OptimizerConfig, PPOConfig
@@ -97,14 +95,14 @@ class TrainingRunConfig(Config):
         Returns:
             Complete config dict matching what tools/train.py expects
         """
-        # Build config using proper structure
+        # Use simple defaults - always load standard configs from their normal locations
         config = {
             "defaults": [
-                "common",
-                f"agent: {self.agent_config}",
-                "trainer: trainer",
-                f"sim: {self.sim_config}",
-                f"wandb: {'metta_research' if self.wandb_entity == 'metta-research' else 'external_user'}",
+                "../common",  # Go up from experiments/ to configs/
+                f"../agent/{self.agent_config}",  # Always load agent from configs/agent/
+                "../trainer/trainer",
+                f"../sim/{self.sim_config}",
+                f"../wandb/{'metta_research' if self.wandb_entity == 'metta-research' else 'external_user'}",
                 "_self_",
             ],
             "seed": self.seed,
@@ -137,19 +135,24 @@ class TrainingRunConfig(Config):
 
         return config
 
-    def serialize_to_yaml_file(self) -> Tuple[Path, Dict[str, Any]]:
+    def serialize_to_yaml_file(self, instance_name: str) -> Tuple[Path, Dict[str, Any]]:
         """Serialize the config to a YAML file for transfer.
+
+        Args:
+            instance_name: The instance name for the config file (includes timestamp)
 
         Returns:
             Tuple of (yaml_file_path, full_config_dict)
         """
-        # Create temp directory if it doesn't exist
-        temp_dir = Path(tempfile.gettempdir()) / "metta_configs"
-        temp_dir.mkdir(parents=True, exist_ok=True)
+        # Import here to avoid circular dependency
+        from metta.common.util.fs import get_repo_root
 
-        # Generate unique filename based on timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        yaml_path = temp_dir / f"train_config_{timestamp}.yaml"
+        # Save to configs/experiments directory where all the defaults will work
+        repo_root = get_repo_root()
+        experiments_dir = repo_root / "configs" / "experiments"
+        experiments_dir.mkdir(parents=True, exist_ok=True)
+
+        yaml_path = experiments_dir / f"{instance_name}.yaml"
 
         # Get the full config
         full_config = self.serialize_to_yaml()
@@ -161,28 +164,19 @@ class TrainingRunConfig(Config):
 
         return yaml_path, full_config
 
-    def save_for_local_testing(self) -> str:
-        """Save YAML to a persistent location for local testing.
+    def save_for_local_testing(self, instance_name: str) -> str:
+        """Save YAML to the configs directory for local testing.
+
+        Args:
+            instance_name: The instance name for the config file (includes timestamp)
 
         Returns:
             Command to run tools/train.py with this config
         """
-        # Save to a more persistent location for testing
-        test_dir = Path.home() / ".metta_test_configs"
-        test_dir.mkdir(parents=True, exist_ok=True)
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        yaml_path = test_dir / f"test_config_{timestamp}.yaml"
-
-        # Get the full config
-        full_config = self.serialize_to_yaml()
-
-        # Write to YAML file with package directive
-        with open(yaml_path, "w") as f:
-            f.write("# @package _global_\n")
-            yaml.dump(full_config, f, default_flow_style=False, sort_keys=False)
-
+        # Use serialize_to_yaml_file to save in the standard location
+        yaml_path, _ = self.serialize_to_yaml_file(instance_name=instance_name)
         self._saved_yaml_path = yaml_path
 
-        # Return the command to run
-        return f"uv run ./tools/train.py --config-path={yaml_path.parent} --config-name={yaml_path.stem}"
+        # Return command to run with the config from experiments/ directory
+        yaml_name = yaml_path.stem
+        return f"uv run ./tools/train.py +experiments={yaml_name}"
