@@ -338,7 +338,7 @@ export class Context3d {
       if (!res.ok) {
         throw new Error(`Failed to fetch atlas: ${res.statusText}`)
       }
-      return (await res.json()) as AtlasData
+      return await res.json()
     } catch (err) {
       console.error(`Error loading atlas ${url}:`, err)
       return null
@@ -439,7 +439,7 @@ export class Context3d {
 
   /** Check if the image is in the atlas. */
   hasImage(imageName: string): boolean {
-    return (this.atlasData as any)?.images[imageName] !== undefined
+    return this.atlasData?.images[imageName] !== undefined
   }
 
   /** Draws an image from the atlas with its top-right corner at (x, y). */
@@ -450,7 +450,7 @@ export class Context3d {
 
     this.ensureMeshSelected()
 
-    const rect = (this.atlasData as any)?.images[imageName] as [number, number, number, number] | undefined
+    const rect = this.atlasData?.images[imageName]
     if (!rect) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
@@ -469,10 +469,10 @@ export class Context3d {
     // Draw the rectangle with the image's texture coordinates.
     // Adjust both UVs and vertex positions by the margin.
     this.drawRect(
-      x - m,
-      y - m,
-      sw + 2 * m,
-      sh + 2 * m,
+      x - m, // Adjust x position by adding margin (from the right).
+      y - m, // Adjust y position by adding margin.
+      sw + 2 * m, // Reduce width by twice the margin (left and right).
+      sh + 2 * m, // Reduce height by twice the margin (top and bottom).
       u0,
       v0,
       u1,
@@ -490,6 +490,19 @@ export class Context3d {
    * @param color - RGBA color multiplier [r, g, b, a] where each component is 0.0-1.0
    * @param scale - Uniform scale (number) or non-uniform scale [scaleX, scaleY]
    * @param rotation - Rotation angle in radians (positive = clockwise)
+   *
+   * @example
+   * // Draw at original size
+   * ctx.drawSprite('player.png', 100, 200)
+   *
+   * // Draw with uniform scale
+   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 2)
+   *
+   * // Draw mirrored horizontally
+   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], [-1, 1])
+   *
+   * // Draw with rotation (45 degrees)
+   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 1, Math.PI / 4)
    */
   drawSprite(
     imageName: string,
@@ -505,7 +518,7 @@ export class Context3d {
 
     this.ensureMeshSelected()
 
-    const rect = (this.atlasData as any)?.images[imageName] as [number, number, number, number] | undefined
+    const rect = this.atlasData?.images[imageName]
     if (!rect) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
@@ -567,7 +580,7 @@ export class Context3d {
     this.ensureMeshSelected()
 
     const imageName = 'white.png'
-    const rect = (this.atlasData as any)?.images[imageName] as [number, number, number, number] | undefined
+    const rect = this.atlasData?.images[imageName]
     if (!rect) {
       throw new Error(`Image "${imageName}" not found in atlas`)
     }
