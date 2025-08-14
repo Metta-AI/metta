@@ -1,11 +1,12 @@
 #!/usr/bin/env -S uv run
 
 import argparse
+import copy
 import importlib
 import logging
 import os
-import platform
 from logging import Logger
+from typing import Any
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -24,7 +25,6 @@ from metta.core.distributed import setup_device_and_distributed
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
-from metta.util.init.mettagrid_system import init_mettagrid_system_environment
 
 logger = logging.getLogger(__name__)
 
@@ -33,8 +33,7 @@ class TrainToolConfig(Config):
     system: SystemConfig = SystemConfig()
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     wandb: WandbConfig = WandbConfigOff()
-    policy_architecture: DictConfig = Field(default_factory=DictConfig)
-
+    policy_architecture: Any
     run: str
     run_dir: str = Field(default="./train_dir")
     data_dir: str = Field(default="./train_dir")
@@ -62,30 +61,24 @@ class TrainToolConfig(Config):
         if not self.policy_uri:
             self.policy_uri = f"file://{self.run_dir}/checkpoints"
 
-        # Apply Mac overrides if needed
-        if not self.bypass_mac_overrides and platform.system() == "Darwin":
-            self.apply_mac_overrides()
-
         # Set up checkpoint and replay directories
         if not self.trainer.checkpoint.checkpoint_dir:
             self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
-        if not self.trainer.simulation.replay_dir:
-            self.trainer.simulation.replay_dir = f"{self.run_dir}/replays/"
+        if not self.trainer.evaluation.replay_dir:
+            self.trainer.evaluation.replay_dir = f"{self.run_dir}/replays/"
 
-    def apply_mac_overrides(self):
-        """Apply Mac-specific overrides for performance."""
-        # Apply system overrides
-        self.system.device = "cpu"
-        self.system.vectorization = "serial"
-
-        # Apply trainer overrides with minimum values
-        self.trainer.minibatch_size = min(self.trainer.minibatch_size, 1024)
-        self.trainer.batch_size = min(self.trainer.batch_size, 1024)
-        self.trainer.forward_pass_minibatch_target_size = min(self.trainer.forward_pass_minibatch_target_size, 2)
-        self.trainer.checkpoint.checkpoint_interval = min(self.trainer.checkpoint.checkpoint_interval, 10)
-        self.trainer.checkpoint.wandb_checkpoint_interval = min(self.trainer.checkpoint.wandb_checkpoint_interval, 10)
-        self.trainer.bptt_horizon = min(self.trainer.bptt_horizon, 8)
-        self.trainer.simulation.evaluate_interval = min(self.trainer.simulation.evaluate_interval, 10)
+    def to_mini(self) -> "TrainToolConfig":
+        cfg = copy.deepcopy(self)
+        cfg.trainer.minibatch_size = min(cfg.trainer.minibatch_size, 1024)
+        cfg.trainer.batch_size = min(cfg.trainer.batch_size, 1024)
+        cfg.trainer.async_factor = 1
+        cfg.trainer.forward_pass_minibatch_target_size = min(cfg.trainer.forward_pass_minibatch_target_size, 4)
+        cfg.trainer.checkpoint.checkpoint_interval = min(cfg.trainer.checkpoint.checkpoint_interval, 10)
+        cfg.trainer.checkpoint.wandb_checkpoint_interval = min(cfg.trainer.checkpoint.wandb_checkpoint_interval, 10)
+        cfg.trainer.bptt_horizon = min(cfg.trainer.bptt_horizon, 8)
+        if cfg.trainer.evaluation:
+            cfg.trainer.evaluation.evaluate_interval = min(cfg.trainer.evaluation.evaluate_interval, 10)
+        return cfg
 
 
 def calculate_default_num_workers(is_serial: bool) -> int:
@@ -158,18 +151,21 @@ def handle_train(cfg: TrainToolConfig, wandb_run: WandbRun | None, logger: Logge
         stats_client.validate_authenticated()
 
     # Determine git hash for remote simulations
-    if cfg.trainer.simulation and cfg.trainer.simulation.evaluate_remote:
+    if cfg.trainer.evaluation and cfg.trainer.evaluation.evaluate_remote:
         if not stats_client:
-            cfg.trainer.simulation.evaluate_remote = False
+            cfg.trainer.evaluation.evaluate_remote = False
             logger.info("Not connected to stats server, disabling remote evaluations")
-        elif not cfg.trainer.simulation.git_hash:
-            cfg.trainer.simulation.git_hash = get_git_hash_for_remote_task(
-                skip_git_check=cfg.trainer.simulation.skip_git_check,
-                skip_cmd="trainer.simulation.skip_git_check=true",
+        elif not cfg.trainer.evaluation.evaluate_interval:
+            cfg.trainer.evaluation.evaluate_remote = False
+            logger.info("Evaluate interval set to 0, disabling remote evaluations")
+        elif not cfg.trainer.evaluation.git_hash:
+            cfg.trainer.evaluation.git_hash = get_git_hash_for_remote_task(
+                skip_git_check=cfg.trainer.evaluation.skip_git_check,
+                skip_cmd="trainer.evaluation.skip_git_check=true",
                 logger=logger,
             )
-            if cfg.trainer.simulation.git_hash:
-                logger.info(f"Git hash for remote evaluations: {cfg.trainer.simulation.git_hash}")
+            if cfg.trainer.evaluation.git_hash:
+                logger.info(f"Git hash for remote evaluations: {cfg.trainer.evaluation.git_hash}")
             else:
                 logger.info("No git hash available for remote evaluations")
 
@@ -236,20 +232,6 @@ def main(cfg: TrainToolConfig) -> int:
         + f"{os.environ.get('NODE_INDEX', '0')}: "
         + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.system.device})"
     )
-
-    # Initialize the full mettagrid environment
-    # Convert to DictConfig for init_mettagrid_system_environment
-    init_cfg = DictConfig(
-        {
-            "seed": cfg.seed,
-            "torch_deterministic": cfg.system.torch_deterministic,
-            "device": cfg.system.device,
-            "vectorization": cfg.system.vectorization,
-            "run_dir": cfg.run_dir,
-            "dist_cfg_path": None,  # Not using distributed config
-        }
-    )
-    init_mettagrid_system_environment(init_cfg)
 
     # Use shared distributed setup function
     device, is_master, world_size, rank = setup_device_and_distributed(cfg.system.device)
