@@ -15,6 +15,7 @@ import uuid
 from typing import Any, Dict, List, Mapping, Optional, Tuple, cast
 
 import numpy as np
+from gymnasium import spaces
 from omegaconf import OmegaConf
 from pydantic import validate_call
 from typing_extensions import override
@@ -76,6 +77,9 @@ class MettaGridEnv(MettaGridPufferBase):
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
         self._is_training = is_training
+        # Dual-policy flags/overrides (can be set by trainer)
+        self._dual_policy_enabled: bool = False
+        self._dual_policy_agent_groups: Optional[list[list[int]]] = None
 
         # Initialize with base PufferLib functionality
         super().__init__(
@@ -303,12 +307,15 @@ class MettaGridEnv(MettaGridPufferBase):
         if hasattr(self, "_dual_policy_enabled") and self._dual_policy_enabled:
             # Get agent groups (assuming first group is NPC, second is trained policy)
             agent_groups = self._get_agent_groups()
+            # Fallback to trainer-provided grouping if core env doesn't expose groups
+            if (not agent_groups or len(agent_groups) < 2) and getattr(self, "_dual_policy_agent_groups", None):
+                agent_groups = self._dual_policy_agent_groups or []
             if len(agent_groups) >= 2:
                 npc_group = agent_groups[0]  # First group is NPC
                 trained_group = agent_groups[1]  # Second group is trained policy
 
                 # NPC group stats
-                npc_rewards = trial_rewards[npc_group]
+                npc_rewards = episode_rewards[npc_group]
                 npc_hearts = self._get_agent_hearts(npc_group)
                 infos["dual_policy/npc/reward_mean"] = npc_rewards.mean().item()
                 infos["dual_policy/npc/reward_sum"] = npc_rewards.sum().item()
@@ -317,7 +324,7 @@ class MettaGridEnv(MettaGridPufferBase):
                 infos["dual_policy/npc/num_agents"] = len(npc_group)
 
                 # Trained policy group stats
-                trained_rewards = trial_rewards[trained_group]
+                trained_rewards = episode_rewards[trained_group]
                 trained_hearts = self._get_agent_hearts(trained_group)
                 infos["dual_policy/trained/reward_mean"] = trained_rewards.mean().item()
                 infos["dual_policy/trained/reward_sum"] = trained_rewards.sum().item()
@@ -326,8 +333,8 @@ class MettaGridEnv(MettaGridPufferBase):
                 infos["dual_policy/trained/num_agents"] = len(trained_group)
 
                 # Combined stats
-                infos["dual_policy/combined/reward_mean"] = trial_rewards_mean
-                infos["dual_policy/combined/reward_sum"] = trial_rewards_sum
+                infos["dual_policy/combined/reward_mean"] = episode_rewards_mean
+                infos["dual_policy/combined/reward_sum"] = episode_rewards_sum
                 infos["dual_policy/combined/hearts_mean"] = self._get_agent_hearts().mean().item()
                 infos["dual_policy/combined/hearts_sum"] = self._get_agent_hearts().sum().item()
                 infos["dual_policy/combined/num_agents"] = self._c_env_instance.num_agents

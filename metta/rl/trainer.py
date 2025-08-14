@@ -133,6 +133,30 @@ def train(
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
+    # Enable dual-policy logging on the environment if configured
+    if trainer_cfg.dual_policy.enabled:
+        metta_grid_env._dual_policy_enabled = True
+
+    # Load NPC checkpoint policy if dual-policy is enabled
+    npc_policy = None
+    if trainer_cfg.dual_policy.enabled and trainer_cfg.dual_policy.checkpoint_npc.uri:
+        try:
+            npc_record = policy_store.policy_record(trainer_cfg.dual_policy.checkpoint_npc.uri)
+            npc_policy = npc_record.policy
+            # Initialize policy to environment
+            features = metta_grid_env.get_observation_features()
+            npc_policy.initialize_to_environment(
+                features,
+                metta_grid_env.action_names,
+                metta_grid_env.max_action_args,
+                device,
+            )
+        except Exception as e:
+            logger.error(
+                f"Failed to load NPC checkpoint policy {trainer_cfg.dual_policy.checkpoint_npc.uri}: {e}",
+                exc_info=True,
+            )
+
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
@@ -303,6 +327,23 @@ def train(
                 policy.reset_memory()
                 buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
+                # Precompute agent split and publish to env for logging
+                npc_mask_tensor: torch.Tensor | None = None
+                if trainer_cfg.dual_policy.enabled:
+                    total_agents = vecenv.num_agents
+                    npc_count = int(round(total_agents * (1.0 - trainer_cfg.dual_policy.training_agents_pct)))
+                    npc_mask_tensor = torch.zeros(total_agents, dtype=torch.bool, device=device)
+                    if npc_count > 0:
+                        npc_mask_tensor[:npc_count] = True
+                    # let env know the grouping for logging if groups are not exposed natively
+                    try:
+                        metta_grid_env._dual_policy_agent_groups = [
+                            torch.nonzero(npc_mask_tensor, as_tuple=False).flatten().tolist(),
+                            torch.nonzero(~npc_mask_tensor, as_tuple=False).flatten().tolist(),
+                        ]
+                    except Exception:
+                        pass
+
                 while not experience.ready_for_training:
                     # Get observation
                     o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
@@ -325,7 +366,25 @@ def train(
 
                     # Inference
                     with torch.no_grad():
+                        # Default: student policy acts for all agents
                         policy(td)
+                        # If dual-policy is enabled and npc_policy is available, overwrite NPC agents' actions
+                        if (
+                            trainer_cfg.dual_policy.enabled
+                            and npc_policy is not None
+                            and npc_mask_tensor is not None
+                            and npc_mask_tensor.any().item()
+                        ):
+                            td_npc = td.clone()
+                            npc_policy(td_npc)
+                            actions = td["actions"].clone()
+                            # Assume actions shape [..., num_agents, num_action_components]
+                            if actions.ndim >= 2:
+                                actions[..., npc_mask_tensor, :] = td_npc["actions"][..., npc_mask_tensor, :]
+                            else:
+                                # Fallback: if actions are [num_agents, ...]
+                                actions[npc_mask_tensor] = td_npc["actions"][npc_mask_tensor]
+                            td["actions"] = actions
 
                     # Store experience
                     experience.store(
