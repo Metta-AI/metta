@@ -1,5 +1,6 @@
 from typing import Any
 
+import einops
 import torch
 from tensordict import TensorDict
 from torch import Tensor
@@ -104,14 +105,17 @@ class SLKickstarter(BaseLoss):
             self.anneal_factor = 1.0 - progress
 
         td = shared_loss_data["sampled_mb"].select(*self.teacher_policy_spec.keys()).clone()
+
+        self.teacher_policy.on_train_mb_start()
         with torch.no_grad():
-            self.teacher_policy(td)
-        teacher_value = td["value"]
-        teacher_normalized_logits = td["full_log_probs"]
+            policy_out = self.teacher_policy(td)
+        teacher_value = policy_out["values"]
+        teacher_normalized_logits = policy_out["full_log_probs"]
 
         student_normalized_logits = shared_loss_data["policy_td"]["full_log_probs"]
         student_value = shared_loss_data["policy_td"]["value"]
 
+        student_normalized_logits = einops.rearrange(student_normalized_logits, "b t l -> (b t) l")
         ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
         ks_action_loss *= self.action_loss_coef * self.anneal_factor
 
