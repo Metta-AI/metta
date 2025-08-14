@@ -1,3 +1,5 @@
+import datetime
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -2087,7 +2089,12 @@ class TestPolicyScorecardRoutes:
 
     @pytest.mark.asyncio
     async def test_leaderboard_scorecard_integration(
-        self, isolated_test_client: TestClient, isolated_stats_client: StatsClient, isolated_stats_repo: MettaRepo
+        self,
+        isolated_test_client: TestClient,
+        isolated_stats_repo: MettaRepo,
+        isolated_stats_client: StatsClient,
+        create_test_data,
+        record_episodes,
     ) -> None:
         """Integration test for leaderboard scorecard functionality.
 
@@ -2098,17 +2105,22 @@ class TestPolicyScorecardRoutes:
         4. Gets the leaderboard scorecard
         5. Compares it with individually selected policies to validate consistency
         """
-        import datetime
 
-        stats_client = isolated_stats_client
         test_client = isolated_test_client
         stats_repo = isolated_stats_repo
 
         # Create test data with multiple training runs and run-free policies
-        test_data1 = self._create_test_data(stats_client, "leaderboard_integration_run1", num_policies=3)
-        test_data2 = self._create_test_data(stats_client, "leaderboard_integration_run2", num_policies=2)
-        run_free_data = self._create_test_data(
-            stats_client, "leaderboard_integration_runfree", num_policies=0, create_run_free_policies=2
+        test_data1 = create_test_data(
+            "leaderboard_integration_run1", num_policies=3, overriding_stats_client=isolated_stats_client
+        )
+        test_data2 = create_test_data(
+            "leaderboard_integration_run2", num_policies=2, overriding_stats_client=isolated_stats_client
+        )
+        run_free_data = create_test_data(
+            "leaderboard_integration_runfree",
+            num_policies=0,
+            create_run_free_policies=2,
+            overriding_stats_client=isolated_stats_client,
         )
 
         # Record episodes with varied performance across different categories
@@ -2136,9 +2148,15 @@ class TestPolicyScorecardRoutes:
             "policy_2_arena2": 85.0,  # avg: 82.5
             "policy_2_team1": 75.0,  # Overall avg: 81.67 (best)
         }
-        self._record_episodes(stats_client, test_data1, "navigation", ["maze1", "maze2"], run1_metrics)
-        self._record_episodes(stats_client, test_data1, "combat", ["arena1", "arena2"], run1_metrics)
-        self._record_episodes(stats_client, test_data1, "cooperation", ["team1"], run1_metrics)
+        record_episodes(
+            test_data1, "navigation", ["maze1", "maze2"], run1_metrics, overriding_stats_client=isolated_stats_client
+        )
+        record_episodes(
+            test_data1, "combat", ["arena1", "arena2"], run1_metrics, overriding_stats_client=isolated_stats_client
+        )
+        record_episodes(
+            test_data1, "cooperation", ["team1"], run1_metrics, overriding_stats_client=isolated_stats_client
+        )
 
         # Training run 2: policy 1 is best
         run2_metrics = {
@@ -2153,9 +2171,15 @@ class TestPolicyScorecardRoutes:
             "policy_1_arena2": 90.0,  # avg: 87.5
             "policy_1_team1": 80.0,  # Overall avg: 86.67 (best)
         }
-        self._record_episodes(stats_client, test_data2, "navigation", ["maze1", "maze2"], run2_metrics)
-        self._record_episodes(stats_client, test_data2, "combat", ["arena1", "arena2"], run2_metrics)
-        self._record_episodes(stats_client, test_data2, "cooperation", ["team1"], run2_metrics)
+        record_episodes(
+            test_data2, "navigation", ["maze1", "maze2"], run2_metrics, overriding_stats_client=isolated_stats_client
+        )
+        record_episodes(
+            test_data2, "combat", ["arena1", "arena2"], run2_metrics, overriding_stats_client=isolated_stats_client
+        )
+        record_episodes(
+            test_data2, "cooperation", ["team1"], run2_metrics, overriding_stats_client=isolated_stats_client
+        )
 
         # Run-free policies: high performance
         runfree_metrics = {
@@ -2170,9 +2194,23 @@ class TestPolicyScorecardRoutes:
             "policy_1_arena2": 88.0,  # avg: 86.5
             "policy_1_team1": 82.0,  # Overall avg: 86.17
         }
-        self._record_episodes(stats_client, run_free_data, "navigation", ["maze1", "maze2"], runfree_metrics)
-        self._record_episodes(stats_client, run_free_data, "combat", ["arena1", "arena2"], runfree_metrics)
-        self._record_episodes(stats_client, run_free_data, "cooperation", ["team1"], runfree_metrics)
+        record_episodes(
+            run_free_data,
+            "navigation",
+            ["maze1", "maze2"],
+            runfree_metrics,
+            overriding_stats_client=isolated_stats_client,
+        )
+        record_episodes(
+            run_free_data,
+            "combat",
+            ["arena1", "arena2"],
+            runfree_metrics,
+            overriding_stats_client=isolated_stats_client,
+        )
+        record_episodes(
+            run_free_data, "cooperation", ["team1"], runfree_metrics, overriding_stats_client=isolated_stats_client
+        )
 
         # Create leaderboard
         eval_names = [f"{cat}/{env}" for cat, envs in categories_and_envs for env in envs]
@@ -2207,6 +2245,8 @@ class TestPolicyScorecardRoutes:
         # Get the leaderboard from the database
         leaderboard_uuid = uuid.UUID(leaderboard_id)
         leaderboard_row = await stats_repo.get_leaderboard(leaderboard_uuid)
+
+        assert leaderboard_row is not None, "Leaderboard row not found"
 
         # Manually trigger the update for this specific leaderboard
         await updater._update_leaderboard(leaderboard_row)
