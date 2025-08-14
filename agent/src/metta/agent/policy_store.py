@@ -24,6 +24,7 @@ from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.common.util.config import Config
 from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.puffer_policy import load_pytorch_policy
 from metta.sim.utils import get_pr_scores_from_stats_server
@@ -34,12 +35,9 @@ logger = logging.getLogger("policy_store")
 PolicySelectorType = Literal["all", "top", "latest", "rand"]
 
 
-class PolicySelectorConfig:
-    """Simple config class for policy selection without pydantic dependency."""
-
-    def __init__(self, type: PolicySelectorType = "top", metric: str = "score"):
-        self.type = type
-        self.metric = metric
+class PolicySelectorConfig(Config):
+    type: PolicySelectorType = "top"
+    metric: str = "score"
 
 
 class PolicyMissingError(ValueError):
