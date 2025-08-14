@@ -40,8 +40,8 @@ export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
 export TERMINATION_REASON=""  # Track how the job ended
 
 # Configurable intervals
-export TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-30}
-export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-10}
+export TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-60}
+export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
 
 # Create a temp directory for IPC files
 export IPC_DIR="/tmp/metta_job_$$"
@@ -50,6 +50,9 @@ export TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
 export CMD_PID=""
 export CMD_PGID=""
 export START_TIME=0
+
+# Flag to prevent multiple shutdowns
+export SHUTDOWN_IN_PROGRESS=0
 
 if [ -f common/src/metta/common/util/cost_monitor.py ]; then
   echo "[RUN] Collecting instance cost..."
@@ -154,7 +157,17 @@ export GITHUB_STATUS_DESCRIPTION="Queued on SkyPilot…"
 maybe_set_github_status
 
 graceful_shutdown() {
-  echo "[WRAP] Caught INT/TERM/HUP; initiating graceful shutdown..."
+  # Prevent multiple simultaneous shutdowns
+  if [ $SHUTDOWN_IN_PROGRESS -eq 1 ]; then
+    echo "[SHUTDOWN] Shutdown already in progress, ignoring signal"
+    return
+  fi
+  SHUTDOWN_IN_PROGRESS=1
+
+  echo "[SHUTDOWN] Caught INT/TERM/HUP; initiating graceful shutdown..."
+
+  # Disable the trap to prevent re-entry
+  trap '' INT TERM HUP
 
   # If a monitor set a reason, keep it; otherwise set a generic one.
   if [ -z "${TERMINATION_REASON:-}" ] && [ -f "$TERMINATION_REASON_FILE" ]; then
@@ -162,18 +175,34 @@ graceful_shutdown() {
   fi
   TERMINATION_REASON="${TERMINATION_REASON:-controlled_shutdown}"
 
-  # Ask the whole training group to stop cleanly (SIGINT)
-  if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ] && kill -0 "$CMD_PID" 2>/dev/null; then
-    echo "[WRAP] Sending SIGINT to training PGID ${CMD_PGID}"
-    kill -INT -"${CMD_PGID}" 2>/dev/null || true
-    # Wait for training to exit, but don't fail wrapper if it returns nonzero
+  # Kill the entire process tree forcefully
+  if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
+    echo "[SHUTDOWN] Killing training process tree (PGID: ${CMD_PGID})"
+
+    # First try SIGTERM to the process group
+    kill -TERM -"${CMD_PGID}" 2>/dev/null || true
+
+    # Give it 5 seconds to clean up
+    local count=0
+    while kill -0 "$CMD_PID" 2>/dev/null && [ $count -lt 5 ]; do
+      sleep 1
+      ((count++))
+    done
+
+    # If still alive, use SIGKILL
+    if kill -0 "$CMD_PID" 2>/dev/null; then
+      echo "[SHUTDOWN] Process didn't terminate, using SIGKILL"
+      kill -KILL -"${CMD_PGID}" 2>/dev/null || true
+    fi
+
+    # Wait for the main process to die
     wait "${CMD_PID}" 2>/dev/null || true
   fi
 
   terminate_monitors
 
   # Compute duration (best-effort)
-  if [ -n "${START_TIME:-}" ]; then
+  if [ -n "${START_TIME:-}" ] && [ "${START_TIME}" -ne 0 ]; then
     local end_time
     end_time=$(date +%s)
     local dur=$((end_time - START_TIME))
@@ -194,19 +223,18 @@ graceful_shutdown() {
 
 # Trap signals on the parent (the process SkyPilot watches)
 trap graceful_shutdown INT TERM HUP
-# ======================================
 
 terminate_monitors() {
-  if [[ -n "${HEARTBEAT_MONITOR_PID:-}" ]]; then
+  if [[ -n "${HEARTBEAT_MONITOR_PID:-}" ]] && kill -0 "$HEARTBEAT_MONITOR_PID" 2>/dev/null; then
     kill "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
     wait "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
-    echo "[INFO] Terminating heartbeat monitor"
+    echo "[INFO] Terminated heartbeat monitor"
   fi
 
-  if [[ -n "${TIMEOUT_MONITOR_PID:-}" ]]; then
+  if [[ -n "${TIMEOUT_MONITOR_PID:-}" ]] && kill -0 "$TIMEOUT_MONITOR_PID" 2>/dev/null; then
     kill "$TIMEOUT_MONITOR_PID" 2>/dev/null || true
     wait "$TIMEOUT_MONITOR_PID" 2>/dev/null || true
-    echo "[INFO] Terminating timeout monitor"
+    echo "[INFO] Terminated timeout monitor"
   fi
 }
 
@@ -218,11 +246,11 @@ terminate_process() {
   echo "$reason" > "$TERMINATION_REASON_FILE"
   TERMINATION_REASON="$reason"
 
-  # Stop monitors first so they don't race
-  terminate_monitors
-
-  # Trigger our own trap; the trap will SIGINT the training PGID and exit 0
-  kill -TERM $$ 2>/dev/null || true
+  # Only send signal if not already shutting down
+  if [ $SHUTDOWN_IN_PROGRESS -eq 0 ]; then
+    # Send TERM to self, which will trigger graceful_shutdown
+    kill -TERM $$ 2>/dev/null || true
+  fi
 }
 
 run_cmd() {
@@ -269,9 +297,7 @@ run_cmd() {
           echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
         else
           echo "[INFO] Timeout limit reached - terminating process group"
-          # Use shared terminate function
           terminate_process "$CMD_PID" "max_runtime_reached"
-          echo "[INFO] Timeout monitor exiting - process terminated"
           break
         fi
       done
@@ -307,7 +333,6 @@ run_cmd() {
           # Check if timeout exceeded
           if [ $((CURRENT_TIME - LAST_HEARTBEAT_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
             echo "[ERROR] Heartbeat timeout! No heartbeat for $HEARTBEAT_TIMEOUT seconds"
-            # Use shared terminate function
             terminate_process "$CMD_PID" "heartbeat_timeout"
             break
           fi
@@ -325,9 +350,6 @@ run_cmd() {
   # Wait for command to finish
   wait "$CMD_PID"
   CMD_EXIT=$?
-
-  echo "[DEBUG] Output from training script:"
-  cat "$IPC_DIR/${METTA_CMD}_log.txt"
 
   terminate_monitors
 
