@@ -51,30 +51,13 @@ DEFAULT_ENV_CFG = {
     },
 }
 
-
-def to_builtin(value):
-    """Recursively convert numpy scalars/arrays and keys to plain Python types."""
-    if isinstance(value, dict):
-        return {str(to_builtin(k)): to_builtin(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple, set)):
-        return [to_builtin(v) for v in value]
-    if isinstance(value, np.generic):  # numpy scalar types (including numpy.str_)
-        try:
-            return value.item()
-        except Exception:
-            return str(value)
-    return value
-
-
-class IndentDumper(yaml.SafeDumper):
-    def increase_indent(self, flow=False, indentless=False):
-        return super().increase_indent(flow, False)
-
-
 class InContextEnv:
     def __init__(
         self, resource_types, converter_types, resource_chain, num_sinks: int, use_initial_inventory: bool = False
     ):
+        """
+        Generate a single environment config for in-context learning
+        """
         # Use deep copy to ensure complete isolation
         self.env_cfg = copy.deepcopy(DEFAULT_ENV_CFG)
         self.resource_types = resource_types
@@ -176,6 +159,10 @@ class InContextEnv:
 
 
 class InContextEnvGenerator:
+    """
+    Generate all environment configs for in-context learning tasks, given
+    a maximum chain length and maximum number of sinks across environments.
+    """
     def __init__(self, maximum_chain_length: int, maximum_num_sinks: int):
         self.maximum_chain_length = maximum_chain_length
         self.maximum_num_sinks = maximum_num_sinks
@@ -201,7 +188,7 @@ class InContextEnvGenerator:
 
                 yaml_file_dir = (
                     f"configs/env/mettagrid/operant_conditioning/in_context_learning/"
-                    f"chain_length_{chain_length}/{num_sinks}_sinks"
+                    f"chain_length_{chain_length+1}/{num_sinks}_sinks"
                 )
 
                 os.makedirs(yaml_file_dir, exist_ok=True)
@@ -232,3 +219,22 @@ if __name__ == "__main__":
     generator.generate_yaml_cfgs()
 
 # %%
+
+
+def to_builtin(value):
+    """Recursively convert numpy scalars/arrays and keys to plain Python types."""
+    if isinstance(value, dict):
+        return {str(to_builtin(k)): to_builtin(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [to_builtin(v) for v in value]
+    if isinstance(value, np.generic):  # numpy scalar types (including numpy.str_)
+        try:
+            return value.item()
+        except Exception:
+            return str(value)
+    return value
+
+
+class IndentDumper(yaml.SafeDumper):
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, False)
