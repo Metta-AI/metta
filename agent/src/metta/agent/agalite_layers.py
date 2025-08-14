@@ -35,15 +35,20 @@ def discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.
     device = x.device
     dtype = x.dtype
 
-    # Pre-allocate output tensor
-    output = torch.empty_like(x)
+    # Pre-allocate output list to avoid in-place operations
+    output_list = []
 
     # Initialize with first step
-    output[0] = discounts[0] * start_state + x[0]
+    prev = discounts[0] * start_state + x[0]
+    output_list.append(prev)
 
     # Compute remaining steps
     for t in range(1, T):
-        output[t] = discounts[t] * output[t - 1] + x[t]
+        prev = discounts[t] * prev + x[t]
+        output_list.append(prev)
+
+    # Stack all outputs
+    output = torch.stack(output_list, dim=0)
 
     return output
 
@@ -178,7 +183,7 @@ class AttentionAGaLiTeLayer(nn.Module):
 
         # Compute discount factors
         if self.reset_hidden_on_terminate:
-            term_expand = terminations.unsqueeze(2).unsqueeze(3)  # (T, B, 1, 1)
+            term_expand = terminations.unsqueeze(2).unsqueeze(3).float()  # (T, B, 1, 1) - convert to float
             discount_gamma = (1 - gammas) * (1 - term_expand)
             discount_beta = (1 - beta) * (1 - term_expand)
         else:

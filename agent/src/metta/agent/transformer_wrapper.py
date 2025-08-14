@@ -167,17 +167,34 @@ class TransformerWrapper(nn.Module):
 
         return logits, values
 
-    def reset_memory(self, batch_size: int, device: torch.device) -> Dict[str, Any]:
+    def reset_memory(self, batch_size: Optional[int] = None, device: Optional[torch.device] = None) -> Dict[str, Any]:
         """
         Initialize memory for a batch of environments.
+        
+        This method can be called in two ways:
+        1. With explicit batch_size and device (for initialization)
+        2. Without arguments (when MettaAgent calls it during reset)
+        
+        When called without arguments, we return empty state that will be
+        initialized lazily on first forward pass.
 
         Args:
-            batch_size: Number of parallel environments
-            device: Device to create tensors on
+            batch_size: Optional number of parallel environments
+            device: Optional device to create tensors on
 
         Returns:
             Initial memory state dictionary
         """
+        if batch_size is None or device is None:
+            # Called by MettaAgent.reset_memory() without args
+            # Return empty state - will be initialized lazily on first forward
+            return {
+                "transformer_memory": None,
+                "hidden": None,
+                "needs_init": True,  # Flag to indicate lazy initialization needed
+            }
+        
+        # Explicit initialization with batch_size and device
         if hasattr(self.policy, "initialize_memory"):
             memory = self.policy.initialize_memory(batch_size, device)
         else:
@@ -186,4 +203,5 @@ class TransformerWrapper(nn.Module):
         return {
             "transformer_memory": memory,
             "hidden": None,
+            "needs_init": False,
         }

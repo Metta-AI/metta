@@ -231,13 +231,14 @@ class AGaLiTePolicy(nn.Module):
         Encode token observations to hidden representation.
 
         Args:
-            observations: Token observations
+            observations: Token observations (Byte tensor)
             state: Optional state dictionary
 
         Returns:
             Hidden representations of shape (B*T, d_model)
         """
-        observations = observations.to(self.device)
+        # Convert from Byte to Float and move to device
+        observations = observations.float().to(self.device)
         token_observations = observations
         B = token_observations.shape[0]
         TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
@@ -387,8 +388,8 @@ class AGaLiTeFaithful(TransformerWrapper):
         """
         observations = td["env_obs"].to(self.device)
 
-        # Initialize state if needed
-        if state is None:
+        # Initialize state if needed (handle both None and lazy init cases)
+        if state is None or state.get("needs_init", False):
             B = observations.shape[0]
             state = self.reset_memory(B, self.device)
 
@@ -419,8 +420,8 @@ class AGaLiTeFaithful(TransformerWrapper):
             td["full_log_probs"] = log_probs
 
         else:
-            # Training mode - use forward for BPTT
-            logits, values = self.forward(observations, state)
+            # Training mode - use parent's forward for BPTT
+            logits, values = super().forward(observations, state)
 
             # Compute log probabilities for given actions
             action = action.to(self.device)
@@ -448,6 +449,7 @@ class AGaLiTeFaithful(TransformerWrapper):
                 TT = observations.shape[1]
                 full_log_probs = full_log_probs.view(B, TT)
                 entropy = entropy.view(B, TT)
+                action_log_probs = action_log_probs.view(B, TT, -1)  # Reshape to (B, T, num_actions)
                 # values already reshaped by TransformerWrapper
 
             td["act_log_prob"] = full_log_probs
