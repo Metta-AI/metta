@@ -63,7 +63,7 @@ components:
       out_features: 128
 
   _core_:
-    _target_: metta.agent.lib.lstm.LSTM
+    _target_: metta.agent.lib.lstm_jack.LSTMJack
     sources:
       - name: encoded_obs
     nn_params:
