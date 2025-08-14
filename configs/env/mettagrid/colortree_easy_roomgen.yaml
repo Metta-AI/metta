@@ -3,15 +3,26 @@ defaults:
   - _self_
 
 game:
-  num_agents: 1
+  num_agents: 128
   max_steps: 4
   obs_width: 11
   obs_height: 11
 
+
   map_builder:
-    _target_: metta.map.mapgen_ascii.MapGenAscii
-    uri: configs/env/mettagrid/maps/debug/colortree.map
-    border_width: 0
+    _target_: metta.map.mapgen.MapGen
+    width: 155
+    height: 75
+    root:
+      type: metta.map.scenes.room_grid.RoomGrid
+      params:
+        rows: 8
+        columns: 16
+      children:
+        - scene:
+            type: metta.map.scenes.random.Random
+            params:
+              agents: 1
 
   actions:
     noop: {enabled: false}
@@ -26,11 +37,11 @@ game:
 
     color_tree:
       enabled: true
-      target_sequence: [0, 1, 0, 1] # Easy: 2 colors, 4 slots - will be randomized by curriculum
-      sequence_reward: 1.0
+      target_sequence: [1, 0, 1, 0]
+      sequence_reward: 10.0
       num_trials: 1
       attempts_per_trial: 16
-      reward_mode: "precise"
+      reward_mode: "precise" # precise, partial, dense
       trial_sequences:
-        - [0, 1, 0, 1] # Same sequence for entire 64-step episode
+        - [1, 0, 1, 0] # Same sequence for entire 64-step episode
       color_to_item: {0: ore_red, 1: ore_green}

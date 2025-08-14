@@ -7,8 +7,25 @@
 
 set -euo pipefail
 
+random_seed() {
+  if command -v jot >/dev/null 2>&1; then
+    jot -r 1 0 100000
+  elif command -v gshuf >/dev/null 2>&1; then
+    gshuf -i 0-100000 -n 1
+  elif command -v shuf >/dev/null 2>&1; then
+    shuf -i 0-100000 -n 1
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 - <<'PY'
+import random
+print(random.randint(0, 100000))
+PY
+  else
+    echo $(( ( (RANDOM << 15) | RANDOM ) % 100001 ))
+  fi
+}
+
 # Random default seed unless provided as seed=<N>
-SEED=${seed:-$(shuf -i 0-100000 -n 1)}
+SEED=${seed:-$(random_seed)}
 
 # BPTT candidates (edit as needed)
 BPTTS=(4 8 16 32 64)
