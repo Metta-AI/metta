@@ -25,24 +25,28 @@ atlas_image = pixie.Image(ATLAS_SIZE, ATLAS_SIZE)
 images = {}
 heights = [0] * atlas_image.width
 padding = 64
-FONT_ID = "plexSans"
-FONT_PATH = "data/fonts/IBMPlexSans-Regular.ttf"
-FONT_SIZE = 64
-FONT_CHARSET = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-GLYPH_INNER_PADDING = 2
+FONTS = [
+    {
+        "FontID": "plexSans",
+        "FontPath": "data/fonts/IBMPlexSans-Regular.ttf",
+        "FontSize": 64,
+        "FontCharset": " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
+        "GlyphInnerPadding": 2,
+    }
+]
 
 
-def _get_font_config():
+def _get_font_config(font: dict):
     """Return the current font-related configuration that should trigger rebuilds when changed."""
     cfg = {
-        "FontID": FONT_ID,
-        "FontPath": FONT_PATH,
-        "FontSize": FONT_SIZE,
-        "FontCharset": FONT_CHARSET,
-        "GlyphInnerPadding": GLYPH_INNER_PADDING,
+        "FontID": font["FontID"],
+        "FontPath": font["FontPath"],
+        "FontSize": font["FontSize"],
+        "FontCharset": font["FontCharset"],
+        "GlyphInnerPadding": font["GlyphInnerPadding"],
     }
-    if os.path.exists(FONT_PATH):
-        st = os.stat(FONT_PATH)
+    if os.path.exists(font["FontPath"]):
+        st = os.stat(font["FontPath"])
         cfg["FontPathMTime"] = int(st.st_mtime)
         cfg["FontPathSize"] = int(st.st_size)
     else:
@@ -81,10 +85,11 @@ def needs_rebuild(atlas_dir):
     try:
         with open(atlas_json, "r") as f:
             data = json.load(f)
-        current_hash = _config_hash(_get_font_config())
-        saved_hash = data.get("fonts", {}).get(FONT_ID, {}).get("FontConfigHash")
-        if saved_hash != current_hash:
-            return True, "Font settings changed"
+        for font in FONTS:
+            current_hash = _config_hash(_get_font_config(font))
+            saved_hash = data.get("fonts", {}).get(font["FontID"], {}).get("FontConfigHash")
+            if saved_hash != current_hash:
+                return True, f"Font settings changed for {font['FontID']}"
     except Exception:
         # If we can't read or parse the file, or key is missing, force rebuild.
         return True, "Font settings changed"
@@ -168,19 +173,20 @@ def char_label(cp: int) -> str:
     return f"U+{cp:04X}"
 
 
-def generate_font_glyphs():
+def generate_font_glyphs(font_cfg: dict):
     """Render glyphs for the font, pack them into the atlas, and return font metadata."""
-    if not os.path.exists(FONT_PATH):
-        print(f"Error: Font file not found: {FONT_PATH}", file=sys.stderr)
+    if not os.path.exists(font_cfg["FontPath"]):
+        print(f"Error: Font file not found: {font_cfg['FontPath']}", file=sys.stderr)
         sys.exit(1)
 
-    typeface = pixie.read_typeface(FONT_PATH)
+    typeface = pixie.read_typeface(font_cfg["FontPath"])
 
-    fonts_meta = {FONT_ID: {}}
-    cps = [ord(ch) for ch in FONT_CHARSET]
+    font_id = font_cfg["FontID"]
+    fonts_meta = {font_id: {}}
+    cps = [ord(ch) for ch in font_cfg["FontCharset"]]
 
     font = typeface.new_font()
-    font.size = float(FONT_SIZE)
+    font.size = float(font_cfg["FontSize"])
     white = pixie.Paint(pixie.SOLID_PAINT)
     white.color = pixie.Color(1.0, 1.0, 1.0, 1.0)
     font.paint = white
@@ -194,7 +200,7 @@ def generate_font_glyphs():
     # Render and pack glyphs using font typesetting to ensure correct pixel sizes.
     for cp in cps:
         if not typeface.has_glyph(cp):
-            raise ValueError(f"Font {FONT_ID} does not have glyph for {char_label(cp)}")
+            raise ValueError(f"Font {font_id} does not have glyph for {char_label(cp)}")
         ch = chr(cp)
         arrangement = font.typeset(ch)
         bounds = arrangement.compute_bounds()
@@ -207,16 +213,16 @@ def generate_font_glyphs():
         if w > 0 and h > 0:
             # put_image will stretch edges through padding (for walls, etc).
             # we do not want this for glyphs, so we add an inner padding.
-            gw = w + 2 * GLYPH_INNER_PADDING
-            gh = h + 2 * GLYPH_INNER_PADDING
+            gw = w + 2 * font_cfg["GlyphInnerPadding"]
+            gh = h + 2 * font_cfg["GlyphInnerPadding"]
             img = pixie.Image(gw, gh)
             img.fill(pixie.Color(0, 0, 0, 0))
             # Draw the arrangement translated to inside the padding.
             img.arrangement_fill_text(
                 arrangement,
-                pixie.translate(-bounds.x + GLYPH_INNER_PADDING, -bounds.y + GLYPH_INNER_PADDING),
+                pixie.translate(-bounds.x + font_cfg["GlyphInnerPadding"], -bounds.y + font_cfg["GlyphInnerPadding"]),
             )
-            name = f"fonts/{FONT_ID}/{char_label(cp)}"
+            name = f"fonts/{font_id}/{char_label(cp)}"
             x, y, rw, rh = put_image(img, name)
             rect = [x, y, rw, rh]
             print(f"Added {name} to atlas")
@@ -245,14 +251,14 @@ def generate_font_glyphs():
         if row:
             kerning[left_label] = row
 
-    fonts_meta[FONT_ID] = {
+    fonts_meta[font_id] = {
         "ascent": float(ascent_px),
         "descent": float(descent_px),
         "lineHeight": float(line_height_px),
         "glyphs": glyphs,
         "kerning": kerning,
     }
-    print(f"Packed {added_count} glyphs for {FONT_ID} size {FONT_SIZE}")
+    print(f"Packed {added_count} glyphs for {font_id} size {font_cfg['FontSize']}")
 
     return fonts_meta
 
@@ -277,7 +283,10 @@ def main():
 
     print(f"Rebuilding atlas: {reason}")
 
-    fonts_meta = generate_font_glyphs()
+    fonts_meta = {}
+    for font in FONTS:
+        fm = generate_font_glyphs(font)
+        fonts_meta.update(fm)
 
     image_count = 0
     for root, _dirs, files in os.walk(atlas_dir):
@@ -301,10 +310,13 @@ def main():
 
     # Write the atlas image and the atlas json file.
     try:
-        font_cfg = _get_font_config()
-        # Embed font configuration directly into the font object and include hash
-        fonts_meta[FONT_ID].update(font_cfg)
-        fonts_meta[FONT_ID]["FontConfigHash"] = _config_hash(font_cfg)
+        # Embed per-font config and hash directly in the font objects
+        for font in FONTS:
+            cfg = _get_font_config(font)
+            fid = font["FontID"]
+            if fid in fonts_meta:
+                fonts_meta[fid].update(cfg)
+                fonts_meta[fid]["FontConfigHash"] = _config_hash(cfg)
         atlas_out = {
             "images": dict(images),
             "fonts": fonts_meta,
