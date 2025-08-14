@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
 
+import asyncio
 import logging
 import sys
 
@@ -150,12 +151,16 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 if __name__ == "__main__":
     from metta.app_backend.config import host, port, stats_db_uri
 
-    # Setup logging first
-    # setup_logging()
-
     stats_repo = MettaRepo(stats_db_uri)
     app = create_app(stats_repo)
-    leaderboard_updater = LeaderboardUpdater(stats_db_uri)
-    leaderboard_updater.start()
+    leaderboard_updater = LeaderboardUpdater(stats_repo)
 
-    uvicorn.run(app, host=host, port=port)
+    # Start the updater in an async context
+    async def main():
+        await leaderboard_updater.start()
+        # Run uvicorn in a way that doesn't block
+        config = uvicorn.Config(app, host=host, port=port)
+        server = uvicorn.Server(config)
+        await server.serve()
+
+    asyncio.run(main())
