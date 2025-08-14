@@ -59,21 +59,20 @@ interface FontMeta {
 }
 
 interface FontConfig {
-  FONT_ID?: string
-  FONT_PATH?: string
-  FONT_SIZE?: number
-  FONT_CHARSET?: string
-  GLYPH_INNER_PADDING?: number
+  FONT_ID: string
+  FONT_PATH: string
+  FONT_SIZE: number
+  FONT_CHARSET: string
+  GLYPH_INNER_PADDING: number
   [key: string]: unknown
 }
 
 /** Type definition for atlas data. */
 interface AtlasData {
-  // Image name to rect mapping (e.g., 'white.png': [x, y, w, h])
-  [key: string]: unknown
-  fonts?: { [fontId: string]: FontMeta }
-  fontConfig?: FontConfig
-  fontConfigHash?: string
+  images: { [key: string]: [number, number, number, number] }
+  fonts: { [fontId: string]: FontMeta }
+  fontConfig: FontConfig
+  fontConfigHash: string
 }
 
 /** Clamp a value between a minimum and maximum. */
@@ -441,7 +440,7 @@ export class Context3d {
 
   /** Check if the image is in the atlas. */
   hasImage(imageName: string): boolean {
-    return (this.atlasData as any)?.[imageName] !== undefined
+    return (this.atlasData as any)?.images[imageName] !== undefined
   }
 
   /** Draws an image from the atlas with its top-right corner at (x, y). */
@@ -452,7 +451,7 @@ export class Context3d {
 
     this.ensureMeshSelected()
 
-    const rect = (this.atlasData as any)?.[imageName] as [number, number, number, number] | undefined
+    const rect = (this.atlasData as any)?.images[imageName] as [number, number, number, number] | undefined
     if (!rect) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
@@ -507,7 +506,7 @@ export class Context3d {
 
     this.ensureMeshSelected()
 
-    const rect = (this.atlasData as any)?.[imageName] as [number, number, number, number] | undefined
+    const rect = (this.atlasData as any)?.images[imageName] as [number, number, number, number] | undefined
     if (!rect) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
@@ -569,7 +568,7 @@ export class Context3d {
     this.ensureMeshSelected()
 
     const imageName = 'white.png'
-    const rect = (this.atlasData as any)?.[imageName] as [number, number, number, number] | undefined
+    const rect = (this.atlasData as any)?.images[imageName] as [number, number, number, number] | undefined
     if (!rect) {
       throw new Error(`Image "${imageName}" not found in atlas`)
     }
@@ -612,19 +611,11 @@ export class Context3d {
     }
     this.ensureMeshSelected()
 
-    const fonts = this.atlasData?.fonts
-    if (!fonts) {
-      console.error('No fonts metadata found in atlas')
-      return
-    }
+    const fonts = this.atlasData!.fonts
     const font = fonts[fontId]
-    if (!font) {
-      console.error(`Font "${fontId}" not found in atlas`)
-      return
-    }
 
     // Frontend renders at atlas size; use atlas-configured inner padding for bearings offset.
-    const glyphInnerPadding = (this.atlasData?.fontConfig?.GLYPH_INNER_PADDING as number) || 2
+    const glyphInnerPadding = this.atlasData!.fontConfig.GLYPH_INNER_PADDING
     const mBase = this.atlasMargin
 
     let penX = x
@@ -701,14 +692,8 @@ export class Context3d {
 
   /** Measure text width and height for layout. Height accounts for newlines. */
   measureText(fontId: string, text: string): { width: number; height: number } {
-    const fonts = this.atlasData?.fonts
-    if (!fonts) {
-      return { width: 0, height: 0 }
-    }
+    const fonts = this.atlasData!.fonts
     const font = fonts[fontId]
-    if (!font) {
-      return { width: 0, height: 0 }
-    }
 
     const toLabel = (cp: number): string => `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`
 

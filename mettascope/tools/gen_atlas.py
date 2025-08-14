@@ -301,11 +301,13 @@ def main():
 
     # Write the atlas image and the atlas json file.
     try:
-        atlas_out = dict(images)
-        atlas_out["fonts"] = fonts_meta
         font_cfg = _get_font_config()
-        atlas_out["fontConfig"] = font_cfg
-        atlas_out["fontConfigHash"] = _config_hash(font_cfg)
+        atlas_out = {
+            "images": dict(images),
+            "fonts": fonts_meta,
+            "fontConfig": font_cfg,
+            "fontConfigHash": _config_hash(font_cfg),
+        }
         with open("dist/atlas.json", "w") as f:
             json.dump(atlas_out, f, indent=2)
         atlas_image.write_file("dist/atlas.png")
