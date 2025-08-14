@@ -17,7 +17,7 @@ def compute_infonce_losses(
     importance_sampling_ratio: Tensor,
     adv: Tensor,
     trainer_cfg: TrainerConfig,
-) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
+) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, dict]:
     """Vectorized InfoNCE-style policy loss with PPO-compatible returns.
 
     If LSTM hidden states are present in the minibatch (keys like "lstm_hidden", "hidden",
@@ -60,10 +60,21 @@ def compute_infonce_losses(
     # Contrastive InfoNCE over hidden states if available; else fallback
     # ---------------------------------------------------------------------
     hidden = _locate_hidden_tensor(minibatch)
+    # Default metrics (zeros) to keep return shape consistent even when hidden is unavailable
+    zero = torch.tensor(0.0, device=new_logprob.device, dtype=torch.float32)
+    metrics = {
+        "contrastive_loss": zero,
+        "contrastive_infonce": zero,
+        "contrastive_logsumexp": zero,
+        "contrastive_var_loss": zero,
+        "contrastive_pos_sim": zero,
+        "contrastive_neg_sim": zero,
+        "contrastive_batch_std": zero,
+    }
     if hidden is None:
         # Fallback: basic InfoNCE-style policy term on action logprob
         pg_loss = (-adv * new_logprob).mean()
-        return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac
+        return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac, metrics
 
     # Read optional contrastive hyperparameters from trainer_cfg if present
     K = cast(int, _safe_get(trainer_cfg, ["contrastive", "num_negatives"], default=64))
@@ -83,7 +94,7 @@ def compute_infonce_losses(
         else:
             # As a conservative fallback, skip contrastive term
             pg_loss = (-adv * new_logprob).mean()
-            return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac
+            return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac, metrics
 
     Bseg, T, H = hidden.shape
     device = hidden.device
@@ -91,7 +102,7 @@ def compute_infonce_losses(
     # Primary dones source; expect float in buffer, use bool mask
     if "dones" not in minibatch:
         pg_loss = (-adv * new_logprob).mean()
-        return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac
+        return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac, metrics
     dones = minibatch["dones"].to(device).bool()  # [Bseg, T]
 
     # Optional replay pool of hidden states; otherwise use current minibatch
@@ -116,7 +127,7 @@ def compute_infonce_losses(
     valid_mask = delta.reshape(-1) >= 1
     if not torch.any(valid_mask):
         pg_loss = (-adv * new_logprob).mean()
-        return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac
+        return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac, metrics
 
     pos_ids = pos_ids_full[valid_mask]
     base_flat_ids = base_ids_full[valid_mask]
@@ -163,7 +174,20 @@ def compute_infonce_losses(
     # Use contrastive as policy term
     pg_loss = contrastive_loss
 
-    return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac
+    # Populate metrics for logging
+    metrics = {
+        "contrastive_loss": contrastive_loss.detach(),
+        "contrastive_infonce": infonce.detach(),
+        # reg already includes logsumexp_coef
+        "contrastive_logsumexp": reg.detach(),
+        # raw var regularizer term before coef
+        "contrastive_var_loss": var_loss.detach(),
+        "contrastive_pos_sim": pos_sim.mean().detach(),
+        "contrastive_neg_sim": neg_sim.mean().detach(),
+        "contrastive_batch_std": std.mean().detach(),
+    }
+
+    return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac, metrics
 
 
 @torch.no_grad()
@@ -225,6 +249,7 @@ def _locate_hidden_tensor(minibatch: TensorDict) -> Tensor | None:
         "latent",
         "encoder",
     ]
+    print(f"minibatch keys: {minibatch.keys()}")
     for key in candidate_keys:
         if key in minibatch.keys() and isinstance(minibatch.get(key), Tensor):
             tensor = minibatch.get(key)
