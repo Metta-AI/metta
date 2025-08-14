@@ -141,9 +141,6 @@ def hydraless_metta_script(main: Callable[[], int | None]) -> None:
     caller_globals = caller_frame.f_globals
     if caller_globals.get("__name__") != "__main__":
         return
-
-    # Resolvers removed in refactoring
-
     # Exit on ctrl+c
     signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 

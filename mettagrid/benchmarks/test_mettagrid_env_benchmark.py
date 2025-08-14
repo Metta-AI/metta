@@ -40,12 +40,13 @@ def environment(num_agents: int):
     env = MettaGridEnv(cfg, render_mode="human")
 
     # Note: Grid hash check temporarily disabled due to configuration changes
-    # TODO: Update expected hashes or make test more deterministic
+    # TODO: #dehydration Update expected hashes or make test more deterministic
     # assert env.initial_grid_hash == expected_grid_hash
 
     env.reset()
 
     # Note: Grid hash check temporarily disabled due to configuration changes
+    # TODO: #dehydration Update expected hashes or make test more deterministic
     # assert env.initial_grid_hash == expected_grid_hash
 
     yield env
