@@ -1,15 +1,15 @@
 _target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
 
 tasks:
-  /env/mettagrid/curriculum/in_context_learning/chain_length_2/0_sinks: 1
-  /env/mettagrid/curriculum/in_context_learning/chain_length_2/1_sinks: 1
-  /env/mettagrid/curriculum/in_context_learning/chain_length_2/2_sinks: 1
-  /env/mettagrid/curriculum/in_context_learning/chain_length_3/0_sinks: 1
-  /env/mettagrid/curriculum/in_context_learning/chain_length_3/1_sinks: 1
-  /env/mettagrid/curriculum/in_context_learning/chain_length_3/2_sinks: 1
-  /env/mettagrid/curriculum/in_context_learning/chain_length_4/0_sinks: 1
-  /env/mettagrid/curriculum/in_context_learning/chain_length_4/1_sinks: 1
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_2/0_sinks: 1
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_2/1_sinks: 1
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_2/2_sinks: 1
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_3/0_sinks: 1
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_3/1_sinks: 1
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_3/2_sinks: 1
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_4/0_sinks: 1
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_4/1_sinks: 1
   # /env/mettagrid/curriculum/in_context_learning/chain_length_4/2_sinks: 1
-  /env/mettagrid/curriculum/in_context_learning/chain_length_5/0_sinks: 1
-  /env/mettagrid/curriculum/in_context_learning/chain_length_5/1_sinks: 1
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_5/0_sinks: 1
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_5/1_sinks: 1
   # /env/mettagrid/curriculum/in_context_learning/chain_length_5/2_sinks: 1
