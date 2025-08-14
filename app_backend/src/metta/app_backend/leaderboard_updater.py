@@ -95,7 +95,7 @@ class LeaderboardUpdater:
                 latest_episode_id_row = await cursor.fetchone()
                 if latest_episode_id_row is None:
                     return 0
-                return latest_episode_id_row[0]
+                return latest_episode_id_row[0] or 0
 
     async def _update_leaderboard(self, leaderboard: LeaderboardRow):
         """This function maintains the (leaderboard_id, policy_id) -> score mapping in the leaderboard_policy_scores
