@@ -2,6 +2,7 @@ import logging
 from typing import Dict, Optional, Tuple
 
 import einops
+import pufferlib.models
 import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
@@ -13,354 +14,328 @@ from metta.agent.agalite_batched import BatchedAGaLiTe
 logger = logging.getLogger(__name__)
 
 
-class Agalite(nn.Module):
-    """Optimized AGaLiTe policy for GPU training with proper batching and state management."""
+class Agalite(pufferlib.models.LSTMWrapper):
+    """Hybrid AGaLiTe-LSTM architecture for efficient RL training.
+    
+    This uses AGaLiTe's sophisticated attention-based observation encoding
+    combined with LSTM for temporal processing. This hybrid approach provides:
+    - AGaLiTe's powerful observation processing with linear attention
+    - LSTM's efficient O(1) temporal state updates
+    - Compatibility with PufferLib's training infrastructure
+    
+    Note: This is not the pure AGaLiTe transformer from the paper, but a
+    practical hybrid that achieves better training efficiency."""
 
-    def __init__(
-        self,
-        env,
-        policy: Optional[nn.Module] = None,
-        n_layers: int = 4,
-        d_model: int = 256,
-        d_head: int = 64,
-        d_ffc: int = 1024,
-        n_heads: int = 4,
-        eta: int = 4,
-        r: int = 8,
-        reset_on_terminate: bool = True,
-        dropout: float = 0.1,
-        hidden_size: int = 256,
-    ):
-        super().__init__()
+    def __init__(self, env, policy=None, input_size=256, hidden_size=256):
+        if policy is None:
+            policy = AgalitePolicy(env, input_size=input_size, hidden_size=hidden_size)
+        
+        # Use PufferLib's LSTM wrapper for consistency with working agents
+        super().__init__(env, policy, input_size, hidden_size)
+        
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.action_space = env.single_action_space
-        self.d_model = d_model
-        self.n_layers = n_layers
-        self.n_heads = n_heads
-        self.d_head = d_head
-        self.eta = eta
-        self.r = r
+        
+        # Initialize action conversion tensors (will be set by MettaAgent)
+        self.action_index_tensor = None
+        self.cum_action_max_params = None
+        
+        # Move to device
+        self.to(self.device)
+
+    def forward(self, td: TensorDict, state=None, action=None):
+        """Forward pass compatible with MettaAgent expectations."""
+        observations = td["env_obs"].to(self.device)
+        
+        # Initialize LSTM state if needed
+        if state is None:
+            state = {"lstm_h": None, "lstm_c": None, "hidden": None}
+        
+        # Prepare LSTM state
+        lstm_h = state.get("lstm_h")
+        lstm_c = state.get("lstm_c")
+        
+        # Handle batch dimensions for BPTT
+        B = observations.shape[0]
+        if observations.dim() == 4:  # (B, T, H, W)
+            TT = observations.shape[1]
+            observations = observations.reshape(B * TT, *observations.shape[2:])
+        else:
+            TT = 1
+        
+        # Check if we need to initialize or adjust LSTM state
+        if lstm_h is not None and lstm_c is not None:
+            # Ensure state tensors are on correct device and have correct shape
+            lstm_h = lstm_h.to(self.device)
+            lstm_c = lstm_c.to(self.device)
+            
+            # Add sequence dimension if needed (from stored state)
+            if lstm_h.dim() == 2:  # (B, hidden_size)
+                lstm_h = lstm_h.unsqueeze(0)  # -> (1, B, hidden_size)
+                lstm_c = lstm_c.unsqueeze(0)  # -> (1, B, hidden_size)
+            
+            # Handle batch size mismatches (e.g., from BPTT)
+            if lstm_h.shape[1] != B:
+                # State batch size doesn't match - reinitialize
+                lstm_h = None
+                lstm_c = None
+                lstm_state = None
+            else:
+                lstm_state = (lstm_h, lstm_c)
+        else:
+            lstm_state = None
+        
+        # Encode observations through policy
+        hidden = self.policy.encode_observations(observations, state)
+        
+        # LSTM forward pass
+        if TT > 1:
+            # Reshape for LSTM: (B*TT, hidden) -> (TT, B, hidden)
+            hidden = hidden.view(B, TT, -1).transpose(0, 1)
+        else:
+            # Add time dimension: (B, hidden) -> (1, B, hidden)
+            hidden = hidden.unsqueeze(0)
+        
+        lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
+        
+        # Flatten back for decoding
+        if TT > 1:
+            flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
+        else:
+            flat_hidden = lstm_output.squeeze(0)
+        
+        # Decode actions and value
+        logits, value = self.policy.decode_actions(flat_hidden)
+        
+        # Handle action sampling/evaluation
+        if action is None:
+            # Inference mode - sample actions
+            action_log_probs = F.log_softmax(logits, dim=-1)
+            action_probs = torch.exp(action_log_probs)
+            
+            sampled_actions = torch.multinomial(action_probs, num_samples=1).view(-1)
+            batch_indices = torch.arange(sampled_actions.shape[0], device=sampled_actions.device)
+            selected_log_probs = action_log_probs[batch_indices, sampled_actions]
+            
+            # Convert to action pairs
+            converted_actions = self._convert_logit_index_to_action(sampled_actions)
+            
+            td["actions"] = converted_actions.to(dtype=torch.int32)
+            td["act_log_prob"] = selected_log_probs
+            td["values"] = value.flatten()
+            td["full_log_probs"] = action_log_probs
+            
+            # Store LSTM state (squeeze the sequence dimension for inference)
+            td["lstm_h"] = new_lstm_h.squeeze(0).detach()  # Remove sequence dimension
+            td["lstm_c"] = new_lstm_c.squeeze(0).detach()  # Remove sequence dimension
+            
+        else:
+            # Training mode - evaluate given actions
+            action = action.to(self.device)
+            if action.dim() == 3:  # (B, T, A)
+                action = action.view(B * TT, -1)
+            
+            # Convert actions to logit indices
+            action_logit_index = self._convert_action_to_logit_index(action)
+            
+            # Compute log probs and entropy
+            action_log_probs = F.log_softmax(logits, dim=-1)
+            action_probs = torch.exp(action_log_probs)
+            
+            batch_indices = torch.arange(action_logit_index.shape[0], device=action_logit_index.device)
+            selected_log_probs = action_log_probs[batch_indices, action_logit_index]
+            
+            entropy = -(action_probs * action_log_probs).sum(dim=-1)
+            
+            # Reshape for BPTT if needed
+            if TT > 1:
+                td["act_log_prob"] = selected_log_probs.view(B, TT)
+                td["entropy"] = entropy.view(B, TT)
+                td["value"] = value.view(B, TT)
+                td["full_log_probs"] = action_log_probs.view(B, TT, -1)
+            else:
+                td["act_log_prob"] = selected_log_probs
+                td["entropy"] = entropy
+                td["value"] = value.flatten()
+                td["full_log_probs"] = action_log_probs
+        
+        return td
+
+    def clip_weights(self):
+        """Clip weights to prevent gradient explosion."""
+        for p in self.parameters():
+            p.data.clamp_(-1, 1)
+
+    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
+        """Convert logit indices back to action pairs."""
+        if self.action_index_tensor is None:
+            raise RuntimeError("action_index_tensor not initialized. Call activate_actions first.")
+        return self.action_index_tensor[action_logit_index]
+
+    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
+        """Convert (action_type, action_param) pairs to discrete indices."""
+        if self.cum_action_max_params is None:
+            raise RuntimeError("cum_action_max_params not initialized. Call activate_actions first.")
+        
+        action_type_numbers = flattened_action[:, 0].long()
+        action_params = flattened_action[:, 1].long()
+        cumulative_sum = self.cum_action_max_params[action_type_numbers]
+        return cumulative_sum + action_params
+
+
+class AgalitePolicy(nn.Module):
+    """Inner policy using AGaLiTe architecture."""
+    
+    def __init__(self, env, input_size=256, hidden_size=256):
+        super().__init__()
+        self.input_size = input_size
         self.hidden_size = hidden_size
-
-        # Initialize observation parameters
-        self.out_width, self.out_height, self.num_layers = 11, 11, 22
-
-        # Create the observation encoder (CNN + self encoder)
+        self.is_continuous = False  # Required by PufferLib
+        self.action_space = env.single_action_space
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        
+        # Observation parameters
+        self.out_width = 11
+        self.out_height = 11
+        self.num_layers = 22
+        
+        # Create observation encoders
         self.cnn_encoder = nn.Sequential(
             pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, 128, 5, stride=3)),
             nn.ReLU(),
             pufferlib.pytorch.layer_init(nn.Conv2d(128, 128, 3, stride=1)),
             nn.ReLU(),
             nn.Flatten(),
-            pufferlib.pytorch.layer_init(nn.Linear(128, d_model // 2)),
+            pufferlib.pytorch.layer_init(nn.Linear(128, input_size // 2)),
             nn.ReLU(),
         )
-
+        
         self.self_encoder = nn.Sequential(
-            pufferlib.pytorch.layer_init(nn.Linear(self.num_layers, d_model // 2)),
+            pufferlib.pytorch.layer_init(nn.Linear(self.num_layers, input_size // 2)),
             nn.ReLU(),
         )
-
-        # Use the optimized batched AGaLiTe
-        self.agalite = BatchedAGaLiTe(
-            n_layers=n_layers,
-            d_model=d_model,
-            d_head=d_head,
-            d_ffc=d_ffc,
-            n_heads=n_heads,
-            eta=eta,
-            r=r,
-            reset_on_terminate=reset_on_terminate,
-            dropout=dropout,
+        
+        # AGaLiTe core (without LSTM since PufferLib wrapper handles that)
+        self.agalite_core = BatchedAGaLiTe(
+            n_layers=2,  # Reduced for efficiency
+            d_model=input_size,
+            d_head=64,
+            d_ffc=hidden_size * 2,
+            n_heads=4,
+            eta=4,
+            r=4,
+            reset_on_terminate=True,
+            dropout=0.0,  # No dropout for inference speed
         )
-
-        # Create action heads - one for each discrete action
-        self.actor = nn.ModuleList(
-            [pufferlib.pytorch.layer_init(nn.Linear(d_model, n), std=0.01) for n in self.action_space.nvec]
+        
+        # Initialize AGaLiTe memory
+        self.agalite_memory = None
+        
+        # Output heads
+        self.actor = pufferlib.pytorch.layer_init(
+            nn.Linear(input_size, sum(env.single_action_space.nvec)), std=0.01
         )
-        self.value = pufferlib.pytorch.layer_init(nn.Linear(d_model, 1), std=1)
-
-        # Register buffer for observation normalization
+        self.critic = pufferlib.pytorch.layer_init(
+            nn.Linear(input_size, 1), std=1
+        )
+        
+        # Register normalization buffer
         max_vec = torch.tensor(
             [9, 1, 1, 10, 3, 254, 1, 1, 235, 8, 9, 250, 29, 1, 1, 8, 1, 1, 6, 3, 1, 2],
             dtype=torch.float32,
         )[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
-        # State memory buffer
-        self._memory_cache = {}
-
-        self.to(self.device)
-
-    def forward(self, td: TensorDict, state: Optional[Dict] = None, action=None) -> TensorDict:
-        """Forward pass through AGaLiTe policy with optimized batching."""
-
-        # Extract batch dimensions
-        original_shape = td.batch_size
-        if td.batch_dims > 1:
-            B, TT = td.batch_size
-            total_batch = B * TT
-            td = td.reshape(total_batch)
-        else:
-            B = td.batch_size[0] if hasattr(td.batch_size, "__getitem__") else td.batch_size
-            TT = 1
-            total_batch = B
-
-        observations = td["env_obs"].to(self.device)
-
-        # Encode observations
-        hidden = self.encode_observations(observations)
-
-        # Get or initialize memory
-        if state is not None and "agalite_memory" in state:
-            # Deserialize state from tensor
-            state_memory = state["agalite_memory"]
-            # If we're in BPTT mode and memory was expanded, take only first B elements
-            if state_memory.shape[0] == total_batch and TT > 1:
-                # Memory was expanded to B*TT, we only need the first occurrence for each batch
-                state_memory = state_memory[::TT]  # Take every TT-th element to get B elements
-            memory = self._deserialize_memory(state_memory, B)
-        else:
-            # Initialize new memory
-            memory = BatchedAGaLiTe.initialize_memory(
-                batch_size=B,
-                n_layers=self.n_layers,
-                n_heads=self.n_heads,
-                d_head=self.d_head,
-                eta=self.eta,
-                r=self.r,
-                device=self.device,
-            )
-
-        # Get terminations
-        terminations = td.get("terminations", torch.zeros(total_batch, device=self.device))
-
-        # Reshape for AGaLiTe: (B*TT, d_model) -> (TT, B, d_model)
-        if TT > 1:
-            hidden = hidden.view(B, TT, -1).transpose(0, 1)
-            terminations = terminations.view(B, TT).transpose(0, 1)
-        else:
-            hidden = hidden.unsqueeze(0)  # (1, B, d_model)
-            terminations = terminations.unsqueeze(0)  # (1, B)
-
-        # Forward through AGaLiTe
-        agalite_out, new_memory = self.agalite(hidden, terminations, memory)
-
-        # CRITICAL: Detach memory for experience replay to prevent gradient accumulation
-        new_memory = self._detach_memory(new_memory)
-
-        # Reshape output back: (TT, B, d_model) -> (B*TT, d_model)
-        if TT > 1:
-            agalite_out = agalite_out.transpose(0, 1).reshape(total_batch, -1)
-        else:
-            agalite_out = agalite_out.squeeze(0)
-
-        # Decode actions and value
-        logits_list, value = self.decode_actions(agalite_out)
-
-        # Sample actions and compute probabilities
-        actions, log_probs, entropies, full_log_probs = self._sample_actions(logits_list)
-
-        # Prepare action tensor
-        if len(actions) >= 2:
-            actions_tensor = torch.stack([actions[0], actions[1]], dim=-1)
-        else:
-            actions_tensor = torch.stack([actions[0], torch.zeros_like(actions[0])], dim=-1)
-        actions_tensor = actions_tensor.to(dtype=torch.int32)
-
-        # Store outputs in TensorDict
-        if action is None:
-            # Inference mode
-            td["actions"] = actions_tensor
-            td["act_log_prob"] = log_probs.mean(dim=-1)
-            td["values"] = value.flatten()
-            td["full_log_probs"] = full_log_probs
-        else:
-            # Training mode
-            td["act_log_prob"] = log_probs.mean(dim=-1)
-            td["entropy"] = entropies.sum(dim=-1)
-            td["value"] = value.flatten()
-            td["full_log_probs"] = full_log_probs
-
-        # Serialize and store memory state
-        serialized_memory = self._serialize_memory(new_memory)
-        
-        # Handle memory storage based on batch dimensions
-        if original_shape != td.batch_size:
-            # We're in BPTT mode - need to handle memory carefully
-            # Memory is per-batch-element (B), not per-timestep (B*TT)
-            # We need to expand memory to match flattened batch or store separately
-            
-            # Option 1: Expand memory to match all timesteps (memory is same for all timesteps in sequence)
-            # This is needed because the TensorDict is flattened to (B*TT)
-            serialized_expanded = serialized_memory.repeat_interleave(TT, dim=0)
-            td["agalite_memory"] = serialized_expanded
-            
-            # Now reshape back to original shape
-            td = td.reshape(original_shape)
-        else:
-            # Single batch dimension, store directly
-            td["agalite_memory"] = serialized_memory
-
-        return td
-
-    def encode_observations(self, observations: torch.Tensor) -> torch.Tensor:
-        """Encode observations into features for AGaLiTe."""
+    def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
+        """Encode observations into features."""
         B = observations.shape[0]
-
+        
+        # Process token observations
         if observations.dim() != 3:
             observations = einops.rearrange(observations, "b t m c -> (b t) m c")
             B = observations.shape[0]
-
-        # Process token observations
+        
+        # Handle invalid tokens
+        observations = observations.clone()
         observations[observations == 255] = 0
         coords_byte = observations[..., 0].to(torch.uint8)
-
+        
         x_coords = ((coords_byte >> 4) & 0x0F).long()
         y_coords = (coords_byte & 0x0F).long()
         atr_indices = observations[..., 1].long()
         atr_values = observations[..., 2].float()
-
+        
         # Create box observations
         box_obs = torch.zeros(
             (B, self.num_layers, self.out_width, self.out_height),
             dtype=atr_values.dtype,
-            device=self.device,
+            device=observations.device,
         )
-
+        
         valid_tokens = (
             (coords_byte != 0xFF)
             & (x_coords < self.out_width)
             & (y_coords < self.out_height)
             & (atr_indices < self.num_layers)
         )
-
-        batch_idx = torch.arange(B, device=self.device).unsqueeze(-1).expand_as(atr_values)
-        box_obs[batch_idx[valid_tokens], atr_indices[valid_tokens], x_coords[valid_tokens], y_coords[valid_tokens]] = (
-            atr_values[valid_tokens]
-        )
-
+        
+        batch_idx = torch.arange(B, device=observations.device).unsqueeze(-1).expand_as(atr_values)
+        box_obs[batch_idx[valid_tokens], atr_indices[valid_tokens], 
+                x_coords[valid_tokens], y_coords[valid_tokens]] = atr_values[valid_tokens]
+        
         # Normalize and encode
         features = box_obs / self.max_vec
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.cnn_encoder(features)
+        
+        encoded = torch.cat([self_features, cnn_features], dim=1)
+        
+        # Pass through AGaLiTe core (without time dimension - LSTM wrapper handles that)
+        # Initialize memory if needed
+        if self.agalite_memory is None:
+            self.agalite_memory = BatchedAGaLiTe.initialize_memory(
+                batch_size=B,
+                n_layers=2,
+                n_heads=4,
+                d_head=64,
+                eta=4,
+                r=4,
+                device=encoded.device,
+            )
+        
+        # Check if batch size changed
+        memory_batch_size = next(iter(next(iter(self.agalite_memory.values())))).shape[0]
+        if memory_batch_size != B:
+            # Reinitialize memory for new batch size
+            self.agalite_memory = BatchedAGaLiTe.initialize_memory(
+                batch_size=B,
+                n_layers=2,
+                n_heads=4,
+                d_head=64,
+                eta=4,
+                r=4,
+                device=encoded.device,
+            )
+        
+        # Add time dimension for AGaLiTe
+        encoded = encoded.unsqueeze(0)  # (1, B, features)
+        terminations = torch.zeros(1, B, device=encoded.device)
+        
+        # Forward through AGaLiTe
+        agalite_out, new_memory = self.agalite_core(encoded, terminations, self.agalite_memory)
+        
+        # Detach memory to prevent gradient accumulation
+        self.agalite_memory = {
+            key: tuple(tensor.detach() for tensor in layer_memory)
+            for key, layer_memory in new_memory.items()
+        }
+        
+        # Remove time dimension
+        return agalite_out.squeeze(0)
 
-        return torch.cat([self_features, cnn_features], dim=1)
-
-    def decode_actions(self, hidden: torch.Tensor) -> Tuple[list[torch.Tensor], torch.Tensor]:
+    def decode_actions(self, hidden: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Decode hidden states into action logits and value."""
-        return [head(hidden) for head in self.actor], self.value(hidden)
+        return self.actor(hidden), self.critic(hidden)
 
-    def _sample_actions(self, logits_list: list[torch.Tensor]):
-        """Sample discrete actions from logits."""
-        actions, selected_log_probs, entropies, full_log_probs = [], [], [], []
-        max_actions = max(logits.shape[1] for logits in logits_list)
-
-        for logits in logits_list:
-            log_probs = F.log_softmax(logits, dim=-1)
-            probs = log_probs.exp()
-
-            action = torch.multinomial(probs, 1).squeeze(-1)
-            batch_idx = torch.arange(action.shape[0], device=action.device)
-
-            selected_log_prob = log_probs[batch_idx, action]
-            entropy = -(probs * log_probs).sum(dim=-1)
-
-            actions.append(action)
-            selected_log_probs.append(selected_log_prob)
-            entropies.append(entropy)
-            pad_width = max_actions - log_probs.shape[1]
-            full_log_probs.append(F.pad(log_probs, (0, pad_width), value=float("-inf")))
-
-        return (
-            actions,
-            torch.stack(selected_log_probs, dim=-1),
-            torch.stack(entropies, dim=-1),
-            torch.stack(full_log_probs, dim=-1),
-        )
-
-    def _serialize_memory(self, memory_dict: Dict[str, Tuple]) -> torch.Tensor:
-        """Serialize memory dictionary into a single tensor."""
-        tensors = []
-        for layer_idx in range(1, self.n_layers + 1):
-            layer_memory = memory_dict[f"layer_{layer_idx}"]
-            for tensor in layer_memory:
-                # Flatten all dimensions except batch
-                batch_size = tensor.shape[0]
-                flattened = tensor.view(batch_size, -1)
-                tensors.append(flattened)
-
-        return torch.cat(tensors, dim=1)
-
-    def _deserialize_memory(self, serialized: torch.Tensor, batch_size: int) -> Dict[str, Tuple]:
-        """Deserialize a tensor back into memory dictionary."""
-        memory_dict = {}
-        offset = 0
-
-        # Calculate sizes for each tensor component
-        tilde_k_size = self.r * self.n_heads * self.eta * self.d_head
-        tilde_v_size = self.r * self.n_heads * self.d_head
-        s_size = self.n_heads * self.eta * self.d_head
-        tick_size = 1
-
-        for layer_idx in range(1, self.n_layers + 1):
-            tilde_k_prev = serialized[:, offset : offset + tilde_k_size].reshape(
-                batch_size, self.r, self.n_heads, self.eta * self.d_head
-            )
-            offset += tilde_k_size
-
-            tilde_v_prev = serialized[:, offset : offset + tilde_v_size].reshape(
-                batch_size, self.r, self.n_heads, self.d_head
-            )
-            offset += tilde_v_size
-
-            s_prev = serialized[:, offset : offset + s_size].reshape(batch_size, self.n_heads, self.eta * self.d_head)
-            offset += s_size
-
-            tick = serialized[:, offset : offset + tick_size]
-            offset += tick_size
-
-            memory_dict[f"layer_{layer_idx}"] = (tilde_k_prev, tilde_v_prev, s_prev, tick)
-
-        return memory_dict
-
-    def _detach_memory(self, memory_dict: Dict[str, Tuple]) -> Dict[str, Tuple]:
-        """Detach memory tensors to prevent gradient accumulation."""
-        detached_memory = {}
-        for key, layer_memory in memory_dict.items():
-            detached_memory[key] = tuple(tensor.detach() for tensor in layer_memory)
-        return detached_memory
-
-    def reset_memory(self) -> None:
-        """Reset cached memory."""
-        self._memory_cache.clear()
-
-    def get_memory(self) -> dict:
-        """Get current memory state."""
-        return self._memory_cache.copy()
-
-    # PufferLib compatibility
-    def forward_eval(self, observations: torch.Tensor, state=None):
-        """Forward function for inference (PufferLib compatibility)."""
-        batch_size = observations.shape[0]
-        td = TensorDict(
-            {
-                "env_obs": observations,
-                "terminations": torch.zeros(batch_size, device=observations.device),
-            },
-            batch_size=batch_size,
-        )
-
-        if state is not None:
-            td["agalite_memory"] = state
-
-        output_td = self.forward(td)
-
-        logits = output_td.get("full_log_probs", torch.zeros(batch_size, 2))
-        values = output_td.get("values", output_td.get("value", torch.zeros(batch_size)))
-
-        return logits, values
-
-    def forward_train(self, observations: torch.Tensor, state=None):
-        """Forward function for training (PufferLib compatibility)."""
-        return self.forward_eval(observations, state)
+    def reset_memory(self):
+        """Reset AGaLiTe memory."""
+        self.agalite_memory = None

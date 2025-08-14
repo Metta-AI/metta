@@ -1,4 +1,4 @@
-from metta.agent.pytorch.agalite_fixed import Agalite
+from metta.agent.pytorch.agalite import Agalite
 from metta.agent.pytorch.example import Example
 from metta.agent.pytorch.fast import Fast
 from metta.agent.pytorch.latent_attn_med import LatentAttnMed
