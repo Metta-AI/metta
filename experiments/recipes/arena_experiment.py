@@ -17,15 +17,11 @@ class ArenaExperimentConfig(SingleJobExperimentConfig):
     name: str = "arena_experiment"
 
     def __init__(self, **kwargs):
-        # Set the arena curriculum before calling parent init
+        # Always use arena curriculum for this experiment
         if "training" not in kwargs:
             kwargs["training"] = TrainingRunConfig(
                 curriculum="env/mettagrid/curriculum/arena/learning_progress"
             )
-        elif not hasattr(kwargs["training"], "curriculum"):
-            kwargs[
-                "training"
-            ].curriculum = "env/mettagrid/curriculum/arena/learning_progress"
 
         super().__init__(**kwargs)
 
