@@ -15,7 +15,7 @@ Key features:
 - Manages minibatch creation for training
 """
 
-from typing import Dict
+from typing import Dict, Tuple
 
 import torch
 from tensordict import TensorDict
@@ -37,6 +37,8 @@ class Experience:
         max_minibatch_size: int,
         experience_spec: Composite,
         device: torch.device | str,
+        hidden_size: int,
+        num_lstm_layers: int,
         cpu_offload: bool = False,
     ):
         """Initialize experience buffer with segmented storage."""
@@ -48,6 +50,8 @@ class Experience:
         self.bptt_horizon: int = bptt_horizon
         self.device = device if isinstance(device, torch.device) else torch.device(device)
         self.cpu_offload = cpu_offload
+        self.hidden_size = hidden_size
+        self.num_lstm_layers = num_lstm_layers
 
         # Calculate segments
         self.segments = batch_size // bptt_horizon
@@ -96,6 +100,14 @@ class Experience:
         # Pre-allocate tensor to stores how many agents we have for use during environment reset
         self._range_tensor = torch.arange(total_agents, device=self.device, dtype=torch.int32)
 
+        self.states = {}  # Dict[env_id, Tuple[h, c]]
+        for i in range(0, total_agents, batch_size):
+            batch_size_actual = min(batch_size, total_agents - i)
+            self.states[i] = (
+                torch.zeros(num_lstm_layers, batch_size_actual, hidden_size, device=self.device),
+                torch.zeros(num_lstm_layers, batch_size_actual, hidden_size, device=self.device),
+            )
+
     def _check_for_duplicate_keys(self, experience_spec: Composite) -> None:
         """Check for duplicate keys in the experience spec."""
         all_keys = list(experience_spec.keys(include_nested=True, leaves_only=True))
@@ -112,7 +124,7 @@ class Experience:
         """Check if buffer has enough data for training."""
         return self.full_rows >= self.segments
 
-    def store(self, data_td: TensorDict, env_id: slice) -> None:
+    def store(self, data_td: TensorDict, env_id: slice, state: Tuple[torch.Tensor, torch.Tensor] | None = None) -> None:
         """Store a batch of experience."""
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
@@ -126,17 +138,38 @@ class Experience:
         # Update episode tracking
         self.ep_lengths[env_id] += 1
 
+        if state is not None:
+            self.states[env_id.start] = state
+
         # Check if episodes are complete and reset if needed
         if episode_lengths + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
+
+    def reset_memory(self) -> None:
+        """Reset memory for all environments."""
+        for env_id in self.states.keys():
+            self.states[env_id] = (
+                torch.zeros(self.num_lstm_layers, self.batch_size, self.hidden_size, device=self.device),
+                torch.zeros(self.num_lstm_layers, self.batch_size, self.hidden_size, device=self.device),
+            )
 
     def _reset_completed_episodes(self, env_id) -> None:  # av used to be not tensor
         """Reset episode tracking for completed episodes."""
         num_full = env_id.stop - env_id.start
         self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
         self.ep_lengths[env_id] = 0
+
+        self.states[env_id.start] = (
+            torch.zeros(self.num_lstm_layers, num_full, self.hidden_size, device=self.device),
+            torch.zeros(self.num_lstm_layers, num_full, self.hidden_size, device=self.device),
+        )
+
         self.free_idx = (self.free_idx + num_full) % self.segments
         self.full_rows += num_full
+
+    def get_state(self, env_id: slice) -> Tuple[torch.Tensor | None, torch.Tensor | None]:
+        """Get the state for a given environment id."""
+        return self.states.get(env_id.start, (None, None))
 
     def reset_for_rollout(self) -> None:
         """Reset tracking variables for a new rollout."""

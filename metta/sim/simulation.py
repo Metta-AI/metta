@@ -350,10 +350,6 @@ class Simulation:
         """
         self.start_simulation()
 
-        self._policy_pr.policy.reset_memory()
-        if self._npc_pr is not None:
-            self._npc_pr.policy.reset_memory()
-
         while (self._episode_counters < self._min_episodes).any() and (time.time() - self._t0) < self._max_time_s:
             actions_np = self.generate_actions()
             self.step_simulation(actions_np)

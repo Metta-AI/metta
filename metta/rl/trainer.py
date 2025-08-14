@@ -215,6 +215,8 @@ def train(
         max_minibatch_size=trainer_cfg.minibatch_size,
         experience_spec=Composite({**dict(policy_spec.items()), **dict(loss_spec.items())}),
         device=device,
+        hidden_size=policy.hidden_size,
+        num_lstm_layers=policy.num_lstm_layers,
         cpu_offload=trainer_cfg.cpu_offload,
     )
 
@@ -299,8 +301,7 @@ def train(
                 raw_infos = []
                 experience.reset_for_rollout()
                 total_steps = 0
-
-                policy.reset_memory()
+                experience.reset_memory()
                 buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
                 while not experience.ready_for_training:
@@ -325,12 +326,13 @@ def train(
 
                     # Inference
                     with torch.no_grad():
-                        policy(td)
+                        state = policy(td, state=experience.get_state(training_env_id))
 
                     # Store experience
                     experience.store(
                         data_td=td,
                         env_id=training_env_id,
+                        state=state,
                     )
 
                     # Send observation
@@ -381,7 +383,7 @@ def train(
 
                 for _update_epoch in range(trainer_cfg.update_epochs):
                     for _ in range(experience.num_minibatches):
-                        policy.reset_memory()
+                        experience.reset_memory()
                         # Sample minibatch
                         minibatch, indices, prio_weights = experience.sample_minibatch(
                             advantages=advantages,

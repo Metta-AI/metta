@@ -1,5 +1,5 @@
 import logging
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 
 import gymnasium as gym
 import torch
@@ -69,13 +69,9 @@ class ComponentPolicy(nn.Module):
         component = self.components["_action_"]
         self._setup_components(component)
 
-        # Track components with memory
-        self.components_with_memory = []
         for name, component in self.components.items():
             if not getattr(component, "ready", False):
                 raise RuntimeError(f"Component {name} in ComponentPolicy was never setup.")
-            if component.has_memory():
-                self.components_with_memory.append(name)
 
         # Check for duplicate component names
         all_names = [c._name for c in self.components.values() if hasattr(c, "_name")]
@@ -89,6 +85,9 @@ class ComponentPolicy(nn.Module):
         # Initialize action conversion tensors (will be set by MettaAgent)
         self.cum_action_max_params = None
         self.action_index_tensor = None
+
+        self.hidden_size = self.components["_core_"].hidden_size
+        self.num_lstm_layers = self.components["_core_"].num_layers
 
     def _setup_components(self, component):
         """Setup component connections - matching old MettaAgent logic.
@@ -118,7 +117,9 @@ class ComponentPolicy(nn.Module):
     # Forward Pass Methods
     # ============================================================================
 
-    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
+    def forward(
+        self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None
+    ) -> Tuple[TensorDict, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
         """Forward pass of the ComponentPolicy - matches original MettaAgent forward() logic."""
 
         # Handle BPTT reshaping like the original
@@ -133,6 +134,11 @@ class ComponentPolicy(nn.Module):
             td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
             td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
 
+        if "__core__" in self.components:
+            td, state = self.components["__core__"](td, state)
+        else:
+            td = self.components["_core_"](td)
+
         self.components["_value_"](td)
         self.components["_action_"](td)
 
@@ -144,7 +150,7 @@ class ComponentPolicy(nn.Module):
             bptt_size = td["bptt"][0].item()
             output_td = output_td.reshape(batch_size, bptt_size)
 
-        return output_td
+        return output_td, state
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
         """Inference mode - sample actions and store them in td."""
@@ -223,37 +229,6 @@ class ComponentPolicy(nn.Module):
         """Convert logit indices back to action pairs."""
         return self.action_index_tensor[action_logit_index]
 
-    def activate_action_embeddings(self, full_action_names: list[str], device):
-        """Activate action embeddings with the given action names."""
-        if "_action_embeds_" in self.components:
-            self.components["_action_embeds_"].activate_actions(full_action_names, device)
-
-    # ============================================================================
-    # Memory-related Methods
-    # ============================================================================
-
-    def reset_memory(self) -> None:
-        """Reset memory for all components that have memory."""
-        for name in self.components_with_memory:
-            comp = self.components[name]
-            if not hasattr(comp, "reset_memory"):
-                raise ValueError(
-                    f"Component '{name}' listed in components_with_memory but has no reset_memory() method."
-                    + " Perhaps an obsolete policy?"
-                )
-            comp.reset_memory()
-
-    def get_memory(self) -> dict:
-        """Get memory state from all components that have memory."""
-        memory = {}
-        for name in self.components_with_memory:
-            memory[name] = self.components[name].get_memory()
-        return memory
-
-    # ============================================================================
-    # Weight/Training Utility Methods
-    # ============================================================================
-
     def clip_weights(self):
         """Apply weight clipping if enabled."""
         if self.clip_range > 0:
@@ -309,6 +284,11 @@ class ComponentPolicy(nn.Module):
     # Helper Methods and Properties
     # ============================================================================
 
+    def activate_action_embeddings(self, full_action_names: list[str], device):
+        """Activate action embeddings with the given action names."""
+        if "_action_embeds_" in self.components:
+            self.components["_action_embeds_"].activate_actions(full_action_names, device)
+
     def _apply_to_components(self, method_name, *args, **kwargs):
         """Apply a method to all components that have it."""
         results = []
@@ -320,10 +300,3 @@ class ComponentPolicy(nn.Module):
                     if result is not None:
                         results.append(result)
         return results
-
-    @property
-    def lstm(self):
-        """Access to LSTM component if it exists."""
-        if "_core_" in self.components and hasattr(self.components["_core_"], "_net"):
-            return self.components["_core_"]._net
-        return None

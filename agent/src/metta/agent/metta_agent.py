@@ -88,6 +88,9 @@ class MettaAgent(nn.Module):
         if self.policy is not None and hasattr(self.policy, "device"):
             self.policy.device = self.device
 
+        self.hidden_size = self.policy.hidden_size
+        self.num_lstm_layers = self.policy.num_lstm_layers
+
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
 
@@ -120,15 +123,6 @@ class MettaAgent(nn.Module):
 
         # Delegate to policy - it handles all cases including legacy
         return self.policy(td, state, action)
-
-    def reset_memory(self) -> None:
-        """Reset memory - delegates to policy if it supports memory."""
-        if hasattr(self.policy, "reset_memory"):
-            self.policy.reset_memory()
-
-    def get_memory(self) -> dict:
-        """Get memory state - delegates to policy if it supports memory."""
-        return getattr(self.policy, "get_memory", lambda: {})()
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
