@@ -1,6 +1,6 @@
 # Experiments Framework
 
-A Python-based framework for defining, launching, managing, analyzing distributed training experiments on Skypilot.
+A Python-based framework for defining, launching, managing, and analyzing distributed training experiments on Skypilot.
 
 ## Overview
 
@@ -60,13 +60,22 @@ class LearningRateABTest(Experiment):
                 wandb_tags=["ab_test", f"lr_{lr}"],
             )
             configs.append(TrainingJobConfig(
-                skypilot=SkypilotJobConfig(gpus=1),
+                skypilot=SkypilotJobConfig(
+                    gpus=self.config.gpus,
+                    nodes=self.config.nodes,
+                    spot=self.config.spot,
+                ),
                 training=training,
             ))
         return configs
 
 class LearningRateABTestConfig(ExperimentConfig):
     name: str = "lr_ab_test"
+    # Infrastructure params passed by runner
+    gpus: int = 1
+    nodes: int = 1
+    spot: bool = True
+    git_check: bool = True
 
 if __name__ == "__main__":
     from experiments.runner import runner
@@ -77,11 +86,16 @@ if __name__ == "__main__":
 
 ### Configuration Hierarchy
 
-```python
-TrainingJobConfig
-├── SkypilotJobConfig      # Infrastructure: GPUs, nodes, spot instances
-└── TrainingRunConfig       # Training: agent, curriculum, hyperparameters
-    └── TrainerConfig       # Nested: optimizer, PPO, checkpointing
+```
+ExperimentConfig                    # Base: name, launch, instance_name
+├── SingleJobExperimentConfig       # Inherits from both ExperimentConfig and TrainingJobConfig
+│   └── ArenaExperimentConfig       # Specific experiment implementation
+└── LearningRateABTestConfig        # Multi-job experiment config
+
+TrainingJobConfig                   # Complete job specification
+├── SkypilotJobConfig              # Infrastructure: GPUs, nodes, spot instances
+└── TrainingRunConfig              # Training: agent, curriculum, hyperparameters
+    └── TrainerConfig              # Nested: optimizer, PPO, checkpointing
 ```
 
 ### How Config Transfer Works
@@ -94,7 +108,7 @@ TrainingJobConfig
 Example serialized YAML structure:
 ```yaml
 defaults:
-  - ../common
+  - ../common                    # Relative paths from experiments/
   - ../agent/fast
   - ../trainer/trainer
   - ../sim/arena
@@ -102,9 +116,9 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: env/mettagrid/curriculum/arena/learning_progress
+  curriculum: env/mettagrid/curriculum/arena/basic
   total_timesteps: 10000000
-  # ... nested trainer config
+  # ... full trainer config
 ```
 
 ## Advanced Usage
@@ -114,7 +128,10 @@ trainer:
 For experiments requiring specific hyperparameters:
 
 ```python
-from metta.rl.trainer_config import TrainerConfig, OptimizerConfig
+from metta.rl.trainer_config import (
+    TrainerConfig, OptimizerConfig, CheckpointConfig,
+    SimulationConfig, TorchProfilerConfig
+)
 
 trainer = TrainerConfig(
     total_timesteps=50_000_000,
@@ -131,11 +148,10 @@ trainer = TrainerConfig(
 )
 
 training = TrainingRunConfig(
-    curriculum="your/curriculum/path",
+    curriculum="env/mettagrid/curriculum/arena/basic",
     trainer=trainer,
 )
 ```
-
 
 ## Service Layer
 
@@ -164,6 +180,7 @@ experiments/
 ├── training_run_config.py   # YAML serialization logic
 ├── runner.py                # Typer CLI integration
 ├── recipes/                 # Concrete experiment implementations
+│   └── arena_experiment.py  # SingleJobExperimentConfig example
 └── services/                # Skypilot and WandB integration
 ```
 
