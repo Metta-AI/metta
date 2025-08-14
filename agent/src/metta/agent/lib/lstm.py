@@ -87,9 +87,6 @@ class LSTM(LayerBase):
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def _forward(self, td: TensorDict):
-        assert (
-            getattr(self, "_sources", None) is not None and isinstance(self._sources, list) and len(self._sources) > 0
-        ), "LSTM requires at least one source component"
         hidden = td[self._sources[0]["name"]]  # → (2, num_layers, batch, hidden_size)
 
         TT = td["bptt"][0]

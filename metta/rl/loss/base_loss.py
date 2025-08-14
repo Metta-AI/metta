@@ -32,6 +32,10 @@ class BaseLoss(ABC):
         "loss_tracker",
         "policy_store",
         "policy_cfg",
+        "rollout_start_step",
+        "rollout_end_step",
+        "train_start_step",
+        "train_end_step",
     )
 
     def __init__(
@@ -52,18 +56,38 @@ class BaseLoss(ABC):
         self.loss_tracker = loss_tracker
         self.policy_store = policy_store
 
-        # populate loss tracker with the loss components
-        # self.loss_tracker.add_loss_component(self)
+        loss_name = self.__class__.__name__
+        loss_cfg = self.policy_cfg.losses.get(loss_name, {})
+
+        # Get schedule for rollout
+        rollout_schedule = loss_cfg.get("rollout", {})
+        self.rollout_start_step = rollout_schedule.get("start_step", 0)
+        self.rollout_end_step = rollout_schedule.get("end_step", float("inf"))
+
+        # Get schedule for train
+        train_schedule = loss_cfg.get("train", {})
+        self.train_start_step = train_schedule.get("start_step", 0)
+        self.train_end_step = train_schedule.get("end_step", float("inf"))
+
+    def should_run_rollout(self, agent_step: int) -> bool:
+        """Whether this loss should run its rollout phase, based on the current agent step."""
+        return self.rollout_start_step <= agent_step < self.rollout_end_step
+
+    def should_run_train(self, agent_step: int) -> bool:
+        """Whether this loss should run its train phase, based on the current agent step."""
+        return self.train_start_step <= agent_step < self.train_end_step
 
     def get_experience_spec(self) -> Composite:
-        """Optional extension of the experience spec required by this loss.
-
-        Defaults to an empty Composite, meaning the loss does not require
-        additional fields beyond the policy's experience spec.
-        """
+        """Optional extension of the experience spec required by this loss."""
         return Composite()
 
-    def rollout(self, td: TensorDict) -> None:
+    def rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
+        if not self.should_run_rollout(trainer_state.agent_step):
+            return
+        self.run_rollout(td, trainer_state)
+
+    def run_rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
+        """Override this method in subclasses to implement rollout logic."""
         return
 
     # av consider eliminating trainer_state

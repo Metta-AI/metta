@@ -21,8 +21,6 @@ class SLKickstarter(BaseLoss):
         "teacher_policy_spec",
         "action_loss_coef",
         "value_loss_coef",
-        "begin_at_step",
-        "end_at_step",
         "anneal_ratio",
         "anneal_duration",
         "ramp_down_start_step",
@@ -41,8 +39,6 @@ class SLKickstarter(BaseLoss):
         super().__init__(policy, trainer_cfg, vec_env, device, loss_tracker, policy_store)
         self.action_loss_coef = self.policy_cfg.losses.SLKickstarter.action_loss_coef
         self.value_loss_coef = self.policy_cfg.losses.SLKickstarter.value_loss_coef
-        self.begin_at_step = self.policy_cfg.losses.SLKickstarter.begin_at_step
-        self.end_at_step = self.policy_cfg.losses.SLKickstarter.end_at_step
         self.anneal_ratio = self.policy_cfg.losses.SLKickstarter.anneal_ratio
 
         # load teacher policy
@@ -58,7 +54,7 @@ class SLKickstarter(BaseLoss):
 
         self.anneal_factor = 1.0
 
-        kickstart_steps = self.end_at_step - self.begin_at_step
+        kickstart_steps = self.train_end_step - self.train_start_step
 
         if self.anneal_ratio > 0:
             self.anneal_duration = kickstart_steps * self.anneal_ratio
@@ -96,20 +92,19 @@ class SLKickstarter(BaseLoss):
         return ["ks_action_loss", "ks_value_loss"]
 
     def train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+        agent_step = trainer_state.agent_step
+        if not self.should_run_train(agent_step):
+            return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data
+
         ks_value_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         ks_action_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
 
-        agent_step = trainer_state.agent_step
-        if agent_step < self.begin_at_step or agent_step >= self.end_at_step:
-            loss = ks_action_loss + ks_value_loss
-            return loss, shared_loss_data
-
-        if self.anneal_ratio > 0 and agent_step >= self.end_at_step:
+        if self.anneal_ratio > 0 and agent_step > self.ramp_down_start_step:
             # Ramp down
             progress = (agent_step - self.ramp_down_start_step) / self.anneal_duration
             self.anneal_factor = 1.0 - progress
 
-        td = shared_loss_data["sampled_mb"].select(self.teacher_policy_spec).clone()
+        td = shared_loss_data["sampled_mb"].select(*self.teacher_policy_spec.keys()).clone()
         with torch.no_grad():
             self.teacher_policy(td)
         teacher_value = td["value"]

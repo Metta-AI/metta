@@ -2,6 +2,7 @@ from typing import Any
 
 import torch
 from tensordict import TensorDict
+from torch import Tensor
 from torchrl.data import Composite
 
 from metta.agent.metta_agent import PolicyAgent
@@ -9,6 +10,7 @@ from metta.agent.policy_store import PolicyStore
 from metta.rl.loss.base_loss import BaseLoss
 from metta.rl.loss.loss_tracker import LossTracker
 from metta.rl.trainer_config import TrainerConfig
+from metta.rl.trainer_state import TrainerState
 
 
 class TLKickstarter(BaseLoss):
@@ -19,8 +21,6 @@ class TLKickstarter(BaseLoss):
         "teacher_policy_spec",
         "action_loss_coef",
         "value_loss_coef",
-        "begin_at_step",
-        "end_at_step",
     )
 
     def __init__(
@@ -35,8 +35,6 @@ class TLKickstarter(BaseLoss):
         super().__init__(policy, trainer_cfg, vec_env, device, loss_tracker, policy_store)
         self.action_loss_coef = self.policy_cfg.losses.TLKickstarter.action_loss_coef
         self.value_loss_coef = self.policy_cfg.losses.TLKickstarter.value_loss_coef
-        self.begin_at_step = self.policy_cfg.losses.TLKickstarter.begin_at_step
-        self.end_at_step = self.policy_cfg.losses.TLKickstarter.end_at_step
 
         # load teacher policy
         policy_record = self.policy_store.policy_record(self.policy_cfg.losses.TLKickstarter.teacher_uri)
@@ -52,7 +50,27 @@ class TLKickstarter(BaseLoss):
     def get_experience_spec(self) -> Composite:
         return self.teacher_policy_spec
 
-    def rollout(self, td: TensorDict) -> None:
+    def run_rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
         self.teacher_policy(td)
 
-    # need train()
+    def train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+        if not self.should_run_train(trainer_state.agent_step):
+            return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data
+
+        ks_value_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+        ks_action_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
+
+        teacher_value = shared_loss_data["sampled_mb"]["values"]
+        teacher_normalized_logits = shared_loss_data["sampled_mb"]["full_log_probs"]
+
+        student_normalized_logits = shared_loss_data["policy_td"]["full_log_probs"]
+        student_value = shared_loss_data["policy_td"]["value"]
+
+        ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
+        ks_action_loss *= self.action_loss_coef
+
+        ks_value_loss += ((teacher_value.squeeze() - student_value) ** 2).mean() * self.value_loss_coef
+
+        loss = ks_action_loss + ks_value_loss
+
+        return loss, shared_loss_data

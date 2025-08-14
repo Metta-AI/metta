@@ -215,12 +215,11 @@ def train(
         raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
 
     # Instantiate configured losses dynamically by class name
-    policy_losses = list(policy_cfg.losses.keys())
     loss_instances: dict[str, BaseLoss] = {}
-    for loss_name in policy_losses:
-        module_name = f"metta.rl.loss.{loss_name.lower()}"
-        module = importlib.import_module(module_name)
-        loss_cls = getattr(module, loss_name)
+    for loss_name, loss_config in policy_cfg.losses.items():
+        module_path, class_name = loss_config["path"].rsplit(".", 1)
+        module = importlib.import_module(module_path)
+        loss_cls = getattr(module, class_name)
         loss_instances[loss_name] = loss_cls(policy, trainer_cfg, vecenv, device, loss_tracker, policy_store)
 
     loss_tracker.configure_from_losses(list(loss_instances.values()))
@@ -307,6 +306,7 @@ def train(
         steps_before = agent_step
         trainer_state.agent_step = agent_step
         trainer_state.epoch = epoch
+        policy_losses = policy.get_cfg().losses
         shared_loss_mb_data = experience.give_me_empty_md_td()
         policy.on_new_training_run()
         for _loss_name in loss_instances.keys():
@@ -349,7 +349,7 @@ def train(
                     # reusing hiddens within the network. Other losses should clear fields and/or clone as necessary.
                     for _lname in list(policy_losses):
                         loss_obj = loss_instances[_lname]
-                        loss_obj.rollout(td)
+                        loss_obj.rollout(td, trainer_state)
 
                     # Store experience
                     experience.store(data_td=td, env_id=training_env_id)

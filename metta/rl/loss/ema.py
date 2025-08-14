@@ -47,6 +47,8 @@ class EMA(BaseLoss):
                 target_param.data = self.ema_decay * target_param.data + (1 - self.ema_decay) * online_param.data
 
     def train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+        if not self.should_run_train(trainer_state.agent_step):
+            return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data
         self.update_target_model()
         policy_td = shared_loss_data["policy_td"]
 
