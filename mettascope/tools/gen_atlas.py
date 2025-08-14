@@ -82,7 +82,7 @@ def needs_rebuild(atlas_dir):
         with open(atlas_json, "r") as f:
             data = json.load(f)
         current_hash = _config_hash(_get_font_config())
-        saved_hash = data.get("fontConfigHash")
+        saved_hash = data.get("fonts", {}).get(FONT_ID, {}).get("FontConfigHash")
         if saved_hash != current_hash:
             return True, "Font settings changed"
     except Exception:
@@ -302,11 +302,12 @@ def main():
     # Write the atlas image and the atlas json file.
     try:
         font_cfg = _get_font_config()
+        # Embed font configuration directly into the font object and include hash
+        fonts_meta[FONT_ID].update(font_cfg)
+        fonts_meta[FONT_ID]["FontConfigHash"] = _config_hash(font_cfg)
         atlas_out = {
             "images": dict(images),
             "fonts": fonts_meta,
-            "fontConfig": font_cfg,
-            "fontConfigHash": _config_hash(font_cfg),
         }
         with open("dist/atlas.json", "w") as f:
             json.dump(atlas_out, f, indent=2)

@@ -50,28 +50,27 @@ interface FontKerningRow {
   [rightLabel: string]: number
 }
 
-interface FontMeta {
+interface Font {
   ascent: number
   descent: number
   lineHeight: number
   glyphs: { [label: string]: Glyph }
   kerning: { [leftLabel: string]: FontKerningRow }
-}
-
-interface FontConfig {
+  // Inlined former FontConfig fields and hash
   FontID: string
   FontPath: string
   FontSize: number
   FontCharset: string
   GlyphInnerPadding: number
+  FontPathMTime: number | null
+  FontPathSize: number | null
+  FontConfigHash: string
 }
 
 /** Type definition for atlas data. */
 interface AtlasData {
   images: { [key: string]: [number, number, number, number] }
-  fonts: { [fontId: string]: FontMeta }
-  fontConfig: FontConfig
-  fontConfigHash: string
+  fonts: { [fontId: string]: Font }
 }
 
 /** Clamp a value between a minimum and maximum. */
@@ -625,7 +624,7 @@ export class Context3d {
 
     const fonts = this.atlasData!.fonts
     const font = fonts[fontId]
-    const glyphInnerPadding = this.atlasData!.fontConfig.GlyphInnerPadding
+    const glyphInnerPadding = font.GlyphInnerPadding
     const mBase = this.atlasMargin
 
     let penX = x
