@@ -15,7 +15,7 @@ class TestYAMLContract:
 
     def test_minimal_yaml_has_required_fields(self):
         """Test that even minimal configs produce all required fields."""
-        config = TrainingRunConfig()
+        config = TrainingRunConfig(curriculum="env/mettagrid/curriculum/test")
         yaml_dict = config.serialize_to_yaml()
 
         # Required top-level fields for Hydra config
@@ -165,7 +165,7 @@ class TestYAMLContract:
     def test_additional_args_handling(self):
         """Test that additional_args were removed."""
         # additional_args functionality was removed per user request
-        config = TrainingRunConfig()
+        config = TrainingRunConfig(curriculum="env/mettagrid/curriculum/test")
 
         # Check that additional_args is not in the config
         assert not hasattr(config, "additional_args")
@@ -176,6 +176,7 @@ class TestYAMLContract:
     def test_special_fields_handling(self):
         """Test handling of special fields like py_agent and run_name_pattern."""
         config = TrainingRunConfig(
+            curriculum="env/mettagrid/curriculum/test",
             py_agent="custom_agent",
             run_name_pattern="{experiment}_{timestamp}",
             bypass_mac_overrides=True,
@@ -190,7 +191,7 @@ class TestYAMLContract:
 
     def test_checkpoint_and_simulation_paths(self):
         """Test that checkpoint and simulation paths use proper variables."""
-        config = TrainingRunConfig()
+        config = TrainingRunConfig(curriculum="env/mettagrid/curriculum/test")
         yaml_dict = config.serialize_to_yaml()
 
         trainer = yaml_dict["trainer"]
@@ -208,6 +209,7 @@ class TestYAMLContract:
     def test_empty_optional_fields_are_excluded(self):
         """Test that None/empty optional fields are excluded from YAML."""
         config = TrainingRunConfig(
+            curriculum="env/mettagrid/curriculum/test",
             wandb_tags=None,
             wandb_group=None,
             wandb_notes=None,

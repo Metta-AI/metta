@@ -19,7 +19,7 @@ class TrainingRunConfig(Config):
     """
 
     # Core training settings
-    curriculum: str = "env/mettagrid/curriculum/arena/learning_progress"
+    curriculum: str  # Required - must be explicitly set
 
     # Agent configuration (references configs/agent/*.yaml)
     agent_config: str = "fast"  # e.g., "fast", "latent_attn_tiny", etc.

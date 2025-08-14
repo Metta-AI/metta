@@ -3,7 +3,6 @@
 These tests verify that our generated YAML configs work with the actual training script.
 """
 
-
 import yaml
 
 from experiments.training_run_config import TrainingRunConfig
@@ -122,6 +121,7 @@ class TestTrainIntegration:
     def test_yaml_structure_for_hydra(self):
         """Test that YAML structure is correct for Hydra composition."""
         config = TrainingRunConfig(
+            curriculum="env/mettagrid/curriculum/test",
             agent_config="latent_attn_tiny",
             sim_config="navigation",
             wandb_entity="test-org",

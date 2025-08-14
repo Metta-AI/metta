@@ -6,6 +6,7 @@ Based on the arena.sh recipe.
 """
 
 from experiments.experiment import SingleJobExperiment, SingleJobExperimentConfig
+from experiments.training_run_config import TrainingRunConfig
 from experiments.runner import runner
 
 
@@ -15,8 +16,18 @@ class ArenaExperimentConfig(SingleJobExperimentConfig):
     # Experiment metadata
     name: str = "arena_experiment"
 
-    # Note: We don't redefine defaults here - they're inherited from the composed configs
-    # Users can override via CLI: --curriculum=... --wandb-tags=...
+    def __init__(self, **kwargs):
+        # Set the arena curriculum before calling parent init
+        if "training" not in kwargs:
+            kwargs["training"] = TrainingRunConfig(
+                curriculum="env/mettagrid/curriculum/arena/learning_progress"
+            )
+        elif not hasattr(kwargs["training"], "curriculum"):
+            kwargs[
+                "training"
+            ].curriculum = "env/mettagrid/curriculum/arena/learning_progress"
+
+        super().__init__(**kwargs)
 
 
 def main():

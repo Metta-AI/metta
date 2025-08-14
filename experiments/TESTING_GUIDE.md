@@ -1,113 +1,97 @@
-# Testing Guide for Experiments Framework
+# Testing Guide - Arena Experiment
 
-This guide provides instructions for testing the experiments framework with YAML serialization for Skypilot jobs.
+This guide shows how to test the Arena experiment with the YAML serialization system.
 
-## Overview
-
-The system works by:
-1. Creating a `TrainingRunConfig` with all training parameters
-2. Serializing it to a temporary YAML file with complete Hydra-compatible configuration
-3. Transferring the YAML via Skypilot's file_mounts to `/tmp/metta_train_config.yaml`
-4. Loading the config on the remote using Hydra's `--config-path=/tmp --config-name=metta_train_config`
-
-## Quick Test Commands
+## Quick Start
 
 ### 1. Preview Mode (No Launch)
 
-Test locally without launching to see what will be generated:
+Test the Arena experiment locally without launching to see what will be generated:
 
 ```bash
 # Basic preview - shows YAML without launching
-uv run experiments/runner.py single --name test_experiment --no-launch
+uv run experiments/recipes/arena_experiment.py --no-launch
 
-# Preview with custom parameters
-uv run experiments/runner.py single \
-  --name test_experiment \
+# Preview with different infrastructure settings
+uv run experiments/recipes/arena_experiment.py \
   --no-launch \
   --gpus 4 \
   --nodes 2 \
-  --total-timesteps 1000000 \
-  --learning-rate 0.0003
+  --no-spot
 ```
 
 This will:
-- Generate the YAML configuration
+- Generate the YAML configuration with arena curriculum
 - Display the config details that will be sent
 - Show local testing commands with `tools/train.py`
 - Create YAML files in `/tmp/metta_configs/` and `~/.metta_test_configs/`
 - NOT launch to Skypilot
 
-### 2. Test Local YAML with tools/train.py
+### 2. Test Generated YAML Locally
 
-The preview mode provides a command to test locally:
+The preview mode provides a command to test with tools/train.py:
 
 ```bash
 # Run preview mode first
-uv run experiments/runner.py single --name test_local --no-launch
+uv run experiments/recipes/arena_experiment.py --no-launch
 
 # Look for output like:
 # To test locally with tools/train.py:
 #   uv run ./tools/train.py --config-path=/Users/you/.metta_test_configs --config-name=test_config_20250113_123456
 
-# Copy and run that command to test the YAML locally
-uv run ./tools/train.py --config-path=/Users/you/.metta_test_configs --config-name=test_config_20250113_123456 --cfg job
+# View the generated config (shows what Hydra will compose)
+uv run ./tools/train.py \
+  --config-path=/Users/you/.metta_test_configs \
+  --config-name=test_config_20250113_123456 \
+  --cfg job
 ```
 
-### 3. Full Launch to Skypilot
+### 3. Launch Arena Training to Skypilot
 
 When ready to launch:
 
 ```bash
-# Basic launch
-uv run experiments/runner.py single --name my_training_run
+# Basic launch with defaults
+uv run experiments/recipes/arena_experiment.py
 
-# With custom settings
-uv run experiments/runner.py single \
-  --name my_training_run \
+# Launch with custom name and infrastructure
+uv run experiments/recipes/arena_experiment.py \
+  --name my_arena_run \
   --gpus 2 \
-  --total-timesteps 500000 \
-  --batch-size 1024 \
-  --curriculum "env/mettagrid/curriculum/arena/learning_progress"
+  --nodes 1
 ```
 
-## Verifying YAML Structure
+## Verifying the Configuration
 
 ### Check Generated YAML
 
-After running in preview mode, examine the generated YAML:
-
 ```bash
-# Find YAML files
-ls -la /tmp/metta_configs/
-ls -la ~/.metta_test_configs/
+# Find generated YAML files
+ls -la ~/.metta_test_configs/test_config_*.yaml
 
 # Inspect the content
-cat ~/.metta_test_configs/test_config_*.yaml
+cat ~/.metta_test_configs/test_config_*.yaml | head -20
 ```
 
-The YAML should contain:
-- `defaults:` section with Hydra config composition
-- `trainer:` section with all training parameters
-- `seed:`, `py_agent:`, `train_job:` and other required fields
-- No `# @package _global_` directive (that's only for local testing files)
-
-### Verify with Hydra
-
-Test that Hydra can load the config:
-
-```bash
-# This shows the composed config without running training
-uv run ./tools/train.py \
-  --config-path=/path/to/yaml/dir \
-  --config-name=config_name \
-  --cfg job \
-  hydra.mode=MULTIRUN \
-  hydra.dry=true
+Expected content:
+```yaml
+# @package _global_
+defaults:
+- common
+- 'agent: fast'
+- 'trainer: trainer'
+- 'sim: arena'
+- 'wandb: metta_research'
+- _self_
+seed: 1
+trainer:
+  curriculum: env/mettagrid/curriculum/arena/learning_progress
+  ...
 ```
 
-## Checking Skypilot Logs
+## Monitoring Skypilot Jobs
 
-After launching, monitor the job:
+After launching:
 
 ```bash
 # Check job status
@@ -116,49 +100,72 @@ sky jobs queue
 # View logs (replace JOB_ID with actual ID)
 sky jobs logs JOB_ID
 
-# Check the transferred config file
-sky exec JOB_ID 'cat /tmp/metta_train_config.yaml'
+# Check the transferred config
+sky exec JOB_ID 'cat /tmp/metta_train_config.yaml | head -20'
 
-# Check that tools/train.py received the config correctly
-sky exec JOB_ID 'grep "config-path=/tmp" /tmp/sky_logs/*.log'
+# Verify train.py is using the config
+sky exec JOB_ID 'ps aux | grep train.py'
+```
+
+## Creating Custom Experiments
+
+To create your own experiment with different settings:
+
+1. Copy `experiments/recipes/arena_experiment.py` to a new file
+2. Modify the curriculum and other defaults:
+
+```python
+class MyExperimentConfig(SingleJobExperimentConfig):
+    name: str = "my_experiment"
+    
+    def __init__(self, **kwargs):
+        if 'training' not in kwargs:
+            kwargs['training'] = TrainingRunConfig(
+                curriculum="env/mettagrid/curriculum/navigation/basic",
+                agent_config="latent_attn_tiny",
+                wandb_tags=["custom", "navigation"],
+            )
+        super().__init__(**kwargs)
 ```
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **"Could not load 'wandb: metta_research'"**
-   - This happens when testing locally with custom config paths
-   - The YAML references configs that aren't in the custom path
-   - This is expected; the remote has all configs available
+1. **ValidationError: curriculum Field required**
+   - Experiments must specify a curriculum
+   - Arena experiment sets: `env/mettagrid/curriculum/arena/learning_progress`
 
-2. **FileNotFoundError for YAML**
-   - Check that the path shown in preview mode exists
-   - Ensure `/tmp/metta_configs/` or `~/.metta_test_configs/` directories are writable
+2. **"Could not load 'wandb: metta_research'"**
+   - Expected when testing locally with custom config paths
+   - The remote environment has all configs available
 
 3. **Skypilot launch fails**
    - Check git state: `git status` (should be clean)
    - Verify AWS/wandb credentials are set
-   - Check that launch.py has --config-file support
+   - Ensure you're in the metta repository root
 
 ### Debug Commands
 
 ```bash
-# Check that TrainingRunConfig serialization works
+# Test arena experiment config creation
 uv run python -c "
-from experiments.training_run_config import TrainingRunConfig
-config = TrainingRunConfig()
-path, yaml_dict = config.serialize_to_yaml_file()
-print(f'Created: {path}')
-print(f'Keys: {list(yaml_dict.keys())}')
+from experiments.recipes.arena_experiment import ArenaExperimentConfig
+config = ArenaExperimentConfig(name='test')
+print(f'Curriculum: {config.training.curriculum}')
+print(f'Agent: {config.training.agent_config}')
 "
 
-# Test SingleJobExperiment config generation
+# Test YAML serialization
 uv run python -c "
-from experiments.experiment import SingleJobExperimentConfig, SingleJobExperiment
-config = SingleJobExperimentConfig(name='test', launch=False)
-exp = SingleJobExperiment(config)
-exp.load_or_launch_training_jobs()
+from experiments.recipes.arena_experiment import ArenaExperimentConfig
+config = ArenaExperimentConfig(name='test')
+path, yaml_dict = config.training.serialize_to_yaml_file()
+print(f'Created: {path}')
+import yaml
+with open(path) as f:
+    content = yaml.safe_load(f)
+print(f'Curriculum in YAML: {content[\"trainer\"][\"curriculum\"]}')
 "
 ```
 
@@ -168,8 +175,8 @@ exp.load_or_launch_training_jobs()
 # Run all experiments tests
 uv run pytest tests/experiments/ -v
 
-# Run specific test suites
-uv run pytest tests/experiments/test_yaml_contract.py -v  # YAML structure tests
-uv run pytest tests/experiments/test_train_integration.py -v  # Integration with train.py
-uv run pytest tests/experiments/test_experiment_workflows.py -v  # User workflow tests
+# Run specific test files
+uv run pytest tests/experiments/test_yaml_contract.py -v
+uv run pytest tests/experiments/test_train_integration.py -v
+uv run pytest tests/experiments/test_experiment_workflows.py -v
 ```

@@ -16,7 +16,7 @@ class TrainingJobConfig(Config):
     """
 
     skypilot: SkypilotJobConfig = SkypilotJobConfig()
-    training: TrainingRunConfig = TrainingRunConfig()
+    training: TrainingRunConfig  # Required - must be provided
 
 
 class TrainingJob:

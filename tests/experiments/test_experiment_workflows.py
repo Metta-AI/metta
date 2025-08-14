@@ -24,6 +24,7 @@ class TestExperimentWorkflows:
         config = SingleJobExperimentConfig(
             name="test_preview",
             launch=False,
+            training=TrainingRunConfig(curriculum="env/mettagrid/curriculum/test"),
             total_timesteps=50000,
             learning_rate=0.001,
         )
@@ -204,6 +205,7 @@ class TestExperimentWorkflows:
         config = SingleJobExperimentConfig(
             name="load_test",
             launch=False,
+            training=TrainingRunConfig(curriculum="env/mettagrid/curriculum/test"),
             previous_job_ids=["sky-old-job-1"],  # Single job experiment expects 1 job ID
         )
 
@@ -234,6 +236,7 @@ class TestMultipleJobWorkflow:
         config = SingleJobExperimentConfig(
             name="sweep_base",
             launch=False,
+            training=TrainingRunConfig(curriculum="env/mettagrid/curriculum/test"),
         )
 
         experiment = SingleJobExperiment(config)

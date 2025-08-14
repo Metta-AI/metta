@@ -35,7 +35,7 @@ class SingleJobExperimentConfig(ExperimentConfig):
 
     # Compose the two configs without redefining defaults
     skypilot: SkypilotJobConfig = SkypilotJobConfig()
-    training: TrainingRunConfig = TrainingRunConfig()
+    training: TrainingRunConfig  # Required - must be provided by subclasses
 
     # Optional overrides for common parameters (only if user wants to change them)
     total_timesteps: Optional[int] = None
