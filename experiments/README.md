@@ -87,9 +87,9 @@ TrainingJobConfig
 ### How Config Transfer Works
 
 1. **Local**: Python config objects are created and validated
-2. **Serialization**: `TrainingRunConfig.serialize_to_yaml_file()` creates a Hydra-compatible YAML
-3. **Transfer**: Skypilot mounts the YAML to `/tmp/metta_train_config.yaml` on remote
-4. **Execution**: Remote training loads via `--config-path=/tmp --config-name=metta_train_config`
+2. **Serialization**: `TrainingRunConfig.serialize_to_yaml_file()` creates a YAML in `configs/experiments/`
+3. **Transfer**: Skypilot mounts the YAML and copies it to `configs/experiments/` on remote
+4. **Execution**: Remote training loads via `+experiments={instance_name}` Hydra override
 
 Example serialized YAML structure:
 ```yaml
@@ -171,5 +171,6 @@ experiments/
 
 - Configs are saved to `configs/experiments/` (gitignored) with relative path defaults (`../agent/fast`)
 - The `instance_name` (name + timestamp) ensures unique configs for each launch
-- Skypilot's `file_mounts` transfers configs without requiring git commits
+- Skypilot's `file_mounts` transfers the YAML to remote, then copies it to `configs/experiments/`
+- Remote execution uses `+experiments={instance_name}` to load the config
 - All trainer fields must be provided when creating custom `TrainerConfig` (no partial overrides)

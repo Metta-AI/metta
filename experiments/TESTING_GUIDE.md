@@ -126,6 +126,6 @@ print(f'Defaults: {yaml_dict[\"defaults\"]}')
 
 - Configs saved to `configs/experiments/` are gitignored
 - Instance names include timestamp: `{name}_{YYYYMMDD_HHMMSS}`
-- Skypilot mounts config to `/tmp/metta_train_config.yaml`
-- Remote execution uses `--config-path=/tmp --config-name=metta_train_config`
+- Skypilot transfers config via file_mounts, then copies to `configs/experiments/` on remote
+- Remote execution uses `+experiments={instance_name}` to load the config
 - All TrainerConfig fields must be provided (no partial updates)
