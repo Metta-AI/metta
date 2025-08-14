@@ -1,0 +1,64 @@
+defaults:
+  - mettagrid
+  - _self_
+
+game:
+  num_agents: 64
+  max_steps: 16
+  obs_width: 11
+  obs_height: 11
+
+
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+    width: 45 #8*3+9*5
+    height: 45
+    root:
+      type: metta.map.scenes.room_grid.RoomGrid
+      params:
+        rows: 8
+        columns: 8
+        border_width: 5
+      children:
+        - scene:
+            type: metta.map.scenes.random.Random
+            params:
+              agents: 1
+
+  actions:
+    noop: {enabled: false}
+    move: {enabled: false}
+    rotate: {enabled: false}
+    put_items: {enabled: false}
+    get_items: {enabled: false}
+    attack: {enabled: false}
+    swap: {enabled: false}
+    change_color: {enabled: false}
+    change_glyph: {enabled: false}
+
+    color_tree:
+      enabled: true
+      target_sequence: [1, 0, 1, 0]
+      sequence_reward: 1.0
+      num_trials: 1
+      attempts_per_trial: 16
+      reward_mode: "precise" # precise, partial, dense
+      trial_sequences:
+        - [0, 0, 0, 0]
+        - [0, 0, 0, 1]
+        - [0, 0, 1, 0]
+        - [0, 0, 1, 1]
+        - [0, 1, 0, 0]
+        - [0, 1, 0, 1]
+        - [0, 1, 1, 0]
+        - [0, 1, 1, 1]
+        - [1, 0, 0, 0]
+        - [1, 0, 0, 1]
+        - [1, 0, 1, 0]
+        - [1, 0, 1, 1]
+        - [1, 1, 0, 0]
+        - [1, 1, 0, 1]
+        - [1, 1, 1, 0]
+        - [1, 1, 1, 1]
+
+      color_to_item: {0: ore_red, 1: ore_green}

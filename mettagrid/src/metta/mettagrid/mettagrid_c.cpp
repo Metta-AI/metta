@@ -118,7 +118,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       if (!color_tree_config) {
         throw std::runtime_error("ColorTreeActionConfig is not a valid action config");
       }
-      _action_handlers.push_back(std::make_unique<ColorTree>(*color_tree_config));
+      _action_handlers.push_back(std::make_unique<ColorTree>(*color_tree_config, num_agents, _rng));
     } else {
       throw std::runtime_error("Unknown action: " + action_name_str);
     }

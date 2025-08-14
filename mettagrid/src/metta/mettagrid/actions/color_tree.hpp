@@ -63,7 +63,7 @@ struct ColorTreeActionConfig : public ActionConfig {
 
 class ColorTree : public ActionHandler {
 public:
-  explicit ColorTree(const ColorTreeActionConfig& cfg)
+  explicit ColorTree(const ColorTreeActionConfig& cfg, const size_t num_agents, std::mt19937& rng)
       : ActionHandler(cfg, "color_tree"),
         _base_target_sequence(cfg.target_sequence),
         _sequence_reward(cfg.sequence_reward),
@@ -94,6 +94,22 @@ public:
     } else {
       _current_target_ptr_global = &_base_target_sequence;
     }
+
+    // Initialize agent-specific trial sequences
+    _agent_trial_sequences.resize(num_agents);
+    if (!_trial_sequences.empty()) {
+      std::uniform_int_distribution<size_t> dist(0, _trial_sequences.size() - 1);
+      for (size_t i = 0; i < num_agents; ++i) {
+        size_t random_index = dist(rng);
+        _agent_trial_sequences[i] = _trial_sequences[random_index];
+      }
+    } else {
+      // If no trial sequences provided, use base sequence for all agents
+      for (size_t i = 0; i < num_agents; ++i) {
+        _agent_trial_sequences[i] = _base_target_sequence;
+      }
+    }
+
   }
 
   unsigned char max_arg() const override {
@@ -141,9 +157,12 @@ protected:
       actor->stats.add("color_tree.trial_started", 1.0f);
     }
 
+    // Get agent-specific target sequence
+    const std::vector<uint8_t>& agent_target = _agent_trial_sequences[agent_id];
+
     // Update correctness bit for this position, then advance index
     size_t write_index = agent_data.position_in_sequence;
-    bool is_correct = (color == (*_current_target_ptr_global)[write_index]);
+    bool is_correct = (color == agent_target[write_index]);
     uint8_t bit_mask = static_cast<uint8_t>(1u << write_index);
     bool prev_bit = (agent_data.correctness_mask & bit_mask) != 0;
     if (prev_bit != is_correct) {
@@ -163,14 +182,11 @@ protected:
     agent_data.position_in_sequence = write_index;
     actor->stats.add("color_tree.colors_added", 1.0f);
 
-    // Resolve the target sequence for current global trial
-    const std::vector<uint8_t>& current_target = *_current_target_ptr_global;
-
     // Dense reward mode: give immediate reward for correct position
     if (_reward_mode == ColorTreeRewardMode::DENSE) {
       size_t compare_index =
           (agent_data.position_in_sequence == 0) ? (_max_sequence_size - 1) : (agent_data.position_in_sequence - 1);
-      if (color == (*_current_target_ptr_global)[compare_index]) {
+      if (color == agent_target[compare_index]) {
         *actor->reward += _per_position_reward;
         actor->stats.add("color_tree.correct_position", 1.0f);
         actor->stats.add("color_tree.reward_awarded", _per_position_reward);
@@ -265,6 +281,9 @@ private:
   size_t _agents_per_step = 0;
   size_t _current_trial_global = 0;
   const std::vector<uint8_t>* _current_target_ptr_global = nullptr;
+
+  // Agent-specific trial sequences
+  std::vector<std::vector<uint8_t>> _agent_trial_sequences;
 };
 
 #endif  // ACTIONS_COLOR_TREE_HPP_
