@@ -91,16 +91,6 @@ class Fast(pufferlib.models.LSTMWrapper):
 
         return td
 
-    def clip_weights(self):
-        """Clip weights of the actor heads to prevent large updates."""
-        pass
-
-    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        """Compute weight metrics for wandb logging - generic implementation."""
-        # Return empty list - weight metrics are optional
-        # The env_agent/* metrics come from the environment, not from here
-        return []
-
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """Convert logit indices back to action pairs."""
         return self.action_index_tensor[action_logit_index]

@@ -92,10 +92,6 @@ class LatentAttnSmall(pufferlib.models.LSTMWrapper):
 
         return td
 
-    def clip_weights(self):
-        for p in self.parameters():
-            p.data.clamp_(-1, 1)
-
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """Convert logit indices back to action pairs."""
         return self.action_index_tensor[action_logit_index]

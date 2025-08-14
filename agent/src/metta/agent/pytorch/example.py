@@ -115,15 +115,6 @@ class Example(pufferlib.models.LSTMWrapper):
             torch.stack(full_log_probs, dim=-1),
         )
 
-    def clip_weights(self):
-        for p in self.parameters():
-            p.data.clamp_(-1, 1)
-
-    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        """Compute weight metrics for wandb logging - generic implementation."""
-        # Return empty list - weight metrics are optional
-        # The env_agent/* metrics come from the environment, not from here
-        return []
 
 
 class Policy(nn.Module):
