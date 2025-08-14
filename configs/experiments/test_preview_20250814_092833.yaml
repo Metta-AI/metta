@@ -1,27 +1,26 @@
 # @package _global_
 defaults:
-- /common
-- /agent/fast
-- /trainer/trainer
-- /sim/arena
-- /wandb/metta_research
+- ../common
+- ../agent/fast
+- ../trainer/trainer
+- ../sim/arena
+- ../wandb/metta_research
 - _self_
 seed: 1
 py_agent: null
-run: ${run_name_pattern:${now:%Y%m%d_%H%M%S}_${name:metta}}
 train_job:
   map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
   evals: ${sim}
 trainer:
-  total_timesteps: 10000000
+  total_timesteps: 50000
   ppo:
     clip_coef: 0.1
-    ent_coef: 0.01
+    ent_coef: 0.0021
     gae_lambda: 0.916
     gamma: 0.977
     max_grad_norm: 0.5
     vf_clip_coef: 0.1
-    vf_coef: 0.5
+    vf_coef: 0.44
     l2_reg_loss_coef: 0
     l2_init_loss_coef: 0
     norm_adv: true
@@ -29,11 +28,11 @@ trainer:
     target_kl: null
   optimizer:
     type: adam
-    learning_rate: 0.0003
+    learning_rate: 0.001
     beta1: 0.9
     beta2: 0.999
     eps: 1.0e-12
-    weight_decay: 0
+    weight_decay: 0.0
   prioritized_experience_replay:
     prio_alpha: 0.0
     prio_beta0: 0.6
@@ -43,8 +42,8 @@ trainer:
   zero_copy: true
   require_contiguous_env_ids: false
   verbose: true
-  batch_size: 2048
-  minibatch_size: 512
+  batch_size: 524288
+  minibatch_size: 16384
   bptt_horizon: 64
   update_epochs: 1
   scale_batches_by_world_size: false
@@ -70,9 +69,9 @@ trainer:
     anneal_ratio: 0.65
     kickstart_steps: 1000000000
     additional_teachers: null
-  num_workers: 4
+  num_workers: 1
   env: null
-  curriculum: env/mettagrid/curriculum/arena/learning_progress
+  curriculum: env/mettagrid/curriculum/test
   env_overrides: {}
   initial_policy:
     uri: null

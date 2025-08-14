@@ -1,10 +1,10 @@
 # @package _global_
 defaults:
-- /common
-- /agent/fast
-- /trainer/trainer
-- /sim/arena
-- /wandb/metta_research
+- ../common
+- ../agent/fast
+- ../trainer/trainer
+- ../sim/arena
+- ../wandb/metta_research
 - _self_
 seed: 1
 py_agent: null
