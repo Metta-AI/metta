@@ -40,7 +40,7 @@ const FRAGMENT_SHADER_SOURCE = `
 
 // Font atlas metadata types
 interface FontGlyph {
-  rect: [number, number, number, number] | null
+  rect: [number, number, number, number]
   advance: number
   bearingX: number
   bearingY: number
@@ -634,6 +634,27 @@ export class Context3d {
       const label = toLabel(cp)
       const glyph = font.glyphs[label]
 
+      // Special handling: advance for spaces/tabs without rendering a quad.
+      if (ch === ' ') {
+        penX += glyph ? glyph.advance : 0
+        prevLabel = label
+        continue
+      }
+      if (ch === '\t') {
+        const space = font.glyphs['U+0020']
+        const tabAdvance = (space ? space.advance : glyph ? glyph.advance : 0) * 4
+        penX += tabAdvance
+        prevLabel = label
+        continue
+      }
+
+      if (!glyph) {
+        throw new Error(`Glyph "${label}" not found in font "${fontId}"`)
+      }
+      if (!glyph.rect) {
+        throw new Error(`Glyph "${label}" has no rect in font "${fontId}"`)
+      }
+
       // Kerning adjustment from previous glyph (already in pixels at atlas size).
       if (prevLabel) {
         const row = font.kerning[prevLabel]
@@ -645,45 +666,42 @@ export class Context3d {
         }
       }
 
-      if (glyph && glyph.rect) {
-        const [sx, sy, sw, sh] = glyph.rect
-        const m = mBase
-        const u0 = (sx - mBase) / this.textureSize.x()
-        const v0 = (sy - mBase) / this.textureSize.y()
-        const u1 = (sx + sw + mBase) / this.textureSize.x()
-        const v1 = (sy + sh + mBase) / this.textureSize.y()
+      const [sx, sy, sw, sh] = glyph.rect
+      const m = mBase
+      const u0 = (sx - mBase) / this.textureSize.x()
+      const v0 = (sy - mBase) / this.textureSize.y()
+      const u1 = (sx + sw + mBase) / this.textureSize.x()
+      const v1 = (sy + sh + mBase) / this.textureSize.y()
 
-        // Position the glyph image so that its baseline aligns at (penX, penY).
-        const drawX = penX + glyph.bearingX - glyphInnerPadding - m
-        const drawY = penY + glyph.bearingY - glyphInnerPadding - m
-        const drawW = sw + 2 * m
-        const drawH = sh + 2 * m
+      // Position the glyph image so that its baseline aligns at (penX, penY).
+      const drawX = penX + glyph.bearingX - glyphInnerPadding - m
+      const drawY = penY + glyph.bearingY - glyphInnerPadding - m
+      const drawW = sw + 2 * m
+      const drawH = sh + 2 * m
 
-        // Outline pass: draw the glyph tinted black around the main position for readability.
-        const oa = color.length >= 4 ? color[3] : 1
-        const outlineColor: number[] = [0, 0, 0, oa]
-        // 8-directional offsets for a 1px border.
-        const offsets = [
-          [-1, 0],
-          [1, 0],
-          [0, -1],
-          [0, 1],
-          [-1, -1],
-          [1, -1],
-          [-1, 1],
-          [1, 1],
-        ] as const
-        for (const [dx, dy] of offsets) {
-          this.drawRect(drawX + dx, drawY + dy, drawW, drawH, u0, v0, u1, v1, outlineColor)
-        }
-
-        // Main glyph.
-        this.drawRect(drawX, drawY, drawW, drawH, u0, v0, u1, v1, color)
+      // Outline pass: draw the glyph tinted black around the main position for readability.
+      const oa = color.length >= 4 ? color[3] : 1
+      const outlineColor: number[] = [0, 0, 0, oa]
+      // 8-directional offsets for a 1px border.
+      const offsets = [
+        [-1, 0],
+        [1, 0],
+        [0, -1],
+        [0, 1],
+        [-1, -1],
+        [1, -1],
+        [-1, 1],
+        [1, 1],
+      ] as const
+      for (const [dx, dy] of offsets) {
+        this.drawRect(drawX + dx, drawY + dy, drawW, drawH, u0, v0, u1, v1, outlineColor)
       }
 
+      // Main glyph.
+      this.drawRect(drawX, drawY, drawW, drawH, u0, v0, u1, v1, color)
+
       // Advance pen position (already in pixels at atlas size).
-      const adv = glyph ? glyph.advance : 0
-      penX += adv
+      penX += glyph.advance
       prevLabel = label
     }
   }
