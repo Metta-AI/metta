@@ -174,6 +174,7 @@ struct Hermes {
     GridObject* selection; // Null if none or selected object invalid this frame.
     uint64_t items_mask; // Bitmask of buckets whose nodes carry an inventory.
     uint64_t color_mask; // Bitmask of buckets whose nodes carry a color index.
+    uint64_t debug_mask; // Bitmask of buckets the developer has chosen to display.
 
     // Statistics (for the UI) (num_agents stored in the MettaGrid environment)
     uint32_t num_walls;
@@ -243,6 +244,10 @@ static void DrawFloor(Hermes& ctx) {
 }
 
 static void DrawWalls(Hermes& ctx) {
+    if ((ctx.debug_mask & (1 << ctx.types.wall)) == 0) {
+        return;
+    }
+
     for (auto node : ctx.buckets[ctx.types.wall]) {
         Draw(ctx, ctx.sprites[ctx.sprite_atlas.wall[node.index]], TileRect(node));
     }
@@ -268,7 +273,7 @@ static void DrawObjects(Hermes& ctx) {
     auto t = 0u;
     for (const auto& bucket : ctx.buckets) {
         auto type_id = t++;
-        if (type_id != ctx.types.wall && type_id != ctx.types.agent) {
+        if (type_id != ctx.types.wall && type_id != ctx.types.agent && ctx.debug_mask & (1 << type_id)) {
             auto sprite = ctx.sprites[ctx.sprite_atlas.objects[type_id]];
             for (auto node : bucket) {
                 Draw(ctx, sprite, Position(node));
@@ -278,6 +283,10 @@ static void DrawObjects(Hermes& ctx) {
 }
 
 static void DrawAgents(Hermes& ctx) {
+    if ((ctx.debug_mask & (1 << ctx.types.agent)) == 0) {
+        return;
+    }
+
     Color color;
     HermesSprites::Sprite sprite;
     for (auto node : ctx.buckets[ctx.types.agent]) {
@@ -309,28 +318,26 @@ static inline float ToDegrees(Orientation orientation, Vector2& offset) {
 }
 
 static void DrawActions(Hermes& ctx) {
-    // Agent actions.
     auto actions = ctx.self->actions();
-    if (actions.ndim() == 2) {
-        auto actions_view = actions.unchecked<2>();
-        auto action_success = ctx.self->action_success();
-        const auto& agents = ctx.buckets[ctx.types.agent];
-        for (auto i = 0u; i < agents.size(); i++) {
-            auto action = static_cast<uint16_t>(actions_view(i, 0));
-            if (action_success[i] && ctx.actions.show(action)) {
-                Vector2 ofs;
-                auto node = agents[i];
-                auto rot = ToDegrees(static_cast<Orientation>(node.object), ofs);
-                auto pos = Position(node);
-                pos.x += ofs.x * TILE_SIZE / 2;
-                pos.y += ofs.y * TILE_SIZE / 2;
-                Draw(ctx, ctx.sprites[ctx.sprite_atlas.actions[action]], pos, rot);
-            }
-        }
+    if (actions.ndim() != 2 || (ctx.debug_mask & (1 << ctx.types.agent)) == 0) {
+        return;
     }
 
-    // Converter actions.
-    // TODO move them here from DrawObjects? (want them on top of agents)
+    auto actions_view = actions.unchecked<2>();
+    auto action_success = ctx.self->action_success();
+    const auto& agents = ctx.buckets[ctx.types.agent];
+    for (auto i = 0u; i < agents.size(); i++) {
+        auto action = static_cast<uint16_t>(actions_view(i, 0));
+        if (action_success[i] && ctx.actions.show(action)) {
+            Vector2 ofs;
+            auto node = agents[i];
+            auto rot = ToDegrees(static_cast<Orientation>(node.object), ofs);
+            auto pos = Position(node);
+            pos.x += ofs.x * TILE_SIZE / 2;
+            pos.y += ofs.y * TILE_SIZE / 2;
+            Draw(ctx, ctx.sprites[ctx.sprite_atlas.actions[action]], pos, rot);
+        }
+    }
 }
 
 static void DrawSelection(Hermes& ctx) {
@@ -376,7 +383,7 @@ static void DrawInventory(Hermes& ctx) {
     auto t = 0u;
     for (const auto& bucket : ctx.buckets) {
         auto type_id = t++;
-        if ((ctx.items_mask & (1 << type_id)) == 0) {
+        if ((ctx.items_mask & (1 << type_id)) == 0 || (ctx.debug_mask & (1 << type_id)) == 0) {
             continue;
         }
 
@@ -402,16 +409,22 @@ static void DrawInventory(Hermes& ctx) {
         }
     }
 
-    for (const auto node : ctx.buckets[ctx.types.agent]) {
-        const auto& inv = ctx.self->agent(node.index)->inventory;
-        if (inv.size() != 0) {
-            set_position(node);
-            multi_draw(inv);
+    if (ctx.debug_mask & (1 << ctx.types.agent)) {
+        for (const auto node : ctx.buckets[ctx.types.agent]) {
+            const auto& inv = ctx.self->agent(node.index)->inventory;
+            if (inv.size() != 0) {
+                set_position(node);
+                multi_draw(inv);
+            }
         }
     }
 }
 
 static void DrawRewards(Hermes& ctx) {
+    if ((ctx.debug_mask & (1 << ctx.types.agent)) == 0) {
+        return;
+    }
+
     auto node_id = 0u;
     auto sprite = ctx.sprites[ctx.sprite_atlas.reward];
     auto width = sprite.width / 8;
@@ -520,12 +533,18 @@ static void DrawUI(Hermes& ctx) {
 
     DrawRectangle(5, 5, 500, 30, PANEL_COLOR);
     DrawText(buffer, 10, 10, 20, RAYWHITE);
+
+    for (auto i = 0; i < 64; i++) {
+        if (ctx.debug_mask & (1 << i)) {
+            DrawRectangle(10 + i * 6, 30, 4, 10, RAYWHITE);
+        }
+    }
 }
 
 static void DrawProfiler(Hermes& ctx) {
     if (ctx.config.show_profiler) {
         auto x = 10;
-        auto y = 50;
+        auto y = 70;
         auto w = 275;
         auto h = (1 + static_cast<int>(ctx.profiles.size())) * 17;
         auto p = 5;
@@ -549,7 +568,7 @@ static void DrawProfiler(Hermes& ctx) {
             draw(profile);
             frame_time += profile.time;
         }
-        auto frame = frame_time.count() / 1000.0;
+        double frame = frame_time.count() / 1000.0;
         auto color = frame > 16.666 ? RED : GREEN;
         snprintf(buffer, sizeof(buffer), "Frame: %.2f ms", frame);
         DrawText(buffer, x, y + 17, 13, color);
@@ -798,6 +817,19 @@ static void Hermes_Input(Hermes& ctx) {
         target.y += before.y - after.y;
         Hermes_ClampCameraTarget(ctx);
     }
+
+    auto base = 0;
+    if (IsKeyDown(KEY_LEFT_SHIFT)) base += 10;
+    if (IsKeyDown(KEY_LEFT_CONTROL)) base += 20;
+    if (IsKeyDown(KEY_LEFT_ALT)) base += 40;
+    for (auto i = 0; i < 10; i++) {
+        auto offset = base + i;
+        if (offset < 64 && IsKeyPressed(KEY_ZERO + i)) {
+            auto bit = 1u << offset;
+            ctx.debug_mask ^= bit;
+            HERMES_DBG("Debug: {} = {}", offset, (ctx.debug_mask & bit) != 0);
+        }
+    }
 }
 
 // Prepares the scene into a set of static resources reused for the entire episode.
@@ -886,7 +918,10 @@ static void Hermes_Cache(Hermes& ctx) {
         if (obj == nullptr) {
             continue;
         }
-        if (obj->type_id == ctx.types.wall) {
+        if (obj->type_id >= type_names.size()) {
+            HERMES_DBG("Object: {} = Type ID {}", obj->type_name, obj->type_id);
+        }
+        else if (obj->type_id == ctx.types.wall) {
             auto loc = obj->location;
             walls.push_back({ .cell = { .x = loc.r, .y = loc.c }});
         }
@@ -992,9 +1027,9 @@ static void Hermes_Setup(Hermes& ctx) {
 
     // Sprite sheet texture.
     ctx.sprite_sheet = LoadTexture(std::format("{}/atlas.png"sv, asset_path).c_str());
+    GenTextureMipmaps(&ctx.sprite_sheet);
     SetTextureFilter(ctx.sprite_sheet, TEXTURE_FILTER_TRILINEAR);
     SetTextureWrap(ctx.sprite_sheet, TEXTURE_WRAP_CLAMP);
-    GenTextureMipmaps(&ctx.sprite_sheet);
 
     // Sprite sheet atlas and lookup.
     auto builtins = py::module::import("builtins");
@@ -1064,8 +1099,8 @@ static void Hermes_Setup(Hermes& ctx) {
     wall_sprite("nwse", WallTile_N | WallTile_W | WallTile_S | WallTile_E);
     wall_sprite("fill", WallTile_Fill);
 
-    ctx.sprite_atlas.grid = ctx.sprite_lookup["objects/grid.png"];
-    ctx.sprite_atlas.halo = ctx.sprite_lookup["objects/halo.png"];
+    ctx.sprite_atlas.grid = ctx.sprite_lookup["view/grid.png"];
+    ctx.sprite_atlas.halo = ctx.sprite_lookup["effects/halo.png"];
     ctx.sprite_atlas.reward = ctx.sprite_lookup["resources/reward.png"];
     ctx.sprite_atlas.selection = ctx.sprite_lookup["selection.png"];
     ctx.sprite_atlas.converting = ctx.sprite_lookup["actions/converting.png"];
@@ -1099,6 +1134,8 @@ static void Hermes_Setup(Hermes& ctx) {
         ctx.config.camera.zoom = 0.25f;
     }
     Hermes_SetupCamera(ctx);
+
+    ctx.debug_mask = std::numeric_limits<uint64_t>::max();
 
     // One time initialization completed.
     ctx.initialized = true;
