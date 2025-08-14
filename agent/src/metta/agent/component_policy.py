@@ -229,22 +229,6 @@ class ComponentPolicy(nn.Module):
         """Convert logit indices back to action pairs."""
         return self.action_index_tensor[action_logit_index]
 
-    # ============================================================================
-    # Memory-related Methods
-    # ============================================================================
-
-    def _apply_to_components(self, method_name, *args, **kwargs):
-        """Apply a method to all components that have it."""
-        results = []
-        for _, component in self.components.items():
-            if hasattr(component, method_name):
-                method = getattr(component, method_name)
-                if callable(method):
-                    result = method(*args, **kwargs)
-                    if result is not None:
-                        results.append(result)
-        return results
-
     def clip_weights(self):
         """Apply weight clipping if enabled."""
         if self.clip_range > 0:
