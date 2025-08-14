@@ -18,7 +18,7 @@ game:
   agent:
     default_resource_limit: 1
     resource_limits:
-      heart: 5
+      heart: 15
     rewards:
       inventory:
         heart: 1.0
