@@ -21,18 +21,37 @@ echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
 echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
 [ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
-# Run comprehensive GPU diagnostics and NCCL tests
-echo "[RUN] Running GPU diagnostics and NCCL tests..."
-if ! uv run python ./devops/skypilot/test_nccl.py; then
-    echo "Pre-flight check failed!"
-    exit 1
-fi
-
 if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
   echo "[RUN] Collecting skypilot latency..."
   uv run python common/src/metta/common/util/skypilot_latency.py || true
 else
   echo "[RUN] Latency script is missing!"
+fi
+
+METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+
+# collect cost to METTA_ENV_FILE
+if [ -f common/src/metta/common/util/cost_monitor.py ]; then
+  echo "[RUN] Collecting instance cost..."
+  METTA_HOURLY_COST="$(uv run python common/src/metta/common/util/cost_monitor.py 2>/dev/null | tail -1 || true)"
+  if [ -n "${METTA_HOURLY_COST:-}" ]; then
+    echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST in $METTA_ENV_FILE"
+  else
+    echo "[RUN] Cost monitor script failed to run or returned no value."
+  fi
+else
+  echo "[RUN] Cost monitor script is missing!"
+fi
+
+# setup ENV
+bash ./devops/skypilot/config/configure_environment.sh
+source "$METTA_ENV_FILE"
+
+# Run comprehensive GPU diagnostics and NCCL tests
+echo "[RUN] Running GPU diagnostics and NCCL tests..."
+if ! uv run python ./devops/skypilot/test_nccl.py; then
+    echo "Pre-flight check failed!"
+    exit 1
 fi
 
 # Create a temp directory for IPC files
@@ -52,26 +71,6 @@ export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
 
 # Flag to prevent multiple shutdowns
 export SHUTDOWN_IN_PROGRESS=0
-
-METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
-
-# collect cost to METTA_ENV_FILE
-if [ -f common/src/metta/common/util/cost_monitor.py ]; then
-  echo "[RUN] Collecting instance cost..."
-  METTA_HOURLY_COST="$(uv run python common/src/metta/common/util/cost_monitor.py 2>/dev/null | tail -1 || true)"
-  if [ -n "${METTA_HOURLY_COST:-}" ]; then
-    echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST in $METTA_ENV_FILE"
-  else
-    echo "[RUN] Cost monitor script failed to run or returned no value."
-  fi
-else
-  echo "[RUN] Cost monitor script is missing!"
-fi
-
-# setup ENV
-bash ./devops/skypilot/config/configure_environment.sh
-
-source "$METTA_ENV_FILE"
 
 # Set up feature flags based on available credentials
 if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then

@@ -28,7 +28,7 @@ def print_box_header(title: str, width: int = 75) -> None:
         title = title[: max_title_width - 3] + "..."
 
     # Calculate padding for centering
-    padding = width - len(title) - 2  # 2 for the border characters
+    padding = width - len(title)
     left_pad = padding // 2
     right_pad = padding - left_pad
 
