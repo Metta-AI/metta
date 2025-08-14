@@ -56,17 +56,24 @@ class AGaLiTePolicy(nn.Module):
         self.is_continuous = False
         self.hidden_size = d_model
 
-        # Observation encoding
-        self.out_width = 11
-        self.out_height = 11
-        self.num_layers = 22
+        # Observation encoding - get actual shape from environment
+        obs_shape = env.single_observation_space.shape
+        if len(obs_shape) == 3:
+            self.out_height, self.out_width, self.num_layers = obs_shape
+        else:
+            # Default values for compatibility
+            self.out_width = 11
+            self.out_height = 11
+            self.num_layers = obs_shape[-1] if len(obs_shape) > 0 else 22
 
         # CNN encoder for spatial features
+        # Standard CNN architecture that works with Metta observations
         self.cnn_encoder = nn.Sequential(
-            pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, 128, 5, stride=3)),
+            pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, 128, 3, stride=1, padding=1)),
             nn.ReLU(),
-            pufferlib.pytorch.layer_init(nn.Conv2d(128, 128, 3, stride=1)),
+            pufferlib.pytorch.layer_init(nn.Conv2d(128, 128, 3, stride=1, padding=1)),
             nn.ReLU(),
+            nn.AdaptiveAvgPool2d((1, 1)),  # Global average pooling to fixed size
             nn.Flatten(),
             pufferlib.pytorch.layer_init(nn.Linear(128, d_model // 2)),
             nn.ReLU(),
@@ -106,10 +113,9 @@ class AGaLiTePolicy(nn.Module):
         self.critic = pufferlib.pytorch.layer_init(nn.Linear(d_model, 1), std=1)
 
         # Register normalization buffer for observations
-        max_vec = torch.tensor(
-            [9, 1, 1, 10, 3, 254, 1, 1, 235, 8, 9, 250, 29, 1, 1, 8, 1, 1, 6, 3, 1, 2],
-            dtype=torch.float32,
-        )[None, :, None, None]
+        # Create a max_vec that matches the actual number of layers
+        # Use default values of 255 for all channels to avoid division issues
+        max_vec = torch.ones((1, self.num_layers, 1, 1), dtype=torch.float32) * 255.0
         self.register_buffer("max_vec", max_vec)
 
         # Move to device
@@ -252,9 +258,20 @@ class AGaLiTeFaithful(TransformerWrapper):
         # Action conversion tensors (will be set by MettaAgent)
         self.action_index_tensor = None
         self.cum_action_max_params = None
+        
+        # Store memory state
+        self.memory_state = None
 
         # Move to device
         self.to(self.device)
+    
+    def reset_memory(self) -> None:
+        """Reset memory state. Called by MettaAgent without arguments."""
+        self.memory_state = None
+    
+    def get_memory(self) -> dict:
+        """Get current memory state."""
+        return {"transformer_memory": self.memory_state} if self.memory_state else {}
 
     def forward(self, td: TensorDict, state: Optional[Dict] = None, action: Optional[torch.Tensor] = None):
         """
@@ -272,11 +289,23 @@ class AGaLiTeFaithful(TransformerWrapper):
 
         # Initialize state if needed
         if state is None:
-            state = self.reset_memory(observations.shape[0], self.device)
+            B = observations.shape[0]
+            state = super().reset_memory(B, self.device)
 
-        # Store terminations if available
+        # Store terminations if available (handle shape properly)
         if "dones" in td:
-            state["terminations"] = td["dones"].to(self.device)
+            dones = td["dones"].to(self.device)
+            # Ensure dones are the right shape (B,) or (T, B)
+            if dones.dim() == 1:
+                # Single timestep: (B,)
+                state["terminations"] = dones
+            else:
+                # Multiple timesteps: ensure (T, B) format
+                if dones.shape[0] != B:
+                    # Likely (something_else, B), transpose if needed
+                    state["terminations"] = dones.T if dones.shape[1] == B else dones
+                else:
+                    state["terminations"] = dones
 
         # Determine if we're in training or inference mode
         if action is None:

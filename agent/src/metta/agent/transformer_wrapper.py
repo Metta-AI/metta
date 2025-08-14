@@ -66,9 +66,19 @@ class TransformerWrapper(nn.Module):
         hidden = hidden.unsqueeze(0)  # (1, B, hidden_size)
 
         # Check for terminations in state
-        terminations = state.get("terminations", torch.zeros(1, observations.shape[0], device=hidden.device))
+        B = observations.shape[0]
+        terminations = state.get("terminations", torch.zeros(1, B, device=hidden.device))
         if terminations.dim() == 1:
+            # (B,) -> (1, B)
             terminations = terminations.unsqueeze(0)
+        elif terminations.dim() == 2 and terminations.shape[0] != 1:
+            # Wrong first dimension, likely needs reshaping
+            if terminations.shape[0] == B:
+                # (B, something) -> take first column and reshape to (1, B)
+                terminations = terminations[:, 0].unsqueeze(0) if terminations.shape[1] > 0 else torch.zeros(1, B, device=hidden.device)
+            else:
+                # Just create zeros if shape is unexpected
+                terminations = torch.zeros(1, B, device=hidden.device)
 
         # Forward through transformer
         if hasattr(self.policy, "transformer"):
