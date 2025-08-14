@@ -97,6 +97,9 @@ class LSTMswitching(LayerBase):
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
+        # Apply scalar multiple on encoding for better switching responsibilities
+        hidden = hidden * self.hidden_state_scalar
+
         training_env_id_start = td.get("training_env_id_start", None)
         if training_env_id_start is None:
             training_env_id_start = 0
