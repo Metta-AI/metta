@@ -13,6 +13,10 @@ A Jupyter widget for discovering and selecting evaluations in the Metta AI ecosy
 
 ## Installation
 
+```sh
+metta install notebookwidgets
+```
+
 ### Prerequisites
 
 Make sure you're in the Metta repository root directory and have the proper Python environment activated (with `metta.app_backend` available).
