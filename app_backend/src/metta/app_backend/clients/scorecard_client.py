@@ -7,6 +7,7 @@ from metta.app_backend.routes.scorecard_routes import (
     EvalsRequest,
     MetricsRequest,
     PoliciesResponse,
+    PoliciesSearchRequest,
     ScorecardData,
     ScorecardRequest,
 )
@@ -29,6 +30,91 @@ class ListModel(RootModel[list[T]], Generic[T]):
 class ScorecardClient(BaseAppBackendClient):
     async def get_policies(self):
         return await self._make_request(PoliciesResponse, "GET", "/scorecard/policies")
+
+    async def search_policies(
+        self,
+        search: str = None,
+        policy_type: str = None,
+        tags: list[str] = None,
+        user_id: str = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> PoliciesResponse:
+        """Search policies with filtering and pagination.
+
+        Args:
+            search: Search term for policy names (case-insensitive partial match)
+            policy_type: Filter by policy type ('training_run' or 'policy')
+            tags: Filter by tags (policies must have at least one matching tag)
+            user_id: Filter by user ID
+            limit: Maximum number of results (1-1000)
+            offset: Number of results to skip
+
+        Returns:
+            PoliciesResponse containing matching policies
+        """
+        payload = PoliciesSearchRequest(
+            search=search,
+            policy_type=policy_type,
+            tags=tags,
+            user_id=user_id,
+            limit=limit,
+            offset=offset,
+        )
+        return await self._make_request(
+            PoliciesResponse, "POST", "/scorecard/policies/search", json=payload.model_dump(mode="json")
+        )
+
+    def search_policies_sync(
+        self,
+        search: str | None = None,
+        policy_type: str | None = None,
+        tags: list[str] | None = None,
+        user_id: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> PoliciesResponse:
+        """Synchronous version of search_policies for use in widgets and Jupyter notebooks.
+
+        Args:
+            search: Search term for policy names (case-insensitive partial match)
+            policy_type: Filter by policy type ('training_run' or 'policy')
+            tags: Filter by tags (policies must have at least one matching tag)
+            user_id: Filter by user ID
+            limit: Maximum number of results (1-1000)
+            offset: Number of results to skip
+
+        Returns:
+            PoliciesResponse containing matching policies
+        """
+        import asyncio
+
+        # Try to run in existing loop or create new one
+        try:
+            asyncio.get_running_loop()
+            # We're in a running loop, so we can't use run_until_complete
+            # Instead, we need to use a different approach
+            import concurrent.futures
+
+            def run_in_thread():
+                # Create new event loop in thread
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    return new_loop.run_until_complete(
+                        self.search_policies(search, policy_type, tags, user_id, limit, offset)
+                    )
+                finally:
+                    new_loop.close()
+
+            # Execute in thread to avoid blocking
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_in_thread)
+                return future.result(timeout=10)  # 10 second timeout
+
+        except RuntimeError:
+            # No running loop, we can use run_until_complete directly
+            return asyncio.run(self.search_policies(search, policy_type, tags, user_id, limit, offset))
 
     async def sql_query(self, sql: str):
         payload = SQLQueryRequest(
