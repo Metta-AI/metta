@@ -8,13 +8,15 @@ with special handling for READMEs and XML output format.
 import fnmatch
 import logging
 import os
-import subprocess
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import tiktoken
+
+# Import git helpers
+from metta.common.util import git as gitlib
 
 logger = logging.getLogger(__name__)
 
@@ -49,36 +51,17 @@ def resolve_codebase_path(path_str: Union[str, Path]) -> Path:
     return (Path.cwd() / path_obj).resolve()
 
 
-def _find_git_root(start_path: Path) -> Optional[Path]:
-    """
-    Find the root of the git repository containing the given path.
-
-    Args:
-        start_path: Path to start searching from
-
-    Returns:
-        Path to git root directory, or None if not in a git repo
-    """
-    current = start_path if start_path.is_dir() else start_path.parent
-
-    # Search up the directory tree for .git directory
-    while current != current.parent:
-        if (current / ".git").is_dir():
-            return current
-        current = current.parent
-
-    return None
-
-
 def _build_git_diff_document(base_ref: str, start_path: Path, index: int) -> Optional[Document]:
     """
-    Build a Document that contains a git diff against base_ref.
-    Runs 'git fetch' first. If the repo or base_ref is missing, return a header-only doc.
+    Build a Document that contains a Git diff against base_ref.
+    Uses git.py helpers. If the repo or base_ref is missing, return a header-only doc.
     """
-    repo_root = _find_git_root(start_path) or _find_git_root(Path.cwd())
+    repo_root = gitlib.find_root(start_path) or gitlib.find_root(Path.cwd())
+    header_title = f"===== Git diff against {base_ref} ====="
+
     if not repo_root:
         header = [
-            f"===== Git diff against {base_ref} =====",
+            header_title,
             "repo: (not a git repository)",
             f"generated: {datetime.now().isoformat(timespec='seconds')}",
             "",
@@ -86,21 +69,12 @@ def _build_git_diff_document(base_ref: str, start_path: Path, index: int) -> Opt
         ]
         return Document(index=index, source=f"GIT_DIFF:{base_ref}", content="\n".join(header))
 
-    def _run(cmd: List[str]) -> subprocess.CompletedProcess:
-        return subprocess.run(
-            ["git", "-C", str(repo_root), *cmd],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False,
-        )
+    # Best effort fetch
+    gitlib.fetch(repo_root)
 
-    _run(["fetch"])
-
-    base_ok = _run(["rev-parse", "--verify", "--quiet", base_ref]).returncode == 0
-    if not base_ok:
+    if not gitlib.ref_exists(repo_root, base_ref):
         header = [
-            f"===== Git diff against {base_ref} =====",
+            header_title,
             f"repo: {repo_root}",
             f"generated: {datetime.now().isoformat(timespec='seconds')}",
             "",
@@ -108,16 +82,16 @@ def _build_git_diff_document(base_ref: str, start_path: Path, index: int) -> Opt
         ]
         return Document(index=index, source=f"GIT_DIFF:{base_ref}", content="\n".join(header))
 
-    diff_cp = _run(["diff", base_ref])
-    diff_text = diff_cp.stdout or ""
-    header_lines = [
-        f"===== Git diff against {base_ref} =====",
+    diff_text = gitlib.diff(repo_root, base_ref)
+    body = diff_text if diff_text.strip() else "(working tree matches base, no changes)"
+    lines = [
+        header_title,
         f"repo: {repo_root}",
         f"generated: {datetime.now().isoformat(timespec='seconds')}",
         "",
+        body,
     ]
-    body = diff_text if diff_text.strip() else "(working tree matches base, no changes)"
-    return Document(index=index, source=f"GIT_DIFF:{base_ref}@{repo_root}", content="\n".join(header_lines + [body]))
+    return Document(index=index, source=f"GIT_DIFF:{base_ref}@{repo_root}", content="\n".join(lines))
 
 
 def _find_parent_readmes(path: Path) -> List[Path]:
@@ -136,7 +110,7 @@ def _find_parent_readmes(path: Path) -> List[Path]:
     current = path.parent
 
     # Find the git root to use as our boundary
-    git_root = _find_git_root(current)
+    git_root = gitlib.find_root(current)
     stop_at = git_root if git_root else Path("/")
 
     # Collect READMEs up to the boundary
@@ -506,7 +480,7 @@ def _find_gitignore(start_path: Path) -> Optional[Path]:
     current = start_path if start_path.is_dir() else start_path.parent
 
     # Find the git root to use as our boundary
-    git_root = _find_git_root(current)
+    git_root = gitlib.find_root(current)
     stop_at = git_root if git_root else Path("/")
 
     # Search up the directory tree for .gitignore
