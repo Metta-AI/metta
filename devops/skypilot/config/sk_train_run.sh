@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 set -euo pipefail
 
 cd /workspace/metta
@@ -8,6 +10,12 @@ if [ -n "${VIRTUAL_ENV:-}" ]; then
 fi
 . .venv/bin/activate
 
+DEBUG=${DEBUG:-0}
+
+EXIT_SUCCESS=0
+EXIT_FAILURE=1
+EXIT_NCCL_TEST_FAILURE=42
+
 echo "[CONFIG] Run Configuration:"
 echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
 echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
@@ -15,6 +23,7 @@ echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
 echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
+[ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
 if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
   echo "[RUN] Collecting skypilot latency..."
@@ -23,37 +32,9 @@ else
   echo "[RUN] Latency script is missing!"
 fi
 
-export NUM_GPUS="${SKYPILOT_NUM_GPUS_PER_NODE:-1}"
-export NUM_NODES="${SKYPILOT_NUM_NODES:-1}"
-export MASTER_ADDR="$(echo "${SKYPILOT_NODE_IPS:-}" | head -n1)"
-export MASTER_PORT=8008
-export NODE_INDEX="${SKYPILOT_NODE_RANK:-0}"
-export NCCL_SHM_DISABLE=1
-
-# Create a temp directory for IPC files
-export IPC_DIR="/tmp/metta_job_$$"
-mkdir -p "$IPC_DIR"
-
 METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
 
-export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
-export TERMINATION_REASON=""  # Track how the job ended
-
-# Configurable intervals
-export TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-60}
-export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
-
-# Create a temp directory for IPC files
-export IPC_DIR="/tmp/metta_job_$$"
-mkdir -p "$IPC_DIR"
-export TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
-export CMD_PID=""
-export CMD_PGID=""
-export START_TIME=0
-
-# Flag to prevent multiple shutdowns
-export SHUTDOWN_IN_PROGRESS=0
-
+# collect cost to METTA_ENV_FILE
 if [ -f common/src/metta/common/util/cost_monitor.py ]; then
   echo "[RUN] Collecting instance cost..."
   METTA_HOURLY_COST="$(uv run python common/src/metta/common/util/cost_monitor.py 2>/dev/null | tail -1 || true)"
@@ -66,12 +47,28 @@ else
   echo "[RUN] Cost monitor script is missing!"
 fi
 
-if [ -f "$METTA_ENV_FILE" ]; then
-  source "$METTA_ENV_FILE"
-else
-  echo "Warning: $METTA_ENV_FILE does not exist. Creating empty file."
-  touch "$METTA_ENV_FILE"
-fi
+# setup ENV
+bash ./devops/skypilot/config/configure_environment.sh
+source "$METTA_ENV_FILE"
+
+
+# Create a temp directory for IPC files
+export IPC_DIR="/tmp/metta_job_$$"
+mkdir -p "$IPC_DIR"
+export TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
+export CMD_PID=""
+export CMD_PGID=""
+export START_TIME=0
+
+export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
+export TERMINATION_REASON=""  # Track how the job ended
+
+# Configurable intervals
+export TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-60}
+export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
+
+# Flag to prevent multiple shutdowns
+export SHUTDOWN_IN_PROGRESS=0
 
 # Set up feature flags based on available credentials
 if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
@@ -218,7 +215,7 @@ graceful_shutdown() {
   export CMD_EXIT
   maybe_set_github_status
 
-  exit 0
+  exit EXIT_SUCCESS
 }
 
 # Trap signals on the parent (the process SkyPilot watches)
@@ -294,7 +291,7 @@ run_cmd() {
         if [ $remaining -gt 0 ]; then
           elapsed_min=$((elapsed / 60))
           remaining_min=$((remaining / 60))
-          echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
+          [ "$DEBUG" = "1" ] && echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
         else
           echo "[INFO] Timeout limit reached - terminating process group"
           terminate_process "$CMD_PID" "max_runtime_reached"
@@ -326,7 +323,7 @@ run_cmd() {
 
             # Print status occasionally
             if [ $((HEARTBEAT_COUNT % 10)) -eq 0 ]; then
-              echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
+              [ "$DEBUG" = "1" ] && echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
             fi
           fi
 
@@ -368,6 +365,14 @@ cleanup() {
   fi
   export CLEANUP_DONE=true
 
+  # Capture the actual exit code that triggered the trap
+  local actual_exit_code=$?
+
+  # If CMD_EXIT wasn't set (meaning we failed before run_cmd), use the actual exit code
+  if [ -z "${CMD_PID:-}" ]; then
+    CMD_EXIT=$actual_exit_code
+  fi
+
   # Read termination reason from file if it exists
   if [ -f "$TERMINATION_REASON_FILE" ]; then
     TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE")
@@ -387,12 +392,17 @@ cleanup() {
     # Map to success
     CMD_EXIT=0
 
-  elif [[ $CMD_EXIT -eq 0 ]]; then
+  elif [[ $CMD_EXIT -eq EXIT_SUCCESS ]]; then
     echo "[SUCCESS] Job completed successfully"
     export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
     export TERMINATION_REASON="completed"
     maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
 
+  elif [[ $CMD_EXIT -eq EXIT_NCCL_TEST_FAILURE ]]; then
+    echo "[ERROR] Job failed during NCCL tests"
+    export GITHUB_STATUS_DESCRIPTION="NCCL tests failed"
+    export TERMINATION_REASON="nccl_test_failure"
+    maybe_send_discord_notification "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
   else
     echo "[ERROR] Job failed with exit code $CMD_EXIT"
     export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
@@ -435,6 +445,10 @@ export -f terminate_monitors
 
 # Set up cleanup trap
 trap cleanup EXIT
+
+# Run comprehensive GPU diagnostics and NCCL tests
+echo "[RUN] Running GPU diagnostics and NCCL tests..."
+uv run python ./devops/skypilot/test_nccl.py
 
 # Run the command
 run_cmd
