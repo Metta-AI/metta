@@ -23,8 +23,10 @@ class TestTrainIntegration:
 
         # Check that agent config is properly referenced
         assert "defaults" in yaml_dict
-        agent_defaults = [d for d in yaml_dict["defaults"] if "agent:" in d]
+        # Now using relative paths
+        agent_defaults = [d for d in yaml_dict["defaults"] if "agent/" in d]
         assert len(agent_defaults) == 1
+        assert "../agent/fast" in yaml_dict["defaults"]
         assert agent_defaults[0] == "agent: fast"
 
         # Check curriculum is set
@@ -58,9 +60,9 @@ class TestTrainIntegration:
         # Check that agent references are different
         assert configs[0]["defaults"] != configs[1]["defaults"]
 
-        # Check that correct agent is referenced
-        assert any("agent: fast" in d for d in configs[0]["defaults"])
-        assert any("agent: latent_attn_tiny" in d for d in configs[1]["defaults"])
+        # Check that correct agent is referenced (now using relative paths)
+        assert "../agent/fast" in configs[0]["defaults"]
+        assert "../agent/latent_attn_tiny" in configs[1]["defaults"]
 
     def test_trainer_config_overrides_work(self):
         """Test that trainer config overrides are applied correctly."""
@@ -88,7 +90,7 @@ class TestTrainIntegration:
         )
 
         # Save and get command
-        test_command = config.save_for_local_testing()
+        test_command = config.save_for_local_testing(instance_name="test_trainer_overrides")
         # After save_for_local_testing, the path is stored in _saved_yaml_path
         yaml_path = config._saved_yaml_path
 
@@ -137,7 +139,7 @@ class TestTrainIntegration:
             wandb_tags=["integration", "test"],
         )
 
-        yaml_path, yaml_dict = config.serialize_to_yaml_file()
+        yaml_path, yaml_dict = config.serialize_to_yaml_file(instance_name="test_hydra_structure")
 
         try:
             # Read the file to check package directive
