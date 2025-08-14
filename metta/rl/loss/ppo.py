@@ -16,7 +16,7 @@ from metta.rl.trainer_state import TrainerState
 from metta.utils.batch import calculate_prioritized_sampling_params
 
 
-class PPO1(BaseLoss):
+class PPO(BaseLoss):
     __slots__ = (
         "advantages",
         "anneal_beta",

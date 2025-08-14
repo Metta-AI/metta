@@ -15,7 +15,7 @@ analyze_weights_interval: 300
 losses:
   # NOTE: losses will be run in the order they are listed here
   PPO:
-    path: metta.rl.loss.ppo.PPO1
+    path: metta.rl.loss.ppo.PPO
 
     schedule: # unspecified epoch bounds default to 0 and inf (begin_at and end_at)
       rollout:
@@ -136,22 +136,22 @@ components:
     sources:
       - name: obs_flattener
     nn_params:
-      out_features: 128
+      out_features: 256 # 128
 
   encoded_obs:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
       - name: fc1
     nn_params:
-      out_features: 128
+      out_features: 512 # 128
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
       - name: encoded_obs
     nn_params:
-      hidden_size: 128
-      num_layers: 2
+      hidden_size: 512 # 128
+      num_layers: 3 # 2
 
   critic_1:
     _target_: metta.agent.lib.nn_layer_library.Linear

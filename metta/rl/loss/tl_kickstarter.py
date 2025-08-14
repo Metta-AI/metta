@@ -52,6 +52,9 @@ class TLKickstarter(BaseLoss):
     def get_experience_spec(self) -> Composite:
         return self.teacher_policy_spec
 
+    def losses_to_track(self) -> list[str]:
+        return ["tl_ks_action_loss", "tl_ks_value_loss"]
+
     def on_rollout_start(self) -> None:
         self.teacher_policy.on_rollout_start()
         return
@@ -78,5 +81,8 @@ class TLKickstarter(BaseLoss):
         ks_value_loss += ((teacher_value.detach() - student_value) ** 2).mean() * self.value_loss_coef
 
         loss = ks_action_loss + ks_value_loss
+
+        self.loss_tracker.add("tl_ks_action_loss", float(ks_action_loss.item()))
+        self.loss_tracker.add("tl_ks_value_loss", float(ks_value_loss.item()))
 
         return loss, shared_loss_data

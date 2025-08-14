@@ -382,10 +382,6 @@ def train(
                 minibatch_idx = 0
                 epochs_trained = 0
 
-                for _lname in list(policy_losses):
-                    loss_obj = loss_instances[_lname]
-                    loss_obj.on_training_phase_start()
-
                 for _update_epoch in range(trainer_cfg.update_epochs):
                     # av the line below can be simplified
                     trainer_state.start_update_epoch(_update_epoch, experience.num_minibatches)

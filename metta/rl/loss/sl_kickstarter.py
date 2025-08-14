@@ -91,7 +91,7 @@ class SLKickstarter(BaseLoss):
         return Composite(merged_spec_dict)
 
     def losses_to_track(self) -> list[str]:
-        return ["ks_action_loss", "ks_value_loss"]
+        return ["sl_ks_action_loss", "sl_ks_value_loss"]
 
     def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
         current_epoch = trainer_state.epoch
@@ -124,5 +124,8 @@ class SLKickstarter(BaseLoss):
         )
 
         loss = ks_action_loss + ks_value_loss
+
+        self.loss_tracker.add("sl_ks_action_loss", float(ks_action_loss.item()))
+        self.loss_tracker.add("sl_ks_value_loss", float(ks_value_loss.item()))
 
         return loss, shared_loss_data
