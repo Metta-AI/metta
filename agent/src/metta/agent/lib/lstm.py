@@ -41,6 +41,10 @@ class LSTM(LayerBase):
         return True
 
     def get_memory(self):
+        if not hasattr(self, "lstm_h"):
+            self.lstm_h = {}
+        if not hasattr(self, "lstm_c"):
+            self.lstm_c = {}
         return self.lstm_h, self.lstm_c
 
     def set_memory(self, memory):
@@ -48,8 +52,14 @@ class LSTM(LayerBase):
         self.lstm_h, self.lstm_c = memory[0], memory[1]
 
     def reset_memory(self):
-        self.lstm_h.clear()
-        self.lstm_c.clear()
+        if hasattr(self, "lstm_h"):
+            self.lstm_h.clear()
+        else:
+            self.lstm_h = {}
+        if hasattr(self, "lstm_c"):
+            self.lstm_c.clear()
+        else:
+            self.lstm_c = {}
 
     def setup(self, source_components):
         """Setup the layer and create the network."""
@@ -96,6 +106,12 @@ class LSTM(LayerBase):
             training_env_id_start = 0
         else:
             training_env_id_start = training_env_id_start[0].item()
+
+        # Initialize lstm_h and lstm_c if they don't exist (e.g., after loading from checkpoint)
+        if not hasattr(self, "lstm_h"):
+            self.lstm_h = {}
+        if not hasattr(self, "lstm_c"):
+            self.lstm_c = {}
 
         if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
             h_0 = self.lstm_h[training_env_id_start]
