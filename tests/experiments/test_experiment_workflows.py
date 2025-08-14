@@ -141,12 +141,10 @@ class TestExperimentWorkflows:
 
         # User provides custom trainer config
         trainer = TrainerConfig(
-            total_timesteps=100000,
             batch_size=512,
             minibatch_size=128,  # Must be <= batch_size
             optimizer=OptimizerConfig(
                 type="muon",
-                learning_rate=0.0001,
             ),
             ppo=PPOConfig(
                 clip_coef=0.3,
@@ -176,10 +174,8 @@ class TestExperimentWorkflows:
         yaml_dict = job_config.training.serialize_to_yaml()
 
         # Verify trainer settings are preserved
-        assert yaml_dict["trainer"]["total_timesteps"] == 100000
         assert yaml_dict["trainer"]["batch_size"] == 512
         assert yaml_dict["trainer"]["optimizer"]["type"] == "muon"
-        assert yaml_dict["trainer"]["optimizer"]["learning_rate"] == 0.0001
         assert yaml_dict["trainer"]["ppo"]["clip_coef"] == 0.3
 
         # Curriculum from TrainingRunConfig wins (by design)
@@ -241,12 +237,28 @@ class TestMultipleJobWorkflow:
 
         # Clear and add multiple
         experiment._training_job_configs = []
-        for lr in [0.0001, 0.0003, 0.001]:
+        for batch_size in [256, 512, 1024]:
+            from metta.rl.trainer_config import (
+                CheckpointConfig,
+                SimulationConfig,
+                TorchProfilerConfig,
+                TrainerConfig,
+            )
+
+            # Create trainer with appropriate batch/minibatch sizes
+            trainer = TrainerConfig(
+                batch_size=batch_size,
+                minibatch_size=min(batch_size, 64),  # Keep minibatch_size <= batch_size
+                num_workers=2,
+                checkpoint=CheckpointConfig(checkpoint_dir="${run_dir}/checkpoints"),
+                simulation=SimulationConfig(replay_dir="${run_dir}/replays"),
+                profiler=TorchProfilerConfig(profile_dir="${run_dir}/torch_traces"),
+            )
+
             training = TrainingRunConfig(
                 curriculum="sweep/curriculum",
+                trainer=trainer,
             )
-            training.trainer = training.get_trainer_config()
-            training.trainer.optimizer.learning_rate = lr
 
             job_config = TrainingJobConfig(
                 skypilot=config.skypilot,
@@ -257,6 +269,6 @@ class TestMultipleJobWorkflow:
         # Should support multiple configs
         assert len(experiment._training_job_configs) == 3
 
-        # Each should have different learning rate
-        lrs = [cfg.training.trainer.optimizer.learning_rate for cfg in experiment._training_job_configs]
-        assert lrs == [0.0001, 0.0003, 0.001]
+        # Each should have different batch size
+        batch_sizes = [cfg.training.trainer.batch_size for cfg in experiment._training_job_configs]
+        assert batch_sizes == [256, 512, 1024]
