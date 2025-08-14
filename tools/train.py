@@ -95,11 +95,12 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
                 logger.info("No git hash available for remote evaluations")
 
     cfg = validate_train_job_config(cfg)
-    logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
 
-    if os.environ.get("RANK", "0") == "0":
+    if os.environ.get("RANK", "0") == "0":  # master only
+        logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
+
     train_job = TrainJob.model_validate(OmegaConf.to_container(cfg.train_job, resolve=True))
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
@@ -183,9 +184,6 @@ def main(cfg: DictConfig) -> int:
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if is_master:
-        logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
-
-        # Initialize wandb using WandbContext
         with WandbContext(cfg.wandb, cfg) as wandb_run:
             handle_train(cfg, wandb_run, logger)
     else:

@@ -1,4 +1,5 @@
 import hashlib
+import logging
 import secrets
 import uuid
 from collections import defaultdict
@@ -9,7 +10,7 @@ from typing import Any, Literal
 from psycopg import Connection
 from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
-from psycopg_pool import AsyncConnectionPool
+from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field
 
 from metta.app_backend.query_logger import execute_single_row_query_and_log
@@ -548,6 +549,8 @@ MIGRATIONS = [
     ),
 ]
 
+logger = logging.getLogger(name="metta_repo")
+
 
 class MettaRepo:
     def __init__(self, db_uri: str) -> None:
@@ -566,8 +569,16 @@ class MettaRepo:
     @asynccontextmanager
     async def connect(self):
         pool = await self._ensure_pool()
-        async with pool.connection() as conn:
-            yield conn
+        try:
+            async with pool.connection(timeout=5) as conn:
+                yield conn
+        except PoolTimeout as e:
+            stats = pool.get_stats()
+            logger.error(f"Error connecting to database: {e}. Pool stats: {stats}")
+
+            await pool.check()
+            async with pool.connection() as conn:
+                yield conn
 
     async def close(self) -> None:
         if self._pool:
