@@ -192,9 +192,7 @@ class Experiment(ABC):
                 print(f"\n  To view full YAML: cat {yaml_path}")
 
                 # Show local testing command
-                test_command = (
-                    f"uv run ./tools/train.py +experiments={self.instance_name}"
-                )
+                test_command = f"uv run ./tools/train.py +experiments={self.instance_name} run={self.instance_name}"
                 print("\n  To test locally with tools/train.py:")
                 print(f"    {test_command}")
 
