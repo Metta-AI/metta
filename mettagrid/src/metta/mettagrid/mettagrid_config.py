@@ -3,10 +3,10 @@ from typing import TYPE_CHECKING, Any, Literal, Optional
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.config import Config
-from metta.sim.simulation_config import SimulationConfig
 
 if TYPE_CHECKING:
     from metta.cogworks.curriculum.curriculum import CurriculumConfig
+    from metta.sim.simulation_config import SimulationConfig
 from metta.mettagrid.map_builder import MapBuilderConfigUnion
 from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 
@@ -271,8 +271,6 @@ class EnvConfig(Config):
         return Curriculum(self.to_curriculum_cfg())
 
     def to_sim(self, name: str) -> SimulationConfig:
-        from metta.sim.simulation_config import SimulationConfig
-
         return SimulationConfig(
             name=name,
             env=self,
