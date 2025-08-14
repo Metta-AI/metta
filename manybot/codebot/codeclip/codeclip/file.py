@@ -525,52 +525,33 @@ def get_context(
     Returns:
         Tuple of (formatted context string, token info dict)
     """
-    # Handle empty paths
-    if not paths:
-        content = "<documents></documents>"
-        token_info_empty = {"total_tokens": 0, "total_files": 0}
+    from collections import defaultdict
 
-        # If only diff requested, still process it
-        if include_git_diff:
-            # Use current directory as start path for git operations
-            start_for_git = Path.cwd()
-            diff_doc = _build_git_diff_document(diff_base, start_for_git, 1)
-            if diff_doc:
-                # Initialize tokenizer for counting
-                encoding = tiktoken.get_encoding("cl100k_base")
-                tokens = len(encoding.encode(diff_doc.content))
-
-                # Format the diff document
-                content = "<documents>\n" + _format_document(diff_doc) + "\n</documents>"
-
-                return content, {
-                    "total_tokens": tokens,
-                    "total_files": 1,
-                    "path_summaries": {},
-                    "file_token_counts": {diff_doc.source: tokens},
-                    "documents": [diff_doc],
-                }
-
-        return content, token_info_empty
+    # Early out only if truly nothing to do and include_git_diff is False
+    if not paths and not include_git_diff:
+        return "<documents></documents>", {"total_tokens": 0, "total_files": 0}
 
     # Initialize tokenizer for counting
     encoding = tiktoken.get_encoding("cl100k_base")
 
-    # Token tracking variables
-    total_tokens = 0
-    path_tokens = {}  # path -> {tokens, files}
-    top_level_tokens = {}  # For single-path summaries
-    file_token_counts = {}  # filepath -> token count for profiling
+    # Staged docs and where they came from
+    documents: List[Document] = []
+    origin_for_source: Dict[str, Optional[Path]] = {}
+
+    def _stage(doc: Document, origin: Optional[Path]) -> None:
+        """
+        Add a document and remember which requested path it belongs to.
+        origin=None means it is not tied to a requested path
+        (for example a Git diff or other virtual document).
+        """
+        documents.append(doc)
+        origin_for_source[doc.source] = origin
 
     processed_files: Set[Path] = set()
-    documents = []
     next_index = 1
 
-    for path_str in paths:
-        path_file_count = 0
-        path_token_count = 0
-        path_top_level = {}  # top-level items for this path
-
+    # Process requested paths
+    for path_str in paths or []:
         try:
             # Resolve path relative to current directory
             path = resolve_codebase_path(path_str)
@@ -582,17 +563,9 @@ def get_context(
             # Process parent READMEs first
             for readme_path in _find_parent_readmes(path):
                 if doc := _load_file(readme_path, next_index, processed_files):
-                    documents.append(doc)
+                    _stage(doc, origin=path)  # parent READMEs count toward the requested path
                     processed_files.add(readme_path)
                     next_index += 1
-
-                    # Count tokens
-                    tokens = len(encoding.encode(doc.content))
-                    path_token_count += tokens
-                    path_file_count += 1
-
-                    # Track per-file tokens
-                    file_token_counts[doc.source] = tokens
 
             # Process requested path
             gitignore_path = _find_gitignore(path)
@@ -600,64 +573,23 @@ def get_context(
             gitignore_root = gitignore_path.parent if gitignore_path else None
             new_docs = _collect_files(path, gitignore_rules, gitignore_root, processed_files, next_index, extensions)
 
-            # Count tokens for new docs
+            # Stage collected files
             for doc in new_docs:
-                # Skip non-README files if readmes_only is enabled
                 if readmes_only and not doc.is_readme:
                     continue
-
-                tokens = len(encoding.encode(doc.content))
-                path_token_count += tokens
-                path_file_count += 1
-
-                # Track per-file tokens for profiling
-                file_token_counts[doc.source] = tokens
-
-                # Track top-level item
-                doc_path = Path(doc.source)
-                try:
-                    relative = doc_path.relative_to(path)
-                    if len(relative.parts) > 0:
-                        name = relative.parts[0]
-                        path_top_level[name] = path_top_level.get(name, 0) + tokens
-                except ValueError:
-                    pass
-
-                # Add document to the list
-                documents.append(doc)
+                _stage(doc, origin=path)
 
             next_index += len([doc for doc in new_docs if not readmes_only or doc.is_readme])
-
-            # Store path summary
-            if path_file_count > 0:
-                path_tokens[str(path)] = {"tokens": path_token_count, "files": path_file_count}
-                total_tokens += path_token_count
-
-                # Merge top-level tokens
-                for name, tokens in path_top_level.items():
-                    top_level_tokens[name] = top_level_tokens.get(name, 0) + tokens
 
         except Exception as e:
             print(f"Error processing path {path_str}: {e}")
 
     # Add git diff document if requested
     if include_git_diff:
-        # Choose a sensible start path to locate the repo
-        if paths and len(paths) > 0:
-            try:
-                start_for_git = resolve_codebase_path(paths[0])
-            except Exception:
-                start_for_git = Path.cwd()
-        else:
-            start_for_git = Path.cwd()
-
+        start_for_git = resolve_codebase_path(paths[0]) if paths else Path.cwd()
         diff_doc = _build_git_diff_document(diff_base, start_for_git, next_index)
         if diff_doc:
-            documents.append(diff_doc)
-
-            tokens = len(encoding.encode(diff_doc.content))
-            total_tokens += tokens
-            file_token_counts[diff_doc.source] = tokens
+            _stage(diff_doc, origin=None)
             next_index += 1
 
     # Sort documents (READMEs first, then by path)
@@ -667,28 +599,54 @@ def get_context(
     for i, doc in enumerate(documents, 1):
         doc.index = i
 
-    # Generate output
-    output_lines = []
-    output_lines.append("<documents>")
+    # One token pass for everything
+    total_tokens = 0
+    path_summaries: Dict[str, Dict[str, int]] = defaultdict(lambda: {"tokens": 0, "files": 0})
+    file_token_counts: Dict[str, int] = {}
+    top_level_tokens: Dict[str, int] = {}
+
+    # Work out if there was exactly one requested origin path
+    requested_origins = {p for p in origin_for_source.values() if p is not None}
+    single_origin: Optional[Path] = next(iter(requested_origins)) if len(requested_origins) == 1 else None
 
     for doc in documents:
+        tokens = len(encoding.encode(doc.content))
+        total_tokens += tokens
+        file_token_counts[doc.source] = tokens
+
+        origin = origin_for_source.get(doc.source)
+        if origin is not None:
+            key = str(origin)
+            path_summaries[key]["tokens"] += tokens
+            path_summaries[key]["files"] += 1
+
+            if single_origin is not None:
+                try:
+                    relative = Path(doc.source).relative_to(single_origin)
+                    if len(relative.parts) > 0:
+                        name = relative.parts[0]
+                        top_level_tokens[name] = top_level_tokens.get(name, 0) + tokens
+                except Exception:
+                    pass
+
+    # Generate output
+    output_lines = ["<documents>"]
+    for doc in documents:
         output_lines.append(_format_document(doc))
-
     output_lines.append("</documents>")
-
     content = "\n".join(output_lines)
 
     # Prepare token info
     token_info = {
         "total_tokens": total_tokens,
         "total_files": len(documents),
-        "path_summaries": path_tokens,
-        "file_token_counts": file_token_counts,  # Per-file token counts for profiling
-        "documents": documents,  # Include documents for profiling to avoid re-parsing
+        "path_summaries": dict(path_summaries),
+        "file_token_counts": file_token_counts,
+        "documents": documents,
     }
 
     # Add top-level summary for single path
-    if len(paths) == 1 and top_level_tokens:
+    if single_origin is not None and top_level_tokens:
         token_info["top_level_summary"] = top_level_tokens
 
     return content, token_info
