@@ -2,7 +2,7 @@
   --gpus=4 \
   --nodes=8 \
   --no-spot \
-  run=$USER.recipes.arena.8x4.$(date +%m-%d) \
+  run=$USER.contrastive_arena_recipe_skypilot.$(date +%m-%d) \
   trainer.curriculum=/env/mettagrid/curriculum/arena/learning_progress \
   trainer.optimizer.learning_rate=0.0045 \
   trainer.optimizer.type=muon \
