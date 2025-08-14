@@ -20,6 +20,23 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
+def print_box_header(title: str, width: int = 75) -> None:
+    """Print a formatted box header with centered title."""
+    # Ensure title fits with padding
+    max_title_width = width - 4  # Account for borders and spacing
+    if len(title) > max_title_width:
+        title = title[: max_title_width - 3] + "..."
+
+    # Calculate padding for centering
+    padding = width - len(title) - 2  # 2 for the border characters
+    left_pad = padding // 2
+    right_pad = padding - left_pad
+
+    print(f"╔{'═' * width}╗")
+    print(f"║{' ' * left_pad}{title}{' ' * right_pad}║")
+    print(f"╚{'═' * width}╝")
+
+
 def run_command(cmd: list[str], check: bool = False) -> tuple[int, str, str]:
     """Run a command and return exit code, stdout, and stderr."""
     try:
@@ -174,31 +191,57 @@ def get_system_diagnostics() -> dict[str, Any]:
 def print_system_diagnostics(diagnostics: dict[str, Any]) -> None:
     """Print system diagnostics in a clean format."""
     # Cluster configuration
-    print("== Cluster configuration ==")
+    print_box_header("CLUSTER CONFIGURATION")
     for k, v in diagnostics["cluster"].items():
-        print(f"  {k}={v}")
+        print(f"  {k:<15} : {v}")
 
     # System diagnostics
-    print("\n== System diagnostics ==")
+    print()
+    print_box_header("SYSTEM DIAGNOSTICS")
     for k, v in diagnostics["system"].items():
-        print(f"  {k}={v}")
+        if k in ["ROUTE_TO_MASTER", "NETWORK_INTERFACE"]:
+            # Truncate long lines
+            v_str = str(v)
+            if len(v_str) > 50:
+                v_str = v_str[:47] + "..."
+            print(f"  {k:<15} : {v_str}")
+        else:
+            print(f"  {k:<15} : {v}")
 
     # SHM info
-    print("\n== SHM info ==")
-    print(f"  Mount: {diagnostics['system'].get('SHM_MOUNT', 'N/A')}")
-    print(f"  Usage: {diagnostics['system'].get('SHM_DF', 'N/A')}")
+    print()
+    print_box_header("SHARED MEMORY (SHM) INFO")
+    print(f"  Mount      : {diagnostics['system'].get('SHM_MOUNT', 'N/A')}")
+    print(f"  Usage      : {diagnostics['system'].get('SHM_DF', 'N/A')}")
     print(f"  Permissions: {diagnostics['shm'].get('permissions', 'N/A')}")
     if diagnostics["shm"].get("ipcs"):
-        print("  IPC Shared Memory:")
-        for line in diagnostics["shm"]["ipcs"].split("\n")[:5]:
-            print(f"    {line}")
+        print("  IPC Status :")
+        for i, line in enumerate(diagnostics["shm"]["ipcs"].split("\n")[:5]):
+            if i == 0:
+                print(f"    {line}")  # Header
+            else:
+                print(f"    {line[:70]}...")  # Truncate long lines
 
     # NCCL environment
-    print("\n== NCCL env ==")
-    for k, v in sorted(diagnostics["nccl_env"].items()):
-        print(f"  {k}={v}")
+    print()
+    print_box_header("NCCL ENVIRONMENT")
+    nccl_vars = sorted([(k, v) for k, v in diagnostics["nccl_env"].items() if k.startswith("NCCL_")])
+    other_vars = sorted([(k, v) for k, v in diagnostics["nccl_env"].items() if not k.startswith("NCCL_")])
 
-    # NCCL summary
+    for k, v in nccl_vars:
+        print(f"  {k:<25} : {v}")
+    if other_vars:
+        print("  ---")
+        for k, v in other_vars:
+            print(f"  {k:<25} : {v}")
+
+    # NCCL Configuration Summary
+    print()
+    print_box_header("NCCL CONFIGURATION SUMMARY")
+
+    # Extract values
+    master_addr = diagnostics["cluster"]["MASTER_ADDR"]
+    master_port = diagnostics["cluster"]["MASTER_PORT"]
     nccl_socket_ifname = os.environ.get("NCCL_SOCKET_IFNAME", "enp39s0")
     nccl_socket_family = os.environ.get("NCCL_SOCKET_FAMILY", "AF_INET")
     nccl_port_range = os.environ.get("NCCL_PORT_RANGE", "43000-43063")
@@ -210,43 +253,50 @@ def print_system_diagnostics(diagnostics: dict[str, Any]) -> None:
     nccl_min_nchannels = os.environ.get("NCCL_MIN_NCHANNELS", "4")
     nccl_max_nchannels = os.environ.get("NCCL_MAX_NCHANNELS", "8")
 
-    master_addr = diagnostics["cluster"]["MASTER_ADDR"]
-    master_port = diagnostics["cluster"]["MASTER_PORT"]
+    # Print in a clean table format
+    print(f"  Rendezvous Endpoint    : {master_addr}:{master_port}")
+    print(f"  Network Interface      : {nccl_socket_ifname}")
+    print(f"  Socket Family          : {nccl_socket_family}")
+    print(f"  Port Range             : {nccl_port_range}")
 
-    print(
-        f"\nRendezvous: {master_addr}:{master_port} | IFACE={nccl_socket_ifname} AF={nccl_socket_family} PORT_RANGE={nccl_port_range}"
-    )
     debug_str = nccl_debug
     if nccl_debug_subsys:
-        debug_str += f"/{nccl_debug_subsys}"
-    print(
-        f"NCCL: DEBUG={debug_str} P2P={(1 - nccl_p2p_disable)} SHM={(1 - nccl_shm_disable)} IB={(1 - nccl_ib_disable)} CH={nccl_min_nchannels}-{nccl_max_nchannels}"
-    )
+        debug_str += f" (subsys: {nccl_debug_subsys})"
+    print(f"  Debug Level            : {debug_str}")
+
+    print(f"  Channels (min-max)     : {nccl_min_nchannels}-{nccl_max_nchannels}")
+    print("\n  Communication Modes:")
+    print(f"    • P2P (GPU Direct)   : {'✓ Enabled' if not nccl_p2p_disable else '✗ Disabled'}")
+    print(f"    • Shared Memory      : {'✓ Enabled' if not nccl_shm_disable else '✗ Disabled'}")
+    print(f"    • InfiniBand/RDMA    : {'✓ Enabled' if not nccl_ib_disable else '✗ Disabled'}")
 
 
 def print_diagnostics(diagnostics: dict[str, Any]) -> None:
-    """Pretty print diagnostics information."""
-    print("\n=== GPU Diagnostics ===")
+    """Pretty print GPU diagnostics information."""
+    print()
+    print_box_header("GPU DIAGNOSTICS")
 
-    if diagnostics["nvidia_smi"]:
-        print(diagnostics["nvidia_smi"])
-    else:
-        print("nvidia-smi: Not available")
-
-    print(f"PyTorch Version: {diagnostics['torch_version']}")
-    print(f"\nCUDA Version: {diagnostics['cuda_version']}")
-    print(f"NCCL Version: {diagnostics['nccl_version']}")
-    print(f"CUDA_VISIBLE_DEVICES: {diagnostics['cuda_visible_devices']}")
-    print(f"PyTorch CUDA Available: {diagnostics['pytorch_cuda_available']}")
-    print(f"PyTorch CUDA Version: {diagnostics['pytorch_cuda_version']}")
-    print(f"GPU Count: {diagnostics['gpu_count']}")
+    # Basic info in a clean table
+    print(f"  PyTorch Version        : {diagnostics['torch_version']}")
+    print(f"  PyTorch CUDA Available : {diagnostics['pytorch_cuda_available']}")
+    print(f"  PyTorch CUDA Version   : {diagnostics['pytorch_cuda_version']}")
+    print(f"  CUDA Version           : {diagnostics['cuda_version']}")
+    print(f"  NCCL Version           : {diagnostics['nccl_version']}")
+    print(f"  CUDA_VISIBLE_DEVICES   : {diagnostics['cuda_visible_devices']}")
+    print(f"  GPU Count              : {diagnostics['gpu_count']}")
 
     if diagnostics["errors"]:
-        print("\nErrors encountered:")
+        print("\n  ⚠️  Errors encountered:")
         for error in diagnostics["errors"]:
-            print(f"  - {error}")
+            print(f"    • {error}")
 
-    print("=====================\n")
+    # nvidia-smi output (if available)
+    if diagnostics["nvidia_smi"]:
+        print("\n  NVIDIA-SMI Output:")
+        print("  " + "-" * 70)
+        for line in diagnostics["nvidia_smi"].strip().split("\n"):
+            print(f"  {line}")
+        print("  " + "-" * 70)
 
 
 def _detect_iface_to(master_addr: str) -> str | None:
@@ -281,8 +331,11 @@ def _iface_is_up(iface: str) -> bool:
         return False
 
 
-def setup_nccl_debug_env(master_addr: str | None = os.environ.get("MASTER_ADDR")) -> None:
+def setup_nccl_debug_env(master_addr: str | None = None) -> None:
     """Set sane NCCL defaults for test runs, with optional verbose mode via METTA_NCCL_DEBUG=1."""
+    if not master_addr:
+        master_addr = os.environ.get("MASTER_ADDR")
+
     debug_mode = os.environ.get("METTA_NCCL_DEBUG", "0") == "1"
 
     defaults = {
@@ -473,6 +526,11 @@ def main():
     # 2. Running in single GPU mode
     # 3. Already have RANK set (manual distributed launch)
 
+    # Print header
+    print("\n" + "═" * 75)
+    print("                      NCCL DIAGNOSTICS AND TESTING")
+    print("═" * 75)
+
     # Collect system diagnostics first
     logger.info("Collecting system diagnostics...")
     system_diagnostics = get_system_diagnostics()
@@ -489,32 +547,50 @@ def main():
     setup_nccl_debug_env()
 
     # Run tests
+    print()
+    print_box_header("RUNNING TESTS")
+
     all_passed = True
+    test_results = []
 
     # Single GPU test
     if gpu_diagnostics["pytorch_cuda_available"]:
-        if not test_single_gpu():
+        print("\n  🔧 Running single GPU test...")
+        if test_single_gpu():
+            test_results.append(("Single GPU Test", "✓ PASSED"))
+        else:
+            test_results.append(("Single GPU Test", "✗ FAILED"))
             all_passed = False
-            logger.error("Single GPU test failed")
     else:
         logger.warning("Skipping GPU tests - CUDA not available")
+        test_results.append(("Single GPU Test", "⚠ SKIPPED (No CUDA)"))
         all_passed = False
 
     # NCCL communication test
     if "RANK" in os.environ:
-        if not test_nccl_communication():
+        print("\n  🔧 Running NCCL communication test...")
+        if test_nccl_communication():
+            test_results.append(("NCCL Communication Test", "✓ PASSED"))
+        else:
+            test_results.append(("NCCL Communication Test", "✗ FAILED"))
             all_passed = False
-            logger.error("NCCL communication test failed")
     else:
         logger.info("Not in distributed environment, skipping NCCL communication test")
+        test_results.append(("NCCL Communication Test", "⚠ SKIPPED (Not distributed)"))
 
     # Summary
+    print()
+    print_box_header("TEST SUMMARY")
+
+    for test_name, result in test_results:
+        print(f"  {test_name:<30} : {result}")
+
+    print("\n" + "═" * 75)
     if all_passed:
-        logger.info("All tests passed!")
-        print("\n✓ All tests passed!")
+        print("                    ✓ ALL TESTS PASSED! ✓")
     else:
-        logger.error("Some tests failed!")
-        print("\n✗ Some tests failed!")
+        print("                    ✗ SOME TESTS FAILED ✗")
+    print("═" * 75 + "\n")
 
     return 0 if all_passed else 1
 
