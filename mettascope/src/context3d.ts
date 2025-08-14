@@ -613,8 +613,6 @@ export class Context3d {
 
     const fonts = this.atlasData!.fonts
     const font = fonts[fontId]
-
-    // Frontend renders at atlas size; use atlas-configured inner padding for bearings offset.
     const glyphInnerPadding = this.atlasData!.fontConfig.GLYPH_INNER_PADDING
     const mBase = this.atlasMargin
 
@@ -636,7 +634,7 @@ export class Context3d {
       const label = toLabel(cp)
       const glyph = font.glyphs[label]
 
-      // Kerning adjustment from previous glyph (already in pixels at atlas size)
+      // Kerning adjustment from previous glyph (already in pixels at atlas size).
       if (prevLabel) {
         const row = font.kerning[prevLabel]
         if (row) {
@@ -655,7 +653,7 @@ export class Context3d {
         const u1 = (sx + sw + mBase) / this.textureSize.x()
         const v1 = (sy + sh + mBase) / this.textureSize.y()
 
-        // Position the glyph image so that its baseline aligns at (penX, penY)
+        // Position the glyph image so that its baseline aligns at (penX, penY).
         const drawX = penX + glyph.bearingX - glyphInnerPadding - m
         const drawY = penY + glyph.bearingY - glyphInnerPadding - m
         const drawW = sw + 2 * m
@@ -664,7 +662,7 @@ export class Context3d {
         // Outline pass: draw the glyph tinted black around the main position for readability.
         const oa = color.length >= 4 ? color[3] : 1
         const outlineColor: number[] = [0, 0, 0, oa]
-        // 8-directional offsets for a 1px border
+        // 8-directional offsets for a 1px border.
         const offsets = [
           [-1, 0],
           [1, 0],
@@ -679,56 +677,15 @@ export class Context3d {
           this.drawRect(drawX + dx, drawY + dy, drawW, drawH, u0, v0, u1, v1, outlineColor)
         }
 
-        // Main glyph
+        // Main glyph.
         this.drawRect(drawX, drawY, drawW, drawH, u0, v0, u1, v1, color)
       }
 
-      // Advance pen position (already in pixels at atlas size)
+      // Advance pen position (already in pixels at atlas size).
       const adv = glyph ? glyph.advance : 0
       penX += adv
       prevLabel = label
     }
-  }
-
-  /** Measure text width and height for layout. Height accounts for newlines. */
-  measureText(fontId: string, text: string): { width: number; height: number } {
-    const fonts = this.atlasData!.fonts
-    const font = fonts[fontId]
-
-    const toLabel = (cp: number): string => `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`
-
-    let maxWidth = 0
-    let lineWidth = 0
-    let prevLabel: string | null = null
-    let lines = 1
-
-    for (const ch of text) {
-      if (ch === '\n') {
-        if (lineWidth > maxWidth) maxWidth = lineWidth
-        lineWidth = 0
-        prevLabel = null
-        lines += 1
-        continue
-      }
-      const cp = ch.codePointAt(0)!
-      const label = toLabel(cp)
-      // kerning
-      if (prevLabel) {
-        const row = font.kerning[prevLabel]
-        if (row) {
-          const adjust = row[label]
-          if (adjust) lineWidth += adjust
-        }
-      }
-      const glyph = font.glyphs[label]
-      const adv = glyph ? glyph.advance : 0
-      lineWidth += adv
-      prevLabel = label
-    }
-    if (lineWidth > maxWidth) maxWidth = lineWidth
-
-    const height = lines * font.lineHeight
-    return { width: maxWidth, height }
   }
 
   /** Flushes all non-empty meshes to the screen. */
