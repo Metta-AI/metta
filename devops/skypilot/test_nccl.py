@@ -301,28 +301,52 @@ def print_benchmark_results(results: dict[str, Any]) -> None:
 
 
 def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> None:
-    """Print a formatted box header with centered title."""
-    # Add rank info if requested and available
+    """Print a formatted box header with centered title.
+
+    When include_rank is True and in a distributed environment, this function
+    ensures ranks print in order to avoid garbled output.
+    """
+    # Prepare the title with rank info if requested
+    display_title = title
     if include_rank and "RANK" in os.environ:
         rank = int(os.environ.get("RANK", 0))
-        _world_size = int(os.environ.get("WORLD_SIZE", 1))
         node_rank = int(os.environ.get("NODE_RANK", os.environ.get("NODE_INDEX", 0)))
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        title = f"{title} (Rank {rank}, Node {node_rank}, GPU {local_rank})"
+        display_title = f"{title} (Rank {rank}, Node {node_rank}, GPU {local_rank})"
 
-    # Ensure title fits with padding
-    max_title_width = width - 4  # Account for borders and spacing
-    if len(title) > max_title_width:
-        title = title[: max_title_width - 3] + "..."
+    # Helper to actually print the box
+    def _print_box(title_to_print: str):
+        # Ensure title fits with padding
+        max_title_width = width - 4  # Account for borders and spacing
+        if len(title_to_print) > max_title_width:
+            title_to_print = title_to_print[: max_title_width - 3] + "..."
 
-    # Calculate padding for centering
-    padding = width - len(title)
-    left_pad = padding // 2
-    right_pad = padding - left_pad
+        # Calculate padding for centering
+        padding = width - len(title_to_print)
+        left_pad = padding // 2
+        right_pad = padding - left_pad
 
-    print(f"╔{'═' * width}╗")
-    print(f"║{' ' * left_pad}{title}{' ' * right_pad}║")
-    print(f"╚{'═' * width}╝")
+        print(f"╔{'═' * width}╗")
+        print(f"║{' ' * left_pad}{title_to_print}{' ' * right_pad}║")
+        print(f"╚{'═' * width}╝")
+
+    # Check if we're in a distributed environment with rank info
+    is_distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ and int(os.environ.get("WORLD_SIZE", 1)) > 1
+
+    # If we want rank-specific output in a distributed setting, synchronize
+    if include_rank and is_distributed and dist.is_initialized():
+        rank = int(os.environ.get("RANK", 0))
+        world_size = int(os.environ.get("WORLD_SIZE", 1))
+
+        # Print in rank order
+        for i in range(world_size):
+            if rank == i:
+                _print_box(display_title)
+                sys.stdout.flush()
+            dist.barrier()
+    else:
+        # Non-distributed or rank-agnostic printing
+        _print_box(display_title)
 
 
 def run_command(cmd: list[str], check: bool = False) -> tuple[int, str, str]:
