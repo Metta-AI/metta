@@ -49,7 +49,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": False},
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
-            "scorecardwidget": {"enabled": True},
+            "notebookwidgets": {"enabled": True},
         }
     },
     UserType.CLOUD: {
@@ -64,7 +64,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": True},
             "skypilot": {"enabled": True},
             "tailscale": {"enabled": False},
-            "scorecardwidget": {"enabled": False},
+            "notebookwidgets": {"enabled": False},
         }
     },
     UserType.SOFTMAX_DOCKER: {
@@ -79,7 +79,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},
             "skypilot": {"enabled": False},
             "tailscale": {"enabled": False},
-            "scorecardwidget": {"enabled": False},
+            "notebookwidgets": {"enabled": False},
         }
     },
     UserType.SOFTMAX: {
@@ -95,7 +95,7 @@ PROFILE_DEFINITIONS: dict[UserType, ProfileConfig] = {
             "wandb": {"enabled": True, "expected_connection": METTA_WANDB_ENTITY},
             "skypilot": {"enabled": True, "expected_connection": METTA_SKYPILOT_URL},
             "tailscale": {"enabled": True, "expected_connection": "@stem.ai"},
-            "scorecardwidget": {"enabled": True},
+            "notebookwidgets": {"enabled": True},
         }
     },
 }
