@@ -185,6 +185,8 @@ struct Hermes {
     HermesProfile cache;
     std::vector<HermesProfile> profiles;
     uint32_t* num_draws; // Counter for the render pass being profiled currently.
+
+    bool show(uint32_t type_id) const { return (debug_mask & (1ull << type_id)) != 0; }
 };
 
 // Profiling helper to name, color and measure a block of code.
@@ -244,7 +246,7 @@ static void DrawFloor(Hermes& ctx) {
 }
 
 static void DrawWalls(Hermes& ctx) {
-    if ((ctx.debug_mask & (1 << ctx.types.wall)) == 0) {
+    if (!ctx.show(ctx.types.wall)) {
         return;
     }
 
@@ -273,7 +275,7 @@ static void DrawObjects(Hermes& ctx) {
     auto t = 0u;
     for (const auto& bucket : ctx.buckets) {
         auto type_id = t++;
-        if (type_id != ctx.types.wall && type_id != ctx.types.agent && ctx.debug_mask & (1 << type_id)) {
+        if (type_id != ctx.types.wall && type_id != ctx.types.agent && ctx.show(type_id)) {
             auto sprite = ctx.sprites[ctx.sprite_atlas.objects[type_id]];
             for (auto node : bucket) {
                 Draw(ctx, sprite, Position(node));
@@ -283,7 +285,7 @@ static void DrawObjects(Hermes& ctx) {
 }
 
 static void DrawAgents(Hermes& ctx) {
-    if ((ctx.debug_mask & (1 << ctx.types.agent)) == 0) {
+    if (!ctx.show(ctx.types.agent)) {
         return;
     }
 
@@ -319,7 +321,7 @@ static inline float ToDegrees(Orientation orientation, Vector2& offset) {
 
 static void DrawActions(Hermes& ctx) {
     auto actions = ctx.self->actions();
-    if (actions.ndim() != 2 || (ctx.debug_mask & (1 << ctx.types.agent)) == 0) {
+    if (actions.ndim() != 2 || !ctx.show(ctx.types.agent)) {
         return;
     }
 
@@ -383,7 +385,7 @@ static void DrawInventory(Hermes& ctx) {
     auto t = 0u;
     for (const auto& bucket : ctx.buckets) {
         auto type_id = t++;
-        if ((ctx.items_mask & (1 << type_id)) == 0 || (ctx.debug_mask & (1 << type_id)) == 0) {
+        if ((ctx.items_mask & (1 << type_id)) == 0 || !ctx.show(type_id)) {
             continue;
         }
 
@@ -409,7 +411,7 @@ static void DrawInventory(Hermes& ctx) {
         }
     }
 
-    if (ctx.debug_mask & (1 << ctx.types.agent)) {
+    if (ctx.show(ctx.types.agent)) {
         for (const auto node : ctx.buckets[ctx.types.agent]) {
             const auto& inv = ctx.self->agent(node.index)->inventory;
             if (inv.size() != 0) {
@@ -421,7 +423,7 @@ static void DrawInventory(Hermes& ctx) {
 }
 
 static void DrawRewards(Hermes& ctx) {
-    if ((ctx.debug_mask & (1 << ctx.types.agent)) == 0) {
+    if (!ctx.show(ctx.types.agent)) {
         return;
     }
 
@@ -534,9 +536,11 @@ static void DrawUI(Hermes& ctx) {
     DrawRectangle(5, 5, 500, 30, PANEL_COLOR);
     DrawText(buffer, 10, 10, 20, RAYWHITE);
 
-    for (auto i = 0; i < 64; i++) {
-        if (ctx.debug_mask & (1 << i)) {
-            DrawRectangle(10 + i * 6, 30, 4, 10, RAYWHITE);
+    if (ctx.config.show_profiler) {
+        for (auto i = 0; i < 64; i++) {
+            if (ctx.show(static_cast<uint32_t>(i))) {
+                DrawRectangle(10 + i * 6, 36, 4, 10, RAYWHITE);
+            }
         }
     }
 }
@@ -551,7 +555,7 @@ static void DrawProfiler(Hermes& ctx) {
         DrawRectangle(x - p, y - p, x + w + p, y + h + p, PANEL_COLOR);
 
         char buffer[256];
-        auto draw = [&](HermesProfile& profile) {
+        auto draw = [&](const HermesProfile& profile) {
             auto calls   = profile.num_draws;
             auto time_us = static_cast<int32_t>(profile.time.count());
             auto average = calls == 0 ? 0.0 : static_cast<double>(time_us) / calls;
@@ -563,12 +567,12 @@ static void DrawProfiler(Hermes& ctx) {
         };
         draw(ctx.setup);
         draw(ctx.cache);
-        std::chrono::microseconds frame_time;
-        for (auto& profile : ctx.profiles) {
+        int64_t frame_time = 0;
+        for (const auto& profile : ctx.profiles) {
             draw(profile);
-            frame_time += profile.time;
+            frame_time += profile.time.count();
         }
-        double frame = frame_time.count() / 1000.0;
+        auto frame = frame_time / 1000.0;
         auto color = frame > 16.666 ? RED : GREEN;
         snprintf(buffer, sizeof(buffer), "Frame: %.2f ms", frame);
         DrawText(buffer, x, y + 17, 13, color);
@@ -669,9 +673,9 @@ static void Hermes_Batch(Hermes& ctx) {
             node.frozen = agent->frozen > 0;
             ctx.rewards.push_back(*agent->reward);
         }
-        else if (ctx.items_mask & (1u << t)) {
+        else if (ctx.items_mask & (1ull << t)) {
             node.index = static_cast<uint16_t>(obj->id);
-            if (ctx.color_mask & (1u << t)) {
+            if (ctx.color_mask & (1ull << t)) {
                 const auto con = static_cast<Converter*>(obj);
                 const auto& res = con->output_resources;
                 auto color = con->color;
@@ -818,16 +822,15 @@ static void Hermes_Input(Hermes& ctx) {
         Hermes_ClampCameraTarget(ctx);
     }
 
-    auto base = 0;
+    auto base = 0u;
     if (IsKeyDown(KEY_LEFT_SHIFT)) base += 10;
     if (IsKeyDown(KEY_LEFT_CONTROL)) base += 20;
     if (IsKeyDown(KEY_LEFT_ALT)) base += 40;
     for (auto i = 0; i < 10; i++) {
-        auto offset = base + i;
-        if (offset < 64 && IsKeyPressed(KEY_ZERO + i)) {
-            auto bit = 1u << offset;
-            ctx.debug_mask ^= bit;
-            HERMES_DBG("Debug: {} = {}", offset, (ctx.debug_mask & bit) != 0);
+        auto offset = base + static_cast<uint32_t>(i);
+        if (offset < 64u && IsKeyPressed(KEY_ZERO + i)) {
+            ctx.debug_mask ^= 1ull << offset;
+            HERMES_DBG("Debug: {} = {}", offset, ctx.show(offset));
         }
     }
 }

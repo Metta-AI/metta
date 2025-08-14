@@ -39,7 +39,6 @@ dependencies = [
     "pettingzoo>=1.24.1,<1.25",
     "pufferlib>=3.0.0,<3.1.0",
     "pydantic>=2.11.5",
-    "raylib>=5.5.0,<5.6",
     "pyyaml>=6.0.2",
     "rich>=13.9.4",
     "scipy>=1.15.3",

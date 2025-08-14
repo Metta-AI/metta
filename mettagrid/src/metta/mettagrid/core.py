@@ -46,8 +46,7 @@ class MettaGridCore:
             render_mode: Rendering mode (None, "human", "miniscope", "raylib")
             **kwargs: Additional arguments passed to subclasses
         """
-        env_render_mode = os.getenv("RENDER_MODE")
-        self._render_mode = env_render_mode if env_render_mode is not None else render_mode
+        self._render_mode = render_mode
         self._level = level
         self._renderer = None
         self._map_labels: List[str] = level.labels
