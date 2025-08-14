@@ -1,7 +1,7 @@
 from typing import Any, ClassVar, Literal
 
 from omegaconf import DictConfig, OmegaConf
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import AliasChoices, ConfigDict, Field, model_validator
 
 from metta.common.util.config import Config
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
@@ -34,6 +34,23 @@ class VTraceConfig(Config):
     vtrace_rho_clip: float = Field(default=1.0, gt=0)
     # V-trace c clipping at 1.0: From IMPALA paper (Espeholt et al., 2018), standard for on-policy
     vtrace_c_clip: float = Field(default=1.0, gt=0)
+
+
+class ContrastiveConfig(Config):
+    # Enable/disable InfoNCE contrastive loss term
+    enabled: bool = Field(default=False)
+    # Weight applied to the contrastive loss when added to total loss
+    coef: float = Field(default=0.0, ge=0, validation_alias=AliasChoices("coef", "weight"))
+
+    # Sampling and loss hyperparameters
+    num_negatives: int = Field(default=64, gt=0)
+    temperature: float = Field(default=0.1, gt=0)
+    # Geometric stride parameter for selecting positives; in (0,1)
+    gamma: float = Field(default=0.95, gt=0, lt=1)
+    # Optional regularizers
+    logsumexp_coef: float = Field(default=0.0, ge=0)
+    var_reg_coef: float = Field(default=0.0, ge=0)
+    var_reg_target: float = Field(default=1.0, ge=0)
 
 
 class InitialPolicyConfig(Config):
@@ -140,6 +157,9 @@ class TrainerConfig(Config):
 
     # V-trace
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
+
+    # Contrastive InfoNCE loss
+    contrastive: ContrastiveConfig = Field(default_factory=ContrastiveConfig)
 
     # System configuration
     # Zero copy: Performance optimization to avoid memory copies (default assumes multiprocessing)
