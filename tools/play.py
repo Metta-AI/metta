@@ -1,22 +1,17 @@
 #!/usr/bin/env -S uv run
 # Starts a websocket server that allows you to play as a metta agent.
 
-import argparse
-import importlib
-import json
 import logging
-
-from omegaconf import OmegaConf
 
 import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.config import Config
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
-from metta.common.util.logging_helpers import init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff
 from metta.rl.system_config import SystemConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
+from metta.util.metta_script import pydantic_metta_script
 
 logger = logging.getLogger("tools.play")
 
@@ -58,9 +53,7 @@ def create_simulation(cfg: PlayToolConfig) -> Simulation:
     return sim
 
 
-def play(cfg: PlayToolConfig) -> None:
-    logger.info(f"tools.play job config:\n{cfg.model_dump_json(indent=2)}")
-
+def main(cfg: PlayToolConfig) -> None:
     ws_url = "%2Fws"
 
     if cfg.open_browser_on_start:
@@ -70,24 +63,4 @@ def play(cfg: PlayToolConfig) -> None:
         server.run(cfg)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--func", type=str, required=False)
-    parser.add_argument("--cfg", type=str, required=False)
-    args, override_args = parser.parse_known_args()
-    overrides_conf = OmegaConf.from_cli(override_args)
-
-    init_logging()
-
-    if args.cfg:
-        with open(args.cfg, "r") as f:
-            conf = OmegaConf.merge(json.load(f), overrides_conf)
-            cfg = PlayToolConfig.model_validate(conf)
-    elif args.func:
-        module_name, func_name = args.func.rsplit(".", 1)
-        cfg = importlib.import_module(module_name).__getattribute__(func_name)()
-        cfg = PlayToolConfig.model_validate(OmegaConf.to_container(OmegaConf.merge(cfg.model_dump(), overrides_conf)))
-    else:
-        cfg = PlayToolConfig.model_validate(OmegaConf.to_container(overrides_conf))
-
-    play(cfg)
+pydantic_metta_script(main)
