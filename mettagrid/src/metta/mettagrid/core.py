@@ -125,7 +125,7 @@ class MettaGridCore:
         level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
         assert self.__env_config.game.num_agents == level_agents, (
             f"Number of agents {self.__env_config.game.num_agents} "
-            f"does not match number of agents in map {level_agents}"
+            f"does not match number  of agents in map {level_agents}"
         )
         game_config_dict = self.__env_config.game.model_dump()
 
