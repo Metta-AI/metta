@@ -123,6 +123,7 @@ print(f'Defaults: {yaml_dict[\"defaults\"]}')
 
 ## Creating Custom Experiments
 
+### Single Job Experiment
 ```python
 # experiments/recipes/my_experiment.py
 from experiments.experiment import SingleJobExperiment, SingleJobExperimentConfig
@@ -139,6 +140,51 @@ class MyExperimentConfig(SingleJobExperimentConfig):
 if __name__ == "__main__":
     from experiments.runner import runner
     runner(SingleJobExperiment, MyExperimentConfig)
+```
+
+### Multi-Job A/B Test
+```python
+# experiments/recipes/lr_comparison.py
+from typing import List
+from experiments.experiment import Experiment, ExperimentConfig
+from experiments.training_job import TrainingJobConfig
+from experiments.training_run_config import TrainingRunConfig
+from experiments.skypilot_job_config import SkypilotJobConfig
+from metta.rl.trainer_config import (
+    TrainerConfig, OptimizerConfig, CheckpointConfig,
+    SimulationConfig, TorchProfilerConfig
+)
+
+class LRComparisonExperiment(Experiment):
+    """Compare different learning rates."""
+    
+    def training_job_configs(self) -> List[TrainingJobConfig]:
+        configs = []
+        for lr in [0.0001, 0.0003]:
+            trainer = TrainerConfig(
+                num_workers=4,
+                optimizer=OptimizerConfig(learning_rate=lr),
+                checkpoint=CheckpointConfig(checkpoint_dir="${run_dir}/checkpoints"),
+                simulation=SimulationConfig(replay_dir="${run_dir}/replays"),
+                profiler=TorchProfilerConfig(profile_dir="${run_dir}/torch_traces"),
+            )
+            training = TrainingRunConfig(
+                curriculum="env/mettagrid/curriculum/arena/basic",
+                trainer=trainer,
+                wandb_tags=["lr_comparison", f"lr_{lr}"],
+            )
+            configs.append(TrainingJobConfig(
+                skypilot=SkypilotJobConfig(gpus=1),
+                training=training,
+            ))
+        return configs
+
+class LRComparisonConfig(ExperimentConfig):
+    name: str = "lr_comparison"
+
+if __name__ == "__main__":
+    from experiments.runner import runner
+    runner(LRComparisonExperiment, LRComparisonConfig)
 ```
 
 ## Implementation Notes

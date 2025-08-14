@@ -27,25 +27,50 @@ uv run experiments/recipes/arena_experiment.py --gpus=4 --nodes=2 --spot=false
 
 ### Creating a Simple A/B Test
 
-Create a new experiment by extending `SingleJobExperimentConfig`:
+Create a new experiment that launches multiple jobs with different parameters:
 
 ```python
-# experiments/recipes/my_ab_test.py
-from experiments.experiment import SingleJobExperiment, SingleJobExperimentConfig
+# experiments/recipes/lr_ab_test.py
+from typing import List
+from experiments.experiment import Experiment, ExperimentConfig
+from experiments.training_job import TrainingJobConfig
 from experiments.training_run_config import TrainingRunConfig
+from experiments.skypilot_job_config import SkypilotJobConfig
+from metta.rl.trainer_config import (
+    TrainerConfig, OptimizerConfig, CheckpointConfig, 
+    SimulationConfig, TorchProfilerConfig
+)
 
-class MyABTestConfig(SingleJobExperimentConfig):
+class LearningRateABTest(Experiment):
     """A/B test comparing two learning rates."""
+    
+    def training_job_configs(self) -> List[TrainingJobConfig]:
+        configs = []
+        for lr in [0.0001, 0.0005]:  # Test two learning rates
+            trainer = TrainerConfig(
+                num_workers=4,
+                optimizer=OptimizerConfig(learning_rate=lr),
+                checkpoint=CheckpointConfig(checkpoint_dir="${run_dir}/checkpoints"),
+                simulation=SimulationConfig(replay_dir="${run_dir}/replays"),
+                profiler=TorchProfilerConfig(profile_dir="${run_dir}/torch_traces"),
+            )
+            training = TrainingRunConfig(
+                curriculum="env/mettagrid/curriculum/arena/basic",
+                trainer=trainer,
+                wandb_tags=["ab_test", f"lr_{lr}"],
+            )
+            configs.append(TrainingJobConfig(
+                skypilot=SkypilotJobConfig(gpus=1),
+                training=training,
+            ))
+        return configs
 
+class LearningRateABTestConfig(ExperimentConfig):
     name: str = "lr_ab_test"
-    training: TrainingRunConfig = TrainingRunConfig(
-        curriculum="env/mettagrid/curriculum/arena/learning_progress",
-        wandb_tags=["ab_test", "learning_rate"],
-    )
 
 if __name__ == "__main__":
     from experiments.runner import runner
-    runner(SingleJobExperiment, MyABTestConfig)
+    runner(LearningRateABTest, LearningRateABTestConfig)
 ```
 
 ## Architecture
@@ -115,17 +140,34 @@ training = TrainingRunConfig(
 
 The framework is designed for extension. To add sweep support:
 
-1. Create a `SweepExperimentConfig` that generates multiple `TrainingJobConfig` instances
+1. Create an experiment class that generates multiple `TrainingJobConfig` instances
 2. Override `training_job_configs()` to return the sweep configurations
 3. The existing launch infrastructure handles multiple jobs automatically
 
 ```python
-class SweepExperiment(Experiment):
+class HyperparameterSweep(Experiment):
     def training_job_configs(self) -> List[TrainingJobConfig]:
         configs = []
         for lr in [0.0001, 0.0003, 0.001]:
-            trainer = TrainerConfig(learning_rate=lr, ...)
-            configs.append(TrainingJobConfig(training=TrainingRunConfig(trainer=trainer)))
+            for batch_size in [2048, 4096]:
+                trainer = TrainerConfig(
+                    batch_size=batch_size,
+                    minibatch_size=min(batch_size // 4, 512),
+                    num_workers=4,
+                    optimizer=OptimizerConfig(learning_rate=lr),
+                    checkpoint=CheckpointConfig(checkpoint_dir="${run_dir}/checkpoints"),
+                    simulation=SimulationConfig(replay_dir="${run_dir}/replays"),
+                    profiler=TorchProfilerConfig(profile_dir="${run_dir}/torch_traces"),
+                )
+                training = TrainingRunConfig(
+                    curriculum="env/mettagrid/curriculum/arena/basic",
+                    trainer=trainer,
+                    wandb_tags=["sweep", f"lr_{lr}", f"bs_{batch_size}"],
+                )
+                configs.append(TrainingJobConfig(
+                    skypilot=SkypilotJobConfig(gpus=1),
+                    training=training,
+                ))
         return configs
 ```
 
