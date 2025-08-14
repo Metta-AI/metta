@@ -2,6 +2,7 @@
 
 # Navigation Original Metric Recipe
 # This recipe runs the navigation bucketed curriculum with the original metric for comparison
+# No task-scaled performance analysis is performed
 
 ./devops/skypilot/launch.py train \
   --gpus=4 \
