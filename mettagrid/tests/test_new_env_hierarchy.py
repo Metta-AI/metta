@@ -7,7 +7,7 @@ works correctly while being compatible with the existing test framework.
 
 import numpy as np
 
-from metta.mettagrid.config.builder import arena
+from metta.mettagrid.config.builder import make_arena
 
 
 class TestNewEnvironmentHierarchy:
@@ -29,7 +29,7 @@ class TestNewEnvironmentHierarchy:
         from metta.mettagrid.gym_env import MettaGridGymEnv
 
         env = MettaGridGymEnv(
-            arena(num_agents=1),
+            make_arena(num_agents=1),
             render_mode=None,
         )
 
@@ -41,7 +41,7 @@ class TestNewEnvironmentHierarchy:
         from metta.mettagrid.gym_env import MettaGridGymEnv
 
         env = MettaGridGymEnv(
-            arena(num_agents=1),
+            make_arena(num_agents=1),
             render_mode=None,
         )
 
@@ -67,7 +67,7 @@ class TestNewEnvironmentHierarchy:
 
         # Create PettingZoo config
         env = MettaGridPettingZooEnv(
-            arena(num_agents=3),
+            make_arena(num_agents=3),
             render_mode=None,
         )
 
@@ -80,7 +80,7 @@ class TestNewEnvironmentHierarchy:
 
         # Create multi-agent config
         env = MettaGridPettingZooEnv(
-            arena(num_agents=3),
+            make_arena(num_agents=3),
             render_mode=None,
         )
 
@@ -120,7 +120,7 @@ if __name__ == "__main__":
 
     # Test basic creation
     try:
-        env = MettaGridEnv(arena(num_agents=24), render_mode=None)
+        env = MettaGridEnv(make_arena(num_agents=24), render_mode=None)
         env.close()
         print("✓ MettaGridEnv creation successful")
     except Exception as e:

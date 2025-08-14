@@ -6,14 +6,14 @@ This module tests the MettaGridGymEnv with Gymnasium's standard environment inte
 
 import numpy as np
 
-from metta.mettagrid.config.builder import arena
+from metta.mettagrid.config.builder import make_arena
 from metta.mettagrid.gym_env import MettaGridGymEnv
 
 
 def test_single_agent_gym_env():
     """Test single-agent Gymnasium environment."""
     # Create environment
-    cfg = arena(num_agents=1)
+    cfg = make_arena(num_agents=1)
     cfg.game.max_steps = 100
     env = MettaGridGymEnv(
         cfg,
@@ -47,7 +47,7 @@ def test_single_agent_gym_env():
 
 def test_gym_env_episode_termination():
     """Test that environment terminates properly."""
-    cfg = arena(num_agents=1)
+    cfg = make_arena(num_agents=1)
     cfg.game.max_steps = 100
     env = MettaGridGymEnv(
         cfg,
