@@ -1,17 +1,21 @@
 """Common initialization for Metta scripts."""
 
+import argparse
 import functools
+import importlib
 import inspect
+import json
 import logging
 import os
 import platform
 import signal
 import sys
 from types import FrameType
-from typing import Callable
+from typing import Callable, TypeVar, cast
 
 import hydra
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig, ListConfig, OmegaConf
+from pydantic import BaseModel
 
 from metta.common.util.fs import get_repo_root
 from metta.common.util.logging_helpers import init_logging
@@ -105,7 +109,14 @@ def metta_script(
         # Initialize logging
         init_logging(run_dir=run_dir)
 
-        logger.info(f"Starting {main.__name__} from {script_path} with run_dir: {run_dir or 'not set'}")
+        # Determine the filename where `main` is defined and print it relative to CWD
+        main_source_file = inspect.getsourcefile(main) or inspect.getfile(main)
+        if main_source_file:
+            main_source_relpath = os.path.relpath(os.path.abspath(main_source_file), os.getcwd())
+        else:
+            main_source_relpath = f"{main.__module__}:<unknown>"
+
+        logger.info(f"Starting {main_source_relpath} from {script_path} with run_dir: {run_dir or 'not set'}")
 
         # Initialize the full mettagrid environment (includes device validation)
         init_mettagrid_system_environment(cfg)
@@ -155,5 +166,59 @@ def hydraless_metta_script(main: Callable[[], int | None]) -> None:
 
     # Call the original function
     result = main()
+    if result is not None:
+        sys.exit(result)
+
+
+T = TypeVar("T", bound=BaseModel)
+
+
+def pydantic_metta_script(main: Callable[[T], int | None]) -> None:
+    # If not running as a script, there's nothing to do.
+    caller_frame: FrameType = inspect.stack()[1].frame
+    caller_globals = caller_frame.f_globals
+    if caller_globals.get("__name__") != "__main__":
+        return
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--func", type=str, required=False)
+    parser.add_argument("--cfg", type=str, required=False)
+    args, override_args = parser.parse_known_args()
+    overrides_conf = OmegaConf.from_cli(override_args)
+
+    init_logging()
+
+    # Detect the Pydantic model
+    config_class = main.__annotations__.get("cfg")
+    if config_class is None:
+        raise ValueError("Main function must have a cfg parameter")
+    if not issubclass(config_class, BaseModel):
+        raise ValueError("cfg parameter must be a Pydantic model")
+
+    # Load the config and apply overrides
+    if args.cfg:
+        with open(args.cfg, "r") as f:
+            conf = OmegaConf.merge(json.load(f), overrides_conf)
+            cfg = config_class.model_validate(conf)
+    elif args.func:
+        module_name, func_name = args.func.rsplit(".", 1)
+        cfg = importlib.import_module(module_name).__getattribute__(func_name)()
+        cfg = config_class.model_validate(OmegaConf.to_container(OmegaConf.merge(cfg.model_dump(), overrides_conf)))
+    else:
+        cfg = config_class.model_validate(OmegaConf.to_container(overrides_conf))
+
+    assert isinstance(cfg, config_class)
+    cfg = cast(T, cfg)
+
+    # Log the full config with the file where `main` is defined (relative to CWD)
+    main_source_file = inspect.getsourcefile(main) or inspect.getfile(main)
+    if main_source_file:
+        main_source_relpath = os.path.relpath(os.path.abspath(main_source_file), os.getcwd())
+    else:
+        main_source_relpath = f"{main.__module__}:<unknown>"
+
+    logger.info(f"Running {main_source_relpath} with config:\n{cfg.model_dump_json(indent=2)}")
+
+    result = main(cfg)
     if result is not None:
         sys.exit(result)
