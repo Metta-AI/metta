@@ -192,8 +192,12 @@ def pydantic_metta_script(main: Callable[[T], int | None]) -> None:
     config_class = main.__annotations__.get("cfg")
     if config_class is None:
         raise ValueError("Main function must have a cfg parameter")
+    if isinstance(config_class, str):
+        raise ValueError(
+            "cfg parameter must be a Pydantic model, got str, are you using `from __future__ import annotations`?"
+        )
     if not issubclass(config_class, BaseModel):
-        raise ValueError("cfg parameter must be a Pydantic model")
+        raise ValueError(f"cfg parameter must be a Pydantic model, got {config_class}")
 
     # Load the config and apply overrides
     if args.cfg:
