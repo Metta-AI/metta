@@ -1,14 +1,18 @@
 #!/usr/bin/env -S uv run
 import logging
 
-from omegaconf import DictConfig
+from metta.common.util.config import Config
+from metta.util.metta_script import pydantic_metta_script
 
-from metta.util.metta_script import metta_script
+
+class TestScriptConfig(Config):
+    run: str
 
 
-def main(cfg: DictConfig):
+def main(cfg: TestScriptConfig):
     logger = logging.getLogger("test_script")
     logger.info("Hello, world!")
+    logger.info(f"Run: {cfg.run}")
 
 
-metta_script(main, "replay_job")
+pydantic_metta_script(main)
