@@ -1,8 +1,6 @@
 #!/usr/bin/env -S uv run
 # Generate a replay file that can be used in MettaScope to visualize a single run.
 
-import argparse
-import importlib
 import logging
 import platform
 from urllib.parse import quote
@@ -11,11 +9,11 @@ import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.config import Config
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
-from metta.common.util.logging_helpers import init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff
 from metta.rl.system_config import SystemConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
+from metta.util.metta_script import pydantic_metta_script
 
 logger = logging.getLogger("tools.replay")
 
@@ -33,8 +31,6 @@ class ReplayToolConfig(Config):
 
 
 def replay(cfg: ReplayToolConfig) -> None:
-    logger.info(f"tools.replay job config:\n{cfg.model_dump_json(indent=2)}")
-
     # Create policy store directly without WandbContext
     policy_store = PolicyStore.create(
         device=cfg.system.device,
@@ -93,19 +89,4 @@ def open_browser(replay_url: str, cfg: ReplayToolConfig) -> None:
                 server.run(play_cfg)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--func", type=str, required=True)
-    parser.add_argument("--cfg", type=str, required=False)
-    args = parser.parse_args()
-
-    init_logging()
-
-    if args.cfg:
-        with open(args.cfg, "r") as f:
-            cfg = ReplayToolConfig.model_validate_json(f.read())
-    else:
-        module_name, func_name = args.func.rsplit(".", 1)
-        cfg = importlib.import_module(module_name).__getattribute__(func_name)()
-
-    replay(cfg)
+pydantic_metta_script(replay)
