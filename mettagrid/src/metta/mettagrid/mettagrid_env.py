@@ -77,8 +77,9 @@ class MettaGridEnv(MettaGridPufferBase):
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
         self._is_training = is_training
-        # Dual-policy flags/overrides (can be set by trainer)
-        self._dual_policy_enabled: bool = True
+        # Dual-policy flags/overrides (can be set by trainer or via kwargs)
+        self._dual_policy_enabled: bool = bool(kwargs.pop("dual_policy_enabled", False))
+        self._dual_policy_training_agents_pct: float = float(kwargs.pop("dual_policy_training_agents_pct", 0.5))
         self._dual_policy_agent_groups: Optional[list[list[int]]] = None
 
         # Initialize with base PufferLib functionality
@@ -196,6 +197,16 @@ class MettaGridEnv(MettaGridPufferBase):
         if self._c_env_instance is None:
             raise RuntimeError("Core environment not initialized")
         observations, info = self._c_env_instance.reset()
+
+        # If dual-policy is enabled and no core groups are defined, synthesize groups per-env
+        if self._dual_policy_enabled and not self._get_agent_groups():
+            num_agents = self._c_env_instance.num_agents
+            num_trained = int(round(num_agents * self._dual_policy_training_agents_pct))
+            num_trained = max(0, min(num_agents, num_trained))
+            trained_ids = list(range(num_trained))
+            npc_ids = list(range(num_trained, num_agents))
+            # First group is NPC in logging; keep consistency with logging block
+            self._dual_policy_agent_groups = [npc_ids, trained_ids]
 
         self.timer.start("thread_idle")
         return observations, info
