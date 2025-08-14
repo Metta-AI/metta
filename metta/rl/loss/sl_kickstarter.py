@@ -23,7 +23,7 @@ class SLKickstarter(BaseLoss):
         "value_loss_coef",
         "anneal_ratio",
         "anneal_duration",
-        "ramp_down_start_step",
+        "ramp_down_start_epochs",
         "anneal_factor",
     )
 
@@ -35,14 +35,15 @@ class SLKickstarter(BaseLoss):
         device: torch.device,
         loss_tracker: LossTracker,
         policy_store: PolicyStore,
+        instance_name: str,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, loss_tracker, policy_store)
-        self.action_loss_coef = self.policy_cfg.losses.SLKickstarter.action_loss_coef
-        self.value_loss_coef = self.policy_cfg.losses.SLKickstarter.value_loss_coef
-        self.anneal_ratio = self.policy_cfg.losses.SLKickstarter.anneal_ratio
+        super().__init__(policy, trainer_cfg, vec_env, device, loss_tracker, policy_store, instance_name)
+        self.action_loss_coef = self.loss_cfg.action_loss_coef
+        self.value_loss_coef = self.loss_cfg.value_loss_coef
+        self.anneal_ratio = self.loss_cfg.anneal_ratio
 
         # load teacher policy
-        policy_record = self.policy_store.policy_record(self.policy_cfg.losses.SLKickstarter.teacher_uri)
+        policy_record = self.policy_store.policy_record(self.loss_cfg.teacher_uri)
         self.teacher_policy: PolicyAgent = policy_record.policy
         if hasattr(self.teacher_policy, "initialize_to_environment"):
             features = self.vec_env.driver_env.get_observation_features()
@@ -54,14 +55,14 @@ class SLKickstarter(BaseLoss):
 
         self.anneal_factor = 1.0
 
-        kickstart_steps = self.train_end_step - self.train_start_step
+        kickstart_epochs = self.train_end_epoch - self.train_start_epoch
 
         if self.anneal_ratio > 0:
-            self.anneal_duration = kickstart_steps * self.anneal_ratio
-            self.ramp_down_start_step = kickstart_steps - self.anneal_duration
+            self.anneal_duration = kickstart_epochs * self.anneal_ratio
+            self.ramp_down_start_epochs = kickstart_epochs - self.anneal_duration
         else:
             self.anneal_duration = 0
-            self.ramp_down_start_step = kickstart_steps
+            self.ramp_down_start_epochs = kickstart_epochs
 
     def get_experience_spec(self) -> Composite:
         if not hasattr(self.teacher_policy, "action_max_params"):
@@ -91,17 +92,15 @@ class SLKickstarter(BaseLoss):
     def losses_to_track(self) -> list[str]:
         return ["ks_action_loss", "ks_value_loss"]
 
-    def train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
-        agent_step = trainer_state.agent_step
-        if not self.should_run_train(agent_step):
-            return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data
+    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+        current_epoch = trainer_state.epoch
 
         ks_value_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         ks_action_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
 
-        if self.anneal_ratio > 0 and agent_step > self.ramp_down_start_step:
+        if self.anneal_ratio > 0 and current_epoch > self.ramp_down_start_epochs:
             # Ramp down
-            progress = (agent_step - self.ramp_down_start_step) / self.anneal_duration
+            progress = (current_epoch - self.ramp_down_start_epochs) / self.anneal_duration
             self.anneal_factor = 1.0 - progress
 
         td = shared_loss_data["sampled_mb"].select(*self.teacher_policy_spec.keys()).clone()

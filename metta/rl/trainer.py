@@ -89,6 +89,7 @@ def train(
     stats_client: StatsClient | None,
 ) -> None:
     """Main training loop for Metta agents."""
+    torch.autograd.set_detect_anomaly(True)
     logger.info(f"run_dir = {run_dir}")
 
     # Log recent checkpoints for debugging
@@ -216,12 +217,19 @@ def train(
 
     # Instantiate configured losses dynamically by class name
     loss_instances: dict[str, BaseLoss] = {}
-    for loss_name, loss_config in policy_cfg.losses.items():
+    for loss_instance_name, loss_config in policy_cfg.losses.items():
         module_path, class_name = loss_config["path"].rsplit(".", 1)
         module = importlib.import_module(module_path)
         loss_cls = getattr(module, class_name)
-        loss_instances[loss_name] = loss_cls(policy, trainer_cfg, vecenv, device, loss_tracker, policy_store)
-
+        loss_instances[loss_instance_name] = loss_cls(
+            policy,
+            trainer_cfg,
+            vecenv,
+            device,
+            loss_tracker,
+            policy_store,
+            loss_instance_name,
+        )
     loss_tracker.configure_from_losses(list(loss_instances.values()))
 
     # Get the experience buffer specification from the policy
@@ -319,7 +327,9 @@ def train(
                 raw_infos = []
                 total_steps = 0
                 experience.reset_for_rollout()
-                policy.on_rollout_start()
+                for _loss_name in list(policy_losses):
+                    loss_instances[_loss_name].on_rollout_start()
+
                 buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
                 buffer_step = buffer_step.select(*policy_spec.keys())
 
@@ -361,7 +371,6 @@ def train(
                         raw_infos.extend(info)
 
                 agent_step += total_steps * world_size
-                trainer_state.agent_step = agent_step
             accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
             # ---- TRAINING PHASE ----
@@ -373,12 +382,15 @@ def train(
                 minibatch_idx = 0
                 epochs_trained = 0
 
+                for _lname in list(policy_losses):
+                    loss_obj = loss_instances[_lname]
+                    loss_obj.on_training_phase_start()
+
                 for _update_epoch in range(trainer_cfg.update_epochs):
                     # av the line below can be simplified
                     trainer_state.start_update_epoch(_update_epoch, experience.num_minibatches)
                     for mb_idx in range(experience.num_minibatches):
                         trainer_state.mb_idx = mb_idx
-                        policy.on_train_mb_start()
 
                         total_loss = torch.tensor(0.0, device=device)
                         for _lname in list(policy_losses):
@@ -414,6 +426,8 @@ def train(
                     epochs_trained += 1
 
             epoch += epochs_trained
+            trainer_state.epoch = epoch
+            trainer_state.agent_step = agent_step  # update agent_step count state not in between rollout and train
 
         # Safe to proceed to next rollout phase only once all ranks have completed training
         if torch.distributed.is_initialized():

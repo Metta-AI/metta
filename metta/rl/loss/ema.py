@@ -29,14 +29,15 @@ class EMA(BaseLoss):
         device: torch.device,
         loss_tracker: LossTracker,
         policy_store: PolicyStore,
+        instance_name: str,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, loss_tracker, policy_store)
+        super().__init__(policy, trainer_cfg, vec_env, device, loss_tracker, policy_store, instance_name)
 
         self.target_model = copy.deepcopy(self.policy)
         for param in self.target_model.parameters():
             param.requires_grad = False
-        self.ema_decay = self.policy_cfg.losses.EMA.decay
-        self.ema_coef = self.policy_cfg.losses.EMA.loss_coef
+        self.ema_decay = self.loss_cfg.decay
+        self.ema_coef = self.loss_cfg.loss_coef
 
     def update_target_model(self):
         """Update target model with exponential moving average"""
@@ -46,9 +47,7 @@ class EMA(BaseLoss):
             ):
                 target_param.data = self.ema_decay * target_param.data + (1 - self.ema_decay) * online_param.data
 
-    def train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
-        if not self.should_run_train(trainer_state.agent_step):
-            return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data
+    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
         self.update_target_model()
         policy_td = shared_loss_data["policy_td"]
 

@@ -1,5 +1,6 @@
 from typing import Any
 
+import einops
 import torch
 from tensordict import TensorDict
 from torch import Tensor
@@ -31,13 +32,14 @@ class TLKickstarter(BaseLoss):
         device: torch.device,
         loss_tracker: LossTracker,
         policy_store: PolicyStore,
+        instance_name: str,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, loss_tracker, policy_store)
-        self.action_loss_coef = self.policy_cfg.losses.TLKickstarter.action_loss_coef
-        self.value_loss_coef = self.policy_cfg.losses.TLKickstarter.value_loss_coef
+        super().__init__(policy, trainer_cfg, vec_env, device, loss_tracker, policy_store, instance_name)
+        self.action_loss_coef = self.loss_cfg.action_loss_coef
+        self.value_loss_coef = self.loss_cfg.value_loss_coef
 
         # load teacher policy
-        policy_record = self.policy_store.policy_record(self.policy_cfg.losses.TLKickstarter.teacher_uri)
+        policy_record = self.policy_store.policy_record(self.loss_cfg.teacher_uri)
         self.teacher_policy: PolicyAgent = policy_record.policy
         if hasattr(self.teacher_policy, "initialize_to_environment"):
             features = self.vec_env.driver_env.get_observation_features()
@@ -50,26 +52,30 @@ class TLKickstarter(BaseLoss):
     def get_experience_spec(self) -> Composite:
         return self.teacher_policy_spec
 
+    def on_rollout_start(self) -> None:
+        self.teacher_policy.on_rollout_start()
+        return
+
     def run_rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
-        self.teacher_policy(td)
+        with torch.no_grad():
+            self.teacher_policy(td)
 
-    def train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
-        if not self.should_run_train(trainer_state.agent_step):
-            return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data
-
+    def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
         ks_value_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         ks_action_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
 
-        teacher_value = shared_loss_data["sampled_mb"]["values"]
-        teacher_normalized_logits = shared_loss_data["sampled_mb"]["full_log_probs"]
+        teacher_value = shared_loss_data["sampled_mb"]["values"].detach()
+        teacher_normalized_logits = shared_loss_data["sampled_mb"]["full_log_probs"].detach()
 
         student_normalized_logits = shared_loss_data["policy_td"]["full_log_probs"]
         student_value = shared_loss_data["policy_td"]["value"]
 
+        # av - counterintuitive that forward KL works - test reverse KL
         ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
         ks_action_loss *= self.action_loss_coef
 
-        ks_value_loss += ((teacher_value.squeeze() - student_value) ** 2).mean() * self.value_loss_coef
+        student_value = einops.rearrange(student_value, "b t 1 -> b (t 1)")
+        ks_value_loss += ((teacher_value.detach() - student_value) ** 2).mean() * self.value_loss_coef
 
         loss = ks_action_loss + ks_value_loss
 
