@@ -84,7 +84,10 @@ class MettaAgent(nn.Module):
         if policy is None:
             policy = self._create_policy(agent_cfg, env, system_cfg)
 
-        self.policy = policy.to(self.device) if policy else None
+        self.policy = policy
+        if self.policy is not None and hasattr(self.policy, "device"):
+            self.policy.device = self.device
+            self.policy.to(self.device)
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
