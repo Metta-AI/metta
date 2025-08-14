@@ -94,13 +94,19 @@ class MettaAgent(nn.Module):
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
         if agent_cfg.get("agent_type") in agent_classes:
-            # Create PyTorch policy
+            # Create PyTorch policy with device parameter if supported
             AgentClass = agent_classes[agent_cfg.agent_type]
-            policy = AgentClass(env=env)
-            # Move policy to correct device
-            policy = policy.to(system_cfg.device)
-            if hasattr(policy, "device"):
-                policy.device = system_cfg.device
+            import inspect
+            sig = inspect.signature(AgentClass.__init__)
+            if 'device' in sig.parameters:
+                # Pass device to constructor if supported
+                policy = AgentClass(env=env, device=system_cfg.device)
+            else:
+                # Fallback: create without device and move after
+                policy = AgentClass(env=env)
+                policy = policy.to(system_cfg.device)
+                if hasattr(policy, "device"):
+                    policy.device = system_cfg.device
             logger.info(f"Using PyTorch Policy: {policy} (type: {agent_cfg.agent_type})")
         else:
             # Create ComponentPolicy (YAML config)

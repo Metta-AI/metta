@@ -7,7 +7,6 @@ import logging
 import math
 from typing import Dict, Optional, Tuple
 
-
 import einops
 import torch
 import torch.nn.functional as F
@@ -19,7 +18,6 @@ from metta.agent.modules.transformer_wrapper import TransformerWrapper
 from metta.agent.pytorch.layer_init import init_layer
 
 logger = logging.getLogger(__name__)
-
 
 class AGaLiTeCore(nn.Module):
     """
@@ -91,8 +89,7 @@ class AGaLiTeCore(nn.Module):
 
     @staticmethod
     def initialize_memory(
-        batch_size: int, n_layers: int, n_heads: int, d_head: int, eta: int, r: int, device: torch.device = None
-    ) -> Dict[str, Tuple]:
+        batch_size: int, n_layers: int, n_heads: int, d_head: int, eta: int, r: int) -> Dict[str, Tuple]:
         """Initialize memory for all layers."""
         memory_dict = {}
         for layer in range(1, n_layers + 1):
@@ -100,7 +97,6 @@ class AGaLiTeCore(nn.Module):
                 batch_size, n_heads, d_head, eta, r, device
             )
         return memory_dict
-
 
 class AGaLiTePolicy(nn.Module):
     """
@@ -122,7 +118,6 @@ class AGaLiTePolicy(nn.Module):
         dropout: float = 0.0,
     ):
         super().__init__()
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.action_space = env.single_action_space
 
         # AGaLiTe parameters
@@ -212,9 +207,6 @@ class AGaLiTePolicy(nn.Module):
             dtype=torch.float32,
         )[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
-
-        self.to(self.device)
-
     def network_forward(self, x: torch.Tensor) -> torch.Tensor:
         """CNN feature extraction from grid observations."""
         x = x / self.max_vec
@@ -237,7 +229,7 @@ class AGaLiTePolicy(nn.Module):
             Hidden representations of shape (B*T, d_model)
         """
         # Convert from Byte to Float and move to device
-        observations = observations.float().to(self.device)
+        observations = observations.float()
         token_observations = observations
         B = token_observations.shape[0]
         TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
@@ -301,7 +293,7 @@ class AGaLiTePolicy(nn.Module):
 
         return logits, value
 
-    def initialize_memory(self, batch_size: int, device: torch.device) -> Dict:
+    def initialize_memory(self, batch_size: int) -> Dict:
         """
         Initialize AGaLiTe memory for a batch.
 
@@ -319,9 +311,7 @@ class AGaLiTePolicy(nn.Module):
             d_head=self.d_head,
             eta=self.eta,
             r=self.r,
-            device=device,
         )
-
 
 class AGaLiTe(TransformerWrapper):
     """
@@ -363,16 +353,11 @@ class AGaLiTe(TransformerWrapper):
 
         # Initialize with TransformerWrapper
         super().__init__(env, policy, hidden_size=d_model)
-
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
         # Action conversion tensors (will be set by MettaAgent)
         self.action_index_tensor = None
         self.cum_action_max_params = None
 
-        # Move to device
-        self.to(self.device)
-
+        # Move to device if needed
     def forward(self, td: TensorDict, state: Optional[Dict] = None, action: Optional[torch.Tensor] = None):
         """
         Forward pass compatible with MettaAgent expectations.
@@ -385,16 +370,16 @@ class AGaLiTe(TransformerWrapper):
         Returns:
             Updated TensorDict with actions, values, etc.
         """
-        observations = td["env_obs"].to(self.device)
+        observations = td["env_obs"]
 
         # Initialize state if needed (handle both None and lazy init cases)
         if state is None or state.get("needs_init", False):
             B = observations.shape[0]
-            state = self.reset_memory(B, self.device)
+            state = self.reset_memory(B, observations.device)
 
         # Store terminations if available
         if "dones" in td:
-            state["terminations"] = td["dones"].to(self.device)
+            state["terminations"] = td["dones"]
 
         # Determine if we're in training or inference mode
         if action is None:
@@ -423,7 +408,7 @@ class AGaLiTe(TransformerWrapper):
             logits, values = super().forward(observations, state)
 
             # Compute log probabilities for given actions
-            action = action.to(self.device)
+            action = action
             if action.dim() == 3:  # (B, T, 2) → flatten to (BT, 2)
                 B, T, A = action.shape
                 action = action.view(B * T, A)

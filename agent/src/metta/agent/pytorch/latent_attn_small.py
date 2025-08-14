@@ -1,6 +1,5 @@
 import logging
 
-
 import einops
 import torch
 import torch.nn.functional as F
@@ -8,14 +7,11 @@ from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.modules.encoders import ObsLatentAttn, ObsSelfAttn
-from metta.agent.pytorch.layer_init import init_layer
-from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
-from metta.agent.pytorch.layer_init import init_layer
 from metta.agent.modules.lstm_base import LSTMBase
+from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 from metta.agent.pytorch.layer_init import init_layer
 
 logger = logging.getLogger(__name__)
-
 
 class LatentAttnSmall(LSTMBase):
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
@@ -28,7 +24,7 @@ class LatentAttnSmall(LSTMBase):
         super().__init__(env, policy, input_size, hidden_size)
 
     def forward(self, td: TensorDict, state=None, action=None):
-        observations = td["env_obs"].to(self.device)
+        observations = td["env_obs"]
 
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
@@ -36,8 +32,8 @@ class LatentAttnSmall(LSTMBase):
         # Prepare LSTM state
         lstm_h, lstm_c = state.get("lstm_h"), state.get("lstm_c")
         if lstm_h is not None and lstm_c is not None:
-            lstm_h = lstm_h.to(self.device)[: self.lstm.num_layers]
-            lstm_c = lstm_c.to(self.device)[: self.lstm.num_layers]
+            lstm_h = lstm_h[: self.lstm.num_layers]
+            lstm_c = lstm_c[: self.lstm.num_layers]
             lstm_state = (lstm_h, lstm_c)
         else:
             lstm_state = None
@@ -74,7 +70,7 @@ class LatentAttnSmall(LSTMBase):
 
         else:
             # ---------- Training Mode ----------
-            action = action.to(self.device)
+            action = action
             if action.dim() == 3:  # (B, T, A) -> (BT, A)
                 B, T, A = action.shape
                 action = action.view(B * T, A)
@@ -110,7 +106,6 @@ class LatentAttnSmall(LSTMBase):
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
         return cumulative_sum + action_params
 
-
 class Policy(nn.Module):
     def __init__(self, env, input_size=128, hidden_size=128):
         super().__init__()
@@ -118,8 +113,6 @@ class Policy(nn.Module):
         self.input_size = input_size
         self.is_continuous = False
         self.action_space = env.single_action_space
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
         self.out_width = 11
         self.out_height = 11
         self.num_layers = 22
@@ -158,9 +151,6 @@ class Policy(nn.Module):
         action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
 
         self.actor_heads = nn.ModuleList([init_layer(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec])
-
-        self.to(self.device)
-
     def network_forward(self, x):
         x, mask, B_TT = self.obs_(x)
         x = self.obs_norm(x)
@@ -173,7 +163,7 @@ class Policy(nn.Module):
         """
         Encode observations into a hidden representation.
         """
-        observations = observations.to(self.device)
+        observations = observations
 
         # Initialize dictionary for TensorDict
         td = {"env_obs": observations, "state": None}

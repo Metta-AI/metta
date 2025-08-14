@@ -1,7 +1,6 @@
 import logging
 from typing import Dict, Optional, Tuple
 
-
 import einops
 import torch
 import torch.nn.functional as F
@@ -9,12 +8,10 @@ from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.modules.agalite_batched import BatchedAGaLiTe
-from metta.agent.pytorch.layer_init import init_layer
 from metta.agent.modules.lstm_base import LSTMBase
 from metta.agent.pytorch.layer_init import init_layer
 
 logger = logging.getLogger(__name__)
-
 
 class AgaliteHybrid(LSTMBase):
     """Hybrid AGaLiTe-LSTM architecture for efficient RL training.
@@ -40,11 +37,9 @@ class AgaliteHybrid(LSTMBase):
         self.cum_action_max_params = None
 
         # Move to device
-        self.to(self.device)
-
     def forward(self, td: TensorDict, state=None, action=None):
         """Forward pass compatible with MettaAgent expectations."""
-        observations = td["env_obs"].to(self.device)
+        observations = td["env_obs"]
 
         # Initialize LSTM state if needed
         if state is None:
@@ -64,9 +59,7 @@ class AgaliteHybrid(LSTMBase):
 
         # Check if we need to initialize or adjust LSTM state
         if lstm_h is not None and lstm_c is not None:
-            # Ensure state tensors are on correct device and have correct shape
-            lstm_h = lstm_h.to(self.device)
-            lstm_c = lstm_c.to(self.device)
+            # Ensure state tensors have correct shape
 
             # Add sequence dimension if needed (from stored state)
             if lstm_h.dim() == 2:  # (B, hidden_size)
@@ -130,7 +123,7 @@ class AgaliteHybrid(LSTMBase):
 
         else:
             # Training mode - evaluate given actions
-            action = action.to(self.device)
+            action = action
             if action.dim() == 3:  # (B, T, A)
                 action = action.view(B * TT, -1)
 
@@ -181,7 +174,6 @@ class AgaliteHybrid(LSTMBase):
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
         return cumulative_sum + action_params
 
-
 class AgalitePolicy(nn.Module):
     """Inner policy using AGaLiTe architecture."""
 
@@ -191,8 +183,6 @@ class AgalitePolicy(nn.Module):
         self.hidden_size = hidden_size
         self.is_continuous = False  # Required by PufferLib
         self.action_space = env.single_action_space
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
         # Observation parameters
         self.out_width = 11
         self.out_height = 11

@@ -12,7 +12,6 @@ from metta.agent.pytorch.layer_init import init_layer
 
 logger = logging.getLogger(__name__)
 
-
 class Example(LSTMBase):
     """Recurrent LSTM-based policy wrapper with discrete multi-head action space."""
 
@@ -45,7 +44,7 @@ class Example(LSTMBase):
             td.set("bptt", torch.full((batch_size,), 1, device=td.device, dtype=torch.long))
             td.set("batch", torch.full((batch_size,), batch_size, device=td.device, dtype=torch.long))
 
-        observations = td["env_obs"].to(self.device)
+        observations = td["env_obs"]
         state = state or {"lstm_h": None, "lstm_c": None, "hidden": None}
 
         hidden = self.policy.encode_observations(observations, state)
@@ -69,7 +68,7 @@ class Example(LSTMBase):
         actions_tensor = actions_tensor.to(dtype=torch.int32)
 
         if action is None:
-            td["actions"] = torch.zeros(actions_tensor.shape, dtype=torch.int32, device=self.device)
+            td["actions"] = torch.zeros(actions_tensor.shape, dtype=torch.int32, device=observations.device)
             td["act_log_prob"] = log_probs.mean(dim=-1)
             td["values"] = value.flatten()
             td["full_log_probs"] = full_log_probs
@@ -86,7 +85,7 @@ class Example(LSTMBase):
         h, c = state.get("lstm_h"), state.get("lstm_c")
         if h is None or c is None:
             return None
-        return h.to(self.device)[: self.lstm.num_layers], c.to(self.device)[: self.lstm.num_layers]
+        return h[: self.lstm.num_layers], c[: self.lstm.num_layers]
 
     def _sample_actions(self, logits_list: list[torch.Tensor]):
         """Samples discrete actions from logits and computes log-probs and entropy."""
@@ -126,13 +125,11 @@ class Example(LSTMBase):
         # The env_agent/* metrics come from the environment, not from here
         return []
 
-
 class Policy(nn.Module):
     """CNN + Self feature encoder policy for discrete multi-head action space."""
 
     def __init__(self, env, cnn_channels=128, hidden_size=512, **kwargs):
         super().__init__()
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.hidden_size = hidden_size
         self.action_space = env.single_action_space
         self.is_continuous = kwargs.get("is_continuous", False)
@@ -190,11 +187,8 @@ class Policy(nn.Module):
 
         self.actor = nn.ModuleList([init_layer(nn.Linear(hidden_size, n), std=0.01) for n in self.action_space.nvec])
         self.value = init_layer(nn.Linear(hidden_size, 1), std=1)
-        self.to(self.device)
-
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
         """Converts raw observation tokens into a concatenated self + CNN feature vector."""
-        observations = observations.to(self.device)
         B = observations.shape[0]
         TT = 1 if observations.dim() == 3 else observations.shape[1]
 
@@ -213,7 +207,7 @@ class Policy(nn.Module):
         box_obs = torch.zeros(
             (B * TT, self.num_layers, self.out_width, self.out_height),
             dtype=atr_values.dtype,
-            device=self.device,
+            device=observations.device,
         )
 
         valid_tokens = (
@@ -223,7 +217,7 @@ class Policy(nn.Module):
             & (atr_indices < self.num_layers)
         )
 
-        batch_idx = torch.arange(B * TT, device=self.device).unsqueeze(-1).expand_as(atr_values)
+        batch_idx = torch.arange(B * TT, device=observations.device).unsqueeze(-1).expand_as(atr_values)
         box_obs[batch_idx[valid_tokens], atr_indices[valid_tokens], x_coords[valid_tokens], y_coords[valid_tokens]] = (
             atr_values[valid_tokens]
         )
