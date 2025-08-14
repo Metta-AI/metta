@@ -249,6 +249,12 @@ class EnvConfig(Config):
 
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
+    reward_target: Optional[float] = Field(
+        default=None,
+        description=(
+            "Target reward for this task. Used to calculate task_scaled_performance = min(reward/reward_target, 1.0)"
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_fields(self) -> "EnvConfig":

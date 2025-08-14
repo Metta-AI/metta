@@ -35,7 +35,26 @@ class CurriculumEnv:
         if len(terminals) > 0 and (terminals.all() or truncations.all()):
             # Handle empty rewards case
             mean_reward = rewards.mean() if len(rewards) > 0 else 0.0
+
+            # Calculate task-scaled performance if reward_target is available
+            task_scaled_performance = None
+            env_cfg = self._current_task.get_env_cfg()
+            if hasattr(env_cfg, "reward_target") and env_cfg.reward_target is not None:
+                reward_target = env_cfg.reward_target
+                if reward_target > 0:
+                    task_scaled_performance = min(mean_reward / reward_target, 1.0)
+
+            # Complete task with raw reward (scaled performance will be handled separately)
             self._current_task.complete(mean_reward)
+
+            # Store scaled performance for logging if available
+            if task_scaled_performance is not None:
+                # Add to infos for logging
+                if "task_scaled_performance" not in infos:
+                    infos["task_scaled_performance"] = {}
+                infos["task_scaled_performance"][self._current_task._task_id] = task_scaled_performance
+
+            # Get new task
             self._current_task = self._curriculum.get_task()
             self._env.set_env_cfg(self._current_task.get_env_cfg())
 

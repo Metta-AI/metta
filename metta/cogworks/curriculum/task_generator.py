@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import random
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, ClassVar, Literal, Union
+from typing import Annotated, Any, ClassVar, Literal, Optional, Union
 
 from omegaconf import OmegaConf
 from pydantic import ConfigDict, Field, field_validator
@@ -26,6 +26,13 @@ class TaskGeneratorConfig(Config):
 
     overrides: dict[str, Any] = Field(
         default_factory=dict, description="Overrides to apply as dict with dot-separated keys"
+    )
+
+    reward_target: Optional[float] = Field(
+        default=None,
+        description=(
+            "Target reward for this task. Used to calculate task_scaled_performance = min(reward/reward_target, 1.0)"
+        ),
     )
 
     def create(self) -> "TaskGenerator":
@@ -201,11 +208,19 @@ class BucketedTaskGeneratorConfig(TaskGeneratorConfig):
     buckets: dict[str, list[int | float | str | ValueRange]] = Field(
         default_factory=dict, description="Buckets for sampling, keys are config paths"
     )
+    reward_target_bucket: Optional[list[int | float | str | ValueRange]] = Field(
+        default=None, description="Bucket for sampling reward_target values"
+    )
 
     def add_bucket(self, path: str, values: list[int | float | str | ValueRange]) -> "BucketedTaskGeneratorConfig":
         """Add a bucket of values for a specific configuration path."""
         assert path not in self.buckets, f"Bucket {path} already exists"
         self.buckets[path] = values
+        return self
+
+    def add_reward_target_bucket(self, values: list[int | float | str | ValueRange]) -> "BucketedTaskGeneratorConfig":
+        """Add a bucket for sampling reward_target values."""
+        self.reward_target_bucket = values
         return self
 
     def create(self) -> "BucketedTaskGenerator":
@@ -255,7 +270,18 @@ class BucketedTaskGenerator(TaskGenerator):
         env_config = self._child_generator.get_task(task_id)
 
         # Apply the sampled bucket values as overrides
-        return self._apply_overrides(env_config, overrides)
+        env_config = self._apply_overrides(env_config, overrides)
+
+        # Handle reward_target sampling if specified
+        if self._config.reward_target_bucket is not None:
+            reward_target = self._get_bucket_value(self._config.reward_target_bucket, rng)
+            # Set reward_target in the environment config
+            env_config.reward_target = reward_target
+        elif self._config.reward_target is not None:
+            # Use the fixed reward_target from config
+            env_config.reward_target = self._config.reward_target
+
+        return env_config
 
 
 # Type alias for all TaskGeneratorConfig subclasses with discriminator
