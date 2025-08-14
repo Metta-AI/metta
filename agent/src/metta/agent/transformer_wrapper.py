@@ -75,7 +75,11 @@ class TransformerWrapper(nn.Module):
             # Wrong first dimension, likely needs reshaping
             if terminations.shape[0] == B:
                 # (B, something) -> take first column and reshape to (1, B)
-                terminations = terminations[:, 0].unsqueeze(0) if terminations.shape[1] > 0 else torch.zeros(1, B, device=hidden.device)
+                terminations = (
+                    terminations[:, 0].unsqueeze(0)
+                    if terminations.shape[1] > 0
+                    else torch.zeros(1, B, device=hidden.device)
+                )
             else:
                 # Just create zeros if shape is unexpected
                 terminations = torch.zeros(1, B, device=hidden.device)

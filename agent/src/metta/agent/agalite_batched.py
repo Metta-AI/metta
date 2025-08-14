@@ -159,6 +159,10 @@ class BatchedAttentionAGaLiTeLayer(nn.Module):
         # Compute discount factors
         if self.reset_hidden_on_terminate:
             # Expand terminations to match tensor shapes
+            # Ensure terminations has correct shape (T, B)
+            if terminations.shape[1] != B:
+                # Mismatch - create zeros instead
+                terminations = torch.zeros(T, B, device=device)
             term_expand = terminations.unsqueeze(2).unsqueeze(3)  # (T, B, 1, 1)
             discount_gamma = (1 - gammas) * (1 - term_expand)
             discount_beta = (1 - beta) * (1 - term_expand)

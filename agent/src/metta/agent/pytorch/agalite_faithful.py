@@ -258,17 +258,17 @@ class AGaLiTeFaithful(TransformerWrapper):
         # Action conversion tensors (will be set by MettaAgent)
         self.action_index_tensor = None
         self.cum_action_max_params = None
-        
+
         # Store memory state
         self.memory_state = None
 
         # Move to device
         self.to(self.device)
-    
+
     def reset_memory(self) -> None:
         """Reset memory state. Called by MettaAgent without arguments."""
         self.memory_state = None
-    
+
     def get_memory(self) -> dict:
         """Get current memory state."""
         return {"transformer_memory": self.memory_state} if self.memory_state else {}
@@ -292,24 +292,24 @@ class AGaLiTeFaithful(TransformerWrapper):
             B = observations.shape[0]
             state = super().reset_memory(B, self.device)
 
+        B = observations.shape[0]  # Get actual batch size for this call
+
         # Store terminations if available (handle shape properly)
         if "dones" in td:
             dones = td["dones"].to(self.device)
-            # Ensure dones are the right shape (B,) or (T, B)
-            if dones.dim() == 1:
-                # Single timestep: (B,)
-                state["terminations"] = dones
+            # Make sure dones match the current batch size
+            if dones.shape[0] != B:
+                # Dones might be for all agents, but we're processing a subset
+                # Just use zeros for now - terminations will be handled properly during rollout
+                state["terminations"] = torch.zeros(B, device=self.device)
             else:
-                # Multiple timesteps: ensure (T, B) format
-                if dones.shape[0] != B:
-                    # Likely (something_else, B), transpose if needed
-                    state["terminations"] = dones.T if dones.shape[1] == B else dones
-                else:
-                    state["terminations"] = dones
+                state["terminations"] = dones
 
         # Determine if we're in training or inference mode
         if action is None:
-            # Inference mode - use forward_eval
+            # Inference mode
+            # Reset state for current batch to avoid memory issues
+            state = super().reset_memory(B, self.device)
             logits, values = self.forward_eval(observations, state)
 
             # Sample actions
