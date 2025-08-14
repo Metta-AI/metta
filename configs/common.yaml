@@ -1,7 +1,9 @@
 hydra:
   callbacks:
-    resolver_callback:
-      _target_: metta.common.util.resolvers.ResolverRegistrar
+    # resolver_callback removed during inheritance refactoring
+    # TODO: Restore if custom resolvers are needed
+    # resolver_callback:
+    #   _target_: metta.common.util.resolvers.ResolverRegistrar
 
 run: ???
 dist_cfg_path: null
