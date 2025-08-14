@@ -3,6 +3,7 @@
 import logging
 import os
 import platform
+from datetime import datetime
 from logging import Logger
 
 import torch
@@ -13,7 +14,6 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.git import get_git_hash_for_remote_task
 from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.resolvers import oc_date_format
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.core.distributed import setup_device_and_distributed
@@ -132,7 +132,7 @@ def set_run_name_if_missing(cfg: DictConfig) -> None:
         generated_name = cfg.run_name_pattern
         replacements = {
             "user": os.getenv("USER", "unknown_user"),
-            "now": oc_date_format("YYYYMMDD_HHmmss"),
+            "now": datetime.now().strftime("%Y%m%d_%H%M%S"),
             "curriculum": cfg.trainer.curriculum.split("/")[-1],
         }
         for key, replacement in replacements.items():
