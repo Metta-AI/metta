@@ -126,12 +126,13 @@ def put_image(img, name):
     return images[name]
 
 
-def _cp_label(cp: int) -> str:
+def char_label(cp: int) -> str:
+    """Convert a character code to a safe to use label string."""
     return f"U+{cp:04X}"
 
 
-def _generate_font_glyphs():
-    """Render glyphs for the mandatory font, pack them into the atlas, and return font metadata."""
+def generate_font_glyphs():
+    """Render glyphs for the font, pack them into the atlas, and return font metadata."""
     if not os.path.exists(FONT_PATH):
         print(f"Error: Font file not found: {FONT_PATH}", file=sys.stderr)
         sys.exit(1)
@@ -141,11 +142,8 @@ def _generate_font_glyphs():
     fonts_meta = {FONT_ID: {}}
     cps = [ord(ch) for ch in FONT_CHARSET]
 
-    size = FONT_SIZE
-
     font = typeface.new_font()
-    font.size = float(size)
-    # Ensure white fill for glyphs.
+    font.size = float(FONT_SIZE)
     white = pixie.Paint(pixie.SOLID_PAINT)
     white.color = pixie.Color(1.0, 1.0, 1.0, 1.0)
     font.paint = white
@@ -159,7 +157,7 @@ def _generate_font_glyphs():
     # Render and pack glyphs using font typesetting to ensure correct pixel sizes.
     for cp in cps:
         if not typeface.has_glyph(cp):
-            continue
+            raise ValueError(f"Font {FONT_ID} does not have glyph for {char_label(cp)}")
         ch = chr(cp)
         arrangement = font.typeset(ch)
         bounds = arrangement.compute_bounds()
@@ -170,24 +168,25 @@ def _generate_font_glyphs():
 
         rect = None
         if w > 0 and h > 0:
-            # Create an image with an inner transparent buffer so glyph edges do not touch the outer padding.
+            # put_image will stretch edges through padding (for walls, etc).
+            # we do not want this for glyphs, so we add an inner padding.
             gw = w + 2 * GLYPH_INNER_PADDING
             gh = h + 2 * GLYPH_INNER_PADDING
             img = pixie.Image(gw, gh)
             img.fill(pixie.Color(0, 0, 0, 0))
-            # Draw the arrangement translated to start at (inner padding, inner padding).
+            # Draw the arrangement translated to inside the padding.
             img.arrangement_fill_text(
                 arrangement,
                 pixie.translate(-bounds.x + GLYPH_INNER_PADDING, -bounds.y + GLYPH_INNER_PADDING),
             )
-            name = f"fonts/{FONT_ID}/{size}/{_cp_label(cp)}"
+            name = f"fonts/{FONT_ID}/{char_label(cp)}"
             x, y, rw, rh = put_image(img, name)
             rect = [x, y, rw, rh]
             print(f"Added {name} to atlas")
             added_count += 1
 
         advance = float(typeface.get_advance(cp))
-        glyphs[_cp_label(cp)] = {
+        glyphs[char_label(cp)] = {
             "rect": rect,
             "advance": advance,
             "bearingX": bearing_x,
@@ -196,27 +195,27 @@ def _generate_font_glyphs():
 
     # Kerning table: nested map with only non-zero pairs.
     kerning = {}
-    present_cps = [cp for cp in cps if _cp_label(cp) in glyphs]
+    present_cps = [cp for cp in cps if char_label(cp) in glyphs]
     for left in present_cps:
-        left_label = _cp_label(left)
+        left_label = char_label(left)
         row = None
         for right in present_cps:
             adjust = float(typeface.get_kerning_adjustment(left, right))
             if adjust != 0.0:
                 if row is None:
                     row = {}
-                row[_cp_label(right)] = adjust
+                row[char_label(right)] = adjust
         if row:
             kerning[left_label] = row
 
-    fonts_meta[FONT_ID][str(size)] = {
+    fonts_meta[FONT_ID] = {
         "ascent": float(ascent_px),
         "descent": float(descent_px),
         "lineHeight": float(line_height_px),
         "glyphs": glyphs,
         "kerning": kerning,
     }
-    print(f"Packed {added_count} glyphs for {FONT_ID} size {size}")
+    print(f"Packed {added_count} glyphs for {FONT_ID} size {FONT_SIZE}")
 
     return fonts_meta
 
@@ -241,7 +240,7 @@ def main():
 
     print(f"Rebuilding atlas: {reason}")
 
-    fonts_meta = _generate_font_glyphs()
+    fonts_meta = generate_font_glyphs()
 
     image_count = 0
     for root, _dirs, files in os.walk(atlas_dir):
