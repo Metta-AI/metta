@@ -121,6 +121,12 @@ class Example(pufferlib.models.LSTMWrapper):
         for p in self.parameters():
             p.data.clamp_(-1, 1)
 
+    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
+        """Compute weight metrics for wandb logging - generic implementation."""
+        # Return empty list - weight metrics are optional
+        # The env_agent/* metrics come from the environment, not from here
+        return []
+
 
 class Policy(nn.Module):
     """CNN + Self feature encoder policy for discrete multi-head action space."""

@@ -1,12 +1,13 @@
 import logging
 
 import einops
-import pufferlib.models
-import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
+
+import pufferlib.models
+import pufferlib.pytorch
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ class Fast(pufferlib.models.LSTMWrapper):
             )
         super().__init__(env, policy, input_size, hidden_size)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
+
         # Initialize placeholders for action tensors that MettaAgent will set
         self.action_index_tensor = None
         self.cum_action_max_params = None
@@ -99,6 +100,12 @@ class Fast(pufferlib.models.LSTMWrapper):
     def clip_weights(self):
         """Clip weights of the actor heads to prevent large updates."""
         pass
+
+    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
+        """Compute weight metrics for wandb logging - generic implementation."""
+        # Return empty list - weight metrics are optional
+        # The env_agent/* metrics come from the environment, not from here
+        return []
 
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """Convert logit indices back to action pairs."""
