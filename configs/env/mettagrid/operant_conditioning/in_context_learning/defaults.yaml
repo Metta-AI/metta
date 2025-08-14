@@ -7,7 +7,7 @@ desync_episodes: false
 
 game:
   num_agents: 24
-  max_steps: 256
+  max_steps: 512
   actions:
     attack:
       enabled: false
@@ -18,7 +18,7 @@ game:
   agent:
     default_resource_limit: 1
     resource_limits:
-      heart: 100
+      heart: 5
     rewards:
       inventory:
         heart: 1.0
