@@ -180,6 +180,7 @@ class MettaAgent(nn.Module):
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
         )
 
     def attach_replay_buffer(self, experience: Experience):

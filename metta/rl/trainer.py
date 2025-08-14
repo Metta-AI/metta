@@ -321,6 +321,7 @@ def train(
                 experience.reset_for_rollout()
                 policy.on_rollout_start()
                 buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
+                buffer_step = buffer_step.select(*policy_spec.keys())
 
                 while not experience.ready_for_training:
                     # Get observation

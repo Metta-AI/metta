@@ -51,7 +51,6 @@ class PPO(BaseLoss):
             ),
             act_log_prob=scalar_f32,
             values=scalar_f32,
-            returns=scalar_f32,
         )
 
     def losses_to_track(self) -> list[str]:

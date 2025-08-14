@@ -45,14 +45,14 @@ losses:
   #   decay: 0.996
   #   loss_coef: 1.0
 
-  # SLKickstarter:
+  # TLKickstarter:
   #   teacher_uri: wandb://run/m.av.loss.leader.001
   #   action_loss_coef: 1
   #   value_loss_coef: 1
   #   begin_at_step: 0
   #   end_at_step: 30_000_000
 
-  TLKickstarter:
+  SLKickstarter:
     teacher_uri: wandb://run/m.av.loss.leader.006
     action_loss_coef: 1
     value_loss_coef: 1

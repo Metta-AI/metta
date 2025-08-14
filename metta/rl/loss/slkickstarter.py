@@ -13,8 +13,8 @@ from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
 
 
-class TLKickstarter(BaseLoss):
-    """Teacher-led kickstarter."""
+class SLKickstarter(BaseLoss):
+    """Student-led kickstarter."""
 
     __slots__ = (
         "teacher_policy",
@@ -39,14 +39,14 @@ class TLKickstarter(BaseLoss):
         policy_store: PolicyStore,
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, loss_tracker, policy_store)
-        self.action_loss_coef = self.policy_cfg.losses.TLKickstarter.action_loss_coef
-        self.value_loss_coef = self.policy_cfg.losses.TLKickstarter.value_loss_coef
-        self.begin_at_step = self.policy_cfg.losses.TLKickstarter.begin_at_step
-        self.end_at_step = self.policy_cfg.losses.TLKickstarter.end_at_step
-        self.anneal_ratio = self.policy_cfg.losses.TLKickstarter.anneal_ratio
+        self.action_loss_coef = self.policy_cfg.losses.SLKickstarter.action_loss_coef
+        self.value_loss_coef = self.policy_cfg.losses.SLKickstarter.value_loss_coef
+        self.begin_at_step = self.policy_cfg.losses.SLKickstarter.begin_at_step
+        self.end_at_step = self.policy_cfg.losses.SLKickstarter.end_at_step
+        self.anneal_ratio = self.policy_cfg.losses.SLKickstarter.anneal_ratio
 
         # load teacher policy
-        policy_record = self.policy_store.policy_record(self.policy_cfg.losses.TLKickstarter.teacher_uri)
+        policy_record = self.policy_store.policy_record(self.policy_cfg.losses.SLKickstarter.teacher_uri)
         self.teacher_policy: PolicyAgent = policy_record.policy
         if hasattr(self.teacher_policy, "initialize_to_environment"):
             features = self.vec_env.driver_env.get_observation_features()
@@ -68,8 +68,25 @@ class TLKickstarter(BaseLoss):
             self.ramp_down_start_step = kickstart_steps
 
     def get_experience_spec(self) -> Composite:
+        if not hasattr(self.teacher_policy, "action_max_params"):
+            raise ValueError(
+                "SL Kickstarter cannot determine size of teacher logits. Teacher policy must have "
+                "action_max_params attribute"
+            )
+        if not hasattr(self.policy, "action_max_params"):
+            raise ValueError(
+                "SL Kickstarter cannot determine size of student logits. Student policy must have "
+                "action_max_params attribute"
+            )
+
+        num_teacher_params = self.teacher_policy.action_max_params
+        num_teacher_actions = sum([x + 1 for x in num_teacher_params])
+        num_student_actions = self.policy.action_max_params
+        num_student_actions = sum([x + 1 for x in num_student_actions])
+        assert num_teacher_actions == num_student_actions, "Teacher and student must have the same number of actions"
+
         loss_spec = Composite(
-            full_log_probs=UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32),
+            full_log_probs=UnboundedContinuous(shape=torch.Size([num_student_actions]), dtype=torch.float32),
         )
         merged_spec_dict: dict = dict(self.teacher_policy_spec.items())
         merged_spec_dict.update(dict(loss_spec.items()))
