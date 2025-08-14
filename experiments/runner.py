@@ -116,10 +116,10 @@ def runner(
             if wandb_tags:
                 training_dict["wandb_tags"] = wandb_tags
 
+            # Only create TrainingRunConfig if we have parameters for it
+            # Otherwise let the config class handle its own defaults
             if training_dict:
                 config_dict["training"] = TrainingRunConfig(**training_dict)
-            else:
-                config_dict["training"] = TrainingRunConfig()
 
             # Add trainer override fields
             if total_timesteps is not None:
