@@ -1,17 +1,17 @@
 import logging
 
 import einops
+import pufferlib.models
+import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.modules.lstm_base import LSTMBase
-from metta.agent.pytorch.layer_init import init_layer
-
 logger = logging.getLogger(__name__)
 
-class Fast(LSTMBase):
+
+class Fast(pufferlib.models.LSTMWrapper):
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
         if policy is None:
             policy = Policy(
@@ -91,16 +91,6 @@ class Fast(LSTMBase):
 
         return td
 
-    def clip_weights(self):
-        """Clip weights of the actor heads to prevent large updates."""
-        pass
-
-    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        """Compute weight metrics for wandb logging - generic implementation."""
-        # Return empty list - weight metrics are optional
-        # The env_agent/* metrics come from the environment, not from here
-        return []
-
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """Convert logit indices back to action pairs."""
         return self.action_index_tensor[action_logit_index]
@@ -112,6 +102,7 @@ class Fast(LSTMBase):
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
         return cumulative_sum + action_params
 
+
 class Policy(nn.Module):
     def __init__(self, env, input_size=128, hidden_size=128):
         super().__init__()
@@ -119,12 +110,13 @@ class Policy(nn.Module):
         self.input_size = input_size
         self.is_continuous = False
         self.action_space = env.single_action_space
+
         self.out_width = 11
         self.out_height = 11
         self.num_layers = 22
 
-        self.cnn1 = init_layer(nn.Conv2d(in_channels=22, out_channels=64, kernel_size=5, stride=3))
-        self.cnn2 = init_layer(nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1))
+        self.cnn1 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=22, out_channels=64, kernel_size=5, stride=3))
+        self.cnn2 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1))
 
         test_input = torch.zeros(1, 22, 11, 11)
         with torch.no_grad():
@@ -133,17 +125,19 @@ class Policy(nn.Module):
 
         self.flatten = nn.Flatten()
 
-        self.fc1 = init_layer(nn.Linear(self.flattened_size, 128))
-        self.encoded_obs = init_layer(nn.Linear(128, 128))
-        self.critic_1 = init_layer(nn.Linear(self.hidden_size, 1024))
-        self.value_head = init_layer(nn.Linear(1024, 1), std=1.0)
-        self.actor_1 = init_layer(nn.Linear(self.hidden_size, 512))
+        self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(self.flattened_size, 128))
+        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, 128))
+        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
+        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
         self.action_embeddings = nn.Embedding(100, 16)
 
         # Action heads - will be initialized based on action space
         action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
 
-        self.actor_heads = nn.ModuleList([init_layer(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec])
+        self.actor_heads = nn.ModuleList(
+            [pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec]
+        )
 
         max_vec = torch.tensor(
             [
@@ -173,6 +167,7 @@ class Policy(nn.Module):
             dtype=torch.float32,
         )[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
+
     def network_forward(self, x):
         x = x / self.max_vec
         x = self.cnn1(x)
@@ -186,6 +181,7 @@ class Policy(nn.Module):
         """
         Encode observations into a hidden representation.
         """
+
         token_observations = observations
         B = token_observations.shape[0]
         TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
@@ -204,7 +200,7 @@ class Policy(nn.Module):
         box_obs = torch.zeros(
             (B * TT, self.num_layers, self.out_width, self.out_height),
             dtype=atr_values.dtype,
-            device=observations.device,
+            device=token_observations.device,
         )
         batch_indices = torch.arange(B * TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
 

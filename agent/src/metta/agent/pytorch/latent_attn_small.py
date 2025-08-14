@@ -1,19 +1,20 @@
 import logging
 
 import einops
+import pufferlib.models
+import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.modules.encoders import ObsLatentAttn, ObsSelfAttn
-from metta.agent.modules.lstm_base import LSTMBase
 from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
-from metta.agent.pytorch.layer_init import init_layer
 
 logger = logging.getLogger(__name__)
 
-class LatentAttnSmall(LSTMBase):
+
+class LatentAttnSmall(pufferlib.models.LSTMWrapper):
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
         if policy is None:
             policy = Policy(
@@ -91,10 +92,6 @@ class LatentAttnSmall(LSTMBase):
 
         return td
 
-    def clip_weights(self):
-        for p in self.parameters():
-            p.data.clamp_(-1, 1)
-
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """Convert logit indices back to action pairs."""
         return self.action_index_tensor[action_logit_index]
@@ -106,6 +103,7 @@ class LatentAttnSmall(LSTMBase):
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
         return cumulative_sum + action_params
 
+
 class Policy(nn.Module):
     def __init__(self, env, input_size=128, hidden_size=128):
         super().__init__()
@@ -113,6 +111,7 @@ class Policy(nn.Module):
         self.input_size = input_size
         self.is_continuous = False
         self.action_space = env.single_action_space
+
         self.out_width = 11
         self.out_height = 11
         self.num_layers = 22
@@ -142,15 +141,18 @@ class Policy(nn.Module):
             out_dim=128, _feat_dim=32, num_heads=4, num_layers=2, use_mask=False, use_cls_token=True
         )
 
-        self.critic_1 = init_layer(nn.Linear(self.hidden_size, 1024))
-        self.value_head = init_layer(nn.Linear(1024, 1), std=1.0)
-        self.actor_1 = init_layer(nn.Linear(self.hidden_size, 512))
+        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
+        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
         self.action_embeddings = nn.Embedding(100, 16)
 
         # Action heads - will be initialized based on action space
         action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
 
-        self.actor_heads = nn.ModuleList([init_layer(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec])
+        self.actor_heads = nn.ModuleList(
+            [pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec]
+        )
+
     def network_forward(self, x):
         x, mask, B_TT = self.obs_(x)
         x = self.obs_norm(x)
@@ -163,15 +165,14 @@ class Policy(nn.Module):
         """
         Encode observations into a hidden representation.
         """
-        observations = observations
 
         # Initialize dictionary for TensorDict
         td = {"env_obs": observations, "state": None}
 
         # Safely handle LSTM state
         if state is not None and state.get("lstm_h") is not None and state.get("lstm_c") is not None:
-            lstm_h = state.get("lstm_h").to(observations.device)
-            lstm_c = state.get("lstm_c").to(observations.device)
+            lstm_h = state.get("lstm_h")
+            lstm_c = state.get("lstm_c")
             td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
 
         if observations.dim() == 4:
