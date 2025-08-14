@@ -4,11 +4,19 @@ Uses AGaLiTe transformer layers with proper token observation handling.
 """
 
 import einops
-import pufferlib.pytorch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from tensordict import TensorDict
+
+
+def init_layer(layer, std=1.0):
+    """Initialize layer weights to match ComponentPolicy initialization."""
+    nn.init.orthogonal_(layer.weight, gain=std)
+    if hasattr(layer, "bias") and layer.bias is not None:
+        nn.init.constant_(layer.bias, 0.0)
+    return layer
+
 
 from metta.agent.modules.agalite_batched import BatchedAGaLiTe
 from metta.agent.modules.lstm_base import LSTMBase
@@ -129,8 +137,8 @@ class Policy(nn.Module):
         self.num_layers = 22
 
         # Token observation to grid conversion (like Fast agent)
-        self.cnn1 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=22, out_channels=64, kernel_size=5, stride=3))
-        self.cnn2 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1))
+        self.cnn1 = init_layer(nn.Conv2d(in_channels=22, out_channels=64, kernel_size=5, stride=3))
+        self.cnn2 = init_layer(nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1))
 
         test_input = torch.zeros(1, 22, 11, 11)
         with torch.no_grad():
@@ -140,8 +148,8 @@ class Policy(nn.Module):
         self.flatten = nn.Flatten()
 
         # Project to AGaLiTe input size
-        self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(self.flattened_size, 128))
-        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, input_size))
+        self.fc1 = init_layer(nn.Linear(self.flattened_size, 128))
+        self.encoded_obs = init_layer(nn.Linear(128, input_size))
 
         # AGaLiTe transformer layers (simplified, no persistent memory)
         self.transformer = nn.TransformerEncoder(
@@ -156,16 +164,14 @@ class Policy(nn.Module):
         )
 
         # Output heads
-        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
-        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
-        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
+        self.critic_1 = init_layer(nn.Linear(self.hidden_size, 1024))
+        self.value_head = init_layer(nn.Linear(1024, 1), std=1.0)
+        self.actor_1 = init_layer(nn.Linear(self.hidden_size, 512))
         self.action_embeddings = nn.Embedding(100, 16)
 
         # Action heads
         action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
-        self.actor_heads = nn.ModuleList(
-            [pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec]
-        )
+        self.actor_heads = nn.ModuleList([init_layer(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec])
 
         # Normalization buffer
         max_vec = torch.tensor(

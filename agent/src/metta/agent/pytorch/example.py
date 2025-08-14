@@ -7,10 +7,17 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-import pufferlib.pytorch
 from metta.agent.modules.lstm_base import LSTMBase
 
 logger = logging.getLogger(__name__)
+
+
+def init_layer(layer, std=1.0):
+    """Initialize layer weights to match ComponentPolicy initialization."""
+    nn.init.orthogonal_(layer.weight, gain=std)
+    if hasattr(layer, "bias") and layer.bias is not None:
+        nn.init.constant_(layer.bias, 0.0)
+    return layer
 
 
 class Example(LSTMBase):
@@ -140,17 +147,17 @@ class Policy(nn.Module):
         self.out_width, self.out_height, self.num_layers = 11, 11, 22
 
         self.network = nn.Sequential(
-            pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3)),
+            init_layer(nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3)),
             nn.ReLU(),
-            pufferlib.pytorch.layer_init(nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1)),
+            init_layer(nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1)),
             nn.ReLU(),
             nn.Flatten(),
-            pufferlib.pytorch.layer_init(nn.Linear(cnn_channels, hidden_size // 2)),
+            init_layer(nn.Linear(cnn_channels, hidden_size // 2)),
             nn.ReLU(),
         )
 
         self.self_encoder = nn.Sequential(
-            pufferlib.pytorch.layer_init(nn.Linear(self.num_layers, hidden_size // 2)),
+            init_layer(nn.Linear(self.num_layers, hidden_size // 2)),
             nn.ReLU(),
         )
 
@@ -188,10 +195,8 @@ class Policy(nn.Module):
         max_vec = max_vec[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
-        self.actor = nn.ModuleList(
-            [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in self.action_space.nvec]
-        )
-        self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
+        self.actor = nn.ModuleList([init_layer(nn.Linear(hidden_size, n), std=0.01) for n in self.action_space.nvec])
+        self.value = init_layer(nn.Linear(hidden_size, 1), std=1)
         self.to(self.device)
 
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
