@@ -1,10 +1,10 @@
-# A thread that runs periodically and updates the leaderboard data.
-# Uses threads, not asyncio.
+# A background task that runs periodically and updates the leaderboard data.
+# Uses asyncio for consistent concurrency model.
 
+import asyncio
 import logging
-import threading
-import time
 import uuid
+from typing import Optional
 
 from psycopg.rows import class_row
 from pydantic import BaseModel
@@ -28,16 +28,36 @@ logger = logging.getLogger("leaderboard_updater")
 class LeaderboardUpdater:
     def __init__(self, repo: MettaRepo):
         self.repo = repo
-
-    def start(self):
-        self.running = True
-        self.thread = threading.Thread(target=self.run, daemon=True)
-        self.thread.name = "LeaderboardUpdater"
-        self.thread.start()
-
-    def stop(self):
+        self.task: Optional[asyncio.Task] = None
         self.running = False
-        self.thread.join()
+
+    async def start(self):
+        """Start the leaderboard updater as a background task."""
+        self.running = True
+        self.task = asyncio.create_task(self._run_loop(), name="LeaderboardUpdater")
+        logger.info("Leaderboard updater started")
+
+    async def stop(self):
+        """Stop the leaderboard updater and wait for completion."""
+        self.running = False
+        if self.task:
+            self.task.cancel()
+            try:
+                await self.task
+            except asyncio.CancelledError:
+                pass
+        logger.info("Leaderboard updater stopped")
+
+    async def _run_loop(self):
+        """Main loop that runs the updater periodically."""
+        while self.running:
+            try:
+                await self._run_once()
+            except Exception as e:
+                logger.error(f"Error updating leaderboards: {e}")
+
+            # Non-blocking sleep using asyncio
+            await asyncio.sleep(10)
 
     async def _get_policy_score(
         self, policy_id: uuid.UUID, eval_names: list[str], metric: str, latest_episode_id: int
@@ -95,7 +115,7 @@ class LeaderboardUpdater:
                 latest_episode_id_row = await cursor.fetchone()
                 if latest_episode_id_row is None:
                     return 0
-                return latest_episode_id_row[0]
+                return latest_episode_id_row[0] or 0
 
     async def _update_leaderboard(self, leaderboard: LeaderboardRow):
         """This function maintains the (leaderboard_id, policy_id) -> score mapping in the leaderboard_policy_scores
@@ -131,17 +151,7 @@ class LeaderboardUpdater:
         await self.repo.update_leaderboard_latest_episode(leaderboard.id, latest_episode_id)
 
     async def _run_once(self):
+        """Run one iteration of the leaderboard update process."""
         leaderboards = await self.repo.list_leaderboards()
         for leaderboard in leaderboards:
             await self._update_leaderboard(leaderboard)
-
-    def run(self):
-        while self.running:
-            try:
-                import asyncio
-
-                asyncio.run(self._run_once())
-            except Exception as e:
-                logger.error(f"Error updating leaderboards: {e}")
-
-            time.sleep(30)
