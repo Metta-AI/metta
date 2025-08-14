@@ -305,10 +305,10 @@ def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> 
     # Add rank info if requested and available
     if include_rank and "RANK" in os.environ:
         rank = int(os.environ.get("RANK", 0))
-        world_size = int(os.environ.get("WORLD_SIZE", 1))
+        _world_size = int(os.environ.get("WORLD_SIZE", 1))
         node_rank = int(os.environ.get("NODE_RANK", os.environ.get("NODE_INDEX", 0)))
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        title = f"{title} (Rank {rank}/{world_size}, Node {node_rank}, GPU {local_rank})"
+        title = f"{title} (Rank {rank}, Node {node_rank}, GPU {local_rank})"
 
     # Ensure title fits with padding
     max_title_width = width - 4  # Account for borders and spacing
