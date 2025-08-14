@@ -6,7 +6,6 @@ import logging
 import uuid
 from typing import Optional
 
-from psycopg.rows import class_row
 from pydantic import BaseModel
 
 from metta.app_backend.metta_repo import LeaderboardRow, MettaRepo
@@ -59,34 +58,38 @@ class LeaderboardUpdater:
             # Non-blocking sleep using asyncio
             await asyncio.sleep(10)
 
-    async def _get_policy_score(
-        self, policy_id: uuid.UUID, eval_names: list[str], metric: str, latest_episode_id: int
-    ) -> float:
-        """Get the score for a policy.
+    async def _get_policy_scores_batch(
+        self, policy_ids: list[uuid.UUID], eval_names: list[str], metric: str, latest_episode_id: int
+    ) -> dict[uuid.UUID, float]:
+        """Get scores for multiple policies in a single batch query.
 
         The score is computed as the average of the scores of each eval, unweighted by the number of episodes.
         """
+        if not policy_ids:
+            return {}
 
         query = """
-                  SELECT e.eval_name, SUM(eam.value) as total_score, COUNT(*) as num_agents
-                  FROM episodes e
-                  JOIN episode_agent_metrics eam ON e.internal_id = eam.episode_internal_id
-                  WHERE e.primary_policy_id = %s
-                  AND eam.metric = %s
-                  AND e.internal_id <= %s
-                  AND e.eval_name = ANY(%s)
-                  GROUP BY e.eval_name
+                  WITH policy_eval_scores AS (
+                    SELECT e.primary_policy_id AS policy_id, e.eval_name, AVG(eam.value) AS score
+                    FROM episodes e
+                    JOIN episode_agent_metrics eam ON e.internal_id = eam.episode_internal_id
+                    WHERE e.primary_policy_id = ANY(%s)
+                    AND eam.metric = %s
+                    AND e.internal_id <= %s
+                    AND e.eval_name = ANY(%s)
+                    GROUP BY e.primary_policy_id, e.eval_name
+                  )
+                  SELECT policy_id, SUM(score) / %s as score
+                  FROM policy_eval_scores
+                  GROUP BY policy_id
                   """
 
         async with self.repo.connect() as con:
-            async with con.cursor(row_factory=class_row(EvalScore)) as cursor:
-                await cursor.execute(query, (policy_id, metric, latest_episode_id, eval_names))
-
+            async with con.cursor() as cursor:
+                await cursor.execute(query, (policy_ids, metric, latest_episode_id, eval_names, len(eval_names)))
                 rows = await cursor.fetchall()
-                if len(rows) == 0:
-                    return 0
-                else:
-                    return sum(row.score for row in rows) / len(eval_names)
+
+                return {row[0]: row[1] for row in rows}
 
     async def _get_updated_policies(self, leaderboard: LeaderboardRow, latest_episode_id: int) -> list[uuid.UUID]:
         """Get the policies that have had new relevant episodes."""
@@ -117,7 +120,7 @@ class LeaderboardUpdater:
                     return 0
                 return latest_episode_id_row[0] or 0
 
-    async def _update_leaderboard(self, leaderboard: LeaderboardRow):
+    async def _update_leaderboard(self, leaderboard: LeaderboardRow, chunk_size: int = 5000):
         """This function maintains the (leaderboard_id, policy_id) -> score mapping in the leaderboard_policy_scores
         table.
 
@@ -142,11 +145,14 @@ class LeaderboardUpdater:
 
         logger.info(f"Updating leaderboard {leaderboard.id} with {len(updated_policies)} updated policies")
 
-        for policy_id in updated_policies:
-            policy_score = await self._get_policy_score(
-                policy_id, leaderboard.evals, leaderboard.metric, latest_episode_id
+        for i in range(0, len(updated_policies), chunk_size):
+            chunk = updated_policies[i : i + chunk_size]
+            policy_scores = await self._get_policy_scores_batch(
+                chunk, leaderboard.evals, leaderboard.metric, latest_episode_id
             )
-            await self.repo.upsert_leaderboard_policy_score(leaderboard.id, policy_id, policy_score)
+
+            # Batch upsert all scores (chunked for large datasets)
+            await self.repo.batch_upsert_leaderboard_policy_scores(leaderboard.id, policy_scores)
 
         await self.repo.update_leaderboard_latest_episode(leaderboard.id, latest_episode_id)
 

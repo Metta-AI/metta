@@ -1540,18 +1540,26 @@ class MettaRepo:
             )
             return result.rowcount > 0
 
-    async def upsert_leaderboard_policy_score(
-        self, leaderboard_id: uuid.UUID, policy_id: uuid.UUID, score: float
+    async def batch_upsert_leaderboard_policy_scores(
+        self, leaderboard_id: uuid.UUID, policy_scores: dict[uuid.UUID, float]
     ) -> None:
-        """Upsert a leaderboard policy score."""
+        """Batch upsert leaderboard policy scores for multiple policies, chunked to avoid overwhelming the system."""
+        if not policy_scores:
+            return
+
+        # Prepare all batch data
+        all_batch_data = [(leaderboard_id, policy_id, score, score) for policy_id, score in policy_scores.items()]
+
+        # Process in chunks
         async with self.connect() as con:
-            await con.execute(
-                """
-                INSERT INTO leaderboard_policy_scores (leaderboard_id, policy_id, score) VALUES (%s, %s, %s)
-                ON CONFLICT (leaderboard_id, policy_id) DO UPDATE SET score = %s
-                """,
-                (leaderboard_id, policy_id, score, score),
-            )
+            async with con.cursor() as cursor:
+                await cursor.executemany(
+                    """
+                    INSERT INTO leaderboard_policy_scores (leaderboard_id, policy_id, score) VALUES (%s, %s, %s)
+                    ON CONFLICT (leaderboard_id, policy_id) DO UPDATE SET score = %s
+                    """,
+                    all_batch_data,
+                )
 
     async def update_leaderboard_latest_episode(self, leaderboard_id: uuid.UUID, latest_episode: int) -> None:
         """Update the latest episode for a leaderboard."""
