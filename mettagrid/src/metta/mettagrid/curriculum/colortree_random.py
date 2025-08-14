@@ -1,7 +1,8 @@
 """ColorTree curriculum with random target sequences per episode."""
 
+import os
 import random
-from itertools import permutations, product
+from itertools import product
 from typing import Dict
 
 from omegaconf import DictConfig
@@ -10,162 +11,147 @@ from metta.mettagrid.curriculum.core import SingleTrialTask, Task
 from metta.mettagrid.curriculum.random import RandomCurriculum
 
 
-def generate_sequence_pool(num_colors: int, sequence_length: int = 4) -> list[list[int]]:
-    """Generate a diverse pool of sequences for the given number of colors."""
-    pool = []
-    colors = list(range(num_colors))
-
-    # 0. Ensure full coverage: include all possible sequences of given length
-    # This guarantees agents can encounter any target the action can represent
-    all_sequences = [list(seq) for seq in product(colors, repeat=sequence_length)]
-    pool.extend(all_sequences)
-
-    # 1. All same patterns (simple baseline)
-    for color in colors:
-        pool.append([color] * sequence_length)
-
-    # 2. Alternating patterns (for 2+ colors)
-    if num_colors >= 2:
-        for i in range(num_colors):
-            for j in range(i + 1, num_colors):
-                # Simple alternating
-                pattern1 = [i, j] * (sequence_length // 2)
-                pattern2 = [j, i] * (sequence_length // 2)
-                if len(pattern1) == sequence_length:
-                    pool.extend([pattern1, pattern2])
-
-    # 3. Sequential patterns (permutations of available colors)
-    if num_colors <= sequence_length:
-        # Full permutations when we have enough slots
-        for perm in list(permutations(colors))[: min(6, len(list(permutations(colors))))]:
-            padded = list(perm) + [perm[0]] * (sequence_length - len(perm))
-            pool.append(padded[:sequence_length])
-    else:
-        # Sample from colors when we have more colors than slots
-        for _ in range(min(8, num_colors)):
-            sampled = random.sample(colors, sequence_length)
-            pool.append(sampled)
-
-    # 4. Repeating element patterns
-    if num_colors >= 2:
-        for double_pos in range(sequence_length - 1):
-            remaining_colors = colors.copy()
-            base_color = remaining_colors.pop(0)
-            pattern = [
-                base_color
-                if i == double_pos or i == double_pos + 1
-                else remaining_colors[(i - (2 if i > double_pos + 1 else 0)) % len(remaining_colors)]
-                for i in range(sequence_length)
-            ]
-            pool.append(pattern)
-
-    # 5. Mirror/palindrome patterns
-    if sequence_length == 4 and num_colors >= 2:
-        for i in range(num_colors):
-            for j in range(i + 1, min(num_colors, i + 3)):  # Limit combinations
-                pool.append([i, j, j, i])  # Mirror pattern
-
-    # 6. Mixed complex patterns (random sampling with constraints)
-    for _ in range(min(10, num_colors * 2)):
-        # Ensure each pattern uses at least 2 different colors
-        pattern = []
-        used_colors = set()
-        for pos in range(sequence_length):
-            if len(used_colors) < 2 and pos == sequence_length - 1:
-                # Force diversity in last position if needed
-                available = [c for c in colors if c not in used_colors]
-                if available:
-                    color = random.choice(available)
-                else:
-                    color = random.choice(colors)
-            else:
-                color = random.choice(colors)
-            pattern.append(color)
-            used_colors.add(color)
-        pool.append(pattern)
-
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_pool = []
-    for seq in pool:
-        seq_tuple = tuple(seq)
-        if seq_tuple not in seen:
-            seen.add(seq_tuple)
-            unique_pool.append(seq)
-
-    return unique_pool
-
-
 class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
-    """Curriculum that randomly selects from a programmatically generated set of sequences."""
+    """Curriculum that randomly selects from all possible sequences.
+
+    The curriculum generates all possible sequences of a given length using the
+    available colors, then randomly selects one per episode.
+
+    Parameters (in YAML):
+        tasks: Dictionary of task paths and weights
+        sequence_length: Length of sequences to generate (default: auto-detect from base config)
+        num_colors: Number of colors to use (default: auto-detect from color_to_item)
+
+    Example YAML:
+        _target_: metta.mettagrid.curriculum.colortree_random.ColorTreeRandomFromSetCurriculum
+        tasks:
+          /env/mettagrid/colortree_easy: 1.0
+        sequence_length: 2  # Generate all 2-length sequences
+        num_colors: 3       # Use colors 0, 1, 2
+    """
 
     def __init__(
         self,
         tasks: Dict[str, float] | DictConfig,
         env_overrides: DictConfig | None = None,
         num_colors: int | None = None,
-        sequence_length: int = 4,
+        sequence_length: int | None = None,
         **kwargs,
     ):
         super().__init__(tasks, env_overrides)
         self._last_selected_sequence: list[int] | None = None
+        self._episode_count = 0  # Initialize here instead of in get_task
         # Independent RNG to avoid any external global seeding affecting episode sampling
-        self._rng = random.Random()
+        self._rng = random.Random(int.from_bytes(os.urandom(8), "big"))
 
-        # Auto-detect num_colors from task config if not provided
+        # Auto-detect parameters from base config
+        # NOTE: This creates a sample task just to inspect config, which could have side effects
+        sample_task = super().get_task()
+        env_cfg = sample_task.env_cfg()
+        color_tree_cfg = env_cfg.game.actions.color_tree
+
+        # Auto-detect num_colors
         if num_colors is None:
-            # Get a sample task to inspect the color configuration
-            sample_task = super().get_task()
-            color_to_item = sample_task.env_cfg().game.actions.color_tree.color_to_item
-            num_colors = len(color_to_item)
+            num_colors = len(color_tree_cfg.color_to_item)
+            print(f"[ColorTreeRandom] Auto-detected num_colors={num_colors} from color_to_item")
 
-        # Generate sequence pool based on number of colors
-        self.sequence_pool = generate_sequence_pool(num_colors, sequence_length)
+        # Auto-detect sequence_length
+        if sequence_length is None:
+            base_sequence = color_tree_cfg.target_sequence
+            sequence_length = len(base_sequence) if base_sequence else 4
+            print(
+                f"[ColorTreeRandom] Auto-detected sequence_length={sequence_length} "
+                f"from target_sequence={base_sequence}"
+            )
 
-        print(f"Generated {len(self.sequence_pool)} sequences for {num_colors} colors:")
-        for _i, seq in enumerate(self.sequence_pool[:10]):  # Show first 10
-            print(f"  {seq}")
-        if len(self.sequence_pool) > 10:
-            print(f"  ... and {len(self.sequence_pool) - 10} more")
+        # Store config for validation
+        self._sequence_length = sequence_length
+        self._num_colors = num_colors
 
-        # No precomputed order; select randomly per episode
+        # Validate parameters
+        if num_colors <= 0:
+            raise ValueError(f"num_colors must be positive, got {num_colors}")
+        if sequence_length <= 0:
+            raise ValueError(f"sequence_length must be positive, got {sequence_length}")
+
+        # Generate all possible sequences to ensure complete coverage
+        self.sequence_pool = [list(seq) for seq in product(range(num_colors), repeat=sequence_length)]
+
+        if not self.sequence_pool:
+            raise ValueError(f"Failed to generate sequence pool for colors={num_colors}, length={sequence_length}")
+
+        # Critical validation: ensure all sequences have the expected length
+        for i, seq in enumerate(self.sequence_pool):
+            if len(seq) != sequence_length:
+                raise ValueError(f"Sequence {i}: {seq} has wrong length {len(seq)}, expected {sequence_length}")
+
+        print(
+            f"[ColorTreeRandom] Initialized with {len(self.sequence_pool)} sequences "
+            f"(colors={num_colors}, length={sequence_length})"
+        )
+
+        # Note: The relationship between sequence_length and max_steps determines
+        # how many complete sequences can fit in an episode:
+        # - max_steps=16, sequence_length=4 → 4 complete sequences max
+        # - max_steps=16, sequence_length=2 → 8 complete sequences max
+        # - max_steps=16, sequence_length=1 → 16 complete sequences max (every action is a sequence)
 
     def get_task(self) -> Task:
         """Get a task with a randomly selected sequence from the generated pool."""
         # Get base task from parent (this handles the config resolution properly)
         task = super().get_task()
+        env_cfg = task.env_cfg()
 
-        # Select a sequence uniformly at random each episode
+        # Select a random sequence from the pool
         selected_sequence = self._rng.choice(self.sequence_pool)
         self._last_selected_sequence = selected_sequence
 
-        # Get the environment config and update it with our selected sequence
-        env_cfg = task.env_cfg()
+        # Debug logging for first few episodes
+        self._episode_count += 1
 
-        # Update the ColorTree action config
+        # Update the ColorTree action config with the selected sequence
         if (
             hasattr(env_cfg, "game")
             and hasattr(env_cfg.game, "actions")
             and hasattr(env_cfg.game.actions, "color_tree")
         ):
-            env_cfg.game.actions.color_tree.target_sequence = selected_sequence
-            env_cfg.game.actions.color_tree.trial_sequences = [
-                selected_sequence,
-                selected_sequence,
-                selected_sequence,
-                selected_sequence,
-            ]
-            env_cfg.game.actions.color_tree.num_trials = 4
+            color_tree_cfg = env_cfg.game.actions.color_tree
+
+            # Log what we're about to set (first 3 episodes only)
+            if self._episode_count <= 3:
+                print(f"[ColorTreeRandom] Episode {self._episode_count}:")
+                print(f"  - Selected sequence: {selected_sequence} (len={len(selected_sequence)})")
+                print(f"  - Before: target_sequence={color_tree_cfg.target_sequence}")
+
+            # Validate sequence length matches what we expect
+            if len(selected_sequence) != self._sequence_length:
+                raise ValueError(
+                    f"Selected sequence length {len(selected_sequence)} doesn't match expected {self._sequence_length}"
+                )
+
+            color_tree_cfg.target_sequence = selected_sequence
+            # Clear trial_sequences to ensure C++ uses target_sequence
+            color_tree_cfg.trial_sequences = []
+            # num_trials stays from base config
+
+            if self._episode_count <= 3:
+                print(f"  - After: target_sequence={color_tree_cfg.target_sequence}")
+                print(f"  - Max steps: {env_cfg.game.max_steps}")
+        else:
+            raise ValueError("ColorTree action not found in environment config")
 
         # Use the original task ID to avoid KeyError in completion tracking
         return SingleTrialTask(id=task.id(), curriculum=self, env_cfg=env_cfg)
 
     def get_curriculum_stats(self) -> dict:
-        # Expose the most recently selected sequence and pool size for logging/diagnostics
+        """Expose the most recently selected sequence and pool size for logging/diagnostics."""
         selected = (
-            ",".join(str(x) for x in self._last_selected_sequence) if self._last_selected_sequence is not None else ""
+            ",".join(str(x) for x in self._last_selected_sequence)
+            if self._last_selected_sequence is not None
+            else "none"
         )
         return {
             "selected_sequence": selected,
-            "sequence_pool_size": len(getattr(self, "sequence_pool", [])),
+            "sequence_pool_size": len(self.sequence_pool),
+            "episode_count": self._episode_count,
         }

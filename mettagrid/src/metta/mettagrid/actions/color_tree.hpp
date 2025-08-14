@@ -2,6 +2,7 @@
 #define ACTIONS_COLOR_TREE_HPP_
 
 #include <array>
+#include <cstdio>
 #include <cstring>
 #include <limits>
 #include <map>
@@ -42,7 +43,7 @@ struct ColorTreeActionConfig : public ActionConfig {
                         const std::map<uint8_t, InventoryItem>& color_to_item,
                         int num_trials = 1,
                         const std::vector<std::vector<uint8_t>>& trial_sequences = {},
-                        int attempts_per_trial = 4,
+                        int attempts_per_trial = 0,  // 0 means auto-compute
                         const std::string& reward_mode_str = "precise")
       : ActionConfig(required_resources, consumed_resources),
         target_sequence(target_sequence),
@@ -94,6 +95,16 @@ public:
     } else {
       _current_target_ptr_global = &_base_target_sequence;
     }
+
+    // Log configuration for debugging
+    printf("[ColorTree] Initialized: seq_len=%zu, reward=%.2f, mode=%s, per_pos=%.4f, trials=%zu\n",
+           _max_sequence_size,
+           _sequence_reward,
+           (_reward_mode == ColorTreeRewardMode::PRECISE   ? "precise"
+            : _reward_mode == ColorTreeRewardMode::PARTIAL ? "partial"
+                                                           : "dense"),
+           _per_position_reward,
+           _num_trials);
   }
 
   unsigned char max_arg() const override {
@@ -203,11 +214,14 @@ protected:
     // Check if we've completed a fixed window
     if (agent_data.window_filled) {
       agent_data.window_filled = false;
+      actor->stats.add("color_tree.windows_evaluated", 1.0f);
+
       if (_reward_mode == ColorTreeRewardMode::PRECISE) {
         if (agent_data.correct_positions_count == static_cast<int>(_max_sequence_size)) {
           *actor->reward += _sequence_reward;
           actor->stats.add("color_tree.sequence_completed", 1.0f);
           actor->stats.add("color_tree.reward_awarded", _sequence_reward);
+          actor->stats.add("color_tree.windows_completed", 1.0f);
         }
       } else if (_reward_mode == ColorTreeRewardMode::PARTIAL) {
         int correct_positions = agent_data.correct_positions_count;
@@ -219,13 +233,20 @@ protected:
           actor->stats.add("color_tree.reward_awarded", partial_reward);
           if (correct_positions == static_cast<int>(_max_sequence_size)) {
             actor->stats.add("color_tree.sequence_completed", 1.0f);
+            actor->stats.add("color_tree.windows_completed", 1.0f);
           }
         }
       } else if (_reward_mode == ColorTreeRewardMode::DENSE) {
         if (agent_data.correct_positions_count == static_cast<int>(_max_sequence_size)) {
           actor->stats.add("color_tree.sequence_completed", 1.0f);
+          actor->stats.add("color_tree.windows_completed", 1.0f);
         }
       }
+
+      // Add diagnostic stats
+      actor->stats.add("color_tree.sequence_length", static_cast<float>(_max_sequence_size));
+      actor->stats.add("color_tree.max_theoretical_reward_per_window", _sequence_reward);
+
       // Reset window correctness for next window
       agent_data.correctness_mask = 0;
       agent_data.correct_positions_count = 0;
