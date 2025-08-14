@@ -17,9 +17,9 @@ losses:
   PPO:
     path: metta.rl.loss.ppo.PPO
 
-    schedule:
-      rollout:
-        begin_at_step: 30_000_000
+    # schedule:
+    #   rollout:
+    #     begin_at_step: 30_000_000
 
     # Core PPO hyperparameters
     clip_coef: 0.1
