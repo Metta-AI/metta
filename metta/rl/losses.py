@@ -36,6 +36,14 @@ class Losses:
         self.current_logprobs_sum = 0.0
         self.explained_variance = 0.0
         self.minibatches_processed = 0
+        # Contrastive aggregates
+        self.contrastive_loss_sum = 0.0
+        self.contrastive_infonce_sum = 0.0
+        self.contrastive_logsumexp_sum = 0.0
+        self.contrastive_var_loss_sum = 0.0
+        self.contrastive_pos_sim_sum = 0.0
+        self.contrastive_neg_sim_sum = 0.0
+        self.contrastive_batch_std_sum = 0.0
 
     def stats(self) -> dict[str, float]:
         """Convert losses to dictionary with proper averages."""
@@ -54,6 +62,14 @@ class Losses:
             "importance": self.importance_sum / n,
             "explained_variance": self.explained_variance,
             "current_logprobs": self.current_logprobs_sum / n,
+            # Contrastive means
+            "contrastive_loss": self.contrastive_loss_sum / n,
+            "contrastive_infonce": self.contrastive_infonce_sum / n,
+            "contrastive_logsumexp": self.contrastive_logsumexp_sum / n,
+            "contrastive_var_loss": self.contrastive_var_loss_sum / n,
+            "contrastive_pos_sim": self.contrastive_pos_sim_sum / n,
+            "contrastive_neg_sim": self.contrastive_neg_sim_sum / n,
+            "contrastive_batch_std": self.contrastive_batch_std_sum / n,
         }
 
 
@@ -136,7 +152,7 @@ def process_minibatch_update(
 
         from metta.rl.infonce import compute_infonce_losses as _compute_infonce_losses
 
-        inf_pg_loss, _, _, _, _ = _compute_infonce_losses(
+        inf_pg_loss, _, _, _, _, contrastive_metrics = _compute_infonce_losses(
             contrastive_td,
             new_logprob,
             entropy,
@@ -147,6 +163,16 @@ def process_minibatch_update(
         )
         # Add weighted InfoNCE loss to total policy loss
         pg_loss = pg_loss + trainer_cfg.contrastive.coef * inf_pg_loss
+
+        # Aggregate contrastive metrics for logging
+        if isinstance(contrastive_metrics, dict):
+            losses.contrastive_loss_sum += float(contrastive_metrics.get("contrastive_loss", 0.0))
+            losses.contrastive_infonce_sum += float(contrastive_metrics.get("contrastive_infonce", 0.0))
+            losses.contrastive_logsumexp_sum += float(contrastive_metrics.get("contrastive_logsumexp", 0.0))
+            losses.contrastive_var_loss_sum += float(contrastive_metrics.get("contrastive_var_loss", 0.0))
+            losses.contrastive_pos_sim_sum += float(contrastive_metrics.get("contrastive_pos_sim", 0.0))
+            losses.contrastive_neg_sim_sum += float(contrastive_metrics.get("contrastive_neg_sim", 0.0))
+            losses.contrastive_batch_std_sum += float(contrastive_metrics.get("contrastive_batch_std", 0.0))
 
     # Kickstarter losses
     ks_action_loss, ks_value_loss = kickstarter.loss(
