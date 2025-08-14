@@ -39,12 +39,16 @@ class LSTMJack(LayerBase):
 
         # jack here's where you can initialize the model's parameters
         for name, param in net.named_parameters():
-            if "bias" in name:
-                nn.init.constant_(param, 1)  # Joseph originally had this as 0
-            elif "weight" in name:
-                nn.init.orthogonal_(param, 1)
-                if param.ndim >= 2:
-                    param.fill_diagonal_(0.0)
+            with torch.no_grad():
+                if "bias" in name:
+                    param.fill_(1)  # Joseph originally had this as 0
+                elif "weight" in name:
+                    nn.init.orthogonal_(param, 1)
+                    if param.ndim >= 2:
+                        # Zero the main diagonal without modifying a view of the Parameter
+                        mask = torch.ones_like(param)
+                        mask.fill_diagonal_(0.0)
+                        param.mul_(mask)
 
         # register a scalar multiple buffer for the hidden state # jack
         self.register_buffer("hidden_state_scalar", torch.tensor(100.0))
