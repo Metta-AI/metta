@@ -21,20 +21,7 @@ file_mounts:
     source: s3://softmax-train-dir
     mode: MOUNT_CACHED
 
-setup: |
-  set -e
-  cd /workspace/metta
-
-  git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
-  git checkout "$METTA_GIT_REF"
-  echo "[SETUP] Checked out: $(git rev-parse HEAD)"
-
-  # Python environment setup
-  echo "[SETUP] Setting up Python environment..."
-  uv sync
-
-  # Note that different sets of skypilot environment variables are available in "run" vs "setup"
-  # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
+setup: /workspace/metta/devops/skypilot/config/sk_setup.sh
 
 run: |
   set -e
@@ -45,6 +32,9 @@ run: |
       deactivate 2>/dev/null || true
   fi
   . .venv/bin/activate
+
+  echo "[SETUP] Setting up Python environment..."
+  uv sync
 
   bash ./devops/skypilot/config/configure_environment.sh
 

@@ -129,6 +129,7 @@
     "kubeconfig",
     "kubepods",
     "lasery",
+    "lazypath",
     "letsencrypt",
     "levelname",
     "lexsort",

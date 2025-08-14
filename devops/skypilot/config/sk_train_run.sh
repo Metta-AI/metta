@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 set -euo pipefail
 
 cd /workspace/metta
@@ -8,6 +10,8 @@ if [ -n "${VIRTUAL_ENV:-}" ]; then
 fi
 . .venv/bin/activate
 
+DEBUG=${DEBUG:-0}
+
 echo "[CONFIG] Run Configuration:"
 echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
 echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
@@ -15,6 +19,14 @@ echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
 echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
+[ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
+
+# Run comprehensive GPU diagnostics and NCCL tests
+echo "[RUN] Running GPU diagnostics and NCCL tests..."
+if ! uv run python ./devops/skypilot/test_nccl.py; then
+    echo "Pre-flight check failed!"
+    exit 1
+fi
 
 if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
   echo "[RUN] Collecting skypilot latency..."
@@ -22,26 +34,6 @@ if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
 else
   echo "[RUN] Latency script is missing!"
 fi
-
-export NUM_GPUS="${SKYPILOT_NUM_GPUS_PER_NODE:-1}"
-export NUM_NODES="${SKYPILOT_NUM_NODES:-1}"
-export MASTER_ADDR="$(echo "${SKYPILOT_NODE_IPS:-}" | head -n1)"
-export MASTER_PORT=8008
-export NODE_INDEX="${SKYPILOT_NODE_RANK:-0}"
-export NCCL_SHM_DISABLE=1
-
-# Create a temp directory for IPC files
-export IPC_DIR="/tmp/metta_job_$$"
-mkdir -p "$IPC_DIR"
-
-METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
-
-export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
-export TERMINATION_REASON=""  # Track how the job ended
-
-# Configurable intervals
-export TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-60}
-export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
 
 # Create a temp directory for IPC files
 export IPC_DIR="/tmp/metta_job_$$"
@@ -51,9 +43,19 @@ export CMD_PID=""
 export CMD_PGID=""
 export START_TIME=0
 
+export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
+export TERMINATION_REASON=""  # Track how the job ended
+
+# Configurable intervals
+export TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-60}
+export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
+
 # Flag to prevent multiple shutdowns
 export SHUTDOWN_IN_PROGRESS=0
 
+METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+
+# collect cost to METTA_ENV_FILE
 if [ -f common/src/metta/common/util/cost_monitor.py ]; then
   echo "[RUN] Collecting instance cost..."
   METTA_HOURLY_COST="$(uv run python common/src/metta/common/util/cost_monitor.py 2>/dev/null | tail -1 || true)"
@@ -66,12 +68,10 @@ else
   echo "[RUN] Cost monitor script is missing!"
 fi
 
-if [ -f "$METTA_ENV_FILE" ]; then
-  source "$METTA_ENV_FILE"
-else
-  echo "Warning: $METTA_ENV_FILE does not exist. Creating empty file."
-  touch "$METTA_ENV_FILE"
-fi
+# setup ENV
+bash ./devops/skypilot/config/configure_environment.sh
+
+source "$METTA_ENV_FILE"
 
 # Set up feature flags based on available credentials
 if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
@@ -294,7 +294,7 @@ run_cmd() {
         if [ $remaining -gt 0 ]; then
           elapsed_min=$((elapsed / 60))
           remaining_min=$((remaining / 60))
-          echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
+          [ "$DEBUG" = "1" ] && echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
         else
           echo "[INFO] Timeout limit reached - terminating process group"
           terminate_process "$CMD_PID" "max_runtime_reached"
@@ -326,7 +326,7 @@ run_cmd() {
 
             # Print status occasionally
             if [ $((HEARTBEAT_COUNT % 10)) -eq 0 ]; then
-              echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
+              [ "$DEBUG" = "1" ] && echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
             fi
           fi
 
@@ -383,7 +383,7 @@ cleanup() {
   elif [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]]; then
     echo "[INFO] Job terminated due to max runtime limit"
     export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
-    maybe_send_discord_notification "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
+    # maybe_send_discord_notification "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
     # Map to success
     CMD_EXIT=0
 
@@ -391,8 +391,7 @@ cleanup() {
     echo "[SUCCESS] Job completed successfully"
     export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
     export TERMINATION_REASON="completed"
-    maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
-
+    # maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
   else
     echo "[ERROR] Job failed with exit code $CMD_EXIT"
     export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
@@ -424,13 +423,6 @@ cleanup() {
     FINAL_EXIT_CODE=$CMD_EXIT
   fi
 }
-
-# Run comprehensive GPU diagnostics and NCCL tests
-echo "[RUN] Running GPU diagnostics and NCCL tests..."
-if ! uv run python ./devops/skypilot/test_nccl.py; then
-    echo "Pre-flight check failed!"
-    exit 1
-fi
 
 # Export variables needed by cleanup
 export TIMEOUT_MONITOR_PID=""
