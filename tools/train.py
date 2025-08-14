@@ -6,7 +6,6 @@ import logging
 import os
 import platform
 from logging import Logger
-from typing import Any
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -25,7 +24,6 @@ from metta.core.distributed import setup_device_and_distributed
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
-from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.init.mettagrid_system import init_mettagrid_system_environment
 
 logger = logging.getLogger(__name__)
@@ -34,9 +32,8 @@ logger = logging.getLogger(__name__)
 class TrainToolConfig(Config):
     system: SystemConfig = SystemConfig()
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
-    agent: dict[str, Any]
     wandb: WandbConfig = WandbConfigOff()
-    evals: SimulationSuiteConfig
+    policy_architecture: DictConfig = Field(default_factory=DictConfig)
 
     run: str
     run_dir: str = Field(default="./train_dir")
@@ -54,7 +51,6 @@ class TrainToolConfig(Config):
 
     # Seed for reproducibility
     seed: int = Field(default=0)
-    torch_deterministic: bool = Field(default=True)
 
     def model_post_init(self, __context):
         """Post-initialization setup."""
@@ -83,8 +79,8 @@ class TrainToolConfig(Config):
         self.system.vectorization = "serial"
 
         # Apply trainer overrides with minimum values
-        self.trainer.batch_size = min(self.trainer.batch_size, 1024)
         self.trainer.minibatch_size = min(self.trainer.minibatch_size, 1024)
+        self.trainer.batch_size = min(self.trainer.batch_size, 1024)
         self.trainer.forward_pass_minibatch_target_size = min(self.trainer.forward_pass_minibatch_target_size, 2)
         self.trainer.checkpoint.checkpoint_interval = min(self.trainer.checkpoint.checkpoint_interval, 10)
         self.trainer.checkpoint.wandb_checkpoint_interval = min(self.trainer.checkpoint.wandb_checkpoint_interval, 10)
@@ -162,7 +158,7 @@ def handle_train(cfg: TrainToolConfig, wandb_run: WandbRun | None, logger: Logge
         stats_client.validate_authenticated()
 
     # Determine git hash for remote simulations
-    if cfg.trainer.simulation.evaluate_remote:
+    if cfg.trainer.simulation and cfg.trainer.simulation.evaluate_remote:
         if not stats_client:
             cfg.trainer.simulation.evaluate_remote = False
             logger.info("Not connected to stats server, disabling remote evaluations")
@@ -198,20 +194,17 @@ def handle_train(cfg: TrainToolConfig, wandb_run: WandbRun | None, logger: Logge
 
     policy_store = get_policy_store(cfg, wandb_run)
 
-    # Convert agent config to DictConfig for train function
-    agent_cfg = OmegaConf.create(cfg.agent)
-
     # Use the functional train interface directly
     train(
         run=cfg.run,
         run_dir=cfg.run_dir,
         system_cfg=cfg.system,
-        agent_cfg=agent_cfg,
+        agent_cfg=OmegaConf.create(cfg.policy_architecture),
         device=torch.device(cfg.system.device),
         trainer_cfg=cfg.trainer,
         wandb_run=wandb_run,
         policy_store=policy_store,
-        sim_suite_config=cfg.evals,
+        sim_suite_config=cfg.trainer.simulation,
         stats_client=stats_client,
     )
 
@@ -235,7 +228,7 @@ def main(cfg: TrainToolConfig) -> int:
     init_cfg = DictConfig(
         {
             "seed": cfg.seed,
-            "torch_deterministic": cfg.torch_deterministic,
+            "torch_deterministic": cfg.system.torch_deterministic,
             "device": cfg.system.device,
             "vectorization": cfg.system.vectorization,
             "run_dir": cfg.run_dir,
