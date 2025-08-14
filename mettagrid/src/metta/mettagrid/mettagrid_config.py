@@ -270,7 +270,9 @@ class EnvConfig(Config):
 
         return Curriculum(self.to_curriculum_cfg())
 
-    def to_sim(self, name: str) -> SimulationConfig:
+    def to_sim(self, name: str) -> "SimulationConfig":
+        from metta.sim.simulation_config import SimulationConfig
+
         return SimulationConfig(
             name=name,
             env=self,

@@ -20,3 +20,5 @@ class SimulationConfig(Config):
 
     npc_policy_uri: Optional[str] = Field(default=None, description="URI of the policy to use for NPC agents")
     policy_agents_pct: float = Field(default=1.0, description="pct of agents to be controlled by policies", ge=0, le=1)
+
+    episode_tags: Optional[list[str]] = Field(default=None, description="Tags to add to each episode")
