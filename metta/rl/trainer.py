@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.distributed
 from heavyball import ForeachMuon
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from torchrl.data import Composite
 
 from metta.agent.metta_agent import PolicyAgent
@@ -57,7 +57,6 @@ from metta.rl.wandb import (
     log_model_parameters,
     setup_wandb_metrics,
 )
-from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
 
 try:
@@ -85,7 +84,6 @@ def train(
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,
     policy_store: PolicyStore,
-    sim_suite_config: SimulationSuiteConfig,
     stats_client: StatsClient | None,
 ) -> None:
     """Main training loop for Metta agents."""
@@ -500,7 +498,7 @@ def train(
             # TODO: wandb_policy_name should come directly from last_saved_policy_record
             latest_saved_policy_record, wandb_policy_name = checkpoint_result
 
-        if should_run(epoch, trainer_cfg.simulation.evaluate_interval):
+        if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
             if latest_saved_policy_record:
                 if stats_client and stats_tracker.stats_run_id:
                     stats_tracker.stats_epoch_id = stats_client.create_epoch(
@@ -509,30 +507,24 @@ def train(
                         end_training_epoch=epoch,
                     ).id
 
-                # Create extended simulation suite that includes the training task
-                # Deep merge trainer env_overrides with sim_suite_config env_overrides
-                merged_env_overrides: dict = OmegaConf.to_container(  # type: ignore
-                    OmegaConf.merge(sim_suite_config.env_overrides, trainer_cfg.env_overrides)
-                )
-                extended_suite_config = SimulationSuiteConfig(
-                    name=sim_suite_config.name,
-                    simulations=dict(sim_suite_config.simulations),
-                    env_overrides=merged_env_overrides,
-                    num_episodes=sim_suite_config.num_episodes,
-                )
+                sims = [
+                    curriculum.get_task().get_env_cfg().to_sim(f"train_task_{i}")
+                    for i in range(trainer_cfg.evaluation.num_training_tasks)
+                ]
+                sims.extend(trainer_cfg.evaluation.simulations)
 
-                evaluate_local = trainer_cfg.simulation.evaluate_local
+                evaluate_local = trainer_cfg.evaluation.evaluate_local
 
-                if trainer_cfg.simulation.evaluate_remote:
+                if trainer_cfg.evaluation.evaluate_remote:
                     try:
                         evaluate_policy_remote(
                             policy_record=latest_saved_policy_record,
-                            sim_suite_config=extended_suite_config,
+                            simulations=sims,
                             stats_epoch_id=stats_tracker.stats_epoch_id,
                             wandb_policy_name=wandb_policy_name,
                             stats_client=stats_client,
                             wandb_run=wandb_run,
-                            trainer_cfg=trainer_cfg,
+                            trainer_cfg=trainer_cfg.evaluation,
                         )
                     except Exception as e:
                         logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
@@ -542,16 +534,15 @@ def train(
                 if evaluate_local:
                     evaluation_results = evaluate_policy(
                         policy_record=latest_saved_policy_record,
-                        simulation_suite=extended_suite_config,
+                        simulations=sims,
                         device=device,
                         vectorization=system_cfg.vectorization,
-                        replay_dir=trainer_cfg.simulation.replay_dir,
+                        replay_dir=trainer_cfg.evaluation.replay_dir,
                         stats_epoch_id=stats_tracker.stats_epoch_id,
                         wandb_policy_name=wandb_policy_name,
                         policy_store=policy_store,
                         stats_client=stats_client,
                         logger=logger,
-                        training_curriculum=curriculum,
                     )
                     logger.info("Simulation complete")
                     eval_scores = evaluation_results.scores

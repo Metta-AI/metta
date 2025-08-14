@@ -15,7 +15,7 @@ from metta.common.util.logging_helpers import init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff
 from metta.rl.system_config import SystemConfig
 from metta.sim.simulation import Simulation
-from metta.sim.simulation_config import SingleEnvSimulationConfig
+from metta.sim.simulation_config import SimulationConfig
 
 logger = logging.getLogger("tools.replay")
 
@@ -24,7 +24,7 @@ logger = logging.getLogger("tools.replay")
 class ReplayToolConfig(Config):
     system: SystemConfig = SystemConfig()
     wandb: WandbConfig = WandbConfigOff()
-    sim: SingleEnvSimulationConfig
+    sim: SimulationConfig
     policy_uri: str | None = None
     selector_type: str = "latest"
     replay_dir: str = "./train_dir/replays"

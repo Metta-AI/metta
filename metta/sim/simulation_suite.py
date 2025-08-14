@@ -8,7 +8,7 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
 
@@ -20,7 +20,7 @@ class SimulationSuite:
 
     def __init__(
         self,
-        config: SimulationSuiteConfig,
+        simulations: list[SimulationConfig],
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
         device: torch.device,
@@ -32,14 +32,13 @@ class SimulationSuite:
         wandb_policy_name: str | None = None,
         eval_task_id: uuid.UUID | None = None,
     ):
-        self._config = config
+        self._simulations = simulations
         self._policy_pr = policy_pr
         self._policy_store = policy_store
         self._replay_dir = replay_dir
         self._stats_dir = stats_dir
         self._device = device
         self._vectorization = vectorization
-        self.name = config.name
         self._stats_client = stats_client
         self._stats_epoch_id = stats_epoch_id
         self._wandb_policy_name = wandb_policy_name
@@ -54,16 +53,16 @@ class SimulationSuite:
         successful_simulations = 0
         replay_urls: dict[str, list[str]] = {}
 
-        for name, sim_config in self._config.simulations.items():
+        for sim_config in self._simulations:
             try:
                 sim = Simulation(
-                    name,
+                    sim_config.name,
                     sim_config,
                     self._policy_pr,
                     self._policy_store,
                     device=self._device,
                     vectorization=self._vectorization,
-                    sim_suite_name=self.name,
+                    sim_suite_name=sim_config.name,
                     stats_dir=self._stats_dir,
                     replay_dir=self._replay_dir,
                     stats_client=self._stats_client,
@@ -72,7 +71,7 @@ class SimulationSuite:
                     eval_task_id=self._eval_task_id,
                     episode_tags=self._config.episode_tags,
                 )
-                logger.info("=== Simulation '%s' ===", name)
+                logger.info("=== Simulation '%s' ===", sim_config.name)
                 sim_result = sim.simulate()
                 merged_db.merge_in(sim_result.stats_db)
 
@@ -81,8 +80,10 @@ class SimulationSuite:
                     key, version = sim_result.stats_db.key_and_version(self._policy_pr)
                     sim_replay_urls = sim_result.stats_db.get_replay_urls(key, version)
                     if sim_replay_urls:
-                        replay_urls[name] = sim_replay_urls  # Store all URLs, not just the first
-                        logger.info(f"Collected {len(sim_replay_urls)} replay URL(s) for simulation '{name}'")
+                        replay_urls[sim_config.name] = sim_replay_urls  # Store all URLs, not just the first
+                        logger.info(
+                            f"Collected {len(sim_replay_urls)} replay URL(s) for simulation '{sim_config.name}'"
+                        )
 
                 sim_result.stats_db.close()
                 successful_simulations += 1
@@ -91,15 +92,17 @@ class SimulationSuite:
                 # Only skip for NPC-related compatibility issues
                 error_msg = str(e).lower()
                 if "npc" in error_msg or "non-player" in error_msg:
-                    logger.warning("Skipping simulation '%s' due to NPC compatibility issue: %s", name, str(e))
+                    logger.warning(
+                        "Skipping simulation '%s' due to NPC compatibility issue: %s", sim_config.name, str(e)
+                    )
                     continue
                 else:
                     # Re-raise for non-NPC compatibility issues
-                    logger.error("Critical compatibility error in simulation '%s': %s", name, str(e))
+                    logger.error("Critical compatibility error in simulation '%s': %s", sim_config.name, str(e))
                     raise
 
         if successful_simulations == 0:
             raise RuntimeError("No simulations could be run successfully")
 
-        logger.info("Completed %d/%d simulations successfully", successful_simulations, len(self._config.simulations))
+        logger.info("Completed %d/%d simulations successfully", successful_simulations, len(self._simulations))
         return SimulationResults(merged_db, replay_urls=replay_urls if replay_urls else None)
