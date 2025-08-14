@@ -124,22 +124,7 @@ class AttentionAGaLiTeLayer(nn.Module):
     def forward(
         self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple[torch.Tensor, ...]
     ) -> Tuple[torch.Tensor, Tuple]:
-        """
-        Forward pass for AGaLiTe attention.
-
-        Args:
-            inputs: Input tensor of shape (T, B, input_dim)
-            terminations: Termination signals of shape (T, B)
-            memory: Tuple of (tilde_k_prev, tilde_v_prev, s_prev, tick)
-                - tilde_k_prev: shape (B, r, head_num, eta * head_dim)
-                - tilde_v_prev: shape (B, r, head_num, head_dim)
-                - s_prev: shape (B, head_num, eta * head_dim)
-                - tick: shape (B, 1)
-
-        Returns:
-            - output: Attention output of shape (T, B, input_dim)
-            - new_memory: Updated memory tuple
-        """
+        """Forward pass for AGaLiTe attention."""
         T, B, _ = inputs.shape
         device = inputs.device
 
@@ -287,18 +272,7 @@ class RecurrentLinearTransformerEncoder(nn.Module):
     def forward(
         self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple[torch.Tensor, ...]
     ) -> Tuple[torch.Tensor, Tuple]:
-        """
-        Forward pass.
-
-        Args:
-            inputs: Input tensor of shape (T, B, d_model)
-            terminations: Termination signals of shape (T, B)
-            memory: Memory tuple from previous timestep
-
-        Returns:
-            - output: Encoded output of shape (T, B, d_model)
-            - new_memory: Updated memory tuple
-        """
+        """Forward pass."""
         # Input embedding
         if self.use_dense:
             inputs_enc = self.emb_layer(inputs)

@@ -12,9 +12,10 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
+from pufferlib.pytorch import layer_init as init_layer
+
 from metta.agent.modules.agalite_layers import AttentionAGaLiTeLayer, RecurrentLinearTransformerEncoder
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
-from metta.agent.pytorch.layer_init import init_layer
 
 logger = logging.getLogger(__name__)
 
@@ -65,18 +66,7 @@ class AGaLiTeCore(nn.Module):
     def forward(
         self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Dict[str, Tuple]
     ) -> Tuple[torch.Tensor, Dict[str, Tuple]]:
-        """
-        Forward pass for AGaLiTe.
-
-        Args:
-            inputs: Input tensor of shape (T, B, d_model)
-            terminations: Termination signals of shape (T, B)
-            memory: Dictionary of memory tuples for each layer
-
-        Returns:
-            - output: Model output of shape (T, B, d_model)
-            - new_memory: Updated memory dictionary
-        """
+        """Forward pass for AGaLiTe."""
         u_i = inputs
         new_memory = {}
 
@@ -221,16 +211,7 @@ class AGaLiTePolicy(nn.Module):
         return x
 
     def encode_observations(self, observations: torch.Tensor, state: Optional[Dict] = None) -> torch.Tensor:
-        """
-        Encode token observations to hidden representation.
-
-        Args:
-            observations: Token observations (Byte tensor)
-            state: Optional state dictionary
-
-        Returns:
-            Hidden representations of shape (B*T, d_model)
-        """
+        """Encode token observations to hidden representation."""
         # Convert from Byte to Float and move to device
         observations = observations.float()
         token_observations = observations
@@ -274,16 +255,7 @@ class AGaLiTePolicy(nn.Module):
         return hidden
 
     def decode_actions(self, hidden: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Decode hidden representation to action logits and value.
-
-        Args:
-            hidden: Hidden representations of shape (B*T, d_model)
-
-        Returns:
-            logits: Action logits
-            values: Value estimates
-        """
+        """Decode hidden representation to action logits and value."""
         critic_features = torch.tanh(self.critic_1(hidden))
         value = self.value_head(critic_features)
 
@@ -297,16 +269,7 @@ class AGaLiTePolicy(nn.Module):
         return logits, value
 
     def initialize_memory(self, batch_size: int) -> Dict:
-        """
-        Initialize AGaLiTe memory for a batch.
-
-        Args:
-            batch_size: Number of parallel environments
-            device: Device to create tensors on
-
-        Returns:
-            Initial memory dictionary
-        """
+        """Initialize AGaLiTe memory for a batch."""
         return AGaLiTeCore.initialize_memory(
             batch_size=batch_size,
             n_layers=self.n_layers,
@@ -364,17 +327,7 @@ class AGaLiTe(TransformerWrapper):
         # Move to device if needed
 
     def forward(self, td: TensorDict, state: Optional[Dict] = None, action: Optional[torch.Tensor] = None):
-        """
-        Forward pass compatible with MettaAgent expectations.
-
-        Args:
-            td: TensorDict containing observations and other data
-            state: Dictionary containing transformer memory state
-            action: Optional actions for training mode
-
-        Returns:
-            Updated TensorDict with actions, values, etc.
-        """
+        """Forward pass compatible with MettaAgent expectations."""
         observations = td["env_obs"]
 
         # Initialize state if needed (handle both None and lazy init cases)

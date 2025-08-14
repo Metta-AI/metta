@@ -17,14 +17,6 @@ def batched_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts
 
     This implements: y[t] = discount[t] * y[t-1] + x[t]
     where y[-1] = start_state
-
-    Args:
-        start_state: Initial state tensor of shape (B, ...) or matching x shape without T
-        x: Sequence tensor of shape (T, B, ...)
-        discounts: Discount factors of shape (T, B, ...)
-
-    Returns:
-        Discounted sum tensor of shape (T, B, ...)
     """
     T = x.shape[0]
 
@@ -96,22 +88,7 @@ class BatchedAttentionAGaLiTeLayer(nn.Module):
         terminations: torch.Tensor,
         memory: Tuple[torch.Tensor, ...],
     ) -> Tuple[torch.Tensor, Tuple]:
-        """
-        Forward pass for batched sequences.
-
-        Args:
-            inputs: Input tensor of shape (T, B, input_dim)
-            terminations: Termination signals of shape (T, B)
-            memory: Tuple of (tilde_k_prev, tilde_v_prev, s_prev, tick)
-                - tilde_k_prev: shape (B, r, head_num, eta * head_dim)
-                - tilde_v_prev: shape (B, r, head_num, head_dim)
-                - s_prev: shape (B, head_num, eta * head_dim)
-                - tick: shape (B, 1)
-
-        Returns:
-            - output: Attention output of shape (T, B, input_dim)
-            - new_memory: Updated memory tuple
-        """
+        """Forward pass for batched sequences."""
         T, B, _ = inputs.shape
         device = inputs.device
 
@@ -243,13 +220,7 @@ class BatchedGRUGatingUnit(nn.Module):
             nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
 
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: Previous hidden state (T, B, dim) or (B, dim)
-            y: Current input (T, B, dim) or (B, dim)
-        Returns:
-            Gated output with same shape as input
-        """
+        """Apply gating between previous state and current input."""
         r = torch.sigmoid(self.Wr(y) + self.Ur(x))
         z = torch.sigmoid(self.Wz(y) + self.Uz(x) - self.bgp)
         h = torch.tanh(self.Wg(y) + self.Ug(r * x))
@@ -314,18 +285,7 @@ class BatchedRecurrentLinearTransformerEncoder(nn.Module):
         terminations: torch.Tensor,
         memory: Tuple[torch.Tensor, ...],
     ) -> Tuple[torch.Tensor, Tuple]:
-        """
-        Forward pass for batched sequences.
-
-        Args:
-            inputs: Input tensor of shape (T, B, d_model)
-            terminations: Termination signals of shape (T, B)
-            memory: Memory tuple from previous timestep
-
-        Returns:
-            - output: Encoded output of shape (T, B, d_model)
-            - new_memory: Updated memory tuple
-        """
+        """Forward pass for batched sequences."""
         # Input embedding
         if self.use_dense:
             inputs_enc = self.emb_layer(inputs)
@@ -400,18 +360,7 @@ class BatchedAGaLiTe(nn.Module):
         terminations: torch.Tensor,
         memory: Dict[str, Tuple],
     ) -> Tuple[torch.Tensor, Dict[str, Tuple]]:
-        """
-        Forward pass for batched sequences.
-
-        Args:
-            inputs: Input tensor of shape (T, B, d_model)
-            terminations: Termination signals of shape (T, B)
-            memory: Dictionary of memory tuples for each layer
-
-        Returns:
-            - output: Model output of shape (T, B, d_model)
-            - new_memory: Updated memory dictionary
-        """
+        """Forward pass for batched sequences."""
         u_i = inputs
         new_memory = {}
 
