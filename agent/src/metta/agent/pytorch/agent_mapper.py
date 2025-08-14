@@ -1,6 +1,5 @@
-from metta.agent.pytorch.agalite import AgaliteHybrid
-from metta.agent.pytorch.agalite_main import AGaLiTe
-from metta.agent.pytorch.agalite_simple import AGaLiTeSimple
+from metta.agent.pytorch.agalite import AGaLiTe
+from metta.agent.pytorch.agalite_hybrid import AgaliteHybrid
 from metta.agent.pytorch.example import Example
 from metta.agent.pytorch.fast import Fast
 from metta.agent.pytorch.latent_attn_med import LatentAttnMed
@@ -10,9 +9,8 @@ from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny
 # Map from agent type names to their pytorch implementations
 agent_classes = {
     # AGaLiTe implementations
-    "agalite": AGaLiTe,  # Main AGaLiTe implementation with proper BPTT handling
-    "agalite_simple": AGaLiTeSimple,  # Simplified version without persistent memory
-    "agalite_hybrid": AgaliteHybrid,  # Hybrid LSTM version (200k steps/sec)
+    "agalite": AGaLiTe,  # Main AGaLiTe implementation with TransformerWrapper for proper BPTT
+    "agalite_hybrid": AgaliteHybrid,  # Hybrid AGaLiTe-LSTM version (200k steps/sec)
     # Standard agents
     "example": Example,
     "fast": Fast,
