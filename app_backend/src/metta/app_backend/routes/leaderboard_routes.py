@@ -21,6 +21,13 @@ class LeaderboardCreate(BaseModel):
     start_date: str
 
 
+class LeaderboardUpdate(BaseModel):
+    name: str | None = None
+    evals: List[str] | None = None
+    metric: str | None = None
+    start_date: str | None = None
+
+
 class LeaderboardResponse(BaseModel):
     id: str
     name: str
@@ -97,6 +104,22 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
         if not leaderboard:
             raise HTTPException(status_code=500, detail="Failed to create leaderboard")
 
+        return LeaderboardResponse.from_db(leaderboard)
+
+    @router.put("/{leaderboard_id}")
+    @timed_route("update_leaderboard")
+    async def update_leaderboard(  # type: ignore[reportUnusedFunction]
+        leaderboard_id: str, leaderboard_data: LeaderboardUpdate, user_id: str = user_or_token
+    ) -> LeaderboardResponse:
+        """Update a leaderboard."""
+        leaderboard = await metta_repo.update_leaderboard(
+            leaderboard_id=uuid.UUID(leaderboard_id),
+            user_id=user_id,
+            name=leaderboard_data.name,
+            evals=leaderboard_data.evals,
+            metric=leaderboard_data.metric,
+            start_date=leaderboard_data.start_date,
+        )
         return LeaderboardResponse.from_db(leaderboard)
 
     @router.delete("/{leaderboard_id}")

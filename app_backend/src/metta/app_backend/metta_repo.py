@@ -1451,6 +1451,49 @@ class MettaRepo:
                 raise RuntimeError("Failed to create leaderboard")
             return row[0]
 
+    async def update_leaderboard(
+        self,
+        leaderboard_id: uuid.UUID,
+        user_id: str,
+        name: str | None = None,
+        evals: list[str] | None = None,
+        metric: str | None = None,
+        start_date: str | None = None,
+    ) -> LeaderboardRow:
+        """Update a leaderboard."""
+        update_values = {}
+        if name:
+            update_values["name"] = name
+        if evals:
+            update_values["evals"] = evals
+        if metric:
+            update_values["metric"] = metric
+        if start_date:
+            update_values["start_date"] = start_date
+
+        update_values_str = ", ".join([f"{k} = %s" for k in update_values.keys()])
+        query = f"""
+          UPDATE leaderboards
+          SET {update_values_str}, latest_episode = 0, updated_at = NOW()
+          WHERE id = %s AND user_id = %s
+          RETURNING id, name, user_id, evals, metric, start_date, latest_episode, created_at, updated_at
+        """
+        params = (*update_values.values(), leaderboard_id, user_id)
+
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
+                res = await cur.execute(query, params)
+                row = await res.fetchone()
+
+                if not row:
+                    raise RuntimeError(f"Leaderboard {leaderboard_id} not found or not owned by user {user_id}")
+
+                await cur.execute(
+                    "DELETE FROM leaderboard_policy_scores WHERE leaderboard_id = %s",
+                    (leaderboard_id,),
+                )
+                return row
+
     async def list_leaderboards(self) -> list[LeaderboardRow]:
         """List all leaderboards for a user."""
         async with self.connect() as con:
