@@ -1,54 +1,150 @@
-import { desc } from "drizzle-orm";
-
-import { db } from "@/lib/db";
-import { postsTable } from "@/lib/db/schema/post";
+import { prisma } from "@/lib/db/prisma";
 import { makePaginated, Paginated } from "@/lib/paginated";
-
-type FeedPostRow = typeof postsTable.$inferSelect;
 
 export type FeedPostDTO = {
   id: string;
   title: string;
+  content: string | null;
+  postType: 'user-post' | 'paper-post' | 'pure-paper';
+  likes: number;
+  retweets: number;
+  replies: number;
+  author: {
+    id: string;
+    name: string | null;
+    email: string | null;
+    image: string | null;
+  };
+  paper?: {
+    id: string;
+    title: string;
+    abstract: string | null;
+    authors?: { id: string; name: string; orcid?: string | null; institution?: string | null }[];
+    institutions: string[] | null;
+    tags: string[] | null;
+    link: string | null;
+    source: string | null;
+    externalId: string | null;
+    stars: number;
+    starred: boolean;
+    createdAt: Date;
+    updatedAt: Date;
+  };
   createdAt: Date;
   updatedAt: Date;
 };
 
-export function toFeedPostDTO(dbModel: FeedPostRow): FeedPostDTO {
+export function toFeedPostDTO(dbModel: any, usersMap: Map<string, any>, papersMap: Map<string, any>): FeedPostDTO {
+  const author = usersMap.get(dbModel.authorId);
+  const paper = dbModel.paperId ? papersMap.get(dbModel.paperId) : null;
+  
   return {
     id: dbModel.id,
     title: dbModel.title,
+    content: dbModel.content,
+    postType: dbModel.postType as 'user-post' | 'paper-post' | 'pure-paper',
+    likes: dbModel.likes ?? 0,
+    retweets: dbModel.retweets ?? 0,
+    replies: dbModel.replies ?? 0,
+    author: {
+      id: dbModel.authorId,
+      name: author?.name ?? null,
+      email: author?.email ?? null,
+      image: author?.image ?? null,
+    },
+    paper: paper ? {
+      id: paper.id,
+      title: paper.title,
+      abstract: paper.abstract,
+      authors: paper.paperAuthors?.map((pa: any) => ({
+        id: pa.author.id,
+        name: pa.author.name,
+        orcid: pa.author.orcid,
+        institution: pa.author.institution
+      })) || [],
+      institutions: paper.institutions,
+      tags: paper.tags,
+      link: paper.link,
+      source: paper.source,
+      externalId: paper.externalId,
+      stars: paper.stars ?? 0,
+      starred: false, // TODO: Get from user interactions
+      createdAt: paper.createdAt,
+      updatedAt: paper.updatedAt,
+    } : undefined,
     createdAt: dbModel.createdAt,
     updatedAt: dbModel.updatedAt,
   };
 }
 
 export async function loadFeedPosts({
-  limit = 5,
+  limit = 10,
   cursor,
 }: {
   limit?: number;
   cursor?: Date;
 } = {}): Promise<Paginated<FeedPostDTO>> {
-  const rows = await db.query.postsTable.findMany({
-    // TODO - these parameters might be possible to abstract into a generic function.
-    //
-    // You could have a function called `findPaginated` that takes a cursor and a limit,
-    // and call it here through `...findPaginated(cursor, limit)`.
-    //
-    // See `src/lib/paginated.ts` for a placeholder implementation.
-    where: (postsTable, { lt }) =>
-      cursor ? lt(postsTable.createdAt, cursor) : undefined,
-    limit: limit + 1, // it's important to select one extra row to check if we're at the end.
-    orderBy: [desc(postsTable.createdAt)],
+  // Build the query with proper cursor-based pagination
+  const rows = await prisma.post.findMany({
+    where: cursor ? {
+      createdAt: {
+        lt: cursor,
+      },
+    } : undefined,
+    take: limit + 1,
+    orderBy: [
+      {
+        createdAt: 'desc',
+      },
+      {
+        id: 'desc', // Secondary sort by ID to ensure consistent ordering
+      },
+    ],
+    include: {
+      author: true,
+      paper: {
+        include: {
+          paperAuthors: {
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                  orcid: true,
+                  institution: true
+                }
+              }
+            }
+          }
+        }
+      },
+    },
   });
 
-  const posts = rows.map(toFeedPostDTO);
+  // Transform the data to match the expected format
+  const posts = rows.map(row => {
+    // Create maps for the lookup (maintaining compatibility with existing toFeedPostDTO function)
+    const usersMap = new Map();
+    if (row.author) {
+      usersMap.set(row.author.id, row.author);
+    }
 
-  const nextCursor = posts[posts.length - 1]?.createdAt;
+    const papersMap = new Map();
+    if (row.paper) {
+      papersMap.set(row.paper.id, row.paper);
+    }
+
+    return toFeedPostDTO(row, usersMap, papersMap);
+  });
+
+  // Check if there are more posts to load
+  const hasMore = posts.length > limit;
+  const nextCursor = hasMore ? posts[limit - 1]?.createdAt : undefined;
+
   async function loadMore(limit: number) {
     "use server";
     return loadFeedPosts({ cursor: nextCursor, limit });
   }
 
   return makePaginated(posts, limit, loadMore);
-}
+} 

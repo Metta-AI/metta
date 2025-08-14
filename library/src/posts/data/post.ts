@@ -1,21 +1,32 @@
-import { eq } from "drizzle-orm";
-
-import { db } from "@/lib/db";
-import { postsTable } from "@/lib/db/schema/post";
-
+import { prisma } from "@/lib/db/prisma";
 import { FeedPostDTO, toFeedPostDTO } from "./feed";
 
 export type PostDTO = FeedPostDTO;
 
 export default async function loadPost(postId: string): Promise<PostDTO> {
-  const row = await db.query.postsTable.findFirst({
-    where: eq(postsTable.id, postId),
+  const post = await prisma.post.findUnique({
+    where: { id: postId },
+    include: {
+      author: true,
+      paper: true,
+    },
   });
-  if (!row) {
+
+  if (!post) {
     throw new Error("Post not found");
   }
 
-  // If you need to have a different DTO for the post page, create a new toPostDTO function.
-  const post = toFeedPostDTO(row);
-  return post;
-}
+  // Create maps for the lookup (maintaining compatibility with existing toFeedPostDTO function)
+  const usersMap = new Map();
+  if (post.author) {
+    usersMap.set(post.author.id, post.author);
+  }
+
+  const papersMap = new Map();
+  if (post.paper) {
+    papersMap.set(post.paper.id, post.paper);
+  }
+
+  const postDTO = toFeedPostDTO(post, usersMap, papersMap);
+  return postDTO;
+} 

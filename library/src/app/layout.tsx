@@ -6,10 +6,9 @@ import { redirect } from "next/navigation";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import { FC, PropsWithChildren } from "react";
 
-import { PageLayout } from "@/components/ui/PageLayout";
+import { LibraryLayout } from "@/components/LibraryLayout";
+import { MathJaxProvider } from "@/components/MathJaxProvider";
 import { auth } from "@/lib/auth";
-
-import { TopMenu } from "./TopMenu";
 
 export const metadata: Metadata = {
   title: "Softmax Library",
@@ -19,7 +18,11 @@ const GlobalProviders: FC<PropsWithChildren> = async ({ children }) => {
   // Configure any other global providers here
   return (
     <SessionProvider>
-      <NuqsAdapter>{children}</NuqsAdapter>
+      <NuqsAdapter>
+        <MathJaxProvider>
+          {children}
+        </MathJaxProvider>
+      </NuqsAdapter>
     </SessionProvider>
   );
 };
@@ -34,10 +37,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
     <html lang="en">
       <body className="overflow-y-scroll">
         <GlobalProviders>
-          <div className="flex h-screen flex-col">
-            <TopMenu />
-            <PageLayout>{children}</PageLayout>
-          </div>
+          <LibraryLayout>{children}</LibraryLayout>
         </GlobalProviders>
       </body>
     </html>
