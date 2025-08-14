@@ -81,7 +81,7 @@ class LSTMswitching(LayerBase):
                         param.fill_diagonal_(0.0)
 
         # register a scalar multiple buffer for the hidden state
-        self.register_buffer("hidden_state_scalar", torch.tensor(100.0))
+        self.register_buffer("hidden_state_scalar", torch.tensor(100.0, dtype=torch.float32))
 
         return net
 
