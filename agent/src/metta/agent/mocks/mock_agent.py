@@ -21,6 +21,7 @@ class MockAgent(MettaAgent):
         self.components_with_memory = []
         self.components = torch.nn.ModuleDict()  # Use ModuleDict for proper nn.Module handling
         self.device = "cpu"
+        self.policy = None  # MockAgent doesn't have a separate policy
 
     def activate_actions(self, action_names, action_max_params, device):
         """Store action configuration for testing."""
@@ -86,7 +87,7 @@ class MockAgent(MettaAgent):
         self.activate_actions(action_names, action_max_params, device)
 
         # Initialize observations to support feature remapping
-        self._initialize_observations(features, device)
+        self.activate_observations(features, device)
 
     def reset_memory(self):
         """Mock implementation - no memory to reset."""
@@ -95,31 +96,3 @@ class MockAgent(MettaAgent):
     def get_memory(self):
         """Mock implementation - returns empty memory dict."""
         return {}
-
-    def _apply_feature_remapping(self, features, unknown_feature_id):
-        """
-        Apply feature remapping to observation components.
-
-        This is called by _create_feature_remapping to update any observation
-        components with the new feature ID mapping.
-        """
-        if "_obs_" not in self.components:
-            return
-
-        # Create remap table (identity mapping by default)
-        remap_table = torch.arange(256, dtype=torch.uint8, device=self.device)
-
-        # Apply remappings
-        for current_id, target_id in self.feature_id_remap.items():
-            remap_table[current_id] = target_id
-
-        # Map original IDs not in current environment to UNKNOWN
-        if not self.training:
-            original_ids = set(self.original_feature_mapping.values())
-            current_ids = {props["id"] for props in features.values()}
-            for original_id in original_ids:
-                if original_id not in current_ids and original_id < 256:
-                    remap_table[original_id] = unknown_feature_id
-
-        # Update the observation component
-        self.components["_obs_"].update_feature_remapping(remap_table)

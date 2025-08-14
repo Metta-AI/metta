@@ -1,7 +1,6 @@
 #!/usr/bin/env -S uv run
 import argparse
 import copy
-import shlex
 import sys
 
 import sky
@@ -25,7 +24,6 @@ def patch_task(
     gpus: int | None,
     nodes: int | None,
     no_spot: bool = False,
-    timeout_hours: float | None = None,
 ) -> sky.Task:
     overrides = {}
     if cpus:
@@ -55,23 +53,6 @@ def patch_task(
     if gpus or no_spot:
         task.set_resources(type(task.resources)(new_resources_list))
 
-    # Add timeout configuration if specified
-    if timeout_hours is not None:
-        current_run_script = task.run or ""
-        # Construct the command parts
-        # timeout utility takes DURATION COMMAND [ARG]...
-        # Here, COMMAND is 'bash', and its ARGs are '-c' and the script itself.
-        timeout_command_parts = [
-            "timeout",
-            f"{timeout_hours}h",  # Use 'h' suffix for hours, timeout supports floats
-            "bash",
-            "-c",
-            current_run_script,
-        ]
-        # shlex.join will correctly quote each part, especially current_run_script,
-        # ensuring it's passed as a single argument to bash -c.
-        task.run = shlex.join(timeout_command_parts)
-
     return task
 
 
@@ -97,12 +78,14 @@ def main():
     parser.add_argument("--no-spot", action="store_true", help="Disable spot instances")
     parser.add_argument("--copies", type=int, default=1, help="Number of identical job copies to launch")
     parser.add_argument(
+        "-hb",
         "--heartbeat-timeout-seconds",
         type=int,
-        default=600,
+        default=300,
         help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
     )
     parser.add_argument(
+        "-t",
         "--max-runtime-hours",
         type=float,
         default=None,
@@ -113,6 +96,10 @@ def main():
     parser.add_argument(
         "--github-pat", type=str, default=None, help="GitHub PAT token for posting status updates (repo scope)"
     )
+    parser.add_argument(
+        "--discord-webhook-url", type=str, default=None, help="Discord webhook URL for status update channel"
+    )
+
     (args, cmd_args) = parser.parse_known_args(filtered_args)
 
     if run_id is None:
@@ -153,6 +140,8 @@ def main():
         METTA_GIT_REF=commit_hash,
         HEARTBEAT_TIMEOUT=args.heartbeat_timeout_seconds,
         GITHUB_PAT=args.github_pat,
+        MAX_RUNTIME_HOURS=args.max_runtime_hours,
+        DISCORD_WEBHOOK_URL=args.discord_webhook_url,
     )
 
     env_updates = {k: v for k, v in env_updates.items() if v is not None}
@@ -166,7 +155,6 @@ def main():
         gpus=args.gpus,
         nodes=args.nodes,
         no_spot=args.no_spot,
-        timeout_hours=args.max_runtime_hours,
     )
     set_task_secrets(task)
 
