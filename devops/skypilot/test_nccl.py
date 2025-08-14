@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 """
 NCCL Diagnostics and Testing Module
 
@@ -6,6 +8,7 @@ This module provides comprehensive GPU/CUDA/NCCL diagnostics and testing capabil
 for distributed PyTorch training environments.
 """
 
+import datetime
 import logging
 import os
 import subprocess
@@ -393,7 +396,7 @@ def test_nccl_communication() -> bool:
 
         # Initialize process group
         logger.info("Initializing process group...")
-        dist.init_process_group(backend="nccl")
+        dist.init_process_group(backend="nccl", timeout=datetime.timedelta(seconds=300))
 
         rank = dist.get_rank()
         world_size = dist.get_world_size()
@@ -430,13 +433,6 @@ def test_nccl_communication() -> bool:
     except Exception as e:
         logger.error(f"NCCL test failed: {e}", exc_info=True)
         return False
-    finally:
-        # Ensure we don't leak communicators on failures too
-        try:
-            if dist.is_available() and dist.is_initialized():
-                dist.destroy_process_group()
-        except Exception:
-            pass
 
 
 def test_single_gpu() -> bool:
@@ -517,6 +513,19 @@ def launch_distributed_test() -> int:
         return e.returncode
 
 
+def extract_ip_from_interface(interface_info: str) -> str:
+    """Extract IP address from interface info string."""
+    try:
+        if "inet" in interface_info:
+            parts = interface_info.split()
+            for i, part in enumerate(parts):
+                if part == "inet" and i + 1 < len(parts):
+                    return parts[i + 1].split("/")[0]
+    except Exception:
+        pass
+    return "unknown"
+
+
 def main():
     """Main function to run all diagnostics and tests."""
     # Check if we're a distributed worker
@@ -530,27 +539,31 @@ def main():
             return launch_distributed_test()
 
     # Determine our position in the cluster
-    node_index = int(os.environ.get("NODE_INDEX", os.environ.get("NODE_RANK", 0)))
+    # Standardize on NODE_INDEX (your launch script seems to use this)
+    node_index = int(os.environ.get("NODE_INDEX", 0))
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     rank = int(os.environ.get("RANK", 0))
     world_size = int(os.environ.get("WORLD_SIZE", 1))
     num_nodes = int(os.environ.get("NUM_NODES", 1))
+    num_gpus_per_node = int(os.environ.get("NUM_GPUS", 1))
 
     # Define our roles
     IS_GPU0 = local_rank == 0
     IS_MASTER = (node_index == 0) and IS_GPU0  # Master is GPU 0 of node 0
 
-    # In single-node/single-GPU setup, we're always master and GPU0
-    if num_nodes == 1 and world_size == 1:
-        IS_GPU0 = True
-        IS_MASTER = True
+    # Check if we're in a distributed environment
+    is_distributed = (num_nodes > 1) or (num_gpus_per_node > 1) or (world_size > 1)
+
+    if is_distributed and IS_GPU0:
+        # Quick node status line
+        print(f"[Node {node_index}] Initialized - {num_gpus_per_node} GPUs detected")
 
     # Print header (master only)
     if IS_MASTER:
         print("\n" + "═" * 75)
         print("                      NCCL DIAGNOSTICS AND TESTING")
-        if world_size > 1:
-            print(f"                    Running on {world_size} total ranks")
+        if is_distributed:
+            print(f"                    Nodes: {num_nodes}, GPUs/node: {num_gpus_per_node}, Total: {world_size}")
         print("═" * 75)
 
     # Collect system diagnostics
@@ -568,8 +581,10 @@ def main():
 
     # Node-specific system diagnostics (GPU 0 of each node only)
     if IS_GPU0:
+        # Get this node's IP
+        node_ip = extract_ip_from_interface(system_diagnostics["system"].get("NETWORK_INTERFACE", ""))
         print()
-        print_box_header(f"NODE {node_index} SYSTEM DIAGNOSTICS", include_rank=False)
+        print_box_header(f"NODE {node_index} SYSTEM DIAGNOSTICS (IP: {node_ip})", include_rank=False)
         sys_info = system_diagnostics["system"]
         print(f"  ULIMIT          : {sys_info['ULIMIT']}")
         print(f"  SHM_MOUNT       : {sys_info['SHM_MOUNT']}")
@@ -658,14 +673,22 @@ def main():
         logger.info("Not in distributed environment, skipping NCCL communication test")
         test_results.append(("NCCL Communication Test", "⚠ SKIPPED (Not distributed)"))
 
+    all_ranks_passed = all_passed  # default for non-distributed
+
     # Synchronize results if distributed
-    if "RANK" in os.environ and world_size > 1 and dist.is_initialized():
-        # Gather results from all ranks
-        all_passed_tensor = torch.tensor([1.0 if all_passed else 0.0]).cuda()
-        dist.all_reduce(all_passed_tensor)
-        all_ranks_passed = all_passed_tensor.item() == float(world_size)
-    else:
-        all_ranks_passed = all_passed
+    if is_distributed and "RANK" in os.environ:
+        if dist.is_initialized():
+            dist.barrier()
+        # Check if we're still initialized (test might have destroyed it)
+        if dist.is_initialized():
+            # Gather results from all ranks
+            all_passed_tensor = torch.tensor([1.0 if all_passed else 0.0]).cuda()
+            dist.all_reduce(all_passed_tensor)
+            all_ranks_passed = all_passed_tensor.item() == float(world_size)
+        else:
+            # If process group was destroyed, we can't aggregate
+            # In this case, we just report our local status
+            logger.warning("Process group not initialized for result aggregation")
 
     # Summary - only from master
     if IS_MASTER:
@@ -675,7 +698,7 @@ def main():
         for test_name, result in test_results:
             print(f"  {test_name:<30} : {result}")
 
-        if world_size > 1:
+        if is_distributed:
             print(f"\n  Overall: {'✓ All ranks passed' if all_ranks_passed else '✗ Some ranks failed'}")
 
         print("\n" + "═" * 75)
@@ -685,7 +708,33 @@ def main():
             print("                    ✗ SOME TESTS FAILED ✗")
         print("═" * 75 + "\n")
 
-    return 0 if all_passed else 1
+    return_code = 0 if all_passed else 1
+
+    # Add after tests, before destroying process group
+    if is_distributed and dist.is_initialized() and not all_ranks_passed:
+        # Collect error details from failed ranks only
+        if not all_passed:
+            error_info = f"Rank {rank} (Node {node_index}, GPU {local_rank}): "
+            error_info += ", ".join([f"{name} {result}" for name, result in test_results if "FAILED" in result])
+        else:
+            error_info = None
+
+        if world_size <= 8:  # Only for small clusters
+            error_list = [None] * world_size
+            dist.all_gather_object(error_list, error_info)
+
+            if IS_MASTER:
+                errors = [err for err in error_list if err]  # Filter out None values
+                if errors:
+                    print("\n  Error Summary:")
+                    for err in errors:
+                        print(f"    {err}")
+
+    # Clean up process group last
+    if dist.is_initialized():
+        dist.destroy_process_group()
+
+    return return_code
 
 
 if __name__ == "__main__":
