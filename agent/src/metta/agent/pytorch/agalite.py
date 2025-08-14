@@ -340,3 +340,33 @@ class Agalite(nn.Module):
         """Clip weights to prevent large updates."""
         for p in self.parameters():
             p.data.clamp_(-1, 1)
+
+    # PufferLib compatibility methods
+    def forward_eval(self, observations: torch.Tensor, state=None):
+        """Forward function for inference (PufferLib compatibility)."""
+        # Create a TensorDict for the forward pass
+        batch_size = observations.shape[0]
+        td = TensorDict(
+            {
+                "env_obs": observations,
+                "terminations": torch.zeros(batch_size, device=observations.device),
+            },
+            batch_size=batch_size,
+        )
+
+        # Run forward pass
+        output_td = self.forward(td, state)
+
+        # Extract logits and values for PufferLib
+        if "full_log_probs" in output_td:
+            logits = output_td["full_log_probs"]
+        else:
+            logits = output_td.get("actions", torch.zeros(batch_size, 2))
+
+        values = output_td.get("values", output_td.get("value", torch.zeros(batch_size)))
+
+        return logits, values
+
+    def forward_train(self, observations: torch.Tensor, state=None):
+        """Forward function for training (PufferLib compatibility)."""
+        return self.forward_eval(observations, state)
