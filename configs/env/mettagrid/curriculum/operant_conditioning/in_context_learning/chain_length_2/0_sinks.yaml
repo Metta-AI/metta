@@ -1,5 +1,5 @@
 
-_target_: metta.mettagrid..random.Random
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
   /env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/0_sinks/ore_blue: 1
