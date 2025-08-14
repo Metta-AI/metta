@@ -2,6 +2,9 @@
 
 # Dual-Policy Training Recipe with Checkpoint NPC - Cloud Version
 # This recipe trains a new policy against an old policy checkpoint from WandB on cloud infrastructure
+#
+# Dual policy stats are now properly aggregated across all distributed nodes before logging to wandb,
+# so multi-node training (default: 8 nodes) will correctly report all dual policy rewards.
 
 set -e
 

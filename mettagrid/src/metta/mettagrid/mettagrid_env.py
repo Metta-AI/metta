@@ -15,6 +15,7 @@ import uuid
 from typing import Any, Dict, List, Mapping, Optional, Tuple, cast
 
 import numpy as np
+import torch
 from gymnasium import spaces
 from omegaconf import OmegaConf
 from pydantic import validate_call
@@ -81,6 +82,12 @@ class MettaGridEnv(MettaGridPufferBase):
         self._dual_policy_enabled: bool = bool(kwargs.pop("dual_policy_enabled", False))
         self._dual_policy_training_agents_pct: float = float(kwargs.pop("dual_policy_training_agents_pct", 0.5))
         self._dual_policy_agent_groups: Optional[list[list[int]]] = None
+
+        # Log dual policy configuration for debugging
+        if self._dual_policy_enabled:
+            print(
+                f"[MettaGridEnv] Dual policy ENABLED with training_agents_pct={self._dual_policy_training_agents_pct}"
+            )
 
         # Initialize with base PufferLib functionality
         super().__init__(
@@ -207,9 +214,56 @@ class MettaGridEnv(MettaGridPufferBase):
             npc_ids = list(range(num_trained, num_agents))
             # First group is NPC in logging; keep consistency with logging block
             self._dual_policy_agent_groups = [npc_ids, trained_ids]
+            print(
+                f"[MettaGridEnv] Dual policy groups set: NPC={len(npc_ids)} agents, Trained={len(trained_ids)} agents"
+            )
 
         self.timer.start("thread_idle")
         return observations, info
+
+    def _compute_dual_policy_stats(self) -> dict:
+        """Compute dual policy stats for current step (not just episode end)."""
+        stats = {}
+        if not self._dual_policy_enabled or self._c_env_instance is None:
+            return stats
+
+        # Get agent groups
+        agent_groups = self._get_agent_groups()
+        if (not agent_groups or len(agent_groups) < 2) and getattr(self, "_dual_policy_agent_groups", None):
+            agent_groups = self._dual_policy_agent_groups or []
+
+        if len(agent_groups) >= 2:
+            npc_group = agent_groups[0]
+            trained_group = agent_groups[1]
+
+            # Get rewards (use episode rewards as proxy for per-step tracking)
+            try:
+                # Use cumulative episode rewards divided by steps as a proxy for step rewards
+                step_rewards = self._c_env_instance.get_episode_rewards()
+                if self._steps > 0:
+                    # Average reward per step so far
+                    step_rewards = step_rewards / max(1, self._steps)
+            except Exception as e:
+                # If we can't get rewards, just return empty stats
+                print(f"[MettaGridEnv] Warning: Could not get rewards for dual policy stats: {e}")
+                return stats
+
+            if step_rewards is not None and len(step_rewards) > 0:
+                # NPC group stats
+                npc_rewards = step_rewards[npc_group] if len(npc_group) > 0 else torch.zeros(1)
+                stats["dual_policy/npc/step_reward_mean"] = npc_rewards.mean().item()
+                stats["dual_policy/npc/step_reward_sum"] = npc_rewards.sum().item()
+
+                # Trained policy group stats
+                trained_rewards = step_rewards[trained_group] if len(trained_group) > 0 else torch.zeros(1)
+                stats["dual_policy/trained/step_reward_mean"] = trained_rewards.mean().item()
+                stats["dual_policy/trained/step_reward_sum"] = trained_rewards.sum().item()
+
+                # Combined stats
+                stats["dual_policy/combined/step_reward_mean"] = step_rewards.mean().item()
+                stats["dual_policy/combined/step_reward_sum"] = step_rewards.sum().item()
+
+        return stats
 
     @override
     @with_instance_timer("step")
@@ -241,6 +295,10 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Check for episode completion (use shared PufferEnv buffers)
         infos = {}
+
+        # Add dual policy stats for every step (not just episode completion)
+        dual_policy_step_stats = self._compute_dual_policy_stats()
+        infos.update(dual_policy_step_stats)
 
         if self.terminals.all() or self.truncations.all():
             self._process_episode_completion(infos)

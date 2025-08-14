@@ -27,6 +27,7 @@ from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
+from metta.rl.distributed_stats import aggregate_dual_policy_stats
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -117,6 +118,12 @@ def train(
         trainer_cfg.num_workers,
         trainer_cfg.async_factor,
     )
+
+    # Log dual policy configuration
+    if trainer_cfg.dual_policy.enabled:
+        logger.info(f"DUAL POLICY ENABLED: training_agents_pct={trainer_cfg.dual_policy.training_agents_pct}")
+        if trainer_cfg.dual_policy.checkpoint_npc and trainer_cfg.dual_policy.checkpoint_npc.uri:
+            logger.info(f"NPC checkpoint URI: {trainer_cfg.dual_policy.checkpoint_npc.uri}")
 
     # Create vectorized environment
     vecenv = make_vecenv(
@@ -340,12 +347,14 @@ def train(
                         npc_mask_per_env[:npc_count] = True
                     # let env know grouping for logging (indices are per single env)
                     try:
-                        metta_grid_env._dual_policy_agent_groups = [
-                            torch.nonzero(npc_mask_per_env, as_tuple=False).flatten().tolist(),
-                            torch.nonzero(~npc_mask_per_env, as_tuple=False).flatten().tolist(),
-                        ]
-                    except Exception:
-                        pass
+                        npc_agents = torch.nonzero(npc_mask_per_env, as_tuple=False).flatten().tolist()
+                        trained_agents = torch.nonzero(~npc_mask_per_env, as_tuple=False).flatten().tolist()
+                        metta_grid_env._dual_policy_agent_groups = [npc_agents, trained_agents]
+                        if is_master:
+                            logger.info(f"Dual policy groups: NPC={len(npc_agents)}, Trained={len(trained_agents)}")
+                    except Exception as e:
+                        if is_master:
+                            logger.warning(f"Failed to set dual policy groups: {e}")
 
                 while not experience.ready_for_training:
                     # Get observation
@@ -414,6 +423,10 @@ def train(
 
                 agent_step += total_steps * world_size
             accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
+
+            # Aggregate dual_policy stats across all distributed nodes
+            if trainer_cfg.dual_policy.enabled and torch.distributed.is_initialized():
+                aggregate_dual_policy_stats(stats_tracker.rollout_stats, device)
 
             # ---- TRAINING PHASE ----
             with timer("_train"):
