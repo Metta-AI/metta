@@ -1,7 +1,7 @@
 """ColorTree curriculum with random target sequences per episode."""
 
 import random
-from itertools import permutations
+from itertools import permutations, product
 from typing import Dict
 
 from omegaconf import DictConfig
@@ -14,6 +14,11 @@ def generate_sequence_pool(num_colors: int, sequence_length: int = 4) -> list[li
     """Generate a diverse pool of sequences for the given number of colors."""
     pool = []
     colors = list(range(num_colors))
+
+    # 0. Ensure full coverage: include all possible sequences of given length
+    # This guarantees agents can encounter any target the action can represent
+    all_sequences = [list(seq) for seq in product(colors, repeat=sequence_length)]
+    pool.extend(all_sequences)
 
     # 1. All same patterns (simple baseline)
     for color in colors:
