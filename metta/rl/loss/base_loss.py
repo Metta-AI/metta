@@ -112,27 +112,3 @@ class BaseLoss(ABC):
         override to request specific keys (e.g., ["policy_loss", "value_loss"]).
         """
         return []
-
-    # helper method for losses that wish to detach grads from tensors at various components in the policy
-    # av delete this
-    # def find_components_recursively(self, leaf: str, target: str) -> list[str]:
-    #     """Recursively walk the MettaAgent and find the component names between a single leaf and a single target
-    #     component. It includes the leaf but not the target in the list.
-    #     Run this function for each leaf and target pair if necessary."""
-
-    #     def _check_component_name(node: str, target: str, keys: list[str]) -> None:
-    #         sources = getattr(self.policy.components[node], "_sources", None)
-    #         if sources is None:
-    #             return
-    #         for source in sources:
-    #             if source["name"] != target:
-    #                 keys.append(source["name"])
-    #                 _check_component_name(source["name"], target, keys)
-    #             else:
-    #                 keys.append(target)
-    #                 return
-
-    #     keys = []
-    #     _check_component_name(leaf, target, keys)
-
-    #     return keys

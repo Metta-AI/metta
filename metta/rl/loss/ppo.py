@@ -87,10 +87,10 @@ class PPO(BaseLoss):
 
         # On first minibatch of the update epoch, compute advantages and sampling params
         if trainer_state.mb_idx == 0:
-            self.advantages, self.anneal_beta = self.first_mb(trainer_state)
+            self.advantages, self.anneal_beta = self.on_first_mb(trainer_state)
 
         # Sample minibatch
-        minibatch, indices, prio_weights = self.policy.replay.sample_minibatch(
+        minibatch, indices, prio_weights = self.sample_minibatch(
             advantages=self.advantages,
             prio_alpha=self.policy_cfg.losses.PPO.prioritized_experience_replay.prio_alpha,
             prio_beta=self.anneal_beta,
@@ -128,7 +128,11 @@ class PPO(BaseLoss):
 
         return loss, shared_loss_data
 
-    def first_mb(self, trainer_state: TrainerState) -> tuple[Tensor, float]:
+    def on_first_mb(self, trainer_state: TrainerState) -> tuple[Tensor, float]:
+        # reset importance sampling ratio
+        if "ratio" in self.policy.replay.buffer.keys():
+            self.policy.replay.buffer["ratio"].fill_(1.0)
+
         anneal_beta = calculate_prioritized_sampling_params(
             epoch=trainer_state.epoch,
             total_timesteps=self.trainer_cfg.total_timesteps,
@@ -267,3 +271,25 @@ class PPO(BaseLoss):
             clipfrac = ((importance_sampling_ratio - 1.0).abs() > self.policy_cfg.losses.PPO.clip_coef).float().mean()
 
         return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac
+
+    def sample_minibatch(
+        self,
+        advantages: Tensor,
+        prio_alpha: float,
+        prio_beta: float,
+    ) -> tuple[TensorDict, Tensor, Tensor]:
+        """Sample a prioritized minibatch."""
+        # Prioritized sampling based on advantage magnitude
+        adv_magnitude = advantages.abs().sum(dim=1)
+        prio_weights = torch.nan_to_num(adv_magnitude**prio_alpha, 0, 0, 0)
+        prio_probs = (prio_weights + 1e-6) / (prio_weights.sum() + 1e-6)
+
+        # Sample segment indices
+        idx = torch.multinomial(prio_probs, self.policy.replay.minibatch_segments)
+
+        minibatch = self.policy.replay.buffer[idx].clone()
+
+        minibatch["advantages"] = advantages[idx]
+        minibatch["returns"] = advantages[idx] + minibatch["values"]
+        prio_weights = (self.policy.replay.segments * prio_probs[idx, None]) ** -prio_beta
+        return minibatch, idx, prio_weights

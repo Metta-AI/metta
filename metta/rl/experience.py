@@ -143,38 +143,12 @@ class Experience:
         self.ep_indices = self._range_tensor % self.segments
         self.ep_lengths.zero_()
 
-    def reset_importance_sampling_ratios(self) -> None:
-        """Reset the importance sampling ratio to 1.0."""
-        if "ratio" in self.buffer.keys():
-            self.buffer["ratio"].fill_(1.0)
-
-    def sample_minibatch(
-        self,
-        advantages: Tensor,
-        prio_alpha: float,
-        prio_beta: float,
-    ) -> tuple[TensorDict, Tensor, Tensor]:
-        """Sample a prioritized minibatch."""
-        # Prioritized sampling based on advantage magnitude
-        adv_magnitude = advantages.abs().sum(dim=1)
-        prio_weights = torch.nan_to_num(adv_magnitude**prio_alpha, 0, 0, 0)
-        prio_probs = (prio_weights + 1e-6) / (prio_weights.sum() + 1e-6)
-
-        # Sample segment indices
-        idx = torch.multinomial(prio_probs, self.minibatch_segments)
-
-        minibatch = self.buffer[idx].clone()
-
-        minibatch["advantages"] = advantages[idx]
-        minibatch["returns"] = advantages[idx] + minibatch["values"]
-        prio_weights = (self.segments * prio_probs[idx, None]) ** -prio_beta
-        return minibatch, idx, prio_weights
-
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
         """Update buffer with new data for given indices."""
         self.buffer[indices].update(data_td)
 
     def stats(self) -> Dict[str, float]:
+        # av: ideally these keys wouldn't be hardcoded
         """Get mean values of all tracked buffers."""
         stats = {
             "rewards": self.buffer["rewards"].mean().item(),

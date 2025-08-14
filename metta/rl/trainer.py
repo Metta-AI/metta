@@ -366,15 +366,12 @@ def train(
 
             # ---- TRAINING PHASE ----
             with timer("_train"):
-                # Inline PPO training
                 loss_tracker.zero()
-                experience.reset_importance_sampling_ratios()
+                shared_loss_mb_data.zero_()
 
                 # Train for multiple epochs
                 minibatch_idx = 0
                 epochs_trained = 0
-
-                shared_loss_mb_data.zero_()
 
                 for _update_epoch in range(trainer_cfg.update_epochs):
                     # av the line below can be simplified
