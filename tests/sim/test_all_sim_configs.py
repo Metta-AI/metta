@@ -26,6 +26,11 @@ def get_all_sim_configs() -> list[str]:
 @pytest.mark.slow
 @pytest.mark.parametrize("sim_config", get_all_sim_configs())
 def test_all_sim_configs_valid(sim_config: str):
+    # Register arithmetic resolvers needed by configs
+
+    if not OmegaConf.has_resolver("div"):
+        OmegaConf.register_new_resolver("div", lambda x, y: int(x) // int(y))
+
     config_dir = get_repo_root() / "configs"
 
     GlobalHydra.instance().clear()

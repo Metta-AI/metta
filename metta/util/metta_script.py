@@ -141,6 +141,13 @@ def hydraless_metta_script(main: Callable[[], int | None]) -> None:
     caller_globals = caller_frame.f_globals
     if caller_globals.get("__name__") != "__main__":
         return
+
+    # Register basic arithmetic resolvers
+    from omegaconf import OmegaConf
+
+    if not OmegaConf.has_resolver("div"):
+        OmegaConf.register_new_resolver("div", lambda x, y: int(x) // int(y))
+
     # Exit on ctrl+c
     signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
