@@ -38,9 +38,42 @@ const FRAGMENT_SHADER_SOURCE = `
   }
 `
 
+// Font atlas metadata types
+interface FontGlyph {
+  rect: [number, number, number, number] | null
+  advance: number
+  bearingX: number
+  bearingY: number
+}
+
+interface FontKerningRow {
+  [rightLabel: string]: number
+}
+
+interface FontMeta {
+  ascent: number
+  descent: number
+  lineHeight: number
+  glyphs: { [label: string]: FontGlyph }
+  kerning: { [leftLabel: string]: FontKerningRow }
+}
+
+interface FontConfig {
+  FONT_ID?: string
+  FONT_PATH?: string
+  FONT_SIZE?: number
+  FONT_CHARSET?: string
+  GLYPH_INNER_PADDING?: number
+  [key: string]: unknown
+}
+
 /** Type definition for atlas data. */
 interface AtlasData {
-  [key: string]: [number, number, number, number] // [x, y, width, height]
+  // Image name to rect mapping (e.g., 'white.png': [x, y, w, h])
+  [key: string]: unknown
+  fonts?: { [fontId: string]: FontMeta }
+  fontConfig?: FontConfig
+  fontConfigHash?: string
 }
 
 /** Clamp a value between a minimum and maximum. */
@@ -307,7 +340,7 @@ export class Context3d {
       if (!res.ok) {
         throw new Error(`Failed to fetch atlas: ${res.statusText}`)
       }
-      return await res.json()
+      return (await res.json()) as AtlasData
     } catch (err) {
       console.error(`Error loading atlas ${url}:`, err)
       return null
@@ -408,7 +441,7 @@ export class Context3d {
 
   /** Check if the image is in the atlas. */
   hasImage(imageName: string): boolean {
-    return this.atlasData?.[imageName] !== undefined
+    return (this.atlasData as any)?.[imageName] !== undefined
   }
 
   /** Draws an image from the atlas with its top-right corner at (x, y). */
@@ -419,12 +452,13 @@ export class Context3d {
 
     this.ensureMeshSelected()
 
-    if (!this.atlasData?.[imageName]) {
+    const rect = (this.atlasData as any)?.[imageName] as [number, number, number, number] | undefined
+    if (!rect) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
     }
 
-    const [sx, sy, sw, sh] = this.atlasData[imageName]
+    const [sx, sy, sw, sh] = rect
     const m = this.atlasMargin
 
     // Calculate UV coordinates (normalized 0.0 to 1.0).
@@ -437,10 +471,10 @@ export class Context3d {
     // Draw the rectangle with the image's texture coordinates.
     // Adjust both UVs and vertex positions by the margin.
     this.drawRect(
-      x - m, // Adjust x position by adding margin (from the right).
-      y - m, // Adjust y position by adding margin.
-      sw + 2 * m, // Reduce width by twice the margin (left and right).
-      sh + 2 * m, // Reduce height by twice the margin (top and bottom).
+      x - m,
+      y - m,
+      sw + 2 * m,
+      sh + 2 * m,
       u0,
       v0,
       u1,
@@ -458,19 +492,6 @@ export class Context3d {
    * @param color - RGBA color multiplier [r, g, b, a] where each component is 0.0-1.0
    * @param scale - Uniform scale (number) or non-uniform scale [scaleX, scaleY]
    * @param rotation - Rotation angle in radians (positive = clockwise)
-   *
-   * @example
-   * // Draw at original size
-   * ctx.drawSprite('player.png', 100, 200)
-   *
-   * // Draw with uniform scale
-   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 2)
-   *
-   * // Draw mirrored horizontally
-   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], [-1, 1])
-   *
-   * // Draw with rotation (45 degrees)
-   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 1, Math.PI / 4)
    */
   drawSprite(
     imageName: string,
@@ -486,12 +507,13 @@ export class Context3d {
 
     this.ensureMeshSelected()
 
-    if (!this.atlasData?.[imageName]) {
+    const rect = (this.atlasData as any)?.[imageName] as [number, number, number, number] | undefined
+    if (!rect) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
     }
 
-    const [sx, sy, sw, sh] = this.atlasData[imageName]
+    const [sx, sy, sw, sh] = rect
     const m = this.atlasMargin
 
     // Calculate UV coordinates for the sprite in the texture atlas.
@@ -547,12 +569,13 @@ export class Context3d {
     this.ensureMeshSelected()
 
     const imageName = 'white.png'
-    if (!this.atlasData?.[imageName]) {
+    const rect = (this.atlasData as any)?.[imageName] as [number, number, number, number] | undefined
+    if (!rect) {
       throw new Error(`Image "${imageName}" not found in atlas`)
     }
 
     // Get the middle of the white texture.
-    const [sx, sy, sw, sh] = this.atlasData[imageName]
+    const [sx, sy, sw, sh] = rect
     const uvx = (sx + sw / 2) / this.textureSize.x()
     const uvy = (sy + sh / 2) / this.textureSize.y()
     this.drawRect(x, y, width, height, uvx, uvy, uvx, uvy, color)
@@ -569,6 +592,139 @@ export class Context3d {
     this.drawSolidRect(x, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color)
     // Right border.
     this.drawSolidRect(x + width - strokeWidth, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color)
+  }
+
+  /**
+   * Draw text using sprites from the atlas.
+   *
+   * x,y specify the baseline origin of the first line (top-left origin screen coordinates).
+   * fonts are generated by gen_atlas.py.
+   */
+  drawText(
+    fontId: string,
+    text: string,
+    x: number,
+    y: number,
+    color: number[] = [1, 1, 1, 1],
+  ) {
+    if (!this.ready) {
+      throw new Error('Drawer not initialized')
+    }
+    this.ensureMeshSelected()
+
+    const fonts = this.atlasData?.fonts
+    if (!fonts) {
+      console.error('No fonts metadata found in atlas')
+      return
+    }
+    const font = fonts[fontId]
+    if (!font) {
+      console.error(`Font "${fontId}" not found in atlas`)
+      return
+    }
+
+    // Frontend renders at atlas size; use atlas-configured inner padding for bearings offset.
+    const glyphInnerPadding = (this.atlasData?.fontConfig?.GLYPH_INNER_PADDING as number) || 2
+    const mBase = this.atlasMargin
+
+    let penX = x
+    let penY = y
+    let prevLabel: string | null = null
+
+    const toLabel = (cp: number): string => `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`
+
+    for (const ch of text) {
+      if (ch === '\n') {
+        penX = x
+        penY += font.lineHeight
+        prevLabel = null
+        continue
+      }
+
+      const cp = ch.codePointAt(0)!
+      const label = toLabel(cp)
+      const glyph = font.glyphs[label]
+
+      // Kerning adjustment from previous glyph (already in pixels at atlas size)
+      if (prevLabel) {
+        const row = font.kerning[prevLabel]
+        if (row) {
+          const adjust = row[label]
+          if (adjust) {
+            penX += adjust
+          }
+        }
+      }
+
+      if (glyph && glyph.rect) {
+        const [sx, sy, sw, sh] = glyph.rect
+        const m = mBase
+        const u0 = (sx - mBase) / this.textureSize.x()
+        const v0 = (sy - mBase) / this.textureSize.y()
+        const u1 = (sx + sw + mBase) / this.textureSize.x()
+        const v1 = (sy + sh + mBase) / this.textureSize.y()
+
+        // Position the glyph image so that its baseline aligns at (penX, penY)
+        const drawX = penX + glyph.bearingX - glyphInnerPadding - m
+        const drawY = penY + glyph.bearingY - glyphInnerPadding - m
+        const drawW = sw + 2 * m
+        const drawH = sh + 2 * m
+
+        this.drawRect(drawX, drawY, drawW, drawH, u0, v0, u1, v1, color)
+      }
+
+      // Advance pen position (already in pixels at atlas size)
+      const adv = glyph ? glyph.advance : 0
+      penX += adv
+      prevLabel = label
+    }
+  }
+
+  /** Measure text width and height for layout. Height accounts for newlines. */
+  measureText(fontId: string, text: string): { width: number; height: number } {
+    const fonts = this.atlasData?.fonts
+    if (!fonts) {
+      return { width: 0, height: 0 }
+    }
+    const font = fonts[fontId]
+    if (!font) {
+      return { width: 0, height: 0 }
+    }
+
+    const toLabel = (cp: number): string => `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`
+
+    let maxWidth = 0
+    let lineWidth = 0
+    let prevLabel: string | null = null
+    let lines = 1
+
+    for (const ch of text) {
+      if (ch === '\n') {
+        if (lineWidth > maxWidth) maxWidth = lineWidth
+        lineWidth = 0
+        prevLabel = null
+        lines += 1
+        continue
+      }
+      const cp = ch.codePointAt(0)!
+      const label = toLabel(cp)
+      // kerning
+      if (prevLabel) {
+        const row = font.kerning[prevLabel]
+        if (row) {
+          const adjust = row[label]
+          if (adjust) lineWidth += adjust
+        }
+      }
+      const glyph = font.glyphs[label]
+      const adv = glyph ? glyph.advance : 0
+      lineWidth += adv
+      prevLabel = label
+    }
+    if (lineWidth > maxWidth) maxWidth = lineWidth
+
+    const height = lines * font.lineHeight
+    return { width: maxWidth, height }
   }
 
   /** Flushes all non-empty meshes to the screen. */

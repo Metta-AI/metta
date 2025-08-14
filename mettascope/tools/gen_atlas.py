@@ -27,7 +27,7 @@ heights = [0] * atlas_image.width
 padding = 64
 FONT_ID = "plexSans"
 FONT_PATH = "data/fonts/IBMPlexSans-Regular.ttf"
-FONT_SIZE = 128
+FONT_SIZE = 64
 FONT_CHARSET = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 GLYPH_INNER_PADDING = 2
 
@@ -222,7 +222,7 @@ def generate_font_glyphs():
             print(f"Added {name} to atlas")
             added_count += 1
 
-        advance = float(typeface.get_advance(cp))
+        advance = float(typeface.get_advance(cp)) * scale
         glyphs[char_label(cp)] = {
             "rect": rect,
             "advance": advance,
@@ -237,7 +237,7 @@ def generate_font_glyphs():
         left_label = char_label(left)
         row = None
         for right in present_cps:
-            adjust = float(typeface.get_kerning_adjustment(left, right))
+            adjust = float(typeface.get_kerning_adjustment(left, right)) * scale
             if adjust != 0.0:
                 if row is None:
                     row = {}
