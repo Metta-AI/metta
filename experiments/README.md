@@ -136,3 +136,44 @@ This approach:
 - ✅ Maintains clean separation between infrastructure and training configs
 - ✅ Enables reproducible experiments with versioned configs
 
+## Service Architecture for Interactive Analysis
+
+The `SkypilotService` and `WandbService` classes are designed as service layers that will enable rich interactive analysis and monitoring:
+
+### Current Capabilities
+- Query job status and metadata from Skypilot
+- Retrieve wandb run information and metrics
+- Track launched experiments and their configurations
+- Validate and preflight check configurations
+
+### Future Integration Points
+These services are architected to support interactive notebooks and dashboards:
+
+- **Jupyter/Marimo notebooks**: Query training status, visualize metrics, compare runs
+- **Plotly dashboards**: Real-time training monitoring with interactive plots  
+- **Streamlit apps**: Custom experiment management interfaces
+- **Automated reporting**: Generate training reports and summaries
+
+The service pattern provides a clean API boundary between the experiment framework and visualization/analysis tools. This makes it easy to build rich interactive experiences on top of the training infrastructure, such as:
+
+```python
+# Future notebook usage example
+from experiments.wandb_service import get_wandb_service
+from experiments.skypilot_service import get_skypilot_service
+
+# Query running experiments
+sky_service = get_skypilot_service()
+jobs = sky_service.get_running_jobs()
+
+# Get metrics for analysis
+wandb_service = get_wandb_service()
+metrics = wandb_service.get_run_metrics(run_id)
+
+# Visualize in interactive dashboard
+import plotly.express as px
+fig = px.line(metrics, x='step', y='reward')
+fig.show()
+```
+
+This design enables researchers to build custom analysis workflows while the core experiment framework handles the complexity of distributed training infrastructure.
+
