@@ -164,7 +164,6 @@ class MettaAgent(nn.Module):
         # New policies expect (td, state, action)
         return self.policy(td, state, action)
 
-
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
