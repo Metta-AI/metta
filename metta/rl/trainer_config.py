@@ -1,6 +1,5 @@
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, List, Literal, Optional
 
-from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
@@ -8,6 +7,7 @@ from metta.common.util.config import Config
 from metta.mettagrid.config.builder import make_arena
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
+from metta.sim.simulation_config import SimulationConfig
 
 
 class OptimizerConfig(Config):
@@ -62,17 +62,20 @@ class CheckpointConfig(Config):
         return self
 
 
-class SimulationConfig(Config):
+class EvaluationConfig(Config):
+    simulations: List[SimulationConfig] = Field(default_factory=list)
+    replay_dir: str = Field(default="./train_dir/replays/")
+
     # Interval at which to evaluate and generate replays: Type 2 arbitrary default
     evaluate_interval: int = Field(default=50, ge=0)  # 0 to disable
-    replay_dir: str = Field(default="./train_dir/replays/")
     evaluate_remote: bool = Field(default=True)
     evaluate_local: bool = Field(default=True)
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
+    num_training_tasks: int = Field(default=1)
 
     @model_validator(mode="after")
-    def validate_fields(self) -> "SimulationConfig":
+    def validate_fields(self) -> "EvaluationConfig":
         assert self.replay_dir, "replay_dir must be set"
         return self
 
@@ -199,7 +202,7 @@ class TrainerConfig(Config):
     checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig)
 
     # Simulation configuration
-    simulation: SimulationConfig = Field(default_factory=SimulationConfig)
+    evaluation: Optional[EvaluationConfig] = Field(default=EvaluationConfig())
 
     # Grad mean variance logging
     # Disabled by default: Expensive diagnostic for debugging training instability
@@ -222,22 +225,18 @@ class TrainerConfig(Config):
             raise ValueError("curriculum or env must be set")
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
-        if (
-            self.simulation.evaluate_interval != 0
-            and self.simulation.evaluate_interval < self.checkpoint.checkpoint_interval
-        ):
-            raise ValueError(
-                f"evaluate_interval must be at least as large as checkpoint_interval "
-                f"({self.simulation.evaluate_interval} < {self.checkpoint.checkpoint_interval})"
-            )
-        if (
-            self.simulation.evaluate_interval != 0
-            and self.simulation.evaluate_interval < self.checkpoint.wandb_checkpoint_interval
-        ):
-            raise ValueError(
-                f"evaluate_interval must be at least as large as wandb_checkpoint_interval "
-                f"({self.simulation.evaluate_interval} < {self.checkpoint.wandb_checkpoint_interval})"
-            )
+        if self.evaluation and self.evaluation.evaluate_interval != 0:
+            if self.evaluation.evaluate_interval < self.checkpoint.checkpoint_interval:
+                raise ValueError(
+                    f"evaluate_interval must be at least as large as checkpoint_interval "
+                    f"({self.evaluation.evaluate_interval} < {self.checkpoint.checkpoint_interval})"
+                )
+            if self.evaluation.evaluate_interval < self.checkpoint.wandb_checkpoint_interval:
+                raise ValueError(
+                    f"evaluate_interval must be at least as large as wandb_checkpoint_interval "
+                    f"({self.evaluation.evaluate_interval} < {self.checkpoint.wandb_checkpoint_interval})"
+                )
+
         # Validate that we save policies locally at least as often as we upload to wandb
         if (
             self.checkpoint.wandb_checkpoint_interval != 0
@@ -259,43 +258,3 @@ class TrainerConfig(Config):
         if self.env:
             return self.env
         raise ValueError("curriculum or env must be set")
-
-
-def create_trainer_config(
-    cfg: DictConfig,
-) -> TrainerConfig:
-    """Create trainer config from Hydra config.
-
-    Args:
-        cfg: The complete Hydra config (must contain trainer, run, and run_dir)
-    """
-    for key in ["trainer", "run", "run_dir"]:
-        if not hasattr(cfg, key) or cfg[key] is None:
-            raise ValueError(f"cfg must have a '{key}' field")
-
-    trainer_cfg = cfg.trainer
-    if not isinstance(trainer_cfg, DictConfig):
-        raise ValueError("ListConfig is not supported")
-
-    # Convert to dict and let OmegaConf handle all interpolations
-    config_dict = OmegaConf.to_container(trainer_cfg, resolve=True)
-    if not isinstance(config_dict, dict):
-        raise ValueError("trainer config must be a dict")
-
-    # Some keys' defaults in TrainerConfig that are appropriate for multiprocessing but not serial
-    # TODO: This should be handled via EnvConfig instead
-    if cfg.get("vectorization") == "serial":
-        config_dict["async_factor"] = 1
-        config_dict["zero_copy"] = False
-
-    # Set default paths if not provided
-    if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):
-        config_dict["checkpoint"]["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
-
-    if "replay_dir" not in config_dict.setdefault("simulation", {}):
-        config_dict["simulation"]["replay_dir"] = f"{cfg.run_dir}/replays/"
-
-    if "profile_dir" not in config_dict.setdefault("profiler", {}):
-        config_dict["profiler"]["profile_dir"] = f"{cfg.run_dir}/torch_traces"
-
-    return TrainerConfig.model_validate(config_dict)
