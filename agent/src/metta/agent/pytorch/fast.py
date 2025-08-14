@@ -7,6 +7,7 @@ from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.modules.lstm_base import LSTMBase
+from metta.agent.pytorch.layer_init import init_layer
 
 logger = logging.getLogger(__name__)
 
@@ -111,14 +112,6 @@ class Fast(LSTMBase):
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
         return cumulative_sum + action_params
-
-
-def init_layer(layer, std=1.0):
-    """Initialize layer weights to match ComponentPolicy initialization."""
-    nn.init.orthogonal_(layer.weight, gain=std)
-    if hasattr(layer, "bias") and layer.bias is not None:
-        nn.init.constant_(layer.bias, 0.0)
-    return layer
 
 
 class Policy(nn.Module):

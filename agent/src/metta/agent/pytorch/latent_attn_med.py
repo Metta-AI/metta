@@ -1,14 +1,6 @@
 import logging
 
 
-def init_layer(layer, std=1.0):
-    """Initialize layer weights to match ComponentPolicy initialization."""
-    nn.init.orthogonal_(layer.weight, gain=std)
-    if hasattr(layer, "bias") and layer.bias is not None:
-        nn.init.constant_(layer.bias, 0.0)
-    return layer
-
-
 import einops
 import torch
 import torch.nn.functional as F
@@ -16,8 +8,11 @@ from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.modules.encoders import ObsLatentAttn, ObsSelfAttn
+from metta.agent.pytorch.layer_init import init_layer
 from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
+from metta.agent.pytorch.layer_init import init_layer
 from metta.agent.modules.lstm_base import LSTMBase
+from metta.agent.pytorch.layer_init import init_layer
 
 logger = logging.getLogger(__name__)
 
