@@ -6,10 +6,9 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
+from metta.agent.modules.base import LSTMBase, init_layer
 from metta.agent.modules.encoders import ObsLatentAttn
-from metta.agent.modules.lstm_base import LSTMBase
 from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
-from metta.agent.pytorch.layer_init import init_layer
 
 logger = logging.getLogger(__name__)
 
