@@ -116,7 +116,6 @@ class Example(pufferlib.models.LSTMWrapper):
         )
 
 
-
 class Policy(nn.Module):
     """CNN + Self feature encoder policy for discrete multi-head action space."""
 
