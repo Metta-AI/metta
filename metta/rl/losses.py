@@ -58,7 +58,7 @@ class Losses:
 
 
 def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dtype) -> Composite:
-    scalar_f32 = UnboundedContinuous(shape=(), dtype=torch.float32)
+    scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
     return Composite(
         rewards=scalar_f32,
@@ -127,6 +127,26 @@ def process_minibatch_update(
         adv,
         trainer_cfg,
     )
+
+    # Optional: add contrastive InfoNCE policy term in addition to PPO
+    if getattr(trainer_cfg, "contrastive", None) is not None and trainer_cfg.contrastive.enabled:
+        # Merge minibatch (replay fields) with policy outputs (which may contain hidden states)
+        contrastive_td = minibatch.clone()
+        contrastive_td.update(policy_td)
+
+        from metta.rl.infonce import compute_infonce_losses as _compute_infonce_losses
+
+        inf_pg_loss, _, _, _, _ = _compute_infonce_losses(
+            contrastive_td,
+            new_logprob,
+            entropy,
+            newvalue,
+            importance_sampling_ratio,
+            adv,
+            trainer_cfg,
+        )
+        # Add weighted InfoNCE loss to total policy loss
+        pg_loss = pg_loss + trainer_cfg.contrastive.coef * inf_pg_loss
 
     # Kickstarter losses
     ks_action_loss, ks_value_loss = kickstarter.loss(
