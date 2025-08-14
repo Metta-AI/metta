@@ -20,8 +20,16 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 
-def print_box_header(title: str, width: int = 75) -> None:
+def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> None:
     """Print a formatted box header with centered title."""
+    # Add rank info if requested and available
+    if include_rank and "RANK" in os.environ:
+        rank = int(os.environ.get("RANK", 0))
+        world_size = int(os.environ.get("WORLD_SIZE", 1))
+        node_rank = int(os.environ.get("NODE_RANK", os.environ.get("NODE_INDEX", 0)))
+        local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        title = f"{title} (Rank {rank}/{world_size}, Node {node_rank}, GPU {local_rank})"
+
     # Ensure title fits with padding
     max_title_width = width - 4  # Account for borders and spacing
     if len(title) > max_title_width:
@@ -521,76 +529,161 @@ def main():
             logger.info("Detected distributed environment, launching with torchrun...")
             return launch_distributed_test()
 
-    # If we get here, we're either:
-    # 1. A distributed worker (inside torchrun)
-    # 2. Running in single GPU mode
-    # 3. Already have RANK set (manual distributed launch)
+    # Determine our position in the cluster
+    node_index = int(os.environ.get("NODE_INDEX", os.environ.get("NODE_RANK", 0)))
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    rank = int(os.environ.get("RANK", 0))
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    num_nodes = int(os.environ.get("NUM_NODES", 1))
 
-    # Print header
-    print("\n" + "═" * 75)
-    print("                      NCCL DIAGNOSTICS AND TESTING")
-    print("═" * 75)
+    # Define our roles
+    IS_GPU0 = local_rank == 0
+    IS_MASTER = (node_index == 0) and IS_GPU0  # Master is GPU 0 of node 0
 
-    # Collect system diagnostics first
+    # In single-node/single-GPU setup, we're always master and GPU0
+    if num_nodes == 1 and world_size == 1:
+        IS_GPU0 = True
+        IS_MASTER = True
+
+    # Print header (master only)
+    if IS_MASTER:
+        print("\n" + "═" * 75)
+        print("                      NCCL DIAGNOSTICS AND TESTING")
+        if world_size > 1:
+            print(f"                    Running on {world_size} total ranks")
+        print("═" * 75)
+
+    # Collect system diagnostics
     logger.info("Collecting system diagnostics...")
     system_diagnostics = get_system_diagnostics()
-    print_system_diagnostics(system_diagnostics)
 
-    # Collect GPU diagnostics
-    logger.info("Collecting GPU diagnostics...")
-    gpu_diagnostics = get_gpu_diagnostics()
+    # Cluster-wide configuration (master only)
+    if IS_MASTER:
+        print_box_header("CLUSTER CONFIGURATION", include_rank=False)
+        cluster_info = system_diagnostics["cluster"]
+        print(f"  NUM_GPUS        : {cluster_info['NUM_GPUS']}")
+        print(f"  NUM_NODES       : {cluster_info['NUM_NODES']}")
+        print(f"  MASTER_ADDR     : {cluster_info['MASTER_ADDR']}")
+        print(f"  MASTER_PORT     : {cluster_info['MASTER_PORT']}")
 
-    # Print GPU diagnostics
-    print_diagnostics(gpu_diagnostics)
+    # Node-specific system diagnostics (GPU 0 of each node only)
+    if IS_GPU0:
+        print()
+        print_box_header(f"NODE {node_index} SYSTEM DIAGNOSTICS", include_rank=False)
+        sys_info = system_diagnostics["system"]
+        print(f"  ULIMIT          : {sys_info['ULIMIT']}")
+        print(f"  SHM_MOUNT       : {sys_info['SHM_MOUNT']}")
+        print(f"  NETWORK_INTERFACE : {str(sys_info.get('NETWORK_INTERFACE', 'N/A'))[:50]}...")
+        print(f"  IPC             : {sys_info['IPC']}")
+        print(f"  SHM_DF          : {sys_info['SHM_DF']}")
+        print(f"  UMASK           : {sys_info['UMASK']}")
+
+    # GPU diagnostics - one per node (GPU 0 only)
+    if IS_GPU0:
+        logger.info("Collecting GPU diagnostics...")
+        gpu_diagnostics = get_gpu_diagnostics()
+        print()
+        print_box_header(f"NODE {node_index} GPU DIAGNOSTICS", include_rank=False)
+        print(f"  PyTorch Version        : {gpu_diagnostics['torch_version']}")
+        print(f"  PyTorch CUDA Available : {gpu_diagnostics['pytorch_cuda_available']}")
+        print(f"  PyTorch CUDA Version   : {gpu_diagnostics['pytorch_cuda_version']}")
+        print(f"  CUDA Version           : {gpu_diagnostics['cuda_version']}")
+        print(f"  NCCL Version           : {gpu_diagnostics['nccl_version']}")
+        print(f"  CUDA_VISIBLE_DEVICES   : {gpu_diagnostics['cuda_visible_devices']}")
+        print(f"  GPU Count              : {gpu_diagnostics['gpu_count']}")
+
+        # Only show nvidia-smi from master to avoid duplication
+        if IS_MASTER and gpu_diagnostics["nvidia_smi"]:
+            print("\n  NVIDIA-SMI Output:")
+            print("  " + "-" * 70)
+            for line in gpu_diagnostics["nvidia_smi"].strip().split("\n"):
+                print(f"  {line}")
+            print("  " + "-" * 70)
+    else:
+        # Non-GPU0 ranks still need GPU diagnostics for tests
+        gpu_diagnostics = get_gpu_diagnostics()
+
+    # NCCL environment - print from each rank as it can differ
+    print()
+    print_box_header("NCCL ENVIRONMENT", include_rank=True)
+    nccl_env = system_diagnostics["nccl_env"]
+    nccl_vars = sorted([(k, v) for k, v in nccl_env.items() if k.startswith("NCCL_")])
+
+    # Only show key NCCL vars from non-GPU0 ranks to reduce noise
+    if not IS_GPU0:
+        key_vars = ["NCCL_DEBUG", "NCCL_SOCKET_IFNAME", "NCCL_SOCKET_FAMILY"]
+        nccl_vars = [(k, v) for k, v in nccl_vars if k in key_vars]
+
+    for k, v in nccl_vars:
+        print(f"  {k:<25} : {v}")
 
     # Setup debug environment
     setup_nccl_debug_env()
 
-    # Run tests
+    # Run tests - each rank runs but only logs key info
     print()
-    print_box_header("RUNNING TESTS")
+    print_box_header("RUNNING TESTS", include_rank=True)
 
     all_passed = True
     test_results = []
 
     # Single GPU test
     if gpu_diagnostics["pytorch_cuda_available"]:
-        print("\n  🔧 Running single GPU test...")
+        if IS_GPU0:
+            print(f"\n  🔧 Node {node_index}: Running single GPU test...")
         if test_single_gpu():
             test_results.append(("Single GPU Test", "✓ PASSED"))
         else:
             test_results.append(("Single GPU Test", "✗ FAILED"))
             all_passed = False
+            if not IS_GPU0:  # Only print errors from non-GPU0 ranks
+                print(f"  ✗ Rank {rank}: Single GPU test failed")
     else:
         logger.warning("Skipping GPU tests - CUDA not available")
         test_results.append(("Single GPU Test", "⚠ SKIPPED (No CUDA)"))
         all_passed = False
 
     # NCCL communication test
-    if "RANK" in os.environ:
-        print("\n  🔧 Running NCCL communication test...")
+    if "RANK" in os.environ and world_size > 1:
+        if IS_MASTER:
+            print("\n  🔧 Running NCCL communication test across all ranks...")
         if test_nccl_communication():
             test_results.append(("NCCL Communication Test", "✓ PASSED"))
         else:
             test_results.append(("NCCL Communication Test", "✗ FAILED"))
             all_passed = False
+            if not IS_GPU0:  # Only print errors from non-GPU0 ranks
+                print(f"  ✗ Rank {rank}: NCCL test failed")
     else:
         logger.info("Not in distributed environment, skipping NCCL communication test")
         test_results.append(("NCCL Communication Test", "⚠ SKIPPED (Not distributed)"))
 
-    # Summary
-    print()
-    print_box_header("TEST SUMMARY")
-
-    for test_name, result in test_results:
-        print(f"  {test_name:<30} : {result}")
-
-    print("\n" + "═" * 75)
-    if all_passed:
-        print("                    ✓ ALL TESTS PASSED! ✓")
+    # Synchronize results if distributed
+    if "RANK" in os.environ and world_size > 1 and dist.is_initialized():
+        # Gather results from all ranks
+        all_passed_tensor = torch.tensor([1.0 if all_passed else 0.0]).cuda()
+        dist.all_reduce(all_passed_tensor)
+        all_ranks_passed = all_passed_tensor.item() == float(world_size)
     else:
-        print("                    ✗ SOME TESTS FAILED ✗")
-    print("═" * 75 + "\n")
+        all_ranks_passed = all_passed
+
+    # Summary - only from master
+    if IS_MASTER:
+        print()
+        print_box_header("TEST SUMMARY", include_rank=False)
+
+        for test_name, result in test_results:
+            print(f"  {test_name:<30} : {result}")
+
+        if world_size > 1:
+            print(f"\n  Overall: {'✓ All ranks passed' if all_ranks_passed else '✗ Some ranks failed'}")
+
+        print("\n" + "═" * 75)
+        if all_ranks_passed:
+            print("                    ✓ ALL TESTS PASSED! ✓")
+        else:
+            print("                    ✗ SOME TESTS FAILED ✗")
+        print("═" * 75 + "\n")
 
     return 0 if all_passed else 1
 
