@@ -129,7 +129,7 @@ def test_nccl_benchmarks() -> bool:
 
             # Gather results from rank 1 to rank 0
             if rank == 1 and p2p_result:
-                dist.send(torch.tensor([p2p_result["bandwidth_gbps"]], device=device), dst=0)
+                dist.send(torch.tensor([p2p_result["bandwidth_gbps"]], dtype=torch.float32, device=device), dst=0)
             elif rank == 0:
                 if world_size >= 2:
                     bandwidth_tensor = torch.zeros(1, device=device)
