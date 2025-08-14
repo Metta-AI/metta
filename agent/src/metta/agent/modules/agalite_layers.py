@@ -33,9 +33,6 @@ def discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.
         for _ in range(x.dim() - 1 - start_state.dim()):
             start_state = start_state.unsqueeze(-1)
 
-    device = x.device
-    dtype = x.dtype
-
     # Pre-allocate output list to avoid in-place operations
     output_list = []
 

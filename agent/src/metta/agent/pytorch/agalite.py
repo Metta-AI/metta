@@ -89,7 +89,7 @@ class AGaLiTeCore(nn.Module):
 
     @staticmethod
     def initialize_memory(
-        batch_size: int, n_layers: int, n_heads: int, d_head: int, eta: int, r: int
+        batch_size: int, n_layers: int, n_heads: int, d_head: int, eta: int, r: int, device: torch.device = None
     ) -> Dict[str, Tuple]:
         """Initialize memory for all layers."""
         memory_dict = {}

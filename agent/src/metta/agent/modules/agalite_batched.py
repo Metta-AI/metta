@@ -39,8 +39,6 @@ def batched_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts
 
     # For GPU efficiency, we can use a custom kernel or accumulate in chunks
     # For now, use a simple loop that's still efficient on GPU
-    device = x.device
-    dtype = x.dtype
 
     # Pre-allocate output tensor
     output = torch.empty_like(x)
