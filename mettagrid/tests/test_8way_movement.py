@@ -390,5 +390,5 @@ def test_orientation_changes_on_failed_8way_movement():
 
     objects = env.grid_objects()
     assert not env.action_success()[0]  # Movement should fail
-    # For Southwest when all attempts fail, final orientation is Left (from last fallback attempt) 
+    # For Southwest when all attempts fail, final orientation is Left (from last fallback attempt)
     assert objects[agent_id]["orientation"] == 2  # Orientation ends at Left after fallback attempts
