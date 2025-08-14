@@ -26,8 +26,9 @@ heights = [0] * atlas_image.width
 padding = 64
 FONT_ID = "plexSans"
 FONT_PATH = "data/fonts/IBMPlexSans-Regular.ttf"
-FONT_SIZES = [64]
+FONT_SIZE = 128
 FONT_CHARSET = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+GLYPH_INNER_PADDING = 2
 
 
 def needs_rebuild(atlas_dir):
@@ -140,76 +141,82 @@ def _generate_font_glyphs():
     fonts_meta = {FONT_ID: {}}
     cps = [ord(ch) for ch in FONT_CHARSET]
 
-    for size in FONT_SIZES:
-        font = typeface.new_font()
-        font.size = float(size)
-        # Ensure white fill for glyphs
-        white = pixie.Paint(pixie.SOLID_PAINT)
-        white.color = pixie.Color(1.0, 1.0, 1.0, 1.0)
-        font.paint = white
-        scale = font.scale()
-        ascent_px = typeface.ascent() * scale
-        descent_px = typeface.descent() * scale
-        line_height_px = font.default_line_height()
+    size = FONT_SIZE
 
-        glyphs = {}
-        added_count = 0
-        # Render and pack glyphs using font typesetting to ensure correct pixel sizes.
-        for cp in cps:
-            if not typeface.has_glyph(cp):
-                continue
-            ch = chr(cp)
-            arrangement = font.typeset(ch)
-            bounds = arrangement.compute_bounds()
-            w = int(math.ceil(bounds.w))
-            h = int(math.ceil(bounds.h))
-            bearing_x = float(bounds.x)
-            bearing_y = float(bounds.y)
+    font = typeface.new_font()
+    font.size = float(size)
+    # Ensure white fill for glyphs.
+    white = pixie.Paint(pixie.SOLID_PAINT)
+    white.color = pixie.Color(1.0, 1.0, 1.0, 1.0)
+    font.paint = white
+    scale = font.scale()
+    ascent_px = typeface.ascent() * scale
+    descent_px = typeface.descent() * scale
+    line_height_px = font.default_line_height()
 
-            rect = None
-            if w > 0 and h > 0:
-                img = pixie.Image(w, h)
-                img.fill(pixie.Color(0, 0, 0, 0))
-                # Draw the arrangement translated to start at (0,0)
-                img.arrangement_fill_text(arrangement, pixie.translate(-bounds.x, -bounds.y))
-                name = f"fonts/{FONT_ID}/{size}/{_cp_label(cp)}"
-                x, y, rw, rh = put_image(img, name)
-                rect = [x, y, rw, rh]
-                print(f"Added {name} to atlas")
-                added_count += 1
+    glyphs = {}
+    added_count = 0
+    # Render and pack glyphs using font typesetting to ensure correct pixel sizes.
+    for cp in cps:
+        if not typeface.has_glyph(cp):
+            continue
+        ch = chr(cp)
+        arrangement = font.typeset(ch)
+        bounds = arrangement.compute_bounds()
+        w = int(math.ceil(bounds.w))
+        h = int(math.ceil(bounds.h))
+        bearing_x = float(bounds.x)
+        bearing_y = float(bounds.y)
 
-            advance = float(typeface.get_advance(cp))
-            glyphs[_cp_label(cp)] = {
-                "rect": rect,
-                "advance": advance,
-                "bearingX": bearing_x,
-                "bearingY": bearing_y,
-            }
+        rect = None
+        if w > 0 and h > 0:
+            # Create an image with an inner transparent buffer so glyph edges do not touch the outer padding.
+            gw = w + 2 * GLYPH_INNER_PADDING
+            gh = h + 2 * GLYPH_INNER_PADDING
+            img = pixie.Image(gw, gh)
+            img.fill(pixie.Color(0, 0, 0, 0))
+            # Draw the arrangement translated to start at (inner padding, inner padding).
+            img.arrangement_fill_text(
+                arrangement,
+                pixie.translate(-bounds.x + GLYPH_INNER_PADDING, -bounds.y + GLYPH_INNER_PADDING),
+            )
+            name = f"fonts/{FONT_ID}/{size}/{_cp_label(cp)}"
+            x, y, rw, rh = put_image(img, name)
+            rect = [x, y, rw, rh]
+            print(f"Added {name} to atlas")
+            added_count += 1
 
-        # Kerning table: nested map with only non-zero pairs.
-        kerning = {}
-        present_cps = [cp for cp in cps if _cp_label(cp) in glyphs]
-        for left in present_cps:
-            left_label = _cp_label(left)
-            row = None
-            for right in present_cps:
-                adjust = float(typeface.get_kerning_adjustment(left, right))
-
-                if adjust != 0.0:
-                    if row is None:
-                        row = {}
-                    row[_cp_label(right)] = adjust
-            if row:
-                kerning[left_label] = row
-
-        fonts_meta[FONT_ID][str(size)] = {
-            "ascent": float(ascent_px),
-            "descent": float(descent_px),
-            "lineHeight": float(line_height_px),
-            "glyphs": glyphs,
-            "kerning": kerning,
+        advance = float(typeface.get_advance(cp))
+        glyphs[_cp_label(cp)] = {
+            "rect": rect,
+            "advance": advance,
+            "bearingX": bearing_x,
+            "bearingY": bearing_y,
         }
-        print(f"Packed {added_count} glyphs for {FONT_ID} size {size}")
+
+    # Kerning table: nested map with only non-zero pairs.
+    kerning = {}
+    present_cps = [cp for cp in cps if _cp_label(cp) in glyphs]
+    for left in present_cps:
+        left_label = _cp_label(left)
+        row = None
+        for right in present_cps:
+            adjust = float(typeface.get_kerning_adjustment(left, right))
+            if adjust != 0.0:
+                if row is None:
+                    row = {}
+                row[_cp_label(right)] = adjust
+        if row:
+            kerning[left_label] = row
+
+    fonts_meta[FONT_ID][str(size)] = {
+        "ascent": float(ascent_px),
+        "descent": float(descent_px),
+        "lineHeight": float(line_height_px),
+        "glyphs": glyphs,
+        "kerning": kerning,
+    }
+    print(f"Packed {added_count} glyphs for {FONT_ID} size {size}")
 
     return fonts_meta
 
