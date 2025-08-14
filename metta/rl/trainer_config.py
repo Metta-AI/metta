@@ -122,6 +122,14 @@ class TorchProfilerConfig(Config):
         return self
 
 
+class DualPolicyConfig(Config):
+    enabled: bool = False
+    # Reuse InitialPolicyConfig schema for selecting the NPC checkpoint
+    checkpoint_npc: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
+    # Fraction of agents controlled by the training policy vs the checkpoint NPC
+    training_agents_pct: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
 class TrainerConfig(Config):
     # Core training parameters
     # Total timesteps: Type 2 arbitrary default
@@ -183,6 +191,9 @@ class TrainerConfig(Config):
 
     # Kickstart
     kickstart: KickstartConfig = Field(default_factory=KickstartConfig)
+
+    # Dual-policy training (train against an NPC checkpoint policy)
+    dual_policy: DualPolicyConfig = Field(default_factory=DualPolicyConfig)
 
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware

@@ -38,6 +38,7 @@ export HYDRA_FULL_ERROR=1
   trainer.zero_copy="$ZERO_COPY" \
   trainer.total_timesteps="$TOTAL_TIMESTEPS" \
   trainer.num_workers="$NUM_WORKERS" \
+  trainer.simulation.skip_git_check=true \
   trainer.dual_policy.enabled=true \
   trainer.dual_policy.checkpoint_npc.uri="$WANDB_CHECKPOINT_URI" \
   trainer.dual_policy.training_agents_pct=0.5 \
