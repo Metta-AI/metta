@@ -1030,15 +1030,15 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("target_sequence"),
            py::arg("sequence_reward"),
            py::arg("color_to_item"),
-           py::arg("num_trials") = 1,
+           py::arg("num_episodes") = 1,
            py::arg("trial_sequences") = std::vector<std::vector<uint8_t>>(),
-           py::arg("attempts_per_trial") = 4,
+           py::arg("trials_per_episode") = 4,
            py::arg("reward_mode") = "precise")
       .def_readonly("target_sequence", &ColorTreeActionConfig::target_sequence)
       .def_readonly("sequence_reward", &ColorTreeActionConfig::sequence_reward)
-      .def_readonly("num_trials", &ColorTreeActionConfig::num_trials)
+      .def_readonly("num_episodes", &ColorTreeActionConfig::num_episodes)
       .def_readonly("trial_sequences", &ColorTreeActionConfig::trial_sequences)
-      .def_readonly("attempts_per_trial", &ColorTreeActionConfig::attempts_per_trial)
+      .def_readonly("trials_per_episode", &ColorTreeActionConfig::trials_per_episode)
       .def_readonly("color_to_item", &ColorTreeActionConfig::color_to_item);
 
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")

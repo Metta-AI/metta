@@ -40,8 +40,8 @@ game:
       enabled: true
       target_sequence: [1, 0, 1, 0]
       sequence_reward: 1.0
-      num_trials: 1
-      attempts_per_trial: 16
+      num_episodes: 1
+      trials_per_episode: 4
       reward_mode: "precise" # precise, partial, dense
       trial_sequences:
         - [0, 0, 0, 0]

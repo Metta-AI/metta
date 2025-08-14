@@ -30,9 +30,9 @@ struct ColorTreeActionConfig : public ActionConfig {
   std::vector<uint8_t> target_sequence;               // Target color sequence to match
   float sequence_reward;                              // Reward given for correct sequence match
   std::map<uint8_t, InventoryItem> color_to_item;     // Maps color values to inventory items
-  size_t num_trials;                                  // Number of different sequences to test
+  size_t num_episodes;                                  // Number of different sequences to test
   std::vector<std::vector<uint8_t>> trial_sequences;  // Different sequences for each trial
-  size_t attempts_per_trial;                          // Number of attempts allowed per trial
+  size_t trials_per_episode;                          // Number of attempts allowed per trial
   ColorTreeRewardMode reward_mode;                    // Reward mode enum
 
   ColorTreeActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
@@ -40,17 +40,17 @@ struct ColorTreeActionConfig : public ActionConfig {
                         const std::vector<uint8_t>& target_sequence,
                         float sequence_reward,
                         const std::map<uint8_t, InventoryItem>& color_to_item,
-                        int num_trials = 1,
+                        int num_episodes = 1,
                         const std::vector<std::vector<uint8_t>>& trial_sequences = {},
-                        int attempts_per_trial = 4,
+                        int trials_per_episode = 4,
                         const std::string& reward_mode_str = "precise")
       : ActionConfig(required_resources, consumed_resources),
         target_sequence(target_sequence),
         sequence_reward(sequence_reward),
         color_to_item(color_to_item),
-        num_trials(static_cast<size_t>(num_trials)),
+        num_episodes(static_cast<size_t>(num_episodes)),
         trial_sequences(trial_sequences),
-        attempts_per_trial(static_cast<size_t>(attempts_per_trial)),
+        trials_per_episode(static_cast<size_t>(trials_per_episode)),
         reward_mode(string_to_reward_mode(reward_mode_str)) {
     // Validate trial sequences have same length as target sequence
     for (const auto& seq : trial_sequences) {
@@ -68,12 +68,12 @@ public:
         _base_target_sequence(cfg.target_sequence),
         _sequence_reward(cfg.sequence_reward),
         _color_to_item(cfg.color_to_item),
-        _num_trials(cfg.num_trials),
+        _num_trials(cfg.num_episodes),
         _trial_sequences(cfg.trial_sequences),
-        _attempts_per_trial(cfg.attempts_per_trial),
+        _attempts_per_trial(cfg.trials_per_episode),
         _reward_mode(cfg.reward_mode),
         _max_sequence_size(cfg.target_sequence.size()),
-        _actions_per_trial(_attempts_per_trial * _max_sequence_size),
+        _actions_per_trial(cfg.trials_per_episode * cfg.target_sequence.size()),
         _per_position_reward(_sequence_reward / static_cast<float>(_max_sequence_size)) {
     // Precompute fast lookup table for color_to_item and max color value
     if (!_color_to_item.empty()) {

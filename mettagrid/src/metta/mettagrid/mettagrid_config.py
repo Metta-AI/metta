@@ -130,9 +130,9 @@ class PyColorTreeActionConfig(PyActionConfig):
     target_sequence: list[int] = Field(default_factory=list, description="Target color sequence to match")
     sequence_reward: float = Field(default=1.0, description="Reward given for correct sequence match")
     color_to_item: dict[int, str] = Field(default_factory=dict, description="Maps color values to inventory item names")
-    num_trials: int = Field(default=1, description="Number of different sequences to test")
+    num_episodes: int = Field(default=1, description="Number of different sequences to test")
     trial_sequences: list[list[int]] = Field(default_factory=list, description="Different sequences for each trial")
-    attempts_per_trial: int = Field(default=4, description="Number of attempts allowed per trial")
+    trials_per_episode: int = Field(default=4, description="Number of attempts allowed per trial")
     reward_mode: str = Field(
         default="precise",
         description="Reward mode: 'precise' (all or nothing), 'partial' (proportional), or 'dense' (immediate)",

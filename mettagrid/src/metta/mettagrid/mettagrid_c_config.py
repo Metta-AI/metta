@@ -186,9 +186,9 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                 for color, item_name in action_config["color_to_item"].items()
                 if item_name in resource_name_to_id
             }
-            action_cpp_params["num_trials"] = action_config.get("num_trials", 1)
+            action_cpp_params["num_episodes"] = action_config.get("num_episodes", 1)
             action_cpp_params["trial_sequences"] = action_config.get("trial_sequences", [])
-            action_cpp_params["attempts_per_trial"] = action_config.get("attempts_per_trial", 4)
+            action_cpp_params["trials_per_episode"] = action_config.get("trials_per_episode", 4)
             action_cpp_params["reward_mode"] = action_config.get("reward_mode", "precise")
             actions_cpp_params[action_name] = CppColorTreeActionConfig(**action_cpp_params)
         else:
