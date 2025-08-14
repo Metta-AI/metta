@@ -6,6 +6,26 @@ import os
 import numpy as np
 import yaml
 
+
+def to_builtin(value):
+    """Recursively convert numpy scalars/arrays and keys to plain Python types."""
+    if isinstance(value, dict):
+        return {str(to_builtin(k)): to_builtin(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [to_builtin(v) for v in value]
+    if isinstance(value, np.generic):  # numpy scalar types (including numpy.str_)
+        try:
+            return value.item()
+        except Exception:
+            return str(value)
+    return value
+
+
+class IndentDumper(yaml.SafeDumper):
+    def increase_indent(self, flow=False, indentless=False):
+        return super().increase_indent(flow, False)
+
+
 CONVERTER_TYPES = [
     "mine_red",
     "mine_blue",
@@ -219,22 +239,3 @@ if __name__ == "__main__":
     generator.generate_yaml_cfgs()
 
 # %%
-
-
-def to_builtin(value):
-    """Recursively convert numpy scalars/arrays and keys to plain Python types."""
-    if isinstance(value, dict):
-        return {str(to_builtin(k)): to_builtin(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple, set)):
-        return [to_builtin(v) for v in value]
-    if isinstance(value, np.generic):  # numpy scalar types (including numpy.str_)
-        try:
-            return value.item()
-        except Exception:
-            return str(value)
-    return value
-
-
-class IndentDumper(yaml.SafeDumper):
-    def increase_indent(self, flow=False, indentless=False):
-        return super().increase_indent(flow, False)
