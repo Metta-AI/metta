@@ -9,6 +9,7 @@
 Generate texture atlas for Mettascope by packing images using Skyline bin packing algorithm.
 """
 
+import hashlib
 import json
 import math
 import os
@@ -31,6 +32,30 @@ FONT_CHARSET = " 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
 GLYPH_INNER_PADDING = 2
 
 
+def _get_font_config():
+    """Return the current font-related configuration that should trigger rebuilds when changed."""
+    cfg = {
+        "FONT_ID": FONT_ID,
+        "FONT_PATH": FONT_PATH,
+        "FONT_SIZE": FONT_SIZE,
+        "FONT_CHARSET": FONT_CHARSET,
+        "GLYPH_INNER_PADDING": GLYPH_INNER_PADDING,
+    }
+    if os.path.exists(FONT_PATH):
+        st = os.stat(FONT_PATH)
+        cfg["FONT_PATH_MTIME"] = int(st.st_mtime)
+        cfg["FONT_PATH_SIZE"] = int(st.st_size)
+    else:
+        cfg["FONT_PATH_MTIME"] = None
+        cfg["FONT_PATH_SIZE"] = None
+
+    return cfg
+
+
+def _config_hash(cfg: dict) -> str:
+    return hashlib.sha256(json.dumps(cfg, sort_keys=True).encode("utf-8")).hexdigest()
+
+
 def needs_rebuild(atlas_dir):
     """Check if the atlas needs to be rebuilt based on file timestamps."""
     # Check if output files exist
@@ -51,6 +76,18 @@ def needs_rebuild(atlas_dir):
                 if os.path.getmtime(img_path) > output_time:
                     relative_path = os.path.relpath(img_path, atlas_dir)
                     return True, f"Input file newer: {relative_path}"
+
+    # Check if font settings have changed since last build.
+    try:
+        with open(atlas_json, "r") as f:
+            data = json.load(f)
+        current_hash = _config_hash(_get_font_config())
+        saved_hash = data.get("fontConfigHash")
+        if saved_hash != current_hash:
+            return True, "Font settings changed"
+    except Exception:
+        # If we can't read or parse the file, or key is missing, force rebuild.
+        return True, "Font settings changed"
 
     return False, "No changes detected"
 
@@ -266,6 +303,9 @@ def main():
     try:
         atlas_out = dict(images)
         atlas_out["fonts"] = fonts_meta
+        font_cfg = _get_font_config()
+        atlas_out["fontConfig"] = font_cfg
+        atlas_out["fontConfigHash"] = _config_hash(font_cfg)
         with open("dist/atlas.json", "w") as f:
             json.dump(atlas_out, f, indent=2)
         atlas_image.write_file("dist/atlas.png")
