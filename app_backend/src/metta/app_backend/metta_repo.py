@@ -570,7 +570,7 @@ class MettaRepo:
     async def connect(self):
         pool = await self._ensure_pool()
         try:
-            async with pool.connection() as conn:
+            async with pool.connection(timeout=5) as conn:
                 yield conn
         except PoolTimeout as e:
             stats = pool.get_stats()
