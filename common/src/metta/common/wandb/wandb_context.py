@@ -19,6 +19,7 @@ WandbRun = wandb.sdk.wandb_run.Run
 # Shared IPC filename, co-located with the heartbeat signal file
 WANDB_IPC_FILENAME = "wandb_ipc.json"
 
+
 class WandbConfigOn(Config):
     enabled: Literal[True] = True
 
@@ -38,6 +39,8 @@ class WandbConfigOff(Config, extra="allow"):
 
 
 WandbConfig = Annotated[Union[WandbConfigOff, WandbConfigOn], Field(discriminator="enabled")]
+
+
 class WandbContext:
     """
     Context manager for Wandb.

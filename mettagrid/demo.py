@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run
 
 """
-Demo showing how to create a MettaGridEnv and run a simulation with random actions.
+Demo showing how to create an EnvConfig and build a game map using the map builder.
 """
 
 from metta.mettagrid.map_builder.random import RandomMapBuilderConfig

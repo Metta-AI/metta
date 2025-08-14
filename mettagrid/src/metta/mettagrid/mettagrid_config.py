@@ -253,7 +253,7 @@ class EnvConfig(Config):
     def validate_fields(self) -> "EnvConfig":
         return self
 
-    def to_curriculum_cfg(self) -> "CurriculumConfig":
+    def to_curriculum_cfg(self):
         from metta.cogworks.curriculum.curriculum import CurriculumConfig
         from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig
 
@@ -261,7 +261,7 @@ class EnvConfig(Config):
             task_generator=SingleTaskGeneratorConfig(env=self),
         )
 
-    def to_curriculum(self) -> "Curriculum":
+    def to_curriculum(self):
         from metta.cogworks.curriculum.curriculum import Curriculum
 
         return Curriculum(self.to_curriculum_cfg())
@@ -280,4 +280,3 @@ class EnvConfig(Config):
         return EnvConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )
-

@@ -23,7 +23,7 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
 
     def test_single_task_generator(self):
         """Test SingleTaskGeneratorConfig round-trip."""
-        arena = eb.arena(num_agents=2)
+        arena = eb.make_arena(num_agents=2)
         single_config = SingleTaskGeneratorConfig(env=arena)
         original = CurriculumConfig(task_generator=single_config, num_active_tasks=10)
 
@@ -36,7 +36,7 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
 
     def test_bucketed_task_generator(self):
         """Test BucketedTaskGeneratorConfig round-trip."""
-        arena = eb.arena(num_agents=4)
+        arena = eb.make_arena(num_agents=4)
         arena_tasks = cc.tasks(arena)
 
         # Add various bucket types
@@ -55,8 +55,8 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
 
     def test_task_generator_set(self):
         """Test TaskGeneratorSetConfig round-trip."""
-        arena1 = eb.arena(num_agents=2)
-        arena2 = eb.arena(num_agents=4)
+        arena1 = eb.make_arena(num_agents=2)
+        arena2 = eb.make_arena(num_agents=4)
 
         single1 = SingleTaskGeneratorConfig(env=arena1)
         single2 = SingleTaskGeneratorConfig(env=arena2)
@@ -73,7 +73,7 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
 
     def test_deeply_nested_bucketed(self):
         """Test nested BucketedTaskGeneratorConfig round-trip."""
-        arena = eb.arena(num_agents=2)
+        arena = eb.make_arena(num_agents=2)
 
         # Create inner bucketed config
         inner_tasks = cc.tasks(arena)
@@ -95,7 +95,7 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
 
     def test_value_ranges(self):
         """Test that ValueRange objects survive round-trip."""
-        arena = eb.arena(num_agents=1)
+        arena = eb.make_arena(num_agents=1)
         arena_tasks = cc.tasks(arena)
 
         # Add bucket with ValueRange

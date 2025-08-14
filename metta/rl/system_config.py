@@ -27,6 +27,7 @@ class SystemConfig(Config):
             device="mps",
         )
 
+
 def create_system_config(cfg: DictConfig) -> SystemConfig:
     """Create system config from Hydra config.
 

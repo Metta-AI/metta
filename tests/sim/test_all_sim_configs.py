@@ -4,13 +4,6 @@ from hydra.core.global_hydra import GlobalHydra
 from omegaconf import OmegaConf
 
 from metta.common.util.fs import get_repo_root
-from metta.common.util.resolvers import register_resolvers
-
-
-@pytest.fixture(scope="session", autouse=True)
-def setup_resolvers():
-    """Register custom OmegaConf resolvers once for the entire test session."""
-    register_resolvers()
 
 
 def get_all_sim_configs() -> list[str]:
