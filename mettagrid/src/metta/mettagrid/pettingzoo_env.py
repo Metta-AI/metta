@@ -18,10 +18,6 @@ from metta.mettagrid.core import MettaGridCore
 # Data types for PettingZoo - import from C++ module
 from metta.mettagrid.mettagrid_c import (
     dtype_actions,
-    dtype_observations,
-    dtype_rewards,
-    dtype_terminals,
-    dtype_truncations,
 )
 from metta.mettagrid.mettagrid_config import EnvConfig
 

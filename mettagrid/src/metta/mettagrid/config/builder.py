@@ -13,7 +13,7 @@ from metta.mettagrid.mettagrid_config import (
 )
 
 
-def arena(
+def make_arena(
     num_agents: int,
     combat: bool = False,
 ) -> EnvConfig:

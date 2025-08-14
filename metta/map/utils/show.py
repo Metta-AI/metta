@@ -5,7 +5,7 @@ import numpy as np
 
 import mettascope.server
 from metta.map.utils.storable_map import StorableMap, grid_to_lines
-from metta.mettagrid.config.builder import arena
+from metta.mettagrid.config.builder import make_arena
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.sim.map_preview import write_local_map_preview
 
@@ -18,7 +18,7 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
 
     if mode == "mettascope":
         num_agents = np.count_nonzero(np.char.startswith(storable_map.grid, "agent"))
-        env_cfg = arena(num_agents=num_agents)
+        env_cfg = make_arena(num_agents=num_agents)
         env = MettaGridEnv(env_cfg, render_mode="rgb_array")
 
         file_path = write_local_map_preview(env)

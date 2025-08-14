@@ -1,8 +1,11 @@
-from typing import Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.config import Config
+
+if TYPE_CHECKING:
+    from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.mettagrid.map_builder import MapBuilderConfigUnion
 from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 
@@ -261,7 +264,7 @@ class EnvConfig(Config):
             task_generator=SingleTaskGeneratorConfig(env=self),
         )
 
-    def to_curriculum(self) -> "Curriculum":
+    def to_curriculum(self):
         from metta.cogworks.curriculum.curriculum import Curriculum
 
         return Curriculum(self.to_curriculum_cfg())
@@ -280,4 +283,3 @@ class EnvConfig(Config):
         return EnvConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
         )
-

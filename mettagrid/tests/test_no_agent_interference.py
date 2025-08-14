@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-from metta.mettagrid.config.builder import arena
+from metta.mettagrid.config.builder import make_arena
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.actions import get_agent_position
 
@@ -10,7 +10,7 @@ from metta.mettagrid.util.actions import get_agent_position
 @pytest.fixture
 def no_agent_interference_config():
     """Configuration for testing no_agent_interference functionality."""
-    cfg = arena(num_agents=2)
+    cfg = make_arena(num_agents=2)
     cfg.game.max_steps = 10
     cfg.game.episode_truncates = True
     cfg.game.track_movement_metrics = True
@@ -28,7 +28,7 @@ def no_agent_interference_config():
 @pytest.fixture
 def observation_test_config():
     """Configuration for testing observation filtering."""
-    cfg = arena(num_agents=2)
+    cfg = make_arena(num_agents=2)
 
     # Simplify config for testing
     cfg.game.max_steps = 10
@@ -163,7 +163,7 @@ class TestNoAgentInterference:
         """Test ghost_add_object functionality."""
 
         # Get the benchmark config and modify it
-        cfg = arena(num_agents=1)
+        cfg = make_arena(num_agents=1)
 
         # Simplify config for testing
         cfg.game.max_steps = 10
@@ -249,7 +249,7 @@ def _test_ghost_movement_with_interference_flag(no_agent_interference: bool):
     """Test that agents can move through each other when no_agent_interference is enabled"""
 
     # Get the benchmark config and modify it
-    cfg = arena(num_agents=2)
+    cfg = make_arena(num_agents=2)
 
     # Simplify config for testing
     cfg.game.max_steps = 10
@@ -349,7 +349,7 @@ def _test_observation_filtering(no_agent_interference: bool):
     """Test that agents only see themselves when no_agent_interference is enabled"""
 
     # Get the benchmark config and modify it
-    cfg = arena(num_agents=2)
+    cfg = make_arena(num_agents=2)
 
     # Simplify config for testing
     cfg.game.max_steps = 10
@@ -426,7 +426,7 @@ def _test_ghost_add_object():
     """Test ghost_add_object functionality"""
 
     # Get the benchmark config and modify it
-    cfg = arena(num_agents=1)
+    cfg = make_arena(num_agents=1)
 
     # Simplify config for testing
     cfg.game.max_steps = 10

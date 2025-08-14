@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from metta.mettagrid.config.builder import arena
+from metta.mettagrid.config.builder import make_arena
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
@@ -16,7 +16,7 @@ def test_buffer_reuse_across_resets():
     """
     # Get basic config
     # Create environment
-    env = MettaGridEnv(arena(num_agents=24), render_mode=None)
+    env = MettaGridEnv(make_arena(num_agents=24), render_mode=None)
 
     # Get initial C++ environment reference
     initial_cpp_env = env.c_env
@@ -85,7 +85,7 @@ def test_buffer_consistency_during_episode():
     # Get basic config
 
     # Create environment
-    env = MettaGridEnv(arena(num_agents=24), render_mode=None)
+    env = MettaGridEnv(make_arena(num_agents=24), render_mode=None)
 
     # Reset environment
     obs, info = env.reset(seed=42)

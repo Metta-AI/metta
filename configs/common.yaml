@@ -1,7 +1,5 @@
 hydra:
-  callbacks:
-    resolver_callback:
-      _target_: metta.common.util.resolvers.ResolverRegistrar
+  callbacks: {}  # TODO restore if custom resolvers are needed
 
 run: ???
 dist_cfg_path: null

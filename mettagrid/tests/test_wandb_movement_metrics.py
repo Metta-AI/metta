@@ -3,7 +3,7 @@
 
 import numpy as np
 
-from metta.mettagrid.config.builder import arena
+from metta.mettagrid.config.builder import make_arena
 from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
@@ -12,7 +12,7 @@ def test_wandb_movement_metrics():
     """Test that movement metrics appear in info dict when episode ends."""
 
     # Get the benchmark config and modify it
-    cfg = arena(num_agents=1)
+    cfg = make_arena(num_agents=1)
 
     # Simplify config for testing
     cfg.game.num_agents = 1

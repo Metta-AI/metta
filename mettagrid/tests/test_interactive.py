@@ -10,7 +10,7 @@ import time
 
 import numpy as np
 
-from metta.mettagrid.config.builder import arena
+from metta.mettagrid.config.builder import make_arena
 from metta.mettagrid.gym_env import MettaGridGymEnv
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
@@ -23,7 +23,7 @@ def test_puffer_env():
     print("=" * 50)
 
     env = MettaGridEnv(
-        arena(num_agents=24),
+        make_arena(num_agents=24),
         render_mode="human",
     )
 
@@ -70,7 +70,7 @@ def test_gym_env():
     print("🏃 TESTING GYMNASIUM ENVIRONMENT")
     print("=" * 50)
 
-    env_cfg = arena(num_agents=1)
+    env_cfg = make_arena(num_agents=1)
 
     env = MettaGridGymEnv(env_cfg, render_mode="human")
 
@@ -110,7 +110,7 @@ def test_pettingzoo_env():
     print("🐧 TESTING PETTINGZOO ENVIRONMENT")
     print("=" * 50)
 
-    env_cfg = arena(num_agents=3)
+    env_cfg = make_arena(num_agents=3)
 
     env = MettaGridPettingZooEnv(env_cfg, render_mode="human")
 

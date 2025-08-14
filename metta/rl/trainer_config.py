@@ -3,10 +3,9 @@ from typing import Any, ClassVar, Literal
 from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.cogworks.curriculum import CurriculumConfig
-from metta.cogworks.curriculum import env as env_curriculum
+from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
 from metta.common.util.config import Config
-from metta.mettagrid.config.builder import arena as arena_builder
+from metta.mettagrid.config.builder import make_arena
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
@@ -193,7 +192,7 @@ class TrainerConfig(Config):
     num_workers: int = Field(default=1, gt=0)
 
     # Default curriculum: Simple environment for initial experiments
-    curriculum: CurriculumConfig = env_curriculum(arena_builder(num_agents=24))
+    curriculum: CurriculumConfig = env_curriculum(make_arena(num_agents=24))
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
     # Checkpoint configuration
