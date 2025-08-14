@@ -176,35 +176,55 @@ export function processActions(event: KeyboardEvent) {
 
     // Treat numpad as immediate, no combo buffering.
     if (code === 'Numpad8') {
-      if (supportsMove8) sendAction('move_8way', 0)
-      else if (supportsCardinal) sendAction('move_cardinal', 0)
-      else {
-        if (orientation !== 0) sendAction('rotate', 0)
-        else sendAction('move', 0)
+      if (supportsMove8) {
+        sendAction('move_8way', 0)
+      } else if (supportsCardinal) {
+        sendAction('move_cardinal', 0)
+      } else {
+        if (orientation !== 0) {
+          sendAction('rotate', 0)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
     if (code === 'Numpad4') {
-      if (supportsMove8) sendAction('move_8way', 6)
-      else if (supportsCardinal) sendAction('move_cardinal', 2)
-      else {
-        if (orientation !== 2) sendAction('rotate', 2)
-        else sendAction('move', 0)
+      if (supportsMove8) {
+        sendAction('move_8way', 6)
+      } else if (supportsCardinal) {
+        sendAction('move_cardinal', 2)
+      } else {
+        if (orientation !== 2) {
+          sendAction('rotate', 2)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
     if (code === 'Numpad2') {
-      if (supportsMove8) sendAction('move_8way', 4)
-      else if (supportsCardinal) sendAction('move_cardinal', 1)
-      else {
-        if (orientation !== 1) sendAction('rotate', 1)
-        else sendAction('move', 0)
+      if (supportsMove8) {
+        sendAction('move_8way', 4)
+      } else if (supportsCardinal) {
+        sendAction('move_cardinal', 1)
+      } else {
+        if (orientation !== 1) {
+          sendAction('rotate', 1)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
     if (code === 'Numpad6') {
-      if (supportsMove8) sendAction('move_8way', 2)
-      else if (supportsCardinal) sendAction('move_cardinal', 3)
-      else {
-        if (orientation !== 3) sendAction('rotate', 3)
-        else sendAction('move', 0)
+      if (supportsMove8) {
+        sendAction('move_8way', 2)
+      } else if (supportsCardinal) {
+        sendAction('move_cardinal', 3)
+      } else {
+        if (orientation !== 3) {
+          sendAction('rotate', 3)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
     if (event.key === 'f') {
@@ -218,6 +238,10 @@ export function processActions(event: KeyboardEvent) {
     if (event.key === 'q') {
       // Put recipe items.
       sendAction('put_items', 0)
+    }
+    if (event.key === 'b') {
+      // Place box.
+      sendAction('place_box', 0)
     }
     if (event.key === 'e') {
       // Get the output.
@@ -301,9 +325,7 @@ export function processActions(event: KeyboardEvent) {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Gamepad support
-// ---------------------------------------------------------------------------
 
 // You can test your gamepad here: https://hardwaretester.com/gamepad
 
