@@ -1,5 +1,4 @@
 import numpy as np
-from omegaconf import DictConfig
 
 from metta.mettagrid.map_builder.map_builder import GameMap
 from metta.mettagrid.map_builder.random import RandomMapBuilder, RandomMapBuilderConfig
@@ -7,13 +6,13 @@ from metta.mettagrid.map_builder.random import RandomMapBuilder, RandomMapBuilde
 
 class TestRandomMapBuilderConfig:
     def test_create(self):
-        objects = DictConfig({"wall": 5, "empty": 10})
+        objects = {"wall": 5, "empty": 10}
         config = RandomMapBuilderConfig(width=5, height=5, objects=objects, agents=1, seed=42)
         builder = config.create()
         assert isinstance(builder, RandomMapBuilder)
 
     def test_config_defaults(self):
-        objects = DictConfig({"wall": 5})
+        objects = {"wall": 5}
         config = RandomMapBuilderConfig(width=5, height=5, objects=objects)
         assert config.agents == 0
         assert config.seed is None
@@ -23,7 +22,7 @@ class TestRandomMapBuilderConfig:
 
 class TestRandomMapBuilder:
     def test_build_deterministic_with_seed(self):
-        objects = DictConfig({"wall": 3, "altar": 2})
+        objects = {"wall": 3, "altar": 2}
         config = RandomMapBuilderConfig(width=4, height=4, objects=objects, agents=1, seed=42)
         builder = RandomMapBuilder(config)
         map1 = builder.build()
@@ -35,7 +34,7 @@ class TestRandomMapBuilder:
         assert np.array_equal(map1.grid, map2.grid)
 
     def test_build_different_seeds_different_results(self):
-        objects = DictConfig({"wall": 3, "altar": 2})
+        objects = {"wall": 3, "altar": 2}
         config1 = RandomMapBuilderConfig(width=4, height=4, objects=objects, agents=1, seed=42)
         config2 = RandomMapBuilderConfig(width=4, height=4, objects=objects, agents=1, seed=123)
 
@@ -48,7 +47,7 @@ class TestRandomMapBuilder:
         assert not np.array_equal(map1.grid, map2.grid)
 
     def test_build_correct_object_counts(self):
-        objects = DictConfig({"wall": 3, "altar": 2})
+        objects = {"wall": 3, "altar": 2}
         config = RandomMapBuilderConfig(width=5, height=3, objects=objects, agents=1, seed=42)
         builder = RandomMapBuilder(config)
         game_map = builder.build()
@@ -66,7 +65,7 @@ class TestRandomMapBuilder:
         assert count_dict.get("empty", 0) == total_cells - total_objects
 
     def test_build_with_integer_agents(self):
-        objects = DictConfig({"wall": 2})
+        objects = {"wall": 2}
         config = RandomMapBuilderConfig(width=3, height=3, objects=objects, agents=2, seed=42)
         builder = RandomMapBuilder(config)
         game_map = builder.build()
@@ -77,8 +76,8 @@ class TestRandomMapBuilder:
         assert count_dict.get("agent.agent", 0) == 2
 
     def test_build_with_dictconfig_agents(self):
-        objects = DictConfig({"wall": 2})
-        agents = DictConfig({"agent": 1, "prey": 2})
+        objects = {"wall": 2}
+        agents = {"agent": 1, "prey": 2}
         config = RandomMapBuilderConfig(width=4, height=3, objects=objects, agents=agents, seed=42)
         builder = RandomMapBuilder(config)
         game_map = builder.build()
@@ -91,7 +90,7 @@ class TestRandomMapBuilder:
 
     def test_build_too_many_objects_halving(self):
         # Create scenario where objects exceed 2/3 of area
-        objects = DictConfig({"wall": 10, "altar": 10})  # 20 objects
+        objects = {"wall": 10, "altar": 10}  # 20 objects
         config = RandomMapBuilderConfig(
             width=5,
             height=5,
@@ -111,7 +110,7 @@ class TestRandomMapBuilder:
         assert total_non_empty <= 25
 
     def test_build_empty_map(self):
-        objects = DictConfig({})
+        objects = {}
         config = RandomMapBuilderConfig(width=3, height=2, objects=objects, agents=0, seed=42)
         builder = RandomMapBuilder(config)
         game_map = builder.build()
@@ -121,7 +120,7 @@ class TestRandomMapBuilder:
         assert game_map.grid.shape == (2, 3)
 
     def test_build_single_cell(self):
-        objects = DictConfig({"wall": 1})
+        objects = {"wall": 1}
         config = RandomMapBuilderConfig(width=1, height=1, objects=objects, agents=0, seed=42)
         builder = RandomMapBuilder(config)
         game_map = builder.build()
@@ -130,7 +129,7 @@ class TestRandomMapBuilder:
         assert game_map.grid[0, 0] == "wall"
 
     def test_build_map_shape(self):
-        objects = DictConfig({"wall": 1})
+        objects = {"wall": 1}
         config = RandomMapBuilderConfig(width=7, height=4, objects=objects, agents=0, seed=42)
         builder = RandomMapBuilder(config)
         game_map = builder.build()
@@ -138,7 +137,7 @@ class TestRandomMapBuilder:
         assert game_map.grid.shape == (4, 7)  # height x width
 
     def test_build_no_agents_int(self):
-        objects = DictConfig({"wall": 2})
+        objects = {"wall": 2}
         config = RandomMapBuilderConfig(width=3, height=3, objects=objects, agents=0, seed=42)
         builder = RandomMapBuilder(config)
         game_map = builder.build()
@@ -149,8 +148,8 @@ class TestRandomMapBuilder:
         assert "agent.agent" not in count_dict or count_dict["agent.agent"] == 0
 
     def test_build_no_agents_empty_dict(self):
-        objects = DictConfig({"wall": 2})
-        agents = DictConfig({})
+        objects = {"wall": 2}
+        agents = {}
         config = RandomMapBuilderConfig(width=3, height=3, objects=objects, agents=agents, seed=42)
         builder = RandomMapBuilder(config)
         game_map = builder.build()
@@ -163,7 +162,7 @@ class TestRandomMapBuilder:
         assert len(agent_types) == 0
 
     def test_build_returns_numpy_array(self):
-        objects = DictConfig({"wall": 1})
+        objects = {"wall": 1}
         config = RandomMapBuilderConfig(width=2, height=2, objects=objects, agents=0, seed=42)
         builder = RandomMapBuilder(config)
         result = builder.build()
@@ -174,7 +173,7 @@ class TestRandomMapBuilder:
 
     def test_build_large_map_performance(self):
         """Test that large maps can be built without performance issues"""
-        objects = DictConfig({"wall": 50, "altar": 20})
+        objects = {"wall": 50, "altar": 20}
         config = RandomMapBuilderConfig(width=50, height=50, objects=objects, agents=10, seed=42)
         builder = RandomMapBuilder(config)
 
@@ -183,8 +182,8 @@ class TestRandomMapBuilder:
         assert game_map.grid.shape == (50, 50)
 
     def test_multiple_agent_types(self):
-        objects = DictConfig({"wall": 2})
-        agents = DictConfig({"agent": 1, "prey": 1, "predator": 1})
+        objects = {"wall": 2}
+        agents = {"agent": 1, "prey": 1, "predator": 1}
         config = RandomMapBuilderConfig(width=4, height=4, objects=objects, agents=agents, seed=42)
         builder = RandomMapBuilder(config)
         game_map = builder.build()
