@@ -170,6 +170,10 @@ def process_training_stats(
     # Filter movement metrics to only keep core values
     environment_stats = filter_movement_metrics(environment_stats)
 
+    # Add dual policy stats directly to environment stats (they're already properly formatted)
+    dual_policy_stats = {k: v for k, v in mean_stats.items() if k.startswith("dual_policy/")}
+    environment_stats.update(dual_policy_stats)
+
     # Calculate overview statistics
     overview = {}
 

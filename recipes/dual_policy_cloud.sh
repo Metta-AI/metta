@@ -39,6 +39,7 @@ echo "Nodes: $NODES"
   trainer.optimizer.learning_rate=0.0045 \
   trainer.optimizer.type=muon \
   trainer.simulation.evaluate_interval=50 \
+  trainer.vectorization=multiprocessing \
   +user=npc_uri_env \
   "$@"
 

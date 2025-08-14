@@ -133,6 +133,8 @@ def train(
         num_workers=trainer_cfg.num_workers,
         zero_copy=trainer_cfg.zero_copy,
         is_training=True,
+        dual_policy_enabled=trainer_cfg.dual_policy.enabled,
+        dual_policy_training_agents_pct=trainer_cfg.dual_policy.training_agents_pct,
     )
 
     vecenv.async_reset(env_cfg.seed + rank)
@@ -505,9 +507,6 @@ def train(
                         "dual_policy/npc_policy_generation": npc_policy_record.metadata.get("generation", 0),
                     }
                     wandb_run.log(dual_policy_stats, step=agent_step)
-
-                    # Enable dual-policy stats on the underlying environment
-                    metta_grid_env._dual_policy_enabled = True
 
             # Clear stats after processing
             stats_tracker.clear_rollout_stats()

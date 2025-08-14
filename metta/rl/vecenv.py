@@ -25,6 +25,8 @@ def make_env_func(
     is_training: bool = False,
     is_serial: bool = False,
     run_dir: str | None = None,
+    dual_policy_enabled: bool = False,
+    dual_policy_training_agents_pct: float = 0.5,
     **kwargs,
 ):
     if not is_serial:
@@ -45,6 +47,11 @@ def make_env_func(
     # Ensure the environment is properly initialized
     if hasattr(env, "_c_env") and env._c_env is None:
         raise ValueError("MettaGridEnv._c_env is None after hydra instantiation")
+
+    # Set dual policy configuration on all environments (not just master)
+    if dual_policy_enabled:
+        env._dual_policy_enabled = True
+
     return env
 
 
@@ -86,6 +93,8 @@ def make_vecenv(
         "is_training": is_training,
         "is_serial": is_serial,
         "run_dir": run_dir,
+        "dual_policy_enabled": kwargs.get("dual_policy_enabled", False),
+        "dual_policy_training_agents_pct": kwargs.get("dual_policy_training_agents_pct", 0.5),
     }
 
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,
