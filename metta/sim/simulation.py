@@ -31,7 +31,7 @@ from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.policy_management import initialize_policy_for_environment
 from metta.rl.vecenv import make_vecenv
-from metta.sim.simulation_config import SingleEnvSimulationConfig
+from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
@@ -56,7 +56,7 @@ class Simulation:
     def __init__(
         self,
         name: str,
-        cfg: SingleEnvSimulationConfig,
+        cfg: SimulationConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
         device: torch.device,
@@ -171,7 +171,7 @@ class Simulation:
     @classmethod
     def create(
         cls,
-        sim_config: SingleEnvSimulationConfig,
+        sim_config: SimulationConfig,
         policy_store: PolicyStore,
         device: str,
         vectorization: str,
