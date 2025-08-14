@@ -2,6 +2,8 @@ import logging
 from types import SimpleNamespace
 from typing import Any, Optional
 
+import gymnasium as gym
+import numpy as np
 import torch
 from omegaconf import DictConfig
 
@@ -27,9 +29,6 @@ def _parse_weights_metadata(weights: dict[str, Any]) -> tuple[int, int, int, int
 
 def _init_env() -> SimpleNamespace:
     """Create the runtime env for MettaAgent."""
-    import gymnasium as gym
-    import numpy as np
-
     obs_shape = [34, 11, 11]
     return SimpleNamespace(
         single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
