@@ -178,8 +178,8 @@ class Policy(nn.Module):
 
         # Safely handle LSTM state
         if state is not None and state.get("lstm_h") is not None and state.get("lstm_c") is not None:
-            lstm_h = state.get("lstm_h").to(observations.device)
-            lstm_c = state.get("lstm_c").to(observations.device)
+            lstm_h = state.get("lstm_h")
+            lstm_c = state.get("lstm_c")
             td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
 
         if observations.dim() == 4:

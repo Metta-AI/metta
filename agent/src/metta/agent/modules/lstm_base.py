@@ -7,9 +7,8 @@ pufferlib's default of 0.0. This is critical for proper LSTM learning,
 especially for forget gates.
 """
 
-import pufferlib.models
-import torch
 import torch.nn as nn
+import pufferlib.models
 
 
 class LSTMBase(pufferlib.models.LSTMWrapper):
@@ -24,9 +23,6 @@ class LSTMBase(pufferlib.models.LSTMWrapper):
         for name, param in self.lstm.named_parameters():
             if "bias" in name:
                 nn.init.constant_(param, 1.0)
-
-        # Device will be handled by MettaAgent, not here
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Initialize placeholders for action tensors that MettaAgent will set
         self.action_index_tensor = None

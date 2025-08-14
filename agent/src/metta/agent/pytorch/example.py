@@ -82,7 +82,7 @@ class Example(LSTMBase):
         return td
 
     def _prepare_lstm_state(self, state: dict):
-        """Ensures LSTM hidden states are on the correct device and sized properly."""
+        """Ensures LSTM hidden states are sized properly."""
         h, c = state.get("lstm_h"), state.get("lstm_c")
         if h is None or c is None:
             return None
