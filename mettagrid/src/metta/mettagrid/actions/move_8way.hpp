@@ -127,7 +127,7 @@ protected:
     }
 
     // Move the agent with new orientation
-    if(_no_agent_interference) {
+    if (_no_agent_interference) {
       return _grid->ghost_move_object(actor->id, target_location);
     } else {
       return _grid->move_object(actor->id, target_location);
@@ -137,7 +137,7 @@ protected:
     if (!_grid->is_valid_location(target_location)) {
       return false;
     }
-    if(no_agent_interference) {
+    if (no_agent_interference) {
       if (!_grid->is_empty_at_layer(target_location.r, target_location.c, GridLayer::ObjectLayer)) {
         return false;
       }
