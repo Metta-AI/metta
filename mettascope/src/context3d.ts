@@ -64,7 +64,6 @@ interface FontConfig {
   FONT_SIZE: number
   FONT_CHARSET: string
   GLYPH_INNER_PADDING: number
-  [key: string]: unknown
 }
 
 /** Type definition for atlas data. */
