@@ -3,7 +3,10 @@
 
 import argparse
 import importlib
+import json
 import logging
+
+from omegaconf import OmegaConf
 
 import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
@@ -69,17 +72,22 @@ def play(cfg: PlayToolConfig) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--func", type=str, required=True)
+    parser.add_argument("--func", type=str, required=False)
     parser.add_argument("--cfg", type=str, required=False)
-    args = parser.parse_args()
+    args, override_args = parser.parse_known_args()
+    overrides_conf = OmegaConf.from_cli(override_args)
 
     init_logging()
 
     if args.cfg:
         with open(args.cfg, "r") as f:
-            cfg = PlayToolConfig.model_validate_json(f.read())
-    else:
+            conf = OmegaConf.merge(json.load(f), overrides_conf)
+            cfg = PlayToolConfig.model_validate(conf)
+    elif args.func:
         module_name, func_name = args.func.rsplit(".", 1)
         cfg = importlib.import_module(module_name).__getattribute__(func_name)()
+        cfg = PlayToolConfig.model_validate(OmegaConf.to_container(OmegaConf.merge(cfg.model_dump(), overrides_conf)))
+    else:
+        cfg = PlayToolConfig.model_validate(OmegaConf.to_container(overrides_conf))
 
     play(cfg)
