@@ -25,7 +25,7 @@ import numpy as np
 
 # Gym adapter imports
 from metta.mettagrid import MettaGridGymEnv
-from metta.mettagrid.config.builder import arena
+from metta.mettagrid.config.builder import make_arena
 
 # Training framework imports
 try:
@@ -43,7 +43,7 @@ def demo_single_agent_gym():
     print("=" * 60)
 
     env = MettaGridGymEnv(
-        env_config=arena(num_agents=1),
+        env_config=make_arena(num_agents=1),
         render_mode=None,
     )
 
@@ -85,7 +85,7 @@ def demo_sb3_training():
 
     try:
         env = MettaGridGymEnv(
-            env_config=arena(num_agents=1),
+            env_config=make_arena(num_agents=1),
             render_mode=None,
         )
 
@@ -141,7 +141,7 @@ def demo_vectorized_envs():
         def make_env():
             def _init():
                 return MettaGridGymEnv(
-                    env_config=arena(num_agents=1),
+                    env_config=make_arena(num_agents=1),
                     render_mode=None,
                 )
 

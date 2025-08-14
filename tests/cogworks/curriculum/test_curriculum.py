@@ -91,9 +91,7 @@ class TestCurriculumConfig:
         task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
 
         # Test minimum values
-        config = CurriculumConfig(
-            task_generator=task_gen_config, max_task_id=1, num_active_tasks=1, new_task_rate=0.0
-        )
+        config = CurriculumConfig(task_generator=task_gen_config, max_task_id=1, num_active_tasks=1, new_task_rate=0.0)
         assert config.max_task_id == 1
         assert config.num_active_tasks == 1
         assert config.new_task_rate == 0.0
@@ -111,9 +109,7 @@ class TestCurriculum:
     def create_test_config(self):
         """Helper to create a test configuration."""
         task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
-        return CurriculumConfig(
-            task_generator=task_gen_config, max_task_id=1000, num_active_tasks=5, new_task_rate=0.1
-        )
+        return CurriculumConfig(task_generator=task_gen_config, max_task_id=1000, num_active_tasks=5, new_task_rate=0.1)
 
     def test_curriculum_creation(self):
         """Test creating a Curriculum."""

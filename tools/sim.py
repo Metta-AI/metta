@@ -75,7 +75,6 @@ def main(cfg: DictConfig) -> None:
 
     sim_job = SimJob(cfg.sim_job)
     logger.info(f"Sim job:\n{sim_job}")
-    training_curriculum: Curriculum | None = None
 
     if cfg.sim_suite_config_path:
         with open(cfg.sim_suite_config_path, "r") as f:
@@ -88,11 +87,7 @@ def main(cfg: DictConfig) -> None:
         with open(cfg.trainer_task_path, "r") as f:
             trainer_task_dict = json.load(f)
         logger.info(f"Trainer task:\n{trainer_task_dict}")
-        if curriculum_name := trainer_task_dict.get("curriculum"):
-            training_curriculum = curriculum_from_config_path(
-                curriculum_name, DictConfig(trainer_task_dict.get("env_overrides", {}))
-            )
-            logger.info(f"Training curriculum:\n{training_curriculum}")
+        # Note: trainer_task_path functionality removed - no longer used after refactoring
 
     # Create env config
     system_config = create_system_config(cfg)
@@ -134,7 +129,6 @@ def main(cfg: DictConfig) -> None:
                 stats_client=stats_client,
                 logger=logger,
                 eval_task_id=eval_task_id,
-                training_curriculum=training_curriculum,
             )
             if cfg.push_metrics_to_wandb:
                 try:

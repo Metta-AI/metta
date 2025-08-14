@@ -11,7 +11,7 @@ from unittest.mock import patch
 import pytest
 
 from metta.mettagrid.char_encoder import CHAR_TO_NAME
-from metta.mettagrid.config.builder import arena
+from metta.mettagrid.config.builder import make_arena
 from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.renderer.nethack import NethackRenderer
@@ -210,7 +210,7 @@ class TestRendererIntegration:
     def test_environment_rendering_workflow(self, mock_print):
         """Test complete rendering workflow with environment."""
         # Use the working approach from our demo scripts
-        cfg = arena(num_agents=1)
+        cfg = make_arena(num_agents=1)
         cfg.game.max_steps = 5
         cfg.game.map_builder = RandomMapBuilderConfig(
             width=5,
@@ -246,7 +246,7 @@ class TestRendererIntegration:
     @patch("builtins.print")
     def test_multiple_render_calls(self, mock_print):
         """Test multiple render calls for consistency."""
-        cfg = arena(num_agents=1)
+        cfg = make_arena(num_agents=1)
         cfg.game.max_steps = 5
 
         # Override map builder to ensure agent count matches
@@ -282,7 +282,7 @@ class TestRendererIntegration:
     def test_tools_sim_style_integration(self):
         """Test tools.sim style integration approach."""
         # Get benchmark config (like tools.sim would)
-        cfg = arena(num_agents=1)
+        cfg = make_arena(num_agents=1)
         cfg.game.max_steps = 5
 
         # Override map builder to ensure agent count matches

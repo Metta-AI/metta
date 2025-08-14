@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 
-from metta.mettagrid.config.builder import arena
+from metta.mettagrid.config.builder import make_arena
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
@@ -12,7 +12,7 @@ def test_movement_metrics():
     pytest.skip("Skipping movement metrics test - requires curriculum system update not in this PR")
 
     # Get the benchmark config and modify it
-    cfg = arena(num_agents=1)
+    cfg = make_arena(num_agents=1)
 
     cfg.game.max_steps = 100
     cfg.game.episode_truncates = True
