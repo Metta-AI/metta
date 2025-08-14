@@ -6,9 +6,9 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.models.encoders import ObsLatentAttn, ObsSelfAttn
-from metta.agent.models.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
+from metta.agent.modules.encoders import ObsLatentAttn, ObsSelfAttn
 from metta.agent.modules.lstm_base import LSTMBase
+from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 from metta.agent.pytorch.layer_init import init_layer
 
 logger = logging.getLogger(__name__)
@@ -158,9 +158,7 @@ class Policy(nn.Module):
         # Action heads - will be initialized based on action space
         action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
 
-        self.actor_heads = nn.ModuleList(
-            [init_layer(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec]
-        )
+        self.actor_heads = nn.ModuleList([init_layer(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec])
 
     def network_forward(self, x):
         x, mask, B_TT = self.obs_(x)

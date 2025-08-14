@@ -95,7 +95,7 @@ class Fast(LSTMBase):
     def clip_weights(self):
         """Clip weights of the actor heads to prevent large updates."""
         pass
-    
+
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics for wandb logging - generic implementation."""
         # Return empty list - weight metrics are optional
@@ -146,9 +146,7 @@ class Policy(nn.Module):
         # Action heads - will be initialized based on action space
         action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
 
-        self.actor_heads = nn.ModuleList(
-            [init_layer(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec]
-        )
+        self.actor_heads = nn.ModuleList([init_layer(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec])
 
         max_vec = torch.tensor(
             [
@@ -178,7 +176,6 @@ class Policy(nn.Module):
             dtype=torch.float32,
         )[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
-
 
     def network_forward(self, x):
         x = x / self.max_vec

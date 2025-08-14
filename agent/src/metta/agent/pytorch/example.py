@@ -119,7 +119,7 @@ class Example(LSTMBase):
     def clip_weights(self):
         for p in self.parameters():
             p.data.clamp_(-1, 1)
-    
+
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics for wandb logging - generic implementation."""
         # Return empty list - weight metrics are optional
@@ -187,9 +187,7 @@ class Policy(nn.Module):
         max_vec = max_vec[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
-        self.actor = nn.ModuleList(
-            [init_layer(nn.Linear(hidden_size, n), std=0.01) for n in self.action_space.nvec]
-        )
+        self.actor = nn.ModuleList([init_layer(nn.Linear(hidden_size, n), std=0.01) for n in self.action_space.nvec])
         self.value = init_layer(nn.Linear(hidden_size, 1), std=1)
 
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
