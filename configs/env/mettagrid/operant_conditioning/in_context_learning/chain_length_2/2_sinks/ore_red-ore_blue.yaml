@@ -8,29 +8,32 @@ game:
       params:
         objects:
           generator_red: 1
-          altar: 1
-          generator_green: 1
-          mine_blue: 1
           lab: 1
+          mine_green: 1
+          generator_blue: 1
+          generator_green: 1
   objects:
     generator_red:
       output_resources:
         ore_red: 1
-    altar:
+      cooldown: 15
+    lab:
       input_resources:
         ore_red: 1
       output_resources:
         ore_blue: 1
-    generator_green:
+      cooldown: 15
+    mine_green:
       input_resources:
         ore_blue: 1
       output_resources:
         heart: 1
-    mine_blue:
+      cooldown: 15
+    generator_blue:
       input_resources:
         ore_red: 1
         ore_blue: 1
-    lab:
+    generator_green:
       input_resources:
         ore_red: 1
         ore_blue: 1

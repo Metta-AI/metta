@@ -83,6 +83,8 @@ class InContextEnv:
         self.num_sinks = num_sinks
         self.used_objects = []
         self.all_input_resources = []
+        self.converters = []
+        self.sinks = []
         self.use_initial_inventory = use_initial_inventory
 
     def set_converter(self, input_resource, output_resource):
@@ -92,6 +94,7 @@ class InContextEnv:
         converter = str(np.random.choice([c for c in self.converter_types if c not in self.used_objects]))
         print(f"Converter: {converter} will convert {input_resource} to {output_resource}")
         self.used_objects.append(converter)
+        self.converters.append(converter)
 
         self.env_cfg["game"]["map_builder"]["root"]["params"]["objects"][converter] = 1
 
@@ -120,6 +123,8 @@ class InContextEnv:
         for input_resource in self.all_input_resources:
             self.env_cfg["game"]["objects"][sink]["input_resources"][input_resource] = 1
 
+        self.sinks.append(sink)
+
         print(f"Sink: {sink} will convert {self.all_input_resources} to {sink}")
 
     def get_env_cfg(self):
@@ -135,10 +140,6 @@ class InContextEnv:
         print(f"Resource chain: {resource_chain}, num sinks: {self.num_sinks}")
         print(f"Expected converters needed: {chain_length - 1}")
 
-        # shorter episodes for shorter chains
-        if chain_length <= 4 and self.num_sinks < 2:
-            self.env_cfg["game"]["max_steps"] = 256
-
         # for every i/o pair along the way of our resource chain
         for i in range(chain_length - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
@@ -150,6 +151,13 @@ class InContextEnv:
         if self.num_sinks > 0:
             for _ in range(self.num_sinks):
                 self.set_sink()
+        # shorter episodes for shorter chains
+        if len(self.used_objects) <= 2:
+            self.env_cfg["game"]["max_steps"] = 128
+        elif len(self.used_objects) <= 4:
+            self.env_cfg["game"]["max_steps"] = 256
+        else:
+            self.env_cfg["game"]["max_steps"] = 512
 
         # Initialize with first resource in the chain
         if self.use_initial_inventory:
@@ -158,6 +166,12 @@ class InContextEnv:
         print(f"Total objects created: {len(self.used_objects)}")
         print(f"Objects: {self.used_objects}")
         print(f"Expected: {chain_length - 1 + self.num_sinks}")
+
+        cooldown = 5 * (chain_length - 1)
+
+        for obj in self.converters:
+            self.env_cfg["game"]["objects"][obj]["cooldown"] = cooldown
+
         return self.env_cfg
 
 
