@@ -403,6 +403,13 @@ cleanup() {
   fi
 }
 
+# Run comprehensive GPU diagnostics and NCCL tests
+echo "[RUN] Running GPU diagnostics and NCCL tests..."
+if ! uv run python ./devops/skypilot/test_nccl.py; then
+    echo "Pre-flight check failed!"
+    exit 1
+fi
+
 # Export variables needed by cleanup
 export TIMEOUT_MONITOR_PID=""
 export HEARTBEAT_MONITOR_PID=""
