@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, Literal, Optional
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.config import Config
+from metta.sim.simulation_config import SimulationConfig
 
 if TYPE_CHECKING:
     from metta.cogworks.curriculum.curriculum import CurriculumConfig
@@ -269,6 +270,14 @@ class EnvConfig(Config):
         from metta.cogworks.curriculum.curriculum import Curriculum
 
         return Curriculum(self.to_curriculum_cfg())
+
+    def to_sim(self, name: str) -> SimulationConfig:
+        from metta.sim.simulation_config import SimulationConfig
+
+        return SimulationConfig(
+            name=name,
+            env=self,
+        )
 
     @staticmethod
     def EmptyRoom(num_agents: int, width: int = 10, height: int = 10, border_width: int = 1) -> "EnvConfig":

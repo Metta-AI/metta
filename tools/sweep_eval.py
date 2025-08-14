@@ -23,7 +23,7 @@ from metta.common.util.lock import run_once
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.rl.system_config import SystemConfig
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sweep.wandb_utils import record_protein_observation_to_wandb
 
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 class SweepEvalToolConfig(Config):
     system: SystemConfig
     wandb: WandbConfig
-    sim: SimulationSuiteConfig
+    sim: list[SimulationConfig]
     sweep: SweepConfig
 
 

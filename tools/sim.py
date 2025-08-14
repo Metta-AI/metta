@@ -26,7 +26,7 @@ from metta.common.util.config import Config
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.eval.eval_service import evaluate_policy
 from metta.rl.stats import process_policy_evaluator_stats
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.simulation_config import SimulationConfig
 from metta.util.metta_script import metta_script
 from tools.utils import get_policy_store_from_cfg
 
@@ -36,7 +36,7 @@ from tools.utils import get_policy_store_from_cfg
 
 
 class SimToolConfig(Config):
-    simulation_suite: SimulationSuiteConfig
+    simulations: list[SimulationConfig]
     policy_uris: list[str]
     selector_type: PolicySelectorType = "top"
     stats_db_uri: str
@@ -67,27 +67,6 @@ def _determine_run_name(policy_uri: str) -> str:
 
 def main(cfg: SimToolConfig) -> None:
     logger = logging.getLogger("tools.sim")
-    if not cfg.get("run"):
-        cfg.run = _determine_run_name(cfg.policy_uri)
-        logger.info(f"Auto-generated run name: {cfg.run}")
-
-    logger.info(f"Sim job:\n{cfg}")
-
-    if cfg.sim_suite_config_path:
-        with open(cfg.sim_suite_config_path, "r") as f:
-            sim_suite_config_dict = json.load(f)
-        cfg.simulation_suite = SimulationSuiteConfig.model_validate(sim_suite_config_dict)
-        logger.info(f"Sim suite config:\n{cfg.simulation_suite}")
-
-    if cfg.trainer_task_path:
-        logger.info(f"Loading trainer task from {cfg.trainer_task_path}")
-        with open(cfg.trainer_task_path, "r") as f:
-            trainer_task_dict = json.load(f)
-        logger.info(f"Trainer task:\n{trainer_task_dict}")
-        # Note: trainer_task_path functionality removed - no longer used after refactoring
-
-    # Create env config
-    system_config = cfg.system
 
     policy_store = get_policy_store_from_cfg(cfg)
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
@@ -99,35 +78,36 @@ def main(cfg: SimToolConfig) -> None:
             uri_or_config=policy_uri,
             selector_type=cfg.selector_type,
             n=1,
-            metric=cfg.simulation_suite.name + "_score",
+            metric=cfg.simulations[0].name + "_score",
         )
         for policy_uri in cfg.policy_uris
     }
 
-    all_results = {"simulation_suite": cfg.simulation_suite.name, "policies": []}
-    device = torch.device(cfg.device)
+    all_results = {"simulations": [sim.name for sim in cfg.simulations], "policies": []}
+    device = torch.device(cfg.system.device)
 
     # Get eval_task_id from config if provided
     eval_task_id = None
-    if cfg.get("eval_task_id"):
+    if cfg.eval_task_id:
         eval_task_id = uuid.UUID(cfg.eval_task_id)
+
     for policy_uri, policy_prs in policy_records_by_uri.items():
         results = {"policy_uri": policy_uri, "checkpoints": []}
         for pr in policy_prs:
             eval_results = evaluate_policy(
                 policy_record=pr,
-                simulation_suite=cfg.simulation_suite,
+                simulations=cfg.simulations,
                 stats_dir=cfg.stats_dir,
                 replay_dir=f"{cfg.replay_dir}/{pr.run_name}",
                 device=device,
-                vectorization=system_config.vectorization,
+                vectorization=cfg.system.vectorization,
                 export_stats_db_uri=cfg.stats_db_uri,
                 policy_store=policy_store,
                 stats_client=stats_client,
                 logger=logger,
                 eval_task_id=eval_task_id,
             )
-            if cfg.push_metrics_to_wandb:
+            if cfg.wandb_run:
                 try:
                     process_policy_evaluator_stats(pr, eval_results)
                 except Exception as e:
