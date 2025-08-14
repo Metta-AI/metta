@@ -6,13 +6,13 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-import pufferlib.models
 import pufferlib.pytorch
+from metta.agent.pytorch.lstm_base import LSTMBase
 
 logger = logging.getLogger(__name__)
 
 
-class Fast(pufferlib.models.LSTMWrapper):
+class Fast(LSTMBase):
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
         if policy is None:
             policy = Policy(
@@ -21,11 +21,6 @@ class Fast(pufferlib.models.LSTMWrapper):
                 hidden_size=hidden_size,
             )
         super().__init__(env, policy, input_size, hidden_size)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        # Initialize placeholders for action tensors that MettaAgent will set
-        self.action_index_tensor = None
-        self.cum_action_max_params = None
 
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"].to(self.device)

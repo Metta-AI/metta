@@ -7,13 +7,13 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-import pufferlib.models
 import pufferlib.pytorch
+from metta.agent.pytorch.lstm_base import LSTMBase
 
 logger = logging.getLogger(__name__)
 
 
-class Example(pufferlib.models.LSTMWrapper):
+class Example(LSTMBase):
     """Recurrent LSTM-based policy wrapper with discrete multi-head action space."""
 
     def __init__(
@@ -28,7 +28,6 @@ class Example(pufferlib.models.LSTMWrapper):
             policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size, input_size=input_size)
 
         super().__init__(env, policy, input_size, hidden_size)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     def forward(self, td: TensorDict, state: Optional[dict] = None, action=None) -> TensorDict:
         """Forward pass: encodes observations, runs LSTM, decodes into actions, value, and stats."""

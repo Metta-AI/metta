@@ -2,7 +2,6 @@ import logging
 from typing import Dict, Optional, Tuple
 
 import einops
-import pufferlib.models
 import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
@@ -10,11 +9,12 @@ from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.agalite_batched import BatchedAGaLiTe
+from metta.agent.pytorch.lstm_base import LSTMBase
 
 logger = logging.getLogger(__name__)
 
 
-class AgaliteHybrid(pufferlib.models.LSTMWrapper):
+class AgaliteHybrid(LSTMBase):
     """Hybrid AGaLiTe-LSTM architecture for efficient RL training.
     
     This uses AGaLiTe's sophisticated attention-based observation encoding
@@ -30,12 +30,10 @@ class AgaliteHybrid(pufferlib.models.LSTMWrapper):
         if policy is None:
             policy = AgalitePolicy(env, input_size=input_size, hidden_size=hidden_size)
         
-        # Use PufferLib's LSTM wrapper for consistency with working agents
+        # Use our base class for proper LSTM initialization
         super().__init__(env, policy, input_size, hidden_size)
         
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        
-        # Initialize action conversion tensors (will be set by MettaAgent)
+        # Additional initialization if needed
         self.action_index_tensor = None
         self.cum_action_max_params = None
         

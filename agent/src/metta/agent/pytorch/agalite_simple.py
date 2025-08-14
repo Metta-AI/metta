@@ -4,7 +4,6 @@ Uses AGaLiTe transformer layers with proper token observation handling.
 """
 
 import einops
-import pufferlib.models
 import pufferlib.pytorch
 import torch
 import torch.nn as nn
@@ -12,9 +11,10 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 
 from metta.agent.agalite_batched import BatchedAGaLiTe
+from metta.agent.pytorch.lstm_base import LSTMBase
 
 
-class AGaLiTeSimple(pufferlib.models.LSTMWrapper):
+class AGaLiTeSimple(LSTMBase):
     """AGaLiTe with LSTM wrapper for compatibility with Metta infrastructure."""
 
     def __init__(self, env, policy=None, input_size=256, hidden_size=256):
@@ -22,11 +22,6 @@ class AGaLiTeSimple(pufferlib.models.LSTMWrapper):
             policy = Policy(env, input_size=input_size, hidden_size=hidden_size)
 
         super().__init__(env, policy, input_size, hidden_size)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        # Initialize placeholders for action tensors that MettaAgent will set
-        self.action_index_tensor = None
-        self.cum_action_max_params = None
 
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"].to(self.device)
