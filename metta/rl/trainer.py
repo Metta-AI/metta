@@ -327,19 +327,19 @@ def train(
                 policy.reset_memory()
                 buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
-                # Precompute agent split and publish to env for logging
-                npc_mask_tensor: torch.Tensor | None = None
-                if trainer_cfg.dual_policy.enabled:
-                    total_agents = vecenv.num_agents
-                    npc_count = int(round(total_agents * (1.0 - trainer_cfg.dual_policy.training_agents_pct)))
-                    npc_mask_tensor = torch.zeros(total_agents, dtype=torch.bool, device=device)
+                # Precompute agent split per-env and publish to env for logging
+                npc_mask_per_env: torch.Tensor | None = None
+                agents_per_env = metta_grid_env.num_agents
+                if trainer_cfg.dual_policy.enabled and agents_per_env > 0:
+                    npc_count = int(round(agents_per_env * (1.0 - trainer_cfg.dual_policy.training_agents_pct)))
+                    npc_mask_per_env = torch.zeros(agents_per_env, dtype=torch.bool, device=device)
                     if npc_count > 0:
-                        npc_mask_tensor[:npc_count] = True
-                    # let env know the grouping for logging if groups are not exposed natively
+                        npc_mask_per_env[:npc_count] = True
+                    # let env know grouping for logging (indices are per single env)
                     try:
                         metta_grid_env._dual_policy_agent_groups = [
-                            torch.nonzero(npc_mask_tensor, as_tuple=False).flatten().tolist(),
-                            torch.nonzero(~npc_mask_tensor, as_tuple=False).flatten().tolist(),
+                            torch.nonzero(npc_mask_per_env, as_tuple=False).flatten().tolist(),
+                            torch.nonzero(~npc_mask_per_env, as_tuple=False).flatten().tolist(),
                         ]
                     except Exception:
                         pass
@@ -372,18 +372,29 @@ def train(
                         if (
                             trainer_cfg.dual_policy.enabled
                             and npc_policy is not None
-                            and npc_mask_tensor is not None
-                            and npc_mask_tensor.any().item()
+                            and npc_mask_per_env is not None
+                            and npc_mask_per_env.any().item()
                         ):
                             td_npc = td.clone()
                             npc_policy(td_npc)
                             actions = td["actions"].clone()
-                            # Assume actions shape [..., num_agents, num_action_components]
-                            if actions.ndim >= 2:
-                                actions[..., npc_mask_tensor, :] = td_npc["actions"][..., npc_mask_tensor, :]
+                            # Merge NPC actions depending on action tensor shape
+                            if actions.ndim >= 3:
+                                # Shape like [B, num_agents, action_components]
+                                actions[..., npc_mask_per_env, :] = td_npc["actions"][..., npc_mask_per_env, :]
+                            elif actions.ndim == 2:
+                                # Shape like [B*agents_per_env, action_components]
+                                total = actions.shape[0]
+                                if agents_per_env > 0 and total % agents_per_env == 0:
+                                    repeats = total // agents_per_env
+                                    npc_mask_flat = npc_mask_per_env.repeat(repeats)
+                                    actions[npc_mask_flat, :] = td_npc["actions"][npc_mask_flat, :]
+                                else:
+                                    # Unable to infer grouping; skip merge to avoid shape errors
+                                    pass
                             else:
-                                # Fallback: if actions are [num_agents, ...]
-                                actions[npc_mask_tensor] = td_npc["actions"][npc_mask_tensor]
+                                # Unsupported shape; skip merge
+                                pass
                             td["actions"] = actions
 
                     # Store experience
