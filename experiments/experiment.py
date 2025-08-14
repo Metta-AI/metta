@@ -1,7 +1,7 @@
 """Base class for reproducible experiments."""
 
 import os
-from abc import ABC
+from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import List, Optional
 
@@ -9,8 +9,6 @@ import logging
 
 from experiments.skypilot_service import get_skypilot_service
 from experiments.training_job import TrainingJob, TrainingJobConfig
-from experiments.skypilot_job_config import SkypilotJobConfig
-from experiments.training_run_config import TrainingRunConfig
 from metta.common.util.config import Config
 from pydantic import PrivateAttr
 
@@ -43,81 +41,14 @@ class ExperimentConfig(Config):
         return self._instance_name
 
 
-class SingleJobExperimentConfig(ExperimentConfig):
+class SingleJobExperimentConfig(ExperimentConfig, TrainingJobConfig):
     """Configuration for experiments with a single training job.
 
-    Composes SkypilotJobConfig and TrainingRunConfig without duplicating defaults.
+    Inherits from both ExperimentConfig (for experiment metadata) and
+    TrainingJobConfig (for job configuration).
     """
 
-    # Compose the two configs without redefining defaults
-    skypilot: SkypilotJobConfig = SkypilotJobConfig()
-    training: TrainingRunConfig  # Required - must be provided by subclasses
-
-    # Optional overrides for common parameters (only if user wants to change them)
-    total_timesteps: Optional[int] = None
-    num_workers: Optional[int] = None
-    batch_size: Optional[int] = None
-    learning_rate: Optional[float] = None
-
-    def to_training_job_config(self) -> TrainingJobConfig:
-        """Convert to a properly structured TrainingJobConfig."""
-        # Start with the composed configs
-        config = TrainingJobConfig(skypilot=self.skypilot, training=self.training)
-
-        # Apply any user overrides for trainer parameters
-        if any(
-            [
-                self.total_timesteps,
-                self.num_workers,
-                self.batch_size,
-                self.learning_rate,
-            ]
-        ):
-            from metta.rl.trainer_config import (
-                TrainerConfig,
-                OptimizerConfig,
-                CheckpointConfig,
-                SimulationConfig,
-                TorchProfilerConfig,
-            )
-
-            # Get existing trainer or create new one
-            if config.training.trainer:
-                trainer_dict = config.training.trainer.model_dump()
-            else:
-                # Create minimal trainer config with required fields
-                trainer_dict = {
-                    "checkpoint": CheckpointConfig(
-                        checkpoint_dir="${run_dir}/checkpoints"
-                    ).model_dump(),
-                    "simulation": SimulationConfig(
-                        replay_dir="${run_dir}/replays"
-                    ).model_dump(),
-                    "profiler": TorchProfilerConfig(
-                        profile_dir="${run_dir}/torch_traces"
-                    ).model_dump(),
-                    "curriculum": config.training.curriculum,
-                    "num_workers": 1,  # Required field, use default
-                }
-
-            # Apply overrides
-            if self.total_timesteps is not None:
-                trainer_dict["total_timesteps"] = self.total_timesteps
-            if self.num_workers is not None:
-                trainer_dict["num_workers"] = self.num_workers
-            if self.batch_size is not None:
-                trainer_dict["batch_size"] = self.batch_size
-                # Auto-calculate minibatch_size if not specified
-                if "minibatch_size" not in trainer_dict:
-                    trainer_dict["minibatch_size"] = min(512, self.batch_size // 4)
-            if self.learning_rate is not None:
-                trainer_dict["optimizer"] = OptimizerConfig(
-                    learning_rate=self.learning_rate
-                ).model_dump()
-
-            config.training.trainer = TrainerConfig(**trainer_dict)
-
-        return config
+    pass
 
 
 class Experiment(ABC):
@@ -132,19 +63,19 @@ class Experiment(ABC):
         self.launched_training_jobs: List[TrainingJob] = []
         self._training_job_configs: List[TrainingJobConfig] = []
 
-    @property
+    @abstractmethod
     def training_job_configs(self) -> List[TrainingJobConfig]:
-        """Override this property to define the training jobs for this experiment."""
-        return []
+        """Override this method to define the training jobs for this experiment."""
+        pass
 
     def training_jobs(self) -> List[TrainingJob]:
         """Convert training job configs to TrainingJob objects."""
         jobs = []
-        for i, config in enumerate(self.training_job_configs):
+        for i, config in enumerate(self.training_job_configs()):
             # Use instance_name for consistency
             job_name = (
                 f"{self.instance_name}_job_{i}"
-                if len(self.training_job_configs) > 1
+                if len(self.training_job_configs()) > 1
                 else self.instance_name
             )
             jobs.append(
@@ -224,7 +155,7 @@ class Experiment(ABC):
             self.load_training_jobs()
         else:
             # Show what would be launched without actually launching
-            self._training_job_configs = list(self.training_job_configs)
+            self._training_job_configs = list(self.training_job_configs())
             self.launched_training_jobs = []
 
             print("\n[Preview Mode - launch=False]")
@@ -280,8 +211,8 @@ class SingleJobExperiment(Experiment):
         # Type narrowing for better IDE support
         self.config: SingleJobExperimentConfig = config
 
-    @property
     def training_job_configs(self) -> List[TrainingJobConfig]:
-        """Create a single training job config from the experiment config."""
-        # Convert the experiment config to a TrainingJobConfig
-        return [self.config.to_training_job_config()]
+        """Return the config itself as it already is a TrainingJobConfig."""
+        # Since SingleJobExperimentConfig inherits from TrainingJobConfig,
+        # we can just return it directly
+        return [self.config]

@@ -16,6 +16,4 @@ class SkypilotJobConfig(Config):
     spot: bool = True  # Use spot instances to save costs
 
     # Launch control
-    git_check: bool = (
-        True  # Use existing check_git_state() from devops/skypilot/utils.py
-    )
+    git_check: bool = True

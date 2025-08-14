@@ -51,23 +51,9 @@ def runner(
         # Launch control
         launch: Annotated[bool, typer.Option(help="Launch the job to Skypilot")] = True,
         git_check: Annotated[bool, typer.Option(help="Check git status")] = True,
-        # Advanced
-        curriculum: Annotated[
-            Optional[str], typer.Option(help="Curriculum path")
-        ] = None,
-        wandb_tags: Annotated[
-            Optional[List[str]], typer.Option(help="W&B tags")
-        ] = None,
-        # Trainer overrides
-        total_timesteps: Annotated[
-            Optional[int], typer.Option(help="Total training timesteps")
-        ] = None,
-        batch_size: Annotated[Optional[int], typer.Option(help="Batch size")] = None,
-        learning_rate: Annotated[
-            Optional[float], typer.Option(help="Learning rate")
-        ] = None,
+        # Load previous jobs
         previous_job_ids: Annotated[
-            Optional[List[str]], typer.Option(help="Previous job IDs")
+            Optional[List[str]], typer.Option(help="Previous job IDs to load")
         ] = None,
     ):
         """Run an experiment with the specified configuration."""
@@ -99,7 +85,6 @@ def runner(
         # If it's a SingleJobExperimentConfig, we need to set the nested configs
         if issubclass(config_class, SingleJobExperimentConfig):
             from experiments.skypilot_job_config import SkypilotJobConfig
-            from experiments.training_run_config import TrainingRunConfig
 
             # Create skypilot config with CLI overrides
             config_dict["skypilot"] = SkypilotJobConfig(
@@ -109,27 +94,9 @@ def runner(
                 git_check=git_check,
             )
 
-            # Create training config with CLI overrides
-            training_dict = {}
-            if curriculum:
-                training_dict["curriculum"] = curriculum
-            if wandb_tags:
-                training_dict["wandb_tags"] = wandb_tags
-
-            # Only create TrainingRunConfig if we have parameters for it
-            # Otherwise let the config class handle its own defaults
-            if training_dict:
-                config_dict["training"] = TrainingRunConfig(**training_dict)
-
-            # Add trainer override fields
-            if total_timesteps is not None:
-                config_dict["total_timesteps"] = total_timesteps
-            if batch_size is not None:
-                config_dict["batch_size"] = batch_size
-            if learning_rate is not None:
-                config_dict["learning_rate"] = learning_rate
+            # The config class should provide its own training config as a default
         else:
-            # For base ExperimentConfig, just pass through the values
+            # For base ExperimentConfig, just pass through the infrastructure values
             config_dict.update(
                 {
                     "gpus": gpus,
@@ -138,10 +105,6 @@ def runner(
                     "git_check": git_check,
                 }
             )
-            if curriculum:
-                config_dict["curriculum"] = curriculum
-            if wandb_tags:
-                config_dict["wandb_tags"] = wandb_tags
 
         # Create and run experiment
         try:
