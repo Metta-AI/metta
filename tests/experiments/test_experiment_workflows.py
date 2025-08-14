@@ -39,7 +39,7 @@ class TestExperimentWorkflows:
         job_config = experiment._training_job_configs[0]
 
         # Verify YAML can be generated and contains expected values
-        yaml_path, yaml_dict = job_config.training.serialize_to_yaml_file()
+        yaml_path, yaml_dict = job_config.training.serialize_to_yaml_file(instance_name=experiment.instance_name)
 
         try:
             # Verify file exists and is valid YAML

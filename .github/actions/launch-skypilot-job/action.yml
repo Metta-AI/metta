@@ -43,6 +43,11 @@ inputs:
     required: false
     default: ""
 
+outputs:
+  launch_output:
+    description: "The output from the SkyPilot launch command"
+    value: ${{ steps.launch.outputs.launch_output }}
+
 runs:
   using: "composite"
   steps:
@@ -72,6 +77,7 @@ runs:
         sky api login -e ${{ inputs.skypilot_api_url }} --token ${{ inputs.skypilot_service_account_token }}
 
     - name: Launch SkyPilot training job
+      id: launch
       shell: bash
       run: |
         set -x # Enable command printing for debugging
@@ -105,6 +111,18 @@ runs:
           "trainer.curriculum=${{ inputs.trainer_env }}"
         )
 
-        ./devops/skypilot/launch.py "${LAUNCH_ARGS[@]}"
+        # Capture the output
+        LAUNCH_OUTPUT=$(./devops/skypilot/launch.py "${LAUNCH_ARGS[@]}" 2>&1)
+        echo "$LAUNCH_OUTPUT"
+
+        # Save to file for fallback
+        echo "$LAUNCH_OUTPUT" > /tmp/skypilot_launch_output.txt
+
+        # Set as GitHub Actions output
+        {
+          echo 'launch_output<<EOF'
+          echo "$LAUNCH_OUTPUT"
+          echo 'EOF'
+        } >> $GITHUB_OUTPUT
 
         set +x # Disable command printing

@@ -22,9 +22,10 @@ class TestYAMLContract:
         assert "defaults" in yaml_dict
         assert isinstance(yaml_dict["defaults"], list)
 
-        # Should have agent config in defaults
-        agent_defaults = [d for d in yaml_dict["defaults"] if "agent:" in d]
+        # Should have agent config in defaults (using relative paths)
+        agent_defaults = [d for d in yaml_dict["defaults"] if "agent/" in d]
         assert len(agent_defaults) == 1
+        assert "../agent/fast" in yaml_dict["defaults"]
 
         # Required trainer section
         assert "trainer" in yaml_dict
@@ -64,13 +65,12 @@ class TestYAMLContract:
 
         yaml_dict = config.serialize_to_yaml()
 
-        # Check defaults structure for Hydra
+        # Check defaults structure for Hydra (using relative paths)
         defaults = yaml_dict["defaults"]
-        assert defaults[0] == "common"
+        assert defaults[0] == "../common"
 
-        # Agent config should be in specific format
-        agent_line = next(d for d in defaults if "agent:" in d)
-        assert agent_line == "agent: latent_attn_tiny"
+        # Agent config should be in specific format with relative path
+        assert "../agent/latent_attn_tiny" in defaults
 
         # Tags should be a list
         assert isinstance(yaml_dict["wandb"]["tags"], list)
@@ -140,7 +140,7 @@ class TestYAMLContract:
             wandb_project="test-project",
         )
 
-        yaml_path, yaml_dict = config.serialize_to_yaml_file()
+        yaml_path, yaml_dict = config.serialize_to_yaml_file(instance_name="test_hydra_loadable")
 
         try:
             # Verify file exists and is valid YAML

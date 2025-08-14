@@ -24,22 +24,19 @@ class TestTrainIntegration:
         # Check that agent config is properly referenced
         assert "defaults" in yaml_dict
         # Now using relative paths
-        agent_defaults = [d for d in yaml_dict["defaults"] if "agent/" in d]
-        assert len(agent_defaults) == 1
         assert "../agent/fast" in yaml_dict["defaults"]
-        assert agent_defaults[0] == "agent: fast"
 
         # Check curriculum is set
         assert yaml_dict["trainer"]["curriculum"] == "env/mettagrid/curriculum/test"
 
         # Test save_for_local_testing creates a file and returns a command
-        test_command = config.save_for_local_testing()
+        test_command = config.save_for_local_testing(instance_name="test_agent_config")
         yaml_path = config._saved_yaml_path
 
         try:
             assert yaml_path.exists()
             assert "tools/train.py" in test_command
-            assert f"--config-name={yaml_path.stem}" in test_command
+            assert "+experiments=" in test_command
         finally:
             # Clean up
             if yaml_path and yaml_path.exists():
@@ -120,7 +117,7 @@ class TestTrainIntegration:
 
             # Test command should work
             assert "tools/train.py" in test_command
-            assert "+test=" in test_command
+            assert "+experiments=" in test_command
             assert yaml_path.stem in test_command
 
         finally:
@@ -153,10 +150,10 @@ class TestTrainIntegration:
             assert "defaults" in yaml_dict
             defaults = yaml_dict["defaults"]
 
-            # Should have proper Hydra defaults
-            assert "common" in defaults
-            assert any("agent: latent_attn_tiny" in d for d in defaults)
-            assert any("sim: navigation" in d for d in defaults)
+            # Should have proper Hydra defaults (using relative paths)
+            assert "../common" in defaults
+            assert "../agent/latent_attn_tiny" in defaults
+            assert "../sim/navigation" in defaults
             assert "_self_" in defaults
 
             # WandB overrides should be present
