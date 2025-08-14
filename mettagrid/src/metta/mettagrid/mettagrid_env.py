@@ -78,7 +78,7 @@ class MettaGridEnv(MettaGridPufferBase):
         self._reset_at = datetime.datetime.now()
         self._is_training = is_training
         # Dual-policy flags/overrides (can be set by trainer)
-        self._dual_policy_enabled: bool = False
+        self._dual_policy_enabled: bool = True
         self._dual_policy_agent_groups: Optional[list[list[int]]] = None
 
         # Initialize with base PufferLib functionality
@@ -339,6 +339,26 @@ class MettaGridEnv(MettaGridPufferBase):
                 infos["dual_policy/combined/hearts_sum"] = self._get_agent_hearts().sum().item()
                 infos["dual_policy/combined/num_agents"] = self._c_env_instance.num_agents
 
+                # Aliases for external dashboards (policy_a = trained, policy_b = npc)
+                # Reward totals
+                infos["dual_policy/policy_a_reward_total"] = trained_rewards.sum().item()
+                infos["dual_policy/policy_b_reward_total"] = npc_rewards.sum().item()
+                infos["dual_policy/combined_reward_total"] = episode_rewards_sum
+                # Reward means
+                infos["dual_policy/policy_a_reward_mean"] = trained_rewards.mean().item()
+                infos["dual_policy/policy_b_reward_mean"] = npc_rewards.mean().item()
+                infos["dual_policy/combined_reward_mean"] = episode_rewards_mean
+                # Hearts totals and means
+                infos["dual_policy/policy_a_hearts_total"] = trained_hearts.sum().item()
+                infos["dual_policy/policy_b_hearts_total"] = npc_hearts.sum().item()
+                infos["dual_policy/policy_a_hearts_mean"] = trained_hearts.mean().item()
+                infos["dual_policy/policy_b_hearts_mean"] = npc_hearts.mean().item()
+                infos["dual_policy/combined_hearts_total"] = self._get_agent_hearts().sum().item()
+                infos["dual_policy/combined_hearts_mean"] = self._get_agent_hearts().mean().item()
+                # Agent counts
+                infos["dual_policy/policy_a_num_agents"] = len(trained_group)
+                infos["dual_policy/policy_b_num_agents"] = len(npc_group)
+
         attributes: Dict[str, Any] = {
             "seed": self._current_seed,
             "map_w": self._c_env_instance.map_width,
@@ -480,26 +500,26 @@ class MettaGridEnv(MettaGridPufferBase):
     # tokens are being computed.
     @property
     def obs_width(self):
-        return self._c_env_instance.obs_width
+        return self.c_env.obs_width
 
     @property
     def obs_height(self):
-        return self._c_env_instance.obs_height
+        return self.c_env.obs_height
 
     @property
     def action_names(self) -> list[str]:
-        return self._c_env_instance.action_names()
+        return self.c_env.action_names()
 
     @property
     def num_agents(self) -> int:
-        return self._c_env_instance.num_agents
+        return self.c_env.num_agents
 
     def render(self) -> str | None:
         # Use the configured renderer if available
         if self._renderer is not None and hasattr(self._renderer, "render"):
-            return self._renderer.render(self._current_step, self.grid_objects)
+            return self._renderer.render(self.c_env.current_step, self.c_env.grid_objects())
 
-        return self._renderer.render(self._c_env_instance.current_step, self._c_env_instance.grid_objects())
+        return None
 
     @property
     @override
@@ -509,7 +529,7 @@ class MettaGridEnv(MettaGridPufferBase):
     @property
     def feature_normalizations(self) -> dict[int, float]:
         # Extract normalizations from feature_spec
-        feature_spec = self._c_env_instance.feature_spec()
+        feature_spec = self.c_env.feature_spec()
         normalizations = {}
         for _feature_name, feature_info in feature_spec.items():
             if "normalization" in feature_info:
@@ -525,7 +545,7 @@ class MettaGridEnv(MettaGridPufferBase):
             Dictionary mapping feature names to their properties
         """
         # Get feature spec from C++ environment
-        feature_spec = self._c_env_instance.feature_spec()
+        feature_spec = self.c_env.feature_spec()
 
         features = {}
         for feature_name, feature_info in feature_spec.items():
@@ -546,11 +566,11 @@ class MettaGridEnv(MettaGridPufferBase):
 
     @property
     def map_width(self) -> int:
-        return self._c_env_instance.map_width
+        return self.c_env.map_width
 
     @property
     def map_height(self) -> int:
-        return self._c_env_instance.map_height
+        return self.c_env.map_height
 
     @property
     def grid_objects(self) -> dict[int, dict[str, Any]]:
@@ -564,7 +584,7 @@ class MettaGridEnv(MettaGridPufferBase):
         Returns:
             A dictionary mapping object IDs to their properties.
         """
-        return self._c_env_instance.grid_objects()
+        return self.c_env.grid_objects()
 
     @property
     def max_action_args(self) -> list[int]:
@@ -573,26 +593,26 @@ class MettaGridEnv(MettaGridPufferBase):
         Returns:
             List of integers representing max parameters for each action type
         """
-        action_args_array = self._c_env_instance.max_action_args()
+        action_args_array = self.c_env.max_action_args()
         return [int(x) for x in action_args_array]
 
     @property
     def action_success(self) -> list[bool]:
-        action_success_array = self._c_env_instance.action_success()
+        action_success_array = self.c_env.action_success()
         return [bool(x) for x in action_success_array]
 
     @property
     def object_type_names(self) -> list[str]:
-        return self._c_env_instance.object_type_names()
+        return self.c_env.object_type_names()
 
     @property
     def inventory_item_names(self) -> list[str]:
-        return self._c_env_instance.inventory_item_names()
+        return self.c_env.inventory_item_names()
 
     @property
     def initial_grid_hash(self) -> int:
         """Returns the hash of the initial grid configuration."""
-        return self._c_env_instance.initial_grid_hash
+        return self.c_env.initial_grid_hash
 
     def _get_agent_groups(self) -> list[list[int]]:
         """Get agent groups for dual-policy logging.
@@ -602,7 +622,7 @@ class MettaGridEnv(MettaGridPufferBase):
             First group is assumed to be NPC, second group is trained policy.
         """
         # Get agent groups from grid objects
-        grid_objects: Dict[int, Any] = self._c_env_instance.grid_objects()
+        grid_objects: Dict[int, Any] = self.c_env.grid_objects()
         agent_groups: Dict[int, int] = {
             v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
         }
@@ -630,7 +650,9 @@ class MettaGridEnv(MettaGridPufferBase):
             Array of heart counts for the specified agents.
         """
         # Get agent stats
-        agent_stats = self._c_env_instance.get_agent_stats()
+        # Pull per-agent stats from episode stats dict (agent list of dicts)
+        stats = self.c_env.get_episode_stats()
+        agent_stats = stats.get("agent", [])
 
         if agent_ids is None:
             # Get hearts for all agents

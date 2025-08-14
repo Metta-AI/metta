@@ -175,9 +175,16 @@ def process_training_stats(
         losses_stats.pop("ks_value_loss", None)
 
     # Calculate environment statistics
-    environment_stats = {
-        f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in mean_stats.items() if "/" in k
-    }
+    environment_stats: dict[str, Any] = {}
+    for k, v in mean_stats.items():
+        if "/" not in k:
+            continue
+        # Keep dual_policy/* as-is (no env_ prefix)
+        if k.startswith("dual_policy/"):
+            environment_stats[k] = v
+        else:
+            head, *rest = k.split("/")
+            environment_stats[f"env_{head}/{'/'.join(rest)}"] = v
 
     # Filter movement metrics to only keep core values
     environment_stats = filter_movement_metrics(environment_stats)
