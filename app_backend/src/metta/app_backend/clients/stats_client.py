@@ -6,6 +6,10 @@ from pydantic import BaseModel
 
 from metta.app_backend.clients.base_client import BaseAppBackendClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse, TasksResponse
+from metta.app_backend.routes.score_routes import (
+    PolicyScoresData,
+    PolicyScoresRequest,
+)
 from metta.app_backend.routes.stats_routes import (
     EpisodeCreate,
     EpisodeResponse,
@@ -105,6 +109,11 @@ class AsyncStatsClient(BaseAppBackendClient):
             tags=tags,
         )
         return await self._make_request(EpisodeResponse, "POST", "/stats/episodes", json=data.model_dump(mode="json"))
+
+    async def get_policy_scores(self, request: PolicyScoresRequest) -> PolicyScoresData:
+        return await self._make_request(
+            PolicyScoresData, "POST", "/scorecard/score", json=request.model_dump(mode="json")
+        )
 
 
 class StatsClient:
@@ -233,3 +242,8 @@ class StatsClient:
     def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
         params = filters.model_dump(mode="json", exclude_none=True) if filters else {}
         return self._make_sync_request(TasksResponse, "GET", "/tasks/all", params=params)
+
+    def get_policy_scores(self, request: PolicyScoresRequest) -> PolicyScoresData:
+        return self._make_sync_request(
+            PolicyScoresData, "POST", "/scorecard/score", json=request.model_dump(mode="json")
+        )
