@@ -12,7 +12,6 @@ from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskRes
 from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.wandb_context import WandbRun
-from metta.rl.trainer_config import TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
@@ -26,7 +25,6 @@ def evaluate_policy_remote(
     wandb_policy_name: str | None,
     stats_client: StatsClient | None,
     wandb_run: WandbRun | None,
-    trainer_cfg: TrainerConfig,
 ) -> TaskResponse | None:
     """Create a task to evaluate a policy remotely.
 
@@ -56,8 +54,9 @@ def evaluate_policy_remote(
                         sim_suite=simulations[0].name,
                         attributes={
                             "sim_suite_config": simulations[0].model_dump(),
-                            "git_hash": trainer_cfg.git_hash,
-                            "trainer_task": trainer_cfg.model_dump(),
+                            # TODO: dehydrate
+                            # "git_hash": trainer_cfg.git_hash,
+                            # "trainer_task": trainer_cfg.model_dump(),
                         },
                     )
                 )
