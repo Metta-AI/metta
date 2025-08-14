@@ -1,263 +1,276 @@
 """
-Simplified AGaLiTe implementation that works with Metta's batching.
-This version doesn't try to maintain memory across different batch sizes.
+AGaLiTe implementation for Metta following the Fast agent pattern.
+Uses AGaLiTe transformer layers with proper token observation handling.
 """
 
+import einops
+import pufferlib.models
+import pufferlib.pytorch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import pufferlib.pytorch
-from typing import Optional, Tuple
 from tensordict import TensorDict
 
+from metta.agent.agalite_batched import BatchedAGaLiTe
 
-class AGaLiTeSimple(nn.Module):
-    """Simplified AGaLiTe that works with Metta's training infrastructure."""
 
-    def __init__(
-        self,
-        env,
-        d_model: int = 256,
-        d_head: int = 64,
-        n_heads: int = 4,
-        n_layers: int = 2,
-        dropout: float = 0.0,
-    ):
-        super().__init__()
+class AGaLiTeSimple(pufferlib.models.LSTMWrapper):
+    """AGaLiTe with LSTM wrapper for compatibility with Metta infrastructure."""
+
+    def __init__(self, env, policy=None, input_size=256, hidden_size=256):
+        if policy is None:
+            policy = Policy(env, input_size=input_size, hidden_size=hidden_size)
+
+        super().__init__(env, policy, input_size, hidden_size)
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Get environment info
-        self.action_space = env.single_action_space
-        obs_shape = env.single_observation_space.shape
-        print(f"DEBUG: obs_shape from env = {obs_shape}")
-
-        # Observation shape - handle token observations which might be (max_tokens, attributes)
-        if len(obs_shape) == 2:
-            # Token observations - (max_tokens, attributes)
-            # We'll treat this differently - just use a simple embedding
-            self.is_token_obs = True
-            self.max_tokens, self.num_attributes = obs_shape
-            self.num_layers = self.num_attributes  # For compatibility
-            self.out_height = self.out_width = 11  # Dummy values
-        elif len(obs_shape) == 3:
-            # Grid observations - (height, width, channels)
-            self.is_token_obs = False
-            self.out_height, self.out_width, self.num_layers = obs_shape
-        else:
-            # Default fallback
-            self.is_token_obs = False
-            self.out_height = self.out_width = 11
-            self.num_layers = obs_shape[-1] if len(obs_shape) > 0 else 48
-
-        # Model parameters
-        self.d_model = d_model
-        self.is_continuous = False
-
-        # Create appropriate encoder based on observation type
-        if self.is_token_obs:
-            # For token observations, use an embedding + linear layers
-            self.token_encoder = nn.Sequential(
-                pufferlib.pytorch.layer_init(nn.Linear(self.max_tokens * self.num_attributes, d_model)),
-                nn.ReLU(),
-                pufferlib.pytorch.layer_init(nn.Linear(d_model, d_model)),
-                nn.ReLU(),
-            )
-            # No CNN or self encoder for token obs
-            self.cnn_encoder = None
-            self.self_encoder = None
-        else:
-            # For grid observations, use CNN
-            self.token_encoder = None
-            self.cnn_encoder = nn.Sequential(
-                pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, 128, 3, padding=1)),
-                nn.ReLU(),
-                pufferlib.pytorch.layer_init(nn.Conv2d(128, 128, 3, padding=1)),
-                nn.ReLU(),
-                nn.AdaptiveAvgPool2d((1, 1)),
-                nn.Flatten(),
-                pufferlib.pytorch.layer_init(nn.Linear(128, d_model // 2)),
-                nn.ReLU(),
-            )
-            # Self encoder
-            self.self_encoder = nn.Sequential(
-                pufferlib.pytorch.layer_init(nn.Linear(self.num_layers, d_model // 2)),
-                nn.ReLU(),
-            )
-
-        # Simple transformer layers (without persistent memory)
-        self.transformer_layers = nn.ModuleList(
-            [
-                nn.TransformerEncoderLayer(
-                    d_model=d_model,
-                    nhead=n_heads,
-                    dim_feedforward=d_model * 4,
-                    dropout=dropout,
-                    batch_first=True,
-                )
-                for _ in range(n_layers)
-            ]
-        )
-
-        # Output heads
-        if hasattr(self.action_space, "nvec"):
-            num_actions = sum(self.action_space.nvec)
-            self.is_multidiscrete = True
-            self.action_nvec = tuple(self.action_space.nvec)
-        else:
-            num_actions = self.action_space.n
-            self.is_multidiscrete = False
-
-        self.actor = pufferlib.pytorch.layer_init(nn.Linear(d_model, num_actions), std=0.01)
-        self.critic = pufferlib.pytorch.layer_init(nn.Linear(d_model, 1), std=1)
-
-        # Normalization
-        self.register_buffer("max_vec", torch.ones((1, self.num_layers, 1, 1)) * 255.0)
-
-        # Action conversion (set by MettaAgent)
+        # Initialize placeholders for action tensors that MettaAgent will set
         self.action_index_tensor = None
         self.cum_action_max_params = None
 
-        self.to(self.device)
-
-    def reset_memory(self):
-        """No persistent memory in this simple version."""
-        pass
-
-    def get_memory(self):
-        """No persistent memory in this simple version."""
-        return {}
-
-    def encode_observations(self, observations: torch.Tensor) -> torch.Tensor:
-        """Encode observations to hidden representations."""
-        observations = observations.to(self.device).float()  # Ensure float dtype
-        B = observations.shape[0]
-        
-        if self.is_token_obs:
-            # Token observations - just flatten and encode
-            hidden = observations.view(B, -1)  # Flatten to (B, max_tokens * attributes)
-            hidden = self.token_encoder(hidden)
-        else:
-            # Grid observations - use CNN
-            # Handle different input formats - observations come as (B, H, W, C)
-            if observations.dim() == 4:
-                # Always permute from (B, H, W, C) to (B, C, H, W)
-                if observations.shape[-1] > observations.shape[1]:
-                    # Channels are last dimension
-                    observations = observations.permute(0, 3, 1, 2)
-            elif observations.dim() == 3:
-                # Single observation, add batch dim
-                observations = observations.unsqueeze(0)
-                if observations.shape[-1] > observations.shape[1]:
-                    observations = observations.permute(0, 3, 1, 2)
-
-            # Normalize (skip if shapes don't match)
-            if observations.shape[1] == self.max_vec.shape[1]:
-                observations = observations / self.max_vec.to(observations.device)
-            else:
-                # Just use a simple normalization
-                observations = observations / 255.0
-
-            # Encode with CNN
-            cnn_features = self.cnn_encoder(observations)
-
-            # Self features
-            center_h, center_w = self.out_height // 2, self.out_width // 2
-            self_input = observations[:, :, center_h, center_w]
-            self_features = self.self_encoder(self_input)
-
-            # Combine
-            hidden = torch.cat([cnn_features, self_features], dim=-1)
-        
-        return hidden
-
     def forward(self, td: TensorDict, state=None, action=None):
-        """Forward pass compatible with MettaAgent."""
         observations = td["env_obs"].to(self.device)
 
-        # Encode observations
-        hidden = self.encode_observations(observations)
+        if state is None:
+            state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-        # Pass through transformer layers (no memory, just self-attention)
-        for layer in self.transformer_layers:
-            # Add batch/sequence dimension if needed
-            if hidden.dim() == 2:
-                hidden = hidden.unsqueeze(1)  # (B, 1, d_model)
-            hidden = layer(hidden)
-            if hidden.dim() == 3 and hidden.shape[1] == 1:
-                hidden = hidden.squeeze(1)  # Back to (B, d_model)
+        # Encode obs
+        hidden = self.policy.encode_observations(observations, state)
 
-        # Get logits and values
-        logits = self.actor(hidden)
-        values = self.critic(hidden).squeeze(-1)
+        B = observations.shape[0]
+        TT = 1 if observations.dim() == 3 else observations.shape[1]
 
-        # Handle multi-discrete
-        if self.is_multidiscrete:
-            logits = logits.split(self.action_nvec, dim=-1)
+        # Prepare LSTM state
+        lstm_h, lstm_c = state.get("lstm_h"), state.get("lstm_c")
+        if lstm_h is not None and lstm_c is not None:
+            lstm_h = lstm_h.to(self.device)[: self.lstm.num_layers]
+            lstm_c = lstm_c.to(self.device)[: self.lstm.num_layers]
+            lstm_state = (lstm_h, lstm_c)
+        else:
+            lstm_state = None
+
+        # Forward LSTM
+        hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, in_size)
+        lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
+        flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
+
+        # Decode
+        logits_list, value = self.policy.decode_actions(flat_hidden)
 
         if action is None:
-            # Inference mode - sample actions
-            if self.is_multidiscrete:
-                actions = []
-                log_probs = []
-                for logit in logits:
-                    probs = F.softmax(logit, dim=-1)
-                    dist = torch.distributions.Categorical(probs)
-                    a = dist.sample()
-                    lp = dist.log_prob(a)
-                    actions.append(a)
-                    log_probs.append(lp)
-                actions = torch.stack(actions, dim=-1)
-                log_probs = torch.stack(log_probs, dim=-1).sum(dim=-1)
-            else:
-                probs = F.softmax(logits, dim=-1)
-                dist = torch.distributions.Categorical(probs)
-                actions = dist.sample()
-                log_probs = dist.log_prob(actions)
+            # ---------- Inference Mode ----------
+            log_probs = F.log_softmax(logits_list, dim=-1)
+            action_probs = torch.exp(log_probs)
 
-            td["actions"] = actions.to(dtype=torch.int32)
-            td["act_log_prob"] = log_probs
-            td["values"] = values
+            actions = torch.multinomial(action_probs, num_samples=1).view(-1)
+
+            batch_indices = torch.arange(actions.shape[0], device=actions.device)
+            full_log_probs = log_probs[batch_indices, actions]
+
+            action = self._convert_logit_index_to_action(actions)
+
+            td["actions"] = action.to(dtype=torch.int32)
+            td["act_log_prob"] = full_log_probs
+            td["values"] = value.flatten()
+            td["full_log_probs"] = log_probs
+
         else:
-            # Training mode - compute log probs for given actions
+            # ---------- Training Mode ----------
             action = action.to(self.device)
+            if action.dim() == 3:  # (B, T, 2) → flatten to (BT, 2)
+                B, T, A = action.shape
+                action = action.view(B * T, A)
 
-            if self.is_multidiscrete:
-                log_probs = []
-                entropy = []
-                for i, logit in enumerate(logits):
-                    probs = F.softmax(logit, dim=-1)
-                    dist = torch.distributions.Categorical(probs)
-                    lp = dist.log_prob(action[..., i])
-                    ent = dist.entropy()
-                    log_probs.append(lp)
-                    entropy.append(ent)
-                log_probs = torch.stack(log_probs, dim=-1).sum(dim=-1)
-                entropy = torch.stack(entropy, dim=-1).sum(dim=-1)
-            else:
-                probs = F.softmax(logits, dim=-1)
-                dist = torch.distributions.Categorical(probs)
+            action_log_probs = F.log_softmax(logits_list, dim=-1)
 
-                # Handle action shape
-                if action.dim() > 1:
-                    action_flat = action.view(-1)
-                else:
-                    action_flat = action
+            action_probs = torch.exp(action_log_probs)
+            action_logit_index = self._convert_action_to_logit_index(action)
 
-                log_probs = dist.log_prob(action_flat)
-                entropy = dist.entropy()
+            batch_indices = torch.arange(action_logit_index.shape[0], device=action_logit_index.device)
+            full_log_probs = action_log_probs[batch_indices, action_logit_index]
 
-            # Handle batch shapes for training
-            obs_dim = 3  # Assuming 3D observations (H, W, C)
-            if observations.dim() > obs_dim + 1:
-                B = observations.shape[0]
-                T = observations.shape[1]
-                if log_probs.numel() == B * T:
-                    log_probs = log_probs.view(B, T)
-                    entropy = entropy.view(B, T)
-                    values = values.view(B, T)
+            entropy = -(action_probs * action_log_probs).sum(dim=-1)
 
-            td["act_log_prob"] = log_probs
-            td["values"] = values
-            td["entropy"] = entropy
+            td["act_log_prob"] = full_log_probs.view(B, TT)
+            td["entropy"] = entropy.view(B, TT)
+            td["full_log_probs"] = action_log_probs.view(B, T, -1)
+            td["value"] = value.view(B, TT)
 
         return td
+
+    def clip_weights(self):
+        """Clip weights of the actor heads to prevent large updates."""
+        pass
+
+    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
+        """Compute weight metrics for wandb logging."""
+        return []
+
+    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
+        """Convert logit indices back to action pairs."""
+        return self.action_index_tensor[action_logit_index]
+
+    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
+        """Convert (action_type, action_param) pairs to discrete indices."""
+        action_type_numbers = flattened_action[:, 0].long()
+        action_params = flattened_action[:, 1].long()
+        cumulative_sum = self.cum_action_max_params[action_type_numbers]
+        return cumulative_sum + action_params
+
+
+class Policy(nn.Module):
+    """Policy with AGaLiTe transformer for encoding and action decoding."""
+
+    def __init__(self, env, input_size=256, hidden_size=256):
+        super().__init__()
+        self.hidden_size = hidden_size
+        self.input_size = input_size
+        self.is_continuous = False
+        self.action_space = env.single_action_space
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        self.out_width = 11
+        self.out_height = 11
+        self.num_layers = 22
+
+        # Token observation to grid conversion (like Fast agent)
+        self.cnn1 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=22, out_channels=64, kernel_size=5, stride=3))
+        self.cnn2 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1))
+
+        test_input = torch.zeros(1, 22, 11, 11)
+        with torch.no_grad():
+            test_output = self.cnn2(self.cnn1(test_input))
+            self.flattened_size = test_output.numel() // test_output.shape[0]
+
+        self.flatten = nn.Flatten()
+
+        # Project to AGaLiTe input size
+        self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(self.flattened_size, 128))
+        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, input_size))
+
+        # AGaLiTe transformer layers (simplified, no persistent memory)
+        self.transformer = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(
+                d_model=input_size,
+                nhead=4,
+                dim_feedforward=input_size * 4,
+                dropout=0.0,
+                batch_first=True,
+            ),
+            num_layers=2,
+        )
+
+        # Output heads
+        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
+        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
+        self.action_embeddings = nn.Embedding(100, 16)
+
+        # Action heads
+        action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
+        self.actor_heads = nn.ModuleList(
+            [pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec]
+        )
+
+        # Normalization buffer
+        max_vec = torch.tensor(
+            [
+                9.0,
+                1.0,
+                1.0,
+                10.0,
+                3.0,
+                254.0,
+                1.0,
+                1.0,
+                235.0,
+                8.0,
+                9.0,
+                250.0,
+                29.0,
+                1.0,
+                1.0,
+                8.0,
+                1.0,
+                1.0,
+                6.0,
+                3.0,
+                1.0,
+                2.0,
+            ],
+            dtype=torch.float32,
+        )[None, :, None, None]
+        self.register_buffer("max_vec", max_vec)
+
+        self.to(self.device)
+
+    def network_forward(self, x):
+        """CNN feature extraction from grid observations."""
+        x = x / self.max_vec
+        x = self.cnn1(x)
+        x = self.cnn2(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        x = self.encoded_obs(x)
+        return x
+
+    def encode_observations(self, observations, state=None):
+        """Convert token observations to hidden representation using AGaLiTe."""
+        observations = observations.to(self.device)
+        token_observations = observations
+        B = token_observations.shape[0]
+        TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
+        if token_observations.dim() != 3:
+            token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
+
+        assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
+        token_observations[token_observations == 255] = 0
+
+        # Convert tokens to grid representation
+        coords_byte = token_observations[..., 0].to(torch.uint8)
+        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()
+        y_coord_indices = (coords_byte & 0x0F).long()
+        atr_indices = token_observations[..., 1].long()
+        atr_values = token_observations[..., 2].float()
+
+        box_obs = torch.zeros(
+            (B * TT, self.num_layers, self.out_width, self.out_height),
+            dtype=atr_values.dtype,
+            device=token_observations.device,
+        )
+        batch_indices = torch.arange(B * TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
+
+        valid_tokens = coords_byte != 0xFF
+        valid_tokens = valid_tokens & (x_coord_indices < self.out_width) & (y_coord_indices < self.out_height)
+        valid_tokens = valid_tokens & (atr_indices < self.num_layers)
+
+        box_obs[
+            batch_indices[valid_tokens],
+            atr_indices[valid_tokens],
+            x_coord_indices[valid_tokens],
+            y_coord_indices[valid_tokens],
+        ] = atr_values[valid_tokens]
+
+        # Encode with CNN
+        hidden = self.network_forward(box_obs)
+
+        # Apply transformer (add sequence dim for transformer)
+        hidden = hidden.unsqueeze(1)  # (B*TT, 1, input_size)
+        hidden = self.transformer(hidden)
+        hidden = hidden.squeeze(1)  # (B*TT, input_size)
+
+        return hidden
+
+    def decode_actions(self, hidden):
+        """Decode hidden representation to action logits and value."""
+        critic_features = torch.tanh(self.critic_1(hidden))
+        value = self.value_head(critic_features)
+
+        actor_features = self.actor_1(hidden)
+
+        action_embed = self.action_embeddings.weight.mean(dim=0).unsqueeze(0).expand(actor_features.shape[0], -1)
+        combined_features = torch.cat([actor_features, action_embed], dim=-1)
+
+        logits = torch.cat([head(combined_features) for head in self.actor_heads], dim=-1)
+
+        return logits, value
