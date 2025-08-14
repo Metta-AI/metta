@@ -89,7 +89,6 @@ class ComponentPolicy(nn.Module):
         self.hidden_size = self.components["_core_"].hidden_size
         self.num_lstm_layers = self.components["_core_"].num_layers
 
-
     def _setup_components(self, component):
         """Setup component connections - matching old MettaAgent logic.
         _sources is a list of dicts albeit many layers simply have one element.
@@ -118,7 +117,9 @@ class ComponentPolicy(nn.Module):
     # Forward Pass Methods
     # ============================================================================
 
-    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> Tuple[TensorDict, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
+    def forward(
+        self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None
+    ) -> Tuple[TensorDict, Optional[Tuple[torch.Tensor, torch.Tensor]]]:
         """Forward pass of the ComponentPolicy - matches original MettaAgent forward() logic."""
 
         # Handle BPTT reshaping like the original
@@ -228,11 +229,6 @@ class ComponentPolicy(nn.Module):
         """Convert logit indices back to action pairs."""
         return self.action_index_tensor[action_logit_index]
 
-    def activate_action_embeddings(self, full_action_names: list[str], device):
-        """Activate action embeddings with the given action names."""
-        if "_action_embeds_" in self.components:
-            self.components["_action_embeds_"].activate_actions(full_action_names, device)
-
     # ============================================================================
     # Memory-related Methods
     # ============================================================================
@@ -320,4 +316,3 @@ class ComponentPolicy(nn.Module):
                     if result is not None:
                         results.append(result)
         return results
-
