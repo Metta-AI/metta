@@ -9,14 +9,14 @@ wandb:
 run_id: 492
 run: ${oc.env:USER}.local.${run_id}
 
-replay_job:
-  sim:
-    env: /env/mettagrid/colortree_easy_roomgen
-    env_overrides:
-      game:
-        actions:
-          color_tree:
-            enabled: true
+# replay_job:
+#   sim:
+#     env: /env/mettagrid/colortree_easy_roomgen
+#     env_overrides:
+#       game:
+#         actions:
+#           color_tree:
+#             enabled: true
 
 # agent:
 #   _target_: metta.agent.external.lstm_transformer.Recurrent
