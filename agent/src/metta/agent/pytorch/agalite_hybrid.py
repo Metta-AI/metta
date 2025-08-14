@@ -156,27 +156,6 @@ class AgaliteHybrid(LSTMWrapper):
 
         return td
 
-    def clip_weights(self):
-        """Clip weights to prevent gradient explosion."""
-        for p in self.parameters():
-            p.data.clamp_(-1, 1)
-
-    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
-        """Convert logit indices back to action pairs."""
-        if self.action_index_tensor is None:
-            raise RuntimeError("action_index_tensor not initialized. Call activate_actions first.")
-        return self.action_index_tensor[action_logit_index]
-
-    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
-        """Convert (action_type, action_param) pairs to discrete indices."""
-        if self.cum_action_max_params is None:
-            raise RuntimeError("cum_action_max_params not initialized. Call activate_actions first.")
-
-        action_type_numbers = flattened_action[:, 0].long()
-        action_params = flattened_action[:, 1].long()
-        cumulative_sum = self.cum_action_max_params[action_type_numbers]
-        return cumulative_sum + action_params
-
 
 class AgalitePolicy(nn.Module):
     """Inner policy using AGaLiTe architecture."""

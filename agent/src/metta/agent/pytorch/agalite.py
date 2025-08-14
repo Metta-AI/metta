@@ -400,14 +400,3 @@ class AGaLiTe(TransformerWrapper):
             td["value"] = values
 
         return td
-
-    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
-        """Convert (action_type, action_param) pairs to discrete indices."""
-        action_type_numbers = flattened_action[:, 0].long()
-        action_params = flattened_action[:, 1].long()
-        cumulative_sum = self.cum_action_max_params[action_type_numbers]
-        return cumulative_sum + action_params
-
-    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
-        """Convert logit indices back to action pairs."""
-        return self.action_index_tensor[action_logit_index]
