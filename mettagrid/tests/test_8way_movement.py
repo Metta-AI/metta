@@ -327,3 +327,68 @@ def test_8way_movement_boundary_check():
 
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
+
+
+def test_orientation_changes_on_failed_8way_movement():
+    """Test that orientation changes even when 8-way movement fails due to obstacles."""
+    env = TestEnvironmentBuilder.create_environment(
+        game_map=[
+            ["wall", "wall", "wall"],
+            ["wall", "agent.player", "wall"],
+            ["wall", "wall", "wall"],
+        ],
+        num_agents=1,
+        actions={
+            "move": {"enabled": False},
+            "rotate": {"enabled": True},  # Enable rotate to test orientation changes
+            "move_8way": {"enabled": True},
+        },
+    )
+    env.reset()
+
+    objects = env.grid_objects()
+    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
+
+    # Check initial orientation
+    assert objects[agent_id]["orientation"] == 0  # Up
+
+    action_names = env.action_names()
+    move_8way_idx = action_names.index("move_8way")
+
+    # Set initial orientation to Left
+    if "rotate" in action_names:
+        rotate_idx = action_names.index("rotate")
+        actions = np.zeros((1, 2), dtype=dtype_actions)
+        actions[0] = [rotate_idx, 2]  # Face Left
+        env.step(actions)
+
+        objects = env.grid_objects()
+        assert objects[agent_id]["orientation"] == 2  # Left
+
+    # Try to move East into wall - should fail BUT change orientation
+    actions = np.zeros((1, 2), dtype=dtype_actions)
+    actions[0] = [move_8way_idx, 2]  # East
+    env.step(actions)
+
+    objects = env.grid_objects()
+    assert not env.action_success()[0]  # Movement should fail
+    assert objects[agent_id]["orientation"] == 3  # Orientation SHOULD change to Right (East)
+
+    # Try to move Northeast into wall - should fail BUT change orientation
+    # Northeast tries multiple fallbacks when blocked, final orientation depends on last attempt
+    actions[0] = [move_8way_idx, 1]  # Northeast
+    env.step(actions)
+
+    objects = env.grid_objects()
+    assert not env.action_success()[0]  # Movement should fail
+    # For Northeast when all attempts fail, final orientation is Right (from last fallback attempt)
+    assert objects[agent_id]["orientation"] == 3  # Orientation ends at Right after fallback attempts
+
+    # Try to move Southwest into wall - should fail BUT change orientation
+    actions[0] = [move_8way_idx, 5]  # Southwest
+    env.step(actions)
+
+    objects = env.grid_objects()
+    assert not env.action_success()[0]  # Movement should fail
+    # For Southwest when all attempts fail, final orientation is Left (from last fallback attempt)
+    assert objects[agent_id]["orientation"] == 2  # Orientation ends at Left after fallback attempts

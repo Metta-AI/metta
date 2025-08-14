@@ -243,14 +243,14 @@ def test_orientation_changes_with_cardinal_movement():
         objects = env.grid_objects()
         assert objects[agent_id]["orientation"] == 2  # Left
 
-    # Try to move East into wall - should fail and NOT change orientation
+    # Try to move East into wall - should fail BUT WILL change orientation
     actions = np.zeros((1, 2), dtype=dtype_actions)
     actions[0] = [move_cardinal_idx, 3]  # East
     env.step(actions)
 
     objects = env.grid_objects()
     assert not env.action_success()[0]  # Movement should fail
-    assert objects[agent_id]["orientation"] == 2  # Orientation should remain Left
+    assert objects[agent_id]["orientation"] == 3  # Orientation SHOULD change to East
 
     # Try to move North into wall
     actions[0] = [move_cardinal_idx, 0]  # North
@@ -258,7 +258,7 @@ def test_orientation_changes_with_cardinal_movement():
 
     objects = env.grid_objects()
     assert not env.action_success()[0]  # Movement should fail
-    assert objects[agent_id]["orientation"] == 2  # Orientation should still be Left
+    assert objects[agent_id]["orientation"] == 0  # Orientation SHOULD change to North
 
 
 def test_hybrid_movement_mode():
