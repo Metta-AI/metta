@@ -1,6 +1,7 @@
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.builder as eb
 import softmax.softmax as softmax
+import yaml
 from metta.cogworks.curriculum.task_generator import ValueRange as vr
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
@@ -52,7 +53,7 @@ def make_train_tool_cfg() -> TrainToolConfig:
     # make a set of training tasks for the arena
     arena_tasks = cc.tasks(arena)
 
-    arena_tasks.add_bucket("game.map_builder.num_agents", [1, 2, 3, 4, 6, 24])
+    # arena_tasks.add_bucket("game.map_builder.agents", [1, 2, 3, 4, 6, 24])
     arena_tasks.add_bucket("game.map_builder.width", [10, 20, 30, 40, 50])
     arena_tasks.add_bucket("game.map_builder.height", [10, 20, 30, 40, 50])
 
@@ -74,7 +75,7 @@ def make_train_tool_cfg() -> TrainToolConfig:
     trainer_cfg.num_workers = calculate_default_num_workers(is_serial=True)
     trainer_cfg.checkpoint.checkpoint_dir = f"{data_dir}/{run}/checkpoints"
     trainer_cfg.curriculum = curriculum_cfg
-    trainer_cfg.simulation = EvaluationConfig(
+    trainer_cfg.evaluation = EvaluationConfig(
         replay_dir=f"s3://softmax-public/replays/{run}",
         evaluate_remote=False,
         evaluate_local=True,
@@ -90,4 +91,5 @@ def make_train_tool_cfg() -> TrainToolConfig:
         run="arena",
         run_dir="arena",
         data_dir="arena",
-    )
+        policy_architecture=yaml.safe_load(open("configs/agent/fast.yaml")),
+    ).to_mini()
