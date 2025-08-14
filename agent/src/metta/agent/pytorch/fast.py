@@ -7,7 +7,7 @@ from tensordict import TensorDict
 from torch import nn
 
 import pufferlib.pytorch
-from metta.agent.pytorch.lstm_base import LSTMBase
+from metta.agent.modules.lstm_base import LSTMBase
 
 logger = logging.getLogger(__name__)
 

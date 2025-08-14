@@ -10,8 +10,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tensordict import TensorDict
 
-from metta.agent.agalite_batched import BatchedAGaLiTe
-from metta.agent.pytorch.lstm_base import LSTMBase
+from metta.agent.modules.agalite_batched import BatchedAGaLiTe
+from metta.agent.modules.lstm_base import LSTMBase
 
 
 class AGaLiTeSimple(LSTMBase):

@@ -13,7 +13,7 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.agalite_batched import BatchedAGaLiTe
+from metta.agent.modules.agalite_batched import BatchedAGaLiTe
 
 logger = logging.getLogger(__name__)
 

@@ -14,8 +14,8 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.agalite_layers import AttentionAGaLiTeLayer, RecurrentLinearTransformerEncoder
-from metta.agent.transformer_wrapper import TransformerWrapper
+from metta.agent.modules.agalite_layers import AttentionAGaLiTeLayer, RecurrentLinearTransformerEncoder
+from metta.agent.modules.transformer_wrapper import TransformerWrapper
 
 logger = logging.getLogger(__name__)
 
