@@ -1,0 +1,8 @@
+defaults:
+  - /env/mettagrid/tiny/defaults@
+  - _self_
+
+game:
+  max_steps: 80
+  map_builder:
+    uri: "configs/env/mettagrid/maps/tiny/tiny1.map"

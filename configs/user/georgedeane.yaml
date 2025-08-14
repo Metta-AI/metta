@@ -21,7 +21,7 @@ trainer:
 # policy_uri: wandb://run/daveey.ar.cards.1
 # policy_uri: wandb://run/b.daveey.t.32.instant
 #policy_uri: ${trained_policy_uri}
-policy_uri: wandb://run/daphne.generalized_nav.bucketed.07-10
+policy_uri: wandb://run/daphne.operant_conditioning.128.chaining.2_converters.2.08-11
 
 # daphne.generalized_nav.lp.sparse.07-10
 

@@ -66,6 +66,7 @@ components:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
       - name: encoded_obs
+    obs_shape: [200, 3]
     output_size: 128
     nn_params:
       num_layers: 2
