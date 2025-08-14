@@ -10,6 +10,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.component_policy import ComponentPolicy
 from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.rl.system_config import SystemConfig
@@ -60,11 +61,12 @@ class MettaAgent(nn.Module):
         self,
         env,
         system_cfg: SystemConfig,
-        agent_cfg: DictConfig,
+        agent_cfg: DictConfig | AgentConfig,
         policy: Optional[nn.Module] = None,
     ):
         super().__init__()
         self.cfg = agent_cfg
+
         self.device = system_cfg.device
 
         # Create observation space
@@ -91,9 +93,23 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
 
-    def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
+    def _create_policy(self, agent_cfg: DictConfig | AgentConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
-        if agent_cfg.get("agent_type") in agent_classes:
+        if isinstance(agent_cfg, AgentConfig):
+            # Convert AgentConfig to component config for ComponentPolicy
+            component_config = agent_cfg.to_component_config()
+            # Create a DictConfig-like object with the components
+            config_dict = {
+                "components": component_config,
+                "observations": {"obs_key": agent_cfg.observations.obs_key},
+                "clip_range": agent_cfg.clip_range,
+                "analyze_weights_interval": agent_cfg.analyze_weights_interval,
+            }
+            # Convert to DictConfig for ComponentPolicy
+            from omegaconf import OmegaConf
+            agent_cfg = OmegaConf.create(config_dict)
+
+        if isinstance(agent_cfg, DictConfig) and agent_cfg.get("agent_type") in agent_classes:
             # Create PyTorch policy
             AgentClass = agent_classes[agent_cfg.agent_type]
             policy = AgentClass(env=env)
