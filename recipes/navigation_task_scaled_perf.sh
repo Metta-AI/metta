@@ -5,19 +5,17 @@
 # instead of the default range (0.0 to 10.0)
 
 ./devops/skypilot/launch.py train \
-  --gpus=4 \
-  --nodes=8 \
+  --gpus=1 \
+  --nodes=1 \
   --no-spot \
   run=$USER.nav_task_scaled_perf_custom_range.$(date +%m-%d) \
   trainer.curriculum=/env/mettagrid/curriculum/navigation/bucketed \
-  trainer.env_overrides.enable_task_perf_target=true \
-  trainer.env_overrides.reward_target_min=1.0 \
-  trainer.env_overrides.reward_target_max=25.0 \
-  trainer.optimizer.learning_rate=0.0045 \
-  trainer.optimizer.type=muon \
-  trainer.simulation.evaluate_interval=50 \
-  trainer.checkpoint.wandb_checkpoint_interval=50 \
+  +trainer.env_overrides.num_agents=4 \
+  +trainer.env_overrides.enable_task_perf_target=true \
+  +trainer.env_overrides.reward_target_min=1.0 \
+  +trainer.env_overrides.reward_target_max=5.0 \
+  sim=navigation \
   wandb.project=metta \
-  wandb.group=arena_task_scaled_perf \
+  wandb.group=nav_task_scaled_perf \
   wandb.name=nav_task_scaled_performance_custom_range \
   "$@"

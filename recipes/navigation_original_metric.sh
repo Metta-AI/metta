@@ -5,17 +5,15 @@
 # No task-scaled performance analysis is performed
 
 ./devops/skypilot/launch.py train \
-  --gpus=4 \
-  --nodes=8 \
+  --gpus=1 \
+  --nodes=1 \
   --no-spot \
   run=$USER.nav_original_metric.$(date +%m-%d) \
   trainer.curriculum=/env/mettagrid/curriculum/navigation/bucketed \
-  trainer.env_overrides.enable_task_perf_target=false \
-  trainer.optimizer.learning_rate=0.0045 \
-  trainer.optimizer.type=muon \
-  trainer.simulation.evaluate_interval=50 \
-  trainer.checkpoint.wandb_checkpoint_interval=50 \
+  +trainer.env_overrides.num_agents=4 \
+  +trainer.env_overrides.enable_task_perf_target=false \
+  sim=navigation \
   wandb.project=metta \
-  wandb.group=arena_task_scaled_perf \
+  wandb.group=nav_task_scaled_perf \
   wandb.name=nav_original_metric \
   "$@"
