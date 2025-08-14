@@ -39,7 +39,7 @@ const FRAGMENT_SHADER_SOURCE = `
 `
 
 // Font atlas metadata types
-interface FontGlyph {
+interface Glyph {
   rect: [number, number, number, number]
   advance: number
   bearingX: number
@@ -54,7 +54,7 @@ interface FontMeta {
   ascent: number
   descent: number
   lineHeight: number
-  glyphs: { [label: string]: FontGlyph }
+  glyphs: { [label: string]: Glyph }
   kerning: { [leftLabel: string]: FontKerningRow }
 }
 
