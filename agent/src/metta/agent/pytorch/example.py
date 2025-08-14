@@ -2,17 +2,17 @@ import logging
 from typing import Optional
 
 import einops
+import pufferlib.models
+import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.modules.base import LSTMBase, init_layer
-
 logger = logging.getLogger(__name__)
 
 
-class Example(LSTMBase):
+class Example(pufferlib.models.LSTMWrapper):
     """Recurrent LSTM-based policy wrapper with discrete multi-head action space."""
 
     def __init__(
@@ -138,17 +138,17 @@ class Policy(nn.Module):
         self.out_width, self.out_height, self.num_layers = 11, 11, 22
 
         self.network = nn.Sequential(
-            init_layer(nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3)),
+            pufferlib.pytorch.layer_init(nn.Conv2d(self.num_layers, cnn_channels, 5, stride=3)),
             nn.ReLU(),
-            init_layer(nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1)),
+            pufferlib.pytorch.layer_init(nn.Conv2d(cnn_channels, cnn_channels, 3, stride=1)),
             nn.ReLU(),
             nn.Flatten(),
-            init_layer(nn.Linear(cnn_channels, hidden_size // 2)),
+            pufferlib.pytorch.layer_init(nn.Linear(cnn_channels, hidden_size // 2)),
             nn.ReLU(),
         )
 
         self.self_encoder = nn.Sequential(
-            init_layer(nn.Linear(self.num_layers, hidden_size // 2)),
+            pufferlib.pytorch.layer_init(nn.Linear(self.num_layers, hidden_size // 2)),
             nn.ReLU(),
         )
 
@@ -186,8 +186,8 @@ class Policy(nn.Module):
         max_vec = max_vec[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
-        self.actor = nn.ModuleList([init_layer(nn.Linear(hidden_size, n), std=0.01) for n in self.action_space.nvec])
-        self.value = init_layer(nn.Linear(hidden_size, 1), std=1)
+        self.actor = nn.ModuleList([pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in self.action_space.nvec])
+        self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
 
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
         """Converts raw observation tokens into a concatenated self + CNN feature vector."""

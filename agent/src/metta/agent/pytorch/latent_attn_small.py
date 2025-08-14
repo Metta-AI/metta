@@ -1,19 +1,20 @@
 import logging
 
 import einops
+import pufferlib.models
+import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.modules.base import LSTMBase, init_layer
 from metta.agent.modules.encoders import ObsLatentAttn, ObsSelfAttn
 from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 
 logger = logging.getLogger(__name__)
 
 
-class LatentAttnSmall(LSTMBase):
+class LatentAttnSmall(pufferlib.models.LSTMWrapper):
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
         if policy is None:
             policy = Policy(
@@ -144,15 +145,15 @@ class Policy(nn.Module):
             out_dim=128, _feat_dim=32, num_heads=4, num_layers=2, use_mask=False, use_cls_token=True
         )
 
-        self.critic_1 = init_layer(nn.Linear(self.hidden_size, 1024))
-        self.value_head = init_layer(nn.Linear(1024, 1), std=1.0)
-        self.actor_1 = init_layer(nn.Linear(self.hidden_size, 512))
+        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
+        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
         self.action_embeddings = nn.Embedding(100, 16)
 
         # Action heads - will be initialized based on action space
         action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
 
-        self.actor_heads = nn.ModuleList([init_layer(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec])
+        self.actor_heads = nn.ModuleList([pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec])
 
     def network_forward(self, x):
         x, mask, B_TT = self.obs_(x)

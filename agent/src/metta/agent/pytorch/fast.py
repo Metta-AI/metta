@@ -1,17 +1,17 @@
 import logging
 
 import einops
+import pufferlib.models
+import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.modules.base import LSTMBase, init_layer
-
 logger = logging.getLogger(__name__)
 
 
-class Fast(LSTMBase):
+class Fast(pufferlib.models.LSTMWrapper):
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
         if policy is None:
             policy = Policy(
@@ -125,8 +125,8 @@ class Policy(nn.Module):
         self.out_height = 11
         self.num_layers = 22
 
-        self.cnn1 = init_layer(nn.Conv2d(in_channels=22, out_channels=64, kernel_size=5, stride=3))
-        self.cnn2 = init_layer(nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1))
+        self.cnn1 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=22, out_channels=64, kernel_size=5, stride=3))
+        self.cnn2 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1))
 
         test_input = torch.zeros(1, 22, 11, 11)
         with torch.no_grad():
@@ -135,17 +135,17 @@ class Policy(nn.Module):
 
         self.flatten = nn.Flatten()
 
-        self.fc1 = init_layer(nn.Linear(self.flattened_size, 128))
-        self.encoded_obs = init_layer(nn.Linear(128, 128))
-        self.critic_1 = init_layer(nn.Linear(self.hidden_size, 1024))
-        self.value_head = init_layer(nn.Linear(1024, 1), std=1.0)
-        self.actor_1 = init_layer(nn.Linear(self.hidden_size, 512))
+        self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(self.flattened_size, 128))
+        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, 128))
+        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
+        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
         self.action_embeddings = nn.Embedding(100, 16)
 
         # Action heads - will be initialized based on action space
         action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
 
-        self.actor_heads = nn.ModuleList([init_layer(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec])
+        self.actor_heads = nn.ModuleList([pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec])
 
         max_vec = torch.tensor(
             [
