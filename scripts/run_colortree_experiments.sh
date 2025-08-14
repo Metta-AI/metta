@@ -7,9 +7,6 @@
 SEED=${1:-$RANDOM}
 echo "Using seed: $SEED"
 
-# Base command
-BASE_CMD="python devops/skypilot/launch.py"
-
 # Run experiments
 for steps in 16 32 64; do
     for num_colors in 2 3; do
@@ -27,11 +24,12 @@ for steps in 16 32 64; do
         run_name="${USER}.colortree_${steps}step_${num_colors}colors_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
 
         echo "Launching: $run_name"
-        echo "  Config: ${config}"
+        echo "  Steps: ${steps}"
+        echo "  Colors: ${num_colors}"
         echo "  Curriculum: ${curriculum_name}"
         echo "  Seed: ${SEED}"
 
-        $BASE_CMD \
+        python devops/skypilot/launch.py train \
             run=$run_name \
             trainer.curriculum=env/mettagrid/curriculum/${curriculum_name} \
             sim=colortree_nosim \
