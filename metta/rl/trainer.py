@@ -534,7 +534,6 @@ def train(
                             wandb_policy_name=wandb_policy_name,
                             stats_client=stats_client,
                             wandb_run=wandb_run,
-                            trainer_cfg=trainer_cfg.evaluation,
                         )
                     except Exception as e:
                         logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
