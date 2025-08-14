@@ -7,4 +7,4 @@ trainer:
     skip_git_check: true
   total_timesteps: 1000000
   checkpoint:
-    checkpoint_file_type: safetensors
+    checkpoint_file_type: pt

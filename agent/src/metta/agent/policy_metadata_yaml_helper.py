@@ -13,7 +13,7 @@ from typing import Any, Dict, Tuple
 import torch
 import yaml
 from gymnasium.spaces import MultiDiscrete
-from safetensors.torch import save_file  # type: ignore
+from safetensors.torch import load_file, save_file
 
 from metta.agent.metta_agent import DistributedMettaAgent, PolicyAgent
 from metta.agent.policy_record import PolicyRecord
@@ -73,13 +73,8 @@ def load_metadata_only(checkpoint_name: str, base_path: Path) -> Dict[str, Any]:
 def load_weights_only(checkpoint_name: str, base_path: Path) -> Dict[str, torch.Tensor]:
     """Load only model weights"""
     weights_path = base_path / f"{checkpoint_name}.safetensors"
-    return torch.load(weights_path, map_location="cpu")
-
-
-def load_weights_ptx(checkpoint_name: str, base_path: Path) -> Dict[str, torch.Tensor]:
-    """Load model weights from .safetensors file"""
-    weights_ptx_path = base_path / f"{checkpoint_name}.safetensors"
-    return torch.load(weights_ptx_path, map_location="cpu")
+    weights = load_file(weights_path)
+    return weights
 
 
 def load_full(checkpoint_name: str, base_path: Path) -> Tuple[Dict[str, torch.Tensor], Dict[str, Any]]:
