@@ -12,6 +12,10 @@ fi
 
 DEBUG=${DEBUG:-0}
 
+EXIT_SUCCESS=0
+EXIT_FAILURE=1
+EXIT_NCCL_TEST_FAILURE=42
+
 echo "[CONFIG] Run Configuration:"
 echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
 echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
@@ -65,28 +69,6 @@ export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
 
 # Flag to prevent multiple shutdowns
 export SHUTDOWN_IN_PROGRESS=0
-
-# Run comprehensive GPU diagnostics and NCCL tests
-echo "[RUN] Running GPU diagnostics and NCCL tests..."
-if ! uv run python ./devops/skypilot/test_nccl.py; then
-    echo "Pre-flight check failed!"
-    exit 1
-fi
-
-if [ -f "$IPC_DIR/nccl_results.json" ]; then
-    if jq -e '.all_tests_passed' "$IPC_DIR/nccl_results.json" > /dev/null; then
-        echo "[RUN] All NCCL tests passed!"
-        # Extract and display key metrics
-        P2P_BW=$(jq -r '.p2p_bandwidth_gbps // "N/A"' "$IPC_DIR/nccl_results.json")
-        PEAK_ALLREDUCE=$(jq -r '.peak_allreduce_bandwidth_gbps // "N/A"' "$IPC_DIR/nccl_results.json")
-        echo "[RUN] P2P Bandwidth: ${P2P_BW} GB/s"
-        echo "[RUN] Peak Allreduce: ${PEAK_ALLREDUCE} GB/s"
-    else
-        echo "[RUN] Some NCCL tests failed!"
-        jq -r '.test_results[] | select(.passed == false) | .test_name' "$IPC_DIR/nccl_results.json"
-        exit 1
-    fi
-fi
 
 # Set up feature flags based on available credentials
 if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
@@ -233,7 +215,7 @@ graceful_shutdown() {
   export CMD_EXIT
   maybe_set_github_status
 
-  exit 0
+  exit EXIT_SUCCESS
 }
 
 # Trap signals on the parent (the process SkyPilot watches)
@@ -383,6 +365,14 @@ cleanup() {
   fi
   export CLEANUP_DONE=true
 
+  # Capture the actual exit code that triggered the trap
+  local actual_exit_code=$?
+
+  # If CMD_EXIT wasn't set (meaning we failed before run_cmd), use the actual exit code
+  if [ -z "${CMD_PID:-}" ]; then
+    CMD_EXIT=$actual_exit_code
+  fi
+
   # Read termination reason from file if it exists
   if [ -f "$TERMINATION_REASON_FILE" ]; then
     TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE")
@@ -402,11 +392,17 @@ cleanup() {
     # Map to success
     CMD_EXIT=0
 
-  elif [[ $CMD_EXIT -eq 0 ]]; then
+  elif [[ $CMD_EXIT -eq EXIT_SUCCESS ]]; then
     echo "[SUCCESS] Job completed successfully"
     export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
     export TERMINATION_REASON="completed"
     # maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
+
+  elif [[ $CMD_EXIT -eq EXIT_NCCL_TEST_FAILURE ]]; then
+    echo "[ERROR] Job failed during NCCL tests"
+    export GITHUB_STATUS_DESCRIPTION="NCCL tests failed"
+    export TERMINATION_REASON="nccl_test_failure"
+    maybe_send_discord_notification "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
   else
     echo "[ERROR] Job failed with exit code $CMD_EXIT"
     export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
@@ -449,6 +445,24 @@ export -f terminate_monitors
 
 # Set up cleanup trap
 trap cleanup EXIT
+
+# Run comprehensive GPU diagnostics and NCCL tests
+echo "[RUN] Running GPU diagnostics and NCCL tests..."
+uv run python ./devops/skypilot/test_nccl.py
+if [ -f "$IPC_DIR/nccl_results.json" ]; then
+    if jq -e '.all_tests_passed' "$IPC_DIR/nccl_results.json" > /dev/null; then
+        echo "[RUN] All NCCL tests passed!"
+        # Extract and display key metrics
+        P2P_BW=$(jq -r '.p2p_bandwidth_gbps // "N/A"' "$IPC_DIR/nccl_results.json")
+        PEAK_ALLREDUCE=$(jq -r '.peak_allreduce_bandwidth_gbps // "N/A"' "$IPC_DIR/nccl_results.json")
+        echo "[RUN] P2P Bandwidth: ${P2P_BW} GB/s"
+        echo "[RUN] Peak Allreduce: ${PEAK_ALLREDUCE} GB/s"
+    else
+        echo "[RUN] Some NCCL tests failed!"
+        jq -r '.test_results[] | select(.passed == false) | .test_name' "$IPC_DIR/nccl_results.json"
+        exit EXIT_NCCL_TEST_FAILURE
+    fi
+fi
 
 # Run the command
 run_cmd
