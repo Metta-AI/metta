@@ -280,6 +280,14 @@ class BucketedTaskGenerator(TaskGenerator):
         elif self._config.reward_target is not None:
             # Use the fixed reward_target from config
             env_config.reward_target = self._config.reward_target
+        elif env_config.enable_task_perf_target and env_config.reward_target is None:
+            # Auto-generate reward target when toggle is enabled but no target is set
+            # Use a reasonable default based on task_id for deterministic generation
+            min_val = env_config.reward_target_min
+            max_val = env_config.reward_target_max
+            # Use task_id to deterministically sample from the range
+            rng.seed(task_id)  # Ensure deterministic sampling
+            env_config.reward_target = rng.uniform(min_val, max_val)
 
         return env_config
 

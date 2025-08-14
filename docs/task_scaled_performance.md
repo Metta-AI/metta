@@ -25,7 +25,59 @@ Where:
 
 ## Configuration
 
-### Setting Reward Targets
+### Using the Environmental Toggle (Recommended)
+
+The easiest way to enable task-scaled performance is using the `enable_task_perf_target` toggle:
+
+```yaml
+# In your trainer config or environment overrides
+trainer:
+  env_overrides:
+    enable_task_perf_target: true
+```
+
+When this toggle is enabled:
+- **Automatic reward targets**: If no `reward_target` is explicitly set, the system automatically generates one based on the task ID
+- **Deterministic generation**: The same task ID always produces the same reward target
+- **Configurable ranges**: Default range is 0.0 to 10.0, but can be customized
+
+### Configurable Reward Target Ranges
+
+You can customize the range for auto-generated reward targets:
+
+```yaml
+# In your trainer config or environment overrides
+trainer:
+  env_overrides:
+    enable_task_perf_target: true
+    reward_target_min: 1.0    # Minimum value for auto-generated targets
+    reward_target_max: 25.0   # Maximum value for auto-generated targets
+```
+
+Or in your curriculum config:
+
+```yaml
+# In your curriculum config
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy_defaults
+
+# Enable task-scaled performance with custom range
+enable_task_perf_target: true
+reward_target_min: 5.0
+reward_target_max: 20.0
+
+buckets:
+  game.map_builder.instance_map.params.dir:
+    - terrain_maps_nohearts
+    - varied_terrain/balanced_large
+```
+
+**Default values:**
+- `reward_target_min`: 0.0
+- `reward_target_max`: 10.0
+
+### Manual Configuration
 
 #### Fixed Reward Target
 ```yaml
@@ -47,121 +99,141 @@ reward_target_bucket:
     range_max: 25.0
 ```
 
-### Example Curriculum Configuration
+### Example Usage
 
+#### Simple Toggle Usage
+```bash
+# Enable task-scaled performance for any curriculum
+./devops/skypilot/launch.py train \
+  trainer.curriculum=/env/mettagrid/curriculum/navigation/bucketed \
+  trainer.env_overrides.enable_task_perf_target=true \
+  wandb.project=metta \
+  wandb.group=task_scaled_perf_test
+```
+
+#### With Custom Reward Targets
 ```yaml
+# In your curriculum config
 _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 
-env_cfg_template_path: /env/mettagrid/arena/advanced_easy
+env_cfg_template_path: /env/mettagrid/navigation/training/terrain_from_numpy_defaults
 
-# Sample reward targets from different difficulty levels
-reward_target_bucket: [5.0, 10.0, 15.0, 20.0, 25.0]
-
-# Sample other task parameters
 buckets:
-  game.agent.rewards.inventory.ore_red: [0, 0.5, 1]
-  game.agent.rewards.inventory.battery_red: [0, 0.5, 1]
-  game.agent.rewards.inventory.heart: [0, 0.5, 1]
+  game.map_builder.instance_map.params.dir:
+    - terrain_maps_nohearts
+    - varied_terrain/balanced_large
 
-env_overrides:
-  game:
-    num_agents: 24
-    max_steps: 1000
+# Enable the toggle for automatic reward targets
+enable_task_perf_target: true
+
+# Or specify custom reward targets
+reward_target_bucket: [1.0, 1.5, 2.0, 2.5, 3.0]
 ```
 
 ## Usage in Curriculum Systems
 
 ### Accessing Task-Scaled Performance
 
-The task-scaled performance is automatically calculated and made available in the environment's info dictionary:
+The `task_scaled_performance` metric is automatically calculated and available in the environment's `infos` dictionary:
 
 ```python
-# In environment step
-obs, rewards, terminals, truncations, infos = env.step(action)
+# In your training loop or evaluation code
+observations, rewards, terminals, truncations, infos = env.step(actions)
 
-# Task-scaled performance is available in infos
-if 'task_scaled_performance' in infos:
-    scaled_perf = infos['task_scaled_performance'][task_id]
-    print(f"Task {task_id} scaled performance: {scaled_perf}")
+if "task_scaled_performance" in infos:
+    for task_id, performance in infos["task_scaled_performance"].items():
+        print(f"Task {task_id}: {performance:.2f} performance")
 ```
 
-### Curriculum Adaptation
+### Integration with Learning Progress Curricula
 
-Curriculum systems can use task-scaled performance to:
+Task-scaled performance works seamlessly with learning progress curricula:
 
-1. **Prioritize Underperforming Tasks**: Focus on tasks where scaled performance is low
-2. **Progressive Difficulty**: Increase reward targets as performance improves
-3. **Performance-Based Sampling**: Sample tasks based on scaled performance rather than raw rewards
+```yaml
+# Learning progress curriculum with task-scaled performance
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
 
-### Example: Adaptive Curriculum
+tasks:
+  /env/mettagrid/navigation/training/terrain_from_numpy: 1
+  /env/mettagrid/navigation/training/cylinder_world: 1
 
-```python
-class AdaptiveCurriculum(Curriculum):
-    def complete_task(self, id: str, score: float, scaled_performance: float):
-        # Use scaled performance for task selection
-        if scaled_performance < 0.5:
-            # Increase weight for tasks with low performance
-            self._task_weights[id] *= 1.5
-        elif scaled_performance > 0.8:
-            # Decrease weight for tasks with high performance
-            self._task_weights[id] *= 0.8
+env_overrides:
+  enable_task_perf_target: true
+```
+
+### Integration with Prioritized Regression Curricula
+
+```yaml
+# Prioritized regression curriculum with task-scaled performance
+_target_: metta.mettagrid.curriculum.prioritize_regressed.PrioritizeRegressedCurriculum
+
+tasks:
+  /env/mettagrid/navigation/training/terrain_from_numpy: 1
+  /env/mettagrid/navigation/training/cylinder_world: 1
+
+env_overrides:
+  enable_task_perf_target: true
 ```
 
 ## Implementation Details
 
-### Environment Configuration
+### Automatic Reward Target Generation
 
-The `EnvConfig` class now includes a `reward_target` field:
-
-```python
-class EnvConfig(Config):
-    game: GameConfig = Field(default_factory=GameConfig)
-    desync_episodes: bool = Field(default=True)
-    reward_target: Optional[float] = Field(
-        default=None,
-        description="Target reward for this task"
-    )
-```
-
-### Task Generator Integration
-
-Task generators can set reward targets during task generation:
+When `enable_task_perf_target` is enabled but no `reward_target` is set:
 
 ```python
-# In BucketedTaskGenerator
-if self._config.reward_target_bucket is not None:
-    reward_target = self._get_bucket_value(self._config.reward_target_bucket, rng)
-    env_config.reward_target = reward_target
+# Deterministic generation based on task_id and configurable range
+min_val = env_config.reward_target_min
+max_val = env_config.reward_target_max
+rng.seed(task_id)  # Ensure deterministic sampling
+reward_target = rng.uniform(min_val, max_val)
 ```
 
-### Automatic Calculation
+This ensures:
+- **Determinism**: Same task_id always produces same reward_target
+- **Variety**: Different tasks have different difficulty levels
+- **Configurable range**: Targets can be customized via `reward_target_min` and `reward_target_max`
+- **Uniform distribution**: Targets are sampled uniformly from the specified range
 
-The curriculum environment wrapper automatically calculates task-scaled performance:
+### Performance Calculation
+
+The calculation happens in `CurriculumEnv.step()`:
 
 ```python
-# In CurriculumEnv.step()
-if hasattr(env_cfg, 'reward_target') and env_cfg.reward_target is not None:
-    reward_target = env_cfg.reward_target
-    if reward_target > 0:
-        task_scaled_performance = min(mean_reward / reward_target, 1.0)
+if env_cfg.enable_task_perf_target and env_cfg.reward_target is not None:
+    if env_cfg.reward_target > 0:
+        task_scaled_performance = min(mean_reward / env_cfg.reward_target, 1.0)
 ```
+
+### Logging
+
+Task-scaled performance is automatically logged to WandB when available:
+
+- **Metric name**: `task_scaled_performance`
+- **Format**: Dictionary mapping task_id to performance value
+- **Range**: 0.0 to 1.0 (capped at 100% performance)
 
 ## Migration Guide
 
-### Existing Configurations
+### From Manual Configuration
 
-Existing configurations will continue to work without changes. The `reward_target` field is optional and defaults to `None`.
+If you were previously using manual `reward_target` configuration:
 
-### Adding Task-Scaled Performance
+**Before:**
+```yaml
+reward_target_bucket: [5.0, 10.0, 15.0, 20.0, 25.0]
+```
 
-To add task-scaled performance to existing curricula:
-
-1. Add `reward_target` or `reward_target_bucket` to your task generator configuration
-2. Update curriculum logic to use scaled performance if desired
-3. Monitor the new `task_scaled_performance` metrics in logs
+**After:**
+```yaml
+enable_task_perf_target: true
+# Or keep your custom targets:
+reward_target_bucket: [5.0, 10.0, 15.0, 20.0, 25.0]
+```
 
 ### Backward Compatibility
 
-- All existing reward systems continue to work unchanged
-- Task-scaled performance is an additional metric, not a replacement
-- Raw rewards are still logged and used by default
+The system maintains full backward compatibility:
+- Existing configs without the toggle continue to work unchanged
+- Manual `reward_target` settings take precedence over auto-generation
+- The toggle only affects behavior when explicitly enabled

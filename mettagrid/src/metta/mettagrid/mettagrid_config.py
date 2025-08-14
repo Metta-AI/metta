@@ -255,6 +255,21 @@ class EnvConfig(Config):
             "Target reward for this task. Used to calculate task_scaled_performance = min(reward/reward_target, 1.0)"
         ),
     )
+    enable_task_perf_target: bool = Field(
+        default=False,
+        description=(
+            "Enable task-scaled performance analysis. When True, automatically "
+            "sets reward_target if not already set and enables task_scaled_performance calculation."
+        ),
+    )
+    reward_target_min: float = Field(
+        default=0.0,
+        description="Minimum value for auto-generated reward targets when enable_task_perf_target is True",
+    )
+    reward_target_max: float = Field(
+        default=10.0,
+        description="Maximum value for auto-generated reward targets when enable_task_perf_target is True",
+    )
 
     @model_validator(mode="after")
     def validate_fields(self) -> "EnvConfig":
