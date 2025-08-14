@@ -273,9 +273,8 @@ class MettaAgent(nn.Module):
 
         # Pass tensors to policy if needed
         if self.policy is not None:
-            for attr in ["action_index_tensor", "cum_action_max_params"]:
-                if hasattr(self.policy, attr):
-                    setattr(self.policy, attr, getattr(self, attr))
+            self.policy.action_index_tensor = self.action_index_tensor
+            self.policy.cum_action_max_params = self.cum_action_max_params
 
     @property
     def total_params(self):
