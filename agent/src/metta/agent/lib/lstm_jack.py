@@ -6,7 +6,7 @@ from tensordict import TensorDict
 from metta.agent.lib.metta_layer import LayerBase
 
 
-class LSTM(LayerBase):
+class LSTMJack(LayerBase):
     """
     LSTM layer that handles tensor reshaping and state management automatically.
 
