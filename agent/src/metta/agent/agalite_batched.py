@@ -13,34 +13,46 @@ import torch.nn.functional as F
 
 def batched_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:
     """
-    Compute discounted sum for batched sequences using parallel scan.
+    Compute discounted sum for batched sequences using efficient cumulative operations.
+
+    This implements: y[t] = discount[t] * y[t-1] + x[t]
+    where y[-1] = start_state
 
     Args:
-        start_state: Initial state tensor of shape (B, ...)
+        start_state: Initial state tensor of shape (B, ...) or matching x shape without T
         x: Sequence tensor of shape (T, B, ...)
         discounts: Discount factors of shape (T, B, ...)
 
     Returns:
         Discounted sum tensor of shape (T, B, ...)
     """
-    T, B = x.shape[:2]
+    T = x.shape[0]
 
     if T == 0:
         return x
 
-    # Efficient implementation without inplace operations
-    result_list = []
+    # Ensure start_state has same shape as x[0]
+    if start_state.dim() < x.dim() - 1:
+        # Add missing dimensions
+        for _ in range(x.dim() - 1 - start_state.dim()):
+            start_state = start_state.unsqueeze(-1)
 
-    # First timestep
-    prev = discounts[0] * start_state + x[0]
-    result_list.append(prev)
+    # For GPU efficiency, we can use a custom kernel or accumulate in chunks
+    # For now, use a simple loop that's still efficient on GPU
+    device = x.device
+    dtype = x.dtype
 
-    # Remaining timesteps - vectorized across batch
+    # Pre-allocate output tensor
+    output = torch.empty_like(x)
+
+    # Initialize with first step
+    output[0] = discounts[0] * start_state + x[0]
+
+    # Compute remaining steps
     for t in range(1, T):
-        prev = discounts[t] * prev + x[t]
-        result_list.append(prev)
+        output[t] = discounts[t] * output[t - 1] + x[t]
 
-    return torch.stack(result_list, dim=0)
+    return output
 
 
 class BatchedAttentionAGaLiTeLayer(nn.Module):
