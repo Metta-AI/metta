@@ -39,6 +39,7 @@ DEFAULT_ENV_CFG = {
         "_self_",
     ],
     "game": {
+        "max_steps": 512,
         "map_builder": {
             "root": {
                 "params": {
@@ -71,7 +72,9 @@ class IndentDumper(yaml.SafeDumper):
 
 
 class InContextEnv:
-    def __init__(self, resource_types, converter_types, resource_chain, num_sinks: int):
+    def __init__(
+        self, resource_types, converter_types, resource_chain, num_sinks: int, use_initial_inventory: bool = False
+    ):
         # Use deep copy to ensure complete isolation
         self.env_cfg = copy.deepcopy(DEFAULT_ENV_CFG)
         self.resource_types = resource_types
@@ -80,6 +83,7 @@ class InContextEnv:
         self.num_sinks = num_sinks
         self.used_objects = []
         self.all_input_resources = []
+        self.use_initial_inventory = use_initial_inventory
 
     def set_converter(self, input_resource, output_resource):
         """
@@ -131,6 +135,10 @@ class InContextEnv:
         print(f"Resource chain: {resource_chain}, num sinks: {self.num_sinks}")
         print(f"Expected converters needed: {chain_length - 1}")
 
+        # shorter episodes for shorter chains
+        if chain_length <= 4 and self.num_sinks < 2:
+            self.env_cfg["game"]["max_steps"] = 256
+
         # for every i/o pair along the way of our resource chain
         for i in range(chain_length - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
@@ -142,6 +150,10 @@ class InContextEnv:
         if self.num_sinks > 0:
             for _ in range(self.num_sinks):
                 self.set_sink()
+
+        # Initialize with first resource in the chain
+        if self.use_initial_inventory:
+            self.env_cfg["game"]["objects"]["initial_inventory"] = {"input_resources": {self.resource_chain[1]: 1}}
 
         print(f"Total objects created: {len(self.used_objects)}")
         print(f"Objects: {self.used_objects}")
