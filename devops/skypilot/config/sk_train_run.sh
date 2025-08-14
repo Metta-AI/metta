@@ -388,7 +388,7 @@ cleanup() {
   elif [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]]; then
     echo "[INFO] Job terminated due to max runtime limit"
     export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
-    # maybe_send_discord_notification "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
+    maybe_send_discord_notification "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
     # Map to success
     CMD_EXIT=0
 
@@ -396,7 +396,7 @@ cleanup() {
     echo "[SUCCESS] Job completed successfully"
     export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
     export TERMINATION_REASON="completed"
-    # maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
+    maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
 
   elif [[ $CMD_EXIT -eq EXIT_NCCL_TEST_FAILURE ]]; then
     echo "[ERROR] Job failed during NCCL tests"
