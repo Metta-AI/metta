@@ -34,7 +34,7 @@ for steps in 16 32 64; do
         $BASE_CMD \
             run=$run_name \
             trainer.curriculum=env/mettagrid/curriculum/${curriculum_name} \
-            sim=${config} \
+            sim=colortree_nosim \
             seed=$SEED
 
         echo "Launched ${steps}-step with ${num_colors} colors"
