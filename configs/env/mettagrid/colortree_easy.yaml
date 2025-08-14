@@ -34,4 +34,4 @@ game:
       reward_mode: "precise" # precise, partial, dense
       trial_sequences:
         - [1, 0, 1, 0] # Same sequence for entire 64-step episode
-      color_to_item: {0: ore_red, 1: ore_green}
+      color_to_item: {0: ore_red, 1: ore_green, 2: ore_blue}
