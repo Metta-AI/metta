@@ -2,6 +2,6 @@
 _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
-  /env/mettagrid/curriculum/in_context_learning/chain_length_2/1_sinks/ore_blue: 1
-  /env/mettagrid/curriculum/in_context_learning/chain_length_2/1_sinks/ore_green: 1
-  /env/mettagrid/curriculum/in_context_learning/chain_length_2/1_sinks/ore_red: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/1_sinks/ore_blue: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/1_sinks/ore_green: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_2/1_sinks/ore_red: 1
