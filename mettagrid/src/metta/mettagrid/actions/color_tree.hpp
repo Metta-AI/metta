@@ -1,12 +1,12 @@
 #ifndef ACTIONS_COLOR_TREE_HPP_
 #define ACTIONS_COLOR_TREE_HPP_
 
-#include <string>
-#include <vector>
-#include <map>
 #include <array>
 #include <cstring>
 #include <limits>
+#include <map>
+#include <string>
+#include <vector>
 
 #include "action_handler.hpp"
 #include "objects/agent.hpp"
@@ -27,13 +27,13 @@ inline ColorTreeRewardMode string_to_reward_mode(const std::string& mode_str) {
 }
 
 struct ColorTreeActionConfig : public ActionConfig {
-  std::vector<uint8_t> target_sequence;  // Target color sequence to match
-  float sequence_reward;                 // Reward given for correct sequence match
-  std::map<uint8_t, InventoryItem> color_to_item;  // Maps color values to inventory items
-  size_t num_trials;                     // Number of different sequences to test
+  std::vector<uint8_t> target_sequence;               // Target color sequence to match
+  float sequence_reward;                              // Reward given for correct sequence match
+  std::map<uint8_t, InventoryItem> color_to_item;     // Maps color values to inventory items
+  size_t num_trials;                                  // Number of different sequences to test
   std::vector<std::vector<uint8_t>> trial_sequences;  // Different sequences for each trial
-  size_t attempts_per_trial;             // Number of attempts allowed per trial
-  ColorTreeRewardMode reward_mode;       // Reward mode enum
+  size_t attempts_per_trial;                          // Number of attempts allowed per trial
+  ColorTreeRewardMode reward_mode;                    // Reward mode enum
 
   ColorTreeActionConfig(const std::map<InventoryItem, InventoryQuantity>& required_resources,
                         const std::map<InventoryItem, InventoryQuantity>& consumed_resources,
@@ -124,7 +124,8 @@ protected:
 
     // Global trial switching based on total action calls normalized by number of agents (sync all agents)
     if (_agents_per_step == 0) {
-      // We cannot query env here cheaply; initialize to actor->agent_id+1 on first encounter and let it grow conservatively
+      // We cannot query env here cheaply; initialize to actor->agent_id+1 on first encounter and let it grow
+      // conservatively
       _agents_per_step = static_cast<size_t>(actor->agent_id) + 1;
     } else if (static_cast<size_t>(actor->agent_id) + 1 > _agents_per_step) {
       _agents_per_step = static_cast<size_t>(actor->agent_id) + 1;
@@ -167,12 +168,12 @@ protected:
 
     // Dense reward mode: give immediate reward for correct position
     if (_reward_mode == ColorTreeRewardMode::DENSE) {
-      size_t compare_index = (agent_data.position_in_sequence == 0)
-                                 ? (_max_sequence_size - 1)
-                                 : (agent_data.position_in_sequence - 1);
+      size_t compare_index =
+          (agent_data.position_in_sequence == 0) ? (_max_sequence_size - 1) : (agent_data.position_in_sequence - 1);
       if (color == (*_current_target_ptr_global)[compare_index]) {
         *actor->reward += _per_position_reward;
         actor->stats.add("color_tree.correct_position", 1.0f);
+        actor->stats.add("color_tree.reward_awarded", _per_position_reward);
       }
     }
 
@@ -199,21 +200,23 @@ protected:
       }
     }
 
-        // Check if we've completed a fixed window
+    // Check if we've completed a fixed window
     if (agent_data.window_filled) {
       agent_data.window_filled = false;
       if (_reward_mode == ColorTreeRewardMode::PRECISE) {
         if (agent_data.correct_positions_count == static_cast<int>(_max_sequence_size)) {
           *actor->reward += _sequence_reward;
           actor->stats.add("color_tree.sequence_completed", 1.0f);
+          actor->stats.add("color_tree.reward_awarded", _sequence_reward);
         }
       } else if (_reward_mode == ColorTreeRewardMode::PARTIAL) {
         int correct_positions = agent_data.correct_positions_count;
         if (correct_positions > 0) {
-          float partial_reward = _sequence_reward *
-                                 (static_cast<float>(correct_positions) / static_cast<float>(_max_sequence_size));
+          float partial_reward =
+              _sequence_reward * (static_cast<float>(correct_positions) / static_cast<float>(_max_sequence_size));
           *actor->reward += partial_reward;
           actor->stats.add("color_tree.partial_matches", static_cast<float>(correct_positions));
+          actor->stats.add("color_tree.reward_awarded", partial_reward);
           if (correct_positions == static_cast<int>(_max_sequence_size)) {
             actor->stats.add("color_tree.sequence_completed", 1.0f);
           }
@@ -233,11 +236,11 @@ protected:
 
 private:
   struct PerAgentData {
-    InventoryItem current_item = INVALID_ITEM; // Item currently in inventory
-    size_t position_in_sequence = 0; // Write index within the fixed window
-    bool window_filled = false;      // Whether we've written a full window
-    uint8_t correctness_mask = 0;    // Up to 8 positions (we use lower bits)
-    int correct_positions_count = 0; // Running count in current window
+    InventoryItem current_item = INVALID_ITEM;  // Item currently in inventory
+    size_t position_in_sequence = 0;            // Write index within the fixed window
+    bool window_filled = false;                 // Whether we've written a full window
+    uint8_t correctness_mask = 0;               // Up to 8 positions (we use lower bits)
+    int correct_positions_count = 0;            // Running count in current window
   };
 
   // Per-agent state indexed by agent_id for O(1) access
@@ -248,14 +251,14 @@ private:
   std::vector<uint8_t> _base_target_sequence;  // Default target sequence
   float _sequence_reward;
   std::map<uint8_t, InventoryItem> _color_to_item;
-  std::vector<InventoryItem> _color_to_item_fast;   // Direct index lookup for colors
-  size_t _max_color = 0;                            // Cached maximum color id
-  size_t _max_sequence_size{};                  // Shared length of sequences
+  std::vector<InventoryItem> _color_to_item_fast;  // Direct index lookup for colors
+  size_t _max_color = 0;                           // Cached maximum color id
+  size_t _max_sequence_size{};                     // Shared length of sequences
   size_t _num_trials;
   std::vector<std::vector<uint8_t>> _trial_sequences;
   size_t _attempts_per_trial;
   ColorTreeRewardMode _reward_mode;
-  size_t _actions_per_trial{};                  // Pre-calculated: _attempts_per_trial * _max_sequence_size
+  size_t _actions_per_trial{};  // Pre-calculated: _attempts_per_trial * _max_sequence_size
   float _per_position_reward;
   // Global trial state (sync across agents)
   size_t _global_action_count = 0;

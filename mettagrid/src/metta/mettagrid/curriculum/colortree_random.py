@@ -103,6 +103,9 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
         **kwargs,
     ):
         super().__init__(tasks, env_overrides)
+        self._last_selected_sequence: list[int] | None = None
+        # Independent RNG to avoid any external global seeding affecting episode sampling
+        self._rng = random.Random()
 
         # Auto-detect num_colors from task config if not provided
         if num_colors is None:
@@ -120,13 +123,16 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
         if len(self.sequence_pool) > 10:
             print(f"  ... and {len(self.sequence_pool) - 10} more")
 
+        # No precomputed order; select randomly per episode
+
     def get_task(self) -> Task:
         """Get a task with a randomly selected sequence from the generated pool."""
         # Get base task from parent (this handles the config resolution properly)
         task = super().get_task()
 
-        # Randomly select a sequence from the pool
-        selected_sequence = random.choice(self.sequence_pool)
+        # Select a sequence uniformly at random each episode
+        selected_sequence = self._rng.choice(self.sequence_pool)
+        self._last_selected_sequence = selected_sequence
 
         # Get the environment config and update it with our selected sequence
         env_cfg = task.env_cfg()
@@ -148,3 +154,13 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
 
         # Use the original task ID to avoid KeyError in completion tracking
         return SingleTrialTask(id=task.id(), curriculum=self, env_cfg=env_cfg)
+
+    def get_curriculum_stats(self) -> dict:
+        # Expose the most recently selected sequence and pool size for logging/diagnostics
+        selected = (
+            ",".join(str(x) for x in self._last_selected_sequence) if self._last_selected_sequence is not None else ""
+        )
+        return {
+            "selected_sequence": selected,
+            "sequence_pool_size": len(getattr(self, "sequence_pool", [])),
+        }
