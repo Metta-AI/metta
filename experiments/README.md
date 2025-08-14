@@ -136,40 +136,6 @@ training = TrainingRunConfig(
 )
 ```
 
-### Extending for Sweep Capabilities
-
-The framework is designed for extension. To add sweep support:
-
-1. Create an experiment class that generates multiple `TrainingJobConfig` instances
-2. Override `training_job_configs()` to return the sweep configurations
-3. The existing launch infrastructure handles multiple jobs automatically
-
-```python
-class HyperparameterSweep(Experiment):
-    def training_job_configs(self) -> List[TrainingJobConfig]:
-        configs = []
-        for lr in [0.0001, 0.0003, 0.001]:
-            for batch_size in [2048, 4096]:
-                trainer = TrainerConfig(
-                    batch_size=batch_size,
-                    minibatch_size=min(batch_size // 4, 512),
-                    num_workers=4,
-                    optimizer=OptimizerConfig(learning_rate=lr),
-                    checkpoint=CheckpointConfig(checkpoint_dir="${run_dir}/checkpoints"),
-                    simulation=SimulationConfig(replay_dir="${run_dir}/replays"),
-                    profiler=TorchProfilerConfig(profile_dir="${run_dir}/torch_traces"),
-                )
-                training = TrainingRunConfig(
-                    curriculum="env/mettagrid/curriculum/arena/basic",
-                    trainer=trainer,
-                    wandb_tags=["sweep", f"lr_{lr}", f"bs_{batch_size}"],
-                )
-                configs.append(TrainingJobConfig(
-                    skypilot=SkypilotJobConfig(gpus=1),
-                    training=training,
-                ))
-        return configs
-```
 
 ## Service Layer
 
