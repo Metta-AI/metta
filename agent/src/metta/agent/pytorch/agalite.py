@@ -14,7 +14,7 @@ from metta.agent.agalite_batched import BatchedAGaLiTe
 logger = logging.getLogger(__name__)
 
 
-class Agalite(pufferlib.models.LSTMWrapper):
+class AgaliteHybrid(pufferlib.models.LSTMWrapper):
     """Hybrid AGaLiTe-LSTM architecture for efficient RL training.
     
     This uses AGaLiTe's sophisticated attention-based observation encoding

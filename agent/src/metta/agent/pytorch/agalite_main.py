@@ -324,9 +324,9 @@ class AGaLiTePolicy(nn.Module):
         )
 
 
-class AGaLiTeFaithful(TransformerWrapper):
+class AGaLiTe(TransformerWrapper):
     """
-    Faithful AGaLiTe implementation using TransformerWrapper for proper BPTT handling.
+    AGaLiTe implementation using TransformerWrapper for proper BPTT handling.
 
     This provides:
     - Proper memory state management across BPTT segments
