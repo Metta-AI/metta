@@ -214,6 +214,13 @@ export type LeaderboardCreate = {
   start_date: string
 }
 
+export type LeaderboardUpdate = {
+  name?: string
+  evals?: string[]
+  metric?: string
+  start_date?: string
+}
+
 export type LeaderboardListResponse = {
   leaderboards: Leaderboard[]
 }
@@ -313,6 +320,7 @@ export interface Repo {
   listLeaderboards(): Promise<LeaderboardListResponse>
   getLeaderboard(leaderboardId: string): Promise<Leaderboard>
   createLeaderboard(leaderboardData: LeaderboardCreate): Promise<Leaderboard>
+  updateLeaderboard(leaderboardId: string, leaderboardData: LeaderboardUpdate): Promise<Leaderboard>
   deleteLeaderboard(leaderboardId: string): Promise<void>
   generateLeaderboardScorecard(leaderboardId: string, request: LeaderboardScorecardRequest): Promise<ScorecardData>
 }
@@ -514,6 +522,10 @@ export class ServerRepo implements Repo {
 
   async createLeaderboard(leaderboardData: LeaderboardCreate): Promise<Leaderboard> {
     return this.apiCallWithBody<Leaderboard>('/leaderboards', leaderboardData)
+  }
+
+  async updateLeaderboard(leaderboardId: string, leaderboardData: LeaderboardUpdate): Promise<Leaderboard> {
+    return this.apiCallWithBodyPut<Leaderboard>(`/leaderboards/${encodeURIComponent(leaderboardId)}`, leaderboardData)
   }
 
   async deleteLeaderboard(leaderboardId: string): Promise<void> {

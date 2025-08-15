@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Repo, LeaderboardCreate, UnifiedPolicyInfo } from './repo'
+import { useNavigate, useParams } from 'react-router-dom'
+import { Repo, LeaderboardCreate, LeaderboardUpdate, Leaderboard, UnifiedPolicyInfo } from './repo'
 import { EvalSelector } from './components/EvalSelector'
 import { MetricSelector } from './components/MetricSelector'
 import { DateSelector } from './components/DateSelector'
@@ -152,6 +152,8 @@ interface LeaderboardConfigProps {
 
 export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
   const navigate = useNavigate()
+  const { leaderboardId } = useParams<{ leaderboardId: string }>()
+  const isEditMode = Boolean(leaderboardId)
 
   const formatDate = (date: Date) => {
     return date.toISOString().split('T')[0]
@@ -167,6 +169,7 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
   const [selectedMetric, setSelectedMetric] = useState<string>('reward')
 
   // Data state
+  const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
   const [policies, setPolicies] = useState<UnifiedPolicyInfo[]>([])
   const [evalNames, setEvalNames] = useState<Set<string>>(new Set())
   const [availableMetrics, setAvailableMetrics] = useState<string[]>([])
@@ -190,6 +193,13 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
   const trainingRunIds = filteredPolicies.filter((p) => p.type === 'training_run').map((p) => p.id)
 
   const runFreePolicyIds = filteredPolicies.filter((p) => p.type === 'policy').map((p) => p.id)
+
+  // Load leaderboard data if in edit mode
+  useEffect(() => {
+    if (isEditMode && leaderboardId) {
+      loadLeaderboard()
+    }
+  }, [isEditMode, leaderboardId])
 
   // Load policies on mount
   useEffect(() => {
@@ -215,6 +225,26 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
       setSelectedMetric('reward')
     }
   }, [startDate, policies, selectedEvalNames])
+
+  const loadLeaderboard = async () => {
+    if (!leaderboardId) return
+
+    try {
+      setLoading((prev) => ({ ...prev, page: true }))
+      setError(null)
+      const data = await repo.getLeaderboard(leaderboardId)
+      setLeaderboard(data)
+      
+      // Populate form with leaderboard data (excluding name as per requirements)
+      setStartDate(data.start_date)
+      setSelectedEvalNames(new Set(data.evals))
+      setSelectedMetric(data.metric)
+    } catch (err: any) {
+      setError(`Failed to load leaderboard: ${err.message}`)
+    } finally {
+      setLoading((prev) => ({ ...prev, page: false }))
+    }
+  }
 
   const loadPolicies = async () => {
     try {
@@ -278,7 +308,7 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
   }
 
   const handleSave = async () => {
-    if (!name.trim()) {
+    if (!isEditMode && !name.trim()) {
       alert('Please enter a name for the leaderboard')
       return
     }
@@ -296,18 +326,28 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
     try {
       setLoading((prev) => ({ ...prev, saving: true }))
 
-      // Only creation is supported - editing is removed
-      const createData: LeaderboardCreate = {
-        name: name.trim(),
-        evals: Array.from(selectedEvalNames),
-        metric: selectedMetric,
-        start_date: startDate,
+      if (isEditMode && leaderboardId) {
+        // Update existing leaderboard (excluding name as per requirements)
+        const updateData: LeaderboardUpdate = {
+          evals: Array.from(selectedEvalNames),
+          metric: selectedMetric,
+          start_date: startDate,
+        }
+        await repo.updateLeaderboard(leaderboardId, updateData)
+      } else {
+        // Create new leaderboard
+        const createData: LeaderboardCreate = {
+          name: name.trim(),
+          evals: Array.from(selectedEvalNames),
+          metric: selectedMetric,
+          start_date: startDate,
+        }
+        await repo.createLeaderboard(createData)
       }
-      await repo.createLeaderboard(createData)
 
       navigate('/leaderboards')
     } catch (err: any) {
-      alert(`Failed to create leaderboard: ${err.message}`)
+      alert(`Failed to ${isEditMode ? 'update' : 'create'} leaderboard: ${err.message}`)
     } finally {
       setLoading((prev) => ({ ...prev, saving: false }))
     }
@@ -349,26 +389,47 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
 
       <div className="config-container">
         <div className="config-header">
-          <h1 className="config-title">Create New Leaderboard</h1>
+          <h1 className="config-title">{isEditMode ? 'Edit Leaderboard' : 'Create New Leaderboard'}</h1>
           <p className="config-subtitle">
-            Configure leaderboard settings to track and compare policy performance across evaluations.
+            {isEditMode 
+              ? 'Update leaderboard settings to adjust policy performance tracking.'
+              : 'Configure leaderboard settings to track and compare policy performance across evaluations.'
+            }
           </p>
         </div>
 
-        {/* Basic Information */}
-        <div className="form-group">
-          <label className="form-label" htmlFor="name">
-            Leaderboard Name
-          </label>
-          <input
-            id="name"
-            type="text"
-            className="form-input"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Enter a descriptive name for your leaderboard"
-          />
-        </div>
+        {/* Basic Information - only show name field in create mode */}
+        {!isEditMode && (
+          <div className="form-group">
+            <label className="form-label" htmlFor="name">
+              Leaderboard Name
+            </label>
+            <input
+              id="name"
+              type="text"
+              className="form-input"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter a descriptive name for your leaderboard"
+            />
+          </div>
+        )}
+
+        {/* Show current name in edit mode */}
+        {isEditMode && leaderboard && (
+          <div className="form-group">
+            <label className="form-label">Current Leaderboard Name</label>
+            <div style={{ 
+              padding: '8px 12px', 
+              background: '#f8f9fa', 
+              border: '1px solid #dee2e6', 
+              borderRadius: '4px', 
+              color: '#6c757d' 
+            }}>
+              {leaderboard.name}
+            </div>
+          </div>
+        )}
 
         {/* Start Date Filter */}
         <div className="widget">
@@ -415,9 +476,12 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
           <button
             className="btn btn-primary"
             onClick={handleSave}
-            disabled={loading.saving || !name.trim() || selectedEvalNames.size === 0 || !selectedMetric}
+            disabled={loading.saving || (!isEditMode && !name.trim()) || selectedEvalNames.size === 0 || !selectedMetric}
           >
-            {loading.saving ? 'Creating...' : 'Create Leaderboard'}
+            {loading.saving 
+              ? (isEditMode ? 'Updating...' : 'Creating...') 
+              : (isEditMode ? 'Update Leaderboard' : 'Create Leaderboard')
+            }
           </button>
         </div>
       </div>
