@@ -33,6 +33,11 @@ class PyTorchAgentMixin:
                 self.init_mixin(**mixin_params)
     """
 
+    @staticmethod
+    def _is_regularizable_layer(module):
+        """Check if a module is a layer type that should have weight regularization."""
+        return isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d, nn.ConvTranspose2d))
+
     def extract_mixin_params(self, kwargs: dict) -> dict:
         """
         Extract parameters needed by the mixin from kwargs.
@@ -80,6 +85,7 @@ class PyTorchAgentMixin:
         """
         if self.clip_range > 0:
             for module in self.modules():
+                # Note: ConvTranspose2d is not included here to match original clipping behavior
                 if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d)):
                     if hasattr(module, "weight") and module.weight is not None:
                         module.weight.data.clamp_(-self.clip_range, self.clip_range)
@@ -121,11 +127,11 @@ class PyTorchAgentMixin:
 
         return B, TT
 
-    def handle_training_mode(
+    def forward_training(
         self, td: TensorDict, action: torch.Tensor, logits_list: torch.Tensor, value: torch.Tensor
     ) -> TensorDict:
         """
-        Handle training mode processing with proper TD reshaping.
+        Forward pass for training mode with proper TD reshaping.
 
         Args:
             td: TensorDict to update
@@ -169,9 +175,9 @@ class PyTorchAgentMixin:
 
         return td
 
-    def handle_inference_mode(self, td: TensorDict, logits_list: torch.Tensor, value: torch.Tensor) -> TensorDict:
+    def forward_inference(self, td: TensorDict, logits_list: torch.Tensor, value: torch.Tensor) -> TensorDict:
         """
-        Handle inference mode processing with action sampling.
+        Forward pass for inference mode with action sampling.
 
         Args:
             td: TensorDict to update
@@ -259,7 +265,7 @@ class PyTorchAgentMixin:
         """Store initial weights for L2-init regularization."""
         self.initial_weights = {}
         for name, module in self.named_modules():
-            if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d, nn.ConvTranspose2d)):
+            if self._is_regularizable_layer(module):
                 if hasattr(module, "weight"):
                     # Store with full path for uniqueness
                     self.initial_weights[name if name else "root"] = module.weight.data.clone()
@@ -269,7 +275,7 @@ class PyTorchAgentMixin:
         total_loss = torch.tensor(0.0, dtype=torch.float32)
         if hasattr(self, "initial_weights"):
             for name, module in self.named_modules():
-                if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d, nn.ConvTranspose2d)):
+                if self._is_regularizable_layer(module):
                     if hasattr(module, "weight"):
                         weight_name = name if name else "root"
                         if weight_name in self.initial_weights:
