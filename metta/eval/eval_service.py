@@ -8,14 +8,14 @@ from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 
 
 def evaluate_policy(
     *,
     policy_record: PolicyRecord,
-    simulation_suite: SimulationSuiteConfig,
+    simulations: list[SimulationConfig],
     device: torch.device,
     vectorization: str,
     stats_dir: str = "/tmp/stats",
@@ -41,7 +41,7 @@ def evaluate_policy(
     # For each checkpoint of the policy, simulate
     logger.info(f"Evaluating policy {pr.uri}")
     sim = SimulationSuite(
-        config=simulation_suite,
+        simulations=simulations,
         policy_pr=pr,
         policy_store=policy_store,
         replay_dir=replay_dir,
@@ -57,7 +57,7 @@ def evaluate_policy(
 
     eval_stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
     logger.info("Evaluation complete for policy %s", pr.uri)
-    scores = extract_scores(policy_record, simulation_suite, eval_stats_db, logger)
+    scores = extract_scores(policy_record, simulations, eval_stats_db, logger)
 
     if export_stats_db_uri is not None:
         logger.info("Exporting merged stats DB → %s", export_stats_db_uri)
@@ -82,13 +82,13 @@ def evaluate_policy(
 
 def extract_scores(
     policy_record: PolicyRecord,
-    simulation_suite: SimulationSuiteConfig,
+    simulations: list[SimulationConfig],
     stats_db: EvalStatsDB,
     logger: logging.Logger,
 ) -> EvalRewardSummary:
     categories: set[str] = set()
-    for sim_name in simulation_suite.simulations.keys():
-        categories.add(sim_name.split("/")[0])
+    for sim_config in simulations:
+        categories.add(sim_config.name.split("/")[0])
 
     category_scores: dict[str, float] = {}
     for category in categories:

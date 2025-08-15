@@ -283,7 +283,6 @@ def test_from_shards_and_context(tmp_path: Path):
         cast(dict[int, PolicyRecord], agent_map),
         "test_sim",
         "test_suite",
-        "env_test",
         cast(PolicyRecord, MockPolicyRecord.from_key_and_version("test_policy", 1)),
     )
 

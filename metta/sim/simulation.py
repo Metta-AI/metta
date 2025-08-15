@@ -30,7 +30,7 @@ from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.policy_management import initialize_policy_for_environment
 from metta.rl.vecenv import make_vecenv
-from metta.sim.simulation_config import SingleEnvSimulationConfig
+from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
@@ -51,7 +51,7 @@ class Simulation:
     def __init__(
         self,
         name: str,
-        cfg: SingleEnvSimulationConfig,
+        cfg: SimulationConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
         device: torch.device,
@@ -166,7 +166,7 @@ class Simulation:
     @classmethod
     def create(
         cls,
-        sim_config: SingleEnvSimulationConfig,
+        sim_config: SimulationConfig,
         policy_store: PolicyStore,
         device: str,
         vectorization: str,
@@ -375,7 +375,7 @@ class Simulation:
 
         suite_name = "" if self._sim_suite_name is None else self._sim_suite_name
         db = SimulationStatsDB.from_shards_and_context(
-            self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env.model_dump(), self._policy_pr
+            self._id, self._stats_dir, agent_map, self._name, suite_name, self._policy_pr
         )
         return db
 

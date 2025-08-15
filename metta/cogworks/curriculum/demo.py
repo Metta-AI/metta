@@ -2,7 +2,7 @@ import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.builder as eb
 from metta.cogworks.curriculum.task_generator import ValueRange as vr
 
-arena = eb.arena(num_agents=24)
+arena = eb.make_arena(num_agents=24)
 
 # disable swap
 arena.game.actions.swap.enabled = False

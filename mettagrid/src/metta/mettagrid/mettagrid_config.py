@@ -6,6 +6,7 @@ from metta.common.util.config import Config
 
 if TYPE_CHECKING:
     from metta.cogworks.curriculum.curriculum import CurriculumConfig
+    from metta.sim.simulation_config import SimulationConfig
 from metta.mettagrid.map_builder import MapBuilderConfigUnion
 from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 
@@ -268,6 +269,14 @@ class EnvConfig(Config):
         from metta.cogworks.curriculum.curriculum import Curriculum
 
         return Curriculum(self.to_curriculum_cfg())
+
+    def to_sim(self, name: str) -> "SimulationConfig":
+        from metta.sim.simulation_config import SimulationConfig
+
+        return SimulationConfig(
+            name=name,
+            env=self,
+        )
 
     @staticmethod
     def EmptyRoom(num_agents: int, width: int = 10, height: int = 10, border_width: int = 1) -> "EnvConfig":
