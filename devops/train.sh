@@ -33,7 +33,7 @@ uv run torchrun \
   --master-addr=$MASTER_ADDR \
   --master-port=$MASTER_PORT \
   --node-rank=$NODE_INDEX \
-  tools/train.py \
+  tools/run.py \
   "$@"
 EXIT_CODE=$?
 set -e
