@@ -8,8 +8,8 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.models.encoders import ObsLatentAttn
-from metta.agent.models.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
+from metta.agent.modules.encoders import ObsLatentAttn
+from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ class LatentAttnTiny(pufferlib.models.LSTMWrapper):
         super().__init__(env, policy, input_size, hidden_size)
 
     def forward(self, td: TensorDict, state=None, action=None):
-        observations = td["env_obs"].to(self.device)
+        observations = td["env_obs"]
 
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
@@ -33,8 +33,8 @@ class LatentAttnTiny(pufferlib.models.LSTMWrapper):
         # Prepare LSTM state
         lstm_h, lstm_c = state.get("lstm_h"), state.get("lstm_c")
         if lstm_h is not None and lstm_c is not None:
-            lstm_h = lstm_h.to(self.device)[: self.lstm.num_layers]
-            lstm_c = lstm_c.to(self.device)[: self.lstm.num_layers]
+            lstm_h = lstm_h[: self.lstm.num_layers]
+            lstm_c = lstm_c[: self.lstm.num_layers]
             lstm_state = (lstm_h, lstm_c)
         else:
             lstm_state = None
@@ -71,7 +71,7 @@ class LatentAttnTiny(pufferlib.models.LSTMWrapper):
 
         else:
             # ---------- Training Mode ----------
-            action = action.to(self.device)
+            action = action
             if action.dim() == 3:  # (B, T, A) -> (BT, A)
                 B, T, A = action.shape
                 action = action.view(B * T, A)
@@ -92,10 +92,6 @@ class LatentAttnTiny(pufferlib.models.LSTMWrapper):
 
         return td
 
-    def clip_weights(self):
-        for p in self.parameters():
-            p.data.clamp_(-1, 1)
-
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """Convert logit indices back to action pairs."""
         return self.action_index_tensor[action_logit_index]
@@ -115,7 +111,6 @@ class Policy(nn.Module):
         self.input_size = input_size
         self.is_continuous = False
         self.action_space = env.single_action_space
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.out_width = 11
         self.out_height = 11
@@ -156,8 +151,6 @@ class Policy(nn.Module):
             [pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec]
         )
 
-        self.to(self.device)
-
     def network_forward(self, x):
         x, mask, B_TT = self.obs_(x)
         x = self.obs_norm(x)
@@ -169,15 +162,14 @@ class Policy(nn.Module):
         """
         Encode observations into a hidden representation.
         """
-        observations = observations.to(self.device)
 
         # Initialize dictionary for TensorDict
         td = {"env_obs": observations, "state": None}
 
         # Safely handle LSTM state
         if state is not None and state.get("lstm_h") is not None and state.get("lstm_c") is not None:
-            lstm_h = state.get("lstm_h").to(observations.device)
-            lstm_c = state.get("lstm_c").to(observations.device)
+            lstm_h = state.get("lstm_h")
+            lstm_c = state.get("lstm_c")
             td["state"] = torch.cat([lstm_h, lstm_c], dim=0)
 
         if observations.dim() == 4:

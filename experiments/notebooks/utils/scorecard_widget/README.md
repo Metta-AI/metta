@@ -18,7 +18,7 @@ A Jupyter widget for displaying interactive policy evaluation scorecards. This w
 The easiest way to install the scorecard widget is using the Metta CLI:
 
 ```bash
-metta install scorecardwidget
+metta install notebookwidgets
 ```
 
 This command will automatically build the JavaScript components and install the Python package.
