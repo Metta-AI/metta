@@ -39,7 +39,7 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
         """
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
-        
+
         if policy is None:
             policy = Policy(
                 env,
@@ -69,7 +69,7 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
         else:  # Inference
             B = observations.shape[0]
             TT = 1
-        
+
         # Now set TensorDict fields with mixin (TD is already reshaped if needed)
         self.set_tensordict_fields(td, observations)
 

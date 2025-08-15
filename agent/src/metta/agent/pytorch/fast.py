@@ -21,7 +21,7 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
 
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128, num_layers=2, **kwargs):
         """Initialize Fast policy with mixin support.
-        
+
         Args:
             env: Environment
             policy: Optional inner policy
@@ -33,7 +33,7 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
         """
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
-        
+
         if policy is None:
             policy = Policy(
                 env,
@@ -63,7 +63,7 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
         else:  # Inference
             B = observations.shape[0]
             TT = 1
-        
+
         # Now set TensorDict fields with mixin (TD is already reshaped if needed)
         self.set_tensordict_fields(td, observations)
 
@@ -95,6 +95,7 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
             td = self.handle_training_mode(td, action, logits_list, value)
 
         return td
+
 
 class Policy(nn.Module):
     def __init__(self, env, input_size=128, hidden_size=128):

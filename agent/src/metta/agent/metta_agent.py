@@ -97,7 +97,7 @@ class MettaAgent(nn.Module):
         if agent_cfg.get("agent_type") in agent_classes:
             # Create PyTorch policy with configuration parameters
             AgentClass = agent_classes[agent_cfg.agent_type]
-            
+
             # Extract configuration parameters that PyTorch policies need
             # All PyTorch agents must use the mixin which handles these
             policy_kwargs = {
@@ -105,13 +105,13 @@ class MettaAgent(nn.Module):
                 "clip_range": agent_cfg.get("clip_range", 0),
                 "analyze_weights_interval": agent_cfg.get("analyze_weights_interval", 300),
             }
-            
+
             # Add any additional config parameters that might be in agent_cfg
             # This allows policies to accept custom parameters
             for key, value in agent_cfg.items():
                 if key not in ["agent_type", "clip_range", "analyze_weights_interval", "_target_"]:
                     policy_kwargs[key] = value
-            
+
             # All PyTorch agents must accept these parameters via the mixin
             policy = AgentClass(**policy_kwargs)
         else:

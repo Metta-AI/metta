@@ -29,13 +29,13 @@ class Example(PyTorchAgentMixin, LSTMWrapper):
     ):
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
-        
+
         if policy is None:
             policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size, input_size=input_size)
 
         # Use enhanced LSTMWrapper with num_layers support
         super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
-        
+
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
 
@@ -43,10 +43,10 @@ class Example(PyTorchAgentMixin, LSTMWrapper):
         """Forward pass: encodes observations, runs LSTM, decodes into actions, value, and stats."""
 
         observations = td["env_obs"]
-        
+
         # Use mixin to set critical TensorDict fields
         B, TT = self.set_tensordict_fields(td, observations)
-        
+
         # Handle BPTT reshaping if needed
         if td.batch_dims > 1:
             total_batch = B * TT

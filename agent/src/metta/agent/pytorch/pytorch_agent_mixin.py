@@ -269,22 +269,22 @@ class PyTorchAgentMixin:
         self.initial_weights = {}
         for name, module in self.named_modules():
             if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d, nn.ConvTranspose2d)):
-                if hasattr(module, 'weight'):
+                if hasattr(module, "weight"):
                     # Store with full path for uniqueness
                     self.initial_weights[name if name else "root"] = module.weight.data.clone()
 
     def l2_init_loss(self) -> torch.Tensor:
         """Calculate L2 initialization loss for regularization."""
         total_loss = torch.tensor(0.0, dtype=torch.float32)
-        if hasattr(self, 'initial_weights'):
+        if hasattr(self, "initial_weights"):
             for name, module in self.named_modules():
                 if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d, nn.ConvTranspose2d)):
-                    if hasattr(module, 'weight'):
+                    if hasattr(module, "weight"):
                         weight_name = name if name else "root"
                         if weight_name in self.initial_weights:
                             weight_diff = module.weight - self.initial_weights[weight_name].to(module.weight.device)
                             total_loss = total_loss.to(module.weight.device)
-                            total_loss += torch.sum(weight_diff ** 2) * self.l2_init_scale
+                            total_loss += torch.sum(weight_diff**2) * self.l2_init_scale
         return total_loss
 
     def update_l2_init_weight_copy(self):
