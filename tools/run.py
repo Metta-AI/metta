@@ -5,6 +5,7 @@ import logging
 import os
 import signal
 import sys
+import warnings
 from typing import Any, cast
 
 from omegaconf import OmegaConf
@@ -17,6 +18,23 @@ from metta.rl.system_config import seed_everything
 logger = logging.getLogger(__name__)
 
 
+def init_mettagrid_system_environment() -> None:
+    # Set CUDA launch blocking for better error messages in development
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
+    # Set environment variables to run without display
+    os.environ["GLFW_PLATFORM"] = "osmesa"  # Use OSMesa as the GLFW backend
+    os.environ["SDL_VIDEODRIVER"] = "dummy"
+    os.environ["MPLBACKEND"] = "Agg"
+    os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
+    os.environ["DISPLAY"] = ""
+
+    # Suppress deprecation warnings
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="pkg_resources")
+    warnings.filterwarnings("ignore", category=DeprecationWarning, module="pygame.pkgdata")
+
+
 def main():
     # Parse CLI arguments
     parser = argparse.ArgumentParser()
@@ -26,6 +44,7 @@ def main():
     args = parser.parse_args()
 
     init_logging()
+    init_mettagrid_system_environment()
 
     # Exit on ctrl+c
     signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
