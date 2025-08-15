@@ -45,6 +45,13 @@ export const createPostAction = actionClient
       }
     }
 
+    // Require posts to have associated papers
+    if (!paperId) {
+      throw new Error(
+        "Posts must include an arXiv paper link. Please include a valid arXiv URL in your post content (e.g., https://arxiv.org/abs/2301.12345)."
+      );
+    }
+
     const post = await prisma.post.create({
       data: {
         title: input.title,

@@ -3,6 +3,7 @@
 import { FC, useState } from "react";
 
 import { FeedPostDTO } from "@/posts/data/feed";
+import { StarWidget } from "./StarWidget";
 
 interface PaperCardProps {
   paper: FeedPostDTO["paper"];
@@ -78,7 +79,11 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
             <span>•</span>
           </>
         )}
-        <span>{paper.stars} stars</span>
+        <StarWidget
+          totalStars={paper.stars}
+          isStarredByCurrentUser={paper.starred}
+          size="md"
+        />
         {paper.institutions && paper.institutions.length > 0 && (
           <>
             <span>•</span>

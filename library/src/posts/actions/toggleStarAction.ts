@@ -52,8 +52,11 @@ export const toggleStarAction = actionClient
       });
     }
 
-    // Revalidate the papers page to show updated state
+    // Revalidate multiple pages to show updated state
     revalidatePath("/papers");
+    revalidatePath("/"); // Front page
+    revalidatePath("/posts", "layout"); // All post pages
+    revalidatePath("/", "layout"); // Revalidate entire app to catch all pages
 
     return { success: true };
-  }); 
+  });

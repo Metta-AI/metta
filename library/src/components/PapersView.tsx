@@ -10,6 +10,7 @@ import { toggleStarAction } from "@/posts/actions/toggleStarAction";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { useOverlayNavigation } from "./OverlayStack";
 import UserCard from "./UserCard";
+import { StarWidget } from "./StarWidget";
 
 /**
  * PapersView Component
@@ -463,74 +464,15 @@ export function PapersView({ papers, users, interactions }: PapersViewProps) {
         ),
         renderCell: (paper) => {
           const starCount = getStarCountForPaper(paper.id);
-          const otherStarCount = paper.isStarredByCurrentUser
-            ? starCount - 1
-            : starCount;
 
           return (
             <div className="flex items-center gap-2">
-              <button
+              <StarWidget
+                totalStars={starCount}
+                isStarredByCurrentUser={paper.isStarredByCurrentUser}
                 onClick={() => handleToggleStar(paper.id)}
-                className="relative flex-shrink-0 transition-transform hover:scale-110 focus:outline-none"
-                aria-label={
-                  paper.isStarredByCurrentUser
-                    ? "Remove from favorites"
-                    : "Add to favorites"
-                }
-              >
-                {paper.isStarredByCurrentUser ? (
-                  // Starred by me (filled and yellow)
-                  <div className="relative">
-                    <svg
-                      className="h-4 w-4 text-yellow-400"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.175c.969 0 1.371 1.24.588 1.81l-3.38 2.455a1 1 0 00-.364 1.118l1.287 3.966c.3.922-.755 1.688-1.54 1.118l-3.38-2.454a1 1 0 00-1.175 0l-3.38 2.454c-.784.57-1.838-.196-1.54-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.05 9.394c-.783-.57-.38-1.81.588-1.81h4.175a1 1 0 00.95-.69l1.286-3.967z" />
-                    </svg>
-                    {otherStarCount > 0 && (
-                      <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-white text-xs font-medium text-black">
-                        {otherStarCount + 1}
-                      </span>
-                    )}
-                  </div>
-                ) : starCount > 0 ? (
-                  // Starred only by others (gray with number)
-                  <div className="relative">
-                    <svg
-                      className="h-4 w-4 text-gray-300"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M10 15l-5.878 3.09 1.122-6.545L.488 6.91l6.564-.955L10 0l2.948 5.955 6.564.955-4.756 4.635 1.122 6.545z"
-                      />
-                    </svg>
-                    <span className="absolute -top-1 -right-1 flex h-3 w-3 items-center justify-center rounded-full bg-white text-xs font-medium text-black">
-                      {starCount}
-                    </span>
-                  </div>
-                ) : (
-                  // Not starred by anyone (empty and gray)
-                  <svg
-                    className="h-4 w-4 text-gray-300 hover:text-yellow-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 20 20"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M10 15l-5.878 3.09 1.122-6.545L.488 6.91l6.564-.955L10 0l2.948 5.955 6.564.955-4.756 4.635 1.122 6.545z"
-                    />
-                  </svg>
-                )}
-              </button>
+                size="md"
+              />
               <button
                 className="hover:text-primary-600 block truncate text-left transition-colors"
                 onClick={() => handlePaperClick(paper)}

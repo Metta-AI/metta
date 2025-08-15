@@ -14,7 +14,8 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import * as dotenv from "dotenv";
 
-// Load environment variables
+// Load environment variables (load .env first, then .env.local for overrides)
+dotenv.config({ path: ".env", quiet: true });
 dotenv.config({ path: ".env.local", quiet: true });
 
 const execAsync = promisify(exec);

@@ -9,11 +9,14 @@ import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { createCommentAction } from "@/posts/actions/createCommentAction";
 import { loadCommentsAction } from "@/posts/actions/loadCommentsAction";
 import { deleteCommentAction } from "@/posts/actions/deleteCommentAction";
+import { linkifyText } from "@/lib/utils/linkify";
 
 interface CommentSidebarProps {
   post: FeedPostDTO | null;
   onClose: () => void;
   onPaperClick?: (paperId: string) => void;
+  onCommentAdded?: () => void;
+  onCommentDeleted?: () => void;
   currentUser: {
     id: string;
     name?: string | null;
@@ -31,6 +34,8 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
   post,
   onClose,
   onPaperClick,
+  onCommentAdded,
+  onCommentDeleted,
   currentUser,
 }) => {
   const [comments, setComments] = useState<CommentDTO[]>([]);
@@ -60,6 +65,10 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
       onSuccess: () => {
         // Clear the input
         setNewComment("");
+        // Notify parent about comment addition
+        if (onCommentAdded) {
+          onCommentAdded();
+        }
         // Refresh comments
         if (post) {
           const formData = new FormData();
@@ -76,6 +85,10 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
   const { execute: executeDeleteComment, isExecuting: isDeletingComment } =
     useAction(deleteCommentAction, {
       onSuccess: () => {
+        // Notify parent about comment deletion
+        if (onCommentDeleted) {
+          onCommentDeleted();
+        }
         // Refresh comments
         if (post) {
           const formData = new FormData();
@@ -281,7 +294,7 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
                     )}
                   </div>
                   <p className="ml-8 text-sm whitespace-pre-wrap text-gray-700">
-                    {comment.content}
+                    {linkifyText(comment.content)}
                   </p>
                 </div>
               ))}

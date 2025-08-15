@@ -1,22 +1,28 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  ReactNode,
+} from "react";
 
 // MathJax type declarations
 declare global {
   interface Window {
     MathJax?: {
       tex: {
-        inlineMath: string[][]
-        displayMath: string[][]
-        processEscapes: boolean
-        processEnvironments: boolean
-      }
+        inlineMath: string[][];
+        displayMath: string[][];
+        processEscapes: boolean;
+        processEnvironments: boolean;
+      };
       options: {
-        skipHtmlTags: string[]
-      }
-      typesetPromise?: (elements: HTMLElement[]) => Promise<void>
-    }
+        skipHtmlTags: string[];
+      };
+      typesetPromise?: (elements: HTMLElement[]) => Promise<void>;
+    };
   }
 }
 
@@ -30,7 +36,7 @@ const MathJaxContext = createContext<MathJaxContextType | null>(null);
 export function useMathJax() {
   const context = useContext(MathJaxContext);
   if (!context) {
-    throw new Error('useMathJax must be used within a MathJaxProvider');
+    throw new Error("useMathJax must be used within a MathJaxProvider");
   }
   return context;
 }
@@ -41,7 +47,7 @@ interface MathJaxProviderProps {
 
 /**
  * MathJaxProvider Component
- * 
+ *
  * Provides MathJax functionality throughout the application:
  * - Loads MathJax from CDN
  * - Configures MathJax for LaTeX rendering
@@ -50,26 +56,34 @@ interface MathJaxProviderProps {
  */
 export function MathJaxProvider({ children }: MathJaxProviderProps) {
   const [mathJaxLoaded, setMathJaxLoaded] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     const loadMathJax = async () => {
-      if (typeof window !== 'undefined' && !window.MathJax) {
+      if (typeof window !== "undefined" && !window.MathJax) {
         // Configure MathJax before loading
         (window as any).MathJax = {
           tex: {
-            inlineMath: [['$', '$'], ['\\(', '\\)']],
-            displayMath: [['$$', '$$'], ['\\[', '\\]']],
+            inlineMath: [
+              ["$", "$"],
+              ["\\(", "\\)"],
+            ],
+            displayMath: [
+              ["$$", "$$"],
+              ["\\[", "\\]"],
+            ],
             processEscapes: true,
-            processEnvironments: true
+            processEnvironments: true,
           },
           options: {
-            skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
-          }
+            skipHtmlTags: ["script", "noscript", "style", "textarea", "pre"],
+          },
         };
 
         // Load MathJax dynamically
-        const mathJaxScript = document.createElement('script');
-        mathJaxScript.src = 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js';
+        const mathJaxScript = document.createElement("script");
+        mathJaxScript.src =
+          "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js";
         mathJaxScript.async = true;
         mathJaxScript.onload = () => {
           // Wait a bit for MathJax to fully initialize
@@ -89,12 +103,29 @@ export function MathJaxProvider({ children }: MathJaxProviderProps) {
   }, []);
 
   const renderMath = async (element: HTMLElement) => {
-    if (mathJaxLoaded && window.MathJax?.typesetPromise) {
-      try {
-        await window.MathJax.typesetPromise([element]);
-      } catch (err) {
-        console.error('MathJax rendering error:', err);
+    if (!mathJaxLoaded || !window.MathJax?.typesetPromise || isProcessing) {
+      return;
+    }
+
+    // Check if element exists and is still in the DOM
+    if (!element || !element.isConnected || !document.contains(element)) {
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      await window.MathJax.typesetPromise([element]);
+    } catch (err) {
+      // Silently ignore errors related to removed DOM elements
+      if (
+        err?.message?.includes("nextSibling") ||
+        err?.message?.includes("parentNode")
+      ) {
+        return;
       }
+      console.error("MathJax rendering error:", err);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -103,4 +134,4 @@ export function MathJaxProvider({ children }: MathJaxProviderProps) {
       {children}
     </MathJaxContext.Provider>
   );
-} 
+}

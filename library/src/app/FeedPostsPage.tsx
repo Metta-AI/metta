@@ -19,7 +19,6 @@ import UserCard from "@/components/UserCard";
 
 import { FeedPost } from "./FeedPost";
 import { NewPostForm } from "./NewPostForm";
-import { CommentSidebar } from "@/posts/components/CommentSidebar";
 
 /**
  * FeedPostsPage Component
@@ -53,10 +52,6 @@ export const FeedPostsPage: FC<{
   // User card state
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
-  // Comment sidebar state
-  const [selectedPostForComments, setSelectedPostForComments] =
-    useState<FeedPostDTO | null>(null);
-
   // Handle paper click using overlay navigation
   const handlePaperClick = (paperId: string) => {
     const paper = papersData.papers.find((p) => p.id === paperId);
@@ -82,16 +77,6 @@ export const FeedPostsPage: FC<{
   // Handle user card close
   const handleUserCardClose = () => {
     setSelectedUser(null);
-  };
-
-  // Handle comment button click
-  const handleCommentClick = (post: FeedPostDTO) => {
-    setSelectedPostForComments(post);
-  };
-
-  // Handle comment sidebar close
-  const handleCommentSidebarClose = () => {
-    setSelectedPostForComments(null);
   };
 
   // Handle toggle star
@@ -120,7 +105,7 @@ export const FeedPostsPage: FC<{
     }
   };
 
-  // MathJax rendering effect - similar to mockup approach
+  // MathJax rendering effect - single debounced call
   useEffect(() => {
     if (mathJaxLoaded && feedRef.current) {
       const renderMathContent = async () => {
@@ -131,11 +116,12 @@ export const FeedPostsPage: FC<{
         }
       };
 
-      // Try immediately and after delays to ensure DOM is ready
-      renderMathContent();
-      setTimeout(renderMathContent, 100);
-      setTimeout(renderMathContent, 500);
-      setTimeout(renderMathContent, 1000);
+      // Single delayed call to avoid race conditions
+      const timeoutId = setTimeout(renderMathContent, 200);
+
+      return () => {
+        clearTimeout(timeoutId);
+      };
     }
   }, [mathJaxLoaded, page.items, renderMath]); // Re-render when posts change
 
@@ -159,7 +145,6 @@ export const FeedPostsPage: FC<{
                 post={post}
                 onPaperClick={handlePaperClick}
                 onUserClick={handleUserClick}
-                onCommentClick={handleCommentClick}
                 currentUser={currentUser}
               />
             ))}
@@ -201,13 +186,6 @@ export const FeedPostsPage: FC<{
           onClose={handleUserCardClose}
         />
       )}
-      {/* Comment Sidebar */}
-      <CommentSidebar
-        post={selectedPostForComments}
-        onClose={handleCommentSidebarClose}
-        onPaperClick={handlePaperClick}
-        currentUser={currentUser}
-      />
     </>
   );
 };

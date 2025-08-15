@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { auth } from "@/lib/auth";
 import { FeedPostDTO, toFeedPostDTO } from "./feed";
 
 export type PostDTO = FeedPostDTO;
@@ -8,13 +9,39 @@ export default async function loadPost(postId: string): Promise<PostDTO> {
     where: { id: postId },
     include: {
       author: true,
-      paper: true,
+      paper: {
+        include: {
+          paperAuthors: {
+            include: {
+              author: {
+                select: {
+                  id: true,
+                  name: true,
+                  orcid: true,
+                  institution: true,
+                },
+              },
+            },
+          },
+          userPaperInteractions: {
+            where: {
+              starred: true,
+            },
+            select: {
+              userId: true,
+            },
+          },
+        },
+      },
     },
   });
 
   if (!post) {
     throw new Error("Post not found");
   }
+
+  // Get current user session to fetch their interactions
+  const session = await auth();
 
   // Create maps for the lookup (maintaining compatibility with existing toFeedPostDTO function)
   const usersMap = new Map();
@@ -27,6 +54,28 @@ export default async function loadPost(postId: string): Promise<PostDTO> {
     papersMap.set(post.paper.id, post.paper);
   }
 
-  const postDTO = toFeedPostDTO(post, usersMap, papersMap);
+  // Fetch user interactions for this paper if user is authenticated
+  let userPaperInteractionsMap = new Map<string, any>();
+  if (session?.user?.id && post.paper) {
+    const userPaperInteraction = await prisma.userPaperInteraction.findUnique({
+      where: {
+        userId_paperId: {
+          userId: session.user.id,
+          paperId: post.paper.id,
+        },
+      },
+    });
+
+    if (userPaperInteraction) {
+      userPaperInteractionsMap.set(post.paper.id, userPaperInteraction);
+    }
+  }
+
+  const postDTO = toFeedPostDTO(
+    post,
+    usersMap,
+    papersMap,
+    userPaperInteractionsMap
+  );
   return postDTO;
-} 
+}

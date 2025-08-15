@@ -1,15 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FC, useState, useEffect } from "react";
 import { useAction } from "next-safe-action/hooks";
 
-import { postRoute } from "@/lib/routes";
 import { FeedPostDTO } from "@/posts/data/feed";
 import { PaperCard } from "@/components/PaperCard";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
+import { linkifyText } from "@/lib/utils/linkify";
 import { deletePostAction } from "@/posts/actions/deletePostAction";
-import { toggleLikeAction } from "@/posts/actions/toggleLikeAction";
+import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { SilentArxivRefresh } from "@/components/SilentArxivRefresh";
 
 /**
@@ -18,7 +19,7 @@ import { SilentArxivRefresh } from "@/components/SilentArxivRefresh";
  * Displays a single post in the social feed with rich formatting including:
  * - Author information with avatar
  * - Post content with LaTeX support (rendered by parent component)
- * - Social metrics (likes, retweets, replies)
+ * - Social metrics (likes, queues, replies)
  * - Paper references when applicable using PaperCard
  * - Interactive elements
  */
@@ -26,19 +27,22 @@ export const FeedPost: FC<{
   post: FeedPostDTO;
   onPaperClick?: (paperId: string) => void;
   onUserClick?: (userId: string) => void;
-  onCommentClick?: (post: FeedPostDTO) => void;
   currentUser: {
     id: string;
     name?: string | null;
     email?: string | null;
   } | null;
-}> = ({ post, onPaperClick, onUserClick, onCommentClick, currentUser }) => {
+}> = ({ post, onPaperClick, onUserClick, currentUser }) => {
+  const router = useRouter();
+
   // Local state for paper data that can be updated when institutions are added
   const [paperData, setPaperData] = useState(post.paper);
 
-  // Local state for optimistic like updates
-  const [optimisticLikes, setOptimisticLikes] = useState(post.likes);
-  const [optimisticLiked, setOptimisticLiked] = useState(post.liked);
+  // Local state for optimistic queue updates
+  const [optimisticQueues, setOptimisticQueues] = useState(post.queues);
+  const [optimisticQueued, setOptimisticQueued] = useState(
+    post.paper?.queued ?? false
+  );
 
   // Delete modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -46,9 +50,9 @@ export const FeedPost: FC<{
   // Sync local state when post prop changes
   useEffect(() => {
     setPaperData(post.paper);
-    setOptimisticLikes(post.likes);
-    setOptimisticLiked(post.liked);
-  }, [post.paper, post.likes, post.liked]);
+    setOptimisticQueues(post.queues);
+    setOptimisticQueued(post.paper?.queued ?? false);
+  }, [post.paper, post.queues]);
 
   // Callback to update paper data when institutions are added
   const handleInstitutionsAdded = (institutions: string[]) => {
@@ -109,18 +113,18 @@ export const FeedPost: FC<{
     }
   );
 
-  // Like post action
-  const { execute: executeLike, isExecuting: isLiking } = useAction(
-    toggleLikeAction,
+  // Queue paper action
+  const { execute: executeQueue, isExecuting: isQueueing } = useAction(
+    toggleQueueAction,
     {
       onSuccess: () => {
         // Success is handled by optimistic updates
       },
       onError: (error) => {
         // Revert optimistic updates on error
-        setOptimisticLikes(post.likes);
-        setOptimisticLiked(post.liked);
-        console.error("Error toggling like:", error);
+        setOptimisticQueued(!optimisticQueued);
+        setOptimisticQueues(post.queues);
+        console.error("Error toggling queue:", error);
       },
     }
   );
@@ -128,35 +132,33 @@ export const FeedPost: FC<{
   // Check if current user can delete this post
   const canDelete = currentUser && currentUser.id === post.author.id;
 
-  // Handle social interactions
-  const handleLike = () => {
+  const handleQueue = () => {
     if (!currentUser) {
-      console.log("User must be logged in to like posts");
+      console.log("User must be logged in to queue papers");
       return;
     }
 
-    // Optimistic update
-    const newLiked = !optimisticLiked;
-    const newLikes = newLiked ? optimisticLikes + 1 : optimisticLikes - 1;
+    if (!paperData) {
+      console.log("Cannot queue post without associated paper");
+      return;
+    }
 
-    setOptimisticLiked(newLiked);
-    setOptimisticLikes(newLikes);
+    // Optimistic updates
+    const newQueued = !optimisticQueued;
+    const newQueues = newQueued ? optimisticQueues + 1 : optimisticQueues - 1;
+
+    setOptimisticQueued(newQueued);
+    setOptimisticQueues(newQueues);
 
     // Execute the action
     const formData = new FormData();
-    formData.append("postId", post.id);
-    executeLike(formData);
-  };
-
-  const handleRetweet = () => {
-    // TODO: Implement retweet functionality
-    console.log("Retweet post:", post.id);
+    formData.append("paperId", paperData.id);
+    formData.append("postId", post.id); // Need to pass post ID to update count
+    executeQueue(formData);
   };
 
   const handleReply = () => {
-    if (onCommentClick) {
-      onCommentClick(post);
-    }
+    router.push(`/posts/${post.id}`);
   };
 
   const handleDelete = () => {
@@ -240,7 +242,7 @@ export const FeedPost: FC<{
       {/* Post content with LaTeX support */}
       {post.content && (
         <div className="mb-4 leading-relaxed whitespace-pre-wrap text-gray-900">
-          {post.content}
+          {linkifyText(post.content)}
         </div>
       )}
 
@@ -284,54 +286,52 @@ export const FeedPost: FC<{
           <span className="text-sm">{post.replies}</span>
         </button>
 
-        {/* Retweet button */}
-        <button
-          onClick={handleRetweet}
-          className="flex items-center gap-2 transition-colors hover:text-gray-700"
-        >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            suppressHydrationWarning
+        {/* Queue button - only show for posts with papers */}
+        {paperData ? (
+          <button
+            onClick={handleQueue}
+            disabled={isQueueing}
+            className={`flex items-center gap-2 transition-colors ${
+              optimisticQueued
+                ? "text-blue-500 hover:text-blue-600"
+                : "text-gray-500 hover:text-blue-500"
+            } disabled:opacity-50`}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
-            />
-          </svg>
-          <span className="text-sm">{post.retweets}</span>
-        </button>
-
-        {/* Like button */}
-        <button
-          onClick={handleLike}
-          disabled={isLiking}
-          className={`flex items-center gap-2 transition-colors ${
-            optimisticLiked
-              ? "text-red-500 hover:text-red-600"
-              : "text-gray-500 hover:text-red-500"
-          } disabled:opacity-50`}
-        >
-          <svg
-            className="h-4 w-4"
-            fill={optimisticLiked ? "currentColor" : "none"}
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            suppressHydrationWarning
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"
-            />
-          </svg>
-          <span className="text-sm">{optimisticLikes}</span>
-        </button>
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              suppressHydrationWarning
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+              />
+            </svg>
+            <span className="text-sm">{optimisticQueues}</span>
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 text-gray-300">
+            <svg
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+              suppressHydrationWarning
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"
+              />
+            </svg>
+            <span className="text-sm">{optimisticQueues}</span>
+          </div>
+        )}
 
         {/* Share button */}
         <button className="flex items-center gap-2 transition-colors hover:text-gray-700">

@@ -7,9 +7,7 @@ export type FeedPostDTO = {
   title: string;
   content: string | null;
   postType: "user-post" | "paper-post" | "pure-paper";
-  likes: number;
-  liked: boolean;
-  retweets: number;
+  queues: number;
   replies: number;
   author: {
     id: string;
@@ -34,8 +32,11 @@ export type FeedPostDTO = {
     externalId: string | null;
     stars: number;
     starred: boolean;
+    queued: boolean;
     createdAt: Date;
     updatedAt: Date;
+    llmAbstract?: any; // LLM-generated enhanced abstract
+    llmAbstractGeneratedAt?: Date | null;
   };
   createdAt: Date;
   updatedAt: Date;
@@ -45,7 +46,7 @@ export function toFeedPostDTO(
   dbModel: any,
   usersMap: Map<string, any>,
   papersMap: Map<string, any>,
-  userLikesMap: Map<string, boolean> = new Map()
+  userPaperInteractionsMap: Map<string, any> = new Map()
 ): FeedPostDTO {
   const author = usersMap.get(dbModel.authorId);
   const paper = dbModel.paperId ? papersMap.get(dbModel.paperId) : null;
@@ -55,9 +56,7 @@ export function toFeedPostDTO(
     title: dbModel.title,
     content: dbModel.content,
     postType: dbModel.postType as "user-post" | "paper-post" | "pure-paper",
-    likes: dbModel.likes ?? 0,
-    liked: userLikesMap.get(dbModel.id) ?? false,
-    retweets: dbModel.retweets ?? 0,
+    queues: dbModel.queues ?? 0,
     replies: dbModel.replies ?? 0,
     author: {
       id: dbModel.authorId,
@@ -82,10 +81,13 @@ export function toFeedPostDTO(
           link: paper.link,
           source: paper.source,
           externalId: paper.externalId,
-          stars: paper.stars ?? 0,
-          starred: false, // TODO: Get from user interactions
+          stars: paper.userPaperInteractions?.length ?? 0,
+          starred: userPaperInteractionsMap.get(paper.id)?.starred ?? false,
+          queued: userPaperInteractionsMap.get(paper.id)?.queued ?? false,
           createdAt: paper.createdAt,
           updatedAt: paper.updatedAt,
+          llmAbstract: paper.llmAbstract,
+          llmAbstractGeneratedAt: paper.llmAbstractGeneratedAt,
         }
       : undefined,
     createdAt: dbModel.createdAt,
@@ -124,7 +126,19 @@ export async function loadFeedPosts({
     include: {
       author: true,
       paper: {
-        include: {
+        select: {
+          id: true,
+          title: true,
+          abstract: true,
+          institutions: true,
+          tags: true,
+          link: true,
+          source: true,
+          externalId: true,
+          createdAt: true,
+          updatedAt: true,
+          llmAbstract: true,
+          llmAbstractGeneratedAt: true,
           paperAuthors: {
             include: {
               author: {
@@ -137,25 +151,46 @@ export async function loadFeedPosts({
               },
             },
           },
+          userPaperInteractions: {
+            where: {
+              starred: true,
+            },
+            select: {
+              userId: true,
+            },
+          },
         },
       },
     },
   });
 
-  // Fetch user likes for these posts if user is authenticated
-  let userLikesMap = new Map<string, boolean>();
-  if (session?.user?.id) {
-    const postIds = rows.map((row) => row.id);
-    const userLikes = await prisma.userPostLike.findMany({
-      where: {
-        userId: session.user.id,
-        postId: {
-          in: postIds,
-        },
-      },
-    });
+  // Fetch user paper interactions if user is authenticated
+  let userPaperInteractionsMap = new Map<string, any>();
 
-    userLikesMap = new Map(userLikes.map((like) => [like.postId, true]));
+  if (session?.user?.id) {
+    // Fetch user paper interactions (for starred/queued status)
+    const paperIds = rows
+      .filter((row) => row.paperId)
+      .map((row) => row.paperId!)
+      .filter((id, index, self) => self.indexOf(id) === index); // Remove duplicates
+
+    if (paperIds.length > 0) {
+      const userPaperInteractions = await prisma.userPaperInteraction.findMany({
+        where: {
+          userId: session.user.id,
+          paperId: {
+            in: paperIds,
+          },
+        },
+      });
+
+      userPaperInteractionsMap = new Map(
+        userPaperInteractions.map((interaction) => [
+          interaction.paperId,
+          interaction,
+        ])
+      );
+    }
   }
 
   // Transform the data to match the expected format
@@ -171,7 +206,7 @@ export async function loadFeedPosts({
       papersMap.set(row.paper.id, row.paper);
     }
 
-    return toFeedPostDTO(row, usersMap, papersMap, userLikesMap);
+    return toFeedPostDTO(row, usersMap, papersMap, userPaperInteractionsMap);
   });
 
   // Check if there are more posts to load

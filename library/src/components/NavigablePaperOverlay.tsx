@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   PaperWithUserContext,
   User,
@@ -27,6 +27,40 @@ export default function NavigablePaperOverlay({
   onQueueToggle,
 }: NavigablePaperOverlayProps) {
   const { openAuthor, openInstitution } = useOverlayNavigation();
+
+  // Local state for optimistic updates
+  const [localPaper, setLocalPaper] = useState(paper);
+
+  // Update local state when paper prop changes (only if it's actually different)
+  useEffect(() => {
+    if (localPaper.id !== paper.id) {
+      setLocalPaper(paper);
+    }
+  }, [paper, localPaper.id]);
+
+  // Handle optimistic star toggle
+  const handleStarToggle = () => {
+    // Optimistically update local state
+    setLocalPaper((prev) => ({
+      ...prev,
+      isStarredByCurrentUser: !prev.isStarredByCurrentUser,
+    }));
+
+    // Call the parent handler
+    onStarToggle(paper.id);
+  };
+
+  // Handle optimistic queue toggle
+  const handleQueueToggle = () => {
+    // Optimistically update local state
+    setLocalPaper((prev) => ({
+      ...prev,
+      isQueuedByCurrentUser: !prev.isQueuedByCurrentUser,
+    }));
+
+    // Call the parent handler
+    onQueueToggle(paper.id);
+  };
 
   // Get interactions for this paper
   const paperInteractions = interactions.filter((i) => i.paperId === paper.id);
@@ -232,16 +266,16 @@ export default function NavigablePaperOverlay({
         {/* Actions */}
         <div className="flex items-center gap-4 border-t border-gray-200 pt-4">
           <button
-            onClick={() => onStarToggle(paper.id)}
+            onClick={handleStarToggle}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 transition-colors ${
-              paper.isStarredByCurrentUser
+              localPaper.isStarredByCurrentUser
                 ? "bg-yellow-100 text-yellow-800 hover:bg-yellow-200"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
           >
             <svg
               className="h-5 w-5"
-              fill={paper.isStarredByCurrentUser ? "currentColor" : "none"}
+              fill={localPaper.isStarredByCurrentUser ? "currentColor" : "none"}
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
@@ -252,13 +286,13 @@ export default function NavigablePaperOverlay({
                 d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.175c.969 0 1.371 1.24.588 1.81l-3.38 2.455a1 1 0 00-.364 1.118l1.287 3.966c.3.922-.755 1.688-1.54 1.118l-3.38-2.454a1 1 0 00-1.175 0l-3.38 2.454c-.784.57-1.838-.196-1.54-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.05 9.394c-.783-.57-.38-1.81.588-1.81h4.175a1 1 0 00.95-.69l1.286-3.967z"
               />
             </svg>
-            {paper.isStarredByCurrentUser ? "Starred" : "Star"}
+            {localPaper.isStarredByCurrentUser ? "Starred" : "Star"}
           </button>
 
           <button
-            onClick={() => onQueueToggle(paper.id)}
+            onClick={handleQueueToggle}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 transition-colors ${
-              paper.isQueuedByCurrentUser
+              localPaper.isQueuedByCurrentUser
                 ? "bg-blue-100 text-blue-800 hover:bg-blue-200"
                 : "bg-gray-100 text-gray-700 hover:bg-gray-200"
             }`}
@@ -276,7 +310,7 @@ export default function NavigablePaperOverlay({
                 d="M12 6v6m0 0v6m0-6h6m-6 0H6"
               />
             </svg>
-            {paper.isQueuedByCurrentUser ? "In Queue" : "Add to Queue"}
+            {localPaper.isQueuedByCurrentUser ? "In Queue" : "Add to Queue"}
           </button>
         </div>
 

@@ -19,7 +19,6 @@ model User {
   comments              Comment[]
   sessions              Session[]
   userPaperInteractions UserPaperInteraction[]
-  userPostLikes         UserPostLike[]
 
   @@map("user")
 }
@@ -76,21 +75,19 @@ model Authenticator {
 }
 
 model Post {
-  id            String         @id @default(cuid())
-  authorId      String
-  title         String
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @default(now()) @updatedAt
-  content       String?
-  postType      String         @default("user-post")
-  likes         Int            @default(0)
-  retweets      Int            @default(0)
-  replies       Int            @default(0)
-  paperId       String?
-  author        User           @relation(fields: [authorId], references: [id])
-  paper         Paper?         @relation(fields: [paperId], references: [id])
-  userPostLikes UserPostLike[]
-  comments      Comment[]
+  id        String     @id @default(cuid())
+  authorId  String
+  title     String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @default(now()) @updatedAt
+  content   String?
+  postType  String     @default("user-post")
+  queues    Int        @default(0)
+  replies   Int        @default(0)
+  paperId   String?
+  author    User       @relation(fields: [authorId], references: [id])
+  paper     Paper?     @relation(fields: [paperId], references: [id])
+  comments  Comment[]
 
   @@map("post")
 }
@@ -145,6 +142,8 @@ model Paper {
   starred               Boolean                @default(false)
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @default(now()) @updatedAt
+  llmAbstract           Json?                  // LLM-generated enhanced abstract
+  llmAbstractGeneratedAt DateTime?             // When LLM abstract was generated
   paperAuthors          PaperAuthor[]
   posts                 Post[]
   userPaperInteractions UserPaperInteraction[]
@@ -176,13 +175,4 @@ model UserPaperInteraction {
   @@map("user_paper_interaction")
 }
 
-model UserPostLike {
-  userId    String
-  postId    String
-  likedAt   DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
-  @@id([userId, postId])
-  @@map("user_post_like")
-}

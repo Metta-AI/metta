@@ -10,7 +10,8 @@
 import { PrismaClient } from "@prisma/client";
 import * as dotenv from "dotenv";
 
-// Load environment variables
+// Load environment variables (load .env first, then .env.local for overrides)
+dotenv.config({ path: ".env", quiet: true });
 dotenv.config({ path: ".env.local", quiet: true });
 
 // Initialize Prisma client
