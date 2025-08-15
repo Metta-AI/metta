@@ -117,6 +117,7 @@ class Fast(LSTMWrapper):
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """Convert (action_type, action_param) pairs to discrete indices."""
         from metta.agent.pytorch.base import convert_action_to_logit_index
+
         return convert_action_to_logit_index(flattened_action, self.cum_action_max_params)
 
 
@@ -191,7 +192,6 @@ class Policy(nn.Module):
         # Track active actions
         self.active_action_names = []
         self.num_active_actions = 100  # Default
-
 
     def activate_action_embeddings(self, full_action_names: list[str], device):
         """Activate action embeddings, matching the YAML ActionEmbedding component behavior."""

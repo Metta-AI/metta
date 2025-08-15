@@ -7,13 +7,13 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-import pufferlib.models
 import pufferlib.pytorch
+from metta.agent.pytorch.base import LSTMWrapper
 
 logger = logging.getLogger(__name__)
 
 
-class Example(pufferlib.models.LSTMWrapper):
+class Example(LSTMWrapper):
     """Recurrent LSTM-based policy wrapper with discrete multi-head action space."""
 
     def __init__(
@@ -23,11 +23,13 @@ class Example(pufferlib.models.LSTMWrapper):
         cnn_channels: int = 128,
         input_size: int = 512,
         hidden_size: int = 512,
+        num_layers: int = 2,
     ):
         if policy is None:
             policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size, input_size=input_size)
 
-        super().__init__(env, policy, input_size, hidden_size)
+        # Use enhanced LSTMWrapper with num_layers support
+        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
 
     def forward(self, td: TensorDict, state: Optional[dict] = None, action=None) -> TensorDict:
         """Forward pass: encodes observations, runs LSTM, decodes into actions, value, and stats."""
