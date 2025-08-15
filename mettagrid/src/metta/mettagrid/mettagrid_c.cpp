@@ -1188,8 +1188,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
   m.attr("dtype_masks") = dtype_masks();
   m.attr("dtype_success") = dtype_success();
 
+  #ifdef METTA_WITH_RAYLIB
   py::class_<HermesPy>(m, "Hermes")
       .def(py::init<>())
       .def("update", &HermesPy::update, py::arg("env"))
       .def("render", &HermesPy::render);
+  #endif
 }

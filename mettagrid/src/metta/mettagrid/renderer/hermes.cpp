@@ -1,3 +1,4 @@
+#ifdef METTA_WITH_RAYLIB
 #include "hermes.hpp"
 
 #include "action_handler.hpp"
@@ -1220,3 +1221,4 @@ bool Hermes_Frame(Hermes* ctx) {
 }
 
 } // extern "C"
+#endif // METTA_WITH_RAYLIB

@@ -26,6 +26,8 @@ bool    Hermes_Frame(Hermes* ctx);
 
 // Hermes Python API ---------------------------------------------------------
 
+#ifdef METTA_WITH_RAYLIB
+
 class HermesPy {
     struct Deleter {
         void operator()(Hermes* ctx) const { Hermes_Quit(ctx); }
@@ -44,3 +46,5 @@ public:
     HermesPy& operator=(const HermesPy&) = delete;
     HermesPy& operator=(HermesPy&&) = delete;
 };
+
+#endif // METTA_WITH_RAYLIB
