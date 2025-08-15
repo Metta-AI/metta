@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Repo, LeaderboardCreate, LeaderboardUpdate, Leaderboard, UnifiedPolicyInfo } from './repo'
+import { Repo, LeaderboardCreateOrUpdate, UnifiedPolicyInfo } from './repo'
 import { EvalSelector } from './components/EvalSelector'
 import { MetricSelector } from './components/MetricSelector'
 import { DateSelector } from './components/DateSelector'
@@ -169,7 +169,6 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
   const [selectedMetric, setSelectedMetric] = useState<string>('reward')
 
   // Data state
-  const [leaderboard, setLeaderboard] = useState<Leaderboard | null>(null)
   const [policies, setPolicies] = useState<UnifiedPolicyInfo[]>([])
   const [evalNames, setEvalNames] = useState<Set<string>>(new Set())
   const [availableMetrics, setAvailableMetrics] = useState<string[]>([])
@@ -234,9 +233,9 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
       setLoading((prev) => ({ ...prev, page: true }))
       setError(null)
       const data = await repo.getLeaderboard(leaderboardId)
-      setLeaderboard(data)
 
-      // Populate form with leaderboard data (excluding name as per requirements)
+      // Populate form with leaderboard data
+      setName(data.name)
       setStartDate(data.start_date)
       setSelectedEvalNames(new Set(data.evals))
       setSelectedMetric(data.metric)
@@ -326,24 +325,18 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
 
     try {
       setLoading((prev) => ({ ...prev, saving: true }))
+      const data: LeaderboardCreateOrUpdate = {
+        name: name.trim(),
+        evals: Array.from(selectedEvalNames),
+        metric: selectedMetric,
+        start_date: startDate,
+      }
 
       if (isEditMode && leaderboardId) {
-        // Update existing leaderboard (excluding name as per requirements)
-        const updateData: LeaderboardUpdate = {
-          evals: Array.from(selectedEvalNames),
-          metric: selectedMetric,
-          start_date: startDate,
-        }
-        await repo.updateLeaderboard(leaderboardId, updateData)
+        await repo.updateLeaderboard(leaderboardId, data)
       } else {
         // Create new leaderboard
-        const createData: LeaderboardCreate = {
-          name: name.trim(),
-          evals: Array.from(selectedEvalNames),
-          metric: selectedMetric,
-          start_date: startDate,
-        }
-        await repo.createLeaderboard(createData)
+        await repo.createLeaderboard(data)
       }
 
       navigate('/leaderboards')
@@ -398,40 +391,20 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
           </p>
         </div>
 
-        {/* Basic Information - only show name field in create mode */}
-        {!isEditMode && (
-          <div className="form-group">
-            <label className="form-label" htmlFor="name">
-              Leaderboard Name
-            </label>
-            <input
-              id="name"
-              type="text"
-              className="form-input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter a descriptive name for your leaderboard"
-            />
-          </div>
-        )}
-
-        {/* Show current name in edit mode */}
-        {isEditMode && leaderboard && (
-          <div className="form-group">
-            <label className="form-label">Current Leaderboard Name</label>
-            <div
-              style={{
-                padding: '8px 12px',
-                background: '#f8f9fa',
-                border: '1px solid #dee2e6',
-                borderRadius: '4px',
-                color: '#6c757d',
-              }}
-            >
-              {leaderboard.name}
-            </div>
-          </div>
-        )}
+        {/* Basic Information */}
+        <div className="form-group">
+          <label className="form-label" htmlFor="name">
+            Leaderboard Name
+          </label>
+          <input
+            id="name"
+            type="text"
+            className="form-input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Enter a descriptive name for your leaderboard"
+          />
+        </div>
 
         {/* Start Date Filter */}
         <div className="widget">

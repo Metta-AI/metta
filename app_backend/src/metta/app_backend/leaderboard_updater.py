@@ -7,6 +7,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
+from psycopg import AsyncConnection
 from pydantic import BaseModel
 
 from metta.app_backend.metta_repo import LeaderboardRow, MettaRepo
@@ -124,6 +125,21 @@ class LeaderboardUpdater:
                     return 0
                 return latest_episode_id_row[0] or 0
 
+    async def _check_leaderboard_consistency(
+        self, con: AsyncConnection, leaderboard_id: uuid.UUID, updated_at: datetime
+    ) -> None:
+        """
+        If the leaderboard was updated during processing, throw an exception which will rollback this
+        transaction, and also exit the processing of this leaderboard. The leaderboard will be re-processed next time.
+        """
+
+        cur_updated_at = await con.execute("SELECT updated_at FROM leaderboards WHERE id = %s", (leaderboard_id,))
+        cur_updated_at_row = await cur_updated_at.fetchone()
+        if cur_updated_at_row is None:
+            raise RuntimeError(f"Leaderboard {leaderboard_id} not found")
+        if cur_updated_at_row[0] != updated_at:
+            raise RuntimeError(f"Leaderboard {leaderboard_id} was updated during processing")
+
     async def _batch_upsert_leaderboard_policy_scores(
         self, leaderboard_id: uuid.UUID, policy_scores: dict[uuid.UUID, float], updated_at: datetime
     ) -> None:
@@ -145,14 +161,7 @@ class LeaderboardUpdater:
                     all_batch_data,
                 )
 
-            # if the leaderboard was updated during processing, throw an exception which will rollback this
-            # transaction, and also exit the processing of this leaderboard.
-            cur_updated_at = await con.execute("SELECT updated_at FROM leaderboards WHERE id = %s", (leaderboard_id,))
-            cur_updated_at_row = await cur_updated_at.fetchone()
-            if cur_updated_at_row is None:
-                raise RuntimeError(f"Leaderboard {leaderboard_id} not found")
-            if cur_updated_at_row[0] != updated_at:
-                raise RuntimeError(f"Leaderboard {leaderboard_id} was updated during processing")
+            await self._check_leaderboard_consistency(con, leaderboard_id, updated_at)
 
     async def _update_leaderboard(self, leaderboard: LeaderboardRow, chunk_size: int = 5000):
         """This function maintains the (leaderboard_id, policy_id) -> score mapping in the leaderboard_policy_scores
@@ -189,7 +198,9 @@ class LeaderboardUpdater:
             # Batch upsert all scores (chunked for large datasets)
             await self._batch_upsert_leaderboard_policy_scores(leaderboard.id, policy_scores, leaderboard.updated_at)
 
-        await self.repo.update_leaderboard_latest_episode(leaderboard.id, latest_episode_id)
+        async with self.repo.connect() as con:
+            await self.repo.update_leaderboard_latest_episode(con, leaderboard.id, latest_episode_id)
+            await self._check_leaderboard_consistency(con, leaderboard.id, leaderboard.updated_at)
 
     async def _run_once(self):
         """Run one iteration of the leaderboard update process."""

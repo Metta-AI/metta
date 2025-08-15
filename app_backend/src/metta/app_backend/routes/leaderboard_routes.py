@@ -14,18 +14,11 @@ logger = logging.getLogger("leaderboard_routes")
 logger.setLevel(logging.INFO)
 
 
-class LeaderboardCreate(BaseModel):
+class LeaderboardCreateOrUpdate(BaseModel):
     name: str
     evals: List[str]
     metric: str
     start_date: str
-
-
-class LeaderboardUpdate(BaseModel):
-    name: str | None = None
-    evals: List[str] | None = None
-    metric: str | None = None
-    start_date: str | None = None
 
 
 class LeaderboardResponse(BaseModel):
@@ -87,7 +80,7 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
     @router.post("")
     @timed_route("create_leaderboard")
     async def create_leaderboard(  # type: ignore[reportUnusedFunction]
-        leaderboard_data: LeaderboardCreate,
+        leaderboard_data: LeaderboardCreateOrUpdate,
         user_id: str = user_or_token,
     ) -> LeaderboardResponse:
         """Create a new leaderboard."""
@@ -109,7 +102,7 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
     @router.put("/{leaderboard_id}")
     @timed_route("update_leaderboard")
     async def update_leaderboard(  # type: ignore[reportUnusedFunction]
-        leaderboard_id: str, leaderboard_data: LeaderboardUpdate, user_id: str = user_or_token
+        leaderboard_id: str, leaderboard_data: LeaderboardCreateOrUpdate, user_id: str = user_or_token
     ) -> LeaderboardResponse:
         """Update a leaderboard."""
         leaderboard = await metta_repo.update_leaderboard(

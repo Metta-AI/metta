@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from typing import Any, Literal
 
-from psycopg import Connection
+from psycopg import AsyncConnection, Connection
 from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import AsyncConnectionPool, PoolTimeout
@@ -1455,44 +1455,56 @@ class MettaRepo:
         self,
         leaderboard_id: uuid.UUID,
         user_id: str,
-        name: str | None = None,
-        evals: list[str] | None = None,
-        metric: str | None = None,
-        start_date: str | None = None,
+        name: str,
+        evals: list[str],
+        metric: str,
+        start_date: str,
     ) -> LeaderboardRow:
         """Update a leaderboard."""
-        update_values = {}
-        if name:
-            update_values["name"] = name
-        if evals:
-            update_values["evals"] = evals
-        if metric:
-            update_values["metric"] = metric
-        if start_date:
-            update_values["start_date"] = start_date
-
-        update_values_str = ", ".join([f"{k} = %s" for k in update_values.keys()])
-        query = f"""
-          UPDATE leaderboards
-          SET {update_values_str}, latest_episode = 0, updated_at = NOW()
-          WHERE id = %s AND user_id = %s
-          RETURNING id, name, user_id, evals, metric, start_date, latest_episode, created_at, updated_at
-        """
-        params = (*update_values.values(), leaderboard_id, user_id)
 
         async with self.connect() as con:
             async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
-                res = await cur.execute(query, params)
-                row = await res.fetchone()
-
-                if not row:
+                cur_leaderboard_cursor = await cur.execute(
+                    "SELECT * FROM leaderboards WHERE id = %s AND user_id = %s",
+                    (leaderboard_id, user_id),
+                )
+                cur_leaderboard = await cur_leaderboard_cursor.fetchone()
+                if not cur_leaderboard:
                     raise RuntimeError(f"Leaderboard {leaderboard_id} not found or not owned by user {user_id}")
 
-                await cur.execute(
-                    "DELETE FROM leaderboard_policy_scores WHERE leaderboard_id = %s",
-                    (leaderboard_id,),
-                )
-                return row
+            if (
+                cur_leaderboard.name != name
+                or cur_leaderboard.evals != evals
+                or cur_leaderboard.metric != metric
+                or cur_leaderboard.start_date != start_date
+            ):
+                async with con.cursor(row_factory=class_row(LeaderboardRow)) as update_cur:
+                    query = """
+                    UPDATE leaderboards
+                    SET name = %s, evals = %s, metric = %s, start_date = %s, latest_episode = 0, updated_at = NOW()
+                    WHERE id = %s AND user_id = %s
+                    RETURNING *
+                  """
+                    params = (name, evals, metric, start_date, leaderboard_id, user_id)
+
+                    await update_cur.execute(query, params)
+                    updated_leaderboard = await update_cur.fetchone()
+                    if not updated_leaderboard:
+                        raise RuntimeError(f"Leaderboard {leaderboard_id} not found or not owned by user {user_id}")
+
+                    if (
+                        cur_leaderboard.evals != evals
+                        or cur_leaderboard.metric != metric
+                        or cur_leaderboard.start_date != start_date
+                    ):
+                        # TODO: Technically we shouldn't need to delete the scores if only start_date changes
+                        await con.execute(
+                            "DELETE FROM leaderboard_policy_scores WHERE leaderboard_id = %s",
+                            (leaderboard_id,),
+                        )
+                    return updated_leaderboard
+            else:
+                return cur_leaderboard
 
     async def list_leaderboards(self) -> list[LeaderboardRow]:
         """List all leaderboards for a user."""
@@ -1512,14 +1524,7 @@ class MettaRepo:
         """Get a specific leaderboard by ID."""
         async with self.connect() as con:
             async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
-                await cur.execute(
-                    """
-                    SELECT id, name, user_id, evals, metric, start_date, latest_episode, created_at, updated_at
-                    FROM leaderboards
-                    WHERE id = %s
-                    """,
-                    (leaderboard_id,),
-                )
+                await cur.execute("SELECT * FROM leaderboards WHERE id = %s", (leaderboard_id,))
                 row = await cur.fetchone()
                 return row
 
@@ -1540,12 +1545,13 @@ class MettaRepo:
             )
             return result.rowcount > 0
 
-    async def update_leaderboard_latest_episode(self, leaderboard_id: uuid.UUID, latest_episode: int) -> None:
+    async def update_leaderboard_latest_episode(
+        self, con: AsyncConnection, leaderboard_id: uuid.UUID, latest_episode: int
+    ) -> None:
         """Update the latest episode for a leaderboard."""
-        async with self.connect() as con:
-            await con.execute(
-                """
-                UPDATE leaderboards SET latest_episode = %s WHERE id = %s
-                """,
-                (latest_episode, leaderboard_id),
-            )
+        await con.execute(
+            """
+            UPDATE leaderboards SET latest_episode = %s WHERE id = %s
+            """,
+            (latest_episode, leaderboard_id),
+        )
