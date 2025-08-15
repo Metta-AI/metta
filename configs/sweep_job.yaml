@@ -20,7 +20,7 @@ sweep_job_overrides:
   trainer:
     curriculum: /env/mettagrid/curriculum/arena/random
     simulation:
-      evaluate_interval: 0 # No evaluation during training for speed
+      # evaluate_interval: 0 # No evaluation during training for speed
       replay_dir: "" # No replays for sweeps
 
 cmd: sweep
