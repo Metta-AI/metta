@@ -45,17 +45,16 @@ def _():
 
 
 @app.cell
-async def _():
+def _():
     from metta.app_backend.clients.scorecard_client import ScorecardClient
 
-    # client = ScorecardClient()
-    client = ScorecardClient("http://localhost:8000")  # dev mode
-
-    return client
+    # client = ScorecardClient()  # production data
+    client = ScorecardClient("http://localhost:8000")  # development mode
+    return (client,)
 
 
 @app.cell
-def _(all_policies, client, create_policy_selector_widget):
+def _(client, create_policy_selector_widget):
     live_widget = create_policy_selector_widget(client=client)
 
     live_widget

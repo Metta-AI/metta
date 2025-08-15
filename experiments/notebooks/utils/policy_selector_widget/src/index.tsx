@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { useModelState, createRender } from "@anywidget/react";
 import PolicySelector from "./PolicySelector";
 import { PolicyInfo, FilterState, UIConfig } from "./types";
@@ -20,6 +20,7 @@ function PolicySelectorWidget() {
   const [, setFilterChanged] = useModelState<any>("filter_changed");
   const [, setSearchTrigger] = useModelState<number>("search_trigger");
   const [, setCurrentSearchParams] = useModelState<any>("current_search_params");
+  const [, setLoadAllPoliciesRequested] = useModelState<boolean>("load_all_policies_requested");
 
   // UI configuration
   const uiConfig: UIConfig = {
@@ -47,7 +48,7 @@ function PolicySelectorWidget() {
 
   const handleApiSearch = (filter: FilterState) => {
     console.log(`🚀 React sending API search request to Python:`, filter);
-    
+
     const searchRequest = {
       ...filter,
       timestamp: Date.now(),
@@ -56,9 +57,15 @@ function PolicySelectorWidget() {
     // Use the counter-based approach that we know works
     setCurrentSearchParams(searchRequest);
     setSearchTrigger(prev => (prev || 0) + 1);
-    
+
     console.log(`🔢 Set search_trigger and current_search_params`);
   };
+
+  useEffect(() => {
+    // Load all policies when component mounts
+    console.log("🚀 Loading all policies from client on mount");
+    setLoadAllPoliciesRequested(true);
+  }, [setLoadAllPoliciesRequested]);
 
   return (
     <PolicySelector

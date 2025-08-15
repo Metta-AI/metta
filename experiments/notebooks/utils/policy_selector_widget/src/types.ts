@@ -13,9 +13,9 @@ export interface PolicySelectorData {
 }
 
 export interface FilterState {
-  searchTerm: string;
-  policyTypeFilter: string[];
-  tagFilter: string[];
+  searchTerm: string | null;
+  policyTypeFilter: string[] | null;
+  tagFilter: string[] | null;
 }
 
 export interface UIConfig {

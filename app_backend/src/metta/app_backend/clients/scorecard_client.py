@@ -87,34 +87,35 @@ class ScorecardClient(BaseAppBackendClient):
         Returns:
             PoliciesResponse containing matching policies
         """
-        import asyncio
+        import requests
 
-        # Try to run in existing loop or create new one
-        try:
-            asyncio.get_running_loop()
-            # We're in a running loop, so we can't use run_until_complete
-            # Instead, we need to use a different approach
-            import concurrent.futures
+        # Create the request payload
+        payload = PoliciesSearchRequest(
+            search=search,
+            policy_type=policy_type,
+            tags=tags,
+            user_id=user_id,
+            limit=limit,
+            offset=offset,
+        )
 
-            def run_in_thread():
-                # Create new event loop in thread
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                try:
-                    return new_loop.run_until_complete(
-                        self.search_policies(search, policy_type, tags, user_id, limit, offset)
-                    )
-                finally:
-                    new_loop.close()
+        # Get the base URL from the async client
+        base_url = str(self._http_client.base_url)
+        url = f"{base_url}/scorecard/policies/search"
 
-            # Execute in thread to avoid blocking
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_in_thread)
-                return future.result(timeout=10)  # 10 second timeout
+        # Build headers
+        from metta.common.util.collections import remove_none_values
 
-        except RuntimeError:
-            # No running loop, we can use run_until_complete directly
-            return asyncio.run(self.search_policies(search, policy_type, tags, user_id, limit, offset))
+        headers = remove_none_values({"X-Auth-Token": self._machine_token, "Content-Type": "application/json"})
+
+        # Make synchronous request using requests library
+        response = requests.post(url, json=payload.model_dump(mode="json"), headers=headers, timeout=10)
+
+        # Check for errors
+        response.raise_for_status()
+
+        # Parse response
+        return PoliciesResponse.model_validate(response.json())
 
     async def sql_query(self, sql: str):
         payload = SQLQueryRequest(

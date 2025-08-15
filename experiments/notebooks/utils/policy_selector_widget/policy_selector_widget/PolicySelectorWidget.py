@@ -63,6 +63,7 @@ class PolicySelectorWidget(anywidget.AnyWidget):
     api_search_completed = traitlets.Dict(allow_none=True, default_value=None).tag(
         sync=True
     )
+    load_all_policies_requested = traitlets.Bool(False).tag(sync=True)
 
     # Alternative: use a simple counter that changes on each search request
     search_trigger = traitlets.Int(0).tag(sync=True)
@@ -75,9 +76,6 @@ class PolicySelectorWidget(anywidget.AnyWidget):
     search_debounce_ms = traitlets.Int(300).tag(
         sync=True
     )  # Debounce delay in milliseconds
-
-    # Test trait to verify sync is working
-    test_sync = traitlets.Unicode("").tag(sync=True)
 
     def __init__(self, client=None, **kwargs):
         super().__init__(**kwargs)
@@ -99,14 +97,16 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         self.observe(self._on_filter_changed, names="filter_changed")
         self.observe(self._on_api_search_requested, names="api_search_requested")
         self.observe(self._on_search_trigger, names="search_trigger")
-        self.observe(self._on_test_sync, names="test_sync")
+        self.observe(
+            self._on_load_all_policies_requested, names="load_all_policies_requested"
+        )
 
         print("🔗 Observers set up for:")
         print("   - selection_changed")
         print("   - filter_changed")
         print("   - api_search_requested")
         print("   - search_trigger (alternative)")
-        print("   - test_sync (basic trait sync test)")
+        print("   - load_all_policies_requested")
 
     def _on_selection_changed(self, change):
         """Handle policy selection events from JavaScript."""
@@ -294,9 +294,45 @@ class PolicySelectorWidget(anywidget.AnyWidget):
 
                 print(traceback.format_exc())
 
-    def _on_test_sync(self, change):
-        """Test basic trait synchronization."""
-        print(f"🧪 TEST SYNC WORKED! Value: '{change['new']}'")
+    def _on_load_all_policies_requested(self, change):
+        """Handle request to load all policies from the client."""
+        if change["new"]:
+            # Check if client is configured
+            if not self._client:
+                return
+
+            try:
+                # Use search with no filters to get all policies
+                response = self._client.search_policies_sync(
+                    search=None,
+                    policy_type=None,
+                    tags=None,
+                    limit=1000,  # Get more policies by default
+                    offset=0,
+                )
+
+                # Convert response to widget format
+                policies = [
+                    {
+                        "id": p.id,
+                        "type": p.type,
+                        "name": p.name,
+                        "user_id": p.user_id,
+                        "created_at": p.created_at,
+                        "tags": p.tags,
+                    }
+                    for p in response.policies
+                ]
+
+                self.policy_data = list(policies)
+
+            except Exception:
+                import traceback
+
+                print(traceback.format_exc())
+            finally:
+                # Reset the trigger
+                self.load_all_policies_requested = False
 
     def on_selection_changed(self, callback: Callable[[Dict[str, Any]], None]):
         """Register a callback for when policy selection changes.
@@ -320,7 +356,6 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         Args:
             callback: Function that receives search parameters
         """
-        print(f"🔔 on_api_search_requested called with callback: {callback}")
         self._callbacks["api_search_requested"].append(callback)
 
     def set_policy_data(self, policies: List[Dict[str, Any]]):
@@ -336,7 +371,6 @@ class PolicySelectorWidget(anywidget.AnyWidget):
                      - user_id: Optional user ID
         """
         self.policy_data = policies
-        print(f"📋 Policy data set with {len(policies)} policies")
 
     def set_search_term(self, term: str):
         """Set the search filter term.
@@ -377,12 +411,10 @@ class PolicySelectorWidget(anywidget.AnyWidget):
             policy_ids: List of policy IDs to select
         """
         self.selected_policies = policy_ids
-        print(f"✅ Selected {len(policy_ids)} policies")
 
     def clear_selection(self):
         """Clear all selected policies."""
         self.selected_policies = []
-        print("🗑️ Selection cleared")
 
     def select_all_filtered(self):
         """Select all policies that match current filters."""
@@ -452,11 +484,8 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         # Automatically enable API search when client is set
         if client is not None:
             self.use_api_search = True
-            print("🔗 Client configured - API search enabled")
-            print(f"   Client type: {type(client).__name__}")
         else:
             self.use_api_search = False
-            print("🔗 Client removed - API search disabled")
 
     def get_client(self):
         """Get the currently configured client.
@@ -482,28 +511,11 @@ class PolicySelectorWidget(anywidget.AnyWidget):
             return []
 
         try:
-            print(f"📥 Loading policies from client (limit: {limit})...")
             policies = await self.search_policies_async(limit=limit)
             self.set_policy_data(policies)
-            print(f"✅ Loaded {len(policies)} policies from client")
             return policies
-        except Exception as e:
-            print(f"🚨 Failed to load policies from client: {e}")
+        except Exception:
             return []
-
-    def enable_api_search(self, enable: bool = True, debounce_ms: int = 300):
-        """Enable or disable API-based search.
-
-        Args:
-            enable: Whether to use API search instead of client-side filtering
-            debounce_ms: Debounce delay for search requests
-        """
-        if enable and self._client is None:
-            print(
-                "⚠️ Warning: Enabling API search without a configured client. Use set_client() first."
-            )
-        self.use_api_search = enable
-        self.search_debounce_ms = debounce_ms
 
     async def search_policies_async(
         self,
@@ -570,10 +582,6 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         )
         tags = search_params.get("tagFilter")
 
-        print(
-            f"🔍 Executing API search - term: '{search_term}', type: {policy_type}, tags: {tags}"
-        )
-
         if not self._client:
             print("❌ No search client configured!")
             return
@@ -590,9 +598,6 @@ class PolicySelectorWidget(anywidget.AnyWidget):
             # Force update the policy data to trigger React re-render
             # Use a new list to ensure trait change is detected
             self.policy_data = list(results)
-            print(
-                f"✅ API search completed: {len(results)} policies found for '{search_term}'"
-            )
 
         except Exception as e:
             print(f"🚨 API search failed: {e}")
