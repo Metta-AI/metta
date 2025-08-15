@@ -102,7 +102,7 @@ class SLKickstarter(BaseLoss):
         if self.anneal_ratio > 0 and current_epoch > self.ramp_down_start_epochs:
             # Ramp down
             progress = (current_epoch - self.ramp_down_start_epochs) / self.anneal_duration
-            self.anneal_factor = 1.0 - progress
+            self.anneal_factor = max(1.0 - progress, 0.0)
 
         td = shared_loss_data["sampled_mb"].select(*self.teacher_policy_spec.keys()).clone()
 
