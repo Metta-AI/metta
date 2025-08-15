@@ -2,12 +2,12 @@ import logging
 from typing import Optional
 
 import einops
+import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-import pufferlib.pytorch
 from metta.agent.pytorch.base import LSTMWrapper
 
 logger = logging.getLogger(__name__)
@@ -83,12 +83,8 @@ class Example(LSTMWrapper):
             td = td.reshape(B, TT)
         return td
 
-    def _prepare_lstm_state(self, state: dict):
-        """Ensures LSTM hidden states are sized properly."""
-        h, c = state.get("lstm_h"), state.get("lstm_c")
-        if h is None or c is None:
-            return None
-        return h[: self.lstm.num_layers], c[: self.lstm.num_layers]
+    # Note: _prepare_lstm_state is no longer needed as we use base class _manage_lstm_state
+    # The base class method handles state management with automatic detachment
 
     def _sample_actions(self, logits_list: list[torch.Tensor]):
         """Samples discrete actions from logits and computes log-probs and entropy."""

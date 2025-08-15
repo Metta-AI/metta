@@ -1,12 +1,12 @@
 import logging
 
 import einops
+import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-import pufferlib.pytorch
 from metta.agent.modules.encoders import ObsLatentAttn, ObsSelfAttn
 from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 from metta.agent.pytorch.base import LSTMWrapper
@@ -15,7 +15,31 @@ logger = logging.getLogger(__name__)
 
 
 class LatentAttnMed(LSTMWrapper):
-    def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128, num_layers=2):
+    def __init__(
+        self,
+        env,
+        policy=None,
+        cnn_channels=128,
+        input_size=128,
+        hidden_size=128,
+        num_layers=2,
+        clip_range=0,
+        analyze_weights_interval=300,
+        **kwargs,
+    ):
+        """Initialize LatentAttnMed policy with configuration parameters.
+
+        Args:
+            env: Environment
+            policy: Optional inner policy
+            cnn_channels: Number of CNN channels
+            input_size: LSTM input size
+            hidden_size: LSTM hidden size
+            num_layers: Number of LSTM layers
+            clip_range: Weight clipping range (0 = disabled)
+            analyze_weights_interval: Interval for weight analysis
+            **kwargs: Additional configuration parameters (for compatibility)
+        """
         if policy is None:
             policy = Policy(
                 env,
@@ -25,30 +49,63 @@ class LatentAttnMed(LSTMWrapper):
         # Use enhanced LSTMWrapper with num_layers support
         super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
 
+        # Store configuration parameters
+        self.clip_range = clip_range
+        self.analyze_weights_interval = analyze_weights_interval
+
+        if kwargs:
+            logger.info(f"[DEBUG] Additional config parameters: {kwargs}")
+
+    def clip_weights(self):
+        """Clip weights to prevent large updates during training.
+
+        This matches ComponentPolicy's weight clipping behavior.
+        """
+        if self.clip_range > 0:
+            for module in self.modules():
+                if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d)):
+                    if hasattr(module, "weight") and module.weight is not None:
+                        module.weight.data.clamp_(-self.clip_range, self.clip_range)
+                    if hasattr(module, "bias") and module.bias is not None:
+                        module.bias.data.clamp_(-self.clip_range, self.clip_range)
+
+    @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"]
 
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-        # Prepare LSTM state
-        lstm_h, lstm_c = state.get("lstm_h"), state.get("lstm_c")
-        if lstm_h is not None and lstm_c is not None:
-            lstm_h = lstm_h[: self.lstm.num_layers]
-            lstm_c = lstm_c[: self.lstm.num_layers]
-            lstm_state = (lstm_h, lstm_c)
-        else:
-            lstm_state = None
+        # CRITICAL FIX: Set bptt and batch fields to match ComponentPolicy behavior
+        # ComponentPolicy sets these in every forward pass, and components depend on them
+        if observations.dim() == 4:  # Training: [B, T, obs_tokens, 3]
+            B = observations.shape[0]
+            TT = observations.shape[1]
+            # Flatten batch dimension and set fields exactly like ComponentPolicy
+            total_batch = B * TT
+            td.set("bptt", torch.full((total_batch,), TT, device=observations.device, dtype=torch.long))
+            td.set("batch", torch.full((total_batch,), B, device=observations.device, dtype=torch.long))
+        else:  # Inference: [B, obs_tokens, 3]
+            B = observations.shape[0]
+            TT = 1
+            # Set fields for inference mode
+            td.set("bptt", torch.full((B,), 1, device=observations.device, dtype=torch.long))
+            td.set("batch", torch.full((B,), B, device=observations.device, dtype=torch.long))
 
         # Encode observations
         hidden = self.policy.encode_observations(observations, state)
 
-        B = observations.shape[0]
-        TT = 1 if observations.dim() == 3 else observations.shape[1]
+        # Use base class for proper LSTM state management (includes detachment!)
+        lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
+        lstm_state = (lstm_h, lstm_c)
 
         # LSTM forward pass
         hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, input_size)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
+
+        # CRITICAL: Store with automatic detachment to prevent gradient accumulation
+        self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
+
         flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
         # Decode actions and value
@@ -72,10 +129,14 @@ class LatentAttnMed(LSTMWrapper):
 
         else:
             # ---------- Training Mode ----------
-            action = action
+            # CRITICAL: ComponentPolicy expects the action to be flattened already during training
+            # The TD should be reshaped to match the flattened batch dimension
             if action.dim() == 3:  # (B, T, A) -> (BT, A)
-                B, T, A = action.shape
-                action = action.view(B * T, A)
+                batch_size_orig, time_steps, A = action.shape
+                action = action.view(batch_size_orig * time_steps, A)
+                # Also flatten the TD to match
+                if td.batch_dims > 1:
+                    td = td.reshape(td.batch_size.numel())
 
             action_log_probs = F.log_softmax(logits_list, dim=-1)
             action_probs = torch.exp(action_log_probs)
@@ -86,10 +147,18 @@ class LatentAttnMed(LSTMWrapper):
 
             entropy = -(action_probs * action_log_probs).sum(dim=-1)
 
-            td["act_log_prob"] = full_log_probs.view(B, TT)
-            td["entropy"] = entropy.view(B, TT)
-            td["full_log_probs"] = action_log_probs.view(B, TT, -1)
-            td["value"] = value.view(B, TT)
+            # Store in flattened TD (will be reshaped by caller if needed)
+            td["act_log_prob"] = full_log_probs
+            td["entropy"] = entropy
+            td["full_log_probs"] = action_log_probs
+            td["value"] = value
+
+            # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
+            # The reshaping happens in ComponentPolicy.forward() after forward_training()
+            if "batch" in td.keys() and "bptt" in td.keys():
+                batch_size = td["batch"][0].item()
+                bptt_size = td["bptt"][0].item()
+                td = td.reshape(batch_size, bptt_size)
 
         return td
 
