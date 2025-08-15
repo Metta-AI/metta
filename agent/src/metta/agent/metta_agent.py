@@ -12,6 +12,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.component_policy import ComponentPolicy
 from metta.agent.pytorch.agent_mapper import agent_classes
+from metta.agent.util.weights_analysis import analyze_weights
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
@@ -90,6 +91,16 @@ class MettaAgent(nn.Module):
             self.policy.to(self.device)
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        
+        # Initialize features for parity with ComponentPolicy
+        # These work for any PyTorch policy unless overridden
+        self.clip_range = agent_cfg.get("clip_range", 0)
+        self.analyze_weights_interval = agent_cfg.get("analyze_weights_interval", 300)
+        self.l2_init_scale = 1  # Default L2-init scale
+        self.clip_scale = 1  # Default clip scale
+        
+        # Store initial weights for L2-init regularization (for any PyTorch policy)
+        self._store_initial_weights()
 
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
@@ -292,32 +303,78 @@ class MettaAgent(nn.Module):
             return self.policy.lstm
         return None
 
+    def _store_initial_weights(self):
+        """Store initial weights for L2-init regularization (works for any PyTorch policy)."""
+        self.initial_weights = {}
+        if self.policy is not None:
+            for name, module in self.policy.named_modules():
+                if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d, nn.ConvTranspose2d)):
+                    if hasattr(module, 'weight'):
+                        # Store with full path for uniqueness
+                        full_name = f"policy.{name}" if name else "policy"
+                        self.initial_weights[full_name] = module.weight.data.clone()
+
     def l2_init_loss(self) -> torch.Tensor:
-        """Calculate L2 initialization loss - delegates to policy."""
+        """Calculate L2 initialization loss - works for any PyTorch policy."""
         if hasattr(self.policy, "l2_init_loss"):
+            # Use policy's custom implementation if available
             return self.policy.l2_init_loss()
-        return torch.tensor(0.0, dtype=torch.float32, device=self.device)
+        
+        # Default implementation for any PyTorch policy
+        total_loss = torch.tensor(0.0, dtype=torch.float32, device=self.device)
+        if self.policy is not None and hasattr(self, 'initial_weights'):
+            for name, module in self.policy.named_modules():
+                if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d, nn.ConvTranspose2d)):
+                    if hasattr(module, 'weight'):
+                        full_name = f"policy.{name}" if name else "policy"
+                        if full_name in self.initial_weights:
+                            weight_diff = module.weight - self.initial_weights[full_name].to(module.weight.device)
+                            total_loss += torch.sum(weight_diff ** 2) * self.l2_init_scale
+        return total_loss
 
     def clip_weights(self):
-        """Clip weights to prevent large updates."""
+        """Clip weights to prevent large updates - works for any PyTorch policy."""
         if self.policy is not None and hasattr(self.policy, "clip_weights"):
             # Use policy's custom implementation if available
             self.policy.clip_weights()
-        elif self.policy is not None:
-            # Default implementation: clamp all parameters to [-1, 1]
-            for p in self.policy.parameters():
-                p.data.clamp_(-1, 1)
+        elif self.policy is not None and self.clip_range > 0:
+            # Default implementation for any PyTorch policy
+            with torch.no_grad():
+                for name, module in self.policy.named_modules():
+                    if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d, nn.ConvTranspose2d)):
+                        if hasattr(module, 'weight'):
+                            full_name = f"policy.{name}" if name else "policy"
+                            if full_name in self.initial_weights:
+                                # Clip based on initial weight magnitude
+                                largest_weight = self.initial_weights[full_name].abs().max().item()
+                                clip_value = self.clip_range * largest_weight * self.clip_scale
+                                module.weight.data = module.weight.data.clamp(-clip_value, clip_value)
 
     def update_l2_init_weight_copy(self):
-        """Update L2 initialization weight copies - delegates to policy."""
+        """Update L2 initialization weight copies - works for any PyTorch policy."""
         if hasattr(self.policy, "update_l2_init_weight_copy"):
+            # Use policy's custom implementation if available
             self.policy.update_l2_init_weight_copy()
+        else:
+            # Default implementation for any PyTorch policy
+            self._store_initial_weights()
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        """Compute weight metrics - delegates to policy."""
+        """Compute weight metrics - works for any PyTorch policy."""
         if hasattr(self.policy, "compute_weight_metrics"):
+            # Use policy's custom implementation if available
             return self.policy.compute_weight_metrics(delta)
-        return []
+        
+        # Default implementation for any PyTorch policy
+        metrics_list = []
+        if self.policy is not None:
+            for name, module in self.policy.named_modules():
+                if isinstance(module, nn.Linear):
+                    if module.weight.data.dim() == 2:  # Only analyze 2D matrices
+                        metrics = analyze_weights(module.weight.data, delta)
+                        metrics["name"] = f"policy.{name}" if name else "policy"
+                        metrics_list.append(metrics)
+        return metrics_list
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """Convert (action_type, action_param) pairs to discrete indices."""

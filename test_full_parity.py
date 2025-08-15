@@ -65,40 +65,41 @@ def test_parity_features():
     py_agent.initialize_to_environment(features, env.action_names, env.max_action_args, torch.device("cpu"))
     
     print("\n1. Testing Weight Clipping:")
-    yaml_has_clip = hasattr(yaml_agent.policy, 'clip_weights')
-    py_has_clip = hasattr(py_agent.policy, 'clip_weights')
+    # Check MettaAgent itself, not just the policy
+    yaml_has_clip = hasattr(yaml_agent, 'clip_weights')
+    py_has_clip = hasattr(py_agent, 'clip_weights')
     print(f"   YAML agent has clip_weights: {yaml_has_clip}")
     print(f"   py_agent has clip_weights: {py_has_clip}")
     
     if py_has_clip:
         try:
-            py_agent.policy.clip_weights()
+            py_agent.clip_weights()  # Call on MettaAgent, not policy
             print("   ✓ py_agent clip_weights() executes without error")
         except Exception as e:
             print(f"   ✗ py_agent clip_weights() failed: {e}")
     
     print("\n2. Testing L2-Init Regularization:")
-    yaml_has_l2 = hasattr(yaml_agent.policy, 'l2_init_loss')
-    py_has_l2 = hasattr(py_agent.policy, 'l2_init_loss')
+    yaml_has_l2 = hasattr(yaml_agent, 'l2_init_loss')
+    py_has_l2 = hasattr(py_agent, 'l2_init_loss')
     print(f"   YAML agent has l2_init_loss: {yaml_has_l2}")
     print(f"   py_agent has l2_init_loss: {py_has_l2}")
     
     if py_has_l2:
         try:
-            loss = py_agent.policy.l2_init_loss()
+            loss = py_agent.l2_init_loss()  # Call on MettaAgent
             print(f"   ✓ py_agent l2_init_loss() returns: {loss.item()}")
         except Exception as e:
             print(f"   ✗ py_agent l2_init_loss() failed: {e}")
     
     print("\n3. Testing Weight Metrics:")
-    yaml_has_metrics = hasattr(yaml_agent.policy, 'compute_weight_metrics')
-    py_has_metrics = hasattr(py_agent.policy, 'compute_weight_metrics')
+    yaml_has_metrics = hasattr(yaml_agent, 'compute_weight_metrics')
+    py_has_metrics = hasattr(py_agent, 'compute_weight_metrics')
     print(f"   YAML agent has compute_weight_metrics: {yaml_has_metrics}")
     print(f"   py_agent has compute_weight_metrics: {py_has_metrics}")
     
     if py_has_metrics:
         try:
-            metrics = py_agent.policy.compute_weight_metrics()
+            metrics = py_agent.compute_weight_metrics()  # Call on MettaAgent
             print(f"   ✓ py_agent compute_weight_metrics() returns {len(metrics)} metrics")
             
             # Check for effective rank on critic_1
@@ -110,21 +111,21 @@ def test_parity_features():
             print(f"   ✗ py_agent compute_weight_metrics() failed: {e}")
     
     print("\n4. Testing Update L2-Init Weights:")
-    yaml_has_update = hasattr(yaml_agent.policy, 'update_l2_init_weight_copy')
-    py_has_update = hasattr(py_agent.policy, 'update_l2_init_weight_copy')
+    yaml_has_update = hasattr(yaml_agent, 'update_l2_init_weight_copy')
+    py_has_update = hasattr(py_agent, 'update_l2_init_weight_copy')
     print(f"   YAML agent has update_l2_init_weight_copy: {yaml_has_update}")
     print(f"   py_agent has update_l2_init_weight_copy: {py_has_update}")
     
     if py_has_update:
         try:
-            py_agent.policy.update_l2_init_weight_copy()
+            py_agent.update_l2_init_weight_copy()  # Call on MettaAgent
             print("   ✓ py_agent update_l2_init_weight_copy() executes without error")
         except Exception as e:
             print(f"   ✗ py_agent update_l2_init_weight_copy() failed: {e}")
     
     print("\n5. Testing Config Attributes:")
-    print(f"   YAML clip_range: {yaml_agent.policy.clip_range if hasattr(yaml_agent.policy, 'clip_range') else 'N/A'}")
-    print(f"   py_agent clip_range: {py_agent.policy.clip_range if hasattr(py_agent.policy, 'clip_range') else 'N/A'}")
+    print(f"   YAML clip_range: {yaml_agent.clip_range if hasattr(yaml_agent, 'clip_range') else 'N/A'}")
+    print(f"   py_agent clip_range: {py_agent.clip_range if hasattr(py_agent, 'clip_range') else 'N/A'}")
     
     # Test that parameters still match
     print("\n6. Parameter Count Verification:")

@@ -8,8 +8,6 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.util.weights_analysis import analyze_weights
-
 logger = logging.getLogger(__name__)
 
 
@@ -175,29 +173,9 @@ class Fast(LSTMWrapper):
         # Match ComponentPolicy's formula that compensates for wrong cumsum
         return action_type_numbers + cumulative_sum + action_params
 
-    def clip_weights(self):
-        """Clip weights to match ComponentPolicy's weight clipping."""
-        if hasattr(self, "clip_range") and self.clip_range > 0:
-            # Delegate to policy for weight clipping
-            if hasattr(self.policy, "clip_weights"):
-                self.policy.clip_weights(self.clip_range)
-
-    def l2_init_loss(self) -> torch.Tensor:
-        """Calculate L2-init regularization loss to match ComponentPolicy."""
-        if hasattr(self.policy, "l2_init_loss"):
-            return self.policy.l2_init_loss()
-        return torch.tensor(0.0, dtype=torch.float32)
-
-    def update_l2_init_weight_copy(self):
-        """Update L2 initialization weight copies to match ComponentPolicy."""
-        if hasattr(self.policy, "update_l2_init_weight_copy"):
-            self.policy.update_l2_init_weight_copy()
-
-    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        """Compute weight metrics to match ComponentPolicy."""
-        if hasattr(self.policy, "compute_weight_metrics"):
-            return self.policy.compute_weight_metrics(delta)
-        return []
+    # Note: Weight clipping, L2-init loss, and weight metrics are now handled
+    # by MettaAgent's default implementations which work for any PyTorch policy.
+    # Fast doesn't need to override these unless it wants custom behavior.
 
 
 class Policy(nn.Module):
@@ -272,11 +250,10 @@ class Policy(nn.Module):
         # Track active actions
         self.active_action_names = []
         self.num_active_actions = 100  # Default
-
-        # Initialize weight tracking for parity features
-        self._store_initial_weights()
-        self.clip_scale = 1  # Match ParamLayer default
-        self.l2_init_scale = 1  # Match ParamLayer default
+        
+        # Note: Weight tracking, clipping, and L2-init are now handled by MettaAgent's
+        # default implementations. We only need to track effective_rank for critic_1
+        # to match the YAML configuration's specific requirement.
         self.effective_rank_enabled = True  # For critic_1 matching YAML
 
     def _initialize_action_embeddings(self):
@@ -399,63 +376,14 @@ class Policy(nn.Module):
         logits = biased_scores.reshape(batch_size, num_actions)
 
         return logits, value
-
-    def _store_initial_weights(self):
-        """Store initial weights for L2-init regularization."""
-        self.initial_weights = {}
-        # Store initial weights for all linear layers
-        for name, module in self.named_modules():
-            if isinstance(module, nn.Linear) or isinstance(module, nn.Conv2d):
-                if hasattr(module, "weight"):
-                    self.initial_weights[name] = module.weight.data.clone()
-
-    def clip_weights(self, clip_range: float):
-        """Clip weights to prevent exploding gradients, matching ComponentPolicy."""
-        if clip_range > 0:
-            with torch.no_grad():
-                for name, module in self.named_modules():
-                    if isinstance(module, nn.Linear) or isinstance(module, nn.Conv2d):
-                        if hasattr(module, "weight"):
-                            # Calculate clip value based on largest initial weight
-                            if name in self.initial_weights:
-                                largest_weight = self.initial_weights[name].abs().max().item()
-                                clip_value = clip_range * largest_weight * self.clip_scale
-                                module.weight.data = module.weight.data.clamp(-clip_value, clip_value)
-
-    def l2_init_loss(self) -> torch.Tensor:
-        """Calculate L2-init regularization loss, matching ComponentPolicy."""
-        total_loss = torch.tensor(0.0, dtype=torch.float32, device=next(self.parameters()).device)
-
-        for name, module in self.named_modules():
-            if isinstance(module, nn.Linear) or isinstance(module, nn.Conv2d):
-                if hasattr(module, "weight") and name in self.initial_weights:
-                    weight_diff = module.weight - self.initial_weights[name].to(module.weight.device)
-                    total_loss += torch.sum(weight_diff**2) * self.l2_init_scale
-
-        return total_loss
-
-    def update_l2_init_weight_copy(self):
-        """Update the stored initial weights to current weights."""
-        for name, module in self.named_modules():
-            if isinstance(module, nn.Linear) or isinstance(module, nn.Conv2d):
-                if hasattr(module, "weight"):
-                    self.initial_weights[name] = module.weight.data.clone()
-
-    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        """Compute weight metrics for analysis, matching ComponentPolicy."""
-        metrics_list = []
-
-        # Compute metrics for 2D weight matrices
-        for name, module in self.named_modules():
-            if isinstance(module, nn.Linear):
-                if module.weight.data.dim() == 2:
-                    metrics = analyze_weights(module.weight.data, delta)
-                    metrics["name"] = name
-
-                    # Add effective rank tracking for critic_1 to match YAML
-                    if "critic_1" in name and self.effective_rank_enabled:
-                        metrics["effective_rank_enabled"] = True
-
-                    metrics_list.append(metrics)
-
-        return metrics_list
+    
+    # Note: The following methods are now handled by MettaAgent's default implementations:
+    # - _store_initial_weights() 
+    # - clip_weights()
+    # - l2_init_loss()
+    # - update_l2_init_weight_copy()
+    # - compute_weight_metrics()
+    #
+    # MettaAgent provides general implementations that work for any PyTorch policy.
+    # We could override them here if we needed custom behavior, but the defaults
+    # work perfectly for Fast.
