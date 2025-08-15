@@ -1,8 +1,6 @@
 #!/usr/bin/env -S uv run
 
-import argparse
 import copy
-import importlib
 import logging
 import os
 from logging import Logger
@@ -11,14 +9,13 @@ from typing import Any, Optional
 import torch
 from omegaconf import OmegaConf
 from pydantic import Field
-from torch.distributed.elastic.multiprocessing.errors import record
 
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.util.config import Config
 from metta.common.util.git import get_git_hash_for_remote_task
 from metta.common.util.heartbeat import record_heartbeat
-from metta.common.util.logging_helpers import init_logging
+from metta.common.util.logging_helpers import init_file_logging, init_logging
+from metta.common.util.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff, WandbContext, WandbRun
 from metta.core.distributed import TorchDistributedConfig, setup_torch_distributed
 from metta.rl.system_config import SystemConfig
@@ -28,8 +25,8 @@ from metta.rl.trainer_config import TrainerConfig
 logger = logging.getLogger(__name__)
 
 
-class TrainToolConfig(Config):
-    system: SystemConfig = SystemConfig.Auto()
+class TrainTool(Tool):
+    system: SystemConfig = Field(default_factory=SystemConfig)
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     wandb: WandbConfig = WandbConfigOff()
     policy_architecture: Any
@@ -63,7 +60,7 @@ class TrainToolConfig(Config):
         if self.trainer.evaluation and not self.trainer.evaluation.replay_dir:
             self.trainer.evaluation.replay_dir = f"{self.run_dir}/replays/"
 
-    def to_mini(self) -> "TrainToolConfig":
+    def to_mini(self) -> "TrainTool":
         cfg = copy.deepcopy(self)
         cfg.trainer.minibatch_size = min(cfg.trainer.minibatch_size, 1024)
         cfg.trainer.batch_size = min(cfg.trainer.batch_size, 1024)
@@ -75,6 +72,37 @@ class TrainToolConfig(Config):
         if cfg.trainer.evaluation:
             cfg.trainer.evaluation.evaluate_interval = min(cfg.trainer.evaluation.evaluate_interval, 10)
         return cfg
+
+    def invoke(self) -> int:
+        """Main training entry point."""
+        record_heartbeat()
+
+        assert self.run_dir is not None
+        init_file_logging(run_dir=self.run_dir)
+
+        os.makedirs(self.run_dir, exist_ok=True)
+
+        init_logging(run_dir=self.run_dir)
+
+        logger.info(
+            f"Training {self.run} on "
+            + f"{os.environ.get('NODE_INDEX', '0')}: "
+            + f"{os.environ.get('LOCAL_RANK', '0')} ({self.system.device})"
+        )
+
+        torch_dist_cfg = setup_torch_distributed(self.system.device)
+
+        logger.info(f"Training {self.run} on {self.system.device}")
+        if torch_dist_cfg.is_master:
+            with WandbContext(self.wandb, self) as wandb_run:
+                handle_train(self, torch_dist_cfg, wandb_run, logger)
+        else:
+            handle_train(self, torch_dist_cfg, None, logger)
+
+        if torch.distributed.is_initialized():
+            torch.distributed.destroy_process_group()
+
+        return 0
 
 
 def calculate_default_num_workers(is_serial: bool) -> int:
@@ -101,9 +129,7 @@ def calculate_default_num_workers(is_serial: bool) -> int:
     return max(1, num_workers)
 
 
-def handle_train(
-    cfg: TrainToolConfig, torch_dist_cfg: TorchDistributedConfig, wandb_run: WandbRun | None, logger: Logger
-):
+def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_run: WandbRun | None, logger: Logger):
     """Handle the training process."""
     assert cfg.run_dir is not None
     assert cfg.run is not None
@@ -171,48 +197,3 @@ def handle_train(
         stats_client=stats_client,
         torch_dist_cfg=torch_dist_cfg,
     )
-
-
-@record
-def main(cfg: TrainToolConfig) -> int:
-    """Main training entry point."""
-    record_heartbeat()
-
-    assert cfg.run_dir is not None
-    os.makedirs(cfg.run_dir, exist_ok=True)
-
-    init_logging(run_dir=cfg.run_dir)
-
-    logger.info(
-        f"Training {cfg.run} on "
-        + f"{os.environ.get('NODE_INDEX', '0')}: "
-        + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.system.device})"
-    )
-
-    torch_dist_cfg = setup_torch_distributed(cfg.system.device)
-
-    logger.info(f"Training {cfg.run} on {cfg.system.device}")
-    if torch_dist_cfg.is_master:
-        with WandbContext(cfg.wandb, cfg) as wandb_run:
-            handle_train(cfg, torch_dist_cfg, wandb_run, logger)
-    else:
-        handle_train(cfg, torch_dist_cfg, None, logger)
-
-    if torch.distributed.is_initialized():
-        torch.distributed.destroy_process_group()
-
-    return 0
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--func", type=str, required=True)
-    parser.add_argument("--cfg", type=str, required=False)
-    args = parser.parse_args()
-
-    init_logging()
-
-    module_name, func_name = args.func.rsplit(".", 1)
-    cfg = importlib.import_module(module_name).__getattribute__(func_name)()
-
-    main(cfg)
