@@ -53,9 +53,6 @@ class LatentAttnTiny(LSTMWrapper):
         self.clip_range = clip_range
         self.analyze_weights_interval = analyze_weights_interval
 
-        if kwargs:
-            logger.info(f"[DEBUG] Additional config parameters: {kwargs}")
-
     def clip_weights(self):
         """Clip weights to prevent large updates during training.
 

@@ -34,11 +34,6 @@ class Fast(LSTMWrapper):
             analyze_weights_interval: Interval for weight analysis
             **kwargs: Additional configuration parameters (for compatibility)
         """
-        logger.info(
-            f"[DEBUG] Fast.__init__ called with input_size={input_size}, "
-            f"hidden_size={hidden_size}, num_layers={num_layers}, "
-            f"clip_range={clip_range}, analyze_weights_interval={analyze_weights_interval}"
-        )
         if policy is None:
             policy = Policy(
                 env,
@@ -48,17 +43,9 @@ class Fast(LSTMWrapper):
         # Pass num_layers=2 to match YAML configuration
         super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
 
-        logger.info(f"[DEBUG] Fast initialized with {sum(p.numel() for p in self.parameters())} parameters")
-        logger.info(f"[DEBUG] LSTM: {self.lstm.num_layers} layers, hidden_size={self.lstm.hidden_size}")
-        logger.info(f"[DEBUG] clip_range={clip_range}, analyze_weights_interval={analyze_weights_interval}")
-
         # Store configuration parameters
         self.clip_range = clip_range
         self.analyze_weights_interval = analyze_weights_interval
-        
-        # Log any additional kwargs for debugging
-        if kwargs:
-            logger.info(f"[DEBUG] Additional config parameters: {kwargs}")
     
     # Memory management methods are inherited from LSTMWrapper base class
     
@@ -176,7 +163,6 @@ class Fast(LSTMWrapper):
         This is called by MettaAgent.activate_actions() but was missing in the
         original Fast implementation, potentially causing the performance difference.
         """
-        logger.info(f"[DEBUG] Fast.activate_action_embeddings called with {len(full_action_names)} actions")
         # Pass through to the policy
         if hasattr(self.policy, "activate_action_embeddings"):
             self.policy.activate_action_embeddings(full_action_names, device)
@@ -201,7 +187,6 @@ class Fast(LSTMWrapper):
 class Policy(nn.Module):
     def __init__(self, env, input_size=128, hidden_size=128):
         super().__init__()
-        logger.info(f"[DEBUG] Fast.Policy.__init__ called with input_size={input_size}, hidden_size={hidden_size}")
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.is_continuous = False
@@ -308,7 +293,6 @@ class Policy(nn.Module):
 
     def activate_action_embeddings(self, full_action_names: list[str], device):
         """Activate action embeddings, matching the YAML ActionEmbedding component behavior."""
-        logger.info(f"[DEBUG] Policy.activate_action_embeddings called with {len(full_action_names)} actions")
         self.active_action_names = full_action_names
         self.num_active_actions = len(full_action_names)
 

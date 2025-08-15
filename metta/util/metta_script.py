@@ -86,7 +86,6 @@ def metta_script(
                 # This matches the configuration that YAML agents get
                 # Remove .py extension if present
                 agent_type = cfg.py_agent.replace(".py", "")
-                logger.info(f"[DEBUG] Using py_agent={agent_type}")
                 cfg.agent = DictConfig(
                     {
                         "agent_type": agent_type,
@@ -95,7 +94,6 @@ def metta_script(
                         "observations": {"obs_key": "grid_obs"},
                     }
                 )
-                logger.info(f"[DEBUG] Created agent config for py_agent: {cfg.agent}")
         except AttributeError:
             logger.info("No py_agent specified, using the default agent.")
 
