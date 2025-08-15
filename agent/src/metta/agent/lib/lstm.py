@@ -37,6 +37,18 @@ class LSTM(LayerBase):
         self.lstm_h: Dict[int, torch.Tensor] = {}
         self.lstm_c: Dict[int, torch.Tensor] = {}
 
+    def __setstate__(self, state):
+        """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
+        self.__dict__.update(state)
+        # Reset hidden states when loading from checkpoint to avoid batch size mismatch
+        if not hasattr(self, "lstm_h"):
+            self.lstm_h = {}
+        if not hasattr(self, "lstm_c"):
+            self.lstm_c = {}
+        # Clear any existing states to handle batch size mismatches
+        self.lstm_h.clear()
+        self.lstm_c.clear()
+
     def has_memory(self):
         return True
 
@@ -91,7 +103,11 @@ class LSTM(LayerBase):
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
-        training_env_id_start = td.get("training_env_id_start", torch.tensor([0], dtype=torch.long))[0].item()
+        training_env_id_start = td.get("training_env_id_start", None)
+        if training_env_id_start is None:
+            training_env_id_start = 0
+        else:
+            training_env_id_start = training_env_id_start[0].item()
 
         if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
             h_0 = self.lstm_h[training_env_id_start]

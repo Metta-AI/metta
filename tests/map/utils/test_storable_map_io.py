@@ -2,11 +2,12 @@ import numpy as np
 from omegaconf import DictConfig
 
 from metta.map.utils.storable_map import StorableMap
+from metta.mettagrid.level_builder import map_grid_dtype
 from metta.mettagrid.util import file as file_utils
 
 
 def simple_map():
-    grid = np.array([["empty", "wall"], ["wall", "empty"]], dtype="<U50")
+    grid = np.array([["empty", "wall"], ["wall", "empty"]], dtype=map_grid_dtype)
     return StorableMap(grid, metadata={}, config=DictConfig({}))
 
 

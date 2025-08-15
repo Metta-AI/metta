@@ -3,6 +3,7 @@ import * as Common from './common.js'
 import { ctx, html, state, ui } from './common.js'
 import { onResize, requestFrame, updateStep } from './main.js'
 import { focusFullMap } from './worldmap.js'
+import { validateReplayData, validateReplayStep } from './validation.js'
 
 /** This represents a sequence of values sort of like a movie timeline. */
 export class Sequence<T> {
@@ -255,11 +256,12 @@ function fixReplay() {
   // Create action image mappings for faster access.
   state.replay.actionImages = []
   for (const actionName of state.replay.actionNames) {
-    const path = `trace/${actionName}.png`
-    if (ctx.hasImage(path)) {
-      state.replay.actionImages.push(path)
+    let imagePath = `trace/${actionName}.png`
+
+    if (ctx.hasImage(imagePath)) {
+      state.replay.actionImages.push(imagePath)
     } else {
-      console.warn('Action not supported: ', path)
+      console.warn('Action not supported: ', imagePath)
       state.replay.actionImages.push('trace/unknown.png')
     }
   }
@@ -467,8 +469,7 @@ function convertReplayV1ToV2(replayData: any) {
 
     if (gridObject.agent_id != null) {
       object.agent_id = gridObject.agent_id
-      object.is_object = true
-      object.is_frozen = gridObject['agent:frozen']
+      object.is_frozen = Boolean(gridObject['agent:frozen'])
       object.color = gridObject['agent:color']
       object.action_success = gridObject['action_success']
       object.group_id = gridObject['agent:group']
@@ -562,6 +563,10 @@ function loadReplayJson(url: string, replayJson: any) {
   }
 
   fixReplay()
+  // close the initial 'connecting' modal before we validate replay data.
+  // replay data will re-open the modal if there are validation issues.
+  Common.closeModal()
+  validateReplayData(state.replay)
 
   console.log('Replay: ', state.replay)
 
@@ -571,7 +576,6 @@ function loadReplayJson(url: string, replayJson: any) {
     html.fileName.textContent = url.split('/').pop() || 'unknown'
   }
 
-  Common.closeModal()
   focusFullMap(ui.mapPanel)
   updateAgentTable()
   onResize()
@@ -581,6 +585,8 @@ function loadReplayJson(url: string, replayJson: any) {
 
 /** Loads a single step of a replay. */
 export function loadReplayStep(replayStep: any) {
+  validateReplayStep(replayStep)
+
   // This gets us a simple replay step that we can overwrite.
 
   // Update the grid objects.
@@ -668,6 +674,9 @@ export function sendAction(actionName: string, actionParam: number) {
   if (state.selectedGridObject === null) {
     return
   }
+  if (actionName === '') {
+    throw new Error('Action name must be a non-empty string')
+  }
   const agentId = state.selectedGridObject.agentId
   if (agentId != null) {
     const actionId = state.replay.actionNames.indexOf(actionName)
@@ -706,6 +715,9 @@ export function propertyName(key: string) {
 
 /** Gets the icon of a resource, type or any other property. */
 export function propertyIcon(key: string) {
+  if (key === '') {
+    console.error('propertyIcon() called with empty string!')
+  }
   if (state.replay.typeNames.includes(key)) {
     return `data/atlas/objects/${key}.png`
   } else if (state.replay.itemNames.includes(key)) {

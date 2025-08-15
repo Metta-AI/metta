@@ -16,7 +16,7 @@ from omegaconf import DictConfig, ListConfig
 from metta.common.util.fs import get_repo_root
 from metta.common.util.logging_helpers import init_logging
 from metta.common.util.resolvers import register_resolvers
-from metta.util.init.mettagrid_environment import init_mettagrid_environment
+from metta.util.init.mettagrid_system import init_mettagrid_system_environment
 
 logger = logging.getLogger(__name__)
 
@@ -82,10 +82,18 @@ def metta_script(
 
         try:
             if cfg.py_agent:
-                # Convert py_agent string to a DictConfig with agent_type
+                # Convert py_agent string to a DictConfig with minimal config
+                # This matches the configuration that YAML agents get
                 # Remove .py extension if present
                 agent_type = cfg.py_agent.replace(".py", "")
-                cfg.agent = DictConfig({"agent_type": agent_type})
+                cfg.agent = DictConfig(
+                    {
+                        "agent_type": agent_type,
+                        "clip_range": 0,
+                        "analyze_weights_interval": 300,
+                        "observations": {"obs_key": "grid_obs"},
+                    }
+                )
         except AttributeError:
             logger.info("No py_agent specified, using the default agent.")
 
@@ -101,7 +109,7 @@ def metta_script(
         logger.info(f"Starting {main.__name__} from {script_path} with run_dir: {run_dir or 'not set'}")
 
         # Initialize the full mettagrid environment (includes device validation)
-        init_mettagrid_environment(cfg)
+        init_mettagrid_system_environment(cfg)
 
         logger.info("Environment setup completed")
 

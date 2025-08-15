@@ -3,14 +3,14 @@ from typing import Any, ClassVar, Literal
 from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.common.util.config import Config
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
 CheckpointFileType = Literal["pt", "safetensors", "pt_also_emit_safetensors"]
 
 
-class OptimizerConfig(BaseModelWithForbidExtra):
+class OptimizerConfig(Config):
     type: Literal["adam", "muon"] = "adam"
     # Learning rate: Type 2 default chosen by sweep
     learning_rate: float = Field(default=0.0004573146765703167, gt=0, le=1.0)
@@ -24,21 +24,21 @@ class OptimizerConfig(BaseModelWithForbidExtra):
     weight_decay: float = Field(default=0, ge=0)
 
 
-class PrioritizedExperienceReplayConfig(BaseModelWithForbidExtra):
+class PrioritizedExperienceReplayConfig(Config):
     # Alpha=0 disables prioritization (uniform sampling), Type 2 default to be updated by sweep
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
     # Beta0=0.6: From Schaul et al. (2016) "Prioritized Experience Replay" paper
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
 
 
-class VTraceConfig(BaseModelWithForbidExtra):
+class VTraceConfig(Config):
     # V-trace rho clipping at 1.0: From IMPALA paper (Espeholt et al., 2018), standard for on-policy
     vtrace_rho_clip: float = Field(default=1.0, gt=0)
     # V-trace c clipping at 1.0: From IMPALA paper (Espeholt et al., 2018), standard for on-policy
     vtrace_c_clip: float = Field(default=1.0, gt=0)
 
 
-class InitialPolicyConfig(BaseModelWithForbidExtra):
+class InitialPolicyConfig(Config):
     uri: str | None = None
     # Type="top": Empirical best performing
     type: Literal["top", "latest", "specific"] = "top"
@@ -49,7 +49,7 @@ class InitialPolicyConfig(BaseModelWithForbidExtra):
     filters: dict[str, Any] = Field(default_factory=dict)
 
 
-class CheckpointConfig(BaseModelWithForbidExtra):
+class CheckpointConfig(Config):
     # Checkpoint every 60s: Balance between recovery granularity and I/O overhead
     checkpoint_interval: int = Field(default=60, gt=0)
     # W&B every 5 min: Less frequent due to network overhead and storage costs
@@ -64,7 +64,7 @@ class CheckpointConfig(BaseModelWithForbidExtra):
         return self
 
 
-class SimulationConfig(BaseModelWithForbidExtra):
+class SimulationConfig(Config):
     # Interval at which to evaluate and generate replays: Type 2 arbitrary default
     evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
     replay_dir: str = Field(default="")
@@ -79,7 +79,7 @@ class SimulationConfig(BaseModelWithForbidExtra):
         return self
 
 
-class PPOConfig(BaseModelWithForbidExtra):
+class PPOConfig(Config):
     # PPO hyperparameters
     # Clip coefficient: 0.1 is conservative, common range 0.1-0.3 from PPO paper (Schulman et al., 2017)
     clip_coef: float = Field(default=0.1, gt=0, le=1.0)
@@ -111,7 +111,7 @@ class PPOConfig(BaseModelWithForbidExtra):
     target_kl: float | None = None
 
 
-class TorchProfilerConfig(BaseModelWithForbidExtra):
+class TorchProfilerConfig(Config):
     interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable
     # Upload location: None disables uploads, supports s3:// or local paths
     profile_dir: str = Field(default="")
@@ -126,7 +126,7 @@ class TorchProfilerConfig(BaseModelWithForbidExtra):
         return self
 
 
-class TrainerConfig(BaseModelWithForbidExtra):
+class TrainerConfig(Config):
     # Core training parameters
     # Total timesteps: Type 2 arbitrary default
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
