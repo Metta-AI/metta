@@ -12,13 +12,56 @@ settings:
   max_observations_to_load: 250
   sweep_server_uri: https://api.observatory.softmax-research.net
 
+schedule:
+  phases:
+    - name: "explore_cheap"
+      num_runs: 100 # 100 * 1800 = 180,000s
+      sweep:
+        protein:
+          max_suggestion_cost: 1800
+          random_suggestions: 18
+          expansion_rate: 0.18
+        parameters:
+          trainer:
+            total_timesteps: { mean: 300000000 }
+            batch_size: { mean: 524288 } # 2^19
+            minibatch_size: { mean: 8192 } # 2^13
+
+    - name: "exploit_medium"
+      num_runs: 70 # 70 * 3600 = 252,000s
+      sweep:
+        protein:
+          max_suggestion_cost: 3600
+          random_suggestions: 10
+          suggestions_per_pareto: 24
+          expansion_rate: 0.10
+        parameters:
+          trainer:
+            total_timesteps: { mean: 750000000 }
+            batch_size: { mean: 1048576 } # 2^20
+            minibatch_size: { mean: 16384 } # 2^14
+
+    - name: "peak_expensive"
+      num_runs: 11 # 11 * 7200 = 79,200s
+      sweep:
+        protein:
+          max_suggestion_cost: 7200
+          random_suggestions: 5
+          suggestions_per_pareto: 16
+          expansion_rate: 0.06
+        parameters:
+          trainer:
+            total_timesteps: { mean: 1000000000 } # 1B
+            batch_size: { mean: 1048576 } # 2^20
+            minibatch_size: { mean: 16384 } # 2^14
+
 # Otherwise common will mess with us
 run: null
 
 sim_name: arena
 sweep_job_overrides:
   trainer:
-    curriculum: /env/mettagrid/arena/advanced
+    curriculum: /env/mettagrid/arena/basic_easy_shaped
     simulation:
       evaluate_interval: 0 # No evaluation during training for speed
       replay_dir: "" # No replays for sweeps

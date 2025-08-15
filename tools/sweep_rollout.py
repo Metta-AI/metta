@@ -80,13 +80,15 @@ def run_single_rollout(cfg: DictConfig, original_args: list[str] | None = None) 
 
     # Generate configuration for the sweep run - get run name and protein suggestion
     # Only rank 0 does this, others wait
-    run_name, protein_suggestion = run_once(
+    result = run_once(
         lambda: prepare_sweep_run(cfg, logger),
     )
 
-    if run_name is None:
+    if result is None:
         logger.error("Failed to prepare sweep run")
         return 1
+
+    run_name, protein_suggestion = result
 
     logger.info(f"Prepared sweep run: {run_name}")
 
