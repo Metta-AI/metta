@@ -156,7 +156,7 @@ maybe_set_github_status() {
   uv run devops/skypilot/set_github_status.py || echo "[WARN] GitHub status update failed; continuing"
 }
 
-# Export the functions so they're available in subshells
+# Export the functions so they're available to sub-shells
 export -f maybe_send_discord_notification
 export -f maybe_set_github_status
 
@@ -426,7 +426,7 @@ cleanup() {
       echo "[INFO] Job terminated due to max runtime limit"
       export GITHUB_STATUS_STATE="success"
       export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
-      maybe_send_discord_notification "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
+      # maybe_send_discord_notification "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
       # Map to success
       CMD_EXIT=0
 
@@ -434,7 +434,7 @@ cleanup() {
       echo "[INFO] Job restarting for test purposes"
       export GITHUB_STATUS_STATE="pending"
       export GITHUB_STATUS_DESCRIPTION="Forced a restart test in run #${RESTART_COUNT}"
-      maybe_send_discord_notification "🔄" "SkyPilot Job Restarting (Test)" "${GITHUB_STATUS_DESCRIPTION}"
+      # maybe_send_discord_notification "🔄" "SkyPilot Job Restarting (Test)" "${GITHUB_STATUS_DESCRIPTION}"
       # Set exit code to trigger restart
       CMD_EXIT=1
       FINAL_EXIT_CODE=1
@@ -444,7 +444,7 @@ cleanup() {
       export GITHUB_STATUS_STATE="success"
       export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
       export TERMINATION_REASON="completed"
-      maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
+      # maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
 
     elif [[ $CMD_EXIT -eq $EXIT_NCCL_TEST_FAILURE ]]; then
       echo "[ERROR] Job failed during NCCL tests"
