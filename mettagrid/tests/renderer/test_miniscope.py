@@ -173,6 +173,18 @@ class TestMiniscopeRenderer:
         # Buffer should be different since grid changed
         assert second_buffer != third_buffer
 
+    def test_get_buffer_path(self, renderer):
+        """Exercise get_buffer to cover non-printing code path."""
+        grid_objects = {
+            0: {"type": 1, "r": 0, "c": 0},  # wall
+            1: {"type": 0, "r": 1, "c": 1, "agent_id": 0},  # agent 0
+        }
+
+        # Ensure bounds are computed and buffer is returned
+        buf = renderer.get_buffer(grid_objects)
+        assert isinstance(buf, str)
+        assert "🧱" in buf or "🤖" in buf or "⬜" in buf
+
     def test_empty_grid(self, renderer):
         """Test rendering an empty grid."""
         grid_objects = {}
