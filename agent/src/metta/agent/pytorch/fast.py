@@ -1,5 +1,6 @@
 import logging
 import math
+import warnings
 
 import einops
 import numpy as np
@@ -91,14 +92,10 @@ class Fast(LSTMWrapper):
         else:  # Inference: [B, obs_tokens, 3]
             B = observations.shape[0]
             TT = 1
-        
-        # Only set TensorDict keys if they don't exist (ComponentPolicy compatibility)
-        if "bptt" not in td:
-            # During training, TensorDict may already have proper shape
-            # Only set if we're in flat mode
-            if td.batch_dims == 1:
-                td["bptt"] = torch.full((B * TT,), TT, device=observations.device, dtype=torch.long)
-                td["batch"] = torch.full((B * TT,), B, device=observations.device, dtype=torch.long)
+
+        # Note: ComponentPolicy doesn't set bptt/batch in forward pass
+        # These are set by the training loop if needed
+        # We just use B and TT directly for our LSTM management
 
         # Use base class method for LSTM state management
         lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
@@ -107,10 +104,10 @@ class Fast(LSTMWrapper):
         # Forward LSTM
         hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, in_size)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
-        
+
         # Use base class method to store state with automatic detachment
         self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
-        
+
         flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
         # Decode
@@ -266,7 +263,7 @@ class Policy(nn.Module):
         # Track active actions
         self.active_action_names = []
         self.num_active_actions = 100  # Default
-        
+
         # Note: Weight tracking, clipping, and L2-init are now handled by MettaAgent's
         # default implementations. We only need to track effective_rank for critic_1
         # to match the YAML configuration's specific requirement.
@@ -318,40 +315,64 @@ class Policy(nn.Module):
     def encode_observations(self, observations, state=None):
         """
         Encode observations into a hidden representation.
-        """
 
+        This implementation matches ComponentPolicy's ObsTokenToBoxShaper exactly,
+        using scatter operation for efficient token placement.
+        """
         token_observations = observations
         B = token_observations.shape[0]
         TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
+        B_TT = B * TT
+
         if token_observations.dim() != 3:
             token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
 
         assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
-        token_observations[token_observations == 255] = 0
 
+        # Don't modify original tensor - ComponentPolicy doesn't do this
+        # token_observations[token_observations == 255] = 0  # REMOVED
+
+        # Extract coordinates and attributes (matching ObsTokenToBoxShaper exactly)
         coords_byte = token_observations[..., 0].to(torch.uint8)
-        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()
-        y_coord_indices = (coords_byte & 0x0F).long()
-        atr_indices = token_observations[..., 1].long()
-        atr_values = token_observations[..., 2].float()
+        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
+        y_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+        atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M]
+        atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
 
-        box_obs = torch.zeros(
-            (B * TT, self.num_layers, self.out_width, self.out_height),
-            dtype=atr_values.dtype,
-            device=token_observations.device,
-        )
-        batch_indices = torch.arange(B * TT, device=token_observations.device).unsqueeze(-1).expand_as(atr_values)
-
+        # Create mask for valid tokens (matching ComponentPolicy)
         valid_tokens = coords_byte != 0xFF
-        valid_tokens = valid_tokens & (x_coord_indices < self.out_width) & (y_coord_indices < self.out_height)
-        valid_tokens = valid_tokens & (atr_indices < self.num_layers)
 
-        box_obs[
-            batch_indices[valid_tokens],
-            atr_indices[valid_tokens],
-            x_coord_indices[valid_tokens],
-            y_coord_indices[valid_tokens],
-        ] = atr_values[valid_tokens]
+        # Additional validation: ensure atr_indices are within valid range
+        valid_atr = atr_indices < self.num_layers
+        valid_mask = valid_tokens & valid_atr
+
+        # Log warning for out-of-bounds indices (matching ComponentPolicy)
+        invalid_atr_mask = valid_tokens & ~valid_atr
+        if invalid_atr_mask.any():
+            invalid_indices = atr_indices[invalid_atr_mask].unique()
+            warnings.warn(
+                f"Found observation attribute indices {sorted(invalid_indices.tolist())} "
+                f">= num_layers ({self.num_layers}). These tokens will be ignored. "
+                f"This may indicate the policy was trained with fewer observation channels.",
+                stacklevel=2,
+            )
+
+        # Use scatter-based write to avoid multi-dim advanced indexing (matching ComponentPolicy)
+        # Compute flattened spatial index and a combined index that encodes (layer, x, y)
+        flat_spatial_index = x_coord_indices * self.out_height + y_coord_indices  # [B_TT, M]
+        dim_per_layer = self.out_width * self.out_height
+        combined_index = atr_indices * dim_per_layer + flat_spatial_index  # [B_TT, M]
+
+        # Mask out invalid entries by directing them to index 0 with value 0
+        safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
+        safe_values = torch.where(valid_mask, atr_values, torch.zeros_like(atr_values))
+
+        # Scatter values into a flattened buffer, then reshape to [B_TT, L, W, H]
+        box_flat = torch.zeros(
+            (B_TT, self.num_layers * dim_per_layer), dtype=atr_values.dtype, device=token_observations.device
+        )
+        box_flat.scatter_(1, safe_index, safe_values)
+        box_obs = box_flat.view(B_TT, self.num_layers, self.out_width, self.out_height)
 
         return self.network_forward(box_obs)
 
@@ -392,9 +413,9 @@ class Policy(nn.Module):
         logits = biased_scores.reshape(batch_size, num_actions)
 
         return logits, value
-    
+
     # Note: The following methods are now handled by MettaAgent's default implementations:
-    # - _store_initial_weights() 
+    # - _store_initial_weights()
     # - clip_weights()
     # - l2_init_loss()
     # - update_l2_init_weight_copy()
