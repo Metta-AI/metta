@@ -9,3 +9,7 @@ tasks:
   /env/mettagrid/navigation/training/varied_terrain_dense: 1
   /env/mettagrid/curriculum/navigation/subcurricula/sparse: 1
   /env/mettagrid/navigation/training/sparse_bucketed: 1
+  /env/mettagrid/systematic_exploration_memory/evals/boxout: 1
+  /env/mettagrid/systematic_exploration_memory/evals/choose_wisely: 1
+  /env/mettagrid/systematic_exploration_memory/evals/corners: 1
+  

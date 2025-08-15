@@ -36,6 +36,14 @@ class Losses:
         self.current_logprobs_sum = 0.0
         self.explained_variance = 0.0
         self.minibatches_processed = 0
+        # Contrastive aggregates
+        self.contrastive_loss_sum = 0.0
+        self.contrastive_infonce_sum = 0.0
+        self.contrastive_logsumexp_sum = 0.0
+        self.contrastive_var_loss_sum = 0.0
+        self.contrastive_pos_sim_sum = 0.0
+        self.contrastive_neg_sim_sum = 0.0
+        self.contrastive_batch_std_sum = 0.0
 
     def stats(self) -> dict[str, float]:
         """Convert losses to dictionary with proper averages."""
@@ -54,11 +62,19 @@ class Losses:
             "importance": self.importance_sum / n,
             "explained_variance": self.explained_variance,
             "current_logprobs": self.current_logprobs_sum / n,
+            # Contrastive means
+            "contrastive_loss": self.contrastive_loss_sum / n,
+            "contrastive_infonce": self.contrastive_infonce_sum / n,
+            "contrastive_logsumexp": self.contrastive_logsumexp_sum / n,
+            "contrastive_var_loss": self.contrastive_var_loss_sum / n,
+            "contrastive_pos_sim": self.contrastive_pos_sim_sum / n,
+            "contrastive_neg_sim": self.contrastive_neg_sim_sum / n,
+            "contrastive_batch_std": self.contrastive_batch_std_sum / n,
         }
 
 
 def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dtype) -> Composite:
-    scalar_f32 = UnboundedContinuous(shape=(), dtype=torch.float32)
+    scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
     return Composite(
         rewards=scalar_f32,
@@ -127,6 +143,35 @@ def process_minibatch_update(
         adv,
         trainer_cfg,
     )
+
+    # Optional: add contrastive InfoNCE policy term in addition to PPO
+    if getattr(trainer_cfg, "contrastive", None) is not None and trainer_cfg.contrastive.enabled:
+        # Merge minibatch (replay fields) with policy outputs (which may contain hidden states)
+        contrastive_td = minibatch.clone()
+        contrastive_td.update(policy_td)
+
+        from metta.rl.infonce import compute_infonce_losses as _compute_infonce_losses
+
+        inf_pg_loss, _, _, _, _, contrastive_metrics = _compute_infonce_losses(
+            contrastive_td,
+            new_logprob,
+            entropy,
+            newvalue,
+            importance_sampling_ratio,
+            adv,
+            trainer_cfg,
+        )
+        # Add weighted InfoNCE loss to total policy loss
+        pg_loss = pg_loss + trainer_cfg.contrastive.coef * inf_pg_loss
+
+        # Aggregate contrastive metrics for logging (assumed to exist)
+        losses.contrastive_loss_sum += float(contrastive_metrics["contrastive_loss"])
+        losses.contrastive_infonce_sum += float(contrastive_metrics["contrastive_infonce"])
+        losses.contrastive_logsumexp_sum += float(contrastive_metrics["contrastive_logsumexp"])
+        losses.contrastive_var_loss_sum += float(contrastive_metrics["contrastive_var_loss"])
+        losses.contrastive_pos_sim_sum += float(contrastive_metrics["contrastive_pos_sim"])
+        losses.contrastive_neg_sim_sum += float(contrastive_metrics["contrastive_neg_sim"])
+        losses.contrastive_batch_std_sum += float(contrastive_metrics["contrastive_batch_std"])
 
     # Kickstarter losses
     ks_action_loss, ks_value_loss = kickstarter.loss(
