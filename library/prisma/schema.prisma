@@ -98,6 +98,8 @@ model Comment {
   postId    String
   authorId  String
   parentId  String?
+  isBot     Boolean   @default(false)
+  botType   String?   // e.g., "library_bot"
   createdAt DateTime  @default(now())
   updatedAt DateTime  @default(now()) @updatedAt
   post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)

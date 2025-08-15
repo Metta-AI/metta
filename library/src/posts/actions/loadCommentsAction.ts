@@ -25,6 +25,8 @@ function buildCommentTree(
     content: comment.content,
     postId: comment.postId,
     parentId: comment.parentId,
+    isBot: comment.isBot,
+    botType: comment.botType,
     author: {
       id: comment.author.id,
       name: comment.author.name,
