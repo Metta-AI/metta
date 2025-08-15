@@ -41,9 +41,12 @@ losses:
     vtrace:
       rho_clip: 1.0 # Default: on-policy (no off-policy correction)
       c_clip: 1.0 # Default: on-policy bootstrapping
+
 dynamics:
   path: metta.rl.loss.dynamics.Dynamics
-  loss_coef: 1.0
+  returns_step_look_ahead: 2
+  returns_pred_coef: 0.3
+  reward_pred_coef: 0.3
 
 optimizer:
   type: adam
@@ -55,7 +58,7 @@ optimizer:
   clip_grad_norm: 0
 
 leaf_components: # output heads
-  - value_pred
+  - returns_pred
   - reward_pred
   - _action_
   - _value_
@@ -101,22 +104,22 @@ components:
     sources:
       - name: obs_flattener
     nn_params:
-      out_features: 256
+      out_features: 128
 
   encoded_obs:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
       - name: fc1
     nn_params:
-      out_features: 512
+      out_features: 128
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
       - name: encoded_obs
     nn_params:
-      hidden_size: 512
-      num_layers: 3
+      hidden_size: 128
+      num_layers: 2
 
   actor_core_merger:
     _target_: metta.agent.lib.merge_layer.ConcatMergeLayer
@@ -167,7 +170,7 @@ components:
       - name: actor_query
       - name: _action_embeds_
 
-  value_pred:
+  returns_pred:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
       - name: critic_1
