@@ -221,6 +221,23 @@ export default function NavigablePaperOverlay({
           </div>
         </div>
 
+        {/* Tags */}
+        {paper.tags && paper.tags.length > 0 && (
+          <div className="mb-6">
+            <h3 className="mb-3 text-sm font-medium text-gray-700">Tags</h3>
+            <div className="flex flex-wrap gap-2">
+              {paper.tags.map((tag, index) => (
+                <span
+                  key={index}
+                  className="inline-block rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Abstract */}
         {paper.abstract && (
           <div>
@@ -228,23 +245,6 @@ export default function NavigablePaperOverlay({
             <p className="text-lg leading-relaxed text-gray-900">
               {paper.abstract}
             </p>
-          </div>
-        )}
-
-        {/* Topic tags */}
-        {paper.tags && paper.tags.length > 0 && (
-          <div>
-            <h3 className="mb-2 text-sm font-medium text-gray-700">Topics</h3>
-            <div className="flex flex-wrap gap-2">
-              {paper.tags.map((tag, index) => (
-                <span
-                  key={index}
-                  className="inline-block rounded-full bg-gray-100 px-3 py-1 text-sm text-gray-700"
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
           </div>
         )}
 

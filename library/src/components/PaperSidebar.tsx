@@ -194,6 +194,23 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
         <InstitutionsSection institutions={paper.institutions} />
       )}
 
+      {/* Tags */}
+      {paper.tags && paper.tags.length > 0 && (
+        <div className="mb-6">
+          <h4 className="mb-3 font-semibold text-gray-900">Tags</h4>
+          <div className="flex flex-wrap gap-2">
+            {paper.tags.map((tag, index) => (
+              <span
+                key={index}
+                className="inline-block rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Enhanced Abstract or Original Abstract */}
       {paper.llmAbstract ? (
         <LLMAbstractView
@@ -218,23 +235,6 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
           </div>
         </div>
       ) : null}
-
-      {/* Tags */}
-      {paper.tags && paper.tags.length > 0 && (
-        <div className="mb-6">
-          <h4 className="mb-3 font-semibold text-gray-900">Tags</h4>
-          <div className="flex flex-wrap gap-2">
-            {paper.tags.map((tag, index) => (
-              <span
-                key={index}
-                className="inline-block rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Timestamps */}
       <div className="mt-6 border-t border-gray-200 pt-4">
