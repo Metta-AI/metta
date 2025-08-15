@@ -431,7 +431,12 @@ cleanup() {
       CMD_EXIT=0
 
     elif [[ "${TERMINATION_REASON}" == "force_restart_test" ]]; then
-      echo "[INFO] Will exit with code 1 to trigger SkyPilot restart (test)"
+      echo "[INFO] Job restarting for test purposes"
+      export GITHUB_STATUS_STATE="pending"
+      export GITHUB_STATUS_DESCRIPTION="Forced a restart test in run #${RESTART_COUNT}"
+      maybe_send_discord_notification "🔄" "SkyPilot Job Restarting (Test)" "${GITHUB_STATUS_DESCRIPTION}"
+      # Set exit code to trigger restart
+      CMD_EXIT=1
       FINAL_EXIT_CODE=1
 
     elif [[ $CMD_EXIT -eq $EXIT_SUCCESS ]]; then
