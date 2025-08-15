@@ -95,8 +95,8 @@ class Fast(LSTMWrapper):
 
             td["act_log_prob"] = selected_log_probs.view(B, TT)
             td["entropy"] = entropy.view(B, TT)
-            td["full_log_probs"] = action_log_probs.view(B, T, -1)
-            td["value"] = value.view(B, TT)
+            td["full_log_probs"] = action_log_probs.view(B, TT, -1)
+            td["value"] = value.view(B, TT, -1)
 
         return td
 
