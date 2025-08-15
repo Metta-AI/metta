@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Clean ColorTree Experiments Launcher
-# Now uses auto-generation - no need for separate curriculum files per color count!
+# Uses pre-created curriculum files for each step/color combination
 
 # Generate random seed if not provided
 SEED=${1:-$RANDOM}
@@ -13,9 +13,9 @@ for steps in 16 32 64; do
     for num_colors in 2 3 4 5; do
         # Determine curriculum name based on steps
         if [ "$steps" -eq 64 ]; then
-            curriculum="colortree_easy_random"
+            curriculum="colortree_easy_${num_colors}colors"
         else
-            curriculum="colortree_easy_${steps}step_random"
+            curriculum="colortree_easy_${steps}step_${num_colors}colors"
         fi
 
         # Launch the run
@@ -30,7 +30,6 @@ for steps in 16 32 64; do
         python devops/skypilot/launch.py train \
             run=$run_name \
             trainer.curriculum=env/mettagrid/curriculum/${curriculum} \
-            +trainer.curriculum.num_colors=$num_colors \
             sim=colortree_nosim \
             seed=$SEED
 
@@ -38,4 +37,6 @@ for steps in 16 32 64; do
     done
 done
 
-
+echo ""
+echo "All runs launched!"
+echo "Total: $(( 3 * 4 )) experiments (3 step counts × 4 color counts)"
