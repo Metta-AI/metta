@@ -182,11 +182,6 @@ class ScorecardWidget(anywidget.AnyWidget):
             "availableMetrics": metrics,
         }
         self.selected_metric = selected_metric or ""
-        print(
-            f"📊 Multi-metric data set with {len(policy_names)} policies and {len(eval_names)} evaluations"
-        )
-        print(f"📈 Available metrics: {', '.join(metrics)}")
-        print(f"📈 Selected metric: {selected_metric}")
 
     def update_metric(self, metric: str):
         """Update the selected metric.
