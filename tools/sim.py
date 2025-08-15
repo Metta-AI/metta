@@ -110,6 +110,8 @@ def main(cfg: DictConfig) -> None:
             selector_type=sim_job.selector_type,
             n=1,
             metric=sim_job.simulation_suite.name + "_score",
+            stats_client=stats_client,
+            eval_name=sim_job.simulation_suite.name,
         )
         for policy_uri in sim_job.policy_uris
     }

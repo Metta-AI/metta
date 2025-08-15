@@ -1,7 +1,8 @@
 {
+  "name": "@softmax/eval_finder_widget",
   "type": "module",
   "scripts": {
-    "build": "./should_build.sh 1",
+    "build": "vite build",
     "dev": "vite --port 5175"
   },
   "devDependencies": {
