@@ -250,11 +250,3 @@ class TrainerConfig(Config):
             )
 
         return self
-
-    @property
-    def curriculum_or_env(self) -> str:
-        if self.curriculum:
-            return self.curriculum
-        if self.env:
-            return self.env
-        raise ValueError("curriculum or env must be set")

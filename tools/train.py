@@ -9,7 +9,7 @@ from logging import Logger
 from typing import Any, Optional
 
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 from pydantic import Field
 from torch.distributed.elastic.multiprocessing.errors import record
 
@@ -19,9 +19,8 @@ from metta.common.util.config import Config
 from metta.common.util.git import get_git_hash_for_remote_task
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.logging_helpers import init_logging
-from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff, WandbContext, WandbRun
-from metta.core.distributed import setup_device_and_distributed
+from metta.core.distributed import TorchDistributedConfig, setup_torch_distributed
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
@@ -36,8 +35,9 @@ class TrainToolConfig(Config):
     policy_architecture: Any
     run: str
     run_dir: Optional[str] = None
+
     # Stats server configuration
-    stats_server_uri: str = "https://api.observatory.softmax-research.net"
+    stats_server_uri: Optional[str] = "https://api.observatory.softmax-research.net"
 
     # Policy configuration
     policy_uri: Optional[str] = None
@@ -61,7 +61,7 @@ class TrainToolConfig(Config):
         # Set up checkpoint and replay directories
         if not self.trainer.checkpoint.checkpoint_dir:
             self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
-        if not self.trainer.evaluation.replay_dir:
+        if self.trainer.evaluation and not self.trainer.evaluation.replay_dir:
             self.trainer.evaluation.replay_dir = f"{self.run_dir}/replays/"
 
     def to_mini(self) -> "TrainToolConfig":
@@ -102,49 +102,21 @@ def calculate_default_num_workers(is_serial: bool) -> int:
     return max(1, num_workers)
 
 
-def get_policy_store(cfg: TrainToolConfig, wandb_run: WandbRun | None = None) -> PolicyStore:
-    """Create policy store from configuration."""
-    wandb_config = cfg.wandb
-
-    # Extract entity and project from wandb config if it's enabled
-    wandb_entity = None
-    wandb_project = None
-    if isinstance(wandb_config, WandbConfigOff):
-        wandb_entity = None
-        wandb_project = None
-    else:
-        # It's WandbConfigOn which has entity and project
-        wandb_entity = getattr(wandb_config, "entity", None)
-        wandb_project = getattr(wandb_config, "project", None)
-
-    policy_store = PolicyStore(
-        device=cfg.system.device,
-        wandb_run=wandb_run,
-        data_dir=cfg.system.data_dir,
-        wandb_entity=wandb_entity,
-        wandb_project=wandb_project,
-    )
-    return policy_store
-
-
-def handle_train(cfg: TrainToolConfig, wandb_run: WandbRun | None, logger: Logger):
+def handle_train(
+    cfg: TrainToolConfig, torch_dist_cfg: TorchDistributedConfig, wandb_run: WandbRun | None, logger: Logger
+):
     """Handle the training process."""
+    assert cfg.run_dir is not None
+    assert cfg.run is not None
 
     # Set default num_workers if not set
     if cfg.trainer.num_workers == 1 and cfg.system.vectorization == "multiprocessing":
         cfg.trainer.num_workers = calculate_default_num_workers(cfg.system.vectorization == "serial")
+        logger.info(f"Setting num_workers to {cfg.trainer.num_workers} based on hardware")
 
-    # Create stats client if configured
-    # Create a temporary DictConfig for stats client creation
-    stats_cfg = DictConfig(
-        {
-            "stats_server_uri": cfg.stats_server_uri,
-            "run_dir": cfg.run_dir,
-        }
-    )
-    stats_client: StatsClient | None = get_stats_client(stats_cfg, logger)
-    if stats_client is not None:
-        stats_client.validate_authenticated()
+    stats_client: StatsClient | None = None
+    if cfg.stats_server_uri is not None:
+        stats_client = StatsClient.create(cfg.stats_server_uri)
 
     # Determine git hash for remote simulations
     if cfg.trainer.evaluation and cfg.trainer.evaluation.evaluate_remote:
@@ -167,10 +139,9 @@ def handle_train(cfg: TrainToolConfig, wandb_run: WandbRun | None, logger: Logge
 
     # Save configuration
     if os.environ.get("RANK", "0") == "0":  # master only
-        logger.info("Trainer config:\n%s", cfg.trainer.model_dump_json(indent=2))
-        os.makedirs(cfg.run_dir, exist_ok=True)
         with open(os.path.join(cfg.run_dir, "config.json"), "w") as f:
             f.write(cfg.model_dump_json(indent=2))
+            logger.info(f"Config saved to {os.path.join(cfg.run_dir, 'config.json')}")
 
     # Handle distributed training batch scaling
     if torch.distributed.is_initialized():
@@ -181,7 +152,12 @@ def handle_train(cfg: TrainToolConfig, wandb_run: WandbRun | None, logger: Logge
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
-    policy_store = get_policy_store(cfg, wandb_run)
+    policy_store = PolicyStore.create(
+        device=cfg.system.device,
+        data_dir=cfg.system.data_dir,
+        wandb_config=cfg.wandb,
+        wandb_run=wandb_run,
+    )
 
     # Use the functional train interface directly
     train(
@@ -194,6 +170,7 @@ def handle_train(cfg: TrainToolConfig, wandb_run: WandbRun | None, logger: Logge
         wandb_run=wandb_run,
         policy_store=policy_store,
         stats_client=stats_client,
+        torch_dist_cfg=torch_dist_cfg,
     )
 
 
@@ -202,7 +179,9 @@ def main(cfg: TrainToolConfig) -> int:
     """Main training entry point."""
     record_heartbeat()
 
-    # Initialize logging
+    assert cfg.run_dir is not None
+    os.makedirs(cfg.run_dir, exist_ok=True)
+
     init_logging(run_dir=cfg.run_dir)
 
     logger.info(
@@ -211,18 +190,14 @@ def main(cfg: TrainToolConfig) -> int:
         + f"{os.environ.get('LOCAL_RANK', '0')} ({cfg.system.device})"
     )
 
-    # Use shared distributed setup function
-    device, is_master, world_size, rank = setup_device_and_distributed(cfg.system.device)
-
-    # Update device to include the local rank if distributed
-    cfg.system.device = str(device)
+    torch_dist_cfg = setup_torch_distributed(cfg.system.device)
 
     logger.info(f"Training {cfg.run} on {cfg.system.device}")
-    if is_master:
+    if torch_dist_cfg.is_master:
         with WandbContext(cfg.wandb, cfg) as wandb_run:
-            handle_train(cfg, wandb_run, logger)
+            handle_train(cfg, torch_dist_cfg, wandb_run, logger)
     else:
-        handle_train(cfg, None, logger)
+        handle_train(cfg, torch_dist_cfg, None, logger)
 
     if torch.distributed.is_initialized():
         torch.distributed.destroy_process_group()
@@ -238,11 +213,7 @@ if __name__ == "__main__":
 
     init_logging()
 
-    if args.cfg:
-        with open(args.cfg, "r") as f:
-            cfg = TrainToolConfig.model_validate_json(f.read())
-    else:
-        module_name, func_name = args.func.rsplit(".", 1)
-        cfg = importlib.import_module(module_name).__getattribute__(func_name)()
+    module_name, func_name = args.func.rsplit(".", 1)
+    cfg = importlib.import_module(module_name).__getattribute__(func_name)()
 
     main(cfg)
