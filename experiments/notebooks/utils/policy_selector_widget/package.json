@@ -1,9 +1,9 @@
 {
-  "name": "@softmax/eval_finder_widget",
+  "name": "@softmax/policy_selector_widget",
   "type": "module",
   "scripts": {
     "build": "vite build",
-    "dev": "vite --port 5175"
+    "dev": "vite --port 5176"
   },
   "devDependencies": {
     "@anywidget/vite": "^0.2.1",
@@ -12,11 +12,12 @@
     "vite-plugin-node-polyfills": "^0.24.0"
   },
   "dependencies": {
-    "react": "^19.1.1",
-    "react-dom": "^19.1.1",
+    "@anywidget/react": "^0.2.0",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
-    "typescript": "^5.9.2",
-    "@anywidget/react": "^0.2.0"
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "scheduler": "^0.26.0",
+    "typescript": "^5.9.2"
   }
 }
