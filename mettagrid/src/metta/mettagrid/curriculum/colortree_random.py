@@ -41,8 +41,10 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
         super().__init__(tasks, env_overrides)
         self._last_selected_sequence: list[int] | None = None
         self._episode_count = 0  # Initialize here instead of in get_task
-        # Independent RNG to avoid any external global seeding affecting episode sampling
+        # Create a unique RNG with a random seed for this curriculum instance
         self._rng = random.Random(int.from_bytes(os.urandom(8), "big"))
+        # Counter to ensure diversity across parallel calls
+        self._call_counter = 0
 
         # Auto-detect parameters from base config
         # NOTE: This creates a sample task just to inspect config, which could have side effects
@@ -102,8 +104,17 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
         task = super().get_task()
         env_cfg = task.env_cfg()
 
+        # Use call counter to seed selection for diversity
+        # This ensures different parallel environments get different sequences
+        self._call_counter += 1
+
+        # Create a temporary RNG seeded with both the base RNG and call counter
+        # This ensures reproducibility while maintaining diversity
+        temp_seed = self._rng.randint(0, 2**31) + self._call_counter
+        temp_rng = random.Random(temp_seed)
+
         # Select a random sequence from the pool
-        selected_sequence = self._rng.choice(self.sequence_pool)
+        selected_sequence = temp_rng.choice(self.sequence_pool)
         self._last_selected_sequence = selected_sequence
 
         # Debug logging for first few episodes
@@ -154,4 +165,5 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
             "selected_sequence": selected,
             "sequence_pool_size": len(self.sequence_pool),
             "episode_count": self._episode_count,
+            "call_count": self._call_counter,  # Track how many times get_task has been called
         }
