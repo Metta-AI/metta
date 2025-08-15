@@ -20,25 +20,25 @@ function EvalFinderWidget() {
       evalData={evalData}
       selectedEvals={selectedEvals || []}
       categoryFilter={categoryFilter || []}
-      viewMode={(viewMode as "tree" | "list" | "category") || "category"}
-      searchTerm={searchTerm || ""}
+      viewMode={(viewMode || 'category') as 'tree' | 'list' | 'category'}
+      searchTerm={searchTerm || ''}
       showPrerequisites={showPrerequisites !== false}
       onSelectionChange={(selected: string[]) => {
         setSelectedEvals(selected)
         setSelectionChanged({
           selected_evals: selected,
           action: 'updated',
-          timestamp: Date.now()
+          timestamp: Date.now(),
         })
       }}
       onFilterChange={(filters: any) => {
         setCategoryFilter(filters.categoryFilter || [])
-        setSearchTerm(filters.searchTerm || "")
-        setViewMode(filters.viewMode || "category")
+        setSearchTerm(filters.searchTerm || '')
+        setViewMode(filters.viewMode || 'category')
         setShowPrerequisites(filters.showPrerequisites !== false)
         setFilterChanged({
           ...filters,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         })
       }}
     />
