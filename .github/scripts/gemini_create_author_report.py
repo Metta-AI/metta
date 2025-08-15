@@ -8,7 +8,6 @@
 
 import json
 import logging
-import os
 import random
 import sys
 from pathlib import Path
@@ -16,6 +15,7 @@ from pathlib import Path
 from gemini_analyze_pr import PRSummary
 from gemini_analyze_pr_digest import (
     PRDigestAnalyzer,
+    PreviousReportExtractor,
     load_digest_data,
     save_new_summaries,
     save_structured_data,
@@ -28,6 +28,40 @@ class AuthorReportGenerator:
 
     def __init__(self, ai_client: GeminiAIClient):
         self.ai_client = ai_client
+        self.author_report_extractor = PreviousReportExtractor(report_type="author-report")
+
+    def get_previous_reports_context(self, author: str, max_reports: int = 3) -> str:
+        """Format recent author reports as markdown context for prompt."""
+        summaries = self.author_report_extractor.get_recent_summaries(max_reports)
+
+        filtered = [s for s in summaries if s.get("author", "").lower() == author.lower()]
+        if not filtered:
+            return ""
+
+        context_lines = [f"**PREVIOUS PERFORMANCE REVIEWS FOR {author.upper()}:**"]
+
+        for s in filtered:
+            period = s.get("period", "Unknown")
+            date = s.get("date", "Unknown")
+            total_prs = s.get("total_prs", "N/A")
+            avg_scores = s.get("average_scores", {})
+            code_score = avg_scores.get("code_quality", "N/A")
+            test_score = avg_scores.get("testing", "N/A")
+            categories = s.get("categories", {})
+            categories_str = ", ".join(f"{k}: {v}" for k, v in categories.items())
+
+            context_lines.extend(
+                [
+                    f"\n- **Period:** {period} ({date})",
+                    f"  • Total PRs: {total_prs}",
+                    f"  • Code Quality: {code_score}/10",
+                    f"  • Testing: {test_score}/10",
+                    f"  • Categories: {categories_str}",
+                ]
+            )
+
+        context_lines.append("\n**END OF PREVIOUS REVIEWS**\n")
+        return "\n".join(context_lines)
 
     def calculate_author_stats(self, pr_summaries: list[PRSummary]) -> dict:
         """Calculate aggregate statistics for an author."""
@@ -181,51 +215,6 @@ class AuthorReportGenerator:
             stats["documentation_rate"] = round((has_documentation_updates / total_prs) * 100, 1)
 
         return stats
-
-    def get_previous_reports_context(self, author: str) -> str:
-        """Extract context from previous author reports if available."""
-        previous_reports_dir = Path(os.getenv("PREVIOUS_REPORTS_DIR", "previous-reports"))
-
-        if not previous_reports_dir.exists():
-            return ""
-
-        context_parts = ["**PREVIOUS PERFORMANCE REVIEWS:**"]
-        reports_found = False
-
-        # Look for previous report artifacts
-        for report_path in previous_reports_dir.glob("*/author_report_summary.json"):
-            try:
-                with open(report_path, "r") as f:
-                    summary = json.load(f)
-
-                if summary.get("author", "").lower() == author.lower():
-                    reports_found = True
-                    period = summary.get("period", "Unknown")
-                    total_prs = summary.get("total_prs", 0)
-                    avg_scores = summary.get("average_scores", {})
-                    code_score = avg_scores.get("code_quality", "N/A")
-                    test_score = avg_scores.get("testing", "N/A")
-                    categories = summary.get("categories", {})
-                    categories_str = ", ".join(f"{k}: {v}" for k, v in categories.items())
-
-                    context_parts.extend(
-                        [
-                            f"\nPeriod: {period}",
-                            f"- Total PRs: {total_prs}",
-                            f"- Average Scores: Code {code_score}/10, Testing {test_score}/10",
-                            f"- Categories: {categories_str}",
-                        ]
-                    )
-
-            except Exception as e:
-                logging.warning(f"Error reading previous report: {e}")
-                continue
-
-        if not reports_found:
-            return ""
-
-        context_parts.append("\n**END OF PREVIOUS REVIEWS**\n")
-        return "\n".join(context_parts)
 
     def get_bonus_prompt(self) -> str:
         prompts = [
