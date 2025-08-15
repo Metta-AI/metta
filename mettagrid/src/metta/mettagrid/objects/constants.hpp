@@ -59,6 +59,7 @@ constexpr ObservationType Glyph = 12;
 constexpr ObservationType ResourceRewards = 13;
 constexpr ObservationType VisitationCounts = 14;
 constexpr ObservationType ObservationFeatureCount = 15;
+constexpr ObservationType Genome = 16;
 }  // namespace ObservationFeature
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
