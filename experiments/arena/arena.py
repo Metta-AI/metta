@@ -9,7 +9,6 @@ from metta.sim.simulation_config import SimulationConfig
 from tools.play import PlayToolConfig
 from tools.replay import ReplayToolConfig
 from tools.train import TrainToolConfig
-from tools.utils import calculate_default_num_workers
 
 arena = eb.make_arena(num_agents=24)
 arena.game.actions.swap.enabled = False
@@ -61,12 +60,9 @@ def make_play_tool_cfg() -> PlayToolConfig:
 
 
 def make_train_tool_cfg() -> TrainToolConfig:
-    system = SystemConfig.MacBookPro()
     run = "daveey-test-run-3"
 
     trainer_cfg = TrainerConfig()
-    trainer_cfg.num_workers = calculate_default_num_workers(is_serial=True)
-    trainer_cfg.checkpoint.checkpoint_dir = f"arena/{run}/checkpoints"
     trainer_cfg.curriculum = curriculum_cfg
     trainer_cfg.evaluation = EvaluationConfig(
         replay_dir=f"s3://softmax-public/replays/{run}",
@@ -78,9 +74,8 @@ def make_train_tool_cfg() -> TrainToolConfig:
     )
 
     return TrainToolConfig(
-        system=system,
         trainer=trainer_cfg,
         wandb=softmax.wandb_config(run=run),
         run="daveey-arena",
         policy_architecture=yaml.safe_load(open("configs/agent/fast.yaml")),
-    ).to_mini()
+    )
