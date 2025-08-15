@@ -10,6 +10,7 @@ import { createCommentAction } from "@/posts/actions/createCommentAction";
 import { loadCommentsAction } from "@/posts/actions/loadCommentsAction";
 import { deleteCommentAction } from "@/posts/actions/deleteCommentAction";
 import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
+import { ThreadedComment } from "@/posts/components/ThreadedComment";
 import { linkifyText } from "@/lib/utils/linkify";
 
 interface PostDiscussionProps {
@@ -270,56 +271,23 @@ export const PostDiscussion: FC<PostDiscussionProps> = ({
           </div>
         ) : comments.length > 0 ? (
           comments.map((comment) => (
-            <div
+            <ThreadedComment
               key={comment.id}
-              className="rounded-lg border border-gray-200 bg-white p-4"
-            >
-              {/* Comment header */}
-              <div className="mb-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
-                    {getUserInitials(comment.author.name, comment.author.email)}
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="font-semibold text-gray-900">
-                      {comment.author.name ||
-                        comment.author.email?.split("@")[0] ||
-                        "Unknown User"}
-                    </span>
-                    <span className="text-gray-500">·</span>
-                    <span className="text-gray-500">
-                      {formatRelativeTime(comment.createdAt)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Delete button for comment author */}
-                {currentUser && currentUser.id === comment.author.id && (
-                  <button
-                    onClick={() => handleDeleteComment(comment.id)}
-                    disabled={isDeletingComment}
-                    className="p-1 text-gray-400 transition-colors hover:text-red-600"
-                  >
-                    <svg
-                      className="h-4 w-4"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 112 0v4a1 1 0 11-2 0V9zm4 0a1 1 0 112 0v4a1 1 0 11-2 0V9z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                )}
-              </div>
-
-              {/* Comment content */}
-              <div className="leading-relaxed whitespace-pre-wrap text-gray-900">
-                {linkifyText(comment.content)}
-              </div>
-            </div>
+              comment={comment}
+              postId={post.id}
+              currentUser={currentUser}
+              onCommentUpdated={() => {
+                const formData = new FormData();
+                formData.append("postId", post.id);
+                executeLoadComments(formData);
+              }}
+              onCommentDeleted={() => {
+                // Just refresh comments when a deletion is completed
+                const formData = new FormData();
+                formData.append("postId", post.id);
+                executeLoadComments(formData);
+              }}
+            />
           ))
         ) : (
           <div className="py-8 text-center">
