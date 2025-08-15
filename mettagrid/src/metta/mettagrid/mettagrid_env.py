@@ -66,6 +66,23 @@ def required(func):
     return func
 
 
+def original_reward_strategy(trial_rewards, npc_group, trained_group, **kwargs):
+    pass  # No modification
+
+
+def facilitator_reward_strategy(trial_rewards, npc_group, trained_group, **kwargs):
+    facilitator_reward = trial_rewards[npc_group].sum().item()
+    for idx in trained_group:
+        trial_rewards[idx] = facilitator_reward
+
+
+def mixed_reward_strategy(trial_rewards, npc_group, trained_group, mix_coef=0.5, **kwargs):
+    facilitator_reward = trial_rewards[npc_group].sum().item()
+    for idx in trained_group:
+        original = trial_rewards[idx]
+        trial_rewards[idx] = mix_coef * facilitator_reward + (1 - mix_coef) * original
+
+
 class MettaGridEnv(PufferEnv, GymEnv):
     # Type hints for attributes defined in the C++ extension to help Pylance
     observations: np.ndarray
@@ -330,21 +347,40 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 infos["dual_policy/npc/hearts_sum"] = npc_hearts.sum().item()
                 infos["dual_policy/npc/num_agents"] = len(npc_group)
 
-                # Trained policy group stats
-                trained_rewards = trial_rewards[trained_group]
+                # Trained policy group stats (before facilitator reward)
+                trained_rewards_original = trial_rewards[trained_group].copy()
                 trained_hearts = self._get_agent_hearts(trained_group)
-                infos["dual_policy/trained/reward_mean"] = trained_rewards.mean().item()
-                infos["dual_policy/trained/reward_sum"] = trained_rewards.sum().item()
+                infos["dual_policy/trained/original_reward_mean"] = trained_rewards_original.mean().item()
+                infos["dual_policy/trained/original_reward_sum"] = trained_rewards_original.sum().item()
+
+                # Facilitator reward: sum of NPC rewards
+                facilitator_reward = npc_rewards.sum().item()
+                for idx in trained_group:
+                    trial_rewards[idx] = facilitator_reward
+
+                # Trained policy group stats (after facilitator reward)
+                trained_rewards_facilitator = trial_rewards[trained_group]
+                infos["dual_policy/trained/facilitator_reward_mean"] = trained_rewards_facilitator.mean().item()
+                infos["dual_policy/trained/facilitator_reward_sum"] = trained_rewards_facilitator.sum().item()
                 infos["dual_policy/trained/hearts_mean"] = trained_hearts.mean().item()
                 infos["dual_policy/trained/hearts_sum"] = trained_hearts.sum().item()
                 infos["dual_policy/trained/num_agents"] = len(trained_group)
 
                 # Combined stats
-                infos["dual_policy/combined/reward_mean"] = trial_rewards_mean
-                infos["dual_policy/combined/reward_sum"] = trial_rewards_sum
+                infos["dual_policy/combined/reward_mean"] = trial_rewards.mean().item()
+                infos["dual_policy/combined/reward_sum"] = trial_rewards.sum().item()
                 infos["dual_policy/combined/hearts_mean"] = self._get_agent_hearts().mean().item()
                 infos["dual_policy/combined/hearts_sum"] = self._get_agent_hearts().sum().item()
                 infos["dual_policy/combined/num_agents"] = self._c_env.num_agents
+
+        if hasattr(self, "_reward_strategy_name"):
+            if self._reward_strategy_name == "facilitator":
+                facilitator_reward_strategy(trial_rewards, npc_group, trained_group)
+            elif self._reward_strategy_name == "mixed":
+                mix_coef = getattr(self, "_facilitator_mix_coef", 0.5)
+                mixed_reward_strategy(trial_rewards, npc_group, trained_group, mix_coef=mix_coef)
+            else:
+                original_reward_strategy(trial_rewards, npc_group, trained_group)
 
         attributes: dict[str, int] = {
             "seed": self._current_seed,

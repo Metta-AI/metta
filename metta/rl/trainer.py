@@ -135,6 +135,8 @@ def train(
         is_training=True,
         dual_policy_enabled=trainer_cfg.dual_policy.enabled,
         dual_policy_training_agents_pct=trainer_cfg.dual_policy.training_agents_pct,
+        reward_strategy_name="mixed",
+        facilitator_mix_coef=0.75,
     )
 
     vecenv.async_reset(env_cfg.seed + rank)
