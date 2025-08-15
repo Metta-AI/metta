@@ -91,7 +91,11 @@ class TestObservations:
         # Check no walls at empty positions
         for x, y in no_wall_positions_agent0:
             location = PackedCoordinate.pack(y, x)
-            wall_tokens = (agent0_obs[:, 0] == location) & (agent0_obs[:, 2] == TokenTypes.WALL_TYPE_ID)
+            wall_tokens = (
+                (agent0_obs[:, 0] == location)
+                & (agent0_obs[:, 1] == TokenTypes.TYPE_ID_FEATURE)
+                & (agent0_obs[:, 2] == TokenTypes.WALL_TYPE_ID)
+            )
             assert not wall_tokens.any(), f"Agent 0: Expected no wall at ({x}, {y})"
 
         # Verify wall count
@@ -122,7 +126,11 @@ class TestObservations:
         # Check no walls at empty positions
         for x, y in no_wall_positions_agent1:
             location = PackedCoordinate.pack(y, x)
-            wall_tokens = (agent1_obs[:, 0] == location) & (agent1_obs[:, 2] == TokenTypes.WALL_TYPE_ID)
+            wall_tokens = (
+                (agent1_obs[:, 0] == location)
+                & (agent1_obs[:, 1] == TokenTypes.TYPE_ID_FEATURE)
+                & (agent1_obs[:, 2] == TokenTypes.WALL_TYPE_ID)
+            )
             assert not wall_tokens.any(), f"Agent 1: Expected no wall at ({x}, {y})"
 
         # Verify wall count
