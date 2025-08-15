@@ -15,7 +15,6 @@ def get_policy_store_from_cfg(cfg: DictConfig, wandb_run: WandbRun | None = None
         data_dir=getattr(cfg, "data_dir", None),
         wandb_entity=cfg.wandb.entity if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "entity") else None,
         wandb_project=cfg.wandb.project if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "project") else None,
-        pytorch_cfg=getattr(cfg, "pytorch", None),
     )
     return policy_store
 
