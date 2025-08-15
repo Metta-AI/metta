@@ -30,6 +30,9 @@ interface AsanaTask {
     enum_value?: {
       name: string;
     };
+    multi_enum_values?: Array<{
+      name: string;
+    }>;
   }>;
   tags: Array<{
     name: string;
@@ -85,7 +88,7 @@ async function fetchAsanaTasks(): Promise<AsanaTask[]> {
     const url = `https://app.asana.com/api/1.0/projects/${config.projectId}/tasks`;
     const params = new URLSearchParams({
       opt_fields:
-        "gid,name,notes,completed,permalink_url,custom_fields.gid,custom_fields.name,custom_fields.text_value,custom_fields.enum_value.name,tags.name,created_at,modified_at",
+        "gid,name,notes,completed,permalink_url,custom_fields.gid,custom_fields.name,custom_fields.text_value,custom_fields.enum_value.name,custom_fields.multi_enum_values.name,created_at,modified_at",
       limit: "100",
     });
 
@@ -119,7 +122,7 @@ async function fetchAsanaTasks(): Promise<AsanaTask[]> {
 /**
  * Extract paper data from an Asana task
  */
-function extractPaperData(task: AsanaTask): PaperData | null {
+async function extractPaperData(task: AsanaTask): Promise<PaperData | null> {
   const title = task.name.trim();
 
   // Skip tasks that don't look like papers
@@ -198,8 +201,36 @@ function extractPaperData(task: AsanaTask): PaperData | null {
     link = paperLink;
   }
 
-  // Extract tags
-  const tags = (task.tags || []).map((tag) => tag.name).filter(Boolean);
+  // Extract tags from "Category" custom field
+  let tags: string[] = [];
+
+  for (const field of task.custom_fields || []) {
+    if (field.name.toLowerCase().includes("category")) {
+      // Handle multi-enum values (most common for categories)
+      if (field.multi_enum_values && Array.isArray(field.multi_enum_values)) {
+        tags = field.multi_enum_values
+          .map((val: any) => val.name)
+          .filter(Boolean);
+      }
+      // Handle single enum value
+      else if (field.enum_value?.name) {
+        tags = [field.enum_value.name];
+      }
+      // Handle text values (comma-separated)
+      else if (field.text_value) {
+        tags = field.text_value
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean);
+      }
+      break; // Found category field, stop looking
+    }
+  }
+
+  // Debug: Log tasks with tags
+  if (tags.length > 0) {
+    console.log(`📋 Task "${title}" has category tags: ${tags.join(", ")}`);
+  }
 
   return {
     title,
@@ -234,10 +265,33 @@ async function importPapers(papers: PaperData[]): Promise<void> {
             { title: paper.title },
           ],
         },
+        select: {
+          id: true,
+          title: true,
+          tags: true,
+        },
       });
 
       if (existing) {
-        console.log(`   ⏭️  Skipping existing paper: ${paper.title}`);
+        // Update existing paper with tags if it doesn't have any or if tags have changed
+        if (
+          !existing.tags ||
+          existing.tags.length === 0 ||
+          JSON.stringify(existing.tags.sort()) !==
+            JSON.stringify(paper.tags.sort())
+        ) {
+          await prisma.paper.update({
+            where: { id: existing.id },
+            data: { tags: paper.tags },
+          });
+
+          console.log(`   🔄 Updated tags for existing paper: ${paper.title}`);
+          console.log(`      New tags: [${paper.tags.join(", ")}]`);
+        } else {
+          console.log(
+            `   ⏭️  Skipping existing paper (tags unchanged): ${paper.title}`
+          );
+        }
         skipped++;
         continue;
       }
@@ -282,9 +336,14 @@ async function main() {
 
     // Extract paper data
     console.log("🔍 Extracting paper data from tasks...");
-    const papers = tasks
-      .map(extractPaperData)
-      .filter((paper): paper is PaperData => paper !== null);
+    const papers: PaperData[] = [];
+
+    for (const task of tasks) {
+      const paper = await extractPaperData(task);
+      if (paper) {
+        papers.push(paper);
+      }
+    }
 
     console.log(`   Extracted ${papers.length} valid papers\n`);
 
