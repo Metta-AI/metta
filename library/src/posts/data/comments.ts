@@ -1,10 +1,11 @@
 /**
- * Comment data structure for the feed
+ * Comment data structure for the feed with nested replies support
  */
 export type CommentDTO = {
   id: string;
   content: string;
   postId: string;
+  parentId: string | null;
   author: {
     id: string;
     name: string | null;
@@ -13,4 +14,6 @@ export type CommentDTO = {
   };
   createdAt: Date;
   updatedAt: Date;
+  replies?: CommentDTO[];
+  depth?: number;
 };

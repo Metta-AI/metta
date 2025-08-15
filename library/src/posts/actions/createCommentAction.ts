@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db/prisma";
 
 const inputSchema = zfd.formData({
   postId: zfd.text(z.string().min(1)),
+  parentId: zfd.text(z.string().optional()),
   content: zfd.text(
     z
       .string()
@@ -27,11 +28,28 @@ export const createCommentAction = actionClient
       throw new Error("You must be signed in to comment");
     }
 
+    // Validate parent comment exists if parentId is provided
+    if (input.parentId) {
+      const parentComment = await prisma.comment.findUnique({
+        where: { id: input.parentId },
+        select: { id: true, postId: true },
+      });
+
+      if (!parentComment) {
+        throw new Error("Parent comment not found");
+      }
+
+      if (parentComment.postId !== input.postId) {
+        throw new Error("Parent comment must belong to the same post");
+      }
+    }
+
     // Create the comment
     const comment = await prisma.comment.create({
       data: {
         content: input.content.trim(),
         postId: input.postId,
+        parentId: input.parentId || null,
         authorId: session.user.id,
       },
       include: {
@@ -58,6 +76,7 @@ export const createCommentAction = actionClient
         id: comment.id,
         content: comment.content,
         postId: comment.postId,
+        parentId: comment.parentId,
         author: {
           id: comment.author.id,
           name: comment.author.name,

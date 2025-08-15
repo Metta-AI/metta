@@ -9,6 +9,7 @@ import { DeleteConfirmationModal } from "@/components/DeleteConfirmationModal";
 import { createCommentAction } from "@/posts/actions/createCommentAction";
 import { loadCommentsAction } from "@/posts/actions/loadCommentsAction";
 import { deleteCommentAction } from "@/posts/actions/deleteCommentAction";
+import { ThreadedComment } from "@/posts/components/ThreadedComment";
 import { linkifyText } from "@/lib/utils/linkify";
 
 interface CommentSidebarProps {
@@ -249,54 +250,29 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
               <div className="h-6 w-6 animate-spin rounded-full border-b-2 border-blue-600"></div>
             </div>
           ) : comments.length > 0 ? (
-            <div className="space-y-4">
+            <div className="space-y-2">
               {comments.map((comment) => (
-                <div key={comment.id} className="border-b border-gray-100 pb-4">
-                  <div className="mb-2 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-600 text-xs font-semibold text-white">
-                        {getUserInitials(
-                          comment.author.name,
-                          comment.author.email
-                        )}
-                      </div>
-                      <span className="text-sm font-medium text-gray-900">
-                        {comment.author.name ||
-                          comment.author.email?.split("@")[0] ||
-                          "Unknown User"}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {formatRelativeTime(comment.createdAt)}
-                      </span>
-                    </div>
-                    {/* Delete button - only show for comment author */}
-                    {currentUser && comment.author.id === currentUser.id && (
-                      <button
-                        onClick={() => handleDeleteComment(comment.id)}
-                        disabled={isDeletingComment}
-                        className="rounded-full p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-red-500 disabled:opacity-50"
-                        title="Delete comment"
-                      >
-                        <svg
-                          className="h-4 w-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                  <p className="ml-8 text-sm whitespace-pre-wrap text-gray-700">
-                    {linkifyText(comment.content)}
-                  </p>
-                </div>
+                <ThreadedComment
+                  key={comment.id}
+                  comment={comment}
+                  postId={post.id}
+                  currentUser={currentUser}
+                  onCommentUpdated={() => {
+                    if (post) {
+                      const formData = new FormData();
+                      formData.append("postId", post.id);
+                      executeLoadComments(formData);
+                    }
+                  }}
+                  onCommentDeleted={() => {
+                    // Just refresh comments when a deletion is completed
+                    if (post) {
+                      const formData = new FormData();
+                      formData.append("postId", post.id);
+                      executeLoadComments(formData);
+                    }
+                  }}
+                />
               ))}
             </div>
           ) : (
