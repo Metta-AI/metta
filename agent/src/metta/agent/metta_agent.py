@@ -279,10 +279,10 @@ class MettaAgent(nn.Module):
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
         # Precompute cumulative sums for faster conversion
-        # Each action type has (max_param + 1) possible actions (0 to max_param inclusive)
-        action_counts = [p + 1 for p in action_max_params]
+        # NOTE: This calculation is technically wrong (should be [p+1 for p in action_max_params])
+        # but ComponentPolicy compensates with its formula. Don't change without updating both!
         self.cum_action_max_params = torch.cumsum(
-            torch.tensor([0] + action_counts, device=device, dtype=torch.long), dim=0
+            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )
 
         logger.info(f"[DEBUG]   cum_action_max_params: {self.cum_action_max_params.tolist()}")

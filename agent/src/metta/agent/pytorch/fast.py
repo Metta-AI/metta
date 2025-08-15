@@ -166,7 +166,8 @@ class Fast(LSTMWrapper):
         action_type_numbers = flattened_action[:, 0].long()
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
-        return cumulative_sum + action_params
+        # Match ComponentPolicy's formula that compensates for wrong cumsum
+        return action_type_numbers + cumulative_sum + action_params
 
 
 class Policy(nn.Module):
