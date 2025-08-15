@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 16
+  num_agents: 64
   max_steps: 500
   agent:
     initial_inventory:
@@ -35,14 +35,14 @@ game:
       enabled: false
   map_builder:
     _target_: metta.map.mapgen.MapGen
-    instances: 4
+    instances: 1
     border_width: 6
     instance_border_width: 3
     instance_map:
       type: metta.map.terrain_from_numpy.TerrainFromNumpy
       params:
         dir: terrain_maps_nohearts
-        agents: 4
+        agents: 64
         objects:
           altar: 0
   objects:
