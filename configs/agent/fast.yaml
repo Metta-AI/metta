@@ -62,7 +62,7 @@ losses:
         begin_at_epoch: 0
         end_at_epoch: 40
 
-    teacher_uri: wandb://run/m.av.loss.leader.006
+    teacher_uri: wandb://run/m.av.student.probe.finalv2.001
     action_loss_coef: 1
     value_loss_coef: 1
 
@@ -75,7 +75,7 @@ losses:
         end_at_epoch: 900
 
     anneal_ratio: 0.5 # ratio of kickstart_epochs to anneal to 0 coef
-    teacher_uri: wandb://run/m.av.loss.leader.006
+    teacher_uri: wandb://run/m.av.student.probe.finalv2.001 #wandb://run/m.av.loss.leader.006
     action_loss_coef: 1
     value_loss_coef: 1
 
