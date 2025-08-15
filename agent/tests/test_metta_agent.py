@@ -46,7 +46,7 @@ def create_metta_agent():
     agent = MettaAgent(
         env=MinimalEnv(),
         system_cfg=system_cfg,
-        agent_cfg=agent_cfg,
+        policy_architecture_cfg=agent_cfg,
         policy=None,  # Will create ComponentPolicy internally
     )
 

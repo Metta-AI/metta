@@ -59,11 +59,11 @@ class MettaAgent(nn.Module):
         self,
         env,
         system_cfg: SystemConfig,
-        agent_cfg: DictConfig,
+        policy_architecture_cfg: DictConfig,
         policy: Optional[nn.Module] = None,
     ):
         super().__init__()
-        self.cfg = agent_cfg
+        self.cfg = policy_architecture_cfg
         self.device = system_cfg.device
 
         # Create observation space
@@ -81,7 +81,7 @@ class MettaAgent(nn.Module):
 
         # Create policy if not provided
         if policy is None:
-            policy = self._create_policy(agent_cfg, env, system_cfg)
+            policy = self._create_policy(policy_architecture_cfg, env, system_cfg)
 
         self.policy = policy
         if self.policy is not None:
