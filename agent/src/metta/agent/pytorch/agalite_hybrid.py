@@ -7,7 +7,8 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from pufferlib.models import LSTMWrapper
+from metta.agent.pytorch.base import LSTMWrapper
+from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 from pufferlib.pytorch import layer_init as init_layer
 
 from metta.agent.modules.agalite_batched import BatchedAGaLiTe
@@ -15,144 +16,90 @@ from metta.agent.modules.agalite_batched import BatchedAGaLiTe
 logger = logging.getLogger(__name__)
 
 
-class AgaliteHybrid(LSTMWrapper):
+class AgaliteHybrid(PyTorchAgentMixin, LSTMWrapper):
     """Hybrid AGaLiTe-LSTM architecture for efficient RL training.
 
     This uses AGaLiTe's sophisticated attention-based observation encoding
     combined with LSTM for temporal processing. This hybrid approach provides:
     - AGaLiTe's powerful observation processing with linear attention
     - LSTM's efficient O(1) temporal state updates
-    - Compatibility with PufferLib's training infrastructure
+    - Full compatibility with Metta's training infrastructure via mixin
+    - Automatic gradient detachment and proper state management
 
     Note: This is not the pure AGaLiTe transformer from the paper, but a
     practical hybrid that achieves better training efficiency."""
 
-    def __init__(self, env, policy=None, input_size=256, hidden_size=256):
+    def __init__(self, env, policy=None, input_size=256, hidden_size=256, num_layers=2, **kwargs):
+        """Initialize with mixin support for configuration parameters.
+        
+        Args:
+            env: Environment
+            policy: Optional inner policy 
+            input_size: LSTM input size
+            hidden_size: LSTM hidden size
+            num_layers: Number of LSTM layers
+            **kwargs: Configuration parameters (clip_range, analyze_weights_interval, etc.)
+        """
+        # Extract mixin parameters before passing to parent
+        mixin_params = self.extract_mixin_params(kwargs)
+        
         if policy is None:
             policy = AgalitePolicy(env, input_size=input_size, hidden_size=hidden_size)
 
-        # Use our base class for proper LSTM initialization
-        super().__init__(env, policy, input_size, hidden_size)
+        # Use enhanced LSTMWrapper with proper state management
+        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
 
-        # Additional initialization if needed
-        self.action_index_tensor = None
-        self.cum_action_max_params = None
+        # Initialize mixin with configuration parameters
+        self.init_mixin(**mixin_params)
 
-        # Move to device
-
+    @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict, state=None, action=None):
-        """Forward pass compatible with MettaAgent expectations."""
+        """Forward pass with enhanced state management."""
         observations = td["env_obs"]
 
-        # Initialize LSTM state if needed
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-        # Prepare LSTM state
-        lstm_h = state.get("lstm_h")
-        lstm_c = state.get("lstm_c")
-
-        # Handle batch dimensions for BPTT
-        B = observations.shape[0]
-        if observations.dim() == 4:  # (B, T, H, W)
+        # Determine dimensions from observations
+        if observations.dim() == 4:  # Training
+            B = observations.shape[0]
             TT = observations.shape[1]
-            observations = observations.reshape(B * TT, *observations.shape[2:])
-        else:
+            # Reshape TD for training if needed
+            if td.batch_dims > 1:
+                td = td.reshape(B * TT)
+        else:  # Inference
+            B = observations.shape[0]
             TT = 1
 
-        # Check if we need to initialize or adjust LSTM state
-        if lstm_h is not None and lstm_c is not None:
-            # Ensure state tensors have correct shape
-
-            # Add sequence dimension if needed (from stored state)
-            if lstm_h.dim() == 2:  # (B, hidden_size)
-                lstm_h = lstm_h.unsqueeze(0)  # -> (1, B, hidden_size)
-                lstm_c = lstm_c.unsqueeze(0)  # -> (1, B, hidden_size)
-
-            # Handle batch size mismatches (e.g., from BPTT)
-            if lstm_h.shape[1] != B:
-                # State batch size doesn't match - reinitialize
-                lstm_h = None
-                lstm_c = None
-                lstm_state = None
-            else:
-                lstm_state = (lstm_h, lstm_c)
-        else:
-            lstm_state = None
+        # Set critical TensorDict fields using mixin
+        self.set_tensordict_fields(td, observations)
 
         # Encode observations through policy
         hidden = self.policy.encode_observations(observations, state)
 
-        # LSTM forward pass
-        if TT > 1:
-            # Reshape for LSTM: (B*TT, hidden) -> (TT, B, hidden)
-            hidden = hidden.view(B, TT, -1).transpose(0, 1)
-        else:
-            # Add time dimension: (B, hidden) -> (1, B, hidden)
-            hidden = hidden.unsqueeze(0)
+        # Use enhanced LSTMWrapper's state management (includes automatic detachment!)
+        lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
+        lstm_state = (lstm_h, lstm_c)
 
+        # LSTM forward pass
+        hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, hidden)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
 
-        # Flatten back for decoding
-        if TT > 1:
-            flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
-        else:
-            flat_hidden = lstm_output.squeeze(0)
+        # Store state with automatic detachment to prevent gradient accumulation
+        self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
+
+        flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
         # Decode actions and value
         logits, value = self.policy.decode_actions(flat_hidden)
 
-        # Handle action sampling/evaluation
+        # Use mixin for mode-specific processing
         if action is None:
-            # Inference mode - sample actions
-            action_log_probs = F.log_softmax(logits, dim=-1)
-            action_probs = torch.exp(action_log_probs)
-
-            sampled_actions = torch.multinomial(action_probs, num_samples=1).view(-1)
-            batch_indices = torch.arange(sampled_actions.shape[0], device=sampled_actions.device)
-            selected_log_probs = action_log_probs[batch_indices, sampled_actions]
-
-            # Convert to action pairs
-            converted_actions = self._convert_logit_index_to_action(sampled_actions)
-
-            td["actions"] = converted_actions.to(dtype=torch.int32)
-            td["act_log_prob"] = selected_log_probs
-            td["values"] = value.flatten()
-            td["full_log_probs"] = action_log_probs
-
-            # Store LSTM state (squeeze the sequence dimension for inference)
-            td["lstm_h"] = new_lstm_h.squeeze(0).detach()  # Remove sequence dimension
-            td["lstm_c"] = new_lstm_c.squeeze(0).detach()  # Remove sequence dimension
-
+            # Mixin handles inference mode properly
+            td = self.handle_inference_mode(td, logits, value)
         else:
-            # Training mode - evaluate given actions
-            action = action
-            if action.dim() == 3:  # (B, T, A)
-                action = action.view(B * TT, -1)
-
-            # Convert actions to logit indices
-            action_logit_index = self._convert_action_to_logit_index(action)
-
-            # Compute log probs and entropy
-            action_log_probs = F.log_softmax(logits, dim=-1)
-            action_probs = torch.exp(action_log_probs)
-
-            batch_indices = torch.arange(action_logit_index.shape[0], device=action_logit_index.device)
-            selected_log_probs = action_log_probs[batch_indices, action_logit_index]
-
-            entropy = -(action_probs * action_log_probs).sum(dim=-1)
-
-            # Reshape for BPTT if needed
-            if TT > 1:
-                td["act_log_prob"] = selected_log_probs.view(B, TT)
-                td["entropy"] = entropy.view(B, TT)
-                td["value"] = value.view(B, TT)
-                td["full_log_probs"] = action_log_probs.view(B, TT, -1)
-            else:
-                td["act_log_prob"] = selected_log_probs
-                td["entropy"] = entropy
-                td["value"] = value.flatten()
-                td["full_log_probs"] = action_log_probs
+            # Mixin handles training mode with proper reshaping
+            td = self.handle_training_mode(td, action, logits, value)
 
         return td
 

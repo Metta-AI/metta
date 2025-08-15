@@ -16,6 +16,7 @@ from pufferlib.pytorch import layer_init as init_layer
 
 from metta.agent.modules.agalite_layers import AttentionAGaLiTeLayer, RecurrentLinearTransformerEncoder
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
+from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
 logger = logging.getLogger(__name__)
 
@@ -280,7 +281,7 @@ class AGaLiTePolicy(nn.Module):
         )
 
 
-class AGaLiTe(TransformerWrapper):
+class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
     """
     AGaLiTe implementation using TransformerWrapper for proper BPTT handling.
 
@@ -289,6 +290,7 @@ class AGaLiTe(TransformerWrapper):
     - Correct batch dimension handling for vectorized environments
     - Termination-aware state resets
     - Full compatibility with Metta's training infrastructure
+    - Weight management and action conversion via PyTorchAgentMixin
     """
 
     def __init__(
@@ -303,7 +305,26 @@ class AGaLiTe(TransformerWrapper):
         r: int = 8,
         reset_on_terminate: bool = True,
         dropout: float = 0.0,
+        **kwargs,
     ):
+        """Initialize AGaLiTe with mixin support.
+        
+        Args:
+            env: Environment
+            d_model: Model dimension
+            d_head: Head dimension
+            d_ffc: Feedforward dimension
+            n_heads: Number of attention heads
+            n_layers: Number of transformer layers
+            eta: AGaLiTe eta parameter
+            r: AGaLiTe r parameter
+            reset_on_terminate: Whether to reset memory on termination
+            dropout: Dropout rate
+            **kwargs: Configuration parameters handled by mixin (clip_range, analyze_weights_interval, etc.)
+        """
+        # Extract mixin parameters before passing to parent
+        mixin_params = self.extract_mixin_params(kwargs)
+        
         # Create the AGaLiTe policy
         policy = AGaLiTePolicy(
             env=env,
@@ -320,11 +341,9 @@ class AGaLiTe(TransformerWrapper):
 
         # Initialize with TransformerWrapper
         super().__init__(env, policy, hidden_size=d_model)
-        # Action conversion tensors (will be set by MettaAgent)
-        self.action_index_tensor = None
-        self.cum_action_max_params = None
-
-        # Move to device if needed
+        
+        # Initialize mixin with configuration parameters
+        self.init_mixin(**mixin_params)
 
     def forward(self, td: TensorDict, state: Optional[Dict] = None, action: Optional[torch.Tensor] = None):
         """Forward pass compatible with MettaAgent expectations."""
@@ -338,65 +357,28 @@ class AGaLiTe(TransformerWrapper):
         # Store terminations if available
         if "dones" in td:
             state["terminations"] = td["dones"]
+            
+        # Set critical TensorDict fields using mixin
+        # Note: For transformer, we still set these but handle differently than LSTM
+        B, TT = self.set_tensordict_fields(td, observations)
 
         # Determine if we're in training or inference mode
         if action is None:
             # Inference mode
             logits, values = self.forward_eval(observations, state)
-
-            # Sample actions
-            log_probs = F.log_softmax(logits, dim=-1)
-            action_probs = torch.exp(log_probs)
-
-            actions = torch.multinomial(action_probs, num_samples=1).view(-1)
-            batch_indices = torch.arange(actions.shape[0], device=actions.device)
-            full_log_probs = log_probs[batch_indices, actions]
-
-            # Convert actions if needed
-            if self.action_index_tensor is not None:
-                actions = self._convert_logit_index_to_action(actions)
-
-            td["actions"] = actions.to(dtype=torch.int32)
-            td["act_log_prob"] = full_log_probs
-            td["values"] = values.flatten()
-            td["full_log_probs"] = log_probs
+            
+            # Use mixin for inference mode processing
+            td = self.handle_inference_mode(td, logits, values)
 
         else:
             # Training mode - use parent's forward for BPTT
             logits, values = super().forward(observations, state)
 
-            # Compute log probabilities for given actions
-            action = action
-            if action.dim() == 3:  # (B, T, 2) → flatten to (BT, 2)
-                B, T, A = action.shape
-                action = action.view(B * T, A)
-
-            action_log_probs = F.log_softmax(logits, dim=-1)
-            action_probs = torch.exp(action_log_probs)
-
-            # Convert actions if needed
-            if self.action_index_tensor is not None:
-                action_logit_index = self._convert_action_to_logit_index(action)
-            else:
-                action_logit_index = action.squeeze(-1) if action.dim() > 1 else action
-
-            batch_indices = torch.arange(action_logit_index.shape[0], device=action_logit_index.device)
-            full_log_probs = action_log_probs[batch_indices, action_logit_index]
-
-            entropy = -(action_probs * action_log_probs).sum(dim=-1)
-
-            # Reshape for proper batch dimensions
-            if observations.dim() > 3:  # Has time dimension
-                B = observations.shape[0]
-                TT = observations.shape[1]
-                full_log_probs = full_log_probs.view(B, TT)
-                entropy = entropy.view(B, TT)
-                action_log_probs = action_log_probs.view(B, TT, -1)  # Reshape to (B, T, num_actions)
-                # values already reshaped by TransformerWrapper
-
-            td["act_log_prob"] = full_log_probs
-            td["entropy"] = entropy
-            td["full_log_probs"] = action_log_probs
+            # Use mixin for training mode processing
+            # Note: TransformerWrapper handles the reshaping of values
+            td = self.handle_training_mode(td, action, logits, values)
+            
+            # Override value key for transformer (TransformerWrapper uses "value" not "values")
             td["value"] = values
 
         return td
