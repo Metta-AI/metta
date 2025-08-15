@@ -32,7 +32,7 @@ for steps in 16 32 64; do
         fi
 
         # Launch the run with proper env_overrides
-        run_name="${USER}.colortree_${steps}step_${num_colors}colors_seed${SEED}.${STAMP}"
+        run_name="${USER}.colortree_random_${steps}step_${num_colors}colors_seed${SEED}.${STAMP}"
 
         echo "Launching: $run_name"
         echo "  Steps: ${steps}"
