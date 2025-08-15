@@ -13,10 +13,16 @@ logger = logging.getLogger(__name__)
 
 
 class LSTMWrapper(nn.Module):
-    """Enhanced LSTM wrapper that supports multi-layer LSTMs.
+    """Enhanced LSTM wrapper that supports multi-layer LSTMs with automatic memory management.
 
-    Based on pufferlib.models.LSTMWrapper but with num_layers support
-    to match the YAML fast.yaml implementation which uses 2 layers.
+    This base class provides:
+    - Multi-layer LSTM support
+    - Automatic state detachment to prevent gradient accumulation
+    - Per-environment state tracking
+    - Episode boundary reset handling
+    - Memory management interface
+    
+    All LSTM-based policies inherit these critical features automatically.
     """
 
     def __init__(self, env, policy, input_size=128, hidden_size=128, num_layers=2):
@@ -44,20 +50,92 @@ class LSTMWrapper(nn.Module):
         # Initialize parameters after LSTM creation
         for name, param in self.lstm.named_parameters():
             if "bias" in name:
-                nn.init.constant_(param, 1)  # Match YAML agent initialization
+                nn.init.constant_(param, 1)  # Match ComponentPolicy initialization
             elif "weight" in name:
-                nn.init.orthogonal_(param, 1)  # Orthogonal initialization
-
-        # Note: We don't create LSTMCell for multi-layer LSTMs
-        # as it would only work for single layer
+                nn.init.orthogonal_(param, 1)  # Match ComponentPolicy initialization
 
         # Store action conversion tensors (will be set by MettaAgent)
         self.action_index_tensor = None
         self.cum_action_max_params = None
         
-        # LSTM memory management to match ComponentPolicy
+        # LSTM memory management - critical for stable training
         self.lstm_h = {}  # Hidden states per environment
         self.lstm_c = {}  # Cell states per environment
+    
+    # ============================================================================
+    # Memory Management Methods - Available to all LSTM policies
+    # ============================================================================
+    
+    def has_memory(self):
+        """Indicate that this policy has memory (LSTM states)."""
+        return True
+    
+    def get_memory(self):
+        """Get current LSTM memory states for checkpointing."""
+        return self.lstm_h, self.lstm_c
+    
+    def set_memory(self, memory):
+        """Set LSTM memory states from checkpoint."""
+        self.lstm_h, self.lstm_c = memory[0], memory[1]
+    
+    def reset_memory(self):
+        """Reset all LSTM memory states."""
+        self.lstm_h.clear()
+        self.lstm_c.clear()
+    
+    def reset_env_memory(self, env_id):
+        """Reset LSTM memory for a specific environment."""
+        if env_id in self.lstm_h:
+            del self.lstm_h[env_id]
+        if env_id in self.lstm_c:
+            del self.lstm_c[env_id]
+    
+    def _manage_lstm_state(self, td, B, TT, device):
+        """Manage LSTM state with automatic reset and detachment.
+        
+        This method handles:
+        - Per-environment state tracking
+        - Episode boundary resets
+        - State initialization
+        - Gradient detachment
+        
+        Returns:
+            tuple: (lstm_h, lstm_c, env_id) ready for LSTM forward pass
+        """
+        # Get environment ID for state tracking
+        training_env_id_start = td.get("training_env_id_start", None)
+        if training_env_id_start is None:
+            training_env_id_start = 0
+        else:
+            training_env_id_start = training_env_id_start[0].item()
+
+        # Prepare LSTM state with proper memory management
+        if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
+            lstm_h = self.lstm_h[training_env_id_start]
+            lstm_c = self.lstm_c[training_env_id_start]
+            
+            # Reset hidden state if episode is done or truncated
+            dones = td.get("dones", None)
+            truncateds = td.get("truncateds", None)
+            if dones is not None and truncateds is not None:
+                reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
+                lstm_h = lstm_h.masked_fill(reset_mask, 0)
+                lstm_c = lstm_c.masked_fill(reset_mask, 0)
+        else:
+            # Initialize new hidden states
+            lstm_h = torch.zeros(self.num_layers, B, self.hidden_size, device=device)
+            lstm_c = torch.zeros(self.num_layers, B, self.hidden_size, device=device)
+        
+        return lstm_h, lstm_c, training_env_id_start
+    
+    def _store_lstm_state(self, lstm_h, lstm_c, env_id):
+        """Store LSTM state with automatic detachment to prevent gradient accumulation.
+        
+        CRITICAL: The detach() call here prevents gradients from flowing backward
+        through time infinitely, which would cause memory leaks and training instability.
+        """
+        self.lstm_h[env_id] = lstm_h.detach()
+        self.lstm_c[env_id] = lstm_c.detach()
 
 
 class Fast(LSTMWrapper):
@@ -85,18 +163,7 @@ class Fast(LSTMWrapper):
         self.clip_range = clip_range  # Match YAML's clip_range: 0
         self.analyze_weights_interval = 300  # Match YAML config
     
-    def has_memory(self):
-        """Indicate that this policy has memory (LSTM states)."""
-        return True
-    
-    def get_memory(self):
-        """Get current LSTM memory states."""
-        return self.lstm_h, self.lstm_c
-    
-    def reset_memory(self):
-        """Reset LSTM memory states."""
-        self.lstm_h.clear()
-        self.lstm_c.clear()
+    # Memory management methods are inherited from LSTMWrapper base class
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict, state=None, action=None):
@@ -124,40 +191,16 @@ class Fast(LSTMWrapper):
                 td["bptt"] = torch.full((B * TT,), TT, device=observations.device, dtype=torch.long)
                 td["batch"] = torch.full((B * TT,), B, device=observations.device, dtype=torch.long)
 
-        # Get environment ID for state tracking
-        training_env_id_start = td.get("training_env_id_start", None)
-        if training_env_id_start is None:
-            training_env_id_start = 0
-        else:
-            training_env_id_start = training_env_id_start[0].item()
-
-        # Prepare LSTM state with proper memory management
-        if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
-            lstm_h = self.lstm_h[training_env_id_start]
-            lstm_c = self.lstm_c[training_env_id_start]
-            
-            # Reset hidden state if episode is done or truncated
-            dones = td.get("dones", None)
-            truncateds = td.get("truncateds", None)
-            if dones is not None and truncateds is not None:
-                reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
-                lstm_h = lstm_h.masked_fill(reset_mask, 0)
-                lstm_c = lstm_c.masked_fill(reset_mask, 0)
-            
-            lstm_state = (lstm_h, lstm_c)
-        else:
-            # Initialize new hidden states
-            lstm_h = torch.zeros(self.num_layers, B, self.hidden_size, device=observations.device)
-            lstm_c = torch.zeros(self.num_layers, B, self.hidden_size, device=observations.device)
-            lstm_state = (lstm_h, lstm_c)
+        # Use base class method for LSTM state management
+        lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
+        lstm_state = (lstm_h, lstm_c)
 
         # Forward LSTM
         hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, in_size)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
         
-        # CRITICAL: Detach hidden states to prevent gradient accumulation
-        self.lstm_h[training_env_id_start] = new_lstm_h.detach()
-        self.lstm_c[training_env_id_start] = new_lstm_c.detach()
+        # Use base class method to store state with automatic detachment
+        self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
         
         flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
