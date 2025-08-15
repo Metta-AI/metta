@@ -110,7 +110,23 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
                   paper.source === "arxiv" && paper.externalId
                     ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
                     : paper.link;
-                if (pdfUrl) window.open(pdfUrl, "_blank");
+                if (pdfUrl) {
+                  const filename =
+                    paper.source === "arxiv" && paper.externalId
+                      ? `${paper.externalId}.pdf`
+                      : `${paper.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`;
+
+                  // Use our API endpoint to proxy the PDF download
+                  const downloadUrl = `/api/download-pdf?url=${encodeURIComponent(pdfUrl)}&filename=${encodeURIComponent(filename)}`;
+
+                  // Create a temporary anchor element to trigger download
+                  const link = document.createElement("a");
+                  link.href = downloadUrl;
+                  link.download = filename;
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }
               }}
               className="mt-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm transition-colors hover:bg-gray-200"
               title="Download PDF"
