@@ -4,13 +4,11 @@ import softmax.softmax as softmax
 import yaml
 from metta.cogworks.curriculum.task_generator import ValueRange as vr
 from metta.mettagrid.map_builder import AsciiMapBuilderConfig
-from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from tools.play import PlayToolConfig
 from tools.replay import ReplayToolConfig
 from tools.train import TrainToolConfig
-from tools.utils import calculate_default_num_workers
 
 ########################################################
 # Environments
@@ -63,7 +61,6 @@ def tool_cfg_replay() -> ReplayToolConfig:
             name="arena",
         ),
         open_browser_on_start=True,
-        system=SystemConfig.MacBookPro(),
         wandb=softmax.wandb_config(run="arena_replay"),
     )
 
@@ -77,15 +74,12 @@ def tool_cfg_play() -> PlayToolConfig:
             name="arena",
         ),
         open_browser_on_start=True,
-        system=SystemConfig.MacBookPro(),
         wandb=softmax.wandb_config(run="arena_replay"),
     )
 
 
 def tool_cfg_train() -> TrainToolConfig:
-    system = SystemConfig.MacBookPro()
     run = "daveey-test-run-3"
-    data_dir = "arena"
 
     # make a set of training tasks for the arena
     arena_tasks = cc.tasks(arena)
@@ -106,11 +100,7 @@ def tool_cfg_train() -> TrainToolConfig:
 
     curriculum_cfg = cc.curriculum(arena_tasks, num_tasks=4)
 
-    print(curriculum_cfg.model_dump_json(indent=2))
-
     trainer_cfg = TrainerConfig()
-    trainer_cfg.num_workers = calculate_default_num_workers(is_serial=True)
-    trainer_cfg.checkpoint.checkpoint_dir = f"{data_dir}/{run}/checkpoints"
     trainer_cfg.curriculum = curriculum_cfg
     trainer_cfg.evaluation = EvaluationConfig(
         replay_dir=f"s3://softmax-public/replays/{run}",
@@ -122,9 +112,8 @@ def tool_cfg_train() -> TrainToolConfig:
     )
 
     return TrainToolConfig(
-        system=system,
         trainer=trainer_cfg,
         wandb=softmax.wandb_config(run=run),
         run="daveey-arena",
         policy_architecture=yaml.safe_load(open("configs/agent/fast.yaml")),
-    ).to_mini()
+    )
