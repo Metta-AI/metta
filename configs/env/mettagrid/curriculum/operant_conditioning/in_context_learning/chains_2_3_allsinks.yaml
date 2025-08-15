@@ -1,4 +1,4 @@
-_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
   /env/mettagrid/curriculum/operant_conditioning/in_context_learning/chain_length_2/0_sinks: 1
