@@ -100,12 +100,15 @@ class LeaderboardUpdater:
                 res = await cursor.execute(
                     """
                             SELECT DISTINCT p.id
-                            FROM policies p
-                            JOIN episodes e ON e.primary_policy_id = p.id
-                            WHERE e.internal_id > %s
-                            AND e.internal_id <= %s
-                            AND p.created_at >= %s
-                            AND e.eval_name = ANY(%s)
+                            FROM
+                              policies p
+                              LEFT JOIN epochs e ON p.epoch_id = e.id
+                              LEFT JOIN training_runs tr ON e.run_id = tr.id
+                              JOIN episodes ep ON ep.primary_policy_id = p.id
+                            WHERE ep.internal_id > %s
+                            AND ep.internal_id <= %s
+                            AND COALESCE(tr.created_at, p.created_at) >= %s
+                            AND ep.eval_name = ANY(%s)
                           """,
                     (leaderboard.latest_episode, latest_episode_id, leaderboard.start_date, leaderboard.evals),
                 )
@@ -172,6 +175,7 @@ class LeaderboardUpdater:
 
         updated_policies = await self._get_updated_policies(leaderboard, latest_episode_id)
         if len(updated_policies) == 0:
+            logger.info(f"No updated policies for leaderboard {leaderboard.id}")
             return
 
         logger.info(f"Updating leaderboard {leaderboard.id} with {len(updated_policies)} updated policies")

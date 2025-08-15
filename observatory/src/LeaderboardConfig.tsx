@@ -184,10 +184,11 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
   })
   const [error, setError] = useState<string | null>(null)
 
+  const startDateDate = new Date(startDate)
   // Get filtered policies based on start date
   const filteredPolicies = policies.filter((policy) => {
     const policyDate = new Date(policy.created_at)
-    return policyDate >= new Date(startDate)
+    return policyDate >= startDateDate
   })
 
   const trainingRunIds = filteredPolicies.filter((p) => p.type === 'training_run').map((p) => p.id)
@@ -234,7 +235,7 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
       setError(null)
       const data = await repo.getLeaderboard(leaderboardId)
       setLeaderboard(data)
-      
+
       // Populate form with leaderboard data (excluding name as per requirements)
       setStartDate(data.start_date)
       setSelectedEvalNames(new Set(data.evals))
@@ -391,10 +392,9 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
         <div className="config-header">
           <h1 className="config-title">{isEditMode ? 'Edit Leaderboard' : 'Create New Leaderboard'}</h1>
           <p className="config-subtitle">
-            {isEditMode 
+            {isEditMode
               ? 'Update leaderboard settings to adjust policy performance tracking.'
-              : 'Configure leaderboard settings to track and compare policy performance across evaluations.'
-            }
+              : 'Configure leaderboard settings to track and compare policy performance across evaluations.'}
           </p>
         </div>
 
@@ -419,13 +419,15 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
         {isEditMode && leaderboard && (
           <div className="form-group">
             <label className="form-label">Current Leaderboard Name</label>
-            <div style={{ 
-              padding: '8px 12px', 
-              background: '#f8f9fa', 
-              border: '1px solid #dee2e6', 
-              borderRadius: '4px', 
-              color: '#6c757d' 
-            }}>
+            <div
+              style={{
+                padding: '8px 12px',
+                background: '#f8f9fa',
+                border: '1px solid #dee2e6',
+                borderRadius: '4px',
+                color: '#6c757d',
+              }}
+            >
               {leaderboard.name}
             </div>
           </div>
@@ -476,12 +478,17 @@ export function LeaderboardConfig({ repo }: LeaderboardConfigProps) {
           <button
             className="btn btn-primary"
             onClick={handleSave}
-            disabled={loading.saving || (!isEditMode && !name.trim()) || selectedEvalNames.size === 0 || !selectedMetric}
-          >
-            {loading.saving 
-              ? (isEditMode ? 'Updating...' : 'Creating...') 
-              : (isEditMode ? 'Update Leaderboard' : 'Create Leaderboard')
+            disabled={
+              loading.saving || (!isEditMode && !name.trim()) || selectedEvalNames.size === 0 || !selectedMetric
             }
+          >
+            {loading.saving
+              ? isEditMode
+                ? 'Updating...'
+                : 'Creating...'
+              : isEditMode
+                ? 'Update Leaderboard'
+                : 'Create Leaderboard'}
           </button>
         </div>
       </div>
