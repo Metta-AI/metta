@@ -10,7 +10,7 @@ echo ""
 
 # Run experiments
 for steps in 16 32 64; do
-    for num_colors in 2 3 4 5; do
+    for num_colors in 2 3 4; do
         # Determine curriculum name based on steps
         if [ "$steps" -eq 64 ]; then
             curriculum="colortree_easy_${num_colors}colors"
