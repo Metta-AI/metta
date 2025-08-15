@@ -51,6 +51,7 @@ class MettaGridCore:
         self._render_mode = render_mode
         self._level = level
         self._renderer = None
+        self._renderer_native = False
         self._map_labels: List[str] = level.labels
         self._current_seed: int = 0
 
