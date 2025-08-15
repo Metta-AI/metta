@@ -70,7 +70,9 @@ def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dt
         act_log_prob=scalar_f32,
         values=scalar_f32,
         returns=scalar_f32,
-        is_student_agent=UnboundedContinuous(shape=(), dtype=torch.bool),  # Track which agents are student-controlled
+        is_student_agent=UnboundedContinuous(
+            shape=(), dtype=torch.float32
+        ),  # Track which agents are student-controlled (1.0 for student, 0.0 for NPC)
     )
 
 

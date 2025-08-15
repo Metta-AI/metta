@@ -124,6 +124,15 @@ def train(
         logger.info(f"DUAL POLICY ENABLED: training_agents_pct={trainer_cfg.dual_policy.training_agents_pct}")
         if trainer_cfg.dual_policy.checkpoint_npc and trainer_cfg.dual_policy.checkpoint_npc.uri:
             logger.info(f"NPC checkpoint URI: {trainer_cfg.dual_policy.checkpoint_npc.uri}")
+        # Warn about extreme training_agents_pct values
+        if trainer_cfg.dual_policy.training_agents_pct <= 0.1:
+            logger.warning(
+                f"Very low training_agents_pct ({trainer_cfg.dual_policy.training_agents_pct}) - most agents will be NPCs"
+            )
+        elif trainer_cfg.dual_policy.training_agents_pct >= 0.9:
+            logger.warning(
+                f"Very high training_agents_pct ({trainer_cfg.dual_policy.training_agents_pct}) - few agents will be NPCs"
+            )
 
     # Create vectorized environment
     vecenv = make_vecenv(
@@ -166,6 +175,9 @@ def train(
                 f"Failed to load NPC checkpoint policy {trainer_cfg.dual_policy.checkpoint_npc.uri}: {e}",
                 exc_info=True,
             )
+            # Disable dual policy if NPC loading fails
+            trainer_cfg.dual_policy.enabled = False
+            logger.warning("Disabling dual policy training due to NPC policy load failure")
 
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
@@ -342,9 +354,13 @@ def train(
                 agents_per_env = metta_grid_env.num_agents
                 if trainer_cfg.dual_policy.enabled and agents_per_env > 0:
                     npc_count = int(round(agents_per_env * (1.0 - trainer_cfg.dual_policy.training_agents_pct)))
+                    # Ensure at least 1 student agent and at most agents_per_env-1 NPCs
+                    npc_count = max(0, min(npc_count, agents_per_env - 1))
                     npc_mask_per_env = torch.zeros(agents_per_env, dtype=torch.bool, device=device)
                     if npc_count > 0:
-                        npc_mask_per_env[:npc_count] = True
+                        # Randomly assign NPCs instead of always the first N agents
+                        npc_indices = torch.randperm(agents_per_env, device=device)[:npc_count]
+                        npc_mask_per_env[npc_indices] = True
                     # let env know grouping for logging (indices are per single env)
                     try:
                         npc_agents = torch.nonzero(npc_mask_per_env, as_tuple=False).flatten().tolist()
@@ -382,7 +398,7 @@ def train(
                         policy(td)
 
                         # Create student agent mask (inverse of NPC mask)
-                        if npc_mask_per_env is not None:
+                        if npc_mask_per_env is not None and agents_per_env > 0:
                             student_mask = ~npc_mask_per_env
                             # Expand mask to match batch size
                             if td["actions"].ndim == 2:
