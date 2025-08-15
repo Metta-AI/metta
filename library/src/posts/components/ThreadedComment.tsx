@@ -148,11 +148,17 @@ export const ThreadedComment: FC<ThreadedCommentProps> = ({
       className={`${indentLevel > 0 ? `ml-${Math.min(indentLevel * 4, 12)}` : ""}`}
     >
       {/* Main comment */}
-      <div className="border-l-2 border-gray-100 py-2 pl-4">
+      <div
+        className={`border-l-2 py-2 pl-4 ${comment.isBot ? "border-green-200 bg-green-50/30" : "border-gray-100"}`}
+      >
         <div className="flex items-start space-x-3">
           {/* Author avatar */}
           <div className="flex-shrink-0">
-            {comment.author.image ? (
+            {comment.isBot ? (
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-600 text-xs font-medium text-white">
+                🤖
+              </div>
+            ) : comment.author.image ? (
               <img
                 src={comment.author.image}
                 alt={comment.author.name || "User"}
@@ -169,8 +175,15 @@ export const ThreadedComment: FC<ThreadedCommentProps> = ({
             {/* Author info and actions */}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-gray-900">
+                <span
+                  className={`text-sm font-medium ${comment.isBot ? "text-green-700" : "text-gray-900"}`}
+                >
                   {comment.author.name || comment.author.email || "Anonymous"}
+                  {comment.isBot && (
+                    <span className="ml-1 inline-flex items-center rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-800">
+                      Bot
+                    </span>
+                  )}
                 </span>
                 <span className="text-xs text-gray-500">
                   {formatRelativeTime(comment.createdAt)}
@@ -178,8 +191,8 @@ export const ThreadedComment: FC<ThreadedCommentProps> = ({
               </div>
 
               <div className="flex items-center space-x-1">
-                {/* Reply button */}
-                {currentUser && depth < maxDepth && (
+                {/* Reply button - disabled for bot comments */}
+                {currentUser && depth < maxDepth && !comment.isBot && (
                   <button
                     onClick={() => setIsReplying(!isReplying)}
                     className="text-xs text-gray-500 transition-colors hover:text-blue-600"
@@ -189,27 +202,29 @@ export const ThreadedComment: FC<ThreadedCommentProps> = ({
                   </button>
                 )}
 
-                {/* Delete button for comment author */}
-                {currentUser && currentUser.id === comment.author.id && (
-                  <button
-                    onClick={handleDeleteComment}
-                    disabled={isDeletingComment}
-                    className="p-1 text-gray-400 transition-colors hover:text-red-600"
-                    title="Delete comment"
-                  >
-                    <svg
-                      className="h-4 w-4"
-                      fill="currentColor"
-                      viewBox="0 0 20 20"
+                {/* Delete button for comment author - disabled for bot comments */}
+                {currentUser &&
+                  currentUser.id === comment.author.id &&
+                  !comment.isBot && (
+                    <button
+                      onClick={handleDeleteComment}
+                      disabled={isDeletingComment}
+                      className="p-1 text-gray-400 transition-colors hover:text-red-600"
+                      title="Delete comment"
                     >
-                      <path
-                        fillRule="evenodd"
-                        d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 112 0v4a1 1 0 11-2 0V9zm4 0a1 1 0 112 0v4a1 1 0 11-2 0V9z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                  </button>
-                )}
+                      <svg
+                        className="h-4 w-4"
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9zM4 5a2 2 0 012-2h8a2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 112 0v4a1 1 0 11-2 0V9zm4 0a1 1 0 112 0v4a1 1 0 11-2 0V9z"
+                          clipRule="evenodd"
+                        />
+                      </svg>
+                    </button>
+                  )}
               </div>
             </div>
 

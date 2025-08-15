@@ -6,6 +6,8 @@ export type CommentDTO = {
   content: string;
   postId: string;
   parentId: string | null;
+  isBot?: boolean;
+  botType?: string | null;
   author: {
     id: string;
     name: string | null;

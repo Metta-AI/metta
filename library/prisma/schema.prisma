@@ -151,6 +151,8 @@ model Comment {
   authorId  String
   content   String
   parentId  String?  // For nested replies
+  isBot     Boolean  @default(false)
+  botType   String?  // e.g., "library_bot"
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
   
