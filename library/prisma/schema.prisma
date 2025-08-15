@@ -24,7 +24,7 @@ model User {
   authenticators Authenticator[]
   posts         Post[]
   userPaperInteractions UserPaperInteraction[]
-  userPostLikes         UserPostLike[]
+  comments              Comment[]
   @@map("user")
 }
 
@@ -88,41 +88,40 @@ model Authenticator {
 
 // Posts table for social feed
 model Post {
-  id            String         @id @default(cuid())
-  authorId      String
-  title         String
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @default(now()) @updatedAt
-  content       String?
-  postType      String         @default("user-post")
-  likes         Int            @default(0)
-  retweets      Int            @default(0)
-  replies       Int            @default(0)
-  paperId       String?
-  author        User           @relation(fields: [authorId], references: [id])
-  paper         Paper?         @relation(fields: [paperId], references: [id])
-  userPostLikes UserPostLike[]
+  id        String     @id @default(cuid())
+  authorId  String
+  title     String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @default(now()) @updatedAt
+  content   String?
+  postType  String     @default("user-post")
+  queues    Int        @default(0)
+  replies   Int        @default(0)
+  paperId   String?
+  author    User       @relation(fields: [authorId], references: [id])
+  paper     Paper?     @relation(fields: [paperId], references: [id])
+  comments  Comment[]
   @@map("post")
 }
 
 // Papers table for research content
 model Paper {
-  id           String   @id @default(cuid())
-  title        String
-  abstract     String?
-  authors      String[]
-  institutions String[]
-  tags         String[]
-  link         String?
-  source       String?
-  externalId   String?
-  stars        Int      @default(0)
-  starred      Boolean  @default(false)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @default(now()) @updatedAt
-  
-  // Relations
-  posts                Post[]
+  id                    String                 @id @default(cuid())
+  title                 String
+  abstract              String?
+  institutions          String[]
+  tags                  String[]
+  link                  String?
+  source                String?
+  externalId            String?
+  stars                 Int                    @default(0)
+  starred               Boolean                @default(false)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @default(now()) @updatedAt
+  llmAbstract           Json?                  // LLM-generated enhanced abstract
+  llmAbstractGeneratedAt DateTime?             // When LLM abstract was generated
+  paperAuthors          PaperAuthor[]
+  posts                 Post[]
   userPaperInteractions UserPaperInteraction[]
   
   @@map("paper")
@@ -145,13 +144,56 @@ model UserPaperInteraction {
   @@map("user_paper_interaction")
 }
 
-model UserPostLike {
-  userId    String
+// Comment model for post discussions
+model Comment {
+  id        String   @id @default(cuid())
   postId    String
-  likedAt   DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-
-  @@id([userId, postId])
-  @@map("user_post_like")
+  authorId  String
+  content   String
+  parentId  String?  // For nested replies
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+  
+  // Relations
+  post     Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author   User      @relation(fields: [authorId], references: [id])
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies  Comment[] @relation("CommentReplies")
+  
+  @@map("comment")
 }
+
+// Authors table for paper authors
+model Author {
+  id           String        @id @default(cuid())
+  name         String
+  orcid        String?       @unique
+  institution  String?
+  researchAreas String[]
+  hIndex       Int?
+  citationCount Int?
+  bio          String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now()) @updatedAt
+  
+  // Relations
+  paperAuthors PaperAuthor[]
+  
+  @@map("author")
+}
+
+// Junction table for many-to-many relationship between Papers and Authors
+model PaperAuthor {
+  paperId  String
+  authorId String
+  order    Int     @default(0) // Author order in the paper
+  
+  // Relations
+  paper  Paper  @relation(fields: [paperId], references: [id])
+  author Author @relation(fields: [authorId], references: [id])
+  
+  @@id([paperId, authorId])
+  @@map("paper_author")
+}
+
+

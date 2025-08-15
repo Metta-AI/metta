@@ -105,7 +105,7 @@ export const FeedPostsPage: FC<{
     }
   };
 
-  // MathJax rendering effect - similar to mockup approach
+  // MathJax rendering effect - single debounced call
   useEffect(() => {
     if (mathJaxLoaded && feedRef.current) {
       const renderMathContent = async () => {
@@ -116,11 +116,12 @@ export const FeedPostsPage: FC<{
         }
       };
 
-      // Try immediately and after delays to ensure DOM is ready
-      renderMathContent();
-      setTimeout(renderMathContent, 100);
-      setTimeout(renderMathContent, 500);
-      setTimeout(renderMathContent, 1000);
+      // Single delayed call to avoid race conditions
+      const timeoutId = setTimeout(renderMathContent, 200);
+
+      return () => {
+        clearTimeout(timeoutId);
+      };
     }
   }, [mathJaxLoaded, page.items, renderMath]); // Re-render when posts change
 

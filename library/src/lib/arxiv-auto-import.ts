@@ -4,6 +4,7 @@ import {
   fetchArxivPaper,
 } from "../../scripts/fetch-arxiv-paper";
 import { extractInstitutionsFromPdf } from "./pdf-institution-extractor";
+import { PaperAbstractService } from "./paper-abstract-service";
 
 /**
  * Normalizes author name for consistent storage
@@ -106,6 +107,22 @@ export async function autoImportArxivPaperSync(
 
     if (existingPaper) {
       console.log(`✅ Paper already exists: ${existingPaper.title}`);
+
+      // Check if existing paper needs LLM abstract generation
+      if (!existingPaper.llmAbstract) {
+        console.log(
+          `🤖 Queuing LLM abstract generation for existing paper: ${existingPaper.id}`
+        );
+        PaperAbstractService.generateAbstractForPaper(existingPaper.id).catch(
+          (error) => {
+            console.error(
+              `❌ Failed to generate LLM abstract for existing paper ${existingPaper.id}:`,
+              error
+            );
+          }
+        );
+      }
+
       return existingPaper.id;
     }
 
@@ -134,6 +151,16 @@ export async function autoImportArxivPaperSync(
     }
 
     console.log(`✅ Successfully imported paper (sync): ${paper.title}`);
+
+    // Generate LLM abstract in the background (don't wait for it to complete)
+    console.log(`🤖 Queuing LLM abstract generation for paper: ${paper.id}`);
+    PaperAbstractService.generateAbstractForPaper(paper.id).catch((error) => {
+      console.error(
+        `❌ Failed to generate LLM abstract for paper ${paper.id}:`,
+        error
+      );
+    });
+
     return paper.id;
   } catch (error) {
     console.error(`❌ Failed to auto-import arXiv paper (sync):`, error);
@@ -165,6 +192,22 @@ export async function autoImportArxivPaper(
 
     if (existingPaper) {
       console.log(`✅ Paper already exists: ${existingPaper.title}`);
+
+      // Check if existing paper needs LLM abstract generation
+      if (!existingPaper.llmAbstract) {
+        console.log(
+          `🤖 Queuing LLM abstract generation for existing paper: ${existingPaper.id}`
+        );
+        PaperAbstractService.generateAbstractForPaper(existingPaper.id).catch(
+          (error) => {
+            console.error(
+              `❌ Failed to generate LLM abstract for existing paper ${existingPaper.id}:`,
+              error
+            );
+          }
+        );
+      }
+
       return existingPaper.id;
     }
 
@@ -233,6 +276,16 @@ export async function autoImportArxivPaper(
     }
 
     console.log(`✅ Successfully imported paper: ${paper.title}`);
+
+    // Generate LLM abstract in the background (don't wait for it to complete)
+    console.log(`🤖 Queuing LLM abstract generation for paper: ${paper.id}`);
+    PaperAbstractService.generateAbstractForPaper(paper.id).catch((error) => {
+      console.error(
+        `❌ Failed to generate LLM abstract for paper ${paper.id}:`,
+        error
+      );
+    });
+
     return paper.id;
   } catch (error) {
     console.error(`❌ Failed to auto-import arXiv paper:`, error);

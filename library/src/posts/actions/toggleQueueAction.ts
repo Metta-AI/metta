@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db/prisma";
 
 const inputSchema = zfd.formData({
   paperId: zfd.text(z.string().min(1)),
+  postId: zfd.text(z.string().min(1)),
 });
 
 export const toggleQueueActionPrisma = actionClient
@@ -27,9 +28,12 @@ export const toggleQueueActionPrisma = actionClient
       },
     });
 
+    let isNowQueued = false;
+
     if (existingInteraction) {
       // Update existing interaction
       const currentQueued = existingInteraction.queued;
+      isNowQueued = !currentQueued;
       await prisma.userPaperInteraction.update({
         where: {
           userId_paperId: {
@@ -38,11 +42,12 @@ export const toggleQueueActionPrisma = actionClient
           },
         },
         data: {
-          queued: !currentQueued,
+          queued: isNowQueued,
         },
       });
     } else {
       // Create new interaction record with queued = true
+      isNowQueued = true;
       await prisma.userPaperInteraction.create({
         data: {
           userId: session.user.id,
@@ -52,8 +57,21 @@ export const toggleQueueActionPrisma = actionClient
       });
     }
 
-    // Revalidate the papers page to show updated state
+    // Update the post's queue count
+    await prisma.post.update({
+      where: {
+        id: input.postId,
+      },
+      data: {
+        queues: {
+          increment: isNowQueued ? 1 : -1,
+        },
+      },
+    });
+
+    // Revalidate pages to show updated state
     revalidatePath("/papers");
+    revalidatePath("/"); // Revalidate main feed page
 
     return { success: true };
-  }); 
+  });
