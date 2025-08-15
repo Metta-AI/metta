@@ -33,7 +33,7 @@ import numpy as np
 # MettaGrid imports
 # Note: MettaGridEnv inherits from PufferEnv, so it's fully PufferLib-compatible
 from metta.mettagrid import MettaGridEnv
-from metta.mettagrid.config.builder import make_arena
+from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 # Training framework imports
