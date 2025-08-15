@@ -100,8 +100,11 @@ class PyTorchAgentMixin:
         - Experience buffer integration
         - Proper tensor reshaping during training
 
+        NOTE: The caller must reshape the TD BEFORE calling this if needed.
+        The fields will be set to match the flattened batch dimension.
+
         Args:
-            td: TensorDict to update
+            td: TensorDict to update (should be reshaped if needed)
             observations: Observation tensor to determine dimensions
 
         Returns:
@@ -110,7 +113,7 @@ class PyTorchAgentMixin:
         if observations.dim() == 4:  # Training: [B, T, obs_tokens, 3]
             B = observations.shape[0]
             TT = observations.shape[1]
-            # Flatten batch dimension and set fields exactly like ComponentPolicy
+            # Fields should match the flattened batch size
             total_batch = B * TT
             td.set("bptt", torch.full((total_batch,), TT, device=observations.device, dtype=torch.long))
             td.set("batch", torch.full((total_batch,), B, device=observations.device, dtype=torch.long))

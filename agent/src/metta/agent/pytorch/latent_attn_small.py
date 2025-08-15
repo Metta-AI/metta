@@ -10,11 +10,12 @@ from torch import nn
 from metta.agent.modules.encoders import ObsLatentAttn, ObsSelfAttn
 from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 from metta.agent.pytorch.base import LSTMWrapper
+from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
 logger = logging.getLogger(__name__)
 
 
-class LatentAttnSmall(LSTMWrapper):
+class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
     def __init__(
         self,
         env,
@@ -23,11 +24,9 @@ class LatentAttnSmall(LSTMWrapper):
         input_size=128,
         hidden_size=128,
         num_layers=2,
-        clip_range=0,
-        analyze_weights_interval=300,
         **kwargs,
     ):
-        """Initialize LatentAttnSmall policy with configuration parameters.
+        """Initialize LatentAttnSmall policy with mixin support.
 
         Args:
             env: Environment
@@ -36,10 +35,11 @@ class LatentAttnSmall(LSTMWrapper):
             input_size: LSTM input size
             hidden_size: LSTM hidden size
             num_layers: Number of LSTM layers
-            clip_range: Weight clipping range (0 = disabled)
-            analyze_weights_interval: Interval for weight analysis
-            **kwargs: Additional configuration parameters (for compatibility)
+            **kwargs: Configuration parameters handled by mixin (clip_range, analyze_weights_interval, etc.)
         """
+        # Extract mixin parameters before passing to parent
+        mixin_params = self.extract_mixin_params(kwargs)
+        
         if policy is None:
             policy = Policy(
                 env,
@@ -49,25 +49,10 @@ class LatentAttnSmall(LSTMWrapper):
         # Use enhanced LSTMWrapper with num_layers support
         super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
 
-        # Store configuration parameters
-        self.clip_range = clip_range
-        self.analyze_weights_interval = analyze_weights_interval
+        # Initialize mixin with configuration parameters
+        self.init_mixin(**mixin_params)
 
-        if kwargs:
-            logger.info(f"[DEBUG] Additional config parameters: {kwargs}")
-
-    def clip_weights(self):
-        """Clip weights to prevent large updates during training.
-
-        This matches ComponentPolicy's weight clipping behavior.
-        """
-        if self.clip_range > 0:
-            for module in self.modules():
-                if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d)):
-                    if hasattr(module, "weight") and module.weight is not None:
-                        module.weight.data.clamp_(-self.clip_range, self.clip_range)
-                    if hasattr(module, "bias") and module.bias is not None:
-                        module.bias.data.clamp_(-self.clip_range, self.clip_range)
+    # clip_weights() is provided by PyTorchAgentMixin
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict, state=None, action=None):
@@ -76,21 +61,19 @@ class LatentAttnSmall(LSTMWrapper):
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-        # CRITICAL FIX: Set bptt and batch fields to match ComponentPolicy behavior
-        # ComponentPolicy sets these in every forward pass, and components depend on them
-        if observations.dim() == 4:  # Training: [B, T, obs_tokens, 3]
+        # Determine dimensions from observations
+        if observations.dim() == 4:  # Training
             B = observations.shape[0]
             TT = observations.shape[1]
-            # Flatten batch dimension and set fields exactly like ComponentPolicy
-            total_batch = B * TT
-            td.set("bptt", torch.full((total_batch,), TT, device=observations.device, dtype=torch.long))
-            td.set("batch", torch.full((total_batch,), B, device=observations.device, dtype=torch.long))
-        else:  # Inference: [B, obs_tokens, 3]
+            # Reshape TD for training if needed
+            if td.batch_dims > 1:
+                td = td.reshape(B * TT)
+        else:  # Inference
             B = observations.shape[0]
             TT = 1
-            # Set fields for inference mode
-            td.set("bptt", torch.full((B,), 1, device=observations.device, dtype=torch.long))
-            td.set("batch", torch.full((B,), B, device=observations.device, dtype=torch.long))
+        
+        # Now set TensorDict fields with mixin (TD is already reshaped if needed)
+        self.set_tensordict_fields(td, observations)
 
         # Encode observations
         hidden = self.policy.encode_observations(observations, state)
@@ -162,16 +145,10 @@ class LatentAttnSmall(LSTMWrapper):
 
         return td
 
-    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
-        """Convert logit indices back to action pairs."""
-        return self.action_index_tensor[action_logit_index]
-
-    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
-        """Convert (action_type, action_param) pairs to discrete indices."""
-        action_type_numbers = flattened_action[:, 0].long()
-        action_params = flattened_action[:, 1].long()
-        cumulative_sum = self.cum_action_max_params[action_type_numbers]
-        return cumulative_sum + action_params
+    # _convert_logit_index_to_action and _convert_action_to_logit_index
+    # are provided by PyTorchAgentMixin
+    
+    # activate_action_embeddings is provided by PyTorchAgentMixin
 
 
 class Policy(nn.Module):

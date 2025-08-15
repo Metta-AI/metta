@@ -9,11 +9,12 @@ from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.pytorch.base import LSTMWrapper
+from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
 logger = logging.getLogger(__name__)
 
 
-class Example(LSTMWrapper):
+class Example(PyTorchAgentMixin, LSTMWrapper):
     """Recurrent LSTM-based policy wrapper with discrete multi-head action space."""
 
     def __init__(
@@ -24,30 +25,32 @@ class Example(LSTMWrapper):
         input_size: int = 512,
         hidden_size: int = 512,
         num_layers: int = 2,
+        **kwargs,
     ):
+        # Extract mixin parameters before passing to parent
+        mixin_params = self.extract_mixin_params(kwargs)
+        
         if policy is None:
             policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size, input_size=input_size)
 
         # Use enhanced LSTMWrapper with num_layers support
         super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
+        
+        # Initialize mixin with configuration parameters
+        self.init_mixin(**mixin_params)
 
     def forward(self, td: TensorDict, state: Optional[dict] = None, action=None) -> TensorDict:
         """Forward pass: encodes observations, runs LSTM, decodes into actions, value, and stats."""
 
-        # Handle BPTT reshaping
+        observations = td["env_obs"]
+        
+        # Use mixin to set critical TensorDict fields
+        B, TT = self.set_tensordict_fields(td, observations)
+        
+        # Handle BPTT reshaping if needed
         if td.batch_dims > 1:
-            B, TT = td.batch_size
             total_batch = B * TT
             td = td.reshape(total_batch)
-            # After reshaping, create tensors matching the new flattened batch size
-            td.set("bptt", torch.full((total_batch,), TT, device=td.device, dtype=torch.long))
-            td.set("batch", torch.full((total_batch,), B, device=td.device, dtype=torch.long))
-        else:
-            batch_size = td.batch_size[0] if hasattr(td.batch_size, "__getitem__") else td.batch_size
-            td.set("bptt", torch.full((batch_size,), 1, device=td.device, dtype=torch.long))
-            td.set("batch", torch.full((batch_size,), batch_size, device=td.device, dtype=torch.long))
-
-        observations = td["env_obs"]
         state = state or {"lstm_h": None, "lstm_c": None, "hidden": None}
 
         hidden = self.policy.encode_observations(observations, state)
