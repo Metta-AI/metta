@@ -1,0 +1,10 @@
+digraph dependencies {
+  rankdir=LR;
+  node [shape=box];
+  "app_backend" -> "metta";
+  "mettascope" -> "metta";
+  "mettagrid" -> "metta";
+  "agent" -> "metta";
+  "common" -> "metta";
+  "metta" -> "mettascope";
+}

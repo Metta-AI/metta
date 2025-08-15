@@ -1,0 +1,4296 @@
+{
+  "statistics": {
+    "total_modules": 533,
+    "total_dependencies": 1081,
+    "external_packages": [
+      "EvalFinderWidget",
+      "IPython",
+      "__future__",
+      "abc",
+      "altair",
+      "anthropic",
+      "anywidget",
+      "argparse",
+      "asana_task",
+      "ast",
+      "asyncio",
+      "base_async_test",
+      "benchmark",
+      "bidict",
+      "boto3",
+      "botocore",
+      "click",
+      "client_adapter",
+      "codeclip",
+      "cogweb",
+      "collections",
+      "colorama",
+      "concurrent",
+      "contextlib",
+      "copy",
+      "curriculum",
+      "dataclasses",
+      "datetime",
+      "ddtrace",
+      "devops",
+      "difflib",
+      "docker",
+      "dotenv",
+      "duckdb",
+      "einops",
+      "enum",
+      "environment_builder",
+      "experiments",
+      "fastapi",
+      "file",
+      "filelock",
+      "fixtures",
+      "fnmatch",
+      "functools",
+      "gc",
+      "gemini_analyze_pr",
+      "gemini_client",
+      "git",
+      "github",
+      "github_asana_mapping",
+      "glob",
+      "google",
+      "gymnasium",
+      "gzip",
+      "hashlib",
+      "heapq",
+      "heavyball",
+      "httpx",
+      "hydra",
+      "importlib",
+      "inspect",
+      "io",
+      "ipywidgets",
+      "itertools",
+      "json",
+      "learning_progress",
+      "logging",
+      "manybot",
+      "marimo",
+      "math",
+      "matplotlib",
+      "mimetypes",
+      "mock_agent",
+      "mock_policy",
+      "mock_policy_record",
+      "multiprocessing",
+      "nest_asyncio",
+      "netrc",
+      "numpy",
+      "observation_helper",
+      "omegaconf",
+      "os",
+      "pandas",
+      "pathlib",
+      "pettingzoo",
+      "pickle",
+      "pixie",
+      "platform",
+      "pr_gh_to_asana",
+      "protein",
+      "protein_metta",
+      "psutil",
+      "psycopg",
+      "psycopg_pool",
+      "pufferlib",
+      "pull_request",
+      "pydantic",
+      "pydantic_settings",
+      "pyro",
+      "pytest",
+      "pytest_asyncio",
+      "pytest_shard",
+      "random",
+      "raylib",
+      "re",
+      "requests",
+      "rich",
+      "schema_isolation_functions",
+      "scipy",
+      "seaborn",
+      "secrets",
+      "shlex",
+      "shutil",
+      "signal",
+      "simple_term_menu",
+      "sklearn",
+      "sky",
+      "socket",
+      "stable_baselines3",
+      "string",
+      "subprocess",
+      "sys",
+      "tabulate",
+      "task",
+      "task_generator",
+      "tempfile",
+      "tensordict",
+      "testcontainers",
+      "tests",
+      "textwrap",
+      "threading",
+      "tiktoken",
+      "time",
+      "token_profiler",
+      "token_types",
+      "tools",
+      "torch",
+      "torchrl",
+      "tqdm",
+      "traceback",
+      "traitlets",
+      "types",
+      "typing",
+      "typing_extensions",
+      "unittest",
+      "urllib",
+      "utils",
+      "uuid",
+      "uvicorn",
+      "validate_config",
+      "vcr",
+      "wandb",
+      "warnings",
+      "weakref",
+      "webbrowser",
+      "yaml",
+      "zipfile",
+      "zlib",
+      "zoneinfo"
+    ]
+  },
+  "dependencies": {
+    "conftest": [
+      "metta.common.test_support"
+    ],
+    "devops.add_to_leaderboard": [
+      "metta.common.util.constants"
+    ],
+    "devops.observatory_login": [
+      "metta.common.util.constants"
+    ],
+    "devops.tools.cleanup_repo": [
+      "metta.common.util.text_styles"
+    ],
+    "devops.docker.build": [
+      "metta.common.util.cli",
+      "metta.common.util.fs"
+    ],
+    "devops.docker.push_image": [
+      "metta.common.util.cli",
+      "metta.common.util.fs",
+      "metta.common.util.text_styles"
+    ],
+    "devops.skypilot.connect": [
+      "metta.common.util.text_styles"
+    ],
+    "devops.skypilot.configure_jobs_controller": [
+      "metta.common.util.text_styles"
+    ],
+    "devops.skypilot.sandbox": [
+      "metta.common.util.cli",
+      "metta.common.util.cost_monitor",
+      "metta.common.util.git",
+      "metta.common.util.text_styles"
+    ],
+    "devops.skypilot.launch": [
+      "metta.common.util.cli",
+      "metta.common.util.fs",
+      "metta.common.util.git",
+      "metta.common.util.text_styles"
+    ],
+    "devops.skypilot.utils": [
+      "metta.common.util.git",
+      "metta.common.util.stats_client_cfg",
+      "metta.common.util.text_styles"
+    ],
+    "devops.skypilot.set_github_status": [
+      "metta.common.util.github"
+    ],
+    "devops.git.push_child_repo": [
+      "metta.common.util.config",
+      "metta.common.util.constants",
+      "metta.common.util.git",
+      "metta.common.util.git_filter"
+    ],
+    "tools.sim": [
+      "metta.agent.policy_record",
+      "metta.agent.policy_store",
+      "metta.app_backend.clients.stats_client",
+      "metta.common.util.config",
+      "metta.common.util.stats_client_cfg",
+      "metta.eval.eval_service",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.curriculum.util",
+      "metta.rl.stats",
+      "metta.rl.system_config",
+      "metta.sim.simulation_config",
+      "metta.util.metta_script"
+    ],
+    "tools.renderer": [
+      "metta.mettagrid",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.util.actions",
+      "metta.mettagrid.util.hydra",
+      "metta.util.metta_script"
+    ],
+    "tools.get_best_params_from_sweep": [
+      "metta.sweep.wandb_utils"
+    ],
+    "tools.play": [
+      "metta.common.util.constants",
+      "metta.util.metta_script",
+      "mettascope.server"
+    ],
+    "tools.replay": [
+      "metta.agent.mocks",
+      "metta.common.util.config",
+      "metta.common.util.constants",
+      "metta.common.wandb.wandb_context",
+      "metta.rl.system_config",
+      "metta.sim.simulation",
+      "metta.sim.simulation_config",
+      "metta.util.metta_script",
+      "mettascope.server"
+    ],
+    "tools.sweep_eval": [
+      "metta.common.util.lock",
+      "metta.common.wandb.wandb_context",
+      "metta.eval.eval_stats_db",
+      "metta.rl.system_config",
+      "metta.sim.simulation_config",
+      "metta.sim.simulation_suite",
+      "metta.sweep.wandb_utils"
+    ],
+    "tools.utils": [
+      "metta.agent.policy_store",
+      "metta.common.wandb.wandb_context"
+    ],
+    "tools.train": [
+      "metta.app_backend.clients.stats_client",
+      "metta.common.util.config",
+      "metta.common.util.git",
+      "metta.common.util.heartbeat",
+      "metta.common.util.resolvers",
+      "metta.common.util.stats_client_cfg",
+      "metta.common.wandb.wandb_context",
+      "metta.core.distributed",
+      "metta.rl.system_config",
+      "metta.rl.trainer",
+      "metta.rl.trainer_config",
+      "metta.sim.simulation_config",
+      "metta.util.metta_script"
+    ],
+    "tools.validate_config": [
+      "metta.common.util.config"
+    ],
+    "tools.request_eval": [
+      "metta.agent.policy_record",
+      "metta.agent.policy_store",
+      "metta.app_backend.clients.eval_task_client",
+      "metta.app_backend.clients.stats_client",
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.routes.eval_task_routes",
+      "metta.common.util.collections",
+      "metta.common.util.constants",
+      "metta.common.util.stats_client_cfg",
+      "metta.setup.utils",
+      "metta.sim.utils"
+    ],
+    "tools.stats_duckdb_cli": [
+      "metta.eval.eval_stats_db",
+      "metta.mettagrid.util.file",
+      "metta.util.metta_script"
+    ],
+    "tools.sweep_prepare_run": [
+      "metta.common.util.lock",
+      "metta.common.util.numpy_helpers",
+      "metta.common.util.retry",
+      "metta.common.wandb.wandb_context",
+      "metta.sweep.protein_metta",
+      "metta.sweep.wandb_utils"
+    ],
+    "tools.autotune": [
+      "metta.util.metta_script"
+    ],
+    "tools.sweep_setup": [
+      "metta.common.util.lock",
+      "metta.sweep.wandb_utils"
+    ],
+    "tools.sweep_config_utils": [
+      "metta.common.util.config",
+      "metta.rl.trainer_config"
+    ],
+    "tools.analyze": [
+      "metta.eval.analysis",
+      "metta.eval.analysis_config",
+      "metta.util.metta_script"
+    ],
+    "tools.map.normalize_scene_patterns": [
+      "metta.map.utils.ascii_grid",
+      "metta.mettagrid.char_encoder"
+    ],
+    "tools.map.gen": [
+      "metta.common.util.config",
+      "metta.map.utils.show",
+      "metta.map.utils.storable_map",
+      "metta.util.metta_script"
+    ],
+    "tools.map.view": [
+      "metta.map.load_random",
+      "metta.map.utils.show",
+      "metta.map.utils.storable_map",
+      "metta.util.metta_script"
+    ],
+    "tools.map.gen_scene": [
+      "metta.map.utils.show",
+      "metta.map.utils.storable_map",
+      "metta.util.metta_script"
+    ],
+    "tools.map.normalize_ascii_map": [
+      "metta.mettagrid.char_encoder"
+    ],
+    "app_backend.tests.test_score_routes": [
+      "metta.app_backend.clients.stats_client",
+      "metta.app_backend.routes.score_routes"
+    ],
+    "app_backend.tests.test_eval_task_orchestrator_integration": [
+      "metta.app_backend.clients.eval_task_client",
+      "metta.app_backend.clients.stats_client",
+      "metta.app_backend.eval_task_orchestrator",
+      "metta.app_backend.eval_task_worker",
+      "metta.app_backend.routes.eval_task_routes",
+      "metta.app_backend.worker_managers.base",
+      "metta.app_backend.worker_managers.thread_manager"
+    ],
+    "app_backend.tests.conftest": [
+      "metta.app_backend.clients.stats_client",
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.server",
+      "metta.app_backend.test_support",
+      "metta.common.test_support"
+    ],
+    "app_backend.tests.generate_test_data": [
+      "metta.app_backend.clients.stats_client",
+      "metta.app_backend.routes.stats_routes"
+    ],
+    "app_backend.tests.test_sql_concurrency": [
+      "metta.app_backend.test_support.base_async_test"
+    ],
+    "app_backend.tests.test_saved_dashboards": [
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.test_support"
+    ],
+    "app_backend.tests.test_scorecard_routes": [
+      "metta.app_backend.clients.stats_client",
+      "metta.app_backend.leaderboard_updater",
+      "metta.app_backend.metta_repo"
+    ],
+    "app_backend.tests.test_docker_integration": [
+      "metta.common.util.fs"
+    ],
+    "app_backend.tests.test_stats_server": [
+      "metta.app_backend.clients.stats_client"
+    ],
+    "app_backend.tests.test_training_runs_routes": [
+      "metta.app_backend.clients.stats_client"
+    ],
+    "app_backend.tests.test_sweep_routes": [
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.server"
+    ],
+    "app_backend.tests.test_token_system": [
+      "metta.app_backend.test_support.base_async_test"
+    ],
+    "app_backend.tests.test_eval_task_routes": [
+      "metta.app_backend.clients.eval_task_client",
+      "metta.app_backend.clients.stats_client",
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.routes.eval_task_routes"
+    ],
+    "app_backend.app_backend.auth": [
+      "metta.app_backend",
+      "metta.app_backend.metta_repo"
+    ],
+    "app_backend.app_backend.server": [
+      "metta.app_backend.auth",
+      "metta.app_backend.config",
+      "metta.app_backend.leaderboard_updater",
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.routes"
+    ],
+    "app_backend.app_backend.metta_repo": [
+      "metta.app_backend.query_logger",
+      "metta.app_backend.schema_manager"
+    ],
+    "app_backend.app_backend.leaderboard_updater": [
+      "metta.app_backend.metta_repo"
+    ],
+    "app_backend.app_backend.eval_task_worker": [
+      "metta.app_backend.clients.eval_task_client",
+      "metta.app_backend.routes.eval_task_routes",
+      "metta.common.datadog.tracing",
+      "metta.common.util.collections",
+      "metta.common.util.constants",
+      "metta.common.util.git",
+      "metta.common.util.logging_helpers"
+    ],
+    "app_backend.app_backend.sweep_client": [
+      "metta.app_backend.routes.sweep_routes",
+      "metta.common.util.constants"
+    ],
+    "app_backend.app_backend.eval_task_orchestrator": [
+      "metta.app_backend.clients.eval_task_client",
+      "metta.app_backend.container_managers.factory",
+      "metta.app_backend.routes.eval_task_routes",
+      "metta.app_backend.worker_managers.base",
+      "metta.app_backend.worker_managers.container_manager",
+      "metta.app_backend.worker_managers.worker",
+      "metta.common.datadog.tracing",
+      "metta.common.util.collections",
+      "metta.common.util.constants",
+      "metta.common.util.logging_helpers"
+    ],
+    "app_backend.app_backend.clients.stats_client": [
+      "metta.app_backend.clients.base_client",
+      "metta.app_backend.routes.eval_task_routes",
+      "metta.app_backend.routes.score_routes",
+      "metta.app_backend.routes.stats_routes",
+      "metta.app_backend.server",
+      "metta.common.util.collections",
+      "metta.common.util.constants",
+      "metta.common.util.stats_client_cfg"
+    ],
+    "app_backend.app_backend.clients.scorecard_client": [
+      "metta.app_backend.clients.base_client",
+      "metta.app_backend.routes.scorecard_routes",
+      "metta.app_backend.routes.sql_routes"
+    ],
+    "app_backend.app_backend.clients.base_client": [
+      "metta.app_backend.server",
+      "metta.common.util.collections",
+      "metta.common.util.constants",
+      "metta.common.util.stats_client_cfg"
+    ],
+    "app_backend.app_backend.clients.eval_task_client": [
+      "metta.app_backend.clients.base_client",
+      "metta.app_backend.routes.eval_task_routes"
+    ],
+    "app_backend.app_backend.test_support.client_adapter": [
+      "metta.app_backend.clients.stats_client"
+    ],
+    "app_backend.app_backend.test_support.base_async_test": [
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.server"
+    ],
+    "app_backend.app_backend.worker_managers.thread_manager": [
+      "metta.app_backend.eval_task_worker",
+      "metta.app_backend.worker_managers.base",
+      "metta.app_backend.worker_managers.worker"
+    ],
+    "app_backend.app_backend.worker_managers.base": [
+      "metta.app_backend.worker_managers.worker"
+    ],
+    "app_backend.app_backend.worker_managers.container_manager": [
+      "metta.app_backend.container_managers.base",
+      "metta.app_backend.worker_managers.base",
+      "metta.app_backend.worker_managers.worker"
+    ],
+    "app_backend.app_backend.container_managers.factory": [
+      "metta.app_backend.container_managers.base",
+      "metta.app_backend.container_managers.docker",
+      "metta.app_backend.container_managers.k8s"
+    ],
+    "app_backend.app_backend.container_managers.docker": [
+      "metta.app_backend.container_managers.base",
+      "metta.app_backend.worker_managers.worker",
+      "metta.common.datadog.config"
+    ],
+    "app_backend.app_backend.container_managers.k8s": [
+      "metta.app_backend.container_managers.base",
+      "metta.app_backend.worker_managers.worker",
+      "metta.common.datadog.config"
+    ],
+    "app_backend.app_backend.container_managers.base": [
+      "metta.app_backend.worker_managers.worker"
+    ],
+    "app_backend.app_backend.routes.dashboard_routes": [
+      "metta.app_backend.auth",
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.route_logger"
+    ],
+    "app_backend.app_backend.routes.eval_task_routes": [
+      "metta.app_backend.auth",
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.route_logger",
+      "metta.common.util.git"
+    ],
+    "app_backend.app_backend.routes.leaderboard_routes": [
+      "metta.app_backend.auth",
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.route_logger"
+    ],
+    "app_backend.app_backend.routes.sweep_routes": [
+      "metta.app_backend.auth",
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.route_logger"
+    ],
+    "app_backend.app_backend.routes.token_routes": [
+      "metta.app_backend.auth",
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.route_logger"
+    ],
+    "app_backend.app_backend.routes.scorecard_routes": [
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.query_logger",
+      "metta.app_backend.route_logger"
+    ],
+    "app_backend.app_backend.routes.stats_routes": [
+      "metta.app_backend.auth",
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.route_logger"
+    ],
+    "app_backend.app_backend.routes.sql_routes": [
+      "metta.app_backend.auth",
+      "metta.app_backend.config",
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.query_logger",
+      "metta.app_backend.route_logger"
+    ],
+    "app_backend.app_backend.routes.score_routes": [
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.query_logger"
+    ],
+    "app_backend.app_backend.routes.entity_routes": [
+      "metta.app_backend.auth",
+      "metta.app_backend.metta_repo",
+      "metta.app_backend.query_logger",
+      "metta.app_backend.route_logger"
+    ],
+    "observatory.launch": [
+      "metta.common.util.constants",
+      "metta.common.util.stats_client_cfg",
+      "metta.setup.utils"
+    ],
+    "experiments.marimo.eval-finder-example": [
+      "metta.app_backend.clients.scorecard_client"
+    ],
+    "experiments.marimo.scorecard-example": [
+      "metta.app_backend.clients.scorecard_client",
+      "metta.common.util.collections"
+    ],
+    "experiments.notebooks.utils.metrics": [
+      "metta.common.util.constants"
+    ],
+    "experiments.notebooks.utils.monitoring_marimo": [
+      "metta.common.util.constants"
+    ],
+    "experiments.notebooks.utils.monitoring": [
+      "metta.common.util.constants",
+      "metta.common.util.fs"
+    ],
+    "experiments.notebooks.utils.training": [
+      "metta.common.util.collections",
+      "metta.common.util.fs"
+    ],
+    "experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.util": [
+      "metta.app_backend.clients.scorecard_client"
+    ],
+    "experiments.notebooks.utils.scorecard_widget.scorecard_widget.util": [
+      "metta.app_backend.clients.scorecard_client",
+      "metta.app_backend.routes.scorecard_routes",
+      "metta.setup.utils"
+    ],
+    "mettascope.server": [
+      "metta.common.util.constants",
+      "metta.mettagrid.grid_object_formatter",
+      "metta.util.metta_script",
+      "mettascope.replays"
+    ],
+    "mettascope.replays": [
+      "metta.agent.mocks",
+      "metta.common.wandb.wandb_context",
+      "metta.rl.system_config",
+      "metta.sim.simulation",
+      "metta.sim.simulation_config",
+      "metta.util.metta_script"
+    ],
+    "tests.test_num_episodes_bug": [
+      "metta.agent.policy_metadata",
+      "metta.agent.policy_record",
+      "metta.eval.eval_stats_db"
+    ],
+    "tests.test_action_compatibility": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_c_config"
+    ],
+    "tests.test_validate_all_curriculums": [
+      "metta.common.util.mettagrid_cfgs",
+      "metta.common.util.resolvers",
+      "metta.mettagrid.curriculum.core"
+    ],
+    "tests.test_validate_all_envs": [
+      "metta.common.util.mettagrid_cfgs",
+      "metta.common.util.resolvers",
+      "metta.map.utils.storable_map",
+      "metta.mettagrid.mettagrid_c_config"
+    ],
+    "tests.devops.test_docker_image_builds": [
+      "metta.common.util.fs"
+    ],
+    "tests.tools.test_renderer_job": [
+      "metta.common.util.fs",
+      "metta.mettagrid.renderer.miniscope"
+    ],
+    "tests.util.fixtures.script": [
+      "metta.util.metta_script"
+    ],
+    "tests.setup.conftest": [
+      "metta.common.util.fs",
+      "metta.setup.profiles"
+    ],
+    "tests.setup.test_integration_install": [
+      "metta.setup.config"
+    ],
+    "tests.setup.test_aws_profile_setup": [
+      "metta.setup.profiles"
+    ],
+    "tests.setup.test_base": [
+      "metta.setup.profiles"
+    ],
+    "mettagrid.test_attack_resource_exception": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_c_config"
+    ],
+    "tests.map.test_mapgen": [
+      "metta.map.mapgen",
+      "metta.map.scenes.inline_ascii",
+      "metta.map.scenes.room_grid",
+      "metta.map.scenes.transplant_scene"
+    ],
+    "tests.map.test_validate_all_ascii_maps": [
+      "metta.mettagrid.char_encoder"
+    ],
+    "tests.map.test_scene": [
+      "metta.common.util.config",
+      "metta.map.scene",
+      "metta.map.types"
+    ],
+    "tests.map.scenes.test_random_scene_from_dir": [
+      "metta.map.scenes.random_scene_from_dir"
+    ],
+    "tests.map.scenes.test_bsp": [
+      "metta.map.scenes.bsp"
+    ],
+    "tests.map.scenes.test_random_scene": [
+      "metta.map.scenes.inline_ascii",
+      "metta.map.scenes.random_scene"
+    ],
+    "tests.map.scenes.test_radial_maze": [
+      "metta.map.scenes.radial_maze"
+    ],
+    "tests.map.scenes.test_multi_left_and_right": [
+      "metta.map.scenes.multi_left_and_right"
+    ],
+    "tests.map.scenes.test_convchain": [
+      "metta.map.scenes.convchain"
+    ],
+    "tests.map.scenes.test_make_connected": [
+      "metta.map.scenes.make_connected",
+      "metta.map.scenes.room_grid",
+      "metta.map.types"
+    ],
+    "tests.map.scenes.test_room_grid": [
+      "metta.map.scenes.room_grid",
+      "metta.map.types"
+    ],
+    "tests.map.scenes.test_wfc": [
+      "metta.map.scenes.wfc"
+    ],
+    "tests.map.scenes.utils": [
+      "metta.map.random.int",
+      "metta.map.scene",
+      "metta.map.types",
+      "metta.map.utils.ascii_grid",
+      "metta.map.utils.storable_map",
+      "metta.mettagrid.level_builder"
+    ],
+    "tests.map.scenes.test_mirror": [
+      "metta.map.scenes.maze",
+      "metta.map.scenes.mirror"
+    ],
+    "tests.map.scenes.test_maze": [
+      "metta.map.scenes.maze"
+    ],
+    "tests.map.scenes.test_random_objects": [
+      "metta.map.scenes.random_objects"
+    ],
+    "tests.map.scenes.test_ascii": [
+      "metta.map.scenes.ascii"
+    ],
+    "tests.map.scenes.test_mean_distance": [
+      "metta.map.scenes.mean_distance"
+    ],
+    "tests.map.scenes.test_auto": [
+      "metta.map.scenes.auto"
+    ],
+    "tests.map.scenes.test_layout": [
+      "metta.map.scenes.layout",
+      "metta.map.types"
+    ],
+    "tests.map.scenes.test_nop": [
+      "metta.map.scenes.nop"
+    ],
+    "tests.map.scenes.test_remove_agents": [
+      "metta.map.scenes.inline_ascii",
+      "metta.map.scenes.nop",
+      "metta.map.scenes.remove_agents",
+      "metta.map.types"
+    ],
+    "tests.map.scenes.test_inline_ascii": [
+      "metta.map.scenes.inline_ascii"
+    ],
+    "tests.map.scenes.test_random": [
+      "metta.map.scenes.random"
+    ],
+    "tests.map.utils.test_pattern": [
+      "metta.map.utils.pattern"
+    ],
+    "tests.map.utils.test_storable_map_io": [
+      "metta.map.utils.storable_map",
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.util"
+    ],
+    "tests.map.random.test_int": [
+      "metta.map.random.int"
+    ],
+    "tests.map.random.test_float": [
+      "metta.map.random.float"
+    ],
+    "tests.cogworks.curriculum.test_task": [
+      "metta.cogworks.curriculum",
+      "metta.mettagrid.mettagrid_config"
+    ],
+    "tests.cogworks.curriculum.test_serialization": [
+      "metta.cogworks.curriculum",
+      "metta.cogworks.curriculum.task_generator",
+      "metta.mettagrid.config.builder"
+    ],
+    "tests.cogworks.curriculum.test_curriculum_env": [
+      "metta.cogworks.curriculum",
+      "metta.cogworks.curriculum.curriculum_env",
+      "metta.mettagrid.mettagrid_config"
+    ],
+    "tests.cogworks.curriculum.test_curriculum": [
+      "metta.cogworks.curriculum",
+      "metta.mettagrid.mettagrid_config"
+    ],
+    "tests.sweep.test_metta_protein": [
+      "metta.sweep.protein_metta"
+    ],
+    "tests.sweep.test_protein_end_to_end_pipeline": [
+      "metta.sweep.protein_metta"
+    ],
+    "tests.sweep.test_integration_sweep_pipeline": [
+      "metta.sweep.protein_metta"
+    ],
+    "tests.sweep.test_protein_metta": [
+      "metta.sweep.protein_metta"
+    ],
+    "tests.sweep.test_wandb_utils": [
+      "metta.sweep.wandb_utils"
+    ],
+    "tests.sweep.test_sweep_config_loading": [
+      "metta.rl.trainer_config"
+    ],
+    "tests.sweep.test_protein_integration": [
+      "metta.sweep.protein_metta"
+    ],
+    "tests.eval.test_eval_stats_db": [
+      "metta.agent.mocks",
+      "metta.agent.policy_record",
+      "metta.eval.eval_stats_db"
+    ],
+    "tests.eval.test_dashboard_data": [
+      "metta.eval.dashboard_data",
+      "metta.sim.simulation_stats_db"
+    ],
+    "tests.sim.test_simulation_stats_db": [
+      "metta.agent.mocks",
+      "metta.agent.policy_record",
+      "metta.sim.simulation_stats_db"
+    ],
+    "tests.sim.test_all_sim_configs": [
+      "metta.common.util.fs",
+      "metta.common.util.resolvers"
+    ],
+    "tests.sim.test_simulation_config": [
+      "metta.sim.simulation_config"
+    ],
+    "tests.rl.test_mps": [
+      "metta.rl",
+      "metta.rl.advantage"
+    ],
+    "tests.rl.test_hyperparameter_scheduler": [
+      "metta.rl.hyperparameter_scheduler"
+    ],
+    "tests.rl.test_losses": [
+      "metta.rl.losses"
+    ],
+    "tests.rl.test_kickstarter": [
+      "metta.rl.kickstarter"
+    ],
+    "tests.rl.test_trainer_config": [
+      "metta.rl.trainer_config"
+    ],
+    "tests.rl.test_metrics_formatting": [
+      "metta.eval.eval_request_config",
+      "metta.rl.stats"
+    ],
+    "agent.tests.test_legacy_adapter": [
+      "metta.agent.component_policy",
+      "metta.agent.metta_agent"
+    ],
+    "agent.tests.test_vanilla_policy": [
+      "metta.agent.metta_agent",
+      "metta.rl.system_config"
+    ],
+    "agent.tests.test_metta_agent": [
+      "metta.agent.metta_agent",
+      "metta.agent.util.distribution_utils",
+      "metta.rl.system_config"
+    ],
+    "agent.tests.test_feature_remapping": [
+      "metta.agent.lib.obs_tokenizers",
+      "metta.agent.mocks",
+      "metta.agent.policy_metadata",
+      "metta.agent.policy_record"
+    ],
+    "agent.tests.test_policy_store": [
+      "metta.agent.mocks",
+      "metta.agent.policy_metadata",
+      "metta.agent.policy_record",
+      "metta.agent.policy_store"
+    ],
+    "agent.tests.test_policy_cache": [
+      "metta.agent.mocks",
+      "metta.agent.policy_cache",
+      "metta.agent.policy_metadata",
+      "metta.agent.policy_record"
+    ],
+    "agent.tests.util.test_distribution_utils": [
+      "metta.agent.util.distribution_utils"
+    ],
+    "agent.tests.lib.test_modular_network": [
+      "metta.agent.lib.metta_module",
+      "metta.agent.lib.modular_network"
+    ],
+    "agent.tests.lib.test_metta_modules": [
+      "metta.agent.lib.metta_module"
+    ],
+    "agent.tests.lib.test_metta_module": [
+      "metta.agent.lib.metta_module"
+    ],
+    "agent.tests.lib.test_obs_token_to_box_shaper": [
+      "metta.agent.lib.obs_token_to_box_shaper"
+    ],
+    "agent.tests.lib.test_lstm": [
+      "metta.agent.lib.lstm"
+    ],
+    "agent.agent.policy_cache": [
+      "metta.agent.policy_record"
+    ],
+    "agent.agent.policy_record": [
+      "metta.agent.legacy_adapter",
+      "metta.agent.metta_agent",
+      "metta.agent.policy_metadata",
+      "metta.agent.policy_store"
+    ],
+    "agent.agent.policy_store": [
+      "metta.agent.policy_cache",
+      "metta.agent.policy_metadata",
+      "metta.agent.policy_record",
+      "metta.app_backend.clients.stats_client",
+      "metta.common.wandb.wandb_context",
+      "metta.rl.puffer_policy",
+      "metta.sim.utils"
+    ],
+    "agent.agent.metta_agent": [
+      "metta.agent.component_policy",
+      "metta.agent.pytorch.agent_mapper",
+      "metta.rl.system_config"
+    ],
+    "agent.agent.component_policy": [
+      "metta.agent.util.debug",
+      "metta.agent.util.distribution_utils",
+      "metta.agent.util.safe_get",
+      "metta.common.util.datastruct",
+      "metta.common.util.instantiate"
+    ],
+    "agent.agent.mocks.mock_policy_record": [
+      "metta.agent.policy_metadata",
+      "metta.agent.policy_record",
+      "metta.agent.policy_store"
+    ],
+    "agent.agent.mocks.mock_agent": [
+      "metta.agent.metta_agent"
+    ],
+    "agent.agent.lib.nn_layer_library": [
+      "metta.agent.lib.metta_layer"
+    ],
+    "agent.agent.lib.obs_enc": [
+      "metta.agent.lib.nn_layer_library"
+    ],
+    "agent.agent.lib.merge_layer": [
+      "metta.agent.lib.metta_layer"
+    ],
+    "agent.agent.lib.metta_layer": [
+      "metta.agent.util.weights_analysis"
+    ],
+    "agent.agent.lib.action": [
+      "metta.agent.lib.nn_layer_library"
+    ],
+    "agent.agent.lib.obs_tokenizers": [
+      "metta.agent.lib.nn_layer_library"
+    ],
+    "agent.agent.lib.modular_network": [
+      "metta.agent.lib.metta_module"
+    ],
+    "agent.agent.lib.observation_normalizer": [
+      "metta.agent.lib.metta_layer"
+    ],
+    "agent.agent.lib.actor": [
+      "metta.agent.lib.metta_layer"
+    ],
+    "agent.agent.lib.lstm": [
+      "metta.agent.lib.metta_layer"
+    ],
+    "agent.agent.lib.obs_token_to_box_shaper": [
+      "metta.agent.lib.metta_layer"
+    ],
+    "agent.agent.pytorch.latent_attn_tiny": [
+      "metta.agent.modules.encoders",
+      "metta.agent.modules.tokenizers"
+    ],
+    "agent.agent.pytorch.latent_attn_small": [
+      "metta.agent.modules.encoders",
+      "metta.agent.modules.tokenizers"
+    ],
+    "agent.agent.pytorch.agent_mapper": [
+      "metta.agent.pytorch.example",
+      "metta.agent.pytorch.fast",
+      "metta.agent.pytorch.latent_attn_med",
+      "metta.agent.pytorch.latent_attn_small",
+      "metta.agent.pytorch.latent_attn_tiny"
+    ],
+    "agent.agent.pytorch.latent_attn_med": [
+      "metta.agent.modules.encoders",
+      "metta.agent.modules.tokenizers"
+    ],
+    "mettagrid.generate_coverage": [
+      "metta.common.util.text_styles"
+    ],
+    "mettagrid.tests.test_env_map": [
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.mettagrid_env",
+      "metta.mettagrid.room.random",
+      "metta.mettagrid.util.hydra"
+    ],
+    "mettagrid.tests.test_global_reward_observations": [
+      "metta.mettagrid.mettagrid_c"
+    ],
+    "mettagrid.tests.test_no_agent_interference": [
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.mettagrid_env",
+      "metta.mettagrid.util.actions",
+      "metta.mettagrid.util.hydra"
+    ],
+    "mettagrid.tests.test_stats_writer": [
+      "metta.mettagrid.episode_stats_db",
+      "metta.mettagrid.stats_writer"
+    ],
+    "mettagrid.tests.test_actions": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_c_config",
+      "metta.mettagrid.util.actions"
+    ],
+    "mettagrid.tests.test_stats_rewards": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_c_config"
+    ],
+    "mettagrid.tests.test_diversity": [
+      "metta.mettagrid.util.diversity"
+    ],
+    "mettagrid.tests.test_buffer_sharing_regression": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_env"
+    ],
+    "mettagrid.tests.test_swap": [
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_c_config"
+    ],
+    "mettagrid.tests.test_pettingzoo_env": [
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.pettingzoo_env"
+    ],
+    "mettagrid.tests.test_new_env_hierarchy": [
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.gym_env",
+      "metta.mettagrid.mettagrid_env",
+      "metta.mettagrid.pettingzoo_env"
+    ],
+    "mettagrid.tests.test_8way_movement": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.test_support"
+    ],
+    "mettagrid.tests.test_cardinal_movement": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.test_support"
+    ],
+    "mettagrid.tests.test_observations": [
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.test_support"
+    ],
+    "mettagrid.tests.test_global_obs_config": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_c_config"
+    ],
+    "mettagrid.tests.test_rewards": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_c_config",
+      "metta.mettagrid.util.actions"
+    ],
+    "mettagrid.tests.test_wandb_movement_metrics": [
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.mettagrid_env",
+      "metta.mettagrid.util.hydra"
+    ],
+    "mettagrid.tests.test_mettagrid": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.test_support"
+    ],
+    "mettagrid.tests.test_movement_metrics": [
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.mettagrid_env",
+      "metta.mettagrid.util.hydra"
+    ],
+    "mettagrid.tests.test_mettagrid_env": [
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.mettagrid_env"
+    ],
+    "mettagrid.tests.test_visitation_counts": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_c_config"
+    ],
+    "mettagrid.tests.test_buffer_reuse": [
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.mettagrid_env",
+      "metta.mettagrid.util.hydra"
+    ],
+    "mettagrid.tests.test_converter": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_c_config"
+    ],
+    "mettagrid.tests.test_buffers": [
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_c_config"
+    ],
+    "mettagrid.tests.test_gym_env": [
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.gym_env"
+    ],
+    "mettagrid.tests.test_interactive": [
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.gym_env",
+      "metta.mettagrid.mettagrid_env",
+      "metta.mettagrid.pettingzoo_env"
+    ],
+    "mettagrid.tests.test_leaks": [
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.mettagrid_env"
+    ],
+    "mettagrid.tests.test_curriculum": [
+      "metta.mettagrid.curriculum.bucketed",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.curriculum.learning_progress",
+      "metta.mettagrid.curriculum.multi_task",
+      "metta.mettagrid.curriculum.prioritize_regressed",
+      "metta.mettagrid.curriculum.random",
+      "metta.mettagrid.curriculum.sampling",
+      "metta.mettagrid.curriculum.util",
+      "metta.mettagrid.room.random"
+    ],
+    "mettagrid.tests.renderer.test_miniscope": [
+      "metta.mettagrid.renderer.miniscope"
+    ],
+    "mettagrid.tests.renderer.test_nethack": [
+      "metta.mettagrid.char_encoder",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.mettagrid_env",
+      "metta.mettagrid.renderer.nethack",
+      "metta.mettagrid.util.hydra"
+    ],
+    "mettagrid.examples.test_stats_rewards": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_c_config"
+    ],
+    "mettagrid.benchmarks.test_mettagrid_env_benchmark": [
+      "metta.mettagrid",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.util.actions",
+      "metta.mettagrid.util.hydra"
+    ],
+    "mettagrid.demos.demo_train_puffer": [
+      "metta.mettagrid",
+      "metta.mettagrid.curriculum.core"
+    ],
+    "mettagrid.demos.demo_train_gym": [
+      "metta.mettagrid",
+      "metta.mettagrid.curriculum.core"
+    ],
+    "mettagrid.demos.demo_train_pettingzoo": [
+      "metta.mettagrid",
+      "metta.mettagrid.curriculum.core"
+    ],
+    "mettagrid.mettagrid.pettingzoo_env": [
+      "metta.mettagrid.core",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.mettagrid_c"
+    ],
+    "mettagrid.mettagrid.puffer_base": [
+      "metta.mettagrid.core",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.mettagrid_c"
+    ],
+    "mettagrid.mettagrid.__init__": [
+      "metta.mettagrid.core",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.gym_env",
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_env",
+      "metta.mettagrid.pettingzoo_env",
+      "metta.mettagrid.replay_writer",
+      "metta.mettagrid.stats_writer"
+    ],
+    "mettagrid.mettagrid.mettagrid_config": [
+      "metta.common.util.config",
+      "metta.mettagrid.level_builder"
+    ],
+    "mettagrid.mettagrid.core": [
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_c_config",
+      "metta.mettagrid.renderer.miniscope",
+      "metta.mettagrid.renderer.nethack"
+    ],
+    "mettagrid.mettagrid.mettagrid_env": [
+      "metta.common.profiling.stopwatch",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.puffer_base",
+      "metta.mettagrid.replay_writer",
+      "metta.mettagrid.stats_writer",
+      "metta.mettagrid.util.dict_utils"
+    ],
+    "mettagrid.mettagrid.mettagrid_c_config": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_config"
+    ],
+    "mettagrid.mettagrid.replay_writer": [
+      "metta.mettagrid.core",
+      "metta.mettagrid.grid_object_formatter",
+      "metta.mettagrid.util.file"
+    ],
+    "mettagrid.mettagrid.stats_writer": [
+      "metta.mettagrid.episode_stats_db"
+    ],
+    "mettagrid.mettagrid.gym_env": [
+      "metta.mettagrid.core",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.mettagrid_c"
+    ],
+    "mettagrid.mettagrid.renderer.nethack": [
+      "metta.mettagrid.char_encoder"
+    ],
+    "mettagrid.mettagrid.room.room_scene": [
+      "metta.mettagrid.room.room",
+      "metta.mettagrid.room.room_list"
+    ],
+    "mettagrid.mettagrid.room.ascii": [
+      "metta.mettagrid.char_encoder",
+      "metta.mettagrid.room.room"
+    ],
+    "mettagrid.mettagrid.room.random": [
+      "metta.mettagrid.room.room"
+    ],
+    "mettagrid.mettagrid.room.maze": [
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.room.room",
+      "metta.mettagrid.room.utils"
+    ],
+    "mettagrid.mettagrid.room.utils": [
+      "metta.map.types"
+    ],
+    "mettagrid.mettagrid.room.room_list": [
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.room.room"
+    ],
+    "mettagrid.mettagrid.room.room": [
+      "metta.mettagrid.level_builder"
+    ],
+    "mettagrid.mettagrid.room.multi_room": [
+      "metta.mettagrid.room.room",
+      "metta.mettagrid.room.room_list"
+    ],
+    "mettagrid.mettagrid.room.navigation.cylinder_world": [
+      "metta.mettagrid.room.room"
+    ],
+    "mettagrid.mettagrid.util.actions": [
+      "metta.mettagrid",
+      "metta.mettagrid.mettagrid_c"
+    ],
+    "mettagrid.mettagrid.util.hydra": [
+      "metta.common.util.fs"
+    ],
+    "mettagrid.mettagrid.config.object": [
+      "metta.mettagrid.mettagrid_config"
+    ],
+    "mettagrid.mettagrid.config.builder": [
+      "metta.mettagrid.config",
+      "metta.mettagrid.mettagrid_config"
+    ],
+    "mettagrid.mettagrid.curriculum.multi_task": [
+      "metta.mettagrid.curriculum.core"
+    ],
+    "mettagrid.mettagrid.curriculum.bucketed": [
+      "metta.common.util.config",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.curriculum.sampling",
+      "metta.mettagrid.curriculum.util"
+    ],
+    "mettagrid.mettagrid.curriculum.util": [
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.util.hydra"
+    ],
+    "mettagrid.mettagrid.curriculum.learning_progress": [
+      "metta.mettagrid.curriculum.random"
+    ],
+    "mettagrid.mettagrid.curriculum.sequential_trial_task": [
+      "metta.common.util.config",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.util.hydra"
+    ],
+    "mettagrid.mettagrid.curriculum.random": [
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.curriculum.multi_task",
+      "metta.mettagrid.curriculum.util"
+    ],
+    "mettagrid.mettagrid.curriculum.prioritize_regressed": [
+      "metta.mettagrid.curriculum.random"
+    ],
+    "mettagrid.mettagrid.curriculum.sampling": [
+      "metta.mettagrid.curriculum.core"
+    ],
+    "mettagrid.mettagrid.test_support.environment_builder": [
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.mettagrid_c_config"
+    ],
+    "mettagrid.mettagrid.test_support.observation_helper": [
+      "metta.mettagrid.mettagrid_c",
+      "metta.mettagrid.test_support.token_types"
+    ],
+    "common.tests.util.test_colorama": [
+      "metta.common.util.text_styles"
+    ],
+    "common.tests.util.test_retry": [
+      "metta.common.util.retry"
+    ],
+    "common.tests.util.test_git_filter": [
+      "metta.common.util.git",
+      "metta.common.util.git_filter"
+    ],
+    "common.tests.util.test_memoization": [
+      "metta.common.util.memoization"
+    ],
+    "common.tests.util.test_datastruct": [
+      "metta.common.util.datastruct"
+    ],
+    "common.tests.util.test_git": [
+      "metta.common.util.git"
+    ],
+    "common.tests.util.test_numpy_helpers": [
+      "metta.common.util.numpy_helpers"
+    ],
+    "common.tests.util.test_instantiate": [
+      "metta.common.util.instantiate"
+    ],
+    "common.tests.util.test_system_monitor": [
+      "metta.common.util.system_monitor"
+    ],
+    "common.tests.util.test_cli": [
+      "metta.common.util.cli"
+    ],
+    "common.tests.util.test_resolvers": [
+      "metta.common.util.resolvers"
+    ],
+    "common.tests.profiling.test_stopwatch": [
+      "metta.common.profiling.stopwatch"
+    ],
+    "common.tests.profiling.test_memory_monitor": [
+      "metta.common.profiling.memory_monitor"
+    ],
+    "common.common.util.mettagrid_cfgs": [
+      "metta.common.util.config",
+      "metta.mettagrid.curriculum.util"
+    ],
+    "common.common.util.git": [
+      "metta.common.util.constants",
+      "metta.common.util.memoization"
+    ],
+    "common.common.util.stats_client_cfg": [
+      "metta.app_backend.clients.stats_client",
+      "metta.common.util.constants"
+    ],
+    "common.common.util.constants": [
+      "metta.common.util.lazypath"
+    ],
+    "common.common.util.skypilot_latency": [
+      "metta.common.util.constants"
+    ],
+    "common.common.util.cli": [
+      "metta.common.util.text_styles"
+    ],
+    "common.common.util.cost_monitor": [
+      "metta.common.util.constants"
+    ],
+    "common.common.util.github": [
+      "metta.common.util.constants"
+    ],
+    "common.common.datadog.tracing": [
+      "metta.common.datadog.config"
+    ],
+    ".github.actions.discord-webhook.discord_webhook": [
+      "metta.common.util.discord"
+    ],
+    "metta.core.monitoring": [
+      "metta.common.profiling.memory_monitor",
+      "metta.common.profiling.stopwatch",
+      "metta.common.util.system_monitor",
+      "metta.rl.experience"
+    ],
+    "metta.util.metta_script": [
+      "metta.common.util.fs",
+      "metta.common.util.logging_helpers",
+      "metta.common.util.resolvers",
+      "metta.util.init.mettagrid_system"
+    ],
+    "metta.util.init.mettagrid_system": [
+      "metta.rl.system_config"
+    ],
+    "metta.setup.config": [
+      "metta.setup.profiles"
+    ],
+    "metta.setup.registry": [
+      "metta.setup.components.base"
+    ],
+    "metta.setup.metta_cli": [
+      "metta.common.util.fs",
+      "metta.setup.config",
+      "metta.setup.local_commands",
+      "metta.setup.profiles",
+      "metta.setup.registry",
+      "metta.setup.symlink_setup",
+      "metta.setup.tools.book",
+      "metta.setup.utils"
+    ],
+    "metta.setup.shell": [
+      "metta.agent.policy_store",
+      "metta.app_backend.clients.stats_client",
+      "metta.common.util.fs",
+      "metta.common.util.stats_client_cfg",
+      "metta.common.wandb.wandb_context",
+      "metta.setup.utils"
+    ],
+    "metta.setup.utils": [
+      "metta.common.util.text_styles"
+    ],
+    "metta.setup.symlink_setup": [
+      "metta.setup.utils"
+    ],
+    "metta.setup.local_commands": [
+      "metta.agent.policy_store",
+      "metta.common.util.constants",
+      "metta.common.util.fs",
+      "metta.common.util.stats_client_cfg",
+      "metta.common.wandb.wandb_runs",
+      "metta.setup.tools.local.kind",
+      "metta.setup.utils",
+      "metta.sim.utils"
+    ],
+    "metta.setup.profiles": [
+      "metta.common.util.constants"
+    ],
+    "metta.setup.tools.book": [
+      "metta.common.util.fs",
+      "metta.setup.utils"
+    ],
+    "metta.setup.tools.local.kind": [
+      "metta.common.util.constants",
+      "metta.common.util.fs",
+      "metta.common.util.stats_client_cfg",
+      "metta.setup.local_commands",
+      "metta.setup.utils"
+    ],
+    "metta.setup.components.githooks": [
+      "metta.common.util.fs",
+      "metta.setup.components.base",
+      "metta.setup.registry",
+      "metta.setup.utils"
+    ],
+    "metta.setup.components.system": [
+      "metta.setup.components.base",
+      "metta.setup.registry",
+      "metta.setup.utils"
+    ],
+    "metta.setup.components.skypilot": [
+      "metta.common.util.constants",
+      "metta.setup.components.base",
+      "metta.setup.registry",
+      "metta.setup.utils"
+    ],
+    "metta.setup.components.notebookwidgets": [
+      "metta.setup.components.base",
+      "metta.setup.config",
+      "metta.setup.registry",
+      "metta.setup.utils"
+    ],
+    "metta.setup.components.observatory_key": [
+      "metta.common.util.constants",
+      "metta.common.util.stats_client_cfg",
+      "metta.setup.components.base",
+      "metta.setup.registry",
+      "metta.setup.utils"
+    ],
+    "metta.setup.components.wandb": [
+      "metta.setup.components.base",
+      "metta.setup.profiles",
+      "metta.setup.registry",
+      "metta.setup.utils"
+    ],
+    "metta.setup.components.nodejs": [
+      "metta.setup.components.base",
+      "metta.setup.registry",
+      "metta.setup.utils"
+    ],
+    "metta.setup.components.codeclip": [
+      "metta.setup.components.base",
+      "metta.setup.profiles",
+      "metta.setup.registry",
+      "metta.setup.utils"
+    ],
+    "metta.setup.components.core": [
+      "metta.setup.components.base",
+      "metta.setup.registry",
+      "metta.setup.utils"
+    ],
+    "metta.setup.components.aws": [
+      "metta.setup.components.base",
+      "metta.setup.profiles",
+      "metta.setup.registry",
+      "metta.setup.utils"
+    ],
+    "metta.setup.components.tailscale": [
+      "metta.setup.components.base",
+      "metta.setup.config",
+      "metta.setup.registry",
+      "metta.setup.utils"
+    ],
+    "metta.setup.components.filter_repo": [
+      "metta.setup.components.base",
+      "metta.setup.registry",
+      "metta.setup.utils"
+    ],
+    "metta.setup.components.mettascope": [
+      "metta.setup.components.base",
+      "metta.setup.registry"
+    ],
+    "metta.setup.components.base": [
+      "metta.setup.config",
+      "metta.setup.utils"
+    ],
+    "metta.map.mapgen_ascii": [
+      "metta.common.util.config",
+      "metta.map.mapgen"
+    ],
+    "metta.map.load_random_from_index": [
+      "metta.map.load",
+      "metta.mettagrid.util"
+    ],
+    "metta.map.scene": [
+      "metta.common.util.config",
+      "metta.map.config",
+      "metta.map.random.int",
+      "metta.map.types"
+    ],
+    "metta.map.types": [
+      "metta.common.util.config"
+    ],
+    "metta.map.mapgen": [
+      "metta.common.util.config",
+      "metta.map.scene",
+      "metta.map.scenes.copy_grid",
+      "metta.map.scenes.room_grid",
+      "metta.map.scenes.transplant_scene",
+      "metta.mettagrid.level_builder"
+    ],
+    "metta.map.terrain_from_numpy": [
+      "metta.common.util.config",
+      "metta.mettagrid.level_builder"
+    ],
+    "metta.map.load_random": [
+      "metta.map.load",
+      "metta.map.utils"
+    ],
+    "metta.map.load": [
+      "metta.map.scene",
+      "metta.map.utils.storable_map",
+      "metta.mettagrid.level_builder",
+      "metta.mettagrid.room.room"
+    ],
+    "metta.map.scenes.transplant_scene": [
+      "metta.common.util.config",
+      "metta.map.scene",
+      "metta.map.types"
+    ],
+    "metta.map.scenes.mirror": [
+      "metta.common.util.config",
+      "metta.map.scene",
+      "metta.map.types"
+    ],
+    "metta.map.scenes.inline_ascii": [
+      "metta.common.util.config",
+      "metta.map.scene",
+      "metta.map.utils.ascii_grid",
+      "metta.mettagrid.char_encoder"
+    ],
+    "metta.map.scenes.wfc": [
+      "metta.common.util.config",
+      "metta.map.scene",
+      "metta.map.utils.pattern"
+    ],
+    "metta.map.scenes.ascii": [
+      "metta.common.util.config",
+      "metta.map.scene",
+      "metta.map.scenes.inline_ascii",
+      "metta.map.types",
+      "metta.map.utils.ascii_grid"
+    ],
+    "metta.map.scenes.layout": [
+      "metta.common.util.config",
+      "metta.map.scene"
+    ],
+    "metta.map.scenes.bsp": [
+      "metta.common.util.config",
+      "metta.map.scene",
+      "metta.map.types"
+    ],
+    "metta.map.scenes.radial_maze": [
+      "metta.common.util.config",
+      "metta.map.scene",
+      "metta.map.utils.draw"
+    ],
+    "metta.map.scenes.random_objects": [
+      "metta.common.util.config",
+      "metta.map.random.float",
+      "metta.map.scene",
+      "metta.map.scenes.random",
+      "metta.map.types"
+    ],
+    "metta.map.scenes.random": [
+      "metta.common.util.config",
+      "metta.map.scene"
+    ],
+    "metta.map.scenes.varied_terrain": [
+      "metta.common.util.config",
+      "metta.map.scene"
+    ],
+    "metta.map.scenes.convchain": [
+      "metta.common.util.config",
+      "metta.map.scene",
+      "metta.map.utils.pattern"
+    ],
+    "metta.map.scenes.multi_left_and_right": [
+      "metta.common.util.config",
+      "metta.map.scene",
+      "metta.map.scenes.random",
+      "metta.map.scenes.room_grid",
+      "metta.map.types"
+    ],
+    "metta.map.scenes.make_connected": [
+      "metta.common.util.config",
+      "metta.map.scene"
+    ],
+    "metta.map.scenes.nop": [
+      "metta.common.util.config",
+      "metta.map.scene"
+    ],
+    "metta.map.scenes.maze": [
+      "metta.common.util.config",
+      "metta.map.random.int",
+      "metta.map.scene",
+      "metta.map.types"
+    ],
+    "metta.map.scenes.copy_grid": [
+      "metta.common.util.config",
+      "metta.map.scene",
+      "metta.map.types"
+    ],
+    "metta.map.scenes.random_scene": [
+      "metta.common.util.config",
+      "metta.map.scene",
+      "metta.map.types"
+    ],
+    "metta.map.scenes.remove_agents": [
+      "metta.common.util.config",
+      "metta.map.scene"
+    ],
+    "metta.map.scenes.random_scene_from_dir": [
+      "metta.common.util.config",
+      "metta.map.config",
+      "metta.map.scene",
+      "metta.map.scenes.random_scene",
+      "metta.map.types"
+    ],
+    "metta.map.scenes.room_grid": [
+      "metta.common.util.config",
+      "metta.map.scene"
+    ],
+    "metta.map.scenes.mean_distance": [
+      "metta.common.util.config",
+      "metta.map.scene"
+    ],
+    "metta.map.scenes.auto": [
+      "metta.common.util.config",
+      "metta.map.random.float",
+      "metta.map.random.int",
+      "metta.map.scene",
+      "metta.map.scenes.bsp",
+      "metta.map.scenes.make_connected",
+      "metta.map.scenes.mirror",
+      "metta.map.scenes.random",
+      "metta.map.scenes.random_objects",
+      "metta.map.scenes.random_scene",
+      "metta.map.scenes.room_grid",
+      "metta.map.types"
+    ],
+    "metta.map.utils.storable_map": [
+      "metta.common.util.instantiate",
+      "metta.map.mapgen",
+      "metta.map.types",
+      "metta.map.utils.ascii_grid",
+      "metta.mettagrid.util"
+    ],
+    "metta.map.utils.show": [
+      "metta.common.util.config",
+      "metta.map.utils.storable_map",
+      "metta.mettagrid",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.level_builder",
+      "metta.sim.map_preview",
+      "mettascope.server"
+    ],
+    "metta.map.utils.storable_map_index": [
+      "metta.map.utils.s3utils",
+      "metta.map.utils.storable_map",
+      "metta.mettagrid.util"
+    ],
+    "metta.map.utils.dcss": [
+      "metta.map.config",
+      "metta.map.utils.make_scene_config",
+      "metta.util.metta_script"
+    ],
+    "metta.map.utils.pattern": [
+      "metta.map.utils.ascii_grid"
+    ],
+    "metta.map.utils.make_scene_config": [
+      "metta.map.mapgen"
+    ],
+    "metta.map.utils.ascii_grid": [
+      "metta.map.types",
+      "metta.mettagrid.char_encoder",
+      "metta.mettagrid.level_builder"
+    ],
+    "metta.cogworks.curriculum.task": [
+      "metta.mettagrid.mettagrid_config"
+    ],
+    "metta.cogworks.curriculum.curriculum": [
+      "metta.common.util.config",
+      "metta.mettagrid.mettagrid_config"
+    ],
+    "metta.cogworks.curriculum.__init__": [
+      "metta.mettagrid.mettagrid_config"
+    ],
+    "metta.cogworks.curriculum.task_generator": [
+      "metta.common.util.config",
+      "metta.mettagrid.mettagrid_config"
+    ],
+    "metta.cogworks.curriculum.demo": [
+      "metta.cogworks.curriculum",
+      "metta.cogworks.curriculum.task_generator",
+      "metta.mettagrid.config.builder"
+    ],
+    "metta.sweep.sweep_lifecycle": [
+      "metta.common.wandb.wandb_context",
+      "metta.eval.eval_stats_db",
+      "metta.rl.system_config",
+      "metta.sim.simulation_config",
+      "metta.sim.simulation_suite",
+      "metta.sweep.protein_metta",
+      "metta.sweep.protein_utils",
+      "metta.sweep.wandb_utils"
+    ],
+    "metta.sweep.sweep_rollout": [
+      "metta.common.util.lock"
+    ],
+    "metta.sweep.protein_metta": [
+      "metta.common.util.numpy_helpers"
+    ],
+    "metta.sweep.wandb_utils": [
+      "metta.common.util.numpy_helpers",
+      "metta.common.util.retry"
+    ],
+    "metta.eval.dashboard_data": [
+      "metta.common.util.config",
+      "metta.mettagrid.util.file",
+      "metta.sim.simulation_stats_db"
+    ],
+    "metta.eval.eval_service": [
+      "metta.agent.policy_record",
+      "metta.agent.policy_store",
+      "metta.app_backend.clients.stats_client",
+      "metta.eval.eval_request_config",
+      "metta.eval.eval_stats_db",
+      "metta.mettagrid.curriculum.core",
+      "metta.sim.simulation_config",
+      "metta.sim.simulation_suite"
+    ],
+    "metta.eval.analysis": [
+      "metta.agent.policy_record",
+      "metta.eval.analysis_config",
+      "metta.eval.eval_stats_db",
+      "metta.mettagrid.util.file"
+    ],
+    "metta.eval.eval_stats_db": [
+      "metta.agent.policy_record",
+      "metta.mettagrid.util.file",
+      "metta.sim.simulation_stats_db"
+    ],
+    "metta.eval.replays": [
+      "metta.common.util.constants"
+    ],
+    "metta.eval.eval_request_config": [
+      "metta.common.util.config"
+    ],
+    "metta.eval.analysis_config": [
+      "metta.agent.policy_store",
+      "metta.common.util.config"
+    ],
+    "metta.sim.simulation": [
+      "metta.agent.policy_record",
+      "metta.agent.policy_store",
+      "metta.app_backend.clients.stats_client",
+      "metta.mettagrid",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.curriculum.util",
+      "metta.mettagrid.replay_writer",
+      "metta.mettagrid.stats_writer",
+      "metta.rl.policy_management",
+      "metta.rl.vecenv",
+      "metta.sim.simulation_config",
+      "metta.sim.simulation_stats_db",
+      "metta.sim.utils"
+    ],
+    "metta.sim.simulation_config": [
+      "metta.common.util.config"
+    ],
+    "metta.sim.simulation_stats_db": [
+      "metta.agent.policy_record",
+      "metta.mettagrid.episode_stats_db",
+      "metta.mettagrid.util.file"
+    ],
+    "metta.sim.utils": [
+      "metta.agent.policy_record",
+      "metta.app_backend.clients.stats_client",
+      "metta.app_backend.routes.score_routes"
+    ],
+    "metta.sim.map_preview": [
+      "metta.common.util.constants",
+      "metta.mettagrid",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.util.file"
+    ],
+    "metta.sim.simulation_suite": [
+      "metta.agent.policy_record",
+      "metta.agent.policy_store",
+      "metta.app_backend.clients.stats_client",
+      "metta.sim.simulation",
+      "metta.sim.simulation_config",
+      "metta.sim.simulation_stats_db"
+    ],
+    "metta.rl.kickstarter": [
+      "metta.agent.metta_agent",
+      "metta.agent.policy_store",
+      "metta.mettagrid",
+      "metta.rl.kickstarter_config"
+    ],
+    "metta.rl.wandb": [
+      "metta.agent.policy_record",
+      "metta.agent.policy_store",
+      "metta.common.wandb.wandb_context"
+    ],
+    "metta.rl.torch_profiler": [
+      "metta.common.wandb.wandb_context",
+      "metta.mettagrid.util.file",
+      "metta.rl.trainer_config",
+      "metta.rl.utils"
+    ],
+    "metta.rl.trainer_checkpoint": [
+      "metta.common.util.fs"
+    ],
+    "metta.rl.kickstarter_config": [
+      "metta.common.util.config"
+    ],
+    "metta.rl.optimization": [
+      "metta.agent.metta_agent"
+    ],
+    "metta.rl.experience": [
+      "metta.common.util.datastruct"
+    ],
+    "metta.rl.trainer_config": [
+      "metta.common.util.config",
+      "metta.rl.hyperparameter_scheduler_config",
+      "metta.rl.kickstarter_config"
+    ],
+    "metta.rl.puffer_policy": [
+      "metta.agent.metta_agent",
+      "metta.common.util.instantiate",
+      "metta.rl.system_config"
+    ],
+    "metta.rl.policy_management": [
+      "metta.agent.metta_agent",
+      "metta.agent.policy_record",
+      "metta.mettagrid.mettagrid_env"
+    ],
+    "metta.rl.hyperparameter_scheduler_config": [
+      "metta.common.util.config"
+    ],
+    "metta.rl.utils": [
+      "metta.utils.progress"
+    ],
+    "metta.rl.rollout": [
+      "metta.common.profiling.stopwatch"
+    ],
+    "metta.rl.stats": [
+      "metta.agent.metta_agent",
+      "metta.agent.policy_store",
+      "metta.common.profiling.memory_monitor",
+      "metta.common.profiling.stopwatch",
+      "metta.common.util.system_monitor",
+      "metta.common.wandb.wandb_context",
+      "metta.eval.eval_request_config",
+      "metta.mettagrid.util.dict_utils",
+      "metta.rl.evaluate",
+      "metta.rl.experience",
+      "metta.rl.kickstarter",
+      "metta.rl.losses",
+      "metta.rl.trainer_config",
+      "metta.rl.utils",
+      "metta.rl.wandb"
+    ],
+    "metta.rl.vecenv": [
+      "metta.common.util.logging_helpers",
+      "metta.common.util.resolvers",
+      "metta.mettagrid",
+      "metta.mettagrid.curriculum.core",
+      "metta.mettagrid.replay_writer",
+      "metta.mettagrid.stats_writer"
+    ],
+    "metta.rl.system_config": [
+      "metta.common.util.collections",
+      "metta.common.util.config"
+    ],
+    "metta.rl.advantage": [
+      "metta.rl"
+    ],
+    "metta.rl.evaluate": [
+      "metta.agent.policy_record",
+      "metta.app_backend.clients.stats_client",
+      "metta.app_backend.routes.eval_task_routes",
+      "metta.common.util.collections",
+      "metta.common.util.constants",
+      "metta.common.wandb.wandb_context",
+      "metta.rl.trainer_config",
+      "metta.sim.simulation_config",
+      "metta.sim.utils"
+    ],
+    "metta.rl.losses": [
+      "metta.agent.metta_agent",
+      "metta.rl.advantage",
+      "metta.rl.experience",
+      "metta.rl.ppo",
+      "metta.rl.trainer_config"
+    ],
+    "metta.rl.trainer": [
+      "metta.agent.metta_agent",
+      "metta.agent.policy_store",
+      "metta.app_backend.clients.stats_client",
+      "metta.common.profiling.stopwatch",
+      "metta.common.util.heartbeat",
+      "metta.common.wandb.wandb_context",
+      "metta.core.distributed",
+      "metta.core.monitoring",
+      "metta.eval.eval_request_config",
+      "metta.eval.eval_service",
+      "metta.mettagrid",
+      "metta.mettagrid.curriculum.util",
+      "metta.rl.advantage",
+      "metta.rl.checkpoint_manager",
+      "metta.rl.evaluate",
+      "metta.rl.experience",
+      "metta.rl.kickstarter",
+      "metta.rl.losses",
+      "metta.rl.optimization",
+      "metta.rl.policy_management",
+      "metta.rl.rollout",
+      "metta.rl.stats",
+      "metta.rl.system_config",
+      "metta.rl.torch_profiler",
+      "metta.rl.trainer_checkpoint",
+      "metta.rl.trainer_config",
+      "metta.rl.utils",
+      "metta.rl.vecenv",
+      "metta.rl.wandb",
+      "metta.sim.simulation_config",
+      "metta.utils.batch"
+    ],
+    "metta.rl.ppo": [
+      "metta.rl.trainer_config"
+    ],
+    "metta.rl.checkpoint_manager": [
+      "metta.agent.metta_agent",
+      "metta.agent.policy_record",
+      "metta.agent.policy_store",
+      "metta.agent.util.distribution_utils",
+      "metta.common.profiling.stopwatch",
+      "metta.common.util.collections",
+      "metta.common.util.heartbeat",
+      "metta.common.wandb.wandb_context",
+      "metta.eval.eval_request_config",
+      "metta.mettagrid.mettagrid_env",
+      "metta.rl.kickstarter",
+      "metta.rl.policy_management",
+      "metta.rl.system_config",
+      "metta.rl.trainer_checkpoint",
+      "metta.rl.trainer_config",
+      "metta.rl.utils",
+      "metta.rl.wandb"
+    ],
+    "metta.gridworks.server": [
+      "metta.common.util.logging_helpers",
+      "metta.common.util.mettagrid_cfgs",
+      "metta.common.util.resolvers",
+      "metta.map.utils.storable_map",
+      "metta.map.utils.storable_map_index",
+      "metta.mettagrid.util.file"
+    ],
+    "gridworks.start": [
+      "metta.common.util.fs"
+    ],
+    "cogweb.cogweb_client": [
+      "metta.app_backend.sweep_client",
+      "metta.common.util.stats_client_cfg"
+    ]
+  },
+  "reverse_dependencies": {
+    "metta.common.test_support": [
+      "app_backend.tests.conftest",
+      "conftest"
+    ],
+    "metta.common.util.constants": [
+      "app_backend.app_backend.clients.base_client",
+      "app_backend.app_backend.clients.stats_client",
+      "app_backend.app_backend.eval_task_orchestrator",
+      "app_backend.app_backend.eval_task_worker",
+      "app_backend.app_backend.sweep_client",
+      "common.common.util.cost_monitor",
+      "common.common.util.git",
+      "common.common.util.github",
+      "common.common.util.skypilot_latency",
+      "common.common.util.stats_client_cfg",
+      "devops.add_to_leaderboard",
+      "devops.git.push_child_repo",
+      "devops.observatory_login",
+      "experiments.notebooks.utils.metrics",
+      "experiments.notebooks.utils.monitoring",
+      "experiments.notebooks.utils.monitoring_marimo",
+      "metta.eval.replays",
+      "metta.rl.evaluate",
+      "metta.setup.components.observatory_key",
+      "metta.setup.components.skypilot",
+      "metta.setup.local_commands",
+      "metta.setup.profiles",
+      "metta.setup.tools.local.kind",
+      "metta.sim.map_preview",
+      "mettascope.server",
+      "observatory.launch",
+      "tools.play",
+      "tools.replay",
+      "tools.request_eval"
+    ],
+    "metta.common.util.text_styles": [
+      "common.common.util.cli",
+      "common.tests.util.test_colorama",
+      "devops.docker.push_image",
+      "devops.skypilot.configure_jobs_controller",
+      "devops.skypilot.connect",
+      "devops.skypilot.launch",
+      "devops.skypilot.sandbox",
+      "devops.skypilot.utils",
+      "devops.tools.cleanup_repo",
+      "metta.setup.utils",
+      "mettagrid.generate_coverage"
+    ],
+    "metta.common.util.cli": [
+      "common.tests.util.test_cli",
+      "devops.docker.build",
+      "devops.docker.push_image",
+      "devops.skypilot.launch",
+      "devops.skypilot.sandbox"
+    ],
+    "metta.common.util.fs": [
+      "app_backend.tests.test_docker_integration",
+      "devops.docker.build",
+      "devops.docker.push_image",
+      "devops.skypilot.launch",
+      "experiments.notebooks.utils.monitoring",
+      "experiments.notebooks.utils.training",
+      "gridworks.start",
+      "metta.rl.trainer_checkpoint",
+      "metta.setup.components.githooks",
+      "metta.setup.local_commands",
+      "metta.setup.metta_cli",
+      "metta.setup.shell",
+      "metta.setup.tools.book",
+      "metta.setup.tools.local.kind",
+      "metta.util.metta_script",
+      "mettagrid.mettagrid.util.hydra",
+      "tests.devops.test_docker_image_builds",
+      "tests.setup.conftest",
+      "tests.sim.test_all_sim_configs",
+      "tests.tools.test_renderer_job"
+    ],
+    "metta.common.util.cost_monitor": [
+      "devops.skypilot.sandbox"
+    ],
+    "metta.common.util.git": [
+      "app_backend.app_backend.eval_task_worker",
+      "app_backend.app_backend.routes.eval_task_routes",
+      "common.tests.util.test_git",
+      "common.tests.util.test_git_filter",
+      "devops.git.push_child_repo",
+      "devops.skypilot.launch",
+      "devops.skypilot.sandbox",
+      "devops.skypilot.utils",
+      "tools.train"
+    ],
+    "metta.common.util.stats_client_cfg": [
+      "app_backend.app_backend.clients.base_client",
+      "app_backend.app_backend.clients.stats_client",
+      "cogweb.cogweb_client",
+      "devops.skypilot.utils",
+      "metta.setup.components.observatory_key",
+      "metta.setup.local_commands",
+      "metta.setup.shell",
+      "metta.setup.tools.local.kind",
+      "observatory.launch",
+      "tools.request_eval",
+      "tools.sim",
+      "tools.train"
+    ],
+    "metta.common.util.github": [
+      "devops.skypilot.set_github_status"
+    ],
+    "metta.common.util.config": [
+      "common.common.util.mettagrid_cfgs",
+      "devops.git.push_child_repo",
+      "metta.cogworks.curriculum.curriculum",
+      "metta.cogworks.curriculum.task_generator",
+      "metta.eval.analysis_config",
+      "metta.eval.dashboard_data",
+      "metta.eval.eval_request_config",
+      "metta.map.mapgen",
+      "metta.map.mapgen_ascii",
+      "metta.map.scene",
+      "metta.map.scenes.ascii",
+      "metta.map.scenes.auto",
+      "metta.map.scenes.bsp",
+      "metta.map.scenes.convchain",
+      "metta.map.scenes.copy_grid",
+      "metta.map.scenes.inline_ascii",
+      "metta.map.scenes.layout",
+      "metta.map.scenes.make_connected",
+      "metta.map.scenes.maze",
+      "metta.map.scenes.mean_distance",
+      "metta.map.scenes.mirror",
+      "metta.map.scenes.multi_left_and_right",
+      "metta.map.scenes.nop",
+      "metta.map.scenes.radial_maze",
+      "metta.map.scenes.random",
+      "metta.map.scenes.random_objects",
+      "metta.map.scenes.random_scene",
+      "metta.map.scenes.random_scene_from_dir",
+      "metta.map.scenes.remove_agents",
+      "metta.map.scenes.room_grid",
+      "metta.map.scenes.transplant_scene",
+      "metta.map.scenes.varied_terrain",
+      "metta.map.scenes.wfc",
+      "metta.map.terrain_from_numpy",
+      "metta.map.types",
+      "metta.map.utils.show",
+      "metta.rl.hyperparameter_scheduler_config",
+      "metta.rl.kickstarter_config",
+      "metta.rl.system_config",
+      "metta.rl.trainer_config",
+      "metta.sim.simulation_config",
+      "mettagrid.mettagrid.curriculum.bucketed",
+      "mettagrid.mettagrid.curriculum.sequential_trial_task",
+      "mettagrid.mettagrid.mettagrid_config",
+      "tests.map.test_scene",
+      "tools.map.gen",
+      "tools.replay",
+      "tools.sim",
+      "tools.sweep_config_utils",
+      "tools.train",
+      "tools.validate_config"
+    ],
+    "metta.common.util.git_filter": [
+      "common.tests.util.test_git_filter",
+      "devops.git.push_child_repo"
+    ],
+    "metta.agent.policy_record": [
+      "agent.agent.mocks.mock_policy_record",
+      "agent.agent.policy_cache",
+      "agent.agent.policy_store",
+      "agent.tests.test_feature_remapping",
+      "agent.tests.test_policy_cache",
+      "agent.tests.test_policy_store",
+      "metta.eval.analysis",
+      "metta.eval.eval_service",
+      "metta.eval.eval_stats_db",
+      "metta.rl.checkpoint_manager",
+      "metta.rl.evaluate",
+      "metta.rl.policy_management",
+      "metta.rl.wandb",
+      "metta.sim.simulation",
+      "metta.sim.simulation_stats_db",
+      "metta.sim.simulation_suite",
+      "metta.sim.utils",
+      "tests.eval.test_eval_stats_db",
+      "tests.sim.test_simulation_stats_db",
+      "tests.test_num_episodes_bug",
+      "tools.request_eval",
+      "tools.sim"
+    ],
+    "metta.agent.policy_store": [
+      "agent.agent.mocks.mock_policy_record",
+      "agent.agent.policy_record",
+      "agent.tests.test_policy_store",
+      "metta.eval.analysis_config",
+      "metta.eval.eval_service",
+      "metta.rl.checkpoint_manager",
+      "metta.rl.kickstarter",
+      "metta.rl.stats",
+      "metta.rl.trainer",
+      "metta.rl.wandb",
+      "metta.setup.local_commands",
+      "metta.setup.shell",
+      "metta.sim.simulation",
+      "metta.sim.simulation_suite",
+      "tools.request_eval",
+      "tools.sim",
+      "tools.utils"
+    ],
+    "metta.app_backend.clients.stats_client": [
+      "agent.agent.policy_store",
+      "app_backend.app_backend.test_support.client_adapter",
+      "app_backend.tests.conftest",
+      "app_backend.tests.generate_test_data",
+      "app_backend.tests.test_eval_task_orchestrator_integration",
+      "app_backend.tests.test_eval_task_routes",
+      "app_backend.tests.test_score_routes",
+      "app_backend.tests.test_scorecard_routes",
+      "app_backend.tests.test_stats_server",
+      "app_backend.tests.test_training_runs_routes",
+      "common.common.util.stats_client_cfg",
+      "metta.eval.eval_service",
+      "metta.rl.evaluate",
+      "metta.rl.trainer",
+      "metta.setup.shell",
+      "metta.sim.simulation",
+      "metta.sim.simulation_suite",
+      "metta.sim.utils",
+      "tools.request_eval",
+      "tools.sim",
+      "tools.train"
+    ],
+    "metta.eval.eval_service": [
+      "metta.rl.trainer",
+      "tools.sim"
+    ],
+    "metta.mettagrid.curriculum.core": [
+      "metta.eval.eval_service",
+      "metta.map.utils.show",
+      "metta.rl.vecenv",
+      "metta.sim.map_preview",
+      "metta.sim.simulation",
+      "mettagrid.benchmarks.test_mettagrid_env_benchmark",
+      "mettagrid.demos.demo_train_gym",
+      "mettagrid.demos.demo_train_pettingzoo",
+      "mettagrid.demos.demo_train_puffer",
+      "mettagrid.mettagrid.__init__",
+      "mettagrid.mettagrid.curriculum.bucketed",
+      "mettagrid.mettagrid.curriculum.multi_task",
+      "mettagrid.mettagrid.curriculum.random",
+      "mettagrid.mettagrid.curriculum.sampling",
+      "mettagrid.mettagrid.curriculum.sequential_trial_task",
+      "mettagrid.mettagrid.curriculum.util",
+      "mettagrid.mettagrid.gym_env",
+      "mettagrid.mettagrid.mettagrid_env",
+      "mettagrid.mettagrid.pettingzoo_env",
+      "mettagrid.mettagrid.puffer_base",
+      "mettagrid.tests.renderer.test_nethack",
+      "mettagrid.tests.test_buffer_reuse",
+      "mettagrid.tests.test_curriculum",
+      "mettagrid.tests.test_env_map",
+      "mettagrid.tests.test_gym_env",
+      "mettagrid.tests.test_interactive",
+      "mettagrid.tests.test_leaks",
+      "mettagrid.tests.test_mettagrid_env",
+      "mettagrid.tests.test_movement_metrics",
+      "mettagrid.tests.test_new_env_hierarchy",
+      "mettagrid.tests.test_no_agent_interference",
+      "mettagrid.tests.test_pettingzoo_env",
+      "mettagrid.tests.test_wandb_movement_metrics",
+      "tests.test_validate_all_curriculums",
+      "tools.renderer",
+      "tools.sim"
+    ],
+    "metta.mettagrid.curriculum.util": [
+      "common.common.util.mettagrid_cfgs",
+      "metta.rl.trainer",
+      "metta.sim.simulation",
+      "mettagrid.mettagrid.curriculum.bucketed",
+      "mettagrid.mettagrid.curriculum.random",
+      "mettagrid.tests.test_curriculum",
+      "tools.sim"
+    ],
+    "metta.rl.stats": [
+      "metta.rl.trainer",
+      "tests.rl.test_metrics_formatting",
+      "tools.sim"
+    ],
+    "metta.rl.system_config": [
+      "agent.agent.metta_agent",
+      "agent.tests.test_metta_agent",
+      "agent.tests.test_vanilla_policy",
+      "metta.rl.checkpoint_manager",
+      "metta.rl.puffer_policy",
+      "metta.rl.trainer",
+      "metta.sweep.sweep_lifecycle",
+      "metta.util.init.mettagrid_system",
+      "mettascope.replays",
+      "tools.replay",
+      "tools.sim",
+      "tools.sweep_eval",
+      "tools.train"
+    ],
+    "metta.sim.simulation_config": [
+      "metta.eval.eval_service",
+      "metta.rl.evaluate",
+      "metta.rl.trainer",
+      "metta.sim.simulation",
+      "metta.sim.simulation_suite",
+      "metta.sweep.sweep_lifecycle",
+      "mettascope.replays",
+      "tests.sim.test_simulation_config",
+      "tools.replay",
+      "tools.sim",
+      "tools.sweep_eval",
+      "tools.train"
+    ],
+    "metta.util.metta_script": [
+      "metta.map.utils.dcss",
+      "mettascope.replays",
+      "mettascope.server",
+      "tests.util.fixtures.script",
+      "tools.analyze",
+      "tools.autotune",
+      "tools.map.gen",
+      "tools.map.gen_scene",
+      "tools.map.view",
+      "tools.play",
+      "tools.renderer",
+      "tools.replay",
+      "tools.sim",
+      "tools.stats_duckdb_cli",
+      "tools.train"
+    ],
+    "metta.mettagrid": [
+      "metta.map.utils.show",
+      "metta.rl.kickstarter",
+      "metta.rl.trainer",
+      "metta.rl.vecenv",
+      "metta.sim.map_preview",
+      "metta.sim.simulation",
+      "mettagrid.benchmarks.test_mettagrid_env_benchmark",
+      "mettagrid.demos.demo_train_gym",
+      "mettagrid.demos.demo_train_pettingzoo",
+      "mettagrid.demos.demo_train_puffer",
+      "mettagrid.mettagrid.util.actions",
+      "tools.renderer"
+    ],
+    "metta.mettagrid.util.actions": [
+      "mettagrid.benchmarks.test_mettagrid_env_benchmark",
+      "mettagrid.tests.test_actions",
+      "mettagrid.tests.test_no_agent_interference",
+      "mettagrid.tests.test_rewards",
+      "tools.renderer"
+    ],
+    "metta.mettagrid.util.hydra": [
+      "mettagrid.benchmarks.test_mettagrid_env_benchmark",
+      "mettagrid.mettagrid.curriculum.sequential_trial_task",
+      "mettagrid.mettagrid.curriculum.util",
+      "mettagrid.tests.renderer.test_nethack",
+      "mettagrid.tests.test_buffer_reuse",
+      "mettagrid.tests.test_env_map",
+      "mettagrid.tests.test_movement_metrics",
+      "mettagrid.tests.test_no_agent_interference",
+      "mettagrid.tests.test_wandb_movement_metrics",
+      "tools.renderer"
+    ],
+    "metta.sweep.wandb_utils": [
+      "metta.sweep.sweep_lifecycle",
+      "tests.sweep.test_wandb_utils",
+      "tools.get_best_params_from_sweep",
+      "tools.sweep_eval",
+      "tools.sweep_prepare_run",
+      "tools.sweep_setup"
+    ],
+    "mettascope.server": [
+      "metta.map.utils.show",
+      "tools.play",
+      "tools.replay"
+    ],
+    "metta.agent.mocks": [
+      "agent.tests.test_feature_remapping",
+      "agent.tests.test_policy_cache",
+      "agent.tests.test_policy_store",
+      "mettascope.replays",
+      "tests.eval.test_eval_stats_db",
+      "tests.sim.test_simulation_stats_db",
+      "tools.replay"
+    ],
+    "metta.common.wandb.wandb_context": [
+      "agent.agent.policy_store",
+      "metta.rl.checkpoint_manager",
+      "metta.rl.evaluate",
+      "metta.rl.stats",
+      "metta.rl.torch_profiler",
+      "metta.rl.trainer",
+      "metta.rl.wandb",
+      "metta.setup.shell",
+      "metta.sweep.sweep_lifecycle",
+      "mettascope.replays",
+      "tools.replay",
+      "tools.sweep_eval",
+      "tools.sweep_prepare_run",
+      "tools.train",
+      "tools.utils"
+    ],
+    "metta.sim.simulation": [
+      "metta.sim.simulation_suite",
+      "mettascope.replays",
+      "tools.replay"
+    ],
+    "metta.common.util.lock": [
+      "metta.sweep.sweep_rollout",
+      "tools.sweep_eval",
+      "tools.sweep_prepare_run",
+      "tools.sweep_setup"
+    ],
+    "metta.eval.eval_stats_db": [
+      "metta.eval.analysis",
+      "metta.eval.eval_service",
+      "metta.sweep.sweep_lifecycle",
+      "tests.eval.test_eval_stats_db",
+      "tests.test_num_episodes_bug",
+      "tools.stats_duckdb_cli",
+      "tools.sweep_eval"
+    ],
+    "metta.sim.simulation_suite": [
+      "metta.eval.eval_service",
+      "metta.sweep.sweep_lifecycle",
+      "tools.sweep_eval"
+    ],
+    "metta.common.util.heartbeat": [
+      "metta.rl.checkpoint_manager",
+      "metta.rl.trainer",
+      "tools.train"
+    ],
+    "metta.common.util.resolvers": [
+      "common.tests.util.test_resolvers",
+      "metta.gridworks.server",
+      "metta.rl.vecenv",
+      "metta.util.metta_script",
+      "tests.sim.test_all_sim_configs",
+      "tests.test_validate_all_curriculums",
+      "tests.test_validate_all_envs",
+      "tools.train"
+    ],
+    "metta.core.distributed": [
+      "metta.rl.trainer",
+      "tools.train"
+    ],
+    "metta.rl.trainer": [
+      "tools.train"
+    ],
+    "metta.rl.trainer_config": [
+      "metta.rl.checkpoint_manager",
+      "metta.rl.evaluate",
+      "metta.rl.losses",
+      "metta.rl.ppo",
+      "metta.rl.stats",
+      "metta.rl.torch_profiler",
+      "metta.rl.trainer",
+      "tests.rl.test_trainer_config",
+      "tests.sweep.test_sweep_config_loading",
+      "tools.sweep_config_utils",
+      "tools.train"
+    ],
+    "metta.app_backend.clients.eval_task_client": [
+      "app_backend.app_backend.eval_task_orchestrator",
+      "app_backend.app_backend.eval_task_worker",
+      "app_backend.tests.test_eval_task_orchestrator_integration",
+      "app_backend.tests.test_eval_task_routes",
+      "tools.request_eval"
+    ],
+    "metta.app_backend.metta_repo": [
+      "app_backend.app_backend.auth",
+      "app_backend.app_backend.leaderboard_updater",
+      "app_backend.app_backend.routes.dashboard_routes",
+      "app_backend.app_backend.routes.entity_routes",
+      "app_backend.app_backend.routes.eval_task_routes",
+      "app_backend.app_backend.routes.leaderboard_routes",
+      "app_backend.app_backend.routes.score_routes",
+      "app_backend.app_backend.routes.scorecard_routes",
+      "app_backend.app_backend.routes.sql_routes",
+      "app_backend.app_backend.routes.stats_routes",
+      "app_backend.app_backend.routes.sweep_routes",
+      "app_backend.app_backend.routes.token_routes",
+      "app_backend.app_backend.server",
+      "app_backend.app_backend.test_support.base_async_test",
+      "app_backend.tests.conftest",
+      "app_backend.tests.test_eval_task_routes",
+      "app_backend.tests.test_saved_dashboards",
+      "app_backend.tests.test_scorecard_routes",
+      "app_backend.tests.test_sweep_routes",
+      "tools.request_eval"
+    ],
+    "metta.app_backend.routes.eval_task_routes": [
+      "app_backend.app_backend.clients.eval_task_client",
+      "app_backend.app_backend.clients.stats_client",
+      "app_backend.app_backend.eval_task_orchestrator",
+      "app_backend.app_backend.eval_task_worker",
+      "app_backend.tests.test_eval_task_orchestrator_integration",
+      "app_backend.tests.test_eval_task_routes",
+      "metta.rl.evaluate",
+      "tools.request_eval"
+    ],
+    "metta.common.util.collections": [
+      "app_backend.app_backend.clients.base_client",
+      "app_backend.app_backend.clients.stats_client",
+      "app_backend.app_backend.eval_task_orchestrator",
+      "app_backend.app_backend.eval_task_worker",
+      "experiments.marimo.scorecard-example",
+      "experiments.notebooks.utils.training",
+      "metta.rl.checkpoint_manager",
+      "metta.rl.evaluate",
+      "metta.rl.system_config",
+      "tools.request_eval"
+    ],
+    "metta.setup.utils": [
+      "experiments.notebooks.utils.scorecard_widget.scorecard_widget.util",
+      "metta.setup.components.aws",
+      "metta.setup.components.base",
+      "metta.setup.components.codeclip",
+      "metta.setup.components.core",
+      "metta.setup.components.filter_repo",
+      "metta.setup.components.githooks",
+      "metta.setup.components.nodejs",
+      "metta.setup.components.notebookwidgets",
+      "metta.setup.components.observatory_key",
+      "metta.setup.components.skypilot",
+      "metta.setup.components.system",
+      "metta.setup.components.tailscale",
+      "metta.setup.components.wandb",
+      "metta.setup.local_commands",
+      "metta.setup.metta_cli",
+      "metta.setup.shell",
+      "metta.setup.symlink_setup",
+      "metta.setup.tools.book",
+      "metta.setup.tools.local.kind",
+      "observatory.launch",
+      "tools.request_eval"
+    ],
+    "metta.sim.utils": [
+      "agent.agent.policy_store",
+      "metta.rl.evaluate",
+      "metta.setup.local_commands",
+      "metta.sim.simulation",
+      "tools.request_eval"
+    ],
+    "metta.mettagrid.util.file": [
+      "metta.eval.analysis",
+      "metta.eval.dashboard_data",
+      "metta.eval.eval_stats_db",
+      "metta.gridworks.server",
+      "metta.rl.torch_profiler",
+      "metta.sim.map_preview",
+      "metta.sim.simulation_stats_db",
+      "mettagrid.mettagrid.replay_writer",
+      "tools.stats_duckdb_cli"
+    ],
+    "metta.common.util.numpy_helpers": [
+      "common.tests.util.test_numpy_helpers",
+      "metta.sweep.protein_metta",
+      "metta.sweep.wandb_utils",
+      "tools.sweep_prepare_run"
+    ],
+    "metta.common.util.retry": [
+      "common.tests.util.test_retry",
+      "metta.sweep.wandb_utils",
+      "tools.sweep_prepare_run"
+    ],
+    "metta.sweep.protein_metta": [
+      "metta.sweep.sweep_lifecycle",
+      "tests.sweep.test_integration_sweep_pipeline",
+      "tests.sweep.test_metta_protein",
+      "tests.sweep.test_protein_end_to_end_pipeline",
+      "tests.sweep.test_protein_integration",
+      "tests.sweep.test_protein_metta",
+      "tools.sweep_prepare_run"
+    ],
+    "metta.eval.analysis": [
+      "tools.analyze"
+    ],
+    "metta.eval.analysis_config": [
+      "metta.eval.analysis",
+      "tools.analyze"
+    ],
+    "metta.map.utils.ascii_grid": [
+      "metta.map.scenes.ascii",
+      "metta.map.scenes.inline_ascii",
+      "metta.map.utils.pattern",
+      "metta.map.utils.storable_map",
+      "tests.map.scenes.utils",
+      "tools.map.normalize_scene_patterns"
+    ],
+    "metta.mettagrid.char_encoder": [
+      "metta.map.scenes.inline_ascii",
+      "metta.map.utils.ascii_grid",
+      "mettagrid.mettagrid.renderer.nethack",
+      "mettagrid.mettagrid.room.ascii",
+      "mettagrid.tests.renderer.test_nethack",
+      "tests.map.test_validate_all_ascii_maps",
+      "tools.map.normalize_ascii_map",
+      "tools.map.normalize_scene_patterns"
+    ],
+    "metta.map.utils.show": [
+      "tools.map.gen",
+      "tools.map.gen_scene",
+      "tools.map.view"
+    ],
+    "metta.map.utils.storable_map": [
+      "metta.gridworks.server",
+      "metta.map.load",
+      "metta.map.utils.show",
+      "metta.map.utils.storable_map_index",
+      "tests.map.scenes.utils",
+      "tests.map.utils.test_storable_map_io",
+      "tests.test_validate_all_envs",
+      "tools.map.gen",
+      "tools.map.gen_scene",
+      "tools.map.view"
+    ],
+    "metta.map.load_random": [
+      "tools.map.view"
+    ],
+    "metta.app_backend.routes.score_routes": [
+      "app_backend.app_backend.clients.stats_client",
+      "app_backend.tests.test_score_routes",
+      "metta.sim.utils"
+    ],
+    "metta.app_backend.eval_task_orchestrator": [
+      "app_backend.tests.test_eval_task_orchestrator_integration"
+    ],
+    "metta.app_backend.eval_task_worker": [
+      "app_backend.app_backend.worker_managers.thread_manager",
+      "app_backend.tests.test_eval_task_orchestrator_integration"
+    ],
+    "metta.app_backend.worker_managers.base": [
+      "app_backend.app_backend.eval_task_orchestrator",
+      "app_backend.app_backend.worker_managers.container_manager",
+      "app_backend.app_backend.worker_managers.thread_manager",
+      "app_backend.tests.test_eval_task_orchestrator_integration"
+    ],
+    "metta.app_backend.worker_managers.thread_manager": [
+      "app_backend.tests.test_eval_task_orchestrator_integration"
+    ],
+    "metta.app_backend.server": [
+      "app_backend.app_backend.clients.base_client",
+      "app_backend.app_backend.clients.stats_client",
+      "app_backend.app_backend.test_support.base_async_test",
+      "app_backend.tests.conftest",
+      "app_backend.tests.test_sweep_routes"
+    ],
+    "metta.app_backend.test_support": [
+      "app_backend.tests.conftest",
+      "app_backend.tests.test_saved_dashboards"
+    ],
+    "metta.app_backend.routes.stats_routes": [
+      "app_backend.app_backend.clients.stats_client",
+      "app_backend.tests.generate_test_data"
+    ],
+    "metta.app_backend.test_support.base_async_test": [
+      "app_backend.tests.test_sql_concurrency",
+      "app_backend.tests.test_token_system"
+    ],
+    "metta.app_backend.leaderboard_updater": [
+      "app_backend.app_backend.server",
+      "app_backend.tests.test_scorecard_routes"
+    ],
+    "metta.app_backend": [
+      "app_backend.app_backend.auth"
+    ],
+    "metta.app_backend.auth": [
+      "app_backend.app_backend.routes.dashboard_routes",
+      "app_backend.app_backend.routes.entity_routes",
+      "app_backend.app_backend.routes.eval_task_routes",
+      "app_backend.app_backend.routes.leaderboard_routes",
+      "app_backend.app_backend.routes.sql_routes",
+      "app_backend.app_backend.routes.stats_routes",
+      "app_backend.app_backend.routes.sweep_routes",
+      "app_backend.app_backend.routes.token_routes",
+      "app_backend.app_backend.server"
+    ],
+    "metta.app_backend.routes": [
+      "app_backend.app_backend.server"
+    ],
+    "metta.app_backend.config": [
+      "app_backend.app_backend.routes.sql_routes",
+      "app_backend.app_backend.server"
+    ],
+    "metta.app_backend.query_logger": [
+      "app_backend.app_backend.metta_repo",
+      "app_backend.app_backend.routes.entity_routes",
+      "app_backend.app_backend.routes.score_routes",
+      "app_backend.app_backend.routes.scorecard_routes",
+      "app_backend.app_backend.routes.sql_routes"
+    ],
+    "metta.app_backend.schema_manager": [
+      "app_backend.app_backend.metta_repo"
+    ],
+    "metta.common.datadog.tracing": [
+      "app_backend.app_backend.eval_task_orchestrator",
+      "app_backend.app_backend.eval_task_worker"
+    ],
+    "metta.common.util.logging_helpers": [
+      "app_backend.app_backend.eval_task_orchestrator",
+      "app_backend.app_backend.eval_task_worker",
+      "metta.gridworks.server",
+      "metta.rl.vecenv",
+      "metta.util.metta_script"
+    ],
+    "metta.app_backend.routes.sweep_routes": [
+      "app_backend.app_backend.sweep_client"
+    ],
+    "metta.app_backend.container_managers.factory": [
+      "app_backend.app_backend.eval_task_orchestrator"
+    ],
+    "metta.app_backend.worker_managers.container_manager": [
+      "app_backend.app_backend.eval_task_orchestrator"
+    ],
+    "metta.app_backend.worker_managers.worker": [
+      "app_backend.app_backend.container_managers.base",
+      "app_backend.app_backend.container_managers.docker",
+      "app_backend.app_backend.container_managers.k8s",
+      "app_backend.app_backend.eval_task_orchestrator",
+      "app_backend.app_backend.worker_managers.base",
+      "app_backend.app_backend.worker_managers.container_manager",
+      "app_backend.app_backend.worker_managers.thread_manager"
+    ],
+    "metta.app_backend.clients.base_client": [
+      "app_backend.app_backend.clients.eval_task_client",
+      "app_backend.app_backend.clients.scorecard_client",
+      "app_backend.app_backend.clients.stats_client"
+    ],
+    "metta.app_backend.routes.scorecard_routes": [
+      "app_backend.app_backend.clients.scorecard_client",
+      "experiments.notebooks.utils.scorecard_widget.scorecard_widget.util"
+    ],
+    "metta.app_backend.routes.sql_routes": [
+      "app_backend.app_backend.clients.scorecard_client"
+    ],
+    "metta.app_backend.container_managers.base": [
+      "app_backend.app_backend.container_managers.docker",
+      "app_backend.app_backend.container_managers.factory",
+      "app_backend.app_backend.container_managers.k8s",
+      "app_backend.app_backend.worker_managers.container_manager"
+    ],
+    "metta.app_backend.container_managers.docker": [
+      "app_backend.app_backend.container_managers.factory"
+    ],
+    "metta.app_backend.container_managers.k8s": [
+      "app_backend.app_backend.container_managers.factory"
+    ],
+    "metta.common.datadog.config": [
+      "app_backend.app_backend.container_managers.docker",
+      "app_backend.app_backend.container_managers.k8s",
+      "common.common.datadog.tracing"
+    ],
+    "metta.app_backend.route_logger": [
+      "app_backend.app_backend.routes.dashboard_routes",
+      "app_backend.app_backend.routes.entity_routes",
+      "app_backend.app_backend.routes.eval_task_routes",
+      "app_backend.app_backend.routes.leaderboard_routes",
+      "app_backend.app_backend.routes.scorecard_routes",
+      "app_backend.app_backend.routes.sql_routes",
+      "app_backend.app_backend.routes.stats_routes",
+      "app_backend.app_backend.routes.sweep_routes",
+      "app_backend.app_backend.routes.token_routes"
+    ],
+    "metta.app_backend.clients.scorecard_client": [
+      "experiments.marimo.eval-finder-example",
+      "experiments.marimo.scorecard-example",
+      "experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.util",
+      "experiments.notebooks.utils.scorecard_widget.scorecard_widget.util"
+    ],
+    "mettascope.replays": [
+      "mettascope.server"
+    ],
+    "metta.mettagrid.grid_object_formatter": [
+      "mettagrid.mettagrid.replay_writer",
+      "mettascope.server"
+    ],
+    "metta.agent.policy_metadata": [
+      "agent.agent.mocks.mock_policy_record",
+      "agent.agent.policy_record",
+      "agent.agent.policy_store",
+      "agent.tests.test_feature_remapping",
+      "agent.tests.test_policy_cache",
+      "agent.tests.test_policy_store",
+      "tests.test_num_episodes_bug"
+    ],
+    "metta.mettagrid.mettagrid_c": [
+      "mettagrid.examples.test_stats_rewards",
+      "mettagrid.mettagrid.__init__",
+      "mettagrid.mettagrid.core",
+      "mettagrid.mettagrid.gym_env",
+      "mettagrid.mettagrid.mettagrid_c_config",
+      "mettagrid.mettagrid.mettagrid_env",
+      "mettagrid.mettagrid.pettingzoo_env",
+      "mettagrid.mettagrid.puffer_base",
+      "mettagrid.mettagrid.test_support.environment_builder",
+      "mettagrid.mettagrid.test_support.observation_helper",
+      "mettagrid.mettagrid.util.actions",
+      "mettagrid.test_attack_resource_exception",
+      "mettagrid.tests.test_8way_movement",
+      "mettagrid.tests.test_actions",
+      "mettagrid.tests.test_buffer_sharing_regression",
+      "mettagrid.tests.test_buffers",
+      "mettagrid.tests.test_cardinal_movement",
+      "mettagrid.tests.test_converter",
+      "mettagrid.tests.test_global_obs_config",
+      "mettagrid.tests.test_global_reward_observations",
+      "mettagrid.tests.test_mettagrid",
+      "mettagrid.tests.test_observations",
+      "mettagrid.tests.test_rewards",
+      "mettagrid.tests.test_stats_rewards",
+      "mettagrid.tests.test_swap",
+      "mettagrid.tests.test_visitation_counts",
+      "tests.test_action_compatibility"
+    ],
+    "metta.mettagrid.mettagrid_c_config": [
+      "mettagrid.examples.test_stats_rewards",
+      "mettagrid.mettagrid.core",
+      "mettagrid.mettagrid.test_support.environment_builder",
+      "mettagrid.test_attack_resource_exception",
+      "mettagrid.tests.test_actions",
+      "mettagrid.tests.test_buffers",
+      "mettagrid.tests.test_converter",
+      "mettagrid.tests.test_global_obs_config",
+      "mettagrid.tests.test_rewards",
+      "mettagrid.tests.test_stats_rewards",
+      "mettagrid.tests.test_swap",
+      "mettagrid.tests.test_visitation_counts",
+      "tests.test_action_compatibility",
+      "tests.test_validate_all_envs"
+    ],
+    "metta.common.util.mettagrid_cfgs": [
+      "metta.gridworks.server",
+      "tests.test_validate_all_curriculums",
+      "tests.test_validate_all_envs"
+    ],
+    "metta.mettagrid.renderer.miniscope": [
+      "mettagrid.mettagrid.core",
+      "mettagrid.tests.renderer.test_miniscope",
+      "tests.tools.test_renderer_job"
+    ],
+    "metta.setup.profiles": [
+      "metta.setup.components.aws",
+      "metta.setup.components.codeclip",
+      "metta.setup.components.wandb",
+      "metta.setup.config",
+      "metta.setup.metta_cli",
+      "tests.setup.conftest",
+      "tests.setup.test_aws_profile_setup",
+      "tests.setup.test_base"
+    ],
+    "metta.setup.config": [
+      "metta.setup.components.base",
+      "metta.setup.components.notebookwidgets",
+      "metta.setup.components.tailscale",
+      "metta.setup.metta_cli",
+      "tests.setup.test_integration_install"
+    ],
+    "metta.map.mapgen": [
+      "metta.map.mapgen_ascii",
+      "metta.map.utils.make_scene_config",
+      "metta.map.utils.storable_map",
+      "tests.map.test_mapgen"
+    ],
+    "metta.map.scenes.inline_ascii": [
+      "metta.map.scenes.ascii",
+      "tests.map.scenes.test_inline_ascii",
+      "tests.map.scenes.test_random_scene",
+      "tests.map.scenes.test_remove_agents",
+      "tests.map.test_mapgen"
+    ],
+    "metta.map.scenes.room_grid": [
+      "metta.map.mapgen",
+      "metta.map.scenes.auto",
+      "metta.map.scenes.multi_left_and_right",
+      "tests.map.scenes.test_make_connected",
+      "tests.map.scenes.test_room_grid",
+      "tests.map.test_mapgen"
+    ],
+    "metta.map.scenes.transplant_scene": [
+      "metta.map.mapgen",
+      "tests.map.test_mapgen"
+    ],
+    "metta.map.scene": [
+      "metta.map.load",
+      "metta.map.mapgen",
+      "metta.map.scenes.ascii",
+      "metta.map.scenes.auto",
+      "metta.map.scenes.bsp",
+      "metta.map.scenes.convchain",
+      "metta.map.scenes.copy_grid",
+      "metta.map.scenes.inline_ascii",
+      "metta.map.scenes.layout",
+      "metta.map.scenes.make_connected",
+      "metta.map.scenes.maze",
+      "metta.map.scenes.mean_distance",
+      "metta.map.scenes.mirror",
+      "metta.map.scenes.multi_left_and_right",
+      "metta.map.scenes.nop",
+      "metta.map.scenes.radial_maze",
+      "metta.map.scenes.random",
+      "metta.map.scenes.random_objects",
+      "metta.map.scenes.random_scene",
+      "metta.map.scenes.random_scene_from_dir",
+      "metta.map.scenes.remove_agents",
+      "metta.map.scenes.room_grid",
+      "metta.map.scenes.transplant_scene",
+      "metta.map.scenes.varied_terrain",
+      "metta.map.scenes.wfc",
+      "tests.map.scenes.utils",
+      "tests.map.test_scene"
+    ],
+    "metta.map.types": [
+      "metta.map.scene",
+      "metta.map.scenes.ascii",
+      "metta.map.scenes.auto",
+      "metta.map.scenes.bsp",
+      "metta.map.scenes.copy_grid",
+      "metta.map.scenes.maze",
+      "metta.map.scenes.mirror",
+      "metta.map.scenes.multi_left_and_right",
+      "metta.map.scenes.random_objects",
+      "metta.map.scenes.random_scene",
+      "metta.map.scenes.random_scene_from_dir",
+      "metta.map.scenes.transplant_scene",
+      "metta.map.utils.ascii_grid",
+      "metta.map.utils.storable_map",
+      "mettagrid.mettagrid.room.utils",
+      "tests.map.scenes.test_layout",
+      "tests.map.scenes.test_make_connected",
+      "tests.map.scenes.test_remove_agents",
+      "tests.map.scenes.test_room_grid",
+      "tests.map.scenes.utils",
+      "tests.map.test_scene"
+    ],
+    "metta.map.scenes.random_scene_from_dir": [
+      "tests.map.scenes.test_random_scene_from_dir"
+    ],
+    "metta.map.scenes.bsp": [
+      "metta.map.scenes.auto",
+      "tests.map.scenes.test_bsp"
+    ],
+    "metta.map.scenes.random_scene": [
+      "metta.map.scenes.auto",
+      "metta.map.scenes.random_scene_from_dir",
+      "tests.map.scenes.test_random_scene"
+    ],
+    "metta.map.scenes.radial_maze": [
+      "tests.map.scenes.test_radial_maze"
+    ],
+    "metta.map.scenes.multi_left_and_right": [
+      "tests.map.scenes.test_multi_left_and_right"
+    ],
+    "metta.map.scenes.convchain": [
+      "tests.map.scenes.test_convchain"
+    ],
+    "metta.map.scenes.make_connected": [
+      "metta.map.scenes.auto",
+      "tests.map.scenes.test_make_connected"
+    ],
+    "metta.map.scenes.wfc": [
+      "tests.map.scenes.test_wfc"
+    ],
+    "metta.map.random.int": [
+      "metta.map.scene",
+      "metta.map.scenes.auto",
+      "metta.map.scenes.maze",
+      "tests.map.random.test_int",
+      "tests.map.scenes.utils"
+    ],
+    "metta.mettagrid.level_builder": [
+      "metta.map.load",
+      "metta.map.mapgen",
+      "metta.map.terrain_from_numpy",
+      "metta.map.utils.ascii_grid",
+      "metta.map.utils.show",
+      "mettagrid.mettagrid.__init__",
+      "mettagrid.mettagrid.core",
+      "mettagrid.mettagrid.gym_env",
+      "mettagrid.mettagrid.mettagrid_config",
+      "mettagrid.mettagrid.mettagrid_env",
+      "mettagrid.mettagrid.pettingzoo_env",
+      "mettagrid.mettagrid.puffer_base",
+      "mettagrid.mettagrid.room.maze",
+      "mettagrid.mettagrid.room.room",
+      "mettagrid.mettagrid.room.room_list",
+      "mettagrid.mettagrid.test_support.environment_builder",
+      "mettagrid.tests.test_buffers",
+      "mettagrid.tests.test_observations",
+      "mettagrid.tests.test_swap",
+      "tests.map.scenes.utils",
+      "tests.map.utils.test_storable_map_io"
+    ],
+    "metta.map.scenes.maze": [
+      "tests.map.scenes.test_maze",
+      "tests.map.scenes.test_mirror"
+    ],
+    "metta.map.scenes.mirror": [
+      "metta.map.scenes.auto",
+      "tests.map.scenes.test_mirror"
+    ],
+    "metta.map.scenes.random_objects": [
+      "metta.map.scenes.auto",
+      "tests.map.scenes.test_random_objects"
+    ],
+    "metta.map.scenes.ascii": [
+      "tests.map.scenes.test_ascii"
+    ],
+    "metta.map.scenes.mean_distance": [
+      "tests.map.scenes.test_mean_distance"
+    ],
+    "metta.map.scenes.auto": [
+      "tests.map.scenes.test_auto"
+    ],
+    "metta.map.scenes.layout": [
+      "tests.map.scenes.test_layout"
+    ],
+    "metta.map.scenes.nop": [
+      "tests.map.scenes.test_nop",
+      "tests.map.scenes.test_remove_agents"
+    ],
+    "metta.map.scenes.remove_agents": [
+      "tests.map.scenes.test_remove_agents"
+    ],
+    "metta.map.scenes.random": [
+      "metta.map.scenes.auto",
+      "metta.map.scenes.multi_left_and_right",
+      "metta.map.scenes.random_objects",
+      "tests.map.scenes.test_random"
+    ],
+    "metta.map.utils.pattern": [
+      "metta.map.scenes.convchain",
+      "metta.map.scenes.wfc",
+      "tests.map.utils.test_pattern"
+    ],
+    "metta.mettagrid.util": [
+      "metta.map.load_random_from_index",
+      "metta.map.utils.storable_map",
+      "metta.map.utils.storable_map_index",
+      "tests.map.utils.test_storable_map_io"
+    ],
+    "metta.map.random.float": [
+      "metta.map.scenes.auto",
+      "metta.map.scenes.random_objects",
+      "tests.map.random.test_float"
+    ],
+    "metta.cogworks.curriculum": [
+      "metta.cogworks.curriculum.demo",
+      "tests.cogworks.curriculum.test_curriculum",
+      "tests.cogworks.curriculum.test_curriculum_env",
+      "tests.cogworks.curriculum.test_serialization",
+      "tests.cogworks.curriculum.test_task"
+    ],
+    "metta.mettagrid.mettagrid_config": [
+      "metta.cogworks.curriculum.__init__",
+      "metta.cogworks.curriculum.curriculum",
+      "metta.cogworks.curriculum.task",
+      "metta.cogworks.curriculum.task_generator",
+      "mettagrid.mettagrid.config.builder",
+      "mettagrid.mettagrid.config.object",
+      "mettagrid.mettagrid.mettagrid_c_config",
+      "tests.cogworks.curriculum.test_curriculum",
+      "tests.cogworks.curriculum.test_curriculum_env",
+      "tests.cogworks.curriculum.test_task"
+    ],
+    "metta.mettagrid.config.builder": [
+      "metta.cogworks.curriculum.demo",
+      "tests.cogworks.curriculum.test_serialization"
+    ],
+    "metta.cogworks.curriculum.task_generator": [
+      "metta.cogworks.curriculum.demo",
+      "tests.cogworks.curriculum.test_serialization"
+    ],
+    "metta.cogworks.curriculum.curriculum_env": [
+      "tests.cogworks.curriculum.test_curriculum_env"
+    ],
+    "metta.eval.dashboard_data": [
+      "tests.eval.test_dashboard_data"
+    ],
+    "metta.sim.simulation_stats_db": [
+      "metta.eval.dashboard_data",
+      "metta.eval.eval_stats_db",
+      "metta.sim.simulation",
+      "metta.sim.simulation_suite",
+      "tests.eval.test_dashboard_data",
+      "tests.sim.test_simulation_stats_db"
+    ],
+    "metta.rl": [
+      "metta.rl.advantage",
+      "tests.rl.test_mps"
+    ],
+    "metta.rl.advantage": [
+      "metta.rl.losses",
+      "metta.rl.trainer",
+      "tests.rl.test_mps"
+    ],
+    "metta.rl.hyperparameter_scheduler": [
+      "tests.rl.test_hyperparameter_scheduler"
+    ],
+    "metta.rl.losses": [
+      "metta.rl.stats",
+      "metta.rl.trainer",
+      "tests.rl.test_losses"
+    ],
+    "metta.rl.kickstarter": [
+      "metta.rl.checkpoint_manager",
+      "metta.rl.stats",
+      "metta.rl.trainer",
+      "tests.rl.test_kickstarter"
+    ],
+    "metta.eval.eval_request_config": [
+      "metta.eval.eval_service",
+      "metta.rl.checkpoint_manager",
+      "metta.rl.stats",
+      "metta.rl.trainer",
+      "tests.rl.test_metrics_formatting"
+    ],
+    "metta.agent.component_policy": [
+      "agent.agent.metta_agent",
+      "agent.tests.test_legacy_adapter"
+    ],
+    "metta.agent.metta_agent": [
+      "agent.agent.mocks.mock_agent",
+      "agent.agent.policy_record",
+      "agent.tests.test_legacy_adapter",
+      "agent.tests.test_metta_agent",
+      "agent.tests.test_vanilla_policy",
+      "metta.rl.checkpoint_manager",
+      "metta.rl.kickstarter",
+      "metta.rl.losses",
+      "metta.rl.optimization",
+      "metta.rl.policy_management",
+      "metta.rl.puffer_policy",
+      "metta.rl.stats",
+      "metta.rl.trainer"
+    ],
+    "metta.agent.util.distribution_utils": [
+      "agent.agent.component_policy",
+      "agent.tests.test_metta_agent",
+      "agent.tests.util.test_distribution_utils",
+      "metta.rl.checkpoint_manager"
+    ],
+    "metta.agent.lib.obs_tokenizers": [
+      "agent.tests.test_feature_remapping"
+    ],
+    "metta.agent.policy_cache": [
+      "agent.agent.policy_store",
+      "agent.tests.test_policy_cache"
+    ],
+    "metta.agent.lib.metta_module": [
+      "agent.agent.lib.modular_network",
+      "agent.tests.lib.test_metta_module",
+      "agent.tests.lib.test_metta_modules",
+      "agent.tests.lib.test_modular_network"
+    ],
+    "metta.agent.lib.modular_network": [
+      "agent.tests.lib.test_modular_network"
+    ],
+    "metta.agent.lib.obs_token_to_box_shaper": [
+      "agent.tests.lib.test_obs_token_to_box_shaper"
+    ],
+    "metta.agent.lib.lstm": [
+      "agent.tests.lib.test_lstm"
+    ],
+    "metta.agent.legacy_adapter": [
+      "agent.agent.policy_record"
+    ],
+    "metta.rl.puffer_policy": [
+      "agent.agent.policy_store"
+    ],
+    "metta.agent.pytorch.agent_mapper": [
+      "agent.agent.metta_agent"
+    ],
+    "metta.agent.util.debug": [
+      "agent.agent.component_policy"
+    ],
+    "metta.agent.util.safe_get": [
+      "agent.agent.component_policy"
+    ],
+    "metta.common.util.datastruct": [
+      "agent.agent.component_policy",
+      "common.tests.util.test_datastruct",
+      "metta.rl.experience"
+    ],
+    "metta.common.util.instantiate": [
+      "agent.agent.component_policy",
+      "common.tests.util.test_instantiate",
+      "metta.map.utils.storable_map",
+      "metta.rl.puffer_policy"
+    ],
+    "metta.agent.lib.metta_layer": [
+      "agent.agent.lib.actor",
+      "agent.agent.lib.lstm",
+      "agent.agent.lib.merge_layer",
+      "agent.agent.lib.nn_layer_library",
+      "agent.agent.lib.obs_token_to_box_shaper",
+      "agent.agent.lib.observation_normalizer"
+    ],
+    "metta.agent.lib.nn_layer_library": [
+      "agent.agent.lib.action",
+      "agent.agent.lib.obs_enc",
+      "agent.agent.lib.obs_tokenizers"
+    ],
+    "metta.agent.util.weights_analysis": [
+      "agent.agent.lib.metta_layer"
+    ],
+    "metta.agent.modules.encoders": [
+      "agent.agent.pytorch.latent_attn_med",
+      "agent.agent.pytorch.latent_attn_small",
+      "agent.agent.pytorch.latent_attn_tiny"
+    ],
+    "metta.agent.modules.tokenizers": [
+      "agent.agent.pytorch.latent_attn_med",
+      "agent.agent.pytorch.latent_attn_small",
+      "agent.agent.pytorch.latent_attn_tiny"
+    ],
+    "metta.agent.pytorch.example": [
+      "agent.agent.pytorch.agent_mapper"
+    ],
+    "metta.agent.pytorch.fast": [
+      "agent.agent.pytorch.agent_mapper"
+    ],
+    "metta.agent.pytorch.latent_attn_med": [
+      "agent.agent.pytorch.agent_mapper"
+    ],
+    "metta.agent.pytorch.latent_attn_small": [
+      "agent.agent.pytorch.agent_mapper"
+    ],
+    "metta.agent.pytorch.latent_attn_tiny": [
+      "agent.agent.pytorch.agent_mapper"
+    ],
+    "metta.mettagrid.mettagrid_env": [
+      "metta.rl.checkpoint_manager",
+      "metta.rl.policy_management",
+      "mettagrid.mettagrid.__init__",
+      "mettagrid.tests.renderer.test_nethack",
+      "mettagrid.tests.test_buffer_reuse",
+      "mettagrid.tests.test_buffer_sharing_regression",
+      "mettagrid.tests.test_env_map",
+      "mettagrid.tests.test_interactive",
+      "mettagrid.tests.test_leaks",
+      "mettagrid.tests.test_mettagrid_env",
+      "mettagrid.tests.test_movement_metrics",
+      "mettagrid.tests.test_new_env_hierarchy",
+      "mettagrid.tests.test_no_agent_interference",
+      "mettagrid.tests.test_wandb_movement_metrics"
+    ],
+    "metta.mettagrid.room.random": [
+      "mettagrid.tests.test_curriculum",
+      "mettagrid.tests.test_env_map"
+    ],
+    "metta.mettagrid.episode_stats_db": [
+      "metta.sim.simulation_stats_db",
+      "mettagrid.mettagrid.stats_writer",
+      "mettagrid.tests.test_stats_writer"
+    ],
+    "metta.mettagrid.stats_writer": [
+      "metta.rl.vecenv",
+      "metta.sim.simulation",
+      "mettagrid.mettagrid.__init__",
+      "mettagrid.mettagrid.mettagrid_env",
+      "mettagrid.tests.test_stats_writer"
+    ],
+    "metta.mettagrid.util.diversity": [
+      "mettagrid.tests.test_diversity"
+    ],
+    "metta.mettagrid.pettingzoo_env": [
+      "mettagrid.mettagrid.__init__",
+      "mettagrid.tests.test_interactive",
+      "mettagrid.tests.test_new_env_hierarchy",
+      "mettagrid.tests.test_pettingzoo_env"
+    ],
+    "metta.mettagrid.gym_env": [
+      "mettagrid.mettagrid.__init__",
+      "mettagrid.tests.test_gym_env",
+      "mettagrid.tests.test_interactive",
+      "mettagrid.tests.test_new_env_hierarchy"
+    ],
+    "metta.mettagrid.test_support": [
+      "mettagrid.tests.test_8way_movement",
+      "mettagrid.tests.test_cardinal_movement",
+      "mettagrid.tests.test_mettagrid",
+      "mettagrid.tests.test_observations"
+    ],
+    "metta.mettagrid.curriculum.bucketed": [
+      "mettagrid.tests.test_curriculum"
+    ],
+    "metta.mettagrid.curriculum.learning_progress": [
+      "mettagrid.tests.test_curriculum"
+    ],
+    "metta.mettagrid.curriculum.multi_task": [
+      "mettagrid.mettagrid.curriculum.random",
+      "mettagrid.tests.test_curriculum"
+    ],
+    "metta.mettagrid.curriculum.prioritize_regressed": [
+      "mettagrid.tests.test_curriculum"
+    ],
+    "metta.mettagrid.curriculum.random": [
+      "mettagrid.mettagrid.curriculum.learning_progress",
+      "mettagrid.mettagrid.curriculum.prioritize_regressed",
+      "mettagrid.tests.test_curriculum"
+    ],
+    "metta.mettagrid.curriculum.sampling": [
+      "mettagrid.mettagrid.curriculum.bucketed",
+      "mettagrid.tests.test_curriculum"
+    ],
+    "metta.mettagrid.renderer.nethack": [
+      "mettagrid.mettagrid.core",
+      "mettagrid.tests.renderer.test_nethack"
+    ],
+    "metta.mettagrid.core": [
+      "mettagrid.mettagrid.__init__",
+      "mettagrid.mettagrid.gym_env",
+      "mettagrid.mettagrid.pettingzoo_env",
+      "mettagrid.mettagrid.puffer_base",
+      "mettagrid.mettagrid.replay_writer"
+    ],
+    "metta.mettagrid.replay_writer": [
+      "metta.rl.vecenv",
+      "metta.sim.simulation",
+      "mettagrid.mettagrid.__init__",
+      "mettagrid.mettagrid.mettagrid_env"
+    ],
+    "metta.common.profiling.stopwatch": [
+      "common.tests.profiling.test_stopwatch",
+      "metta.core.monitoring",
+      "metta.rl.checkpoint_manager",
+      "metta.rl.rollout",
+      "metta.rl.stats",
+      "metta.rl.trainer",
+      "mettagrid.mettagrid.mettagrid_env"
+    ],
+    "metta.mettagrid.puffer_base": [
+      "mettagrid.mettagrid.mettagrid_env"
+    ],
+    "metta.mettagrid.util.dict_utils": [
+      "metta.rl.stats",
+      "mettagrid.mettagrid.mettagrid_env"
+    ],
+    "metta.mettagrid.room.room": [
+      "metta.map.load",
+      "mettagrid.mettagrid.room.ascii",
+      "mettagrid.mettagrid.room.maze",
+      "mettagrid.mettagrid.room.multi_room",
+      "mettagrid.mettagrid.room.navigation.cylinder_world",
+      "mettagrid.mettagrid.room.random",
+      "mettagrid.mettagrid.room.room_list",
+      "mettagrid.mettagrid.room.room_scene"
+    ],
+    "metta.mettagrid.room.room_list": [
+      "mettagrid.mettagrid.room.multi_room",
+      "mettagrid.mettagrid.room.room_scene"
+    ],
+    "metta.mettagrid.room.utils": [
+      "mettagrid.mettagrid.room.maze"
+    ],
+    "metta.mettagrid.config": [
+      "mettagrid.mettagrid.config.builder"
+    ],
+    "metta.mettagrid.test_support.token_types": [
+      "mettagrid.mettagrid.test_support.observation_helper"
+    ],
+    "metta.common.util.memoization": [
+      "common.common.util.git",
+      "common.tests.util.test_memoization"
+    ],
+    "metta.common.util.system_monitor": [
+      "common.tests.util.test_system_monitor",
+      "metta.core.monitoring",
+      "metta.rl.stats"
+    ],
+    "metta.common.profiling.memory_monitor": [
+      "common.tests.profiling.test_memory_monitor",
+      "metta.core.monitoring",
+      "metta.rl.stats"
+    ],
+    "metta.common.util.lazypath": [
+      "common.common.util.constants"
+    ],
+    "metta.common.util.discord": [
+      ".github.actions.discord-webhook.discord_webhook"
+    ],
+    "metta.rl.experience": [
+      "metta.core.monitoring",
+      "metta.rl.losses",
+      "metta.rl.stats",
+      "metta.rl.trainer"
+    ],
+    "metta.util.init.mettagrid_system": [
+      "metta.util.metta_script"
+    ],
+    "metta.setup.components.base": [
+      "metta.setup.components.aws",
+      "metta.setup.components.codeclip",
+      "metta.setup.components.core",
+      "metta.setup.components.filter_repo",
+      "metta.setup.components.githooks",
+      "metta.setup.components.mettascope",
+      "metta.setup.components.nodejs",
+      "metta.setup.components.notebookwidgets",
+      "metta.setup.components.observatory_key",
+      "metta.setup.components.skypilot",
+      "metta.setup.components.system",
+      "metta.setup.components.tailscale",
+      "metta.setup.components.wandb",
+      "metta.setup.registry"
+    ],
+    "metta.setup.local_commands": [
+      "metta.setup.metta_cli",
+      "metta.setup.tools.local.kind"
+    ],
+    "metta.setup.symlink_setup": [
+      "metta.setup.metta_cli"
+    ],
+    "metta.setup.tools.book": [
+      "metta.setup.metta_cli"
+    ],
+    "metta.setup.registry": [
+      "metta.setup.components.aws",
+      "metta.setup.components.codeclip",
+      "metta.setup.components.core",
+      "metta.setup.components.filter_repo",
+      "metta.setup.components.githooks",
+      "metta.setup.components.mettascope",
+      "metta.setup.components.nodejs",
+      "metta.setup.components.notebookwidgets",
+      "metta.setup.components.observatory_key",
+      "metta.setup.components.skypilot",
+      "metta.setup.components.system",
+      "metta.setup.components.tailscale",
+      "metta.setup.components.wandb",
+      "metta.setup.metta_cli"
+    ],
+    "metta.common.wandb.wandb_runs": [
+      "metta.setup.local_commands"
+    ],
+    "metta.setup.tools.local.kind": [
+      "metta.setup.local_commands"
+    ],
+    "metta.map.load": [
+      "metta.map.load_random",
+      "metta.map.load_random_from_index"
+    ],
+    "metta.map.config": [
+      "metta.map.scene",
+      "metta.map.scenes.random_scene_from_dir",
+      "metta.map.utils.dcss"
+    ],
+    "metta.map.scenes.copy_grid": [
+      "metta.map.mapgen"
+    ],
+    "metta.map.utils": [
+      "metta.map.load_random"
+    ],
+    "metta.map.utils.draw": [
+      "metta.map.scenes.radial_maze"
+    ],
+    "metta.sim.map_preview": [
+      "metta.map.utils.show"
+    ],
+    "metta.map.utils.s3utils": [
+      "metta.map.utils.storable_map_index"
+    ],
+    "metta.map.utils.make_scene_config": [
+      "metta.map.utils.dcss"
+    ],
+    "metta.sweep.protein_utils": [
+      "metta.sweep.sweep_lifecycle"
+    ],
+    "metta.rl.policy_management": [
+      "metta.rl.checkpoint_manager",
+      "metta.rl.trainer",
+      "metta.sim.simulation"
+    ],
+    "metta.rl.vecenv": [
+      "metta.rl.trainer",
+      "metta.sim.simulation"
+    ],
+    "metta.rl.kickstarter_config": [
+      "metta.rl.kickstarter",
+      "metta.rl.trainer_config"
+    ],
+    "metta.rl.utils": [
+      "metta.rl.checkpoint_manager",
+      "metta.rl.stats",
+      "metta.rl.torch_profiler",
+      "metta.rl.trainer"
+    ],
+    "metta.rl.hyperparameter_scheduler_config": [
+      "metta.rl.trainer_config"
+    ],
+    "metta.utils.progress": [
+      "metta.rl.utils"
+    ],
+    "metta.rl.evaluate": [
+      "metta.rl.stats",
+      "metta.rl.trainer"
+    ],
+    "metta.rl.wandb": [
+      "metta.rl.checkpoint_manager",
+      "metta.rl.stats",
+      "metta.rl.trainer"
+    ],
+    "metta.rl.ppo": [
+      "metta.rl.losses"
+    ],
+    "metta.core.monitoring": [
+      "metta.rl.trainer"
+    ],
+    "metta.rl.checkpoint_manager": [
+      "metta.rl.trainer"
+    ],
+    "metta.rl.optimization": [
+      "metta.rl.trainer"
+    ],
+    "metta.rl.rollout": [
+      "metta.rl.trainer"
+    ],
+    "metta.rl.torch_profiler": [
+      "metta.rl.trainer"
+    ],
+    "metta.rl.trainer_checkpoint": [
+      "metta.rl.checkpoint_manager",
+      "metta.rl.trainer"
+    ],
+    "metta.utils.batch": [
+      "metta.rl.trainer"
+    ],
+    "metta.map.utils.storable_map_index": [
+      "metta.gridworks.server"
+    ],
+    "metta.app_backend.sweep_client": [
+      "cogweb.cogweb_client"
+    ]
+  },
+  "circular_dependencies": [
+    [
+      "metta.setup.local_commands",
+      "metta.setup.tools.local.kind"
+    ]
+  ],
+  "high_risk_modules": [
+    {
+      "module": "metta.common.util.config",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 51,
+        "total_connections": 51
+      }
+    },
+    {
+      "module": "metta.mettagrid.curriculum.core",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 36,
+        "total_connections": 36
+      }
+    },
+    {
+      "module": "metta.rl.trainer",
+      "metrics": {
+        "dependencies": 31,
+        "dependents": 1,
+        "total_connections": 32
+      }
+    },
+    {
+      "module": "metta.map.scene",
+      "metrics": {
+        "dependencies": 4,
+        "dependents": 27,
+        "total_connections": 31
+      }
+    },
+    {
+      "module": "metta.common.util.constants",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 29,
+        "total_connections": 29
+      }
+    },
+    {
+      "module": "metta.mettagrid.mettagrid_c",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 27,
+        "total_connections": 27
+      }
+    },
+    {
+      "module": "metta.setup.utils",
+      "metrics": {
+        "dependencies": 1,
+        "dependents": 22,
+        "total_connections": 23
+      }
+    },
+    {
+      "module": "metta.agent.policy_record",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 22,
+        "total_connections": 22
+      }
+    },
+    {
+      "module": "metta.map.types",
+      "metrics": {
+        "dependencies": 1,
+        "dependents": 21,
+        "total_connections": 22
+      }
+    },
+    {
+      "module": "metta.app_backend.clients.stats_client",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 21,
+        "total_connections": 21
+      }
+    },
+    {
+      "module": "metta.mettagrid.level_builder",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 21,
+        "total_connections": 21
+      }
+    },
+    {
+      "module": "metta.common.util.fs",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 20,
+        "total_connections": 20
+      }
+    },
+    {
+      "module": "metta.app_backend.metta_repo",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 20,
+        "total_connections": 20
+      }
+    },
+    {
+      "module": "metta.util.metta_script",
+      "metrics": {
+        "dependencies": 4,
+        "dependents": 15,
+        "total_connections": 19
+      }
+    },
+    {
+      "module": "metta.rl.stats",
+      "metrics": {
+        "dependencies": 15,
+        "dependents": 3,
+        "total_connections": 18
+      }
+    },
+    {
+      "module": "metta.rl.checkpoint_manager",
+      "metrics": {
+        "dependencies": 17,
+        "dependents": 1,
+        "total_connections": 18
+      }
+    },
+    {
+      "module": "metta.agent.policy_store",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 17,
+        "total_connections": 17
+      }
+    },
+    {
+      "module": "metta.sim.simulation",
+      "metrics": {
+        "dependencies": 13,
+        "dependents": 3,
+        "total_connections": 16
+      }
+    },
+    {
+      "module": "metta.setup.components.base",
+      "metrics": {
+        "dependencies": 2,
+        "dependents": 14,
+        "total_connections": 16
+      }
+    },
+    {
+      "module": "metta.setup.registry",
+      "metrics": {
+        "dependencies": 1,
+        "dependents": 14,
+        "total_connections": 15
+      }
+    },
+    {
+      "module": "metta.map.utils.storable_map",
+      "metrics": {
+        "dependencies": 5,
+        "dependents": 10,
+        "total_connections": 15
+      }
+    },
+    {
+      "module": "metta.common.wandb.wandb_context",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 15,
+        "total_connections": 15
+      }
+    },
+    {
+      "module": "metta.rl.system_config",
+      "metrics": {
+        "dependencies": 2,
+        "dependents": 13,
+        "total_connections": 15
+      }
+    },
+    {
+      "module": "metta.mettagrid.mettagrid_env",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 14,
+        "total_connections": 14
+      }
+    },
+    {
+      "module": "metta.rl.trainer_config",
+      "metrics": {
+        "dependencies": 3,
+        "dependents": 11,
+        "total_connections": 14
+      }
+    },
+    {
+      "module": "metta.mettagrid.mettagrid_c_config",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 14,
+        "total_connections": 14
+      }
+    },
+    {
+      "module": "metta.map.scenes.auto",
+      "metrics": {
+        "dependencies": 12,
+        "dependents": 1,
+        "total_connections": 13
+      }
+    },
+    {
+      "module": "metta.agent.metta_agent",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 13,
+        "total_connections": 13
+      }
+    },
+    {
+      "module": "metta.sim.simulation_config",
+      "metrics": {
+        "dependencies": 1,
+        "dependents": 12,
+        "total_connections": 13
+      }
+    },
+    {
+      "module": "tools.train",
+      "metrics": {
+        "dependencies": 13,
+        "dependents": 0,
+        "total_connections": 13
+      }
+    },
+    {
+      "module": "metta.common.util.stats_client_cfg",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 12,
+        "total_connections": 12
+      }
+    },
+    {
+      "module": "metta.mettagrid",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 12,
+        "total_connections": 12
+      }
+    },
+    {
+      "module": "tools.sim",
+      "metrics": {
+        "dependencies": 12,
+        "dependents": 0,
+        "total_connections": 12
+      }
+    },
+    {
+      "module": "tools.request_eval",
+      "metrics": {
+        "dependencies": 11,
+        "dependents": 0,
+        "total_connections": 11
+      }
+    },
+    {
+      "module": "metta.rl.evaluate",
+      "metrics": {
+        "dependencies": 9,
+        "dependents": 2,
+        "total_connections": 11
+      }
+    },
+    {
+      "module": "metta.common.util.text_styles",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 11,
+        "total_connections": 11
+      }
+    },
+    {
+      "module": "metta.map.mapgen",
+      "metrics": {
+        "dependencies": 6,
+        "dependents": 4,
+        "total_connections": 10
+      }
+    },
+    {
+      "module": "metta.setup.local_commands",
+      "metrics": {
+        "dependencies": 8,
+        "dependents": 2,
+        "total_connections": 10
+      }
+    },
+    {
+      "module": "metta.eval.eval_service",
+      "metrics": {
+        "dependencies": 8,
+        "dependents": 2,
+        "total_connections": 10
+      }
+    },
+    {
+      "module": "metta.mettagrid.mettagrid_config",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 10,
+        "total_connections": 10
+      }
+    },
+    {
+      "module": "metta.common.util.collections",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 10,
+        "total_connections": 10
+      }
+    },
+    {
+      "module": "app_backend.app_backend.eval_task_orchestrator",
+      "metrics": {
+        "dependencies": 10,
+        "dependents": 0,
+        "total_connections": 10
+      }
+    },
+    {
+      "module": "metta.map.utils.show",
+      "metrics": {
+        "dependencies": 7,
+        "dependents": 3,
+        "total_connections": 10
+      }
+    },
+    {
+      "module": "metta.mettagrid.util.hydra",
+      "metrics": {
+        "dependencies": 0,
+        "dependents": 10,
+        "total_connections": 10
+      }
+    },
+    {
+      "module": "metta.eval.eval_stats_db",
+      "metrics": {
+        "dependencies": 3,
+        "dependents": 7,
+        "total_connections": 10
+      }
+    }
+  ],
+  "dependency_layers": [
+    [
+      ".github.actions.discord-webhook.discord_webhook",
+      "agent.agent.component_policy",
+      "agent.agent.lib.action",
+      "agent.agent.lib.actor",
+      "agent.agent.lib.lstm",
+      "agent.agent.lib.merge_layer",
+      "agent.agent.lib.metta_layer",
+      "agent.agent.lib.modular_network",
+      "agent.agent.lib.nn_layer_library",
+      "agent.agent.lib.obs_enc",
+      "agent.agent.lib.obs_token_to_box_shaper",
+      "agent.agent.lib.obs_tokenizers",
+      "agent.agent.lib.observation_normalizer",
+      "agent.agent.metta_agent",
+      "agent.agent.mocks.mock_agent",
+      "agent.agent.mocks.mock_policy_record",
+      "agent.agent.policy_cache",
+      "agent.agent.policy_record",
+      "agent.agent.policy_store",
+      "agent.agent.pytorch.agent_mapper",
+      "agent.agent.pytorch.latent_attn_med",
+      "agent.agent.pytorch.latent_attn_small",
+      "agent.agent.pytorch.latent_attn_tiny",
+      "agent.tests.lib.test_lstm",
+      "agent.tests.lib.test_metta_module",
+      "agent.tests.lib.test_metta_modules",
+      "agent.tests.lib.test_modular_network",
+      "agent.tests.lib.test_obs_token_to_box_shaper",
+      "agent.tests.test_feature_remapping",
+      "agent.tests.test_legacy_adapter",
+      "agent.tests.test_metta_agent",
+      "agent.tests.test_policy_cache",
+      "agent.tests.test_policy_store",
+      "agent.tests.test_vanilla_policy",
+      "agent.tests.util.test_distribution_utils",
+      "app_backend.app_backend.auth",
+      "app_backend.app_backend.clients.base_client",
+      "app_backend.app_backend.clients.eval_task_client",
+      "app_backend.app_backend.clients.scorecard_client",
+      "app_backend.app_backend.clients.stats_client",
+      "app_backend.app_backend.container_managers.base",
+      "app_backend.app_backend.container_managers.docker",
+      "app_backend.app_backend.container_managers.factory",
+      "app_backend.app_backend.container_managers.k8s",
+      "app_backend.app_backend.eval_task_orchestrator",
+      "app_backend.app_backend.eval_task_worker",
+      "app_backend.app_backend.leaderboard_updater",
+      "app_backend.app_backend.metta_repo",
+      "app_backend.app_backend.routes.dashboard_routes",
+      "app_backend.app_backend.routes.entity_routes",
+      "app_backend.app_backend.routes.eval_task_routes",
+      "app_backend.app_backend.routes.leaderboard_routes",
+      "app_backend.app_backend.routes.score_routes",
+      "app_backend.app_backend.routes.scorecard_routes",
+      "app_backend.app_backend.routes.sql_routes",
+      "app_backend.app_backend.routes.stats_routes",
+      "app_backend.app_backend.routes.sweep_routes",
+      "app_backend.app_backend.routes.token_routes",
+      "app_backend.app_backend.server",
+      "app_backend.app_backend.sweep_client",
+      "app_backend.app_backend.test_support.base_async_test",
+      "app_backend.app_backend.test_support.client_adapter",
+      "app_backend.app_backend.worker_managers.base",
+      "app_backend.app_backend.worker_managers.container_manager",
+      "app_backend.app_backend.worker_managers.thread_manager",
+      "app_backend.tests.conftest",
+      "app_backend.tests.generate_test_data",
+      "app_backend.tests.test_docker_integration",
+      "app_backend.tests.test_eval_task_orchestrator_integration",
+      "app_backend.tests.test_eval_task_routes",
+      "app_backend.tests.test_saved_dashboards",
+      "app_backend.tests.test_score_routes",
+      "app_backend.tests.test_scorecard_routes",
+      "app_backend.tests.test_sql_concurrency",
+      "app_backend.tests.test_stats_server",
+      "app_backend.tests.test_sweep_routes",
+      "app_backend.tests.test_token_system",
+      "app_backend.tests.test_training_runs_routes",
+      "cogweb.cogweb_client",
+      "common.common.datadog.tracing",
+      "common.common.util.cli",
+      "common.common.util.constants",
+      "common.common.util.cost_monitor",
+      "common.common.util.git",
+      "common.common.util.github",
+      "common.common.util.mettagrid_cfgs",
+      "common.common.util.skypilot_latency",
+      "common.common.util.stats_client_cfg",
+      "common.tests.profiling.test_memory_monitor",
+      "common.tests.profiling.test_stopwatch",
+      "common.tests.util.test_cli",
+      "common.tests.util.test_colorama",
+      "common.tests.util.test_datastruct",
+      "common.tests.util.test_git",
+      "common.tests.util.test_git_filter",
+      "common.tests.util.test_instantiate",
+      "common.tests.util.test_memoization",
+      "common.tests.util.test_numpy_helpers",
+      "common.tests.util.test_resolvers",
+      "common.tests.util.test_retry",
+      "common.tests.util.test_system_monitor",
+      "conftest",
+      "devops.add_to_leaderboard",
+      "devops.docker.build",
+      "devops.docker.push_image",
+      "devops.git.push_child_repo",
+      "devops.observatory_login",
+      "devops.skypilot.configure_jobs_controller",
+      "devops.skypilot.connect",
+      "devops.skypilot.launch",
+      "devops.skypilot.sandbox",
+      "devops.skypilot.set_github_status",
+      "devops.skypilot.utils",
+      "devops.tools.cleanup_repo",
+      "experiments.marimo.eval-finder-example",
+      "experiments.marimo.scorecard-example",
+      "experiments.notebooks.utils.eval_finder_widget.eval_finder_widget.util",
+      "experiments.notebooks.utils.metrics",
+      "experiments.notebooks.utils.monitoring",
+      "experiments.notebooks.utils.monitoring_marimo",
+      "experiments.notebooks.utils.scorecard_widget.scorecard_widget.util",
+      "experiments.notebooks.utils.training",
+      "gridworks.start",
+      "metta.cogworks.curriculum.__init__",
+      "metta.cogworks.curriculum.curriculum",
+      "metta.cogworks.curriculum.demo",
+      "metta.cogworks.curriculum.task",
+      "metta.eval.replays",
+      "metta.gridworks.server",
+      "metta.map.load_random_from_index",
+      "metta.map.mapgen_ascii",
+      "metta.map.scenes.varied_terrain",
+      "metta.map.terrain_from_numpy",
+      "metta.map.utils.dcss",
+      "metta.setup.components.aws",
+      "metta.setup.components.codeclip",
+      "metta.setup.components.core",
+      "metta.setup.components.filter_repo",
+      "metta.setup.components.githooks",
+      "metta.setup.components.mettascope",
+      "metta.setup.components.nodejs",
+      "metta.setup.components.notebookwidgets",
+      "metta.setup.components.observatory_key",
+      "metta.setup.components.skypilot",
+      "metta.setup.components.system",
+      "metta.setup.components.tailscale",
+      "metta.setup.components.wandb",
+      "metta.setup.metta_cli",
+      "metta.setup.shell",
+      "metta.sweep.sweep_lifecycle",
+      "metta.sweep.sweep_rollout",
+      "mettagrid.benchmarks.test_mettagrid_env_benchmark",
+      "mettagrid.demos.demo_train_gym",
+      "mettagrid.demos.demo_train_pettingzoo",
+      "mettagrid.demos.demo_train_puffer",
+      "mettagrid.examples.test_stats_rewards",
+      "mettagrid.generate_coverage",
+      "mettagrid.mettagrid.__init__",
+      "mettagrid.mettagrid.config.builder",
+      "mettagrid.mettagrid.config.object",
+      "mettagrid.mettagrid.core",
+      "mettagrid.mettagrid.curriculum.bucketed",
+      "mettagrid.mettagrid.curriculum.learning_progress",
+      "mettagrid.mettagrid.curriculum.multi_task",
+      "mettagrid.mettagrid.curriculum.prioritize_regressed",
+      "mettagrid.mettagrid.curriculum.random",
+      "mettagrid.mettagrid.curriculum.sampling",
+      "mettagrid.mettagrid.curriculum.sequential_trial_task",
+      "mettagrid.mettagrid.curriculum.util",
+      "mettagrid.mettagrid.gym_env",
+      "mettagrid.mettagrid.mettagrid_c_config",
+      "mettagrid.mettagrid.mettagrid_config",
+      "mettagrid.mettagrid.mettagrid_env",
+      "mettagrid.mettagrid.pettingzoo_env",
+      "mettagrid.mettagrid.puffer_base",
+      "mettagrid.mettagrid.renderer.nethack",
+      "mettagrid.mettagrid.replay_writer",
+      "mettagrid.mettagrid.room.ascii",
+      "mettagrid.mettagrid.room.maze",
+      "mettagrid.mettagrid.room.multi_room",
+      "mettagrid.mettagrid.room.navigation.cylinder_world",
+      "mettagrid.mettagrid.room.random",
+      "mettagrid.mettagrid.room.room",
+      "mettagrid.mettagrid.room.room_list",
+      "mettagrid.mettagrid.room.room_scene",
+      "mettagrid.mettagrid.room.utils",
+      "mettagrid.mettagrid.stats_writer",
+      "mettagrid.mettagrid.test_support.environment_builder",
+      "mettagrid.mettagrid.test_support.observation_helper",
+      "mettagrid.mettagrid.util.actions",
+      "mettagrid.mettagrid.util.hydra",
+      "mettagrid.test_attack_resource_exception",
+      "mettagrid.tests.renderer.test_miniscope",
+      "mettagrid.tests.renderer.test_nethack",
+      "mettagrid.tests.test_8way_movement",
+      "mettagrid.tests.test_actions",
+      "mettagrid.tests.test_buffer_reuse",
+      "mettagrid.tests.test_buffer_sharing_regression",
+      "mettagrid.tests.test_buffers",
+      "mettagrid.tests.test_cardinal_movement",
+      "mettagrid.tests.test_converter",
+      "mettagrid.tests.test_curriculum",
+      "mettagrid.tests.test_diversity",
+      "mettagrid.tests.test_env_map",
+      "mettagrid.tests.test_global_obs_config",
+      "mettagrid.tests.test_global_reward_observations",
+      "mettagrid.tests.test_gym_env",
+      "mettagrid.tests.test_interactive",
+      "mettagrid.tests.test_leaks",
+      "mettagrid.tests.test_mettagrid",
+      "mettagrid.tests.test_mettagrid_env",
+      "mettagrid.tests.test_movement_metrics",
+      "mettagrid.tests.test_new_env_hierarchy",
+      "mettagrid.tests.test_no_agent_interference",
+      "mettagrid.tests.test_observations",
+      "mettagrid.tests.test_pettingzoo_env",
+      "mettagrid.tests.test_rewards",
+      "mettagrid.tests.test_stats_rewards",
+      "mettagrid.tests.test_stats_writer",
+      "mettagrid.tests.test_swap",
+      "mettagrid.tests.test_visitation_counts",
+      "mettagrid.tests.test_wandb_movement_metrics",
+      "observatory.launch",
+      "tests.cogworks.curriculum.test_curriculum",
+      "tests.cogworks.curriculum.test_curriculum_env",
+      "tests.cogworks.curriculum.test_serialization",
+      "tests.cogworks.curriculum.test_task",
+      "tests.devops.test_docker_image_builds",
+      "tests.eval.test_dashboard_data",
+      "tests.eval.test_eval_stats_db",
+      "tests.map.random.test_float",
+      "tests.map.random.test_int",
+      "tests.map.scenes.test_ascii",
+      "tests.map.scenes.test_auto",
+      "tests.map.scenes.test_bsp",
+      "tests.map.scenes.test_convchain",
+      "tests.map.scenes.test_inline_ascii",
+      "tests.map.scenes.test_layout",
+      "tests.map.scenes.test_make_connected",
+      "tests.map.scenes.test_maze",
+      "tests.map.scenes.test_mean_distance",
+      "tests.map.scenes.test_mirror",
+      "tests.map.scenes.test_multi_left_and_right",
+      "tests.map.scenes.test_nop",
+      "tests.map.scenes.test_radial_maze",
+      "tests.map.scenes.test_random",
+      "tests.map.scenes.test_random_objects",
+      "tests.map.scenes.test_random_scene",
+      "tests.map.scenes.test_random_scene_from_dir",
+      "tests.map.scenes.test_remove_agents",
+      "tests.map.scenes.test_room_grid",
+      "tests.map.scenes.test_wfc",
+      "tests.map.scenes.utils",
+      "tests.map.test_mapgen",
+      "tests.map.test_scene",
+      "tests.map.test_validate_all_ascii_maps",
+      "tests.map.utils.test_pattern",
+      "tests.map.utils.test_storable_map_io",
+      "tests.rl.test_hyperparameter_scheduler",
+      "tests.rl.test_kickstarter",
+      "tests.rl.test_losses",
+      "tests.rl.test_metrics_formatting",
+      "tests.rl.test_mps",
+      "tests.rl.test_trainer_config",
+      "tests.setup.conftest",
+      "tests.setup.test_aws_profile_setup",
+      "tests.setup.test_base",
+      "tests.setup.test_integration_install",
+      "tests.sim.test_all_sim_configs",
+      "tests.sim.test_simulation_config",
+      "tests.sim.test_simulation_stats_db",
+      "tests.sweep.test_integration_sweep_pipeline",
+      "tests.sweep.test_metta_protein",
+      "tests.sweep.test_protein_end_to_end_pipeline",
+      "tests.sweep.test_protein_integration",
+      "tests.sweep.test_protein_metta",
+      "tests.sweep.test_sweep_config_loading",
+      "tests.sweep.test_wandb_utils",
+      "tests.test_action_compatibility",
+      "tests.test_num_episodes_bug",
+      "tests.test_validate_all_curriculums",
+      "tests.test_validate_all_envs",
+      "tests.tools.test_renderer_job",
+      "tests.util.fixtures.script",
+      "tools.analyze",
+      "tools.autotune",
+      "tools.get_best_params_from_sweep",
+      "tools.map.gen",
+      "tools.map.gen_scene",
+      "tools.map.normalize_ascii_map",
+      "tools.map.normalize_scene_patterns",
+      "tools.map.view",
+      "tools.play",
+      "tools.renderer",
+      "tools.replay",
+      "tools.request_eval",
+      "tools.sim",
+      "tools.stats_duckdb_cli",
+      "tools.sweep_config_utils",
+      "tools.sweep_eval",
+      "tools.sweep_prepare_run",
+      "tools.sweep_setup",
+      "tools.train",
+      "tools.utils",
+      "tools.validate_config"
+    ]
+  ],
+  "suggested_migration_order": [
+    "tests.sweep.test_metta_protein",
+    "mettagrid.mettagrid.room.random",
+    "app_backend.app_backend.eval_task_orchestrator",
+    "experiments.marimo.scorecard-example",
+    "devops.skypilot.set_github_status",
+    "devops.docker.build",
+    "tests.map.scenes.test_nop",
+    "common.common.util.cost_monitor",
+    "tests.setup.conftest",
+    "tools.sweep_eval",
+    "mettagrid.mettagrid.gym_env",
+    "tests.map.scenes.test_ascii",
+    "common.common.util.skypilot_latency",
+    "mettagrid.mettagrid.mettagrid_c_config",
+    "mettagrid.mettagrid.curriculum.sampling",
+    "mettagrid.tests.test_global_obs_config",
+    "tests.map.scenes.test_inline_ascii",
+    "tests.map.scenes.test_random_scene_from_dir",
+    "tests.sweep.test_protein_end_to_end_pipeline",
+    "app_backend.app_backend.routes.scorecard_routes",
+    "agent.tests.lib.test_metta_module",
+    "tests.setup.test_aws_profile_setup",
+    "mettagrid.mettagrid.core",
+    "tests.test_validate_all_envs",
+    "agent.agent.component_policy",
+    "app_backend.tests.test_docker_integration",
+    "observatory.launch",
+    "app_backend.app_backend.routes.stats_routes",
+    "app_backend.app_backend.routes.eval_task_routes",
+    "agent.agent.policy_cache",
+    "app_backend.tests.test_training_runs_routes",
+    "agent.agent.lib.observation_normalizer",
+    "tests.map.test_scene",
+    "mettagrid.tests.renderer.test_nethack",
+    "devops.tools.cleanup_repo",
+    "tools.utils",
+    "agent.agent.lib.obs_token_to_box_shaper",
+    "tests.sweep.test_integration_sweep_pipeline",
+    "metta.map.scenes.varied_terrain",
+    "app_backend.app_backend.leaderboard_updater",
+    "mettagrid.tests.test_diversity",
+    "common.common.util.git",
+    "tests.test_num_episodes_bug",
+    "mettagrid.mettagrid.replay_writer",
+    "tests.sweep.test_protein_integration",
+    "experiments.notebooks.utils.scorecard_widget.scorecard_widget.util",
+    "tools.sweep_prepare_run",
+    "common.common.util.mettagrid_cfgs",
+    "mettagrid.mettagrid.room.maze",
+    "metta.setup.components.tailscale"
+  ]
+}

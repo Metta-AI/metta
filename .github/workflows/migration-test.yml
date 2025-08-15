@@ -1,0 +1,275 @@
+name: Migration Testing
+
+on:
+  push:
+    branches:
+      - '*-migration-phase-*'
+      - 'migration/*'
+  pull_request:
+    paths:
+      - 'migration/**'
+      - 'metta/**'
+      - 'agent/**'
+      - 'common/**'
+      - 'mettagrid/**'
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: 'Migration phase to test'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - phase1
+          - phase2
+          - phase3
+          - phase4
+          - phase5
+
+jobs:
+  test-current-structure:
+    name: Test Current Structure
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies
+        run: |
+          uv sync
+          
+      - name: Run baseline tests
+        run: |
+          uv run pytest tests/ -x --maxfail=5 -q
+          
+      - name: Validate imports
+        run: |
+          uv run migration/tools/validate_imports.py
+          
+      - name: Save baseline metrics
+        uses: actions/upload-artifact@v3
+        with:
+          name: baseline-metrics
+          path: migration/baselines/
+          
+  migration-phase-validation:
+    name: Validate Migration Phase ${{ matrix.phase }}
+    runs-on: ubuntu-latest
+    needs: test-current-structure
+    strategy:
+      matrix:
+        phase: [1, 2, 3, 4, 5]
+      fail-fast: false
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          
+      - name: Phase 1 - Foundation
+        if: matrix.phase == 1
+        run: |
+          echo "Testing Phase 1: Foundation & Preparation"
+          uv run migration/tools/validate_imports.py
+          uv run migration/tools/analyze_dependencies.py
+          
+      - name: Phase 2 - Common & Backend Migration
+        if: matrix.phase == 2
+        run: |
+          echo "Testing Phase 2: Common & Backend-Shared Migration"
+          # Test dry-run of phase 2 rewrites
+          uv run migration/tools/rewrite_imports.py --phase phase2_common --dry-run
+          
+      - name: Phase 3 - MettagGrid Migration
+        if: matrix.phase == 3
+        run: |
+          echo "Testing Phase 3: MettagGrid Migration"
+          # Test dry-run of phase 3 rewrites
+          uv run migration/tools/rewrite_imports.py --phase phase3_mettagrid --dry-run
+          
+      - name: Phase 4 - Cogworks Creation
+        if: matrix.phase == 4
+        run: |
+          echo "Testing Phase 4: Cogworks Creation"
+          # Test dry-run of phase 4 rewrites
+          uv run migration/tools/rewrite_imports.py --phase phase4_cogworks --dry-run
+          
+      - name: Phase 5 - Final Cleanup
+        if: matrix.phase == 5
+        run: |
+          echo "Testing Phase 5: Final Migration & Cleanup"
+          # Placeholder for phase 5 validation
+          echo "Phase 5 validation will be implemented when earlier phases complete"
+          
+  import-consistency-check:
+    name: Import Consistency Check
+    runs-on: ubuntu-latest
+    needs: test-current-structure
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          
+      - name: Check for circular dependencies
+        run: |
+          uv run python -c "
+          import json
+          from pathlib import Path
+          
+          # Load dependency analysis if it exists
+          report_path = Path('migration/baselines/dependency-analysis.json')
+          if not report_path.exists():
+              import subprocess
+              subprocess.run(['uv', 'run', 'migration/tools/analyze_dependencies.py'])
+          
+          with open(report_path) as f:
+              report = json.load(f)
+          
+          circular = report.get('circular_dependencies', [])
+          if circular:
+              print(f'⚠ Found {len(circular)} circular dependency groups:')
+              for group in circular:
+                  print(f'  - {group}')
+              exit(1)
+          else:
+              print('✓ No circular dependencies found')
+          "
+          
+      - name: Check high-risk modules
+        run: |
+          uv run python -c "
+          import json
+          from pathlib import Path
+          
+          report_path = Path('migration/baselines/dependency-analysis.json')
+          if report_path.exists():
+              with open(report_path) as f:
+                  report = json.load(f)
+              
+              high_risk = report.get('high_risk_modules', [])
+              if high_risk:
+                  print(f'⚠ High-risk modules requiring careful migration:')
+                  for module_info in high_risk[:10]:
+                      module = module_info['module']
+                      metrics = module_info['metrics']
+                      print(f'  - {module}: {metrics[\"total_connections\"]} connections')
+          "
+          
+  performance-baseline:
+    name: Performance Baseline
+    runs-on: ubuntu-latest
+    needs: test-current-structure
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+          
+      - name: Install dependencies
+        run: |
+          uv sync
+          
+      - name: Measure import performance
+        run: |
+          uv run python -c "
+          import time
+          import json
+          from pathlib import Path
+          
+          # Measure import times for key packages
+          packages = ['metta.rl', 'metta.agent', 'metta.common', 'mettagrid']
+          timings = {}
+          
+          for pkg in packages:
+              try:
+                  start = time.perf_counter()
+                  __import__(pkg)
+                  elapsed = time.perf_counter() - start
+                  timings[pkg] = elapsed
+                  print(f'{pkg}: {elapsed:.3f}s')
+              except ImportError as e:
+                  print(f'{pkg}: FAILED - {e}')
+                  timings[pkg] = None
+          
+          # Save baseline
+          Path('migration/baselines').mkdir(parents=True, exist_ok=True)
+          Path('migration/baselines/import-performance.json').write_text(
+              json.dumps(timings, indent=2)
+          )
+          "
+          
+      - name: Save performance metrics
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-metrics
+          path: migration/baselines/import-performance.json
+          
+  migration-report:
+    name: Generate Migration Report
+    runs-on: ubuntu-latest
+    needs: [migration-phase-validation, import-consistency-check, performance-baseline]
+    if: always()
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        
+      - name: Generate summary report
+        run: |
+          echo "# Migration Readiness Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Phase Status" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Phase 1: Foundation tools created" >> $GITHUB_STEP_SUMMARY
+          echo "- 🔄 Phase 2: Ready for implementation" >> $GITHUB_STEP_SUMMARY
+          echo "- ⏳ Phase 3: Pending Phase 2 completion" >> $GITHUB_STEP_SUMMARY
+          echo "- ⏳ Phase 4: Pending Phase 3 completion" >> $GITHUB_STEP_SUMMARY
+          echo "- ⏳ Phase 5: Pending Phase 4 completion" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Tools Available" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ validate_imports.py - Import validation" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ analyze_dependencies.py - Dependency analysis" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ rewrite_imports.py - Automated import rewriting" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Review dependency analysis report" >> $GITHUB_STEP_SUMMARY
+          echo "2. Begin Phase 2 implementation on a feature branch" >> $GITHUB_STEP_SUMMARY
+          echo "3. Test with dry-run before applying changes" >> $GITHUB_STEP_SUMMARY

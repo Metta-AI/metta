@@ -21,7 +21,8 @@ Current:
 └── configs/         # Hydra configurations
 
 Target:
-├── cogworks/        # Unified RL framework (metta + agent merged)
+├── cogworks/        # RL framework (metta only, without agent)
+├── agent/           # Agent implementations (flattened, standalone)
 ├── mettagrid/       # Environment (standalone)
 ├── common/          # Shared utilities
 ├── backend-shared/  # Backend services
@@ -294,10 +295,11 @@ git checkout HEAD -- mettagrid/
 uv sync --force-reinstall
 ```
 
-## Phase 4: Cogworks Creation (Week 7-8)
+## Phase 4: Cogworks & Agent Restructure (Week 7-8)
 
 ### Objectives
-- Merge metta/ and agent/ into unified cogworks package
+- Create cogworks package from metta/ components only
+- Flatten agent/ structure (remove src/ directory)
 - Update all internal cross-references
 - Migrate complex interdependencies
 
@@ -305,16 +307,20 @@ uv sync --force-reinstall
 
 #### 4.1 Create Cogworks Structure
 ```bash
-# Create cogworks package
-mkdir -p cogworks/metta/cogworks/{rl,agent,eval,sim,sweep,mapgen}
+# Create cogworks package (without agent)
+mkdir -p cogworks/metta/cogworks/{rl,eval,sim,sweep,mapgen}
 
-# Move and merge components
+# Move metta components only
 mv metta/rl/* cogworks/metta/cogworks/rl/
-mv agent/src/metta/agent/* cogworks/metta/cogworks/agent/
 mv metta/eval/* cogworks/metta/cogworks/eval/
 mv metta/sim/* cogworks/metta/cogworks/sim/
 mv metta/sweep/* cogworks/metta/cogworks/sweep/
 mv metta/map/* cogworks/metta/cogworks/mapgen/
+
+# Flatten agent structure separately
+mkdir -p agent/metta/agent
+mv agent/src/metta/agent/* agent/metta/agent/
+rmdir agent/src/metta/agent agent/src/metta agent/src
 ```
 
 #### 4.2 Automated Import Updates
@@ -328,13 +334,13 @@ from pathlib import Path
 # Define import mappings
 IMPORT_MAPPINGS = {
     r'from metta\.rl': 'from metta.cogworks.rl',
-    r'from metta\.agent': 'from metta.cogworks.agent',
     r'from metta\.eval': 'from metta.cogworks.eval',
     r'from metta\.sim': 'from metta.cogworks.sim',
     r'from metta\.sweep': 'from metta.cogworks.sweep',
     r'from metta\.map': 'from metta.cogworks.mapgen',
+    r'from agent\.src\.metta\.agent': 'from metta.agent',
     r'import metta\.rl': 'import metta.cogworks.rl',
-    r'import metta\.agent': 'import metta.cogworks.agent',
+    r'import agent\.src\.metta\.agent': 'import metta.agent',
 }
 
 def update_file(file_path: Path):
@@ -420,9 +426,11 @@ if cycles:
 
 ### Success Criteria
 - [ ] softmax-cogworks package builds and installs
+- [ ] softmax-agent package builds and installs separately
 - [ ] All cogworks tests pass
+- [ ] All agent tests pass
 - [ ] No circular import errors
-- [ ] Training pipeline works end-to-end
+- [ ] Training pipeline works end-to-end with separate packages
 
 ### Rollback Plan
 This is the most complex phase. Keep parallel structures:

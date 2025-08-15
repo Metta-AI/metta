@@ -1,0 +1,423 @@
+{
+  "valid_imports": [
+    "metta.agent.component_policy",
+    "metta.agent.lib.lstm",
+    "metta.agent.lib.metta_layer",
+    "metta.agent.lib.metta_module",
+    "metta.agent.lib.modular_network",
+    "metta.agent.lib.nn_layer_library",
+    "metta.agent.lib.obs_token_to_box_shaper",
+    "metta.agent.lib.obs_tokenizers",
+    "metta.agent.metta_agent",
+    "metta.agent.mocks",
+    "metta.agent.modules.encoders",
+    "metta.agent.modules.tokenizers",
+    "metta.agent.policy_cache",
+    "metta.agent.policy_metadata",
+    "metta.agent.policy_record",
+    "metta.agent.policy_store",
+    "metta.agent.pytorch.agent_mapper",
+    "metta.agent.pytorch.example",
+    "metta.agent.pytorch.fast",
+    "metta.agent.pytorch.latent_attn_med",
+    "metta.agent.pytorch.latent_attn_small",
+    "metta.agent.pytorch.latent_attn_tiny",
+    "metta.agent.util.debug",
+    "metta.agent.util.distribution_utils",
+    "metta.agent.util.safe_get",
+    "metta.agent.util.weights_analysis",
+    "metta.app_backend",
+    "metta.app_backend.auth",
+    "metta.app_backend.clients.base_client",
+    "metta.app_backend.clients.eval_task_client",
+    "metta.app_backend.clients.scorecard_client",
+    "metta.app_backend.clients.stats_client",
+    "metta.app_backend.config",
+    "metta.app_backend.container_managers.base",
+    "metta.app_backend.container_managers.docker",
+    "metta.app_backend.container_managers.factory",
+    "metta.app_backend.container_managers.k8s",
+    "metta.app_backend.eval_task_orchestrator",
+    "metta.app_backend.eval_task_worker",
+    "metta.app_backend.leaderboard_updater",
+    "metta.app_backend.metta_repo",
+    "metta.app_backend.query_logger",
+    "metta.app_backend.route_logger",
+    "metta.app_backend.routes",
+    "metta.app_backend.routes.eval_task_routes",
+    "metta.app_backend.routes.score_routes",
+    "metta.app_backend.routes.scorecard_routes",
+    "metta.app_backend.routes.sql_routes",
+    "metta.app_backend.routes.stats_routes",
+    "metta.app_backend.routes.sweep_routes",
+    "metta.app_backend.schema_manager",
+    "metta.app_backend.server",
+    "metta.app_backend.sweep_client",
+    "metta.app_backend.test_support",
+    "metta.app_backend.test_support.base_async_test",
+    "metta.app_backend.worker_managers.base",
+    "metta.app_backend.worker_managers.container_manager",
+    "metta.app_backend.worker_managers.thread_manager",
+    "metta.app_backend.worker_managers.worker",
+    "metta.cogworks.curriculum",
+    "metta.cogworks.curriculum.curriculum_env",
+    "metta.cogworks.curriculum.task_generator",
+    "metta.common.datadog.config",
+    "metta.common.datadog.tracing",
+    "metta.common.profiling.memory_monitor",
+    "metta.common.profiling.stopwatch",
+    "metta.common.test_support",
+    "metta.common.util.cli",
+    "metta.common.util.collections",
+    "metta.common.util.config",
+    "metta.common.util.constants",
+    "metta.common.util.cost_monitor",
+    "metta.common.util.datastruct",
+    "metta.common.util.discord",
+    "metta.common.util.fs",
+    "metta.common.util.git",
+    "metta.common.util.git_filter",
+    "metta.common.util.github",
+    "metta.common.util.heartbeat",
+    "metta.common.util.instantiate",
+    "metta.common.util.lazypath",
+    "metta.common.util.lock",
+    "metta.common.util.logging_helpers",
+    "metta.common.util.memoization",
+    "metta.common.util.mettagrid_cfgs",
+    "metta.common.util.numpy_helpers",
+    "metta.common.util.resolvers",
+    "metta.common.util.retry",
+    "metta.common.util.stats_client_cfg",
+    "metta.common.util.system_monitor",
+    "metta.common.util.text_styles",
+    "metta.common.wandb.log_wandb",
+    "metta.common.wandb.wandb_context",
+    "metta.common.wandb.wandb_runs",
+    "metta.core.distributed",
+    "metta.core.monitoring",
+    "metta.eval.analysis",
+    "metta.eval.analysis_config",
+    "metta.eval.dashboard_data",
+    "metta.eval.eval_request_config",
+    "metta.eval.eval_service",
+    "metta.eval.eval_stats_db",
+    "metta.map.config",
+    "metta.map.load",
+    "metta.map.load_random",
+    "metta.map.mapgen",
+    "metta.map.random.float",
+    "metta.map.random.int",
+    "metta.map.scene",
+    "metta.map.scenes.ascii",
+    "metta.map.scenes.auto",
+    "metta.map.scenes.bsp",
+    "metta.map.scenes.convchain",
+    "metta.map.scenes.copy_grid",
+    "metta.map.scenes.inline_ascii",
+    "metta.map.scenes.layout",
+    "metta.map.scenes.make_connected",
+    "metta.map.scenes.maze",
+    "metta.map.scenes.mean_distance",
+    "metta.map.scenes.mirror",
+    "metta.map.scenes.multi_left_and_right",
+    "metta.map.scenes.nop",
+    "metta.map.scenes.radial_maze",
+    "metta.map.scenes.random",
+    "metta.map.scenes.random_objects",
+    "metta.map.scenes.random_scene",
+    "metta.map.scenes.random_scene_from_dir",
+    "metta.map.scenes.remove_agents",
+    "metta.map.scenes.room_grid",
+    "metta.map.scenes.transplant_scene",
+    "metta.map.scenes.wfc",
+    "metta.map.types",
+    "metta.map.utils",
+    "metta.map.utils.ascii_grid",
+    "metta.map.utils.draw",
+    "metta.map.utils.make_scene_config",
+    "metta.map.utils.pattern",
+    "metta.map.utils.s3utils",
+    "metta.map.utils.show",
+    "metta.map.utils.storable_map",
+    "metta.map.utils.storable_map_index",
+    "metta.mettagrid",
+    "metta.mettagrid.char_encoder",
+    "metta.mettagrid.config",
+    "metta.mettagrid.config.builder",
+    "metta.mettagrid.core",
+    "metta.mettagrid.curriculum.bucketed",
+    "metta.mettagrid.curriculum.core",
+    "metta.mettagrid.curriculum.learning_progress",
+    "metta.mettagrid.curriculum.multi_task",
+    "metta.mettagrid.curriculum.prioritize_regressed",
+    "metta.mettagrid.curriculum.random",
+    "metta.mettagrid.curriculum.sampling",
+    "metta.mettagrid.curriculum.util",
+    "metta.mettagrid.episode_stats_db",
+    "metta.mettagrid.grid_object_formatter",
+    "metta.mettagrid.gym_env",
+    "metta.mettagrid.level_builder",
+    "metta.mettagrid.mettagrid_c",
+    "metta.mettagrid.mettagrid_c_config",
+    "metta.mettagrid.mettagrid_config",
+    "metta.mettagrid.mettagrid_env",
+    "metta.mettagrid.pettingzoo_env",
+    "metta.mettagrid.puffer_base",
+    "metta.mettagrid.renderer.miniscope",
+    "metta.mettagrid.renderer.nethack",
+    "metta.mettagrid.replay_writer",
+    "metta.mettagrid.room.random",
+    "metta.mettagrid.room.room",
+    "metta.mettagrid.room.room_list",
+    "metta.mettagrid.room.utils",
+    "metta.mettagrid.stats_writer",
+    "metta.mettagrid.test_support",
+    "metta.mettagrid.test_support.token_types",
+    "metta.mettagrid.util",
+    "metta.mettagrid.util.actions",
+    "metta.mettagrid.util.dict_utils",
+    "metta.mettagrid.util.diversity",
+    "metta.mettagrid.util.file",
+    "metta.mettagrid.util.hydra",
+    "metta.rl",
+    "metta.rl.advantage",
+    "metta.rl.checkpoint_manager",
+    "metta.rl.evaluate",
+    "metta.rl.experience",
+    "metta.rl.hyperparameter_scheduler",
+    "metta.rl.hyperparameter_scheduler_config",
+    "metta.rl.kickstarter",
+    "metta.rl.kickstarter_config",
+    "metta.rl.losses",
+    "metta.rl.optimization",
+    "metta.rl.policy_management",
+    "metta.rl.ppo",
+    "metta.rl.puffer_policy",
+    "metta.rl.rollout",
+    "metta.rl.stats",
+    "metta.rl.system_config",
+    "metta.rl.torch_profiler",
+    "metta.rl.trainer",
+    "metta.rl.trainer_checkpoint",
+    "metta.rl.trainer_config",
+    "metta.rl.utils",
+    "metta.rl.vecenv",
+    "metta.rl.wandb",
+    "metta.setup.components.base",
+    "metta.setup.config",
+    "metta.setup.local_commands",
+    "metta.setup.profiles",
+    "metta.setup.registry",
+    "metta.setup.symlink_setup",
+    "metta.setup.tools.book",
+    "metta.setup.tools.local.kind",
+    "metta.setup.utils",
+    "metta.sim.map_preview",
+    "metta.sim.simulation",
+    "metta.sim.simulation_config",
+    "metta.sim.simulation_stats_db",
+    "metta.sim.simulation_suite",
+    "metta.sim.utils",
+    "metta.sweep.protein_metta",
+    "metta.sweep.wandb_utils",
+    "metta.util.init.mettagrid_system",
+    "metta.util.metta_script",
+    "metta.utils.batch",
+    "metta.utils.progress",
+    "mettascope.replays",
+    "mettascope.server"
+  ],
+  "invalid_imports": [
+    {
+      "file": "agent/src/metta/agent/policy_record.py",
+      "module": "metta.agent.legacy_adapter",
+      "error": "No module named 'metta.agent.legacy_adapter'"
+    },
+    {
+      "file": "metta/sweep/sweep_lifecycle.py",
+      "module": "metta.sweep.protein_utils",
+      "error": "No module named 'metta.sweep.protein_utils'"
+    },
+    {
+      "file": "wandb/run-20250731_075822-relh.movestats.2/files/code/tools/train.py",
+      "module": "metta.distributed",
+      "error": "No module named 'metta.distributed'"
+    },
+    {
+      "file": "wandb/run-20250804_104858-relh.basic_easy_shaped.20250804_104858/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250806_112040-relh.basic_easy_shaped.20250806_112040/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250730_173300-relh.movestats.1/files/code/tools/train.py",
+      "module": "metta.distributed",
+      "error": "No module named 'metta.distributed'"
+    },
+    {
+      "file": "wandb/run-20250804_104909-relh.basic_easy_shaped.20250804_104909/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250730_162158-relh.movestats.1/files/code/tools/train.py",
+      "module": "metta.app_backend.stats_client",
+      "error": "No module named 'metta.app_backend.stats_client'"
+    },
+    {
+      "file": "wandb/run-20250811_211753-relh.makefast/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250805_221343-test_pytorch_20250805_221337/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250730_162830-relh.movestats.1/files/code/tools/train.py",
+      "module": "metta.app_backend.stats_client",
+      "error": "No module named 'metta.app_backend.stats_client'"
+    },
+    {
+      "file": "wandb/run-20250804_104345-relh.basic_easy_shaped.20250804_104345/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250730_162606-relh.movestats.1/files/code/tools/train.py",
+      "module": "metta.app_backend.stats_client",
+      "error": "No module named 'metta.app_backend.stats_client'"
+    },
+    {
+      "file": "wandb/run-20250805_221616-my_experiment142/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250804_155823-relh.basic_easy_shaped.20250804_155823/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250811_211359-relh.makefast/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250805_221637-my_experiment143/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250730_163633-relh.movestats.1/files/code/tools/train.py",
+      "module": "metta.app_backend.stats_client",
+      "error": "No module named 'metta.app_backend.stats_client'"
+    },
+    {
+      "file": "wandb/run-20250731_075754-relh.movestats.1/files/code/tools/train.py",
+      "module": "metta.distributed",
+      "error": "No module named 'metta.distributed'"
+    },
+    {
+      "file": "wandb/run-20250805_225230-relh.basic_easy_shaped.20250805_225230/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250804_104302-relh.basic_easy_shaped.20250804_104302/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250730_173653-relh.movestats.1/files/code/tools/train.py",
+      "module": "metta.distributed",
+      "error": "No module named 'metta.distributed'"
+    },
+    {
+      "file": "wandb/run-20250804_104115-relh.basic_easy_shaped.20250804_104115/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250805_221419-relh.basic_easy_shaped.20250805_221419/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250804_155601-relh.basic_easy_shaped.20250804_155601/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250730_162349-relh.movestats.1/files/code/tools/train.py",
+      "module": "metta.app_backend.stats_client",
+      "error": "No module named 'metta.app_backend.stats_client'"
+    },
+    {
+      "file": "wandb/run-20250805_221653-my_experiment144/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250804_103529-relh.basic_easy_shaped.20250804_103529/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250805_221120-my_experiment142/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250805_221547-my_experiment142/files/code/tools/train.py",
+      "module": "metta.rl.env_config",
+      "error": "No module named 'metta.rl.env_config'"
+    },
+    {
+      "file": "wandb/run-20250731_073411-relh.movestats.1/files/code/tools/train.py",
+      "module": "metta.distributed",
+      "error": "No module named 'metta.distributed'"
+    },
+    {
+      "file": "wandb/run-20250731_072318-relh.movestats.1/files/code/tools/train.py",
+      "module": "metta.distributed",
+      "error": "No module named 'metta.distributed'"
+    },
+    {
+      "file": "wandb/run-20250730_170121-relh.movestats.1/files/code/tools/train.py",
+      "module": "metta.distributed",
+      "error": "No module named 'metta.distributed'"
+    },
+    {
+      "file": "wandb/wandb/run-20250804_143852-test.work_it.r.15/files/code/tools/sweep_rollout.py",
+      "module": "metta.sweep.sweep_lifecycle",
+      "error": "No module named 'metta.sweep.protein_utils'"
+    },
+    {
+      "file": "wandb/run-20250730_170039-relh.movestats.1/files/code/tools/train.py",
+      "module": "metta.distributed",
+      "error": "No module named 'metta.distributed'"
+    }
+  ],
+  "import_patterns": {
+    "metta": 2498,
+    "mettascope": 45
+  },
+  "circular_dependencies": [
+    {
+      "module1": "metta.setup.local_commands",
+      "module2": "metta.setup.tools.local.kind"
+    }
+  ],
+  "statistics": {
+    "total_files": 694,
+    "total_valid_imports": 227,
+    "total_invalid_imports": 35
+  }
+}
