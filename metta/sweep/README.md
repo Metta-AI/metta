@@ -15,6 +15,43 @@ training iterations with different hyperparameter configurations, where each ite
 
 ## Architecture
 
+The sweep system follows a modular architecture with clear separation of concerns:
+
+```
+metta/
+├── sweep/                                 # Core sweep modules
+│   ├── __init__.py                       # Package exports
+│   ├── protein.py                        # Gaussian Process Bayesian optimizer
+│   ├── protein_metta.py                  # Metta wrapper with OmegaConf support
+│   ├── sweep_lifecycle.py                # Sweep initialization, preparation, evaluation
+│   └── wandb_utils.py                    # WandB observation management
+│
+tools/
+├── sweep_execute.py                      # Main sweep execution script
+├── train.py                              # Training script invoked by sweeps
+└── get_best_params_from_sweep.py         # Extract optimal parameters from completed sweeps
+│
+experiments/
+└── dashboards/
+    └── sweep_dashboard.py                # Interactive analysis dashboard
+│
+configs/
+├── sweep_job.yaml                        # Main sweep job configuration
+├── sweep/                                # Sweep parameter configurations
+│   ├── quick.yaml                        # Minimal sweep for testing (5 samples)
+│   ├── full.yaml                         # Comprehensive parameter search
+│   └── cogeval_sweep.yaml                # Cognitive evaluation sweep config
+│
+devops/
+├── sweep.sh                              # Shell wrapper for sweep execution
+└── skypilot/
+    └── launch.py                         # Cloud deployment via SkyPilot
+```
+
+### Core Workflow
+
+The sweep execution follows this pipeline:
+
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌───────────────────┐
 │   sweep_init    │───▶│     train.py    │───▶│   sweep_eval      │
@@ -293,7 +330,7 @@ parameters: # Hyperparameter search space
 
 ### Sweep Config (`configs/sweep/`)
 
-```yaml
+````yaml
 # configs/sweep/quick.yaml
 protein:
   num_random_samples: 5 # Initial random exploration
@@ -307,16 +344,127 @@ metric: reward # Objective metric name
 goal: maximize # maximize or minimize
 method: bayes # Optimization method
 
-parameters:
-  trainer:
-    optimizer:
-      learning_rate:
-        distribution: log_normal
-        min: 0.0001
-        max: 0.001
-        mean: 0.0005 # Search center point
-        scale: 0.5 # Search width
+### Phase 3: Optimization Process
+
+The Protein optimizer uses Gaussian Process regression to:
+
+1. **Model the objective function** from all observations
+2. **Balance exploration vs exploitation** via acquisition functions
+3. **Consider compute cost** in multi-objective optimization
+4. **Suggest promising hyperparameters** for next iteration
+
+Key Protein settings:
+
+- `num_random_samples`: Initial random exploration before GP modeling
+- `max_suggestion_cost`: Upper bound on compute time per run
+- `global_search_scale`: Controls exploration (higher = more exploration)
+- `suggestions_per_pareto`: Samples for Pareto frontier construction
+- `seed_with_search_center`: Whether to start from mean values
+
+### Distributed Coordination
+
+For multi-node training:
+
+- **Rank 0 (Master)**: Handles all sweep operations
+- **Other ranks**: Wait via `run_once` synchronization
+- All ranks participate in distributed training
+- Only rank 0 performs evaluation and recording
+
+## Analyzing Results
+
+### Interactive Sweep Dashboard
+
+The sweep system includes a powerful interactive dashboard for real-time analysis and visualization of sweep results.
+The dashboard provides WandB-quality visualizations with full interactivity.
+
+#### Running the Dashboard
+
+```bash
+# Basic usage
+python experiments/dashboards/sweep_dashboard.py --sweep-name my_sweep
+
+# With custom entity and project
+python experiments/dashboards/sweep_dashboard.py \
+  --sweep-name my_sweep \
+  --entity metta-research \
+  --project metta
+
+# Limit observations and set hourly cost
+python experiments/dashboards/sweep_dashboard.py \
+  --sweep-name my_sweep \
+  --max-observations 500 \
+  --hourly-cost 5.0
+````
+
+#### Dashboard Features
+
+The interactive dashboard provides:
+
+1. **Summary Statistics Cards**:
+   - Total runs completed
+   - Best score achieved
+   - Total compute cost
+   - Average runtime
+
+2. **Interactive Visualizations**:
+   - **Cost vs Score Analysis**: Scatter plot with Pareto frontier highlighting
+   - **Parameter Importance**: Bar chart showing correlations with objective
+   - **Score Progression**: Timeline view with moving average
+   - **Efficiency Frontier**: Pareto optimal runs visualization
+   - **Distributions**: Histograms for score and cost distributions
+   - **Parameter Correlations**: Grid of scatter plots for all parameters vs score
+
+3. **Interactive Features**:
+   - **Dynamic Filtering**: Adjust score and cost ranges with sliders
+   - **Click for Details**: Click any point to see full run configuration
+   - **Hover Information**: Detailed tooltips on all visualizations
+   - **Trend Lines**: Automatic trend fitting for parameter correlations
+
+4. **Run Details Panel**:
+   - Click on any data point to display:
+     - Complete hyperparameter configuration
+     - Performance metrics
+     - Runtime and cost information
+     - Run identification details
+
+#### Dashboard Access
+
+Once launched, the dashboard runs as a local web server:
+
+- URL: `http://127.0.0.1:8050/`
+- Real-time updates as new runs complete
+- Export capabilities for all visualizations
+
+#### Dashboard Requirements
+
+The dashboard requires the following Python packages (typically already installed):
+
+- `dash` and `dash-bootstrap-components` for the web interface
+- `plotly` for interactive visualizations
+- `pandas` and `numpy` for data processing
+- `wandb` for fetching sweep data
+
+Install if needed:
+
+```bash
+pip install dash dash-bootstrap-components plotly
 ```
+
+### Extract Best Parameters
+
+```bash
+# Get best configuration from sweep
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep
+
+# Show top 5 configurations
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep --top-n 5
+
+# Generate reusable config patch
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep \
+  --output-dir configs/trainer/patch
+```
+
+````
 
 ### Sweep Job Config (`configs/sweep_job.yaml`)
 
@@ -343,7 +491,7 @@ learning_rate:
   max: 0.01
   scale: 'auto' # or numeric value, controls search width
   mean: 0.005 # search center point
-```
+````
 
 ### `int_uniform` - Integer uniform distribution
 

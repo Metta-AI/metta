@@ -565,6 +565,18 @@ wheels = [
 ]
 
 [[package]]
+name = "dash-bootstrap-components"
+version = "2.0.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "dash" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/49/8d/0f641e7c7878ac65b4bb78a2c7cb707db036f82da13fd61948adec44d5aa/dash_bootstrap_components-2.0.3.tar.gz", hash = "sha256:5c161b04a6e7ed19a7d54e42f070c29fd6c385d5a7797e7a82999aa2fc15b1de", size = 115466, upload-time = "2025-05-22T22:30:18.02Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f7/f6/b4652aacfbc8d684c9ca8efc5178860a50b54abf82cd1960013c59f8258f/dash_bootstrap_components-2.0.3-py3-none-any.whl", hash = "sha256:82754d3d001ad5482b8a82b496c7bf98a1c68d2669d607a89dda7ec627304af5", size = 203706, upload-time = "2025-05-22T22:30:16.304Z" },
+]
+
+[[package]]
 name = "ddtrace"
 version = "3.11.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1575,6 +1587,7 @@ dependencies = [
     { name = "colorama" },
     { name = "cpplint" },
     { name = "dash" },
+    { name = "dash-bootstrap-components" },
     { name = "ddtrace" },
     { name = "duckdb" },
     { name = "einops" },
@@ -1655,6 +1668,7 @@ requires-dist = [
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "cpplint", specifier = ">=2.0.2" },
     { name = "dash", specifier = ">=3.2.0" },
+    { name = "dash-bootstrap-components", specifier = ">=2.0.3" },
     { name = "ddtrace", specifier = ">=2.6.0" },
     { name = "duckdb", specifier = ">=1.3.0" },
     { name = "einops", specifier = ">=0.8.1" },
