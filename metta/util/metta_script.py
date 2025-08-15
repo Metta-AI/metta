@@ -1,154 +1,57 @@
 """Common initialization for Metta scripts."""
 
 import argparse
-import functools
 import importlib
 import inspect
 import json
 import logging
 import os
-import platform
+import random
 import signal
 import sys
 from types import FrameType
 from typing import Callable, TypeVar, cast
 
-import hydra
-from omegaconf import DictConfig, ListConfig, OmegaConf
+import numpy as np
+import torch
+from omegaconf import OmegaConf
 from pydantic import BaseModel
 
-from metta.common.util.fs import get_repo_root
 from metta.common.util.logging_helpers import init_logging
-from metta.util.init.mettagrid_system import init_mettagrid_system_environment
+from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger(__name__)
 
 
-def apply_mac_device_overrides(cfg: DictConfig) -> None:
-    if not cfg.bypass_mac_overrides and platform.system() == "Darwin":
-        cfg.device = "cpu"
-        cfg.vectorization = "serial"
+def seed_everything(system_cfg: SystemConfig):
+    # Despite these efforts, we still don't get deterministic behavior. But presumably
+    # this is better than nothing.
+    # https://docs.pytorch.org/docs/stable/notes/randomness.html#reproducibility
+    rank = int(os.environ.get("RANK", 0))
 
+    seed = system_cfg.seed
+    torch_deterministic = system_cfg.torch_deterministic
 
-def metta_script(
-    main: Callable[[DictConfig], int | None],
-    config_name: str,
-    pre_main: Callable[[DictConfig], None] | None = None,
-) -> None:
-    """
-    Wrapper for Metta script entry points that performs environment setup and
-    configuration before calling the `main` function.
+    # Add rank offset to base seed for distributed training to ensure different
+    # processes generate uncorrelated random sequences
+    if seed is not None:
+        rank_specific_seed = seed + rank
+    else:
+        rank_specific_seed = rank
 
-    Example usage:
-    ```python
-    from metta.util.metta_script import metta_script
+    random.seed(rank_specific_seed)
+    np.random.seed(rank_specific_seed)
+    if seed is not None:
+        torch.manual_seed(rank_specific_seed)
+        torch.cuda.manual_seed_all(rank_specific_seed)
+    torch.backends.cudnn.deterministic = torch_deterministic
+    torch.backends.cudnn.benchmark = not torch_deterministic
+    torch.use_deterministic_algorithms(torch_deterministic)
 
-    def main(cfg: DictConfig):
-        ...
-
-    # call main() with the config from configs/my_job.yaml
-    metta_script(main, "my_job")
-    ```
-
-    Calling this function will do nothing if the script is loaded as a module.
-
-    This wrapper:
-    1. Configures Hydra to load the `config_name` config and pass it to the `main` function
-    2. Applies device overrides for Mac
-    3. Calls the optional `pre_main` if provided
-    4. Initializes logging to both stdout and run_dir/logs/
-    5. Initializes the runtime environment for MettaGrid simulations:
-       - Create required directories (including run_dir)
-       - Configure CUDA settings
-       - Set up environment variables
-       - Initialize random seeds
-       - Register OmegaConf resolvers
-    6. Performs device validation and sets the device to "cpu" if CUDA is not available
-    """
-
-    # If not running as a script, there's nothing to do.
-    caller_frame: FrameType = inspect.stack()[1].frame
-    caller_globals = caller_frame.f_globals
-    if caller_globals.get("__name__") != "__main__":
-        return
-
-    script_path = caller_globals["__file__"]
-
-    # Wrapped main function that we want to run.
-    # This code runs after the Hydra was configured. Depending on CLI args such as `--help`, it may not run at all.
-    def extended_main(cfg: ListConfig | DictConfig) -> None:
-        if not isinstance(cfg, DictConfig):
-            raise ValueError("Metta scripts must be run with a DictConfig")
-
-        if pre_main:
-            pre_main(cfg)
-
-        try:
-            if cfg.py_agent:
-                # Convert py_agent string to a DictConfig with minimal config
-                # This matches the configuration that YAML agents get
-                # Remove .py extension if present
-                agent_type = cfg.py_agent.replace(".py", "")
-                cfg.agent = DictConfig(
-                    {
-                        "agent_type": agent_type,
-                        "clip_range": 0,
-                        "analyze_weights_interval": 300,
-                        "observations": {"obs_key": "grid_obs"},
-                    }
-                )
-        except AttributeError:
-            logger.info("No py_agent specified, using the default agent.")
-
-        apply_mac_device_overrides(cfg)
-
-        run_dir = cfg.get("run_dir")
-        if run_dir:
-            os.makedirs(run_dir, exist_ok=True)
-
-        # Initialize logging
-        init_logging(run_dir=run_dir)
-
-        # Determine the filename where `main` is defined and print it relative to CWD
-        main_source_file = inspect.getsourcefile(main) or inspect.getfile(main)
-        if main_source_file:
-            main_source_relpath = os.path.relpath(os.path.abspath(main_source_file), os.getcwd())
-        else:
-            main_source_relpath = f"{main.__module__}:<unknown>"
-
-        logger.info(f"Starting {main_source_relpath} from {script_path} with run_dir: {run_dir or 'not set'}")
-
-        # Initialize the full mettagrid environment (includes device validation)
-        init_mettagrid_system_environment(cfg)
-
-        logger.info("Environment setup completed")
-
-        # Exit on ctrl+c
-        signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
-
-        # Call the original function
-        result = main(cfg)
-        if result is not None:
-            sys.exit(result)
-
-    # Hydra analyzes the wrapped function, and the function must come from the
-    # `__main__` name for hydra to work correctly.
-    # So we have to pretend that we wrap the original function from the script,
-    # not the `extended_main()` function defined above.
-    functools.update_wrapper(extended_main, main)
-
-    # Hydra needs the config path to be relative to the original script.
-    script_dir = os.path.abspath(os.path.dirname(script_path))
-    abs_config_path = str(get_repo_root() / "configs")
-    relative_config_path = os.path.relpath(abs_config_path, script_dir)
-
-    # Calling `hydra.main` as a function instead of a decorator, because `extended_main` function
-    # needs to be patched with `functools.update_wrapper` first.
-    configured_main = hydra.main(config_path=relative_config_path, config_name=config_name, version_base=None)(
-        extended_main
-    )
-
-    configured_main()
+    if torch_deterministic:
+        # Set CuBLAS workspace config for deterministic behavior on CUDA >= 10.2
+        # https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 
 def hydraless_metta_script(main: Callable[[], int | None]) -> None:
@@ -174,12 +77,46 @@ T = TypeVar("T", bound=BaseModel)
 
 
 def pydantic_metta_script(main: Callable[[T], int | None]) -> None:
+    """
+    Wrapper for Metta script entry points that performs environment setup and
+    configuration before calling the `main` function.
+
+    Example usage:
+    ```python
+    from metta.util.metta_script import metta_script
+
+    class MyToolConfig(Config):
+        ...
+
+    def main(cfg: MyToolConfig):
+        ...
+
+    pydantic_metta_script(main)
+    ```
+
+    Calling this function will do nothing if the script is loaded as a module.
+
+    The script can be run with:
+    ```bash
+    ./tools/my_tool.py --cfg configs/my_tool.yaml
+    ./tools/my_tool.py --func metta.tools.my_tool.main
+    ./tools/my_tool.py --func metta.tools.my_tool.main my.param.override=value
+    ```
+
+    This wrapper:
+    1. Parses CLI arguments
+    2. Initializes logging to both stdout and run_dir/logs/
+    3. Initializes the runtime environment for MettaGrid simulations:
+       - Sets up environment variables
+       - Initializes random seeds
+    """
     # If not running as a script, there's nothing to do.
     caller_frame: FrameType = inspect.stack()[1].frame
     caller_globals = caller_frame.f_globals
     if caller_globals.get("__name__") != "__main__":
         return
 
+    # Parse CLI arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--func", type=str, required=False)
     parser.add_argument("--cfg", type=str, required=False)
@@ -187,6 +124,9 @@ def pydantic_metta_script(main: Callable[[T], int | None]) -> None:
     overrides_conf = OmegaConf.from_cli(override_args)
 
     init_logging()
+
+    # Exit on ctrl+c
+    signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
     # Detect the Pydantic model
     config_class = main.__annotations__.get("cfg")
@@ -214,7 +154,7 @@ def pydantic_metta_script(main: Callable[[T], int | None]) -> None:
     assert isinstance(cfg, config_class)
     cfg = cast(T, cfg)
 
-    # Log the full config with the file where `main` is defined (relative to CWD)
+    # Determine the filename where `main` is defined and print it relative to CWD
     main_source_file = inspect.getsourcefile(main) or inspect.getfile(main)
     if main_source_file:
         main_source_relpath = os.path.relpath(os.path.abspath(main_source_file), os.getcwd())
