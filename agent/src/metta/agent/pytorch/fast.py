@@ -19,10 +19,25 @@ logger = logging.getLogger(__name__)
 class Fast(LSTMWrapper):
     """Fast CNN-based policy with LSTM that matches the YAML fast.yaml implementation."""
 
-    def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128, num_layers=2, clip_range=0):
+    def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128, num_layers=2, 
+                 clip_range=0, analyze_weights_interval=300, **kwargs):
+        """Initialize Fast policy with configuration parameters.
+        
+        Args:
+            env: Environment
+            policy: Optional inner policy
+            cnn_channels: Number of CNN channels
+            input_size: LSTM input size
+            hidden_size: LSTM hidden size
+            num_layers: Number of LSTM layers
+            clip_range: Weight clipping range (0 = disabled)
+            analyze_weights_interval: Interval for weight analysis
+            **kwargs: Additional configuration parameters (for compatibility)
+        """
         logger.info(
             f"[DEBUG] Fast.__init__ called with input_size={input_size}, "
-            f"hidden_size={hidden_size}, num_layers={num_layers}"
+            f"hidden_size={hidden_size}, num_layers={num_layers}, "
+            f"clip_range={clip_range}, analyze_weights_interval={analyze_weights_interval}"
         )
         if policy is None:
             policy = Policy(
@@ -35,13 +50,30 @@ class Fast(LSTMWrapper):
 
         logger.info(f"[DEBUG] Fast initialized with {sum(p.numel() for p in self.parameters())} parameters")
         logger.info(f"[DEBUG] LSTM: {self.lstm.num_layers} layers, hidden_size={self.lstm.hidden_size}")
-        logger.info("[DEBUG] LSTM bias initialized to 1, weights orthogonal")
+        logger.info(f"[DEBUG] clip_range={clip_range}, analyze_weights_interval={analyze_weights_interval}")
 
-        # Initialize parity features to match ComponentPolicy
-        self.clip_range = clip_range  # Match YAML's clip_range: 0
-        self.analyze_weights_interval = 300  # Match YAML config
-
+        # Store configuration parameters
+        self.clip_range = clip_range
+        self.analyze_weights_interval = analyze_weights_interval
+        
+        # Log any additional kwargs for debugging
+        if kwargs:
+            logger.info(f"[DEBUG] Additional config parameters: {kwargs}")
+    
     # Memory management methods are inherited from LSTMWrapper base class
+    
+    def clip_weights(self):
+        """Clip weights to prevent large updates during training.
+        
+        This matches ComponentPolicy's weight clipping behavior.
+        """
+        if self.clip_range > 0:
+            for module in self.modules():
+                if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d)):
+                    if hasattr(module, 'weight') and module.weight is not None:
+                        module.weight.data.clamp_(-self.clip_range, self.clip_range)
+                    if hasattr(module, 'bias') and module.bias is not None:
+                        module.bias.data.clamp_(-self.clip_range, self.clip_range)
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict, state=None, action=None):

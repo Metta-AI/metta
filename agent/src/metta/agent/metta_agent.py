@@ -105,9 +105,30 @@ class MettaAgent(nn.Module):
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
         if agent_cfg.get("agent_type") in agent_classes:
-            # Create PyTorch policy
+            # Create PyTorch policy with configuration parameters
             AgentClass = agent_classes[agent_cfg.agent_type]
-            policy = AgentClass(env=env)
+            
+            # Extract configuration parameters that PyTorch policies might need
+            # These are commonly used across policies
+            policy_kwargs = {
+                "env": env,
+                "clip_range": agent_cfg.get("clip_range", 0),
+                "analyze_weights_interval": agent_cfg.get("analyze_weights_interval", 300),
+            }
+            
+            # Add any additional config parameters that might be in agent_cfg
+            # This allows policies to accept custom parameters
+            for key, value in agent_cfg.items():
+                if key not in ["agent_type", "clip_range", "analyze_weights_interval", "_target_"]:
+                    policy_kwargs[key] = value
+            
+            try:
+                policy = AgentClass(**policy_kwargs)
+            except TypeError as e:
+                # Fallback for policies that don't accept these parameters yet
+                logger.warning(f"Policy {AgentClass.__name__} doesn't accept all config parameters: {e}")
+                logger.warning("Falling back to env-only constructor")
+                policy = AgentClass(env=env)
         else:
             # Create ComponentPolicy (YAML config)
             policy = ComponentPolicy(
