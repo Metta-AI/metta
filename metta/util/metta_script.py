@@ -6,52 +6,17 @@ import inspect
 import json
 import logging
 import os
-import random
 import signal
 import sys
 from types import FrameType
 from typing import Callable, TypeVar, cast
 
-import numpy as np
-import torch
 from omegaconf import OmegaConf
 from pydantic import BaseModel
 
 from metta.common.util.logging_helpers import init_logging
-from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger(__name__)
-
-
-def seed_everything(system_cfg: SystemConfig):
-    # Despite these efforts, we still don't get deterministic behavior. But presumably
-    # this is better than nothing.
-    # https://docs.pytorch.org/docs/stable/notes/randomness.html#reproducibility
-    rank = int(os.environ.get("RANK", 0))
-
-    seed = system_cfg.seed
-    torch_deterministic = system_cfg.torch_deterministic
-
-    # Add rank offset to base seed for distributed training to ensure different
-    # processes generate uncorrelated random sequences
-    if seed is not None:
-        rank_specific_seed = seed + rank
-    else:
-        rank_specific_seed = rank
-
-    random.seed(rank_specific_seed)
-    np.random.seed(rank_specific_seed)
-    if seed is not None:
-        torch.manual_seed(rank_specific_seed)
-        torch.cuda.manual_seed_all(rank_specific_seed)
-    torch.backends.cudnn.deterministic = torch_deterministic
-    torch.backends.cudnn.benchmark = not torch_deterministic
-    torch.use_deterministic_algorithms(torch_deterministic)
-
-    if torch_deterministic:
-        # Set CuBLAS workspace config for deterministic behavior on CUDA >= 10.2
-        # https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility
-        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"
 
 
 def hydraless_metta_script(main: Callable[[], int | None]) -> None:
