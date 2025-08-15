@@ -20,14 +20,28 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
         tasks: Dictionary of task paths and weights
         sequence_length: Length of sequences to generate (default: auto-detect from base config)
         num_colors: Number of colors to use (default: auto-detect from color_to_item)
+                    If different from base config, will auto-generate color mappings
 
     Example YAML:
         _target_: metta.mettagrid.curriculum.colortree_random.ColorTreeRandomFromSetCurriculum
         tasks:
           /env/mettagrid/colortree_easy: 1.0
+        num_colors: 3       # Will auto-generate mappings for 3 colors
         sequence_length: 2  # Generate all 2-length sequences
-        num_colors: 3       # Use colors 0, 1, 2
     """
+
+    # Standard inventory items for auto-generation (from mettagrid.yaml)
+    # Using ores and batteries as they're conceptually similar colored items
+    ITEM_COLORS = [
+        "ore_red",
+        "ore_green",
+        "ore_blue",
+        "battery_red",
+        "battery_green",
+        "battery_blue",
+        "armor",
+        "laser",
+    ]
 
     def __init__(
         self,
@@ -55,10 +69,18 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
         env_cfg = sample_task.env_cfg()
         color_tree_cfg = env_cfg.game.actions.color_tree
 
-        # Auto-detect num_colors
+        # Auto-detect or validate num_colors
+        base_num_colors = len(color_tree_cfg.color_to_item)
         if num_colors is None:
-            num_colors = len(color_tree_cfg.color_to_item)
+            num_colors = base_num_colors
             print(f"[ColorTreeRandom] Auto-detected num_colors={num_colors} from color_to_item")
+        elif num_colors != base_num_colors:
+            # Generate automatic color mapping if num_colors differs from base
+            print(f"[ColorTreeRandom] Generating color_to_item mapping for {num_colors} colors")
+            self._auto_color_mapping = True
+            self._color_items = self._generate_color_mapping(num_colors)
+        else:
+            self._auto_color_mapping = False
 
         # Auto-detect sequence_length
         if sequence_length is None:
@@ -100,6 +122,16 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
             f"[ColorTreeRandom] Initialized with {len(self.sequence_pool)} sequences "
             f"(colors={num_colors}, length={sequence_length})"
         )
+
+    def _generate_color_mapping(self, num_colors: int) -> dict:
+        """Generate color_to_item mapping for the specified number of colors."""
+        if num_colors > len(self.ITEM_COLORS):
+            raise ValueError(f"num_colors={num_colors} exceeds available inventory items ({len(self.ITEM_COLORS)})")
+
+        mapping = {}
+        for i in range(num_colors):
+            mapping[i] = self.ITEM_COLORS[i]
+        return mapping
 
     def get_task(self) -> Task:
         """Get a task with a randomly selected sequence from the generated pool."""
@@ -155,6 +187,10 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
             # Clear trial_sequences to ensure C++ uses target_sequence
             color_tree_cfg.trial_sequences = []
             # num_trials stays from base config
+
+            # Apply auto-generated color mapping if needed
+            if hasattr(self, "_auto_color_mapping") and self._auto_color_mapping:
+                color_tree_cfg.color_to_item = self._color_items
         else:
             raise ValueError("ColorTree action not found in environment config")
 
