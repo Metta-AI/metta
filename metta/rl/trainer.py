@@ -358,8 +358,8 @@ def train(
                     npc_count = max(0, min(npc_count, agents_per_env - 1))
                     npc_mask_per_env = torch.zeros(agents_per_env, dtype=torch.bool, device=device)
                     if npc_count > 0:
-                        # Randomly assign NPCs instead of always the first N agents
-                        npc_indices = torch.randperm(agents_per_env, device=device)[:npc_count]
+                        # Contiguous split: first N agents are NPCs
+                        npc_indices = torch.arange(npc_count, device=device)
                         npc_mask_per_env[npc_indices] = True
                     # let env know grouping for logging (indices are per single env)
                     try:
