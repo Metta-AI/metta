@@ -1,13 +1,13 @@
 import logging
 
 import einops
-import pufferlib.models
-import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
+import pufferlib.models
+import pufferlib.pytorch
 from metta.agent.modules.encoders import ObsLatentAttn, ObsSelfAttn
 from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 

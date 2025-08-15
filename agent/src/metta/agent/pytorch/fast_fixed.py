@@ -2,19 +2,20 @@ import logging
 import math
 
 import einops
-import pufferlib.models
-import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
+
+import pufferlib.models
+import pufferlib.pytorch
 
 logger = logging.getLogger(__name__)
 
 
 class Fast(pufferlib.models.LSTMWrapper):
     """Fast CNN-based policy with LSTM that matches the YAML fast.yaml implementation."""
-    
+
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
         logger.info(f"[DEBUG] Fast.__init__ called with input_size={input_size}, hidden_size={hidden_size}")
         if policy is None:
@@ -24,7 +25,7 @@ class Fast(pufferlib.models.LSTMWrapper):
                 hidden_size=hidden_size,
             )
         super().__init__(env, policy, input_size, hidden_size)
-        
+
         # Fix LSTM initialization to match YAML-based agent
         # The parent class initializes parameters BEFORE creating the LSTM,
         # but PyTorch's LSTM constructor overwrites them with default initialization.
@@ -34,9 +35,9 @@ class Fast(pufferlib.models.LSTMWrapper):
                 nn.init.constant_(param, 1)  # Match YAML agent (was 0 in pufferlib)
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1)  # Re-apply orthogonal init
-        
+
         logger.info(f"[DEBUG] Fast initialized with {sum(p.numel() for p in self.parameters())} parameters")
-        logger.info(f"[DEBUG] LSTM bias initialized to 1, weights orthogonal")
+        logger.info("[DEBUG] LSTM bias initialized to 1, weights orthogonal")
 
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"]
@@ -107,16 +108,16 @@ class Fast(pufferlib.models.LSTMWrapper):
             td["value"] = value.view(B, TT)
 
         return td
-    
+
     def activate_action_embeddings(self, full_action_names: list[str], device):
         """Activate action embeddings to match ComponentPolicy interface.
-        
-        This is called by MettaAgent.activate_actions() but was missing in the 
+
+        This is called by MettaAgent.activate_actions() but was missing in the
         original Fast implementation, potentially causing the performance difference.
         """
         logger.info(f"[DEBUG] Fast.activate_action_embeddings called with {len(full_action_names)} actions")
         # Pass through to the policy
-        if hasattr(self.policy, 'activate_action_embeddings'):
+        if hasattr(self.policy, "activate_action_embeddings"):
             self.policy.activate_action_embeddings(full_action_names, device)
 
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
@@ -157,22 +158,22 @@ class Policy(nn.Module):
 
         self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(self.flattened_size, 128))
         self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, 128))
-        
+
         # Critic branch
         self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
         self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
-        
+
         # Actor branch
         self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
-        
+
         # Action embeddings - will be properly initialized via activate_action_embeddings
         self.action_embeddings = nn.Embedding(100, 16)
         self._initialize_action_embeddings()
-        
+
         # Store for dynamic action head
         self.action_embed_dim = 16
         self.actor_hidden_dim = 512
-        
+
         # Bilinear layer to match MettaActorSingleHead
         self._init_bilinear_actor()
 
@@ -205,7 +206,7 @@ class Policy(nn.Module):
             dtype=torch.float32,
         )[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
-        
+
         # Track active actions
         self.active_action_names = []
         self.num_active_actions = 100  # Default
@@ -225,7 +226,7 @@ class Policy(nn.Module):
             torch.Tensor(1, self.actor_hidden_dim, self.action_embed_dim).to(dtype=torch.float32)
         )
         self.actor_bias = nn.Parameter(torch.Tensor(1).to(dtype=torch.float32))
-        
+
         # Kaiming (He) initialization
         bound = 1 / math.sqrt(self.actor_hidden_dim) if self.actor_hidden_dim > 0 else 0
         nn.init.uniform_(self.actor_W, -bound, bound)
@@ -236,7 +237,7 @@ class Policy(nn.Module):
         logger.info(f"[DEBUG] Policy.activate_action_embeddings called with {len(full_action_names)} actions")
         self.active_action_names = full_action_names
         self.num_active_actions = len(full_action_names)
-        
+
         # Could implement proper action name to index mapping here if needed
         # For now, we'll use the first N embeddings
 
@@ -297,30 +298,30 @@ class Policy(nn.Module):
 
         # Actor branch with bilinear interaction
         actor_features = self.actor_1(hidden)  # [B*TT, 512]
-        
+
         # Get action embeddings for all actions
         # Use only the active actions (first num_active_actions embeddings)
-        action_embeds = self.action_embeddings.weight[:self.num_active_actions]  # [num_actions, 16]
-        
+        action_embeds = self.action_embeddings.weight[: self.num_active_actions]  # [num_actions, 16]
+
         # Expand action embeddings for each batch element
         action_embeds = action_embeds.unsqueeze(0).expand(batch_size, -1, -1)  # [B*TT, num_actions, 16]
-        
+
         # Bilinear interaction matching MettaActorSingleHead
         num_actions = action_embeds.shape[1]
-        
+
         # Reshape for bilinear calculation
         # actor_features: [B*TT, 512] -> [B*TT * num_actions, 512]
         actor_repeated = actor_features.unsqueeze(1).expand(-1, num_actions, -1)  # [B*TT, num_actions, 512]
         actor_reshaped = actor_repeated.reshape(-1, self.actor_hidden_dim)  # [B*TT * num_actions, 512]
         action_embeds_reshaped = action_embeds.reshape(-1, self.action_embed_dim)  # [B*TT * num_actions, 16]
-        
+
         # Perform bilinear operation using einsum (matching MettaActorSingleHead)
         query = torch.einsum("n h, k h e -> n k e", actor_reshaped, self.actor_W)  # [N, 1, 16]
         query = torch.tanh(query)
         scores = torch.einsum("n k e, n e -> n k", query, action_embeds_reshaped)  # [N, 1]
-        
+
         biased_scores = scores + self.actor_bias  # [N, 1]
-        
+
         # Reshape back to [B*TT, num_actions]
         logits = biased_scores.reshape(batch_size, num_actions)
 

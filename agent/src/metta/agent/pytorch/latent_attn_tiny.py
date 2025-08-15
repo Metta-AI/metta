@@ -1,13 +1,13 @@
 import logging
 
 import einops
-import pufferlib.models
-import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
+import pufferlib.models
+import pufferlib.pytorch
 from metta.agent.modules.encoders import ObsLatentAttn
 from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 
@@ -23,7 +23,7 @@ class LatentAttnTiny(pufferlib.models.LSTMWrapper):
                 hidden_size=hidden_size,
             )
         super().__init__(env, policy, input_size, hidden_size)
-        
+
         # Fix LSTM initialization to match YAML-based agent
         for name, param in self.lstm.named_parameters():
             if "bias" in name:

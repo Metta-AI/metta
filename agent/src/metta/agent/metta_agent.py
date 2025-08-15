@@ -91,7 +91,9 @@ class MettaAgent(nn.Module):
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"[DEBUG] MettaAgent initialized with {self._total_params:,} parameters")
-        logger.info(f"[DEBUG] Agent config type: {'py_agent' if agent_cfg.get('agent_type') in agent_classes else 'yaml_agent'}")
+        logger.info(
+            f"[DEBUG] Agent config type: {'py_agent' if agent_cfg.get('agent_type') in agent_classes else 'yaml_agent'}"
+        )
         logger.info(f"[DEBUG] Policy type: {type(self.policy).__name__}")
 
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
@@ -117,7 +119,7 @@ class MettaAgent(nn.Module):
             )
             logger.info(f"[DEBUG] Created ComponentPolicy: {type(policy).__name__}")
             logger.info(f"[DEBUG] ComponentPolicy parameters: {sum(p.numel() for p in policy.parameters())}")
-            if hasattr(policy, 'components'):
+            if hasattr(policy, "components"):
                 logger.info(f"[DEBUG] ComponentPolicy components: {list(policy.components.keys())}")
 
         return policy
