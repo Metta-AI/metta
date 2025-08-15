@@ -18,6 +18,7 @@
 
 - 1.1.3. Object Interactions and Crafting
 - 1.1.4. Open-ended Game Rules
+- 1.1.5. Communication Mechanisms Between Agents (marker/symbol-based, scalar/vector-based "emotions", or language-based)
 
 ### 1.2. Agent Diversity
 
