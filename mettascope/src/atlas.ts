@@ -56,11 +56,8 @@ export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, Atlas
     }
 
     const raw = await res.json()
-
     const metadata = (raw.metadata ?? {}) as AtlasMetadata
-
     const spriteEntries = Object.entries(raw).filter(([k, v]) => k !== 'metadata' && isSpriteBounds(v))
-
     const sprites = Object.fromEntries(spriteEntries) as AtlasSpriteMap
 
     return [sprites as AtlasSpriteMap, metadata as AtlasMetadata]
@@ -124,16 +121,20 @@ export function createTexture(
   minFilter: TextureMinFilterMode,
   magFilter: TextureMagFilterMode,
   generateMipmap: boolean
-): WebGLTexture | null {
-  const texture = gl.createTexture()
-  if (!texture) {
-    return null
+): WebGLTexture {
+  // Validate mipmap requirements
+  if (!generateMipmap && requiresMipmaps(gl, minFilter)) {
+    throw new Error(
+      `Minification filter requires mipmaps but generateMipmap is false. ` +
+        `Use NEAREST or LINEAR for minFilter when not generating mipmaps.`
+    )
   }
 
+  const texture = gl.createTexture()
   gl.bindTexture(gl.TEXTURE_2D, texture)
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
 
-  if (generateMipmap !== false) {
+  if (generateMipmap) {
     gl.generateMipmap(gl.TEXTURE_2D)
   }
 
@@ -145,39 +146,27 @@ export function createTexture(
   return texture
 }
 
-/* Loads a complete texture atlas from JSON and image URLs. */
-export async function loadAtlas(
-  gl: WebGLRenderingContext,
-  jsonUrl: string,
-  imageUrl: string,
-  generateMipmap: boolean = false
-): Promise<Atlas | null> {
+/* Loads a complete texture atlas from JSON and image URLs. Texture settings are selected for pixel art. */
+export async function loadAtlas(gl: WebGLRenderingContext, jsonUrl: string, imageUrl: string): Promise<Atlas> {
   const [json, image] = await Promise.all([loadAtlasJson(jsonUrl), loadAtlasImage(imageUrl)])
 
-  if (!json || !image) {
-    return null
-  }
-
-  const [data, metadata] = json
+  const [data, metadata] = json!
 
   const texture = createTexture(
     gl,
-    image,
-    gl.REPEAT, // wrapS
-    gl.REPEAT, // wrapT
-    gl.LINEAR_MIPMAP_LINEAR, // minFilter
-    gl.LINEAR, // magFilter
-    generateMipmap
+    image!,
+    gl.CLAMP_TO_EDGE, // wrapS
+    gl.CLAMP_TO_EDGE, // wrapT
+    gl.NEAREST, // minFilter
+    gl.NEAREST, // magFilter
+    false // generateMipmap
   )
-  if (!texture) {
-    return null
-  }
 
   return {
     data,
     metadata,
     texture,
-    size: new Vec2f(image.width, image.height),
+    size: new Vec2f(image!.width, image!.height),
     margin: 4, // Default margin
   }
 }
@@ -225,11 +214,11 @@ export function hasSprite(atlas: Atlas, spriteName: string): boolean {
 }
 
 /* Gets the UV coordinates for a solid white color pixel. */
-export function getWhiteUV(atlas: Atlas): { u: number; v: number } | null {
+export function getWhiteUV(atlas: Atlas): { u: number; v: number } {
   const whiteSprite = atlas.data['white.png']
 
   if (!Array.isArray(whiteSprite) || whiteSprite.length !== 4) {
-    return null
+    throw new Error(`White pixel (u,v) coordinates are not available in the atlas!`)
   }
 
   const [x, y, width, height] = whiteSprite
