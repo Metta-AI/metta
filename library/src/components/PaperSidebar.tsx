@@ -68,10 +68,6 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
     <div className="h-full w-full overflow-y-auto border-l border-gray-200 bg-white p-6">
       {/* Paper Header */}
       <div className="mb-6">
-        <h2 className="mb-2 text-lg font-semibold text-gray-900">
-          Paper Overview
-        </h2>
-
         {/* Paper Title with Star Widget */}
         <div className="mb-4 flex items-start gap-2">
           <div className="mt-1 flex-shrink-0">
@@ -96,36 +92,22 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
               paper.title
             )}
           </h3>
-        </div>
-
-        {/* Paper Metadata */}
-        <div className="space-y-2 text-sm text-gray-600">
-          {paper.source && (
-            <div className="flex items-center gap-2">
-              <span className="font-medium">Source:</span>
-              {paper.link ? (
-                <a
-                  href={paper.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 transition-colors hover:text-blue-700"
-                >
-                  {paper.source}
-                </a>
-              ) : (
-                <span>{paper.source}</span>
-              )}
-            </div>
-          )}
-
-          {paper.externalId && (
-            <div className="flex items-center gap-2">
-              <span className="font-medium">ID:</span>
-              <span className="rounded bg-gray-100 px-2 py-1 font-mono text-xs">
-                {paper.externalId}
-              </span>
-            </div>
-          )}
+          {/* Compact Download Button */}
+          {(paper.source === "arxiv" && paper.externalId) || paper.link ? (
+            <button
+              onClick={() => {
+                const pdfUrl =
+                  paper.source === "arxiv" && paper.externalId
+                    ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
+                    : paper.link;
+                if (pdfUrl) window.open(pdfUrl, "_blank");
+              }}
+              className="mt-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm transition-colors hover:bg-gray-200"
+              title="Download PDF"
+            >
+              ⬇️
+            </button>
+          ) : null}
         </div>
       </div>
 
@@ -232,32 +214,6 @@ const LLMAbstractView: FC<LLMAbstractViewProps> = ({
 
   return (
     <div className="mb-6">
-      {/* Header with links */}
-      <div className="mb-4 flex items-center justify-end">
-        <div className="flex gap-2">
-          {pdfUrl && (
-            <a
-              href={pdfUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-blue-600 underline hover:text-blue-700"
-            >
-              PDF
-            </a>
-          )}
-          {homepageUrl && (
-            <a
-              href={homepageUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-blue-600 underline hover:text-blue-700"
-            >
-              Homepage
-            </a>
-          )}
-        </div>
-      </div>
-
       {/* Tab Navigation */}
       <div className="mb-4 border-b border-gray-200">
         <div className="flex space-x-4">
@@ -395,7 +351,7 @@ const LLMAbstractView: FC<LLMAbstractViewProps> = ({
       {/* Generation Info */}
       <div className="mt-4 border-t border-gray-200 pt-4">
         <div className="text-xs text-gray-500">
-          Enhanced abstract generated on{" "}
+          AI summary generated using GPT-4 Vision from full PDF analysis on{" "}
           {new Date(llmAbstract.generatedAt).toLocaleDateString()}
         </div>
       </div>
