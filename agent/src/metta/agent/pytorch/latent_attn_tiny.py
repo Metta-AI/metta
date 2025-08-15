@@ -25,30 +25,35 @@ class LatentAttnTiny(LSTMWrapper):
         # Use enhanced LSTMWrapper with num_layers support
         super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
 
+    @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"]
 
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-        # Prepare LSTM state
-        lstm_h, lstm_c = state.get("lstm_h"), state.get("lstm_c")
-        if lstm_h is not None and lstm_c is not None:
-            lstm_h = lstm_h[: self.lstm.num_layers]
-            lstm_c = lstm_c[: self.lstm.num_layers]
-            lstm_state = (lstm_h, lstm_c)
-        else:
-            lstm_state = None
-
         # Encode observations
         hidden = self.policy.encode_observations(observations, state)
 
-        B = observations.shape[0]
-        TT = 1 if observations.dim() == 3 else observations.shape[1]
+        # Determine batch and time dimensions
+        if observations.dim() == 4:  # Training: [B, T, obs_tokens, 3]
+            B = observations.shape[0]
+            TT = observations.shape[1]
+        else:  # Inference: [B, obs_tokens, 3]
+            B = observations.shape[0]
+            TT = 1
+
+        # Use base class for proper LSTM state management (includes detachment!)
+        lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
+        lstm_state = (lstm_h, lstm_c)
 
         # LSTM forward pass
         hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, input_size)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
+        
+        # CRITICAL: Store with automatic detachment to prevent gradient accumulation
+        self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
+        
         flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
         # Decode actions and value
