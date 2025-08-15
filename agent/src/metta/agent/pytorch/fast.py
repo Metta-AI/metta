@@ -1,4 +1,5 @@
 import logging
+import math
 
 import einops
 import pufferlib.pytorch
@@ -7,20 +8,61 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.pytorch.base import (
-    LSTMWrapper,
-    bilinear_actor_forward,
-    init_bilinear_actor,
-    initialize_action_embeddings,
-)
-
 logger = logging.getLogger(__name__)
+
+
+class LSTMWrapper(nn.Module):
+    """Enhanced LSTM wrapper that supports multi-layer LSTMs.
+
+    Based on pufferlib.models.LSTMWrapper but with num_layers support
+    to match the YAML fast.yaml implementation which uses 2 layers.
+    """
+
+    def __init__(self, env, policy, input_size=128, hidden_size=128, num_layers=2):
+        """Initialize LSTM wrapper with configurable number of layers.
+
+        Args:
+            env: Environment
+            policy: The policy to wrap (must have encode_observations and decode_actions)
+            input_size: Input size to LSTM
+            hidden_size: Hidden size of LSTM
+            num_layers: Number of LSTM layers (default 2 to match YAML)
+        """
+        super().__init__()
+        self.obs_shape = env.single_observation_space.shape
+
+        self.policy = policy
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.is_continuous = self.policy.is_continuous
+
+        # Create multi-layer LSTM
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers=num_layers)
+
+        # Initialize parameters after LSTM creation
+        for name, param in self.lstm.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 1)  # Match YAML agent initialization
+            elif "weight" in name:
+                nn.init.orthogonal_(param, 1)  # Orthogonal initialization
+
+        # Note: We don't create LSTMCell for multi-layer LSTMs
+        # as it would only work for single layer
+
+        # Store action conversion tensors (will be set by MettaAgent)
+        self.action_index_tensor = None
+        self.cum_action_max_params = None
 
 
 class Fast(LSTMWrapper):
     """Fast CNN-based policy with LSTM that matches the YAML fast.yaml implementation."""
 
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128, num_layers=2):
+        logger.info(
+            f"[DEBUG] Fast.__init__ called with input_size={input_size}, "
+            f"hidden_size={hidden_size}, num_layers={num_layers}"
+        )
         if policy is None:
             policy = Policy(
                 env,
@@ -29,6 +71,10 @@ class Fast(LSTMWrapper):
             )
         # Pass num_layers=2 to match YAML configuration
         super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
+
+        logger.info(f"[DEBUG] Fast initialized with {sum(p.numel() for p in self.parameters())} parameters")
+        logger.info(f"[DEBUG] LSTM: {self.lstm.num_layers} layers, hidden_size={self.lstm.hidden_size}")
+        logger.info("[DEBUG] LSTM bias initialized to 1, weights orthogonal")
 
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"]
@@ -106,6 +152,7 @@ class Fast(LSTMWrapper):
         This is called by MettaAgent.activate_actions() but was missing in the
         original Fast implementation, potentially causing the performance difference.
         """
+        logger.info(f"[DEBUG] Fast.activate_action_embeddings called with {len(full_action_names)} actions")
         # Pass through to the policy
         if hasattr(self.policy, "activate_action_embeddings"):
             self.policy.activate_action_embeddings(full_action_names, device)
@@ -116,14 +163,17 @@ class Fast(LSTMWrapper):
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """Convert (action_type, action_param) pairs to discrete indices."""
-        from metta.agent.pytorch.base import convert_action_to_logit_index
-
-        return convert_action_to_logit_index(flattened_action, self.cum_action_max_params)
+        action_type_numbers = flattened_action[:, 0].long()
+        action_params = flattened_action[:, 1].long()
+        cumulative_sum = self.cum_action_max_params[action_type_numbers]
+        # Match ComponentPolicy's formula that compensates for wrong cumsum
+        return action_type_numbers + cumulative_sum + action_params
 
 
 class Policy(nn.Module):
     def __init__(self, env, input_size=128, hidden_size=128):
         super().__init__()
+        logger.info(f"[DEBUG] Fast.Policy.__init__ called with input_size={input_size}, hidden_size={hidden_size}")
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.is_continuous = False
@@ -166,14 +216,14 @@ class Policy(nn.Module):
 
         # Action embeddings - will be properly initialized via activate_action_embeddings
         self.action_embeddings = nn.Embedding(100, 16)
-        initialize_action_embeddings(self.action_embeddings)
+        self._initialize_action_embeddings()
 
         # Store for dynamic action head
         self.action_embed_dim = 16
         self.actor_hidden_dim = 512
 
         # Bilinear layer to match MettaActorSingleHead
-        self.actor_W, self.actor_bias = init_bilinear_actor(self.actor_hidden_dim, self.action_embed_dim)
+        self._init_bilinear_actor()
 
         # Build normalization vector dynamically from environment
         # This matches what ObservationNormalizer does in ComponentPolicy
@@ -193,8 +243,30 @@ class Policy(nn.Module):
         self.active_action_names = []
         self.num_active_actions = 100  # Default
 
+    def _initialize_action_embeddings(self):
+        """Initialize action embeddings to match YAML ActionEmbedding component."""
+        # Match the YAML component's initialization (orthogonal then scaled to max 0.1)
+        nn.init.orthogonal_(self.action_embeddings.weight)
+        with torch.no_grad():
+            max_abs_value = torch.max(torch.abs(self.action_embeddings.weight))
+            self.action_embeddings.weight.mul_(0.1 / max_abs_value)
+
+    def _init_bilinear_actor(self):
+        """Initialize bilinear actor head to match MettaActorSingleHead."""
+        # Bilinear parameters matching MettaActorSingleHead
+        self.actor_W = nn.Parameter(
+            torch.Tensor(1, self.actor_hidden_dim, self.action_embed_dim).to(dtype=torch.float32)
+        )
+        self.actor_bias = nn.Parameter(torch.Tensor(1).to(dtype=torch.float32))
+
+        # Kaiming (He) initialization
+        bound = 1 / math.sqrt(self.actor_hidden_dim) if self.actor_hidden_dim > 0 else 0
+        nn.init.uniform_(self.actor_W, -bound, bound)
+        nn.init.uniform_(self.actor_bias, -bound, bound)
+
     def activate_action_embeddings(self, full_action_names: list[str], device):
         """Activate action embeddings, matching the YAML ActionEmbedding component behavior."""
+        logger.info(f"[DEBUG] Policy.activate_action_embeddings called with {len(full_action_names)} actions")
         self.active_action_names = full_action_names
         self.num_active_actions = len(full_action_names)
 
@@ -204,10 +276,14 @@ class Policy(nn.Module):
     def network_forward(self, x):
         x = x / self.max_vec
         x = self.cnn1(x)
+        x = F.relu(x)  # ComponentPolicy has ReLU after cnn1
         x = self.cnn2(x)
+        x = F.relu(x)  # ComponentPolicy has ReLU after cnn2
         x = self.flatten(x)
         x = self.fc1(x)
+        x = F.relu(x)  # ComponentPolicy has ReLU after fc1
         x = self.encoded_obs(x)
+        x = F.relu(x)  # ComponentPolicy has ReLU after encoded_obs
         return x
 
     def encode_observations(self, observations, state=None):
@@ -258,6 +334,7 @@ class Policy(nn.Module):
 
         # Actor branch with bilinear interaction
         actor_features = self.actor_1(hidden)  # [B*TT, 512]
+        actor_features = F.relu(actor_features)  # ComponentPolicy has ReLU after actor_1
 
         # Get action embeddings for all actions
         # Use only the active actions (first num_active_actions embeddings)
@@ -267,13 +344,22 @@ class Policy(nn.Module):
         action_embeds = action_embeds.unsqueeze(0).expand(batch_size, -1, -1)  # [B*TT, num_actions, 16]
 
         # Bilinear interaction matching MettaActorSingleHead
-        logits = bilinear_actor_forward(
-            actor_features,
-            action_embeds,
-            self.actor_W,
-            self.actor_bias,
-            self.actor_hidden_dim,
-            self.action_embed_dim,
-        )
+        num_actions = action_embeds.shape[1]
+
+        # Reshape for bilinear calculation
+        # actor_features: [B*TT, 512] -> [B*TT * num_actions, 512]
+        actor_repeated = actor_features.unsqueeze(1).expand(-1, num_actions, -1)  # [B*TT, num_actions, 512]
+        actor_reshaped = actor_repeated.reshape(-1, self.actor_hidden_dim)  # [B*TT * num_actions, 512]
+        action_embeds_reshaped = action_embeds.reshape(-1, self.action_embed_dim)  # [B*TT * num_actions, 16]
+
+        # Perform bilinear operation using einsum (matching MettaActorSingleHead)
+        query = torch.einsum("n h, k h e -> n k e", actor_reshaped, self.actor_W)  # [N, 1, 16]
+        query = torch.tanh(query)
+        scores = torch.einsum("n k e, n e -> n k", query, action_embeds_reshaped)  # [N, 1]
+
+        biased_scores = scores + self.actor_bias  # [N, 1]
+
+        # Reshape back to [B*TT, num_actions]
+        logits = biased_scores.reshape(batch_size, num_actions)
 
         return logits, value

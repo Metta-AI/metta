@@ -5,6 +5,7 @@ import math
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 logger = logging.getLogger(__name__)
 
@@ -151,4 +152,3 @@ def convert_action_to_logit_index(
 
     # Match ComponentPolicy's compensating formula
     return action_type_numbers + cumulative_sum + action_params
-
