@@ -34,5 +34,3 @@ train_job:
 replay_job:
   policy_uri: ${run_dir}/checkpoints/
   replay_dir: ${run_dir}/replays/
-
-bypass_mac_overrides: true

@@ -20,7 +20,7 @@ logger = logging.getLogger("tools.replay")
 
 # TODO: This job can be replaced with sim now that Simulations create replays
 class ReplayToolConfig(Config):
-    system: SystemConfig = SystemConfig()
+    system: SystemConfig = SystemConfig.Auto()
     wandb: WandbConfig = WandbConfigOff()
     sim: SimulationConfig
     policy_uri: str | None = None
