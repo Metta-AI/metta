@@ -2,16 +2,13 @@
 """
 Post GitHub commit status from SkyPilot job.
 Env:
-  METTA_GIT_REF     (required) git SHA to update
-  SKYPILOT_TASK_ID  (optional) used to build a console link
-  GITHUB_PAT        (required) Personal Access Token with repo
-  GITHUB_REPOSITORY (required) e.g. "Metta-AI/metta"
-  CMD_EXIT          (optional) exit code; 0 => success, else failure
-
-  Configuration for the status report:
-
+  GITHUB_PAT                   (required) Personal Access Token with repo
+  GITHUB_REPOSITORY            (required) e.g. "Metta-AI/metta"
+  METTA_GIT_REF                (required) git SHA to update
+  GITHUB_STATUS_STATE          (required) explicit state: success/failure/error/pending
+  CMD_EXIT                     (optional) exit code to include
   METTA_RUN_ID                 (optional) used to build a link to wandb
-  GITHUB_STATUS_STATE          (optional) explicit state: success/failure/error/pending (overrides CMD_EXIT)
+  SKYPILOT_TASK_ID             (optional) used to suggest a log to review
   GITHUB_STATUS_CONTEXT        (optional) status context, default "Skypilot/E2E"
   GITHUB_STATUS_DESCRIPTION    (optional) custom description, default "Training completed successfully" etc
 """
@@ -37,38 +34,44 @@ from metta.common.util.github import post_commit_status  # noqa: E402
 def main() -> int:
     commit_sha = os.getenv("METTA_GIT_REF", "").strip()
     if not commit_sha:
-        print("Error: METTA_GIT_REF is required")
+        print("[ERROR] METTA_GIT_REF is required")
         return 1
 
     repo = os.getenv("GITHUB_REPOSITORY", "").strip()
     if not repo:
-        print("Error: GITHUB_REPOSITORY is required (e.g. Metta-AI/metta)")
+        print("[ERROR] GITHUB_REPOSITORY is required (e.g. Metta-AI/metta)")
         return 1
 
     token = os.getenv("GITHUB_PAT", "").strip()
     if not token:
-        print("Error: GITHUB_PAT is required")
+        print("[ERROR] GITHUB_PAT is required")
         return 1
 
-    try:
-        cmd_exit = int(os.getenv("CMD_EXIT", "0"))
-    except ValueError:
-        cmd_exit = 1
-
-    # Check for explicit GITHUB_STATUS_STATE override (e.g., for pending status)
     state = os.getenv("GITHUB_STATUS_STATE", "").strip()
     if not state:
-        # If no explicit state, determine from exit code
-        state = "success" if cmd_exit == 0 else "failure"
+        print("[ERROR] GITHUB_STATUS_STATE is required")
+        return 1
 
     context = os.getenv("GITHUB_STATUS_CONTEXT", "Skypilot/E2E").strip()
     if not context:
         print("[ERROR] post_commit_status requires a valid context string!")
+        return 1
+
+    failure_message = "Training failed!"
+    try:
+        cmd_exit = int(os.getenv("CMD_EXIT", "0"))
+        failure_message += f" (exit code {cmd_exit})"
+    except ValueError:
+        cmd_exit = None
 
     desc = os.getenv(
         "GITHUB_STATUS_DESCRIPTION",
-        "Training completed successfully" if state == "success" else f"Training failed (exit {cmd_exit})",
+        "Training completed successfully" if state == "success" else failure_message,
     )
+
+    task_id = os.getenv("SKYPILOT_TASK_ID", "").strip()
+    if task_id:
+        desc += f" - [ jl {task_id} ]"
 
     # The target_url is a URL that GitHub will associate with the commit status. When users view the commit status
     # on GitHub (for example, in pull requests or on the commit page), they can click on the status check and be
