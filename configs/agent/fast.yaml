@@ -17,9 +17,9 @@ losses:
   PPO:
     path: metta.rl.loss.ppo.PPO
 
-    schedule: # unspecified epoch bounds default to 0 and inf (begin_at and end_at)
-      rollout:
-        begin_at_epoch: 40
+    # schedule: # unspecified epoch bounds default to 0 and inf (begin_at and end_at)
+    #   rollout:
+    #     begin_at_epoch: 40
 
     # Core PPO hyperparameters
     clip_coef: 0.1
@@ -51,33 +51,33 @@ losses:
   #   decay: 0.996
   #   loss_coef: 1.0
 
-  TLKickstarter:
-    path: metta.rl.loss.tl_kickstarter.TLKickstarter
+  # TLKickstarter:
+  #   path: metta.rl.loss.tl_kickstarter.TLKickstarter
 
-    schedule:
-      rollout:
-        begin_at_epoch: 0
-        end_at_epoch: 40
-      train:
-        begin_at_epoch: 0
-        end_at_epoch: 40
+  #   schedule:
+  #     rollout:
+  #       begin_at_epoch: 0
+  #       end_at_epoch: 40
+  #     train:
+  #       begin_at_epoch: 0
+  #       end_at_epoch: 40
 
-    teacher_uri: wandb://run/m.av.student.probe.finalv2.001
-    action_loss_coef: 1
-    value_loss_coef: 1
+  #   teacher_uri: wandb://run/m.av.student.probe.finalv2.001
+  #   action_loss_coef: 1
+  #   value_loss_coef: 1
 
-  SLKickstarter:
-    path: metta.rl.loss.sl_kickstarter.SLKickstarter
+  # SLKickstarter:
+  #   path: metta.rl.loss.sl_kickstarter.SLKickstarter
 
-    schedule:
-      train:
-        begin_at_epoch: 40
-        end_at_epoch: 900
+  #   schedule:
+  #     train:
+  #       begin_at_epoch: 40
+  #       end_at_epoch: 900
 
-    anneal_ratio: 0.5 # ratio of kickstart_epochs to anneal to 0 coef
-    teacher_uri: wandb://run/m.av.student.probe.finalv2.001 #wandb://run/m.av.loss.leader.006
-    action_loss_coef: 1
-    value_loss_coef: 1
+  #   anneal_ratio: 0.5 # ratio of kickstart_epochs to anneal to 0 coef
+  #   teacher_uri: wandb://run/m.av.student.probe.finalv2.001 #wandb://run/m.av.loss.leader.006
+  #   action_loss_coef: 1
+  #   value_loss_coef: 1
 
 optimizer:
   type: adam
