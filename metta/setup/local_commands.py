@@ -1,7 +1,6 @@
 #!/usr/bin/env -S uv run
 import argparse
 import json
-import logging
 import subprocess
 import sys
 from datetime import datetime, timedelta
@@ -155,7 +154,7 @@ class LocalCommands:
         import wandb
 
         from metta.agent.policy_store import PolicyStore
-        from metta.common.util.stats_client_cfg import get_stats_client_direct
+        from metta.common.util.stats_client_cfg import get_stats_client
         from metta.common.wandb.wandb_runs import find_training_runs
         from metta.sim.utils import get_or_create_policy_ids
 
@@ -195,8 +194,7 @@ class LocalCommands:
             return
 
         print(f"\nConnecting to stats database at {args.stats_db_uri}...")
-        logger = logging.getLogger(__name__)
-        stats_client = get_stats_client_direct(args.stats_db_uri, logger)
+        stats_client = get_stats_client(args.stats_db_uri)
         if not stats_client:
             print("No stats client")
             return
