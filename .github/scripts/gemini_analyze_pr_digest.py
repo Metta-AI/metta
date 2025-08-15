@@ -45,7 +45,7 @@ class CachedSummaryLoader:
 class PreviousReportExtractor:
     """Extracts and processes previous report artifacts (newsletters or author reports)."""
 
-    def __init__(self, report_type: str = "newsletter", report_dir: str = None):
+    def __init__(self, report_type: str = "newsletter", report_dir: str | None = None):
         self.report_type = report_type
         self.report_dir = Path(report_dir or f"previous-{report_type}s")
 
@@ -107,14 +107,14 @@ class PreviousReportExtractor:
         logging.info(f"Successfully extracted {len(summaries)} {self.report_type} summaries")
         return summaries
 
-    def _find_file_in_zip(self, zf: zipfile.ZipFile, target_filename: str) -> str:
+    def _find_file_in_zip(self, zf: zipfile.ZipFile, target_filename: str) -> str | None:
         """Find a file in the zip archive that ends with the target filename."""
         for name in zf.namelist():
             if name.endswith(target_filename):
                 return name
         return None
 
-    def get_previous_summaries_context(self, max_summaries: int = 3, author: str = None) -> str:
+    def get_previous_summaries_context(self, max_summaries: int = 3, author: str | None = None) -> str:
         """Get formatted context from previous summaries for AI prompt."""
         summaries = self.extract_report_summaries()
 
