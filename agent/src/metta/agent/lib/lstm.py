@@ -110,12 +110,8 @@ class LSTM(LayerBase):
         else:
             training_env_id_start = training_env_id_start[0].item()
 
-        # Check if we have stored hidden states and they have the correct shape
-        if (
-            training_env_id_start in self.lstm_h
-            and training_env_id_start in self.lstm_c
-            and self.lstm_h[training_env_id_start].shape[1] == B
-        ):
+        # Check if we have stored hidden states
+        if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
             h_0 = self.lstm_h[training_env_id_start]
             c_0 = self.lstm_c[training_env_id_start]
             # reset the hidden state if the episode is done or truncated
