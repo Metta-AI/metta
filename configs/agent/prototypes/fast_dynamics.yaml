@@ -14,9 +14,8 @@ analyze_weights_interval: 300
 
 losses:
   # NOTE: losses will be run in the order they are listed here
-  PPO:
+  ppo:
     path: metta.rl.loss.ppo.PPO
-
     # Core PPO hyperparameters
     clip_coef: 0.1
     ent_coef: 0.0021
@@ -42,6 +41,9 @@ losses:
     vtrace:
       rho_clip: 1.0 # Default: on-policy (no off-policy correction)
       c_clip: 1.0 # Default: on-policy bootstrapping
+dynamics:
+  path: metta.rl.loss.dynamics.Dynamics
+  loss_coef: 1.0
 
 optimizer:
   type: adam
@@ -53,7 +55,8 @@ optimizer:
   clip_grad_norm: 0
 
 leaf_components: # output heads
-  # - EMA_pred_output_2
+  - value_pred
+  - reward_pred
   - _action_
   - _value_
 
@@ -115,10 +118,16 @@ components:
       hidden_size: 128
       num_layers: 2
 
+  actor_core_merger:
+    _target_: metta.agent.lib.merge_layer.ConcatMergeLayer
+    sources:
+      - name: _core_
+      - name: _action_
+
   critic_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
-      - name: _core_
+      - name: actor_core_merger
     nn_params:
       out_features: 1024
     nonlinearity: nn.Tanh
@@ -152,19 +161,18 @@ components:
       - name: actor_1
       - name: _action_embeds_
 
-  # EMA_pred_output_1:
-  #   _target_: metta.agent.lib.nn_layer_library.Linear
-  #   sources:
-  #     - name: _core_
-  #   nn_params:
-  #     out_features: 512
-  #   nonlinearity: nn.Tanh
-  #   effective_rank: true
+  value_pred:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: critic_1
+    nn_params:
+      out_features: 1
+    nonlinearity: null
 
-  # EMA_pred_output_2:
-  #   _target_: metta.agent.lib.nn_layer_library.Linear
-  #   sources:
-  #     - name: EMA_pred_output_1
-  #   nn_params:
-  #     out_features: 32
-  #   nonlinearity: null
+  reward_pred:
+    _target_: metta.agent.lib.nn_layer_library.Linear
+    sources:
+      - name: critic_1
+    nn_params:
+      out_features: 1
+    nonlinearity: null

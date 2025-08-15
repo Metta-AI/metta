@@ -120,7 +120,7 @@ class MettaActorSingleHead(LayerBase):
         self.embed_dim = self._in_tensor_shapes[1][1]  # input_2 dim (_action_embeds_)
 
         # nn.Bilinear but hand written as nn.Parameters. As of 4-23-25, this is 10x faster than using nn.Bilinear.
-        self.W = nn.Parameter(torch.Tensor(1, self.hidden, self.embed_dim).to(dtype=torch.float32))
+        self.W = nn.Parameter(torch.Tensor(self.hidden, self.embed_dim).to(dtype=torch.float32))
         self.bias = nn.Parameter(torch.Tensor(1).to(dtype=torch.float32))
         self._tanh = nn.Tanh()
         self._init_weights()
@@ -136,26 +136,15 @@ class MettaActorSingleHead(LayerBase):
         hidden = td[self._sources[0]["name"]]  # Shape: [B*TT, hidden]
         action_embeds = td[self._sources[1]["name"]]  # Shape: [B*TT, num_actions, embed_dim]
 
-        B_TT = td.batch_size.numel()
-        num_actions = action_embeds.shape[1]
-
-        # Reshape inputs similar to Rev2 for bilinear calculation
-        # input_1: [B*TT, hidden] -> [B*TT * num_actions, hidden]
-        # input_2: [B*TT, num_actions, embed_dim] -> [B*TT * num_actions, embed_dim]
-        hidden_reshaped = repeat(hidden, "b h -> b a h", a=num_actions)
-        hidden_reshaped = rearrange(hidden_reshaped, "b a h -> (b a) h")
-        action_embeds_reshaped = rearrange(action_embeds, "b a e -> (b a) e")
-
-        # Perform bilinear operation using einsum
-        # Perform bilinear operation  h W e -> k for each B * num_actions = N
-        query = torch.einsum("n h, k h e -> n k e", hidden_reshaped, self.W)  # Shape: [N, K, E]
+        # Project hidden state to query
+        query = torch.einsum("b h, h e -> b e", hidden, self.W)  # Shape: [B*TT, embed_dim]
         query = self._tanh(query)
-        scores = torch.einsum("n k e, n e -> n k", query, action_embeds_reshaped)  # Shape: [N, K]
+
+        # Compute scores
+        scores = torch.einsum("b e, b a e -> b a", query, action_embeds)  # Shape: [B*TT, num_actions]
 
         # Add bias
-        biased_scores = scores + self.bias.reshape(1, -1)  # Shape: [N, K]
+        biased_scores = scores + self.bias  # Shape: [B*TT, num_actions]
 
-        action_logits = biased_scores.reshape(B_TT, num_actions)  # Shape: [B*TT, num_actions]
-
-        td[self._name] = action_logits
+        td[self._name] = biased_scores
         return td
