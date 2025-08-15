@@ -530,13 +530,7 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
        std::vector<InventoryItem> items_to_remove;
        for (auto& [item, qty] : agent->inventory) {
          if (qty > 0) {
-           int lost = 0;
-           for (int i = 0; i < qty; ++i) {
-             // std::generate_canonical<float, 10>(_rng) produces a random float in [0, 1)
-             if (std::generate_canonical<float, 10>(_rng) < _resource_loss_prob) {
-               lost++;
-             }
-           }
+           int lost = int(std::generate_canonical<float, 10>(_rng)*_resource_loss_prob*qty)
            if (lost > 0) {
              // Don't try to lose more than the agent actually has
              int actual_lost = std::min(lost, static_cast<int>(qty));
