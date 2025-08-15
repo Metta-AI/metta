@@ -1,6 +1,12 @@
-"""InfoNCE training functionality."""
+"""InfoNCE training functionality (contrastive-only policy term).
 
-from typing import Any, Tuple, cast
+This implementation assumes the policy exposes LSTM hidden states under the
+`"_core_"` key in the minibatch/policy output TensorDict. It does not fall back
+to PPO terms. Expand this to support non-LSTM architectures by retrieving the
+appropriate representation tensor(s) from the policy outputs.
+"""
+
+from typing import Tuple
 
 import torch
 from tensordict import TensorDict
@@ -18,91 +24,57 @@ def compute_infonce_losses(
     adv: Tensor,
     trainer_cfg: TrainerConfig,
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, dict]:
-    """Vectorized InfoNCE-style policy loss with PPO-compatible returns.
+    """Vectorized InfoNCE-style policy loss.
 
-    If LSTM hidden states are present in the minibatch (keys like "lstm_hidden", "hidden",
-    or a component name that produced a [B, T, H] tensor), we compute a contrastive
-    InfoNCE objective by sampling positives within the same segment and negatives from
-    the available hidden pool (fallbacks to in-minibatch if a replay pool isn't provided).
-
-    Otherwise, this falls back to an unclipped policy gradient term: (-adv * new_logprob).mean().
-    The value-loss, entropy, approx_kl and clipfrac match PPO for logging/compatibility.
+    Notes:
+    - This function intentionally does not compute or fall back to PPO losses.
+      Value/entropy/approx_kl/clipfrac are returned as zeros for API
+      compatibility with PPO-style integrations.
+    - Hidden representation is read from `"_core_"` (LSTM). This needs to be
+      expanded for non-LSTM architectures.
     """
 
     # ---------------------------------------------------------------------
-    # Value and entropy terms (same as PPO for compatibility)
+    # Placeholder terms for PPO compatibility (not used by InfoNCE)
     # ---------------------------------------------------------------------
-    returns = minibatch["returns"]
-    old_values = minibatch["values"]
-    newvalue_reshaped = newvalue.view(returns.shape)
-
-    if trainer_cfg.ppo.clip_vloss:
-        v_loss_unclipped = (newvalue_reshaped - returns) ** 2
-        vf_clip_coef = trainer_cfg.ppo.vf_clip_coef
-        v_clipped = old_values + torch.clamp(
-            newvalue_reshaped - old_values,
-            -vf_clip_coef,
-            vf_clip_coef,
-        )
-        v_loss_clipped = (v_clipped - returns) ** 2
-        v_loss = 0.5 * torch.max(v_loss_unclipped, v_loss_clipped).mean()
-    else:
-        v_loss = 0.5 * ((newvalue_reshaped - returns) ** 2).mean()
-
-    entropy_loss = entropy.mean()
-
-    with torch.no_grad():
-        logratio = new_logprob - minibatch["act_log_prob"]
-        approx_kl = ((importance_sampling_ratio - 1) - logratio).mean()
-        clipfrac = ((importance_sampling_ratio - 1.0).abs() > trainer_cfg.ppo.clip_coef).float().mean()
-
-    # ---------------------------------------------------------------------
-    # Contrastive InfoNCE over hidden states if available; else fallback
-    # ---------------------------------------------------------------------
-    hidden = _locate_hidden_tensor(minibatch)
-    # Default metrics (zeros) to keep return shape consistent even when hidden is unavailable
     zero = torch.tensor(0.0, device=new_logprob.device, dtype=torch.float32)
-    metrics = {
-        "contrastive_loss": zero,
-        "contrastive_infonce": zero,
-        "contrastive_logsumexp": zero,
-        "contrastive_var_loss": zero,
-        "contrastive_pos_sim": zero,
-        "contrastive_neg_sim": zero,
-        "contrastive_batch_std": zero,
-    }
-    if hidden is None:
-        # Fallback: basic InfoNCE-style policy term on action logprob
-        pg_loss = (-adv * new_logprob).mean()
-        return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac, metrics
+    v_loss = zero
+    entropy_loss = zero
+    approx_kl = zero
+    clipfrac = zero
 
-    # Read optional contrastive hyperparameters from trainer_cfg if present
-    K = cast(int, _safe_get(trainer_cfg, ["contrastive", "num_negatives"], default=64))
-    tau = cast(float, _safe_get(trainer_cfg, ["contrastive", "temperature"], default=0.1))
-    gamma = cast(float, _safe_get(trainer_cfg, ["contrastive", "gamma"], default=0.95))
-    logsumexp_coef = cast(float, _safe_get(trainer_cfg, ["contrastive", "logsumexp_coef"], default=0.0))
-    var_reg_coef = cast(float, _safe_get(trainer_cfg, ["contrastive", "var_reg_coef"], default=0.0))
-    var_reg_target = cast(float, _safe_get(trainer_cfg, ["contrastive", "var_reg_target"], default=1.0))
+    # ---------------------------------------------------------------------
+    # Contrastive InfoNCE over hidden states (assumes LSTM `_core_` outputs)
+    # ---------------------------------------------------------------------
+    # Currently assumes LSTM `_core_` is present. Needs expansion for non-LSTM architectures.
+    if "_core_" not in minibatch.keys():
+        raise KeyError("InfoNCE requires hidden representations under '_core_' in the minibatch/policy outputs")
+    hidden = minibatch["_core_"]
+
+    # Contrastive hyperparameters from trainer_cfg.contrastive
+    K = int(trainer_cfg.contrastive.num_negatives)
+    tau = float(trainer_cfg.contrastive.temperature)
+    gamma = float(trainer_cfg.contrastive.gamma)
+    logsumexp_coef = float(trainer_cfg.contrastive.logsumexp_coef)
+    var_reg_coef = float(trainer_cfg.contrastive.var_reg_coef)
+    var_reg_target = float(trainer_cfg.contrastive.var_reg_target)
 
     # Hidden must be [Bseg, T, H]; ensure shape
     if hidden.dim() != 3:
-        # If shape is [BT, H], try to infer B and T from dones
+        # If shape is [BT, H], try to infer [B, T, H] from dones
         if "dones" in minibatch and minibatch["dones"].dim() == 2:
             Bseg, T = minibatch["dones"].shape
             H = hidden.shape[-1]
             hidden = hidden.view(Bseg, T, H)
         else:
-            # As a conservative fallback, skip contrastive term
-            pg_loss = (-adv * new_logprob).mean()
-            return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac, metrics
+            raise ValueError("Expected hidden to be [B, T, H] or inferable from 'dones'")
 
     Bseg, T, H = hidden.shape
     device = hidden.device
 
     # Primary dones source; expect float in buffer, use bool mask
     if "dones" not in minibatch:
-        pg_loss = (-adv * new_logprob).mean()
-        return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac, metrics
+        raise KeyError("'dones' must be present in minibatch for InfoNCE time-offset sampling")
     dones = minibatch["dones"].to(device).bool()  # [Bseg, T]
 
     # Optional replay pool of hidden states; otherwise use current minibatch
@@ -126,7 +98,17 @@ def compute_infonce_losses(
     base_ids_full = base_ids.reshape(-1)
     valid_mask = delta.reshape(-1) >= 1
     if not torch.any(valid_mask):
-        pg_loss = (-adv * new_logprob).mean()
+        # No valid positive pairs within segment boundaries
+        metrics = {
+            "contrastive_loss": zero,
+            "contrastive_infonce": zero,
+            "contrastive_logsumexp": zero,
+            "contrastive_var_loss": zero,
+            "contrastive_pos_sim": zero,
+            "contrastive_neg_sim": zero,
+            "contrastive_batch_std": zero,
+        }
+        pg_loss = zero
         return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac, metrics
 
     pos_ids = pos_ids_full[valid_mask]
@@ -223,38 +205,3 @@ def _future_deltas(
 
     # Clip so we never cross an episode boundary or the segment end
     return torch.minimum(deltas, dist_to_boundary)
-
-
-def _safe_get(cfg: object, path: list[str], default) -> Any:
-    cur = cfg
-    for key in path:
-        if not hasattr(cur, key):
-            return default
-        cur = getattr(cur, key)
-    return cur
-
-
-def _locate_hidden_tensor(minibatch: TensorDict) -> Tensor | None:
-    """Best-effort retrieval of a [B, T, H] hidden tensor from minibatch.
-
-    Tries common keys. If none found, returns None.
-    """
-    candidate_keys = [
-        "lstm_hidden",
-        "hidden",
-        "_core_",  # typical LSTM component name in ComponentPolicy
-        "core",
-        "hidden_states",
-        "hidden_state",
-        "latent",
-        "encoder",
-    ]
-    # to check if the hidden tensor is in the minibatch
-    # print(f"minibatch keys: {minibatch.keys()}")
-    for key in candidate_keys:
-        if key in minibatch.keys() and isinstance(minibatch.get(key), Tensor):
-            tensor = minibatch.get(key)
-            if tensor is not None and tensor.dim() in (2, 3):
-                return tensor
-    return None
-
