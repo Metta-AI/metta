@@ -90,6 +90,10 @@ public:
     track_bounds(key, value);
   }
 
+  float get(const std::string& key) {
+    return _stats[key];
+  }
+
   // Calculate rate (updates per step)
   float rate(const std::string& key) const {
     if (!_env) return 0.0f;

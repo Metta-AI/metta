@@ -1,7 +1,24 @@
 image:
-  repository: metta-policy-evaluator-local
+  registry: ""
+  name: metta-policy-evaluator-local
   tag: "latest"
   pullPolicy: IfNotPresent
 
 env:
   BACKEND_URL: "http://host.docker.internal:8000"
+
+datadog:
+  enabled: true
+  datadog:
+    clusterName: "kind-metta-local"
+    tags:
+      - "env:local"
+  env: "development"
+  agents:
+    containers:
+      agent:
+        env:
+          - name: DD_HOSTNAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName

@@ -1,21 +1,13 @@
-export type HeatmapCell = {
+export type ScorecardCell = {
   evalName: string
   replayUrl: string | null
   value: number
 }
 
-export type GroupDiff = {
-  group_1: string
-  group_2: string
-}
 
-export type PolicySelector = 'latest' | 'best'
-
-export type GroupHeatmapMetric = GroupDiff | string
-
-export type HeatmapData = {
+export type ScorecardData = {
   evalNames: string[]
-  cells: Record<string, Record<string, HeatmapCell>>
+  cells: Record<string, Record<string, ScorecardCell>>
   policyAverageScores: Record<string, number>
   evalAverageScores: Record<string, number>
   evalMaxScores: Record<string, number>
@@ -96,49 +88,6 @@ export type TrainingRunTagsUpdate = {
   tags: string[]
 }
 
-export type Episode = {
-  id: string
-  created_at: string
-  primary_policy_id: string
-  eval_category: string | null
-  env_name: string | null
-  attributes: Record<string, any>
-  // Policy information
-  policy_name: string | null
-  // Training run information
-  training_run_id: string | null
-  training_run_name: string | null
-  training_run_user_id: string | null
-  // Episode tags
-  tags: string[]
-}
-
-export type EpisodeFilterResponse = {
-  episodes: Episode[]
-  total_count: number
-  page: number
-  page_size: number
-  total_pages: number
-}
-
-export type EpisodeTagRequest = {
-  episode_ids: string[]
-  tag: string
-}
-
-export type EpisodeTagByFilterRequest = {
-  filter_query: string
-  tag: string
-}
-
-export type EpisodeTagResponse = {
-  episodes_affected: number
-}
-
-export type AllTagsResponse = {
-  tags: string[]
-}
-
 export type EvalTaskCreateRequest = {
   policy_id: string
   git_hash: string | null
@@ -165,7 +114,7 @@ export type EvalTasksResponse = {
   tasks: EvalTask[]
 }
 
-// Policy-based heatmap types
+// Policy-based scorecard types
 export type PaginationRequest = {
   page: number
   page_size: number
@@ -195,16 +144,8 @@ export type UnifiedPolicyInfo = {
   tags: string[]
 }
 
-export type PoliciesRequest = {
-  search_text?: string
-  pagination: PaginationRequest
-}
-
 export type PoliciesResponse = {
   policies: UnifiedPolicyInfo[]
-  total_count: number
-  page: number
-  page_size: number
 }
 
 export type EvalNamesRequest = {
@@ -218,7 +159,7 @@ export type MetricsRequest = {
   eval_names: string[]
 }
 
-export type PolicyHeatmapRequest = {
+export type PolicyScorecardRequest = {
   training_run_ids: string[]
   run_free_policy_ids: string[]
   eval_names: string[]
@@ -226,7 +167,7 @@ export type PolicyHeatmapRequest = {
   metric: string
 }
 
-export type TrainingRunHeatmapRequest = {
+export type TrainingRunScorecardRequest = {
   eval_names: string[]
   metric: string
 }
@@ -238,19 +179,48 @@ export type TrainingRunPolicy = {
   epoch_end: number | null
 }
 
-export type PolicyHeatmapCell = {
+export type PolicyScorecardCell = {
   evalName: string
   replayUrl: string | null
   value: number
 }
 
-export type PolicyHeatmapData = {
+export type PolicyScorecardData = {
   evalNames: string[]
   policyNames: string[]
-  cells: Record<string, Record<string, PolicyHeatmapCell>>
+  cells: Record<string, Record<string, PolicyScorecardCell>>
   policyAverageScores: Record<string, number>
   evalAverageScores: Record<string, number>
   evalMaxScores: Record<string, number>
+}
+
+// Leaderboard types
+export type Leaderboard = {
+  id: string
+  name: string
+  user_id: string
+  evals: string[]
+  metric: string
+  start_date: string
+  latest_episode: number
+  created_at: string
+  updated_at: string
+}
+
+export type LeaderboardCreate = {
+  name: string
+  evals: string[]
+  metric: string
+  start_date: string
+}
+
+export type LeaderboardListResponse = {
+  leaderboards: Leaderboard[]
+}
+
+export type LeaderboardScorecardRequest = {
+  selector: 'latest' | 'best'
+  num_policies: number
 }
 
 import { config } from './config'
@@ -323,16 +293,8 @@ export interface Repo {
   getTrainingRun(runId: string): Promise<TrainingRun>
   updateTrainingRunDescription(runId: string, description: string): Promise<TrainingRun>
   updateTrainingRunTags(runId: string, tags: string[]): Promise<TrainingRun>
-  generateTrainingRunHeatmap(runId: string, request: TrainingRunHeatmapRequest): Promise<PolicyHeatmapData>
+  generateTrainingRunScorecard(runId: string, request: TrainingRunScorecardRequest): Promise<PolicyScorecardData>
   getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]>
-
-  // Episode methods
-  filterEpisodes(page: number, pageSize: number, filterQuery: string): Promise<EpisodeFilterResponse>
-  addEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse>
-  removeEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse>
-  addEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse>
-  removeEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse>
-  getAllEpisodeTags(): Promise<AllTagsResponse>
 
   // Eval task methods
   createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask>
@@ -341,11 +303,18 @@ export interface Repo {
   // Policy methods
   getPolicyIds(policyNames: string[]): Promise<Record<string, string>>
 
-  // Policy-based heatmap methods
-  getPolicies(request: PoliciesRequest): Promise<PoliciesResponse>
+  // Policy-based scorecard methods
+  getPolicies(): Promise<PoliciesResponse>
   getEvalNames(request: EvalNamesRequest): Promise<Set<string>>
   getAvailableMetrics(request: MetricsRequest): Promise<string[]>
-  generatePolicyHeatmap(request: PolicyHeatmapRequest): Promise<PolicyHeatmapData>
+  generatePolicyScorecard(request: PolicyScorecardRequest): Promise<PolicyScorecardData>
+
+  // Leaderboard methods
+  listLeaderboards(): Promise<LeaderboardListResponse>
+  getLeaderboard(leaderboardId: string): Promise<Leaderboard>
+  createLeaderboard(leaderboardData: LeaderboardCreate): Promise<Leaderboard>
+  deleteLeaderboard(leaderboardId: string): Promise<void>
+  generateLeaderboardScorecard(leaderboardId: string, request: LeaderboardScorecardRequest): Promise<ScorecardData>
 }
 
 export class ServerRepo implements Repo {
@@ -436,7 +405,10 @@ export class ServerRepo implements Repo {
   }
 
   async updateDashboardState(dashboardId: string, dashboardState: DashboardState): Promise<SavedDashboard> {
-    return this.apiCallWithBodyPut<SavedDashboard>(`/dashboard/saved/${encodeURIComponent(dashboardId)}`, dashboardState)
+    return this.apiCallWithBodyPut<SavedDashboard>(
+      `/dashboard/saved/${encodeURIComponent(dashboardId)}`,
+      dashboardState
+    )
   }
 
   async deleteSavedDashboard(dashboardId: string): Promise<void> {
@@ -486,54 +458,15 @@ export class ServerRepo implements Repo {
     return this.apiCallWithBodyPut<TrainingRun>(`/training-runs/${encodeURIComponent(runId)}/tags`, { tags })
   }
 
-  async generateTrainingRunHeatmap(runId: string, request: TrainingRunHeatmapRequest): Promise<PolicyHeatmapData> {
-    return this.apiCallWithBody<PolicyHeatmapData>(`/heatmap/training-run/${encodeURIComponent(runId)}`, request)
+  async generateTrainingRunScorecard(
+    runId: string,
+    request: TrainingRunScorecardRequest
+  ): Promise<PolicyScorecardData> {
+    return this.apiCallWithBody<PolicyScorecardData>(`/scorecard/training-run/${encodeURIComponent(runId)}`, request)
   }
 
   async getTrainingRunPolicies(runId: string): Promise<TrainingRunPolicy[]> {
     return this.apiCall<TrainingRunPolicy[]>(`/training-runs/${encodeURIComponent(runId)}/policies`)
-  }
-
-  // Episode methods
-  async filterEpisodes(page: number, pageSize: number, filterQuery: string): Promise<EpisodeFilterResponse> {
-    const params = new URLSearchParams({
-      page: page.toString(),
-      page_size: pageSize.toString(),
-      filter_query: filterQuery,
-    })
-    return this.apiCall<EpisodeFilterResponse>(`/episodes?${params}`)
-  }
-
-  async addEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse> {
-    return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/add', {
-      episode_ids: episodeIds,
-      tag: tag,
-    })
-  }
-
-  async removeEpisodeTags(episodeIds: string[], tag: string): Promise<EpisodeTagResponse> {
-    return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/remove', {
-      episode_ids: episodeIds,
-      tag: tag,
-    })
-  }
-
-  async addEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse> {
-    return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/add-by-filter', {
-      filter_query: filterQuery,
-      tag: tag,
-    })
-  }
-
-  async removeEpisodeTagsByFilter(filterQuery: string, tag: string): Promise<EpisodeTagResponse> {
-    return this.apiCallWithBody<EpisodeTagResponse>('/episodes/tags/remove-by-filter', {
-      filter_query: filterQuery,
-      tag: tag,
-    })
-  }
-
-  async getAllEpisodeTags(): Promise<AllTagsResponse> {
-    return this.apiCall<AllTagsResponse>('/episodes/tags/all')
   }
 
   async createEvalTask(request: EvalTaskCreateRequest): Promise<EvalTask> {
@@ -552,21 +485,46 @@ export class ServerRepo implements Repo {
     return response.policy_ids
   }
 
-  // Policy-based heatmap methods
-  async getPolicies(request: PoliciesRequest): Promise<PoliciesResponse> {
-    return this.apiCallWithBody<PoliciesResponse>('/heatmap/policies', request)
+  // Policy-based scorecard methods
+  async getPolicies(): Promise<PoliciesResponse> {
+    return this.apiCall<PoliciesResponse>('/scorecard/policies')
   }
 
   async getEvalNames(request: EvalNamesRequest): Promise<Set<string>> {
-    const res = await this.apiCallWithBody<string[]>('/heatmap/evals', request)
+    const res = await this.apiCallWithBody<string[]>('/scorecard/evals', request)
     return new Set(res)
   }
 
   async getAvailableMetrics(request: MetricsRequest): Promise<string[]> {
-    return this.apiCallWithBody<string[]>('/heatmap/metrics', request)
+    return this.apiCallWithBody<string[]>('/scorecard/metrics', request)
   }
 
-  async generatePolicyHeatmap(request: PolicyHeatmapRequest): Promise<PolicyHeatmapData> {
-    return this.apiCallWithBody<PolicyHeatmapData>('/heatmap/heatmap', request)
+  async generatePolicyScorecard(request: PolicyScorecardRequest): Promise<PolicyScorecardData> {
+    return this.apiCallWithBody<PolicyScorecardData>('/scorecard/scorecard', request)
+  }
+
+  // Leaderboard methods
+  async listLeaderboards(): Promise<LeaderboardListResponse> {
+    return this.apiCall<LeaderboardListResponse>('/leaderboards')
+  }
+
+  async getLeaderboard(leaderboardId: string): Promise<Leaderboard> {
+    return this.apiCall<Leaderboard>(`/leaderboards/${encodeURIComponent(leaderboardId)}`)
+  }
+
+  async createLeaderboard(leaderboardData: LeaderboardCreate): Promise<Leaderboard> {
+    return this.apiCallWithBody<Leaderboard>('/leaderboards', leaderboardData)
+  }
+
+  async deleteLeaderboard(leaderboardId: string): Promise<void> {
+    return this.apiCallDelete(`/leaderboards/${encodeURIComponent(leaderboardId)}`)
+  }
+
+  async generateLeaderboardScorecard(leaderboardId: string, request: LeaderboardScorecardRequest): Promise<ScorecardData> {
+    return this.apiCallWithBody<ScorecardData>('/scorecard/leaderboard', {
+      leaderboard_id: leaderboardId,
+      selector: request.selector,
+      num_policies: request.num_policies
+    })
   }
 }

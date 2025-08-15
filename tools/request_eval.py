@@ -15,6 +15,8 @@ from pydantic.fields import Field
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyMissingError, PolicySelectorType, PolicyStore
+from metta.app_backend.clients.eval_task_client import EvalTaskClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import TaskStatus
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse
 from metta.common.util.collections import group_by, remove_none_values
@@ -82,6 +84,8 @@ def _get_policy_records_for_uri(
     select_num: int,
     select_metric: str,
     disallow_missing_policies: bool = False,
+    stats_client: StatsClient | None = None,
+    eval_name: str | None = None,
 ) -> tuple[str, list[PolicyRecord] | None]:
     try:
         records = policy_store.policy_records(
@@ -89,6 +93,8 @@ def _get_policy_records_for_uri(
             selector_type=selector_type,
             n=select_num,
             metric=select_metric,
+            stats_client=stats_client,
+            eval_name=eval_name,
         )
         return policy_uri, records
     except PolicyMissingError as e:
@@ -110,7 +116,10 @@ async def _create_remote_eval_tasks(
         return
     stats_client.validate_authenticated()
 
-    policy_store = PolicyStore(cfg=request.get_wandb_cfg(), wandb_run=None)
+    policy_store = PolicyStore(
+        wandb_entity=request.wandb_entity,
+        wandb_project=request.wandb_project,
+    )
 
     info(f"Retrieving {request.policy_select_type} policy records for {len(request.policies)} policies...")
     # Parallelize policy records retrieval
@@ -118,12 +127,14 @@ async def _create_remote_eval_tasks(
         future_to_uri = {
             executor.submit(
                 _get_policy_records_for_uri,
-                policy_store,
-                policy_uri,
-                request.policy_select_type,
-                request.policy_select_num,
-                request.policy_select_metric,
-                request.disallow_missing_policies,
+                policy_store=policy_store,
+                policy_uri=policy_uri,
+                selector_type=request.policy_select_type,
+                select_num=request.policy_select_num,
+                select_metric=request.policy_select_metric,
+                disallow_missing_policies=request.disallow_missing_policies,
+                stats_client=stats_client,
+                eval_name=request.evals[0],
             ): policy_uri
             for policy_uri in request.policies
         }
@@ -144,6 +155,7 @@ async def _create_remote_eval_tasks(
 
     # Check for existing tasks if not allowing duplicates
     existing_tasks: dict[tuple[uuid.UUID, str], list[TaskResponse]] = {}
+    eval_task_client = EvalTaskClient(backend_url=request.stats_server_uri)
     if not request.allow_duplicates:
         info("Checking for duplicate tasks...")
         task_filters = TaskFilterParams(
@@ -153,7 +165,7 @@ async def _create_remote_eval_tasks(
             git_hash=request.git_hash,
             sim_suites=request.evals,
         )
-        all_tasks = await stats_client.get_all_tasks(filters=task_filters)
+        all_tasks = await eval_task_client.get_all_tasks(filters=task_filters)
         existing_tasks = group_by(all_tasks.tasks, lambda t: (t.policy_id, t.sim_suite))
         if existing_tasks:
             info("Skipping because they would be duplicates:")
@@ -172,7 +184,7 @@ async def _create_remote_eval_tasks(
         )
         for policy_id in policy_ids.values()
         for eval_name in request.evals
-        if not len(existing_tasks[(policy_id, eval_name)])
+        if (request.allow_duplicates or not len(existing_tasks[(policy_id, eval_name)]))
     ]
 
     if not task_requests:
@@ -184,7 +196,7 @@ async def _create_remote_eval_tasks(
         info("Dry run, not creating tasks")
         return
 
-    results: list[TaskResponse] = await asyncio.gather(*[stats_client.create_task(task) for task in task_requests])
+    results: list[TaskResponse] = await asyncio.gather(*[eval_task_client.create_task(task) for task in task_requests])
     for policy_id, policy_results in group_by(results, lambda result: result.policy_id).items():
         policy_name = policy_ids.inv[policy_id]
         success(f"{policy_name}:", indent=2)
@@ -194,7 +206,7 @@ async def _create_remote_eval_tasks(
     frontend_base_url = {
         PROD_STATS_SERVER_URI: PROD_OBSERVATORY_FRONTEND_URL,
         DEV_STATS_SERVER_URI: DEV_OBSERVATORY_FRONTEND_URL,
-    }.get(str(stats_client.http_client.base_url))
+    }.get(request.stats_server_uri)
     if frontend_base_url:
         info(f"Visit {frontend_base_url}/eval-tasks to view tasks")
 

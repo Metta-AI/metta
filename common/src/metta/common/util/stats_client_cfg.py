@@ -2,10 +2,9 @@ from logging import Logger
 from pathlib import Path
 
 import yaml
-from httpx import Client
 from omegaconf import DictConfig, ListConfig
 
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.constants import PROD_STATS_SERVER_URI
 
 
@@ -59,8 +58,7 @@ def get_stats_client_direct(stats_server_uri: str | None, logger: Logger) -> Sta
         return None
 
     logger.info(f"Using stats client at {stats_server_uri}")
-    http_client = Client(base_url=stats_server_uri)
-    return StatsClient(http_client=http_client, machine_token=machine_token)
+    return StatsClient(backend_url=stats_server_uri, machine_token=machine_token)
 
 
 def get_stats_client(cfg: DictConfig | ListConfig, logger: Logger) -> StatsClient | None:

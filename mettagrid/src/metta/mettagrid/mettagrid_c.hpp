@@ -35,6 +35,7 @@ class GridObject;
 struct GridObjectConfig;
 struct ConverterConfig;
 struct WallConfig;
+struct BoxConfig;
 struct AgentConfig;
 struct GameConfig;
 struct ActionConfig;
@@ -48,6 +49,7 @@ struct GlobalObsConfig {
   bool last_action = true;  // Controls both last_action and last_action_arg
   bool last_reward = true;
   bool resource_rewards = false;  // Controls whether resource rewards are included in observations
+  bool visitation_counts = false;  // Controls whether visitation counts are included in observations
 };
 
 struct GameConfig {
@@ -62,6 +64,7 @@ struct GameConfig {
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
   bool track_movement_metrics;
+  bool no_agent_interference = false;
   bool recipe_details_obs = false;
 };
 
@@ -151,6 +154,7 @@ private:
 
   // Movement tracking
   bool _track_movement_metrics;
+  bool _no_agent_interference;
 
   void init_action_handlers();
   void add_agent(Agent* agent);
@@ -168,6 +172,7 @@ private:
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
+  BoxConfig _create_box_config(const py::dict& box_cfg_py);
 };
 
 #endif  // METTAGRID_C_HPP_

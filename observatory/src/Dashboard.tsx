@@ -1,12 +1,11 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { DashboardState, PolicyHeatmapData, Repo, SavedDashboard, SavedDashboardCreate } from './repo'
+import { DashboardState, PolicyScorecardData, Repo, SavedDashboard, SavedDashboardCreate, UnifiedPolicyInfo } from './repo'
 import { PolicySelector } from './components/PolicySelector'
-import { SearchInput } from './components/SearchInput'
 import { EvalSelector } from './components/EvalSelector'
 import { TrainingRunPolicySelector } from './components/TrainingRunPolicySelector'
 import { MetricSelector } from './components/MetricSelector'
-import { Heatmap } from './Heatmap'
+import { Scorecard } from './Scorecard'
 import styles from './Dashboard.module.css'
 import { MapViewer } from './MapViewer'
 import { SaveDashboardModal } from './SaveDashboardModal'
@@ -19,9 +18,10 @@ interface DashboardProps {
 export function Dashboard({ repo }: DashboardProps) {
   const [searchParams, setSearchParams] = useSearchParams()
   // Data state
+  const [policies, setPolicies] = useState<UnifiedPolicyInfo[]>([])
   const [evalNames, setEvalNames] = useState<Set<string>>(new Set())
   const [availableMetrics, setAvailableMetrics] = useState<string[]>([])
-  const [heatmapData, setHeatmapData] = useState<PolicyHeatmapData | null>(null)
+  const [scorecardData, setScorecardData] = useState<PolicyScorecardData | null>(null)
 
   // Selection state
   const [selectedTrainingRunIds, setSelectedTrainingRunIds] = useState<string[]>([])
@@ -30,15 +30,12 @@ export function Dashboard({ repo }: DashboardProps) {
   const [trainingRunPolicySelector, setTrainingRunPolicySelector] = useState<'latest' | 'best'>('latest')
   const [selectedMetric, setSelectedMetric] = useState<string>('reward')
 
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState<number>(1)
-
   // UI state
-  const [policySearchText, setPolicySearchText] = useState<string>('')
   const [loading, setLoading] = useState({
+    policies: false,
     evalCategories: false,
     metrics: false,
-    heatmap: false,
+    scorecard: false,
   })
   const [error, setError] = useState<string | null>(null)
   const [isViewLocked, setIsViewLocked] = useState(false)
@@ -53,6 +50,25 @@ export function Dashboard({ repo }: DashboardProps) {
 
   // Dashboard metadata state
   const [savedDashboard, setSavedDashboard] = useState<SavedDashboard | null>(null)
+
+  // Load policies on mount
+  useEffect(() => {
+    const loadPolicies = async () => {
+      try {
+        setLoading((prev) => ({ ...prev, policies: true }))
+        setError(null)
+        const response = await repo.getPolicies()
+        setPolicies(response.policies)
+      } catch (err) {
+        setError(`Failed to load policies: ${err instanceof Error ? err.message : 'Unknown error'}`)
+        setPolicies([])
+      } finally {
+        setLoading((prev) => ({ ...prev, policies: false }))
+      }
+    }
+
+    loadPolicies()
+  }, [])
 
   // Load eval names when training runs or policies are selected
   useEffect(() => {
@@ -84,7 +100,7 @@ export function Dashboard({ repo }: DashboardProps) {
     }
 
     loadEvalNames()
-  }, [repo, selectedTrainingRunIds, selectedRunFreePolicyIds])
+  }, [selectedTrainingRunIds, selectedRunFreePolicyIds])
 
   // Load available metrics when training runs/policies and evaluations are selected
   useEffect(() => {
@@ -129,10 +145,9 @@ export function Dashboard({ repo }: DashboardProps) {
     }
 
     loadMetrics()
-  }, [repo, selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames, selectedMetric])
+  }, [selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames])
 
-  // Generate heatmap
-  const generateHeatmap = async (
+  const generateScorecard = async (
     selectedTrainingRunIds: string[],
     selectedRunFreePolicyIds: string[],
     selectedEvalNames: Set<string>,
@@ -143,51 +158,42 @@ export function Dashboard({ repo }: DashboardProps) {
       selectedEvalNames.size === 0 ||
       !selectedMetric
     ) {
-      setError('Please select training runs/policies, evaluations, and a metric before generating the heatmap.')
+      setError('Please select training runs/policies, evaluations, and a metric before generating the scorecard.')
       return
     }
 
     try {
-      setLoading((prev) => ({ ...prev, heatmap: true }))
+      setLoading((prev) => ({ ...prev, scorecard: true }))
       setError(null)
-      const heatmapResult = await repo.generatePolicyHeatmap({
+      const scorecardResult = await repo.generatePolicyScorecard({
         training_run_ids: selectedTrainingRunIds,
         run_free_policy_ids: selectedRunFreePolicyIds,
         eval_names: Array.from(selectedEvalNames),
         training_run_policy_selector: trainingRunPolicySelector,
         metric: selectedMetric,
       })
-      setHeatmapData(heatmapResult)
+      setScorecardData(scorecardResult)
       setControlsExpanded(false)
     } catch (err) {
-      setError(`Failed to generate heatmap: ${err instanceof Error ? err.message : 'Unknown error'}`)
-      setHeatmapData(null)
+      setError(`Failed to generate scorecard: ${err instanceof Error ? err.message : 'Unknown error'}`)
+      setScorecardData(null)
     } finally {
-      setLoading((prev) => ({ ...prev, heatmap: false }))
+      setLoading((prev) => ({ ...prev, scorecard: false }))
     }
   }
 
-  const generateHeatmapCallback = async () => {
-    await generateHeatmap(selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames, selectedMetric)
+  const generateScorecardCallback = async () => {
+    await generateScorecard(selectedTrainingRunIds, selectedRunFreePolicyIds, selectedEvalNames, selectedMetric)
   }
 
-  // Stable handlers for PolicySelector to prevent unnecessary re-renders
-  const handleSearchChange = useCallback((searchText: string) => {
-    setPolicySearchText(searchText)
-  }, [])
-
-  const handlePageChange = useCallback((page: number) => {
-    setCurrentPage(page)
-  }, [])
-
-  const canGenerateHeatmap =
+  const canGenerateScorecard =
     (selectedTrainingRunIds.length > 0 || selectedRunFreePolicyIds.length > 0) &&
     selectedEvalNames.size > 0 &&
     selectedMetric !== '' &&
     !Object.values(loading).some(Boolean)
 
   const openReplayUrl = (policyName: string, evalName: string) => {
-    const cell = heatmapData?.cells[policyName]?.[evalName]
+    const cell = scorecardData?.cells[policyName]?.[evalName]
     if (!cell?.replayUrl) return
 
     const replay_url_prefix = `${METTASCOPE_REPLAY_URL}/?replayUrl=`
@@ -204,7 +210,7 @@ export function Dashboard({ repo }: DashboardProps) {
     }
   }
 
-  const selectedCellData = selectedCell ? heatmapData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
+  const selectedCellData = selectedCell ? scorecardData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
   const selectedEval = selectedCellData?.evalName ?? null
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null
 
@@ -226,8 +232,10 @@ export function Dashboard({ repo }: DashboardProps) {
     const currentState = getDashboardState()
     const originalDashboardState = savedDashboard.dashboard_state
     return (
-      JSON.stringify(currentState.selectedTrainingRunIds) !== JSON.stringify(originalDashboardState.selectedTrainingRunIds) ||
-      JSON.stringify(currentState.selectedRunFreePolicyIds) !== JSON.stringify(originalDashboardState.selectedRunFreePolicyIds) ||
+      JSON.stringify(currentState.selectedTrainingRunIds) !==
+        JSON.stringify(originalDashboardState.selectedTrainingRunIds) ||
+      JSON.stringify(currentState.selectedRunFreePolicyIds) !==
+        JSON.stringify(originalDashboardState.selectedRunFreePolicyIds) ||
       JSON.stringify(currentState.selectedEvalNames) !== JSON.stringify(originalDashboardState.selectedEvalNames) ||
       currentState.trainingRunPolicySelector !== originalDashboardState.trainingRunPolicySelector ||
       currentState.selectedMetric !== originalDashboardState.selectedMetric
@@ -241,7 +249,7 @@ export function Dashboard({ repo }: DashboardProps) {
     setTrainingRunPolicySelector(state.trainingRunPolicySelector || 'latest')
     setSelectedMetric(state.selectedMetric || '')
 
-    await generateHeatmap(
+    await generateScorecard(
       state.selectedTrainingRunIds,
       state.selectedRunFreePolicyIds,
       new Set(state.selectedEvalNames),
@@ -300,17 +308,15 @@ export function Dashboard({ repo }: DashboardProps) {
     if (savedId) {
       loadSavedDashboard(savedId)
     }
-  }, [savedId, repo])
+  }, [savedId])
 
   return (
     <div className={styles.dashboardContainer}>
       <div className={styles.dashboardContent}>
         <div className={styles.dashboardHeader}>
-          <h1 className={styles.dashboardTitle}>
-            {dashboardName}
-          </h1>
+          <h1 className={styles.dashboardTitle}>{dashboardName}</h1>
           <p className={styles.dashboardSubtitle}>
-            Select policies and evaluations to generate interactive heatmaps for analysis.
+            Select policies and evaluations to generate interactive scorecards for analysis.
           </p>
         </div>
 
@@ -339,17 +345,20 @@ export function Dashboard({ repo }: DashboardProps) {
               <div className={styles.widget}>
                 <h3 className={styles.widgetTitle}>Policy Selection</h3>
                 <div className={styles.widgetContent}>
-                  <SearchInput searchText={policySearchText} onSearchChange={handleSearchChange} disabled={false} />
-                  <PolicySelector
-                    repo={repo}
-                    searchText={policySearchText}
-                    selectedTrainingRunIds={selectedTrainingRunIds}
-                    selectedRunFreePolicyIds={selectedRunFreePolicyIds}
-                    onTrainingRunSelectionChange={setSelectedTrainingRunIds}
-                    onRunFreePolicySelectionChange={setSelectedRunFreePolicyIds}
-                    currentPage={currentPage}
-                    onPageChange={handlePageChange}
-                  />
+                  {loading.policies ? (
+                    <div className={styles.loadingContainer}>
+                      <span className={styles.loadingSpinner}></span>
+                      Loading policies...
+                    </div>
+                  ) : (
+                    <PolicySelector
+                      policies={policies}
+                      selectedTrainingRunIds={selectedTrainingRunIds}
+                      selectedRunFreePolicyIds={selectedRunFreePolicyIds}
+                      onTrainingRunSelectionChange={setSelectedTrainingRunIds}
+                      onRunFreePolicySelectionChange={setSelectedRunFreePolicyIds}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -398,22 +407,22 @@ export function Dashboard({ repo }: DashboardProps) {
           )}
         </div>
 
-        {/* Generate Heatmap Button */}
-        <div className={styles.generateHeatmapContainer}>
-          <div className={styles.generateHeatmapButtonWrapper}>
+        {/* Generate Scorecard Button */}
+        <div className={styles.generateScorecardContainer}>
+          <div className={styles.generateScorecardButtonWrapper}>
             <div className={styles.dashboardActions}>
               <button
-                onClick={generateHeatmapCallback}
-                disabled={!canGenerateHeatmap}
-                className={styles.generateHeatmapButton}
+                onClick={generateScorecardCallback}
+                disabled={!canGenerateScorecard}
+                className={styles.generateScorecardButton}
               >
-                {loading.heatmap ? (
+                {loading.scorecard ? (
                   <>
                     <span className={styles.loadingSpinner}></span>
-                    Generating Heatmap...
+                    Generating Scorecard...
                   </>
                 ) : (
-                  'Generate Heatmap'
+                  'Generate Scorecard'
                 )}
               </button>
               <button
@@ -429,7 +438,7 @@ export function Dashboard({ repo }: DashboardProps) {
               evaluations
               {selectedMetric && `, using ${selectedMetric} metric`}
             </div>
-            {!canGenerateHeatmap && (
+            {!canGenerateScorecard && (
               <div className={styles.validationMessage}>
                 {selectedTrainingRunIds.length === 0 &&
                   selectedRunFreePolicyIds.length === 0 &&
@@ -447,15 +456,15 @@ export function Dashboard({ repo }: DashboardProps) {
           </div>
         </div>
 
-        {/* Heatmap Display */}
-        {heatmapData && (
-          <div className={styles.heatmapContainer}>
-            <Heatmap
-              data={heatmapData}
+        {/* Scorecard Display */}
+        {scorecardData && (
+          <div className={styles.scorecardContainer}>
+            <Scorecard
+              data={scorecardData}
               selectedMetric={selectedMetric}
               setSelectedCell={setSelectedCell}
               openReplayUrl={openReplayUrl}
-              numPoliciesToShow={heatmapData.policyNames.length} // Show all policies
+              numPoliciesToShow={scorecardData.policyNames.length} // Show all policies
             />
 
             <MapViewer

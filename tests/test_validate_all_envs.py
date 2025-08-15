@@ -1,3 +1,4 @@
+import os
 from typing import Any, cast
 
 import pytest
@@ -10,6 +11,15 @@ from metta.map.utils.storable_map import StorableMap
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 
 register_resolvers()
+
+# Define which specific configs are known to be slow
+ADD_PYTEST_MARK_SLOW = {
+    "game/map_builder/auto.yaml",
+    "game/map_builder/random_scene.yaml",
+}
+
+# Extremely slow configs that should be excluded in CI but run locally
+EXCLUDE_PATTERNS_IN_CI = {"game/map_builder/wfc_demo.yaml", "game/map_builder/convchain.yaml"}
 
 
 def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
@@ -44,15 +54,43 @@ def map_or_env_configs() -> list[MettagridCfgFileMetadata]:
         "multiagent/multiagent/",
     ]
 
+    # In CI, also exclude extremely slow configs
+    if os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true":
+        exclude_patterns.extend(EXCLUDE_PATTERNS_IN_CI)
+
     # exclude some configs that won't work
     result = [cfg for cfg in result if not any(pattern in cfg.path for pattern in exclude_patterns)]
 
     return result
 
 
+def get_all_configs_with_marks():
+    """Generate test parameters with appropriate marks."""
+    configs = map_or_env_configs()
+    params = []
+
+    for cfg in configs:
+        marks = []
+
+        # Mark slow configs
+        if cfg.path in ADD_PYTEST_MARK_SLOW:
+            marks.append(pytest.mark.slow)
+
+        # Mark extremely slow configs (these will be excluded in CI by map_or_env_configs)
+        if cfg.path in EXCLUDE_PATTERNS_IN_CI:
+            marks.append(pytest.mark.slow)
+
+        if marks:
+            params.append(pytest.param(cfg, marks=marks, id=cfg.path))
+        else:
+            params.append(pytest.param(cfg, id=cfg.path))
+
+    return params
+
+
 # TODO: This should probably be switched to "is this config either an env or a curriculum" or something, so we need
 # fewer exceptions. We could also standardize naming to help with this.
-@pytest.mark.parametrize("cfg_metadata", map_or_env_configs(), ids=[cfg.path for cfg in map_or_env_configs()])
+@pytest.mark.parametrize("cfg_metadata", get_all_configs_with_marks())
 class TestValidateAllEnvs:
     def test_map(self, cfg_metadata: MettagridCfgFileMetadata):
         try:

@@ -21,6 +21,8 @@ const SQL_QUERY_CSS = `
 
   .tables-sidebar {
     width: 240px;
+    min-width: 240px;
+    flex-shrink: 0;
     background-color: white;
     border-radius: 6px;
     padding: 16px;
@@ -577,6 +579,12 @@ export function SQLQuery({ repo }: Props) {
     })
   }
 
+  function formatCell(cell: any) {
+    if (cell === null) return <em style={{ color: '#999' }}>NULL</em>
+    if (typeof cell === 'object') return JSON.stringify(cell)
+    return String(cell)
+  }
+
   return (
     <>
       <style>{SQL_QUERY_CSS}</style>
@@ -732,7 +740,7 @@ export function SQLQuery({ repo }: Props) {
                       <tr key={idx}>
                         {row.map((cell, cellIdx) => (
                           <td key={cellIdx}>
-                            {cell === null ? <em style={{ color: '#999' }}>NULL</em> : String(cell)}
+                            {formatCell(cell)}
                           </td>
                         ))}
                       </tr>

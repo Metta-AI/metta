@@ -2,6 +2,7 @@
 
 #include "actions/attack.hpp"
 #include "actions/get_output.hpp"
+#include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
 #include "event.hpp"
 #include "grid.hpp"
@@ -75,7 +76,8 @@ protected:
                        create_test_resource_reward_max(),  // resource_reward_max
                        {},                                 // stat_rewards
                        {},                                 // stat_reward_max
-                       0.0f);                              // group_reward_pct
+                       0.0f,                               // group_reward_pct
+                       {});                                // initial_inventory
   }
 };
 
@@ -137,7 +139,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   resource_reward_max[TestItems::ORE] = 2.0f;  // Cap at 2.0 instead of 10.0
 
   AgentConfig agent_cfg(
-      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f);
+      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f, {});
 
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   float agent_reward = 0.0f;
@@ -198,7 +200,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   // LASER and ARMOR have no caps
 
   AgentConfig agent_cfg(
-      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f);
+      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f, {});
 
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   float agent_reward = 0.0f;
@@ -244,7 +246,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardToZero) {
   resource_reward_max[TestItems::ORE] = 2.0f;
 
   AgentConfig agent_cfg(
-      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f);
+      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f, {});
 
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   float agent_reward = 0.0f;
@@ -453,6 +455,57 @@ TEST_F(MettaGridCppTest, GetOutput) {
   EXPECT_EQ(agent->inventory[TestItems::ORE], 1);        // Still have ore
   EXPECT_EQ(agent->inventory[TestItems::ARMOR], 1);      // Also have armor
   EXPECT_EQ(generator->inventory[TestItems::ARMOR], 0);  // Generator gave away its armor
+}
+
+// ==================== Action Tracking ====================
+
+TEST_F(MettaGridCppTest, ActionTracking) {
+  Grid grid(10, 10);
+
+  AgentConfig agent_cfg = create_test_agent_config();
+  Agent* agent = new Agent(5, 5, agent_cfg);
+  float agent_reward = 0.0f;
+  agent->init(&agent_reward);
+  grid.add_object(agent);
+
+  ActionConfig noop_cfg({}, {});
+  Noop noop(noop_cfg);
+  noop.init(&grid);
+
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 0.0f);
+  noop.handle_action(agent->id, 0);  // count 1, max 1
+  EXPECT_EQ(agent->location.r, 5);
+  EXPECT_EQ(agent->location.c, 5);
+  EXPECT_EQ(agent->prev_location.r, 5);
+  EXPECT_EQ(agent->prev_location.c, 5);
+  EXPECT_EQ(agent->prev_action_name, "noop");
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 1.0f);
+  agent->location.r = 6;
+  agent->location.c = 6;
+  noop.handle_action(agent->id, 0);  // count 0, max 1
+  EXPECT_EQ(agent->location.r, 6);
+  EXPECT_EQ(agent->location.c, 6);
+  EXPECT_EQ(agent->prev_location.r, 6);
+  EXPECT_EQ(agent->prev_location.c, 6);
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 1.0f);
+  noop.handle_action(agent->id, 0);  // count 1, max 1
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 1.0f);
+  noop.handle_action(agent->id, 0);  // count 2, max 2
+  noop.handle_action(agent->id, 0);  // count 3, max 3
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 3.0f);
+  agent->location.r = 7;
+  agent->location.c = 7;
+  noop.handle_action(agent->id, 0);  // count 0, max 3
+  EXPECT_EQ(agent->location.r, 7);
+  EXPECT_EQ(agent->location.c, 7);
+  EXPECT_EQ(agent->prev_location.r, 7);
+  EXPECT_EQ(agent->prev_location.c, 7);
+  noop.handle_action(agent->id, 0);  // count 1, max 3
+  noop.handle_action(agent->id, 0);  // count 2, max 3
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 3.0f);
+  noop.handle_action(agent->id, 0);  // count 3, max 3
+  noop.handle_action(agent->id, 0);  // count 4, max 4
+  EXPECT_FLOAT_EQ(agent->stats.to_dict()["status.max_steps_without_motion"], 4.0f);
 }
 
 // ==================== Event System Tests ====================

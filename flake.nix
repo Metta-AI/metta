@@ -63,9 +63,9 @@
           echo "# Python version: $(python --version)"
           echo "# uv version: $(uv --version)"
           echo "# -------------------------------------------"
-          echo "# ./tools/train.py run=my_experiment +hardware=macbook wandb=off"
-          echo "# ./tools/sim.py run=my_experiment +hardware=macbook wandb=off"
-          echo "# ./tools/play.py run=my_experiment +hardware=macbook wandb=off"
+          echo "# ./tools/train.py run=my_experiment wandb=off"
+          echo "# ./tools/sim.py run=my_experiment wandb=off"
+          echo "# ./tools/play.py run=my_experiment wandb=off"
           echo "# -------------------------------------------"
         '';
       };
