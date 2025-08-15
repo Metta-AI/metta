@@ -15,24 +15,6 @@ RANK=${SKYPILOT_NODE_RANK:-0}
 IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
 TOTAL_NODES=${SKYPILOT_NUM_NODES:-1}
 
-DEBUG=${DEBUG:-0}
-
-EXIT_SUCCESS=0
-EXIT_FAILURE=1
-EXIT_NCCL_TEST_FAILURE=42
-
-echo "[CONFIG] Run Configuration:"
-echo "  - NODE_RANK: ${RANK}"
-echo "  - IS_MASTER: ${IS_MASTER}"
-echo "  - TOTAL_NODES: ${TOTAL_NODES}"
-echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
-echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
-echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
-echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
-echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
-echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
-[ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
-
 # Master-only: Collect SkyPilot latency
 if [[ "$IS_MASTER" == "true" ]]; then
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
@@ -63,6 +45,24 @@ fi
 # Setup environment (all nodes)
 bash ./devops/skypilot/config/configure_environment.sh
 source "$METTA_ENV_FILE"
+
+EXIT_SUCCESS=0
+EXIT_FAILURE=1
+EXIT_NCCL_TEST_FAILURE=42
+
+echo "[CONFIG] Run Configuration:"
+echo "  - NODE_RANK: ${RANK}"
+echo "  - IS_MASTER: ${IS_MASTER}"
+echo "  - TOTAL_NODES: ${TOTAL_NODES}"
+echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
+echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
+echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
+echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
+echo "  - RESTART_COUNT: ${RESTART_COUNT}"
+echo "  - ACCUMULATED_RUNTIME: ${ACCUMULATED_RUNTIME}s ($((ACCUMULATED_RUNTIME / 60))m)"
+echo "  - TEST_JOB_RESTART: ${TEST_JOB_RESTART:-0}"
+echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
+echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
 
 # Create a temp directory for IPC files
 export IPC_DIR="/tmp/metta_job_$$"
@@ -287,8 +287,17 @@ run_cmd() {
     (
       exec 2>&1
       max_seconds=$(awk "BEGIN {print int(${MAX_RUNTIME_HOURS} * 3600)}")
+      remaining_at_start=$((max_seconds - ACCUMULATED_RUNTIME))
       echo "[INFO] Timeout monitor started - max runtime: ${MAX_RUNTIME_HOURS} hours (${max_seconds} seconds)"
+      echo "[INFO] Already accumulated: ${ACCUMULATED_RUNTIME}s, remaining: ${remaining_at_start}s"
       echo "[INFO] Checking every ${TIMEOUT_CHECK_INTERVAL} seconds"
+
+      force_restart_seconds=""
+      if [[ -n "${TEST_JOB_RESTART:-}" ]] && [[ "${TEST_JOB_RESTART}" != "0" ]] && [ $RESTART_COUNT -eq 0 ]; then
+        # Calculate 30% of remaining runtime (not total runtime)
+        force_restart_seconds=$(awk "BEGIN {print int(${remaining_at_start} * 0.3)}")
+        echo "[INFO] Force restart test enabled - will restart after ${force_restart_seconds}s (30% of remaining ${remaining_at_start}s)"
+      fi
 
       while true; do
         sleep "$TIMEOUT_CHECK_INTERVAL"
@@ -300,12 +309,23 @@ run_cmd() {
         fi
 
         elapsed=$(($(date +%s) - START_TIME))
-        remaining=$((max_seconds - elapsed))
+        total_runtime=$((ACCUMULATED_RUNTIME + elapsed))
+        echo "$total_runtime" > "${ACCUMULATED_RUNTIME_FILE}"
 
+        # restart test check
+        if [[ -n "${force_restart_seconds:-}" ]] && [ $elapsed -ge $force_restart_seconds ]; then
+          echo "[INFO] Force restart test triggered after ${elapsed} seconds"
+          total_runtime=$((ACCUMULATED_RUNTIME + elapsed))
+          echo "$total_runtime" > "${ACCUMULATED_RUNTIME_FILE}"
+          terminate_process "$CMD_PID" "force_restart_test"
+          break
+        fi
+
+        remaining=$((max_seconds - total_runtime))
         if [ $remaining -gt 0 ]; then
           elapsed_min=$((elapsed / 60))
           remaining_min=$((remaining / 60))
-          [ "$DEBUG" = "1" ] && echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
+          echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
         else
           echo "[INFO] Timeout limit reached - terminating process group"
           terminate_process "$CMD_PID" "max_runtime_reached"
@@ -337,7 +357,7 @@ run_cmd() {
 
             # Print status occasionally
             if [ $((HEARTBEAT_COUNT % 10)) -eq 0 ]; then
-              [ "$DEBUG" = "1" ] && echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
+              echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
             fi
           fi
 
@@ -409,6 +429,10 @@ cleanup() {
       maybe_send_discord_notification "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
       # Map to success
       CMD_EXIT=0
+
+    elif [[ "${TERMINATION_REASON}" == "force_restart_test" ]]; then
+      echo "[INFO] Will exit with code 1 to trigger SkyPilot restart (test)"
+      FINAL_EXIT_CODE=1
 
     elif [[ $CMD_EXIT -eq $EXIT_SUCCESS ]]; then
       echo "[SUCCESS] Job completed successfully"
