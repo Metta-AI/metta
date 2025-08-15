@@ -217,8 +217,9 @@ class ComponentPolicy(nn.Module):
         action_type_numbers = flattened_action[:, 0].long()
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
-        # Simple offset by cumulative sum (with correct cumsum from MettaAgent)
-        return cumulative_sum + action_params
+        # Note: This formula compensates for the incorrect cumsum calculation in MettaAgent
+        # With wrong cumsum, this produces correct indices. With correct cumsum, it would be wrong.
+        return action_type_numbers + cumulative_sum + action_params
 
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """Convert logit indices back to action pairs."""
