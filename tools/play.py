@@ -36,7 +36,8 @@ def create_simulation(cfg: PlayToolConfig) -> Simulation:
     policy_store = PolicyStore.create(
         device=cfg.system.device,
         wandb_config=cfg.wandb,
-        replay_dir=cfg.replay_dir,
+        data_dir=cfg.system.data_dir,
+        wandb_run=None,
     )
 
     # Create simulation using the helper method with explicit parameters
