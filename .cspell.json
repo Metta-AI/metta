@@ -65,6 +65,7 @@
     "ctest",
     "ctypedef",
     "ctypes",
+    "CUDA",
     "cwchar",
     "cwctype",
     "datadoghq",
