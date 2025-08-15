@@ -338,56 +338,50 @@ def _(mo):
     return
 
 
-@app.cell
-async def _(
-    client,
-    mo,
-    mo_eval_finder,
-    policy_selector,
-    run_free_policies,
-    training_run_policies,
-):
-    from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import (
-        ScorecardWidget,
-    )
+app._unparsable_cell(
+    r"""
+        from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import ScorecardWidget
 
     # Get the selected policy IDs from the selector
     selected_policy_ids = policy_selector.value
 
     # Find the names of the selected policies
     all_policies = training_run_policies + run_free_policies
-    selected_policy_names = [
-        policy.name for policy in all_policies if policy.id in selected_policy_ids
-    ]
+    selected_policy_names = [policy.name for policy in all_policies if policy.id in selected_policy_ids]
 
     # Access selected_evals from the widget's value (now properly synced with anywidget/react)
     selected_evals = mo_eval_finder.selected_evals
 
-    print(f"🔍 Selected policy IDs: {selected_policy_ids}")
-    print(f"🔍 Selected policy names: {selected_policy_names}")
-    print(f"🔍 Selected evaluations: {selected_evals}")
+    print(f\"🔍 Selected policy IDs: {selected_policy_ids}\")
+    print(f\"🔍 Selected policy names: {selected_policy_names}\")
+    print(f\"🔍 Selected evaluations: {selected_evals}\")
 
-    scorecard_widget = None
-    if selected_evals:  # Check the actual list, not the state object
-        try:
-            # Generate scorecard using the selected evaluations and policies
-            scorecard_widget = ScorecardWidget(client=client)
-            await scorecard_widget.fetch_real_scorecard_data(
-                restrict_to_policy_names=selected_policy_names,  # Only selected policies!
-                restrict_to_metrics=["reward"],  # Focus on reward metric
-                restrict_to_eval_names=selected_evals,  # Use selected evals from widget
-                policy_selector="best",
-                max_policies=10,
-            )
 
-            print("📊 Generated scorecard")
-        except Exception as e:
-            print(f"⚠️ Could not generate scorecard: {e}")
-    else:
-        print("No evaluations selected - select some evaluations first")
+    async def _():
+        if selected_evals:  # Check the actual list, not the state object
+            try:
+                # Generate scorecard using the selected evaluations and policies
+                scorecard_widget = ScorecardWidget(client=client)
+                await scorecard_widget.fetch_real_scorecard_data(
+                    restrict_to_policy_names=selected_policy_names,  # Only selected policies!
+                    restrict_to_metrics=[\"reward\"],  # Focus on reward metric
+                    restrict_to_eval_names=selected_evals,  # Use selected evals from widget
+                    policy_selector=\"best\",
+                    max_policies=10,
+                )
+                return scorecard_widget
 
-    mo.ui.anywidget(scorecard_widget)
-    return
+            except Exception as e:
+                return mo.md(f\"## Couldn't generate scorecard: {e}\")
+
+        else:
+            return mo.md(f\"## No evaluations selected - select some evaluations first\")
+
+
+    await _()
+    """,
+    name="_",
+)
 
 
 @app.cell
