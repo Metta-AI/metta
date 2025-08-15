@@ -1,14 +1,12 @@
 #!/usr/bin/env -S uv run
 # Runs policies with ASCII rendering to visualize agent behavior in real-time.
 
-from __future__ import annotations
-
 from abc import ABC, abstractmethod
-from typing import Any, List, Protocol, Tuple
+from typing import Any, List, Protocol
 
 import numpy as np
-from omegaconf import DictConfig
 
+from metta.common.util.config import Config
 from metta.mettagrid import (
     MettaGridEnv,
     dtype_actions,
@@ -17,10 +15,22 @@ from metta.mettagrid import (
     dtype_terminals,
     dtype_truncations,
 )
-from metta.mettagrid.config.builder import arena
+from metta.mettagrid.config.builder import make_arena
 from metta.mettagrid.util.actions import generate_valid_random_actions
-from metta.util.metta_script import metta_script
+from metta.util.metta_script import pydantic_metta_script
 from tools.utils import get_policy_store_from_cfg
+
+
+class RendererToolConfig(Config):
+    policy_type: str = "random"
+    policy_uri: str | None = None  # URI for trained policy (if using trained policy)
+    num_steps: int = 50000  # Good length to see behavior
+    num_agents: int = 2  # All debug environments have 2 agents
+    max_steps: int = 10000
+
+    sleep_time: float = 0.0  # Visible but not too slow - good for all environments
+
+    renderer_type: str = "human"  # Options: human/nethack (ASCII), miniscope (emoji)
 
 
 class Policy(Protocol):
@@ -269,7 +279,7 @@ class TrainedPolicyWrapper(BasePolicy):
         return actions
 
 
-def get_policy(policy_type: str, env: MettaGridEnv, cfg: DictConfig) -> Policy:
+def get_policy(policy_type: str, env: MettaGridEnv, cfg: RendererToolConfig) -> Policy:
     """
     Get a policy based on the specified type.
 
@@ -294,8 +304,13 @@ def get_policy(policy_type: str, env: MettaGridEnv, cfg: DictConfig) -> Policy:
         return SimplePolicy(env)
 
 
-def _load_trained_policy(env: MettaGridEnv, cfg: DictConfig) -> Policy:
+def _load_trained_policy(env: MettaGridEnv, cfg: RendererToolConfig) -> Policy:
     """Attempt to load a trained policy, falling back to simple policy on failure."""
+    if not cfg.policy_uri:
+        return SimplePolicy(env)
+
+    raise NotImplementedError("TODO: this feature got broken after pydantic config migration")
+
     try:
         policy_store = get_policy_store_from_cfg(cfg)
         policy_pr = policy_store.policy_record(cfg.policy_uri)
@@ -306,7 +321,7 @@ def _load_trained_policy(env: MettaGridEnv, cfg: DictConfig) -> Policy:
         return SimplePolicy(env)
 
 
-def setup_environment(cfg: DictConfig) -> Tuple[MettaGridEnv, str]:
+def setup_environment(cfg: RendererToolConfig) -> tuple[MettaGridEnv, str]:
     """
     Set up the MettaGrid environment based on configuration.
 
@@ -317,20 +332,20 @@ def setup_environment(cfg: DictConfig) -> Tuple[MettaGridEnv, str]:
         Tuple of (environment, render_mode)
     """
     # Determine render mode
-    render_mode: str = cfg.renderer_job.get("renderer_type", "human")
+    render_mode: str = cfg.renderer_type
     if render_mode not in ["human", "nethack", "miniscope", "raylib"]:
         print(f"⚠️  Unknown renderer type '{render_mode}', using 'human' (nethack)")
         render_mode = "human"
 
-    env_cfg = arena(num_agents=cfg.renderer_job.num_agents)
-    env_cfg.game.max_steps = cfg.renderer_job.max_steps
+    env_cfg = make_arena(num_agents=cfg.num_agents)
+    env_cfg.game.max_steps = cfg.max_steps
 
     env = MettaGridEnv(env_cfg, render_mode=render_mode)
 
     return env, render_mode
 
 
-def main(cfg: DictConfig) -> None:
+def main(cfg: RendererToolConfig) -> None:
     """
     Run policy visualization with ASCII or Miniscope rendering.
 
@@ -341,21 +356,21 @@ def main(cfg: DictConfig) -> None:
     env, render_mode = setup_environment(cfg)
 
     # Get policy
-    policy: Policy = get_policy(cfg.renderer_job.policy_type, env, cfg)
-    print(f"🤖 Using {cfg.renderer_job.policy_type} policy")
+    policy: Policy = get_policy(cfg.policy_type, env, cfg)
+    print(f"🤖 Using {cfg.policy_type} policy")
     print(f"🎨 Using {render_mode} renderer")
 
     # Reset environment
     obs, info = env.reset()
     assert obs.dtype == dtype_observations, f"Observations must have dtype {dtype_observations}, got {obs.dtype}"
 
-    print(f"🎮 Starting visualization for {cfg.renderer_job.num_steps} steps...")
+    print(f"🎮 Starting visualization for {cfg.num_steps} steps...")
 
     total_reward = 0.0
     step_count = 0
 
     try:
-        for _step in range(cfg.renderer_job.num_steps):
+        for _step in range(cfg.num_steps):
             # Get action from policy
             actions = policy.predict(obs)
 
@@ -391,10 +406,10 @@ def main(cfg: DictConfig) -> None:
                 obs, _info = env.reset()
 
             # Optional sleep for visualization
-            if cfg.renderer_job.sleep_time > 0:
+            if cfg.sleep_time > 0:
                 import time
 
-                time.sleep(cfg.renderer_job.sleep_time)
+                time.sleep(cfg.sleep_time)
 
     except KeyboardInterrupt:
         print("\n⏹️  Stopped by user")
@@ -404,4 +419,4 @@ def main(cfg: DictConfig) -> None:
     print(f"\n🎯 Final Results: {total_reward:.3f} reward over {step_count:,} steps")
 
 
-metta_script(main, "renderer_job")
+pydantic_metta_script(main)
