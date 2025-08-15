@@ -23,6 +23,9 @@ importers:
 
   experiments/notebooks/utils/eval_finder_widget:
     dependencies:
+      '@anywidget/react':
+        specifier: ^0.2.0
+        version: 0.2.0(@types/react-dom@19.1.7(@types/react@19.1.10))(@types/react@19.1.10)(react-dom@19.1.1(react@19.1.1))(react@19.1.1)
       '@types/react':
         specifier: ^19.1.10
         version: 19.1.10
