@@ -47,6 +47,8 @@ class TestObservations:
         assert (obs[0, -1, :] == TokenTypes.EMPTY_TOKEN).all()
         assert (obs[1, -1, :] == TokenTypes.EMPTY_TOKEN).all()
 
+    # Example flaky run: https://github.com/Metta-AI/metta/actions/runs/16996023412/job/48186817369
+    @pytest.mark.skip(reason="Flaky test")
     def test_detailed_wall_observations(self, basic_env):
         """Test detailed wall observations for both agents."""
         obs, _ = basic_env.reset()
@@ -86,17 +88,11 @@ class TestObservations:
 
         # Check expected wall positions
         for x, y in wall_positions_agent0:
-            self._check_token_exists(agent0_obs, x, y, TokenTypes.TYPE_ID_FEATURE, TokenTypes.WALL_TYPE_ID, "Agent 0")
+            assert helper.has_wall_at(agent0_obs, x, y), f"Agent 0: Expected wall at ({x}, {y})"
 
         # Check no walls at empty positions
         for x, y in no_wall_positions_agent0:
-            location = PackedCoordinate.pack(y, x)
-            wall_tokens = (
-                (agent0_obs[:, 0] == location)
-                & (agent0_obs[:, 1] == TokenTypes.TYPE_ID_FEATURE)
-                & (agent0_obs[:, 2] == TokenTypes.WALL_TYPE_ID)
-            )
-            assert not wall_tokens.any(), f"Agent 0: Expected no wall at ({x}, {y})"
+            assert not helper.has_wall_at(agent0_obs, x, y), f"Agent 0: Expected no wall at ({x}, {y})"
 
         # Verify wall count
         assert helper.count_walls(agent0_obs) == 5, "Agent 0 should see exactly 5 walls"
@@ -121,17 +117,11 @@ class TestObservations:
 
         # Check expected wall positions
         for x, y in wall_positions_agent1:
-            self._check_token_exists(agent1_obs, x, y, TokenTypes.TYPE_ID_FEATURE, TokenTypes.WALL_TYPE_ID, "Agent 1")
+            assert helper.has_wall_at(agent1_obs, x, y), f"Agent 1: Expected wall at ({x}, {y})"
 
         # Check no walls at empty positions
         for x, y in no_wall_positions_agent1:
-            location = PackedCoordinate.pack(y, x)
-            wall_tokens = (
-                (agent1_obs[:, 0] == location)
-                & (agent1_obs[:, 1] == TokenTypes.TYPE_ID_FEATURE)
-                & (agent1_obs[:, 2] == TokenTypes.WALL_TYPE_ID)
-            )
-            assert not wall_tokens.any(), f"Agent 1: Expected no wall at ({x}, {y})"
+            assert not helper.has_wall_at(agent1_obs, x, y), f"Agent 1: Expected no wall at ({x}, {y})"
 
         # Verify wall count
         assert helper.count_walls(agent1_obs) == 3, "Agent 1 should see exactly 3 walls"
@@ -141,6 +131,7 @@ class TestObservations:
         # Create a 5x5 environment with agent in center surrounded by altars
         builder = TestEnvironmentBuilder()
         game_map = builder.create_basic_grid(5, 5)
+        helper = ObservationHelper()
 
         # Place agent in center at grid position (2,2)
         game_map[2, 2] = "agent.red"
@@ -220,52 +211,43 @@ class TestObservations:
 
         # Check that we see each altar with correct type_id
         for x, y, expected_type_id, expected_color in expected_altars:
-            location = PackedCoordinate.pack(y, x)
-
-            # Find tokens at this location
-            location_tokens = agent_obs[agent_obs[:, 0] == location]
-
-            # Should have tokens for this altar
-            assert len(location_tokens) > 0, f"Should have tokens at ({x}, {y}) for altar"
-
-            # Check type_id token
-            type_id_tokens = location_tokens[location_tokens[:, 1] == TokenTypes.TYPE_ID_FEATURE]
-            assert len(type_id_tokens) > 0, f"Should have type_id token at ({x}, {y})"
-            assert type_id_tokens[0, 2] == expected_type_id, (
-                f"Altar at ({x}, {y}) should have type_id {expected_type_id}, got {type_id_tokens[0, 2]}"
+            # Check altar exists at location
+            assert helper.has_feature_at(agent_obs, x, y, expected_type_id), (
+                f"Should have altar with type_id {expected_type_id} at ({x}, {y})"
             )
 
-            # Check color token (ObservationFeature::Color = 5)
-            color_tokens = location_tokens[location_tokens[:, 1] == TokenTypes.COLOR]
-            assert len(color_tokens) > 0, f"Should have color token at ({x}, {y})"
-            assert color_tokens[0, 2] == expected_color, (
-                f"Altar at ({x}, {y}) should have color {expected_color}, got {color_tokens[0, 2]}"
+            # Check color token
+            color_value = helper.find_token_value_at_location(agent_obs, x, y, TokenTypes.COLOR)
+            assert color_value == expected_color, (
+                f"Altar at ({x}, {y}) should have color {expected_color}, got {color_value}"
             )
 
-            # Check converter status token (ObservationFeature::ConvertingOrCoolingDown = 6)
-            converter_tokens = location_tokens[location_tokens[:, 1] == TokenTypes.CONVERTING_OR_COOLING_DOWN]
-            assert len(converter_tokens) > 0, f"Should have converter status token at ({x}, {y})"
+            # Check converter status token exists
+            converter_value = helper.find_token_value_at_location(
+                agent_obs, x, y, TokenTypes.CONVERTING_OR_COOLING_DOWN
+            )
+            assert converter_value is not None, f"Should have converter status token at ({x}, {y})"
 
         # Verify the agent sees itself at center (1,1)
-        self_location = PackedCoordinate.pack(1, 1)
-        self_tokens = agent_obs[agent_obs[:, 0] == self_location]
-        assert len(self_tokens) > 0, "Agent should see itself at center position"
+        agent_tokens = helper.find_tokens_at_location(agent_obs, 1, 1)
+        assert len(agent_tokens) > 0, "Agent should see itself at center position"
 
-        # Count unique type_ids (excluding walls and empty)
-        type_id_tokens = agent_obs[agent_obs[:, 1] == TokenTypes.TYPE_ID_FEATURE]
-        unique_type_ids = set(type_id_tokens[:, 2])
-        unique_type_ids.discard(0)  # Remove empty/agent type
-        unique_type_ids.discard(1)  # Remove wall type
+        # Count unique altar types
+        unique_type_ids = set()
+        for type_id in range(2, 10):  # Altar type_ids are 2-9
+            if helper.count_features_by_type(agent_obs, type_id) > 0:
+                unique_type_ids.add(type_id)
 
         assert len(unique_type_ids) == 8, f"Should see 8 different altar types, got {len(unique_type_ids)}"
 
     def _check_token_exists(self, obs, x, y, type_id, feature_id, agent_name):
         """Helper to check if a specific token exists at a location."""
-        location = PackedCoordinate.pack(y, x)
-        token_matches = obs[:, :] == [location, type_id, feature_id]
-        assert token_matches.all(axis=1).any(), (
-            f"{agent_name}: Expected token [{location}, {type_id}, {feature_id}] at ({x}, {y})"
-        )
+        helper = ObservationHelper()
+        tokens = helper.find_tokens_at_location(obs, x, y)
+        for token in tokens:
+            if token[1] == type_id and token[2] == feature_id:
+                return
+        raise AssertionError(f"{agent_name}: Expected token with type {type_id} and feature {feature_id} at ({x}, {y})")
 
     def test_agents_see_each_other(self, adjacent_agents_env):
         """Test that adjacent agents can see each other."""
@@ -327,22 +309,20 @@ class TestGlobalTokens:
     def test_initial_global_tokens(self, basic_env):
         """Test initial global token values."""
         obs, _ = basic_env.reset()
+        helper = ObservationHelper()
 
-        # Check token types
-        assert obs[0, 0, 1] == TokenTypes.EPISODE_COMPLETION_PCT
-        assert obs[0, 1, 1] == TokenTypes.LAST_ACTION
-        assert obs[0, 2, 1] == TokenTypes.LAST_ACTION_ARG
-        assert obs[0, 3, 1] == TokenTypes.LAST_REWARD
+        # Global tokens are at the center of the observation window
+        global_x = basic_env.obs_width // 2
+        global_y = basic_env.obs_height // 2
 
-        # Check initial values
-        assert obs[0, 0, 2] == 0  # 0% completion
-        assert obs[0, 1, 2] == 0  # No last action
-        assert obs[0, 2, 2] == 0  # No last action arg
-        assert obs[0, 3, 2] == 0  # No last reward
+        # Check token types and values
+        assert helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.EPISODE_COMPLETION_PCT) == 0
+        assert helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION) == 0
+        assert helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION_ARG) == 0
+        assert helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_REWARD) == 0
 
     def test_global_tokens_update(self):
         """Test that global tokens update correctly."""
-
         builder = TestEnvironmentBuilder()
         game_map = builder.create_basic_grid()
         game_map = builder.place_agents(game_map, [(1, 1), (2, 4)])
@@ -365,66 +345,58 @@ class TestGlobalTokens:
         )
         obs, _ = env.reset()
         num_agents = env.num_agents
-
-        # Take a noop action
-        noop_idx = env.action_names().index("noop")
-        actions = np.full((num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
-        obs, _, _, _, _ = env.step(actions)
-
-        # Use ObservationHelper to find global tokens
         helper = ObservationHelper()
 
         # Global tokens are at the center of the observation window
         global_x = env.obs_width // 2
         global_y = env.obs_height // 2
 
-        # Get all tokens at the global position for agent 0
-        global_tokens = helper.find_tokens_at_location(obs[0], global_x, global_y)
-
-        # Create a mapping of token types to their values
-        global_token_values = {}
-        for token in global_tokens:
-            token_type = token[1]  # Second element is the token type
-            token_value = token[2]  # Third element is the value
-            global_token_values[token_type] = token_value
+        # Take a noop action
+        noop_idx = env.action_names().index("noop")
+        actions = np.full((num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
+        obs, _, _, _, _ = env.step(actions)
 
         # Check episode completion updated (1/10 = 10%)
         expected_completion = int(round(0.1 * 255))
-        assert global_token_values.get(TokenTypes.EPISODE_COMPLETION_PCT) == expected_completion, (
-            f"Expected completion {expected_completion}, "
-            + f"got {global_token_values.get(TokenTypes.EPISODE_COMPLETION_PCT)}"
+        completion_value = helper.find_token_value_at_location(
+            obs[0], global_x, global_y, TokenTypes.EPISODE_COMPLETION_PCT
+        )
+        assert completion_value == expected_completion, (
+            f"Expected completion {expected_completion}, got {completion_value}"
         )
 
         # Check last action
-        assert global_token_values.get(TokenTypes.LAST_ACTION) == noop_idx, (
-            f"Expected last action {noop_idx}, got {global_token_values.get(TokenTypes.LAST_ACTION)}"
-        )
+        last_action = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION)
+        assert last_action == noop_idx, f"Expected last action {noop_idx}, got {last_action}"
 
         # Check last action arg
-        assert global_token_values.get(TokenTypes.LAST_ACTION_ARG) == 0, (
-            f"Expected last action arg 0, got {global_token_values.get(TokenTypes.LAST_ACTION_ARG)}"
-        )
+        last_arg = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION_ARG)
+        assert last_arg == 0, f"Expected last action arg 0, got {last_arg}"
 
         # Take a move action
         move_idx = env.action_names().index("move")
         actions = np.full((num_agents, 2), [move_idx, 1], dtype=dtype_actions)
         obs, _, _, _, _ = env.step(actions)
 
-        # Get updated global tokens
-        global_tokens = helper.find_tokens_at_location(obs[0], global_x, global_y)
-        global_token_values = {token[1]: token[2] for token in global_tokens}
-
         # Check updates
         expected_completion = int(round(0.2 * 255))
-        assert global_token_values.get(TokenTypes.EPISODE_COMPLETION_PCT) == expected_completion
-        assert global_token_values.get(TokenTypes.LAST_ACTION) == move_idx
-        assert global_token_values.get(TokenTypes.LAST_ACTION_ARG) == 1
+        completion_value = helper.find_token_value_at_location(
+            obs[0], global_x, global_y, TokenTypes.EPISODE_COMPLETION_PCT
+        )
+        assert completion_value == expected_completion
+
+        last_action = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION)
+        assert last_action == move_idx
+
+        last_arg = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION_ARG)
+        assert last_arg == 1
 
     def test_glyph_signaling(self):
         """Test that agents can signal using glyphs and observe each other's glyphs."""
         # Create a 5x5 environment with two adjacent agents
         builder = TestEnvironmentBuilder()
         game_map = builder.create_basic_grid(5, 5)
+        helper = ObservationHelper()
 
         # Place two agents next to each other
         # Agent 0 at (1,2), Agent 1 at (2,2)
@@ -449,23 +421,13 @@ class TestGlobalTokens:
 
         obs, _ = env.reset()
 
-        # Define glyph feature type
-        GLYPH_FEATURE = TokenTypes.GLYPH
-
-        # Helper function to find glyph tokens
-        def find_glyph_at_location(observation, x, y):
-            location = PackedCoordinate.pack(y, x)
-            location_tokens = observation[observation[:, 0] == location]
-            glyph_tokens = location_tokens[location_tokens[:, 1] == GLYPH_FEATURE]
-            return glyph_tokens[0, 2] if len(glyph_tokens) > 0 else None
-
         print("\n=== Testing Initial Glyph Values ===")
 
         # Check if we're seeing uninitialized memory issues
-        agent0_self_glyph = find_glyph_at_location(obs[0], 1, 1)
-        agent0_sees_agent1_glyph = find_glyph_at_location(obs[0], 2, 1)
-        agent1_self_glyph = find_glyph_at_location(obs[1], 1, 1)
-        agent1_sees_agent0_glyph = find_glyph_at_location(obs[1], 0, 1)
+        agent0_self_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
+        agent0_sees_agent1_glyph = helper.find_token_value_at_location(obs[0], 2, 1, TokenTypes.GLYPH)
+        agent1_self_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
+        agent1_sees_agent0_glyph = helper.find_token_value_at_location(obs[1], 0, 1, TokenTypes.GLYPH)
 
         # If we see value 231 or other unexpected values, it's likely uninitialized memory
         unexpected_values = [agent0_self_glyph, agent0_sees_agent1_glyph, agent1_self_glyph, agent1_sees_agent0_glyph]
@@ -487,10 +449,10 @@ class TestGlobalTokens:
             obs, _, _, _, _ = env.step(actions)
 
             # Re-check
-            agent0_self_glyph = find_glyph_at_location(obs[0], 1, 1)
-            agent0_sees_agent1_glyph = find_glyph_at_location(obs[0], 2, 1)
-            agent1_self_glyph = find_glyph_at_location(obs[1], 1, 1)
-            agent1_sees_agent0_glyph = find_glyph_at_location(obs[1], 0, 1)
+            agent0_self_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
+            agent0_sees_agent1_glyph = helper.find_token_value_at_location(obs[0], 2, 1, TokenTypes.GLYPH)
+            agent1_self_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
+            agent1_sees_agent0_glyph = helper.find_token_value_at_location(obs[1], 0, 1, TokenTypes.GLYPH)
 
         # Initially, both agents should have glyph 0 (default)
         # Since glyph 0 is suppressed, we should NOT find any glyph tokens
@@ -522,13 +484,13 @@ class TestGlobalTokens:
 
         obs, _, _, _, _ = env.step(actions)
 
-        agent0_self_glyph = find_glyph_at_location(obs[0], 1, 1)
+        agent0_self_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
         assert agent0_self_glyph == 3, f"Agent 0 should have glyph 3, got {agent0_self_glyph}"
 
-        agent1_sees_agent0_glyph = find_glyph_at_location(obs[1], 0, 1)
+        agent1_sees_agent0_glyph = helper.find_token_value_at_location(obs[1], 0, 1, TokenTypes.GLYPH)
         assert agent1_sees_agent0_glyph == 3, f"Agent 1 should see Agent 0 with glyph 3, got {agent1_sees_agent0_glyph}"
 
-        agent1_self_glyph = find_glyph_at_location(obs[1], 1, 1)
+        agent1_self_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
         assert agent1_self_glyph is None, f"Agent 1 should still have no glyph token (glyph 0), got {agent1_self_glyph}"
 
         print("✓ Agent 0 successfully changed to glyph 3")
@@ -544,15 +506,15 @@ class TestGlobalTokens:
 
         obs, _, _, _, _ = env.step(actions)
 
-        agent0_self_glyph = find_glyph_at_location(obs[0], 1, 1)
-        agent1_self_glyph = find_glyph_at_location(obs[1], 1, 1)
+        agent0_self_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
+        agent1_self_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
 
         assert agent0_self_glyph == 5, f"Agent 0 should have glyph 5, got {agent0_self_glyph}"
         assert agent1_self_glyph == 7, f"Agent 1 should have glyph 7, got {agent1_self_glyph}"
 
         # Verify they see each other's new glyphs
-        agent0_sees_agent1 = find_glyph_at_location(obs[0], 2, 1)
-        agent1_sees_agent0 = find_glyph_at_location(obs[1], 0, 1)
+        agent0_sees_agent1 = helper.find_token_value_at_location(obs[0], 2, 1, TokenTypes.GLYPH)
+        agent1_sees_agent0 = helper.find_token_value_at_location(obs[1], 0, 1, TokenTypes.GLYPH)
 
         assert agent0_sees_agent1 == 7, f"Agent 0 should see Agent 1 with glyph 7, got {agent0_sees_agent1}"
         assert agent1_sees_agent0 == 5, f"Agent 1 should see Agent 0 with glyph 5, got {agent1_sees_agent0}"
@@ -573,8 +535,8 @@ class TestGlobalTokens:
 
             obs, _, _, _, _ = env.step(actions)
 
-            agent0_glyph = find_glyph_at_location(obs[0], 1, 1)
-            agent1_glyph = find_glyph_at_location(obs[1], 1, 1)
+            agent0_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
+            agent1_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
             expected_agent1_glyph = (glyph + 4) % 8
 
             # Glyph 0 should not produce a token
@@ -591,8 +553,8 @@ class TestGlobalTokens:
                 )
 
             # Verify cross-visibility
-            agent0_sees_agent1 = find_glyph_at_location(obs[0], 2, 1)
-            agent1_sees_agent0 = find_glyph_at_location(obs[1], 0, 1)
+            agent0_sees_agent1 = helper.find_token_value_at_location(obs[0], 2, 1, TokenTypes.GLYPH)
+            agent1_sees_agent0 = helper.find_token_value_at_location(obs[1], 0, 1, TokenTypes.GLYPH)
 
             if expected_agent1_glyph == 0:
                 assert agent0_sees_agent1 is None, (
@@ -628,8 +590,8 @@ class TestGlobalTokens:
         obs, _, _, _, _ = env.step(actions)
 
         # Verify initial glyphs
-        assert find_glyph_at_location(obs[0], 1, 1) == 3
-        assert find_glyph_at_location(obs[1], 1, 1) == 5
+        assert helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH) == 3
+        assert helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH) == 5
 
         test_cases = [
             (8, "8 should be no-op"),
@@ -649,8 +611,8 @@ class TestGlobalTokens:
 
             obs, _, _, _, _ = env.step(actions)
 
-            agent0_glyph = find_glyph_at_location(obs[0], 1, 1)
-            agent1_glyph = find_glyph_at_location(obs[1], 1, 1)
+            agent0_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
+            agent1_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
 
             # Glyphs should remain unchanged
             assert agent0_glyph == 3, f"{description}: Agent 0 glyph should stay 3, got {agent0_glyph}"
@@ -682,8 +644,8 @@ class TestGlobalTokens:
             )
             obs, _, _, _, _ = env.step(actions)
 
-            agent0_glyph = find_glyph_at_location(obs[0], 1, 1)
-            agent1_glyph = find_glyph_at_location(obs[1], 1, 1)
+            agent0_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
+            agent1_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
 
             assert agent0_glyph == 2, f"Agent 0 glyph should persist as 2 after {i + 1} steps, got {agent0_glyph}"
             assert agent1_glyph == 6, f"Agent 1 glyph should persist as 6 after {i + 1} steps, got {agent1_glyph}"
@@ -704,8 +666,8 @@ class TestGlobalTokens:
         obs, _, _, _, _ = env.step(actions)
 
         # Verify they have glyph tokens
-        assert find_glyph_at_location(obs[0], 1, 1) == 4
-        assert find_glyph_at_location(obs[1], 1, 1) == 5
+        assert helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH) == 4
+        assert helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH) == 5
 
         # Change back to glyph 0
         actions = np.array(
@@ -718,8 +680,8 @@ class TestGlobalTokens:
         obs, _, _, _, _ = env.step(actions)
 
         # Verify glyph tokens are gone
-        agent0_glyph = find_glyph_at_location(obs[0], 1, 1)
-        agent1_glyph = find_glyph_at_location(obs[1], 1, 1)
+        agent0_glyph = helper.find_token_value_at_location(obs[0], 1, 1, TokenTypes.GLYPH)
+        agent1_glyph = helper.find_token_value_at_location(obs[1], 1, 1, TokenTypes.GLYPH)
 
         assert agent0_glyph is None, f"Agent 0 changed to glyph 0 should have no token, got {agent0_glyph}"
         assert agent1_glyph is None, f"Agent 1 changed to glyph 0 should have no token, got {agent1_glyph}"
@@ -737,6 +699,7 @@ class TestEdgeObservations:
         # Create a 15x10 grid (width=15, height=10) with 7x7 observation window
         builder = TestEnvironmentBuilder()
         game_map = create_grid(10, 15)
+        helper = ObservationHelper()
 
         # Add walls around perimeter
         game_map[0, :] = "wall"
@@ -778,7 +741,6 @@ class TestEdgeObservations:
         )
 
         obs, _ = env.reset()
-        helper = ObservationHelper()
 
         # Get action indices
         move_idx = env.action_names().index("move")
@@ -791,11 +753,7 @@ class TestEdgeObservations:
         # The altar at grid (7,5) should not be visible initially
         # Agent at (2,2) with 7x7 window sees from (-1,-1) to (5,5)
         # So altar at (7,5) is outside the view
-        altar_visible = False
-        for i in range(len(obs[0])):
-            if obs[0, i, 1] == TokenTypes.TYPE_ID_FEATURE and obs[0, i, 2] == 10:  # type_id 10 = altar
-                altar_visible = True
-                break
+        altar_visible = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0
         assert not altar_visible, "Altar should not be visible initially"
 
         print("\nInitial state: Agent at (2,2), altar at (7,5) - not visible")
@@ -814,27 +772,25 @@ class TestEdgeObservations:
 
             if step >= 1:  # Altar should be visible after first step
                 # Find altar in observation
-                altar_found = False
-                for i in range(len(obs[0])):
-                    if obs[0, i, 1] == TokenTypes.TYPE_ID_FEATURE and obs[0, i, 2] == 10:
-                        altar_location = obs[0, i, 0]
-                        altar_coords = PackedCoordinate.unpack(altar_location)
-                        if altar_coords:
-                            obs_row, obs_col = altar_coords
-                            # Calculate expected position
-                            # Agent is at grid (3+step, 2) after step steps
-                            # Altar at grid (7,5)
-                            # Relative position: altar - agent = (7-(3+step), 5-2) = (4-step, 3)
-                            # In observation coords: relative + center = (4-step+3, 3+3) = (7-step, 6)
-                            expected_col = 7 - step
-                            expected_row = 6
-                            print(f"\nStep {step}: Agent at ({3 + step},2), altar visible at obs ({obs_col},{obs_row})")
-                            assert obs_col == expected_col and obs_row == expected_row, (
-                                f"Altar should be at ({expected_col},{expected_row}), found at ({obs_col},{obs_row})"
-                            )
-                            altar_found = True
-                            break
-                assert altar_found, f"Altar should be visible after step {step}"
+                altar_tokens = helper.find_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID)
+                assert len(altar_tokens) > 0, f"Altar should be visible after step {step}"
+
+                altar_location = altar_tokens[0, 0]
+                altar_coords = PackedCoordinate.unpack(altar_location)
+                assert altar_coords is not None, "Should be able to unpack altar coordinates"
+
+                obs_row, obs_col = altar_coords
+                # Calculate expected position
+                # Agent is at grid (3+step, 2) after step steps
+                # Altar at grid (7,5)
+                # Relative position: altar - agent = (7-(3+step), 5-2) = (4-step, 3)
+                # In observation coords: relative + center = (4-step+3, 3+3) = (7-step, 6)
+                expected_col = 7 - step
+                expected_row = 6
+                print(f"\nStep {step}: Agent at ({3 + step},2), altar visible at obs ({obs_col},{obs_row})")
+                assert obs_col == expected_col and obs_row == expected_row, (
+                    f"Altar should be at ({expected_col},{expected_row}), found at ({obs_col},{obs_row})"
+                )
 
         # Continue moving right until altar leaves view
         for step in range(3, 6):
@@ -845,17 +801,15 @@ class TestEdgeObservations:
             # After step 4: agent at (7,2), altar at relative (0,3) - at center column
             # After step 5: agent at (8,2), altar at relative (-1,3) - at left edge
 
-            altar_found = False
-            for i in range(len(obs[0])):
-                if obs[0, i, 1] == TokenTypes.TYPE_ID_FEATURE and obs[0, i, 2] == 10:
-                    altar_location = obs[0, i, 0]
-                    altar_coords = PackedCoordinate.unpack(altar_location)
-                    if altar_coords:
-                        obs_row, obs_col = altar_coords
-                        expected_col = 7 - step
-                        print(f"\nStep {step}: Agent at ({3 + step},2), altar at obs ({obs_col},{obs_row})")
-                        altar_found = True
-                        break
+            altar_found = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0
+            if altar_found:
+                altar_tokens = helper.find_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID)
+                altar_location = altar_tokens[0, 0]
+                altar_coords = PackedCoordinate.unpack(altar_location)
+                if altar_coords:
+                    obs_row, obs_col = altar_coords
+                    expected_col = 7 - step
+                    print(f"\nStep {step}: Agent at ({3 + step},2), altar at obs ({obs_col},{obs_row})")
 
             if step <= 5:
                 assert altar_found, f"Altar should still be visible at step {step}"
@@ -869,16 +823,14 @@ class TestEdgeObservations:
             # After step 7: agent at (10,2), altar at relative (-3,3) - obs position (0,6) - at very edge
             # After step 8: agent at (11,2), altar at relative (-4,3) - outside 7x7 window
 
-            altar_found = False
-            for i in range(len(obs[0])):
-                if obs[0, i, 1] == TokenTypes.TYPE_ID_FEATURE and obs[0, i, 2] == 10:
-                    altar_location = obs[0, i, 0]
-                    altar_coords = PackedCoordinate.unpack(altar_location)
-                    if altar_coords:
-                        obs_row, obs_col = altar_coords
-                        print(f"\nStep {step}: Agent at ({3 + step},2), altar at obs ({obs_col},{obs_row})")
-                    altar_found = True
-                    break
+            altar_found = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0
+            if altar_found:
+                altar_tokens = helper.find_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID)
+                altar_location = altar_tokens[0, 0]
+                altar_coords = PackedCoordinate.unpack(altar_location)
+                if altar_coords:
+                    obs_row, obs_col = altar_coords
+                    print(f"\nStep {step}: Agent at ({3 + step},2), altar at obs ({obs_col},{obs_row})")
 
             if step <= 7:
                 assert altar_found, f"Altar should still be visible at step {step}"
@@ -904,22 +856,18 @@ class TestEdgeObservations:
         agent_tokens = helper.find_tokens_at_location(obs[0], 3, 3)
         assert len(agent_tokens) > 0, "Agent should still see itself at center (3,3)"
 
-        # Check walls at edges as before
+        # Check walls at edges
         # Right wall at x=14 -> obs x=4
         for obs_y in range(7):
             grid_y = 8 + obs_y - 3
             if 0 <= grid_y <= 9:
-                wall_tokens = helper.find_tokens_at_location(obs[0], 4, obs_y)
-                wall_tokens = wall_tokens[wall_tokens[:, 2] == TokenTypes.WALL_TYPE_ID]
-                assert len(wall_tokens) > 0, f"Should see right wall at obs ({4}, {obs_y})"
+                assert helper.has_wall_at(obs[0], 4, obs_y), f"Should see right wall at obs ({4}, {obs_y})"
 
         # Bottom wall at y=9 -> obs y=4
         for obs_x in range(7):
             grid_x = 13 + obs_x - 3
             if 0 <= grid_x <= 14:
-                wall_tokens = helper.find_tokens_at_location(obs[0], obs_x, 4)
-                wall_tokens = wall_tokens[wall_tokens[:, 2] == TokenTypes.WALL_TYPE_ID]
-                assert len(wall_tokens) > 0, f"Should see bottom wall at obs ({obs_x}, {4})"
+                assert helper.has_wall_at(obs[0], obs_x, 4), f"Should see bottom wall at obs ({obs_x}, {4})"
 
         # Verify padding areas have no tokens
         for x in range(5, 7):

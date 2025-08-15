@@ -175,15 +175,15 @@ jobs:
             MISSING_FILES+=("discord_summary_output.txt")
           fi
 
-          if [ ! -f "collection_summary_output.txt" ]; then
-            MISSING_FILES+=("collection_summary_output.txt")
+          if [ ! -f "newsletter_output.txt" ]; then
+            MISSING_FILES+=("newsletter_output.txt")
           fi
 
           if [ ${#MISSING_FILES[@]} -eq 0 ]; then
             echo "✅ Newsletter generation completed successfully"
             echo ""
             echo "Generated files:"
-            for file in discord_summary_output.txt collection_summary_output.txt pr_summary_data.json; do
+            for file in discord_summary_output.txt newsletter_output.txt pr_summary_data.json; do
               if [ -f "$file" ]; then
                 SIZE=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file")
                 echo "- $file (${SIZE} bytes)"
@@ -213,7 +213,7 @@ jobs:
           ℹ️ No PRs were merged during this period.
           EOF
 
-          echo "No PRs to summarize in this period." > collection_summary_output.txt
+          echo "No PRs to summarize in this period." > newsletter_output.txt
           echo "[]" > pr_summary_data.json
 
       - name: Post to Discord
@@ -237,7 +237,7 @@ jobs:
           name: newsletter-${{ github.run_number }}
           path: |
             discord_summary_output.txt
-            collection_summary_output.txt
+            newsletter_output.txt
             pr_summary_data.json
             pr-summaries/
             pr_digest_output.json
