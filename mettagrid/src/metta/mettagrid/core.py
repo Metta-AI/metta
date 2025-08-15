@@ -204,7 +204,6 @@ class MettaGridCore:
             if self._renderer_native:
                 if not self._renderer.render():
                     self._renderer = None
-                    self._renderer_native = False
             elif self._renderer is not None:
                 return self._renderer.render(self._c_env_instance.current_step, self._c_env_instance.grid_objects())
 
