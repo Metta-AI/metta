@@ -11,9 +11,8 @@ from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff
 from metta.rl.system_config import SystemConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
-from metta.util.metta_script import pydantic_metta_script
 
-logger = logging.getLogger("tools.play")
+logger = logging.getLogger(__name__)
 
 
 class PlayTool(Tool):
@@ -45,8 +44,7 @@ def create_simulation(cfg: PlayTool) -> Simulation:
     policy_store = PolicyStore.create(
         device=cfg.system.device,
         wandb_config=cfg.wandb,
-        data_dir=cfg.system.data_dir,
-        wandb_run=None,
+        replay_dir=cfg.replay_dir,
     )
 
     # Create simulation using the helper method with explicit parameters
@@ -61,10 +59,3 @@ def create_simulation(cfg: PlayTool) -> Simulation:
         run_name="play_run",
     )
     return sim
-
-
-def main() -> PlayTool:
-    return PlayTool(sim=SimulationConfig.Auto())
-
-
-pydantic_metta_script(main)
