@@ -136,22 +136,22 @@ components:
     sources:
       - name: obs_flattener
     nn_params:
-      out_features: 256
+      out_features: 128
 
   encoded_obs:
     _target_: metta.agent.lib.nn_layer_library.Linear
     sources:
       - name: fc1
     nn_params:
-      out_features: 512
+      out_features: 128
 
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
       - name: encoded_obs
     nn_params:
-      hidden_size: 512
-      num_layers: 3
+      hidden_size: 128
+      num_layers: 2
 
   critic_1:
     _target_: metta.agent.lib.nn_layer_library.Linear
