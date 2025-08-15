@@ -5,12 +5,12 @@
     "build": {
       "inputs": [
         "src/**",
-        "eval_finder_widget/**/*.py",
+        "policy_selector_widget/**/*.py",
         "package.json",
         "vite.config.js",
-        "!eval_finder_widget/static/**"
+        "!policy_selector_widget/static/**"
       ],
-      "outputs": ["eval_finder_widget/static/**"]
+      "outputs": ["policy_selector_widget/static/**"]
     },
     // common linting and formatting tasks
     "lint": {},
