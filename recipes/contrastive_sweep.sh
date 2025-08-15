@@ -19,7 +19,7 @@ base_args="sim=arena \
 for coef in "${coef_values[@]}"; do
   for temp in "${temperature_values[@]}"; do
     for neg in "${num_negatives_values[@]}"; do
-      run_id="$USER.arena_contrastive.manual.$(date +%m-%d-%H-%M)-c${coef}-t${temp}-n${neg}"
+      run_id="arena_contrastive.manual.mettabox.$(date +%m-%d-%H-%M)-c${coef}-t${temp}-n${neg}"
       metta tool train run="$run_id" \
         $base_args \
         ++trainer.contrastive.coef="$coef" \
