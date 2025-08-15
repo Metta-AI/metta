@@ -32,18 +32,16 @@ const PolicySelector: React.FC<PolicySelectorProps> = ({
 }) => {
   const [localSearchTerm, setLocalSearchTerm] = useState<string>(searchTerm)
   const [isSearching, setIsSearching] = useState<boolean>(false)
+  const [allPolicies, setAllPolicies] = useState<PolicyInfo[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Debug component mount and key props (remove in production)
-  // useEffect(() => {
-  //   console.log(`🎯 PolicySelector mounted/updated:`, {
-  //     useApiSearch,
-  //     hasOnApiSearch: !!onApiSearch,
-  //     policiesCount: policies.length,
-  //     searchTerm,
-  //     localSearchTerm
-  //   });
-  // }, [useApiSearch, onApiSearch, policies.length, searchTerm, localSearchTerm]);
+  // Store all policies when we first receive them (only when we have no stored policies yet)
+  useEffect(() => {
+    // Only store policies if we don't have any stored yet, or if we're getting a fresh unfiltered dataset
+    if (allPolicies.length === 0 && policies.length > 0) {
+      setAllPolicies(policies)
+    }
+  }, [policies, allPolicies.length])
 
   // Filter and sort policies
   const filteredPolicies = useMemo(() => {
@@ -75,16 +73,18 @@ const PolicySelector: React.FC<PolicySelectorProps> = ({
     return filtered.slice(0, uiConfig.maxDisplayedPolicies)
   }, [policies, localSearchTerm, policyTypeFilter, tagFilter, uiConfig.maxDisplayedPolicies, useApiSearch])
 
-  // Get unique policy types and tags for filter dropdowns
+  // Get unique policy types and tags for filter dropdowns from ALL policies, not filtered ones
+  const policiesForDropdowns = allPolicies.length > 0 ? allPolicies : policies
+
   const availableTypes = useMemo(() => {
-    const types = new Set(policies.map((p) => p.type))
+    const types = new Set(policiesForDropdowns.map((p) => p.type))
     return Array.from(types).sort()
-  }, [policies])
+  }, [policiesForDropdowns])
 
   const availableTags = useMemo(() => {
-    const tags = new Set(policies.flatMap((p) => p.tags))
+    const tags = new Set(policiesForDropdowns.flatMap((p) => p.tags))
     return Array.from(tags).sort()
-  }, [policies])
+  }, [policiesForDropdowns])
 
   // Debounced search function
   const debouncedSearch = useCallback(
@@ -145,7 +145,6 @@ const PolicySelector: React.FC<PolicySelectorProps> = ({
   // Listen for explicit search completion signal
   useEffect(() => {
     if (searchCompleted && isSearching) {
-      console.log(`✅ Search completed signal received, stopping spinner`)
       setIsSearching(false)
     }
   }, [searchCompleted, isSearching])
@@ -154,7 +153,6 @@ const PolicySelector: React.FC<PolicySelectorProps> = ({
   useEffect(() => {
     if (isSearching) {
       const timeout = setTimeout(() => {
-        console.warn('Search timeout - resetting spinner (no response from API)')
         setIsSearching(false)
       }, 5000) // 5 second timeout
 
@@ -220,61 +218,63 @@ const PolicySelector: React.FC<PolicySelectorProps> = ({
           {isSearching && <div className="search-loading-spinner" />}
         </div>
 
-        {availableTypes.length > 1 && (
-          <select
-            className="filter-dropdown"
-            value={policyTypeFilter.length > 0 ? policyTypeFilter[0] : ''}
-            onChange={(e) => {
-              const value = e.target.value
-              handleTypeFilterChange(value ? [value] : [])
+        <select
+          className="filter-dropdown"
+          value={policyTypeFilter.length > 0 ? policyTypeFilter[0] : ''}
+          onChange={(e) => {
+            const value = e.target.value
+            const newFilter = value ? [value] : []
 
-              // Trigger immediate filter application
-              if (useApiSearch && onApiSearch) {
-                const filters: FilterState = {
-                  searchTerm: localSearchTerm,
-                  policyTypeFilter: value ? [value] : [],
-                  tagFilter,
-                }
-                onApiSearch(filters)
+            if (useApiSearch && onApiSearch) {
+              // For API search, call onApiSearch directly
+              const filters: FilterState = {
+                searchTerm: localSearchTerm,
+                policyTypeFilter: newFilter,
+                tagFilter,
               }
-            }}
-          >
-            <option value="">All Types</option>
-            {availableTypes.map((type) => (
-              <option key={type} value={type}>
-                {type === 'training_run' ? 'Training Run' : 'Policy'}
-              </option>
-            ))}
-          </select>
-        )}
+              onApiSearch(filters)
+            } else {
+              // For local filtering, call handleTypeFilterChange
+              handleTypeFilterChange(newFilter)
+            }
+          }}
+        >
+          <option value="">All Types</option>
+          {availableTypes.map((type) => (
+            <option key={type} value={type}>
+              {type === 'training_run' ? 'Training Run' : 'Policy'}
+            </option>
+          ))}
+        </select>
 
-        {availableTags.length > 0 && (
-          <select
-            className="filter-dropdown"
-            value={tagFilter.length > 0 ? tagFilter[0] : ''}
-            onChange={(e) => {
-              const value = e.target.value
-              handleTagFilterChange(value ? [value] : [])
+        <select
+          className="filter-dropdown"
+          value={tagFilter.length > 0 ? tagFilter[0] : ''}
+          onChange={(e) => {
+            const value = e.target.value
+            const newFilter = value ? [value] : []
 
-              // Trigger immediate filter application
-              if (useApiSearch && onApiSearch) {
-                const filters: FilterState = {
-                  searchTerm: localSearchTerm,
-                  policyTypeFilter,
-                  tagFilter: value ? [value] : [],
-                }
-                onApiSearch(filters)
+            if (useApiSearch && onApiSearch) {
+              // For API search, call onApiSearch directly
+              const filters: FilterState = {
+                searchTerm: localSearchTerm,
+                policyTypeFilter,
+                tagFilter: newFilter,
               }
-            }}
-          >
-            <option value="">All Tags</option>
-            {availableTags.map((tag) => (
-              <option key={tag} value={tag}>
-                {tag}
-              </option>
-            ))}
-          </select>
-        )}
+              onApiSearch(filters)
+            } else {
+              // For local filtering, call handleTagFilterChange
+              handleTagFilterChange(newFilter)
+            }
+          }}
+        >
+          <option value="">All Tags</option>
+          {availableTags.map((tag) => (
+            <option key={tag} value={tag}>
+              {tag}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="selection-controls">

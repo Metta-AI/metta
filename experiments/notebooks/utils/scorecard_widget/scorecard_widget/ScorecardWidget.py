@@ -302,7 +302,6 @@ class ScorecardWidget(anywidget.AnyWidget):
         if not training_run_ids:
             raise Exception("No training runs found")
 
-        # Step 2: Get available evaluations for these training runs
         if restrict_to_eval_names:
             # Use the specific eval names provided
             eval_names = restrict_to_eval_names
@@ -312,19 +311,14 @@ class ScorecardWidget(anywidget.AnyWidget):
                 training_run_ids, run_free_policy_ids
             )
             if not eval_names:
-                warning("No evaluations found for selected training runs")
                 raise Exception("No evaluations found for selected training runs")
             print(f"Found {len(eval_names)} available evaluations")
 
-        # Step 3: Get available metrics
         available_metrics = await self.client.get_available_metrics(
             training_run_ids, run_free_policy_ids, eval_names
         )
         if not available_metrics:
-            warning("No metrics found")
-            raise Exception(
-                "No metrics found for selected training runs and evaluations"
-            )
+            raise Exception("No metrics found for selected policies and evaluations")
 
         # Filter to requested metrics that actually exist
         valid_metrics = list(
@@ -344,14 +338,28 @@ class ScorecardWidget(anywidget.AnyWidget):
 
         scorecard_data: ScorecardData = await self.client.generate_scorecard(
             training_run_ids=training_run_ids,
-            run_free_policy_ids=[],
+            run_free_policy_ids=run_free_policy_ids,
             eval_names=eval_names,
             metric=primary_metric,
             policy_selector=policy_selector,
         )
 
+        all_policies = training_run_ids + run_free_policy_ids
+        if len(all_policies) != len(scorecard_data.policyNames):
+            warning(
+                f"Number of policies in scorecard data ({len(scorecard_data.policyNames)}) does not match number of policies in your query ({len(training_run_ids) + len(run_free_policy_ids)})"
+            )
+            raise Exception(
+                "Number of policies in scorecard data does not match number of policies in your query"
+            )
+
         if not scorecard_data.policyNames:
-            raise Exception("No scorecard policyNames. No scorecard data generated")
+            warning("No scorecard data found in the database for your query:")
+            warning(f"  training_run_ids={training_run_ids}")
+            warning(f"  run_free_policy_ids={run_free_policy_ids}")
+            warning(f"  eval_names={eval_names}")
+            warning(f"  primary_metric={primary_metric}")
+            raise Exception("No scorecard data found in database for your query")
 
         cells = self._make_cells_from_scorecard_data(
             scorecard_data=scorecard_data,

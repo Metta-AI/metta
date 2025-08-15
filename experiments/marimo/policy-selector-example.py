@@ -3,18 +3,8 @@ import marimo
 __generated_with = "0.14.17"
 app = marimo.App()
 
-
-@app.cell
-def _():
+with app.setup:
     import marimo as mo
-
-    return (mo,)
-
-
-@app.cell
-def _(mo):
-    mo.md("""# Simple Policy Selector Test""")
-    return
 
 
 @app.cell
@@ -45,7 +35,7 @@ def _():
 
 
 @app.cell
-def _(mo):
+def _():
     mo.md(r"""## Let's try with some real data from Metta's HTTP API""")
     return
 
@@ -60,7 +50,7 @@ def _():
 
 
 @app.cell
-def _(client, create_policy_selector_widget, mo):
+def _(client, create_policy_selector_widget):
     live_widget = mo.ui.anywidget(create_policy_selector_widget(client=client))
 
     live_widget
@@ -68,7 +58,7 @@ def _(client, create_policy_selector_widget, mo):
 
 
 @app.cell
-def _(live_widget, mo):
+def _(live_widget):
     # Access the widget's value to trigger reactivity in Marimo
     selected_policies = live_widget.selected_policies
 
@@ -81,15 +71,15 @@ def _(live_widget, mo):
 
 
 @app.cell
-async def _(client, live_widget, mo):
+async def _(client, live_widget):
     # Access the widget's value to trigger reactivity in Marimo
     from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import (
         ScorecardWidget,
     )
 
     policies_for_scorecard = live_widget.selected_policies
-
     scorecard_widget = ScorecardWidget(client=client)
+
     await scorecard_widget.fetch_real_scorecard_data(
         restrict_to_metrics=["heart.get", "reward"],
         restrict_to_policy_ids=policies_for_scorecard,
@@ -97,7 +87,7 @@ async def _(client, live_widget, mo):
         max_policies=20,
     )
 
-    mo.ui.anywidget(scorecard_widget)
+    scorecard_widget
     return
 
 

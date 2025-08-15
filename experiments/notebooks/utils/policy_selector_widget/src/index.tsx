@@ -8,9 +8,9 @@ function PolicySelectorWidget() {
   // Use anywidget React bridge hooks for state management
   const [policyData] = useModelState<PolicyInfo[]>('policy_data')
   const [selectedPolicies, setSelectedPolicies] = useModelState<string[]>('selected_policies')
-  const [searchTerm] = useModelState<string>('search_term')
-  const [policyTypeFilter] = useModelState<string[]>('policy_type_filter')
-  const [tagFilter] = useModelState<string[]>('tag_filter')
+  const [searchTerm, setSearchTerm] = useModelState<string>('search_term')
+  const [policyTypeFilter, setPolicyTypeFilter] = useModelState<string[]>('policy_type_filter')
+  const [tagFilter, setTagFilter] = useModelState<string[]>('tag_filter')
   const [useApiSearch] = useModelState<boolean>('use_api_search')
   const [searchDebounceMs] = useModelState<number>('search_debounce_ms')
   const [searchCompleted] = useModelState<any>('api_search_completed')
@@ -40,6 +40,12 @@ function PolicySelectorWidget() {
   }
 
   const handleFilterChange = (filter: FilterState) => {
+    // Update the actual filter state
+    setSearchTerm(filter.searchTerm || '')
+    setPolicyTypeFilter(filter.policyTypeFilter || [])
+    setTagFilter(filter.tagFilter || [])
+
+    // Also send the filter change event to Python
     setFilterChanged({
       ...filter,
       timestamp: Date.now(),
@@ -53,6 +59,9 @@ function PolicySelectorWidget() {
       ...filter,
       timestamp: Date.now(),
     }
+
+    // Update local state so dropdowns show selected values
+    handleFilterChange(filter)
 
     // Use the counter-based approach that we know works
     setCurrentSearchParams(searchRequest)
