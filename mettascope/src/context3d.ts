@@ -615,6 +615,7 @@ export class Context3d {
     x: number,
     y: number,
     color: number[] = [1, 1, 1, 1],
+    scale = 1,
   ) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
@@ -626,15 +627,22 @@ export class Context3d {
     const glyphInnerPadding = font.glyphInnerPadding
     const mBase = this.atlasMargin
 
-    let penX = x
-    let penY = y
+    // Draw relative to (0,0) under a local transform anchored at (x,y)
+    this.save()
+    this.translate(x, y)
+    if (scale !== 1) {
+      this.scale(scale, scale)
+    }
+
+    let penX = 0
+    let penY = 0
     let prevLabel: string | null = null
 
     const toLabel = (cp: number): string => `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`
 
     for (const ch of text) {
       if (ch === '\n') {
-        penX = x
+        penX = 0
         penY += font.lineHeight
         prevLabel = null
         continue
@@ -692,7 +700,8 @@ export class Context3d {
       // Outline pass: draw the glyph tinted black around the main position for readability.
       const oa = color.length >= 4 ? color[3] : 1
       const outlineColor: number[] = [0, 0, 0, oa]
-      // 8-directional offsets for a 1px border.
+      // 8-directional offsets for a 1px border in screen space.
+      const px = 1 / Math.max(scale, 1e-6)
       const offsets = [
         [-1, 0],
         [1, 0],
@@ -704,7 +713,7 @@ export class Context3d {
         [1, 1],
       ] as const
       for (const [dx, dy] of offsets) {
-        this.drawRect(drawX + dx, drawY + dy, drawW, drawH, u0, v0, u1, v1, outlineColor)
+        this.drawRect(drawX + dx * px, drawY + dy * px, drawW, drawH, u0, v0, u1, v1, outlineColor)
       }
 
       // Main glyph.
@@ -714,6 +723,8 @@ export class Context3d {
       penX += glyph.advance
       prevLabel = label
     }
+
+    this.restore()
   }
 
   /** Flushes all non-empty meshes to the screen. */
