@@ -1,5 +1,3 @@
-"""Base classes and utilities shared by all PyTorch policy implementations."""
-
 import logging
 import math
 

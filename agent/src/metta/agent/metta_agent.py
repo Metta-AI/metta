@@ -164,10 +164,6 @@ class MettaAgent(nn.Module):
         self.activate_actions(action_names, action_max_params, device)
         self.activate_observations(features, device)
 
-        # Log final parameter count after initialization
-        total_params = sum(p.numel() for p in self.parameters())
-        trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-
     def activate_observations(self, features: dict[str, dict], device):
         """Activate observation features by storing the feature mapping."""
         self.active_features = features
