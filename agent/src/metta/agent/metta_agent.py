@@ -90,24 +90,15 @@ class MettaAgent(nn.Module):
             self.policy.to(self.device)
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        logger.info(f"[DEBUG] MettaAgent initialized with {self._total_params:,} parameters")
-        logger.info(
-            f"[DEBUG] Agent config type: {'py_agent' if agent_cfg.get('agent_type') in agent_classes else 'yaml_agent'}"
-        )
-        logger.info(f"[DEBUG] Policy type: {type(self.policy).__name__}")
 
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
-        logger.info(f"[DEBUG] Creating policy with agent_cfg: {agent_cfg}")
         if agent_cfg.get("agent_type") in agent_classes:
             # Create PyTorch policy
             AgentClass = agent_classes[agent_cfg.agent_type]
             policy = AgentClass(env=env)
-            logger.info(f"[DEBUG] Created PyTorch Policy: {policy} (type: {agent_cfg.agent_type})")
-            logger.info(f"[DEBUG] PyTorch Policy parameters: {sum(p.numel() for p in policy.parameters())}")
         else:
             # Create ComponentPolicy (YAML config)
-            logger.info(f"[DEBUG] Creating ComponentPolicy with agent_cfg keys: {list(agent_cfg.keys())}")
             policy = ComponentPolicy(
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
@@ -117,10 +108,6 @@ class MettaAgent(nn.Module):
                 device=system_cfg.device,
                 cfg=agent_cfg,
             )
-            logger.info(f"[DEBUG] Created ComponentPolicy: {type(policy).__name__}")
-            logger.info(f"[DEBUG] ComponentPolicy parameters: {sum(p.numel() for p in policy.parameters())}")
-            if hasattr(policy, "components"):
-                logger.info(f"[DEBUG] ComponentPolicy components: {list(policy.components.keys())}")
 
         return policy
 
@@ -155,11 +142,6 @@ class MettaAgent(nn.Module):
         is_training: bool = True,
     ):
         """Initialize the agent to the current environment."""
-        logger.info("[DEBUG] initialize_to_environment called")
-        logger.info(f"[DEBUG]   Features: {len(features)} features")
-        logger.info(f"[DEBUG]   Actions: {action_names}")
-        logger.info(f"[DEBUG]   Max params: {action_max_params}")
-        logger.info(f"[DEBUG]   Device: {device}")
 
         # MettaAgent handles all initialization
         self.activate_actions(action_names, action_max_params, device)
@@ -168,9 +150,6 @@ class MettaAgent(nn.Module):
         # Log final parameter count after initialization
         total_params = sum(p.numel() for p in self.parameters())
         trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        logger.info("[DEBUG] After initialization:")
-        logger.info(f"[DEBUG]   Total params: {total_params:,}")
-        logger.info(f"[DEBUG]   Trainable params: {trainable_params:,}")
 
     def activate_observations(self, features: dict[str, dict], device):
         """Activate observation features by storing the feature mapping."""
@@ -269,9 +248,6 @@ class MettaAgent(nn.Module):
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Initialize action space for the agent."""
-        logger.info("[DEBUG] activate_actions called")
-        logger.info(f"[DEBUG]   action_names: {action_names}")
-        logger.info(f"[DEBUG]   action_max_params: {action_max_params}")
 
         self.device = device
         self.action_max_params = action_max_params
@@ -285,18 +261,12 @@ class MettaAgent(nn.Module):
             torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )
 
-        logger.info(f"[DEBUG]   cum_action_max_params: {self.cum_action_max_params.tolist()}")
-
         # Build full action names for embeddings
         full_action_names = [f"{name}_{i}" for name, max_param in self.active_actions for i in range(max_param + 1)]
-        logger.info(f"[DEBUG]   Total action embeddings needed: {len(full_action_names)}")
 
         # Activate embeddings if policy supports it
         if hasattr(self.policy, "activate_action_embeddings"):
-            logger.info("[DEBUG]   Calling policy.activate_action_embeddings")
             self.policy.activate_action_embeddings(full_action_names, device)
-        else:
-            logger.info("[DEBUG]   Policy does not have activate_action_embeddings method")
 
         # Create action index tensor
         self.action_index_tensor = torch.tensor(
