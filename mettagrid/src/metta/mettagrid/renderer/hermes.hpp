@@ -21,7 +21,7 @@ void    Hermes_Scene(Hermes* ctx, const MettaGrid* env);
 bool    Hermes_Frame(Hermes* ctx);
 
 #ifdef __cplusplus
-} // extern "C"
+}  // extern "C"
 #endif
 
 // Hermes Python API ---------------------------------------------------------
@@ -47,4 +47,4 @@ public:
     HermesPy& operator=(HermesPy&&) = delete;
 };
 
-#endif // METTA_WITH_RAYLIB
+#endif  // METTA_WITH_RAYLIB
