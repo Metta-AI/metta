@@ -1,7 +1,6 @@
 import logging
 
 import einops
-import pufferlib.models
 import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
@@ -10,44 +9,84 @@ from torch import nn
 
 from metta.agent.modules.encoders import ObsLatentAttn, ObsSelfAttn
 from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
+from metta.agent.pytorch.base import LSTMWrapper
+from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
 logger = logging.getLogger(__name__)
 
 
-class LatentAttnSmall(pufferlib.models.LSTMWrapper):
-    def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
+class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
+    def __init__(
+        self,
+        env,
+        policy=None,
+        cnn_channels=128,
+        input_size=128,
+        hidden_size=128,
+        num_layers=2,
+        **kwargs,
+    ):
+        """Initialize LatentAttnSmall policy with mixin support.
+
+        Args:
+            env: Environment
+            policy: Optional inner policy
+            cnn_channels: Number of CNN channels
+            input_size: LSTM input size
+            hidden_size: LSTM hidden size
+            num_layers: Number of LSTM layers
+            **kwargs: Configuration parameters handled by mixin (clip_range, analyze_weights_interval, etc.)
+        """
+        # Extract mixin parameters before passing to parent
+        mixin_params = self.extract_mixin_params(kwargs)
+
         if policy is None:
             policy = Policy(
                 env,
                 input_size=input_size,
                 hidden_size=hidden_size,
             )
-        super().__init__(env, policy, input_size, hidden_size)
+        # Use enhanced LSTMWrapper with num_layers support
+        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
 
+        # Initialize mixin with configuration parameters
+        self.init_mixin(**mixin_params)
+
+    @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"]
 
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-        # Prepare LSTM state
-        lstm_h, lstm_c = state.get("lstm_h"), state.get("lstm_c")
-        if lstm_h is not None and lstm_c is not None:
-            lstm_h = lstm_h[: self.lstm.num_layers]
-            lstm_c = lstm_c[: self.lstm.num_layers]
-            lstm_state = (lstm_h, lstm_c)
-        else:
-            lstm_state = None
+        # Determine dimensions from observations
+        if observations.dim() == 4:  # Training
+            B = observations.shape[0]
+            TT = observations.shape[1]
+            # Reshape TD for training if needed
+            if td.batch_dims > 1:
+                td = td.reshape(B * TT)
+        else:  # Inference
+            B = observations.shape[0]
+            TT = 1
+
+        # Now set TensorDict fields with mixin (TD is already reshaped if needed)
+        self.set_tensordict_fields(td, observations)
 
         # Encode observations
         hidden = self.policy.encode_observations(observations, state)
 
-        B = observations.shape[0]
-        TT = 1 if observations.dim() == 3 else observations.shape[1]
+        # Use base class for proper LSTM state management (includes detachment!)
+        lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
+        lstm_state = (lstm_h, lstm_c)
 
         # LSTM forward pass
         hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, input_size)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
+
+        # CRITICAL: Store with automatic detachment to prevent gradient accumulation
+        self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
+
         flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
         # Decode actions and value
@@ -71,10 +110,14 @@ class LatentAttnSmall(pufferlib.models.LSTMWrapper):
 
         else:
             # ---------- Training Mode ----------
-            action = action
+            # CRITICAL: ComponentPolicy expects the action to be flattened already during training
+            # The TD should be reshaped to match the flattened batch dimension
             if action.dim() == 3:  # (B, T, A) -> (BT, A)
-                B, T, A = action.shape
-                action = action.view(B * T, A)
+                batch_size_orig, time_steps, A = action.shape
+                action = action.view(batch_size_orig * time_steps, A)
+                # Also flatten the TD to match
+                if td.batch_dims > 1:
+                    td = td.reshape(td.batch_size.numel())
 
             action_log_probs = F.log_softmax(logits_list, dim=-1)
             action_probs = torch.exp(action_log_probs)
@@ -85,23 +128,20 @@ class LatentAttnSmall(pufferlib.models.LSTMWrapper):
 
             entropy = -(action_probs * action_log_probs).sum(dim=-1)
 
-            td["act_log_prob"] = full_log_probs.view(B, TT)
-            td["entropy"] = entropy.view(B, TT)
-            td["full_log_probs"] = action_log_probs.view(B, TT, -1)
-            td["value"] = value.view(B, TT)
+            # Store in flattened TD (will be reshaped by caller if needed)
+            td["act_log_prob"] = full_log_probs
+            td["entropy"] = entropy
+            td["full_log_probs"] = action_log_probs
+            td["value"] = value
+
+            # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
+            # The reshaping happens in ComponentPolicy.forward() after forward_training()
+            if "batch" in td.keys() and "bptt" in td.keys():
+                batch_size = td["batch"][0].item()
+                bptt_size = td["bptt"][0].item()
+                td = td.reshape(batch_size, bptt_size)
 
         return td
-
-    def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
-        """Convert logit indices back to action pairs."""
-        return self.action_index_tensor[action_logit_index]
-
-    def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
-        """Convert (action_type, action_param) pairs to discrete indices."""
-        action_type_numbers = flattened_action[:, 0].long()
-        action_params = flattened_action[:, 1].long()
-        cumulative_sum = self.cum_action_max_params[action_type_numbers]
-        return cumulative_sum + action_params
 
 
 class Policy(nn.Module):
