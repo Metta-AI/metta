@@ -1,8 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-coef_values=(0.03 0.10 0.20 0.40)
-temperature_values=(0.03 0.05 0.07 0.12)
+coef_values=(0.03) # 0.10 0.20 0.40)
+temperature_values=(0.03) #0.05 0.07 0.12)
 num_negatives_values=(8 16 32)
 
 base_args="sim=arena \
@@ -19,8 +16,8 @@ base_args="sim=arena \
 for coef in "${coef_values[@]}"; do
   for temp in "${temperature_values[@]}"; do
     for neg in "${num_negatives_values[@]}"; do
-      run_id="arena_contrastive.manual.mettabox.$(date +%m-%d-%H-%M)-c${coef}-t${temp}-n${neg}"
-      metta tool train run="$run_id" \
+      run_id="contrastive_arena_sweep.$(date +%m-%d-%H-%M)-c${coef}-t${temp}-n${neg}"
+      ./devops/skypilot/launch.py train --gpus=4 --nodes=1 --no-spot run="$run_id" \
         $base_args \
         ++trainer.contrastive.coef="$coef" \
         ++trainer.contrastive.temperature="$temp" \
