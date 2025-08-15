@@ -27,6 +27,7 @@ from metta.mettagrid.puffer_base import MettaGridPufferBase
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
+from metta.utils.retry import env_init_retry
 
 logger = logging.getLogger("MettaGridEnv")
 
