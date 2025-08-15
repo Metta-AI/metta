@@ -309,7 +309,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
     - Full compatibility with Metta's training infrastructure
     - Weight management and action conversion via PyTorchAgentMixin
     """
-
+    
     def __init__(
         self,
         env,
@@ -363,7 +363,13 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         self.init_mixin(**mixin_params)
 
     def forward(self, td: TensorDict, state: Optional[Dict] = None, action: Optional[torch.Tensor] = None):
-        """Forward pass compatible with MettaAgent expectations."""
+        """Forward pass compatible with MettaAgent expectations.
+        
+        Follows the Fast agent pattern for TensorDict handling:
+        - Reshape TD early if in training mode
+        - Keep it flat throughout processing
+        - Don't reshape back (caller handles that)
+        """
         observations = td["env_obs"]
 
         # Initialize state if needed (handle both None and lazy init cases)
@@ -375,9 +381,19 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         if "dones" in td:
             state["terminations"] = td["dones"]
             
-        # Set critical TensorDict fields using mixin
-        # Note: For transformer, we still set these but handle differently than LSTM
-        B, TT = self.set_tensordict_fields(td, observations)
+        # Determine dimensions from observations
+        if observations.dim() == 4:  # Training
+            B = observations.shape[0]
+            TT = observations.shape[1]
+            # Reshape TD for training if needed (following Fast agent pattern)
+            if td.batch_dims > 1:
+                td = td.reshape(B * TT)
+        else:  # Inference
+            B = observations.shape[0]
+            TT = 1
+            
+        # Set critical TensorDict fields using mixin (TD is already reshaped if needed)
+        self.set_tensordict_fields(td, observations)
 
         # Determine if we're in training or inference mode
         if action is None:
@@ -391,11 +407,15 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
             # Training mode - use parent's forward for BPTT
             logits, values = super().forward(observations, state)
 
-            # Use mixin for training mode processing
-            # Note: TransformerWrapper handles the reshaping of values
-            td = self.forward_training(td, action, logits, values)
+            # The mixin expects values to be flattened for training
+            if values.dim() == 2:  # (B, T) from TransformerWrapper
+                values_flat = values.flatten()
+            else:
+                values_flat = values
             
-            # Override value key for transformer (TransformerWrapper uses "value" not "values")
-            td["value"] = values
+            # Use mixin's forward_training
+            # Note: The mixin will try to reshape at the end, but that's okay
+            # because our TD is already flat and matches what it expects
+            td = self.forward_training(td, action, logits, values_flat)
 
         return td
