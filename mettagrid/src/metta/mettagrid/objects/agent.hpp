@@ -85,6 +85,7 @@ public:
   std::string prev_action_name;
   unsigned int steps_without_motion;
   Box* box;
+  ObservationType genome;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
