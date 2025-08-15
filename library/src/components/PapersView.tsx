@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useRef, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   PaperWithUserContext,
   User,
@@ -35,6 +36,7 @@ interface PapersViewProps {
   papers: PaperWithUserContext[];
   users: User[];
   interactions: UserInteraction[];
+  initialSearch?: string;
 }
 
 /**
@@ -68,9 +70,14 @@ interface ColumnConfig {
   renderCell: (paper: PaperWithUserContext) => React.ReactNode;
 }
 
-export function PapersView({ papers, users, interactions }: PapersViewProps) {
+export function PapersView({
+  papers,
+  users,
+  interactions,
+  initialSearch = "",
+}: PapersViewProps) {
   // State for search and filtering
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(initialSearch);
   const [showOnlyStarred, setShowOnlyStarred] = useState(false);
   const [sortColumn, setSortColumn] = useState<
     "title" | "tags" | "readBy" | "queued"
@@ -99,6 +106,9 @@ export function PapersView({ papers, users, interactions }: PapersViewProps) {
 
   // State for loading indicator during filtering/sorting operations
   const [isLoading, setIsLoading] = useState(false);
+
+  // Router for URL navigation
+  const router = useRouter();
 
   // Overlay navigation
   const { openPaper } = useOverlayNavigation();
@@ -187,6 +197,18 @@ export function PapersView({ papers, users, interactions }: PapersViewProps) {
     document.removeEventListener("mouseup", handleMouseUp);
   }, [handleMouseMove]);
 
+  // Helper function to update URL with search parameters
+  const updateUrlWithSearch = (searchValue: string) => {
+    const params = new URLSearchParams();
+    if (searchValue.trim()) {
+      params.set("search", searchValue.trim());
+    }
+    const newUrl = params.toString()
+      ? `/papers?${params.toString()}`
+      : "/papers";
+    router.push(newUrl, { scroll: false });
+  };
+
   // Handle tag click to apply search filter
   const handleTagClick = (tag: string) => {
     if (!tag || typeof tag !== "string") {
@@ -201,6 +223,7 @@ export function PapersView({ papers, users, interactions }: PapersViewProps) {
     }
 
     setSearchQuery(trimmedTag);
+    updateUrlWithSearch(trimmedTag);
   };
 
   // Handle paper title click

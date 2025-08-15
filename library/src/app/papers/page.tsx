@@ -13,13 +13,26 @@ import {
  * Includes current user context for star/queue interactions.
  */
 
-export default async function PapersPage() {
+export default async function PapersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   // Load papers data from the database with current user context
   const { papers, users, interactions } = await loadPapersWithUserContext();
 
+  // Get search parameter for initial filter
+  const params = await searchParams;
+  const initialSearch = typeof params.search === "string" ? params.search : "";
+
   return (
     <OverlayStackProvider>
-      <PapersView papers={papers} users={users} interactions={interactions} />
+      <PapersView
+        papers={papers}
+        users={users}
+        interactions={interactions}
+        initialSearch={initialSearch}
+      />
       <OverlayStackRenderer />
     </OverlayStackProvider>
   );

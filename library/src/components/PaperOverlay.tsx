@@ -178,12 +178,18 @@ export default function PaperOverlay({
                 <h3 className="text-sm font-medium text-gray-700">Topics</h3>
                 <div className="flex flex-wrap gap-2">
                   {paper.tags.map((topic: string, index: number) => (
-                    <span
+                    <button
                       key={index}
-                      className="rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800"
+                      onClick={() => {
+                        const params = new URLSearchParams();
+                        params.set("search", topic);
+                        window.open(`/papers?${params.toString()}`, "_blank");
+                      }}
+                      className="cursor-pointer rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800 transition-colors hover:bg-blue-200"
+                      title={`Click to view all papers tagged with "${topic}"`}
                     >
                       {topic}
-                    </span>
+                    </button>
                   ))}
                 </div>
               </div>
