@@ -54,6 +54,10 @@ class LSTMWrapper(nn.Module):
         # Store action conversion tensors (will be set by MettaAgent)
         self.action_index_tensor = None
         self.cum_action_max_params = None
+        
+        # LSTM memory management to match ComponentPolicy
+        self.lstm_h = {}  # Hidden states per environment
+        self.lstm_c = {}  # Cell states per environment
 
 
 class Fast(LSTMWrapper):
@@ -80,7 +84,21 @@ class Fast(LSTMWrapper):
         # Initialize parity features to match ComponentPolicy
         self.clip_range = clip_range  # Match YAML's clip_range: 0
         self.analyze_weights_interval = 300  # Match YAML config
+    
+    def has_memory(self):
+        """Indicate that this policy has memory (LSTM states)."""
+        return True
+    
+    def get_memory(self):
+        """Get current LSTM memory states."""
+        return self.lstm_h, self.lstm_c
+    
+    def reset_memory(self):
+        """Reset LSTM memory states."""
+        self.lstm_h.clear()
+        self.lstm_c.clear()
 
+    @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"]
 
@@ -90,21 +108,57 @@ class Fast(LSTMWrapper):
         # Encode obs
         hidden = self.policy.encode_observations(observations, state)
 
-        B = observations.shape[0]
-        TT = 1 if observations.dim() == 3 else observations.shape[1]
+        # Handle both training (B, T) and inference (B,) shapes
+        if observations.dim() == 4:  # Training: [B, T, obs_tokens, 3]
+            B = observations.shape[0]
+            TT = observations.shape[1]
+        else:  # Inference: [B, obs_tokens, 3]
+            B = observations.shape[0]
+            TT = 1
+        
+        # Only set TensorDict keys if they don't exist (ComponentPolicy compatibility)
+        if "bptt" not in td:
+            # During training, TensorDict may already have proper shape
+            # Only set if we're in flat mode
+            if td.batch_dims == 1:
+                td["bptt"] = torch.full((B * TT,), TT, device=observations.device, dtype=torch.long)
+                td["batch"] = torch.full((B * TT,), B, device=observations.device, dtype=torch.long)
 
-        # Prepare LSTM state
-        lstm_h, lstm_c = state.get("lstm_h"), state.get("lstm_c")
-        if lstm_h is not None and lstm_c is not None:
-            lstm_h = lstm_h[: self.lstm.num_layers]
-            lstm_c = lstm_c[: self.lstm.num_layers]
+        # Get environment ID for state tracking
+        training_env_id_start = td.get("training_env_id_start", None)
+        if training_env_id_start is None:
+            training_env_id_start = 0
+        else:
+            training_env_id_start = training_env_id_start[0].item()
+
+        # Prepare LSTM state with proper memory management
+        if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
+            lstm_h = self.lstm_h[training_env_id_start]
+            lstm_c = self.lstm_c[training_env_id_start]
+            
+            # Reset hidden state if episode is done or truncated
+            dones = td.get("dones", None)
+            truncateds = td.get("truncateds", None)
+            if dones is not None and truncateds is not None:
+                reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
+                lstm_h = lstm_h.masked_fill(reset_mask, 0)
+                lstm_c = lstm_c.masked_fill(reset_mask, 0)
+            
             lstm_state = (lstm_h, lstm_c)
         else:
-            lstm_state = None
+            # Initialize new hidden states
+            lstm_h = torch.zeros(self.num_layers, B, self.hidden_size, device=observations.device)
+            lstm_c = torch.zeros(self.num_layers, B, self.hidden_size, device=observations.device)
+            lstm_state = (lstm_h, lstm_c)
 
         # Forward LSTM
         hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, in_size)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
+        
+        # CRITICAL: Detach hidden states to prevent gradient accumulation
+        self.lstm_h[training_env_id_start] = new_lstm_h.detach()
+        self.lstm_c[training_env_id_start] = new_lstm_c.detach()
+        
         flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
         # Decode
