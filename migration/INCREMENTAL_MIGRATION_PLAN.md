@@ -11,6 +11,10 @@ Current:
 ├── common/src/metta/      # Shared utilities with nested src
 ├── mettagrid/src/metta/   # Environment with nested src
 ├── app_backend/src/metta/ # Backend services with nested src
+├── configs/               # Hydra configs (mirrors code structure)
+├── tools/                 # CLI tools (unchanged)
+├── tests/                 # Test suite (unchanged)
+├── [other directories]    # All preserved as-is
 
 Target:
 ├── cogworks/metta/cogworks/  # RL framework (metta only, no agent)
@@ -18,7 +22,23 @@ Target:
 ├── mettagrid/metta/mettagrid/# Environment (flattened)
 ├── common/metta/common/      # Shared utilities (flattened)
 ├── backend-shared/metta/     # Backend services (consolidated)
+├── configs/               # Updated to match new structure
+│   ├── agent/            # Points to metta.agent.*
+│   ├── sim/              # Points to metta.cogworks.sim.*
+│   ├── trainer/          # Points to metta.cogworks.rl.*
+│   └── [others]          # Updated as needed
+├── tools/                 # Unchanged
+├── tests/                 # Unchanged
+├── devops/               # Unchanged
+├── docs/                 # Unchanged
+├── recipes/              # Unchanged
+├── scenes/               # Unchanged
+├── scripts/              # Unchanged
+├── experiments/          # Unchanged
+├── [all others]          # Preserved as-is
 ```
+
+**Important**: All directories not explicitly mentioned in the migration (tools/, devops/, docs/, recipes/, scenes/, scripts/, experiments/, observatory/, gridworks/, etc.) remain completely unchanged.
 
 Key change: **agent/ remains separate** from cogworks, maintaining the clean separation that's been working well.
 
@@ -182,7 +202,93 @@ from metta.agent import *
 EOF
 ```
 
-### Step 6: Validate Everything Works
+### Step 6: Update Hydra Configs
+
+Critical step: Update all `_target_` fields in configs to match new import paths.
+
+```bash
+# Create config update script
+cat > migration/tools/update_configs.py << 'EOF'
+#!/usr/bin/env uv run
+import yaml
+from pathlib import Path
+
+def update_config_targets(config_dir: Path, mappings: dict):
+    """Update _target_ fields in all YAML configs."""
+    
+    for yaml_file in config_dir.rglob("*.yaml"):
+        try:
+            with open(yaml_file) as f:
+                config = yaml.safe_load(f)
+            
+            if not config:
+                continue
+                
+            modified = False
+            
+            def update_targets(obj):
+                nonlocal modified
+                if isinstance(obj, dict):
+                    if '_target_' in obj:
+                        for old, new in mappings.items():
+                            if obj['_target_'].startswith(old):
+                                obj['_target_'] = obj['_target_'].replace(old, new)
+                                modified = True
+                                print(f"  {yaml_file.name}: {old} -> {new}")
+                    for value in obj.values():
+                        update_targets(value)
+                elif isinstance(obj, list):
+                    for item in obj:
+                        update_targets(item)
+            
+            update_targets(config)
+            
+            if modified:
+                with open(yaml_file, 'w') as f:
+                    yaml.dump(config, f, default_flow_style=False, sort_keys=False)
+                    
+        except Exception as e:
+            print(f"Error processing {yaml_file}: {e}")
+
+# Phase-specific mappings
+phase2_mappings = {
+    'common.src.metta.common': 'metta.common',
+}
+
+phase3_mappings = {
+    'agent.src.metta.agent': 'metta.agent',
+    'mettagrid.src.metta.mettagrid': 'metta.mettagrid',
+}
+
+phase4_mappings = {
+    'metta.rl': 'metta.cogworks.rl',
+    'metta.sim': 'metta.cogworks.sim',
+    'metta.eval': 'metta.cogworks.eval',
+    'metta.sweep': 'metta.cogworks.sweep',
+    'metta.map': 'metta.cogworks.mapgen',
+}
+
+# Apply updates based on current phase
+import sys
+phase = sys.argv[1] if len(sys.argv) > 1 else 'phase2'
+
+if phase == 'phase2':
+    update_config_targets(Path('configs'), phase2_mappings)
+elif phase == 'phase3':
+    update_config_targets(Path('configs'), phase3_mappings)
+elif phase == 'phase4':
+    update_config_targets(Path('configs'), phase4_mappings)
+else:
+    print(f"Unknown phase: {phase}")
+EOF
+
+chmod +x migration/tools/update_configs.py
+
+# Run for current phase
+uv run migration/tools/update_configs.py phase2  # or phase3, phase4
+```
+
+### Step 7: Validate Everything Works
 
 ```bash
 # Run comprehensive tests

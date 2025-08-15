@@ -1,0 +1,393 @@
+{
+  "dry_run": true,
+  "total_changes": 65,
+  "changes": [
+    {
+      "file": "configs/renderer_job.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/debug.yaml",
+      "old_target": "metta.map.mapgen_ascii.MapGenAscii",
+      "new_target": "metta.cogworks.mapgen.mapgen_ascii.MapGenAscii"
+    },
+    {
+      "file": "configs/env/mettagrid/laser_tag.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/puffer.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/bases.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/ants.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/systematic_exploration_memory/evals/defaults.yaml",
+      "old_target": "metta.map.mapgen_ascii.MapGenAscii",
+      "new_target": "metta.cogworks.mapgen.mapgen_ascii.MapGenAscii"
+    },
+    {
+      "file": "configs/env/mettagrid/memory/evals/defaults.yaml",
+      "old_target": "metta.map.mapgen_ascii.MapGenAscii",
+      "new_target": "metta.cogworks.mapgen.mapgen_ascii.MapGenAscii"
+    },
+    {
+      "file": "configs/env/mettagrid/memory/training/medium.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/memory/training/hard.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/memory/training/easy.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/evals/walls_outofsight.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/evals/defaults.yaml",
+      "old_target": "metta.map.mapgen_ascii.MapGenAscii",
+      "new_target": "metta.cogworks.mapgen.mapgen_ascii.MapGenAscii"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/evals/labyrinth.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/evals/walls_sparse.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/evals/emptyspace_sparse.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/evals/obstacles1.yaml",
+      "old_target": "metta.map.mapgen_ascii.MapGenAscii",
+      "new_target": "metta.cogworks.mapgen.mapgen_ascii.MapGenAscii"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/evals/walls_withinsight.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/evals/radialmaze.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/evals/emptyspace_sparse_medium.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/evals/emptyspace_withinsight.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/evals/emptyspace_outofsight.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/training/terrain_from_numpy_defaults.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/training/sparse.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation/training/sparse_bucketed_cfg.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/instances_example.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/wfc_simple.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/convchain.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/bsp_complex.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/mapgen_demo.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/auto.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/wfc_demo.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/maze.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/maze_basic.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/random_scene.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/load_random.yaml",
+      "old_target": "metta.map.load_random.LoadRandom",
+      "new_target": "metta.cogworks.mapgen.load_random.LoadRandom"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/bsp_plus_connected.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/load.yaml",
+      "old_target": "metta.map.load.Load",
+      "new_target": "metta.cogworks.mapgen.load.Load"
+    },
+    {
+      "file": "configs/env/mettagrid/game/map_builder/bsp.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/object_use/evals/defaults.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/object_use/evals/swap_in.yaml",
+      "old_target": "metta.map.mapgen_ascii.MapGenAscii",
+      "new_target": "metta.cogworks.mapgen.mapgen_ascii.MapGenAscii"
+    },
+    {
+      "file": "configs/env/mettagrid/object_use/evals/shoot_out.yaml",
+      "old_target": "metta.map.mapgen_ascii.MapGenAscii",
+      "new_target": "metta.cogworks.mapgen.mapgen_ascii.MapGenAscii"
+    },
+    {
+      "file": "configs/env/mettagrid/object_use/evals/swap_out.yaml",
+      "old_target": "metta.map.mapgen_ascii.MapGenAscii",
+      "new_target": "metta.cogworks.mapgen.mapgen_ascii.MapGenAscii"
+    },
+    {
+      "file": "configs/env/mettagrid/object_use/training/easy_all_objects.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/autocurricula/defaults.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/autocurricula/debug_env.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/autocurricula/terrain_from_numpy.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation_sequence/evals/defaults.yaml",
+      "old_target": "metta.map.mapgen_ascii.MapGenAscii",
+      "new_target": "metta.cogworks.mapgen.mapgen_ascii.MapGenAscii"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation_sequence/experiments/hard_mem_defaults.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation_sequence/experiments/cylinder_world_cfg.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation_sequence/experiments/sequence_defaults.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation_sequence/experiments/mem_defaults.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/navigation_sequence/experiments/terrain_from_numpy_cfg.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/diversity/multi_left_or_right.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/backchain_sequence/defaults.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/arena/tag.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/arena/basic.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/operant_conditioning/smoke_tests/defaults.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/env/mettagrid/operant_conditioning/trial_and_error/defaults.yaml",
+      "old_target": "metta.map.mapgen.MapGen",
+      "new_target": "metta.cogworks.mapgen.mapgen.MapGen"
+    },
+    {
+      "file": "configs/trainer/trainer.yaml",
+      "old_target": "metta.rl.hyperparameter_scheduler.CosineSchedule",
+      "new_target": "metta.cogworks.rl.hyperparameter_scheduler.CosineSchedule"
+    },
+    {
+      "file": "configs/trainer/trainer.yaml",
+      "old_target": "metta.rl.hyperparameter_scheduler.LogarithmicSchedule",
+      "new_target": "metta.cogworks.rl.hyperparameter_scheduler.LogarithmicSchedule"
+    },
+    {
+      "file": "configs/trainer/trainer.yaml",
+      "old_target": "metta.rl.hyperparameter_scheduler.LinearSchedule",
+      "new_target": "metta.cogworks.rl.hyperparameter_scheduler.LinearSchedule"
+    },
+    {
+      "file": "configs/trainer/trainer.yaml",
+      "old_target": "metta.rl.hyperparameter_scheduler.LinearSchedule",
+      "new_target": "metta.cogworks.rl.hyperparameter_scheduler.LinearSchedule"
+    },
+    {
+      "file": "configs/trainer/trainer.yaml",
+      "old_target": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+      "new_target": "metta.cogworks.rl.hyperparameter_scheduler.ConstantSchedule"
+    },
+    {
+      "file": "configs/trainer/trainer.yaml",
+      "old_target": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
+      "new_target": "metta.cogworks.rl.hyperparameter_scheduler.ConstantSchedule"
+    }
+  ],
+  "affected_files": [
+    "configs/env/mettagrid/ants.yaml",
+    "configs/env/mettagrid/arena/basic.yaml",
+    "configs/env/mettagrid/arena/tag.yaml",
+    "configs/env/mettagrid/autocurricula/debug_env.yaml",
+    "configs/env/mettagrid/autocurricula/defaults.yaml",
+    "configs/env/mettagrid/autocurricula/terrain_from_numpy.yaml",
+    "configs/env/mettagrid/backchain_sequence/defaults.yaml",
+    "configs/env/mettagrid/bases.yaml",
+    "configs/env/mettagrid/debug.yaml",
+    "configs/env/mettagrid/diversity/multi_left_or_right.yaml",
+    "configs/env/mettagrid/game/map_builder/auto.yaml",
+    "configs/env/mettagrid/game/map_builder/bsp.yaml",
+    "configs/env/mettagrid/game/map_builder/bsp_complex.yaml",
+    "configs/env/mettagrid/game/map_builder/bsp_plus_connected.yaml",
+    "configs/env/mettagrid/game/map_builder/convchain.yaml",
+    "configs/env/mettagrid/game/map_builder/instances_example.yaml",
+    "configs/env/mettagrid/game/map_builder/load.yaml",
+    "configs/env/mettagrid/game/map_builder/load_random.yaml",
+    "configs/env/mettagrid/game/map_builder/mapgen_demo.yaml",
+    "configs/env/mettagrid/game/map_builder/maze.yaml",
+    "configs/env/mettagrid/game/map_builder/maze_basic.yaml",
+    "configs/env/mettagrid/game/map_builder/random_scene.yaml",
+    "configs/env/mettagrid/game/map_builder/wfc_demo.yaml",
+    "configs/env/mettagrid/game/map_builder/wfc_simple.yaml",
+    "configs/env/mettagrid/laser_tag.yaml",
+    "configs/env/mettagrid/memory/evals/defaults.yaml",
+    "configs/env/mettagrid/memory/training/easy.yaml",
+    "configs/env/mettagrid/memory/training/hard.yaml",
+    "configs/env/mettagrid/memory/training/medium.yaml",
+    "configs/env/mettagrid/navigation/evals/defaults.yaml",
+    "configs/env/mettagrid/navigation/evals/emptyspace_outofsight.yaml",
+    "configs/env/mettagrid/navigation/evals/emptyspace_sparse.yaml",
+    "configs/env/mettagrid/navigation/evals/emptyspace_sparse_medium.yaml",
+    "configs/env/mettagrid/navigation/evals/emptyspace_withinsight.yaml",
+    "configs/env/mettagrid/navigation/evals/labyrinth.yaml",
+    "configs/env/mettagrid/navigation/evals/obstacles1.yaml",
+    "configs/env/mettagrid/navigation/evals/radialmaze.yaml",
+    "configs/env/mettagrid/navigation/evals/walls_outofsight.yaml",
+    "configs/env/mettagrid/navigation/evals/walls_sparse.yaml",
+    "configs/env/mettagrid/navigation/evals/walls_withinsight.yaml",
+    "configs/env/mettagrid/navigation/training/sparse.yaml",
+    "configs/env/mettagrid/navigation/training/sparse_bucketed_cfg.yaml",
+    "configs/env/mettagrid/navigation/training/terrain_from_numpy_defaults.yaml",
+    "configs/env/mettagrid/navigation_sequence/evals/defaults.yaml",
+    "configs/env/mettagrid/navigation_sequence/experiments/cylinder_world_cfg.yaml",
+    "configs/env/mettagrid/navigation_sequence/experiments/hard_mem_defaults.yaml",
+    "configs/env/mettagrid/navigation_sequence/experiments/mem_defaults.yaml",
+    "configs/env/mettagrid/navigation_sequence/experiments/sequence_defaults.yaml",
+    "configs/env/mettagrid/navigation_sequence/experiments/terrain_from_numpy_cfg.yaml",
+    "configs/env/mettagrid/object_use/evals/defaults.yaml",
+    "configs/env/mettagrid/object_use/evals/shoot_out.yaml",
+    "configs/env/mettagrid/object_use/evals/swap_in.yaml",
+    "configs/env/mettagrid/object_use/evals/swap_out.yaml",
+    "configs/env/mettagrid/object_use/training/easy_all_objects.yaml",
+    "configs/env/mettagrid/operant_conditioning/smoke_tests/defaults.yaml",
+    "configs/env/mettagrid/operant_conditioning/trial_and_error/defaults.yaml",
+    "configs/env/mettagrid/puffer.yaml",
+    "configs/env/mettagrid/systematic_exploration_memory/evals/defaults.yaml",
+    "configs/renderer_job.yaml",
+    "configs/trainer/trainer.yaml"
+  ]
+}

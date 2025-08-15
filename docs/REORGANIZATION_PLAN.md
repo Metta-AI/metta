@@ -16,9 +16,18 @@ Current:
 ├── common/          # Shared utilities
 ├── mettagrid/       # C++/Python environment
 ├── app_backend/     # Backend services
+├── configs/         # Hydra configurations (mirrors code structure)
 ├── tools/           # CLI scripts
 ├── tests/           # Test suite
-└── configs/         # Hydra configurations
+├── devops/          # DevOps and deployment
+├── docs/            # Documentation
+├── recipes/         # Example recipes
+├── scenes/          # Scene definitions
+├── scripts/         # Utility scripts
+├── experiments/     # Experiment tracking
+├── observatory/     # Monitoring dashboard
+├── gridworks/       # Web interface
+└── [others]         # Various other directories
 
 Target:
 ├── cogworks/        # RL framework (metta only, without agent)
@@ -26,8 +35,25 @@ Target:
 ├── mettagrid/       # Environment (standalone)
 ├── common/          # Shared utilities
 ├── backend-shared/  # Backend services
-└── tools/           # CLI scripts (unchanged location)
+├── configs/         # Updated to match new module paths
+├── tools/           # UNCHANGED
+├── tests/           # UNCHANGED (imports updated)
+├── devops/          # UNCHANGED
+├── docs/            # UNCHANGED
+├── recipes/         # UNCHANGED
+├── scenes/          # UNCHANGED
+├── scripts/         # UNCHANGED
+├── experiments/     # UNCHANGED
+├── observatory/     # UNCHANGED
+├── gridworks/       # UNCHANGED
+└── [all others]     # ALL PRESERVED AS-IS
 ```
+
+**Important Migration Principles:**
+1. Only the 5 main packages (metta→cogworks, agent, mettagrid, common, app_backend→backend-shared) are being restructured
+2. All other directories remain completely unchanged in structure and location
+3. Configs are updated to match new import paths but remain in configs/
+4. Tests remain in tests/ with only import statements updated
 
 ### Key Statistics
 - **Total Python files:** ~450
@@ -424,11 +450,31 @@ if cycles:
         print(f"  {a} <-> {b}")
 ```
 
+#### 4.4 Update Hydra Configs
+Update all config files to use new import paths:
+```bash
+# Update configs for Phase 4 changes
+uv run migration/tools/update_configs.py phase4 --apply
+
+# Verify configs are valid
+uv run migration/tools/update_configs.py phase4 --verify
+
+# Key updates:
+# - metta.rl.* → metta.cogworks.rl.*
+# - metta.sim.* → metta.cogworks.sim.*
+# - metta.eval.* → metta.cogworks.eval.*
+# - metta.sweep.* → metta.cogworks.sweep.*
+# - metta.map.* → metta.cogworks.mapgen.*
+# - agent.src.metta.agent.* → metta.agent.*
+```
+
 ### Success Criteria
 - [ ] softmax-cogworks package builds and installs
 - [ ] softmax-agent package builds and installs separately
 - [ ] All cogworks tests pass
 - [ ] All agent tests pass
+- [ ] All Hydra configs have updated _target_ fields
+- [ ] Config verification passes (all targets valid)
 - [ ] No circular import errors
 - [ ] Training pipeline works end-to-end with separate packages
 
