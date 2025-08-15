@@ -8,7 +8,7 @@ back to identical configs.
 import unittest
 
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.config.builder as eb
+import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum import (
     BucketedTaskGeneratorConfig,
     CurriculumConfig,

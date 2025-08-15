@@ -55,6 +55,3 @@ class MapBuilder(ABC):
 
     @abstractmethod
     def build(self) -> GameMap: ...
-
-
-# MapBuilderConfigUnion is defined in __init__.py to avoid circular imports

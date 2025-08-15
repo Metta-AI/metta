@@ -72,19 +72,17 @@ class MettaGridCore:
         self._current_seed: int = 0
         self._map_builder = self.__env_config.game.map_builder.create()
 
+        # Set by PufferBase
+        self.observations: np.ndarray
+        self.terminals: np.ndarray
+        self.truncations: np.ndarray
+        self.rewards: np.ndarray
+
         # Initialize renderer class if needed (before C++ env creation)
         if self._render_mode is not None:
             self._initialize_renderer()
 
         self.__c_env_instance: MettaGridCpp = self._create_c_env()
-
-        # Set by PufferBase
-        self._buffers = dict(
-            observations=np.zeros((self.num_agents, *self._observation_space.shape), dtype=dtype_observations),
-            terminals=np.zeros(self.num_agents, dtype=dtype_terminals),
-            truncations=np.zeros(self.num_agents, dtype=dtype_truncations),
-            rewards=np.zeros(self.num_agents, dtype=dtype_rewards),
-        )
         self._update_core_buffers()
 
     @property

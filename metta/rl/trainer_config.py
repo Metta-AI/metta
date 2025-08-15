@@ -4,7 +4,7 @@ from pydantic import ConfigDict, Field, model_validator
 
 from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
 from metta.common.util.config import Config
-from metta.mettagrid.config.builder import make_arena
+from metta.mettagrid.config.envs import make_arena
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -250,11 +250,3 @@ class TrainerConfig(Config):
             )
 
         return self
-
-    @property
-    def curriculum_or_env(self) -> str:
-        if self.curriculum:
-            return self.curriculum
-        if self.env:
-            return self.env
-        raise ValueError("curriculum or env must be set")

@@ -44,7 +44,7 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[Di
     """
     Create or loads a PyTorch policy.
     """
-
+    # TODO: #dehydration - this is a hack to get the policy to work. We need to fix this.
     try:
         weights = torch.load(path, map_location=device, weights_only=True)
         num_actions, hidden_size, num_action_args, obs_channels = _parse_weights_metadata(weights)

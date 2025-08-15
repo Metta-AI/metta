@@ -14,21 +14,19 @@ import json
 import logging
 import sys
 import uuid
-from datetime import datetime
-from pathlib import Path
 
 import torch
 
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicySelectorType
+from metta.agent.policy_store import PolicySelectorType, PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
-from metta.common.util.stats_client_cfg import get_stats_client
+from metta.common.wandb.wandb_config import WandbConfig, WandbConfigOff
 from metta.eval.eval_service import evaluate_policy
 from metta.rl.stats import process_policy_evaluator_stats
+from metta.rl.system_config import SystemConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.util.metta_script import metta_script
-from tools.utils import get_policy_store_from_cfg
 
 # --------------------------------------------------------------------------- #
 # Config objects                                                              #
@@ -36,6 +34,7 @@ from tools.utils import get_policy_store_from_cfg
 
 
 class SimToolConfig(Config):
+    system: SystemConfig = SystemConfig()
     simulations: list[SimulationConfig]
     policy_uris: list[str]
     selector_type: PolicySelectorType = "top"
@@ -43,21 +42,8 @@ class SimToolConfig(Config):
     register_missing_policies: bool = False
     stats_dir: str  # The (local) directory where stats should be stored
     replay_dir: str  # where to store replays
-
-
-def _determine_run_name(policy_uri: str) -> str:
-    if policy_uri.startswith("file://"):
-        # Extract checkpoint name from file path
-        checkpoint_path = Path(policy_uri.replace("file://", ""))
-        return f"eval_{checkpoint_path.stem}"
-    elif policy_uri.startswith("wandb://"):
-        # Extract artifact name from wandb URI
-        # Format: wandb://entity/project/artifact:version
-        artifact_part = policy_uri.split("/")[-1]
-        return f"eval_{artifact_part.replace(':', '_')}"
-    else:
-        # Fallback to timestamp
-        return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    eval_task_id: str | None = None
+    wandb: WandbConfig = WandbConfigOff()
 
 
 # --------------------------------------------------------------------------- #
@@ -68,10 +54,16 @@ def _determine_run_name(policy_uri: str) -> str:
 def main(cfg: SimToolConfig) -> None:
     logger = logging.getLogger("tools.sim")
 
-    policy_store = get_policy_store_from_cfg(cfg)
-    stats_client: StatsClient | None = get_stats_client(cfg, logger)
-    if stats_client:
-        stats_client.validate_authenticated()
+    # TODO(daveey): #dehydration
+    policy_store = PolicyStore.create(
+        device=cfg.system.device,
+        wandb_config=cfg.wandb,
+        data_dir=cfg.system.data_dir,
+        wandb_run=None,
+    )
+    stats_client: StatsClient | None
+    if cfg.stats_db_uri is not None:
+        stats_client = StatsClient.create(cfg.stats_db_uri)
 
     policy_records_by_uri: dict[str, list[PolicyRecord]] = {
         policy_uri: policy_store.policy_records(

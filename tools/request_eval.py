@@ -4,7 +4,6 @@
 import argparse
 import asyncio
 import concurrent.futures
-import logging
 import uuid
 
 import wandb
@@ -28,7 +27,7 @@ from metta.common.util.constants import (
     PROD_OBSERVATORY_FRONTEND_URL,
     PROD_STATS_SERVER_URI,
 )
-from metta.common.util.stats_client_cfg import get_stats_client_direct
+from metta.common.util.stats_client_cfg import get_stats_client
 from metta.setup.utils import debug, info, success, warning
 from metta.sim.utils import get_or_create_policy_ids
 
@@ -108,11 +107,10 @@ def _get_policy_records_for_uri(
 async def _create_remote_eval_tasks(
     request: EvalRequest,
 ) -> None:
-    logger = logging.getLogger("tools.request_eval")
     info(f"Validating authentication with stats server {request.stats_server_uri}...")
-    stats_client = get_stats_client_direct(request.stats_server_uri, logger)
+    stats_client = get_stats_client(request.stats_server_uri)
     if stats_client is None:
-        logger.error("No stats client found")
+        warning("No stats client found")
         return
     stats_client.validate_authenticated()
 
