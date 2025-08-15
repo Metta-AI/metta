@@ -1,5 +1,3 @@
-#!/usr/bin/env -S uv run
-
 import copy
 import logging
 import os
@@ -41,9 +39,6 @@ class TrainTool(Tool):
 
     # Optional configurations
     map_preview_uri: str | None = None
-
-    # Seed for reproducibility
-    seed: int = Field(default=0)
 
     def model_post_init(self, __context):
         # Set run_dir based on run name if not explicitly set
