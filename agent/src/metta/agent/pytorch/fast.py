@@ -25,7 +25,14 @@ class Fast(pufferlib.models.LSTMWrapper):
                 hidden_size=hidden_size,
             )
         super().__init__(env, policy, input_size, hidden_size)
-
+        
+        # CRITICAL FIX: Replace the 1-layer LSTM with 2-layer LSTM to match YAML
+        # The parent class creates a 1-layer LSTM, but YAML fast.yaml uses 2 layers
+        # We override the LSTM after parent init
+        del self.lstm  # Remove the 1-layer LSTM from parent
+        del self.cell  # Remove the LSTMCell from parent (not used with 2-layer LSTM)
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers=2)
+        
         # Fix LSTM initialization to match YAML-based agent
         # The parent class initializes parameters BEFORE creating the LSTM,
         # but PyTorch's LSTM constructor overwrites them with default initialization.
@@ -37,6 +44,7 @@ class Fast(pufferlib.models.LSTMWrapper):
                 nn.init.orthogonal_(param, 1)  # Re-apply orthogonal init
 
         logger.info(f"[DEBUG] Fast initialized with {sum(p.numel() for p in self.parameters())} parameters")
+        logger.info(f"[DEBUG] LSTM: {self.lstm.num_layers} layers, hidden_size={self.lstm.hidden_size}")
         logger.info("[DEBUG] LSTM bias initialized to 1, weights orthogonal")
 
     def forward(self, td: TensorDict, state=None, action=None):
