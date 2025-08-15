@@ -137,7 +137,7 @@ export const ThreadedComment: FC<ThreadedCommentProps> = ({
 
   // Handle key press in reply input
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmitReply();
     }
