@@ -1,3 +1,4 @@
+import einops
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
@@ -19,14 +20,16 @@ class Dynamics(BaseLoss):
         # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
         policy_td = shared_loss_data["policy_td"]
 
-        self.policy.components["returns_pred"](policy_td)
-        self.policy.components["reward_pred"](policy_td)
+        self.policy.policy.components["returns_pred"](policy_td)
+        self.policy.policy.components["reward_pred"](policy_td)
         returns_pred: Tensor = policy_td["returns_pred"].to(dtype=torch.float32)
         reward_pred: Tensor = policy_td["reward_pred"].to(dtype=torch.float32)
+        returns_pred = einops.rearrange(returns_pred, "b t 1 -> b (t 1)")
+        reward_pred = einops.rearrange(reward_pred, "b t 1 -> b (t 1)")
 
         # targets
-        returns = shared_loss_data["returns"]
-        rewards = shared_loss_data["rewards"]
+        returns = shared_loss_data["sampled_mb"]["returns"]
+        rewards = shared_loss_data["sampled_mb"]["rewards"]
 
         # The model predicts future returns and rewards.
         # We align the predictions with the future targets by slicing the tensors.

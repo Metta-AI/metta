@@ -57,7 +57,7 @@ class EMA(BaseLoss):
         policy_td.set("bptt", torch.full((B * TT,), TT, device=policy_td.device, dtype=torch.long))
         policy_td.set("batch", torch.full((B * TT,), B, device=policy_td.device, dtype=torch.long))
 
-        self.policy.components["EMA_pred_output_2"](policy_td)
+        self.policy.policy.components["EMA_pred_output_2"](policy_td)
         pred: Tensor = policy_td["EMA_pred_output_2"].to(dtype=torch.float32)
 
         # target prediction: you need to clear all keys except env_obs and then clone

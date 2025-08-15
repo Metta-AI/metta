@@ -42,11 +42,11 @@ losses:
       rho_clip: 1.0 # Default: on-policy (no off-policy correction)
       c_clip: 1.0 # Default: on-policy bootstrapping
 
-dynamics:
-  path: metta.rl.loss.dynamics.Dynamics
-  returns_step_look_ahead: 2
-  returns_pred_coef: 0.3
-  reward_pred_coef: 0.3
+  dynamics:
+    path: metta.rl.loss.dynamics.Dynamics
+    returns_step_look_ahead: 2
+    returns_pred_coef: 0.3
+    reward_pred_coef: 0.3
 
 optimizer:
   type: adam
