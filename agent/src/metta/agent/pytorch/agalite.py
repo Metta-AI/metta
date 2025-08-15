@@ -269,16 +269,15 @@ class AGaLiTePolicy(nn.Module):
 
         return logits, value
 
-    def initialize_memory(self, batch_size: int, device: Optional[torch.device] = None) -> Dict:
+    def initialize_memory(self, batch_size: int) -> Dict:
         """Initialize AGaLiTe memory for a batch.
         
-        Args:
-            batch_size: Number of environments in the batch
-            device: Device to create tensors on (optional)
-            
-        Returns:
-            Dictionary containing initialized memory for all layers
+        Gets device from the model's parameters to ensure memory is created
+        on the same device as the model.
         """
+        # Get device from model parameters
+        device = next(self.parameters()).device
+        
         return AGaLiTeCore.initialize_memory(
             batch_size=batch_size,
             n_layers=self.n_layers,

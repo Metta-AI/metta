@@ -173,7 +173,7 @@ class TransformerWrapper(nn.Module):
         Initialize memory for a batch of environments.
 
         This method can be called in two ways:
-        1. With explicit batch_size and device (for initialization)
+        1. With explicit batch_size (and optionally device) for initialization
         2. Without arguments (when MettaAgent calls it during reset)
 
         When called without arguments, we return empty state that will be
@@ -181,12 +181,12 @@ class TransformerWrapper(nn.Module):
 
         Args:
             batch_size: Optional number of parallel environments
-            device: Optional device to create tensors on
+            device: Optional device to create tensors on (ignored, kept for compatibility)
 
         Returns:
             Initial memory state dictionary
         """
-        if batch_size is None or device is None:
+        if batch_size is None:
             # Called by MettaAgent.reset_memory() without args
             # Return empty state - will be initialized lazily on first forward
             return {
@@ -195,9 +195,12 @@ class TransformerWrapper(nn.Module):
                 "needs_init": True,  # Flag to indicate lazy initialization needed
             }
 
-        # Explicit initialization with batch_size and device
+        # Explicit initialization with batch_size
+        # Note: We ignore the device parameter and let the policy handle device placement
+        # internally, similar to how LSTMWrapper works. The device will be inferred
+        # from the tensors being processed (observations.device)
         if hasattr(self.policy, "initialize_memory"):
-            memory = self.policy.initialize_memory(batch_size, device)
+            memory = self.policy.initialize_memory(batch_size)
         else:
             memory = None
 
