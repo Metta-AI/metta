@@ -25,6 +25,10 @@ tools/
 ├── train.py                              # Training script invoked by sweeps
 └── get_best_params_from_sweep.py         # Extract optimal parameters from completed sweeps
 │
+experiments/
+└── dashboards/
+    └── sweep_dashboard.py                # Interactive analysis dashboard
+│
 configs/
 ├── sweep_job.yaml                        # Main sweep job configuration
 ├── sweep/                                # Sweep parameter configurations
@@ -386,10 +390,88 @@ For multi-node training:
 
 ## Analyzing Results
 
+### Interactive Sweep Dashboard
+
+The sweep system includes a powerful interactive dashboard for real-time analysis and visualization of sweep results.
+The dashboard provides WandB-quality visualizations with full interactivity.
+
+#### Running the Dashboard
+
+```bash
+# Basic usage
+python experiments/dashboards/sweep_dashboard.py --sweep-name my_sweep
+
+# With custom entity and project
+python experiments/dashboards/sweep_dashboard.py \
+  --sweep-name my_sweep \
+  --entity metta-research \
+  --project metta
+
+# Limit observations and set hourly cost
+python experiments/dashboards/sweep_dashboard.py \
+  --sweep-name my_sweep \
+  --max-observations 500 \
+  --hourly-cost 5.0
+```
+
+#### Dashboard Features
+
+The interactive dashboard provides:
+
+1. **Summary Statistics Cards**:
+   - Total runs completed
+   - Best score achieved
+   - Total compute cost
+   - Average runtime
+
+2. **Interactive Visualizations**:
+   - **Cost vs Score Analysis**: Scatter plot with Pareto frontier highlighting
+   - **Parameter Importance**: Bar chart showing correlations with objective
+   - **Score Progression**: Timeline view with moving average
+   - **Efficiency Frontier**: Pareto optimal runs visualization
+   - **Distributions**: Histograms for score and cost distributions
+   - **Parameter Correlations**: Grid of scatter plots for all parameters vs score
+
+3. **Interactive Features**:
+   - **Dynamic Filtering**: Adjust score and cost ranges with sliders
+   - **Click for Details**: Click any point to see full run configuration
+   - **Hover Information**: Detailed tooltips on all visualizations
+   - **Trend Lines**: Automatic trend fitting for parameter correlations
+
+4. **Run Details Panel**:
+   - Click on any data point to display:
+     - Complete hyperparameter configuration
+     - Performance metrics
+     - Runtime and cost information
+     - Run identification details
+
+#### Dashboard Access
+
+Once launched, the dashboard runs as a local web server:
+
+- URL: `http://127.0.0.1:8050/`
+- Real-time updates as new runs complete
+- Export capabilities for all visualizations
+
+#### Dashboard Requirements
+
+The dashboard requires the following Python packages (typically already installed):
+
+- `dash` and `dash-bootstrap-components` for the web interface
+- `plotly` for interactive visualizations
+- `pandas` and `numpy` for data processing
+- `wandb` for fetching sweep data
+
+Install if needed:
+
+```bash
+pip install dash dash-bootstrap-components plotly
+```
+
 ### Extract Best Parameters
 
 ```bash
-# Get best configuration
+# Get best configuration from sweep
 ./tools/get_best_params_from_sweep.py sweep_name=my_sweep
 
 # Show top 5 configurations
@@ -407,7 +489,7 @@ This generates a patch file for future training:
 ./tools/train.py run=production +trainer/patch=my_sweep_best
 ```
 
-### Monitor Progress
+### Monitor Progress in WandB
 
 View in WandB dashboard:
 
