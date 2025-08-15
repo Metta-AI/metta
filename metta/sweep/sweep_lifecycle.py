@@ -43,14 +43,28 @@ def initialize_sweep(sweep_job_cfg: DictConfig, logger: logging.Logger) -> None:
 
 def prepare_sweep_run(sweep_job_cfg: DictConfig, logger: logging.Logger) -> tuple[str, dict[str, Any]]:
     """Generate a new sweep run configuration with Protein suggestions and run name."""
-    # Load previous protein suggestions from WandB
-    protein = MettaProtein(sweep_job_cfg.sweep)
+
     previous_observations = fetch_protein_observations_from_wandb(
         wandb_entity=sweep_job_cfg.wandb.entity,
         wandb_project=sweep_job_cfg.wandb.project,
         sweep_name=sweep_job_cfg.sweep_name,
         max_observations=sweep_job_cfg.settings.max_observations_to_load,
     )
+
+    if hasattr(sweep_job_cfg, "schedule"):
+        total_runs = 0
+        phase_overrides = {}
+        for phase_idx, phase in enumerate(sweep_job_cfg.schedule.phases):
+            total_runs += phase.get("num_runs", 0)
+            if total_runs > len(previous_observations) or phase_idx == len(sweep_job_cfg.schedule.phases) - 1:
+                phase_overrides = phase.sweep
+                break
+        default_sweep_config = OmegaConf.create(OmegaConf.to_yaml(sweep_job_cfg.sweep))
+        sweep_phase_config = OmegaConf.merge(default_sweep_config, phase_overrides)
+        protein = MettaProtein(sweep_phase_config)  # type: ignore[arg-type]
+    else:
+        protein = MettaProtein(sweep_job_cfg.sweep)
+
     logger.info(f"Loaded {len(previous_observations)} previous observations from WandB")
     for obs in previous_observations:
         protein.observe(obs["suggestion"], obs["objective"], obs["cost"], obs["is_failure"])
