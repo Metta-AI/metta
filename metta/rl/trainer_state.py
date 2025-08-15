@@ -14,6 +14,7 @@ class TrainerState:
     mb_idx: int = 0
     num_mbs: int = 0
     optimizer: torch.optim.Optimizer | None = None
+    training_env_id: slice | None = None
 
     # Control flags and scratch metrics
     early_stop_update_epoch: bool = False

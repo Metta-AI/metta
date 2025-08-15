@@ -340,6 +340,7 @@ def train(
                     o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
                     total_steps += num_steps
 
+                    trainer_state.training_env_id = training_env_id
                     td = buffer_step[training_env_id].clone()
                     td["env_obs"] = o
                     td["rewards"] = r
@@ -362,9 +363,6 @@ def train(
                     for _lname in list(policy_losses):
                         loss_obj = loss_instances[_lname]
                         loss_obj.rollout(td, trainer_state)
-
-                    # Store experience
-                    experience.store(data_td=td, env_id=training_env_id)
 
                     # Send observation
                     send_observation(vecenv, td["actions"], dtype_actions, timer)

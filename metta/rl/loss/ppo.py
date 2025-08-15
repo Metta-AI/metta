@@ -72,19 +72,25 @@ class PPO(BaseLoss):
         with torch.no_grad():
             self.policy(td)
 
+            # Store experience
+            self.policy.replay.store(data_td=td, env_id=trainer_state.training_env_id)
+
     def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
+        """This is the PPO algorithm training loop."""
+        # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
         self.policy.on_train_mb_start()
 
+        # Check if we should early stop this update epoch (on subsequent minibatches)
         if self.loss_cfg.target_kl is not None and self.loss_tracker.minibatches_processed > 0:
             average_approx_kl = self.loss_tracker.get("approx_kl") / self.loss_tracker.minibatches_processed
             if average_approx_kl > self.loss_cfg.target_kl:
                 trainer_state.early_stop_update_epoch = True
 
-        # On first minibatch of the update epoch, compute advantages and sampling params
+        # On the first minibatch of the update epoch, compute advantages and sampling params
         if trainer_state.mb_idx == 0:
             self.advantages, self.anneal_beta = self.on_first_mb(trainer_state)
 
-        # Sample minibatch
+        # Then sample from the buffer (this happens at every minibatch)
         minibatch, indices, prio_weights = self.sample_minibatch(
             advantages=self.advantages,
             prio_alpha=self.loss_cfg.prioritized_experience_replay.prio_alpha,
@@ -94,10 +100,12 @@ class PPO(BaseLoss):
         shared_loss_data["sampled_mb"] = minibatch  # one loss should write the sampled mb for others to use
         shared_loss_data["indices"] = NonTensorData(indices)  # av this breaks compile
 
+        # Then forward the policy using the sampled minibatch
         policy_td = minibatch.select(*self.policy_experience_spec.keys(include_nested=True))
         policy_td = self.policy(policy_td, action=minibatch["actions"])
         shared_loss_data["policy_td"] = policy_td  # write the policy output td for others to reuse
 
+        # Finally, calculate the loss!
         loss = self.process_minibatch_update(
             minibatch=minibatch,
             policy_td=policy_td,
