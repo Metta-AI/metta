@@ -46,6 +46,8 @@ class MettaGridCore:
             render_mode: Rendering mode (None, "human", "miniscope", "raylib")
             **kwargs: Additional arguments passed to subclasses
         """
+        if render_mode == "auto":
+            render_mode = "raylib"
         self._render_mode = render_mode
         self._level = level
         self._renderer = None
