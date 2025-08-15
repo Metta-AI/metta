@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 set -euo pipefail
 
 cd /workspace/metta
@@ -8,40 +10,59 @@ if [ -n "${VIRTUAL_ENV:-}" ]; then
 fi
 . .venv/bin/activate
 
+# Determine node role using SkyPilot environment variables
+RANK=${SKYPILOT_NODE_RANK:-0}
+IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
+TOTAL_NODES=${SKYPILOT_NUM_NODES:-1}
+
+DEBUG=${DEBUG:-0}
+
+EXIT_SUCCESS=0
+EXIT_FAILURE=1
+EXIT_NCCL_TEST_FAILURE=42
+
 echo "[CONFIG] Run Configuration:"
+echo "  - NODE_RANK: ${RANK}"
+echo "  - IS_MASTER: ${IS_MASTER}"
+echo "  - TOTAL_NODES: ${TOTAL_NODES}"
 echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
 echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
 echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
 echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
+[ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
-if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
-  echo "[RUN] Collecting skypilot latency..."
-  uv run python common/src/metta/common/util/skypilot_latency.py || true
-else
-  echo "[RUN] Latency script is missing!"
+# Master-only: Collect SkyPilot latency
+if [[ "$IS_MASTER" == "true" ]]; then
+  if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
+    echo "[RUN] Collecting skypilot latency..."
+    uv run python common/src/metta/common/util/skypilot_latency.py || true
+  else
+    echo "[RUN] Latency script is missing!"
+  fi
 fi
-
-export NUM_GPUS="${SKYPILOT_NUM_GPUS_PER_NODE:-1}"
-export NUM_NODES="${SKYPILOT_NUM_NODES:-1}"
-export MASTER_ADDR="$(echo "${SKYPILOT_NODE_IPS:-}" | head -n1)"
-export MASTER_PORT=8008
-export NODE_INDEX="${SKYPILOT_NODE_RANK:-0}"
-export NCCL_SHM_DISABLE=1
-
-# Create a temp directory for IPC files
-export IPC_DIR="/tmp/metta_job_$$"
-mkdir -p "$IPC_DIR"
 
 METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
 
-export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
-export TERMINATION_REASON=""  # Track how the job ended
+# Master-only: Collect instance cost
+if [[ "$IS_MASTER" == "true" ]]; then
+  if [ -f common/src/metta/common/util/cost_monitor.py ]; then
+    echo "[RUN] Collecting instance cost..."
+    METTA_HOURLY_COST="$(uv run python common/src/metta/common/util/cost_monitor.py 2>/dev/null | tail -1 || true)"
+    if [ -n "${METTA_HOURLY_COST:-}" ]; then
+      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST in $METTA_ENV_FILE"
+    else
+      echo "[RUN] Cost monitor script failed to run or returned no value."
+    fi
+  else
+    echo "[RUN] Cost monitor script is missing!"
+  fi
+fi
 
-# Configurable intervals
-export TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-60}
-export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
+# Setup environment (all nodes)
+bash ./devops/skypilot/config/configure_environment.sh
+source "$METTA_ENV_FILE"
 
 # Create a temp directory for IPC files
 export IPC_DIR="/tmp/metta_job_$$"
@@ -51,58 +72,46 @@ export CMD_PID=""
 export CMD_PGID=""
 export START_TIME=0
 
+export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
+export TERMINATION_REASON=""
+
+# Configurable intervals
+export TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-60}
+export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
+
 # Flag to prevent multiple shutdowns
 export SHUTDOWN_IN_PROGRESS=0
 
-if [ -f common/src/metta/common/util/cost_monitor.py ]; then
-  echo "[RUN] Collecting instance cost..."
-  METTA_HOURLY_COST="$(uv run python common/src/metta/common/util/cost_monitor.py 2>/dev/null | tail -1 || true)"
-  if [ -n "${METTA_HOURLY_COST:-}" ]; then
-    echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST in $METTA_ENV_FILE"
+# Set up feature flags based on available credentials (master only)
+if [[ "$IS_MASTER" == "true" ]]; then
+  if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
+    export ENABLE_DISCORD=true
+    echo "[RUN] Discord notifications are enabled"
   else
-    echo "[RUN] Cost monitor script failed to run or returned no value."
+    export ENABLE_DISCORD=false
+    echo "[RUN] Discord notifications are disabled (no webhook URL)"
+  fi
+
+  if [ -n "${GITHUB_PAT:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${METTA_GIT_REF:-}" ]; then
+    export ENABLE_GITHUB_STATUS=true
+    echo "[RUN] GitHub status reporting is enabled"
+  else
+    export ENABLE_GITHUB_STATUS=false
+    echo "[RUN] GitHub status reporting is disabled (missing required credentials)"
   fi
 else
-  echo "[RUN] Cost monitor script is missing!"
-fi
-
-if [ -f "$METTA_ENV_FILE" ]; then
-  source "$METTA_ENV_FILE"
-else
-  echo "Warning: $METTA_ENV_FILE does not exist. Creating empty file."
-  touch "$METTA_ENV_FILE"
-fi
-
-# Set up feature flags based on available credentials
-if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
-  export ENABLE_DISCORD=true
-  echo "[RUN] DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:+<set>}" # Don't print the actual url
-  echo "[RUN] Discord notifications are enabled"
-else
   export ENABLE_DISCORD=false
-  echo "[RUN] Discord notifications are disabled (no webhook URL)"
-fi
-
-if [ -n "${GITHUB_PAT:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${METTA_GIT_REF:-}" ]; then
-  export ENABLE_GITHUB_STATUS=true
-  echo "[RUN] GitHub status reporting is enabled"
-  echo "[RUN] GITHUB_PAT: ${GITHUB_PAT:+<set>}" # Don't print the actual token
-  echo "[RUN] GITHUB_REPOSITORY: ${GITHUB_REPOSITORY:-<not set>}"
-  echo "[RUN] METTA_GIT_REF: ${METTA_GIT_REF:-<not set>}"
-  echo "[RUN] METTA_RUN_ID: ${METTA_RUN_ID:-<not set>}"
-else
   export ENABLE_GITHUB_STATUS=false
-  echo "[RUN] GitHub status reporting is disabled (missing required credentials)"
 fi
 
-# Function to conditionally send Discord notifications
+# Function to conditionally send Discord notifications (master only)
 maybe_send_discord_notification() {
   local emoji="$1"
   local title="$2"
   local status_msg="$3"
   local additional_info="${4:-}"
 
-  if [ "$ENABLE_DISCORD" != "true" ]; then
+  if [[ "$IS_MASTER" != "true" ]] || [ "$ENABLE_DISCORD" != "true" ]; then
     return 0
   fi
 
@@ -128,6 +137,7 @@ maybe_send_discord_notification() {
     echo "**Status**: $status_msg"
     [ -n "$runtime_msg" ] && echo "$runtime_msg"
     echo "**Time**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+    echo "**Nodes**: ${TOTAL_NODES}"
     [ -n "$additional_info" ] && echo "" && echo "$additional_info"
   } > "$IPC_DIR/discord_message.txt"
 
@@ -136,9 +146,9 @@ maybe_send_discord_notification() {
   uv run -m metta.common.util.discord || echo "[WARN] Discord notification failed; continuing"
 }
 
-# Function to conditionally set GitHub status
+# Function to conditionally set GitHub status (master only)
 maybe_set_github_status() {
-  if [ "$ENABLE_GITHUB_STATUS" != "true" ]; then
+  if [[ "$IS_MASTER" != "true" ]] || [ "$ENABLE_GITHUB_STATUS" != "true" ]; then
     return 0
   fi
 
@@ -150,11 +160,12 @@ maybe_set_github_status() {
 export -f maybe_send_discord_notification
 export -f maybe_set_github_status
 
-# Initial setup and notifications
-# Set GitHub status
-export GITHUB_STATUS_STATE=pending
-export GITHUB_STATUS_DESCRIPTION="Queued on SkyPilot…"
-maybe_set_github_status
+# Master-only: Initial GitHub status
+if [[ "$IS_MASTER" == "true" ]]; then
+  export GITHUB_STATUS_STATE=pending
+  export GITHUB_STATUS_DESCRIPTION="Queued on SkyPilot…"
+  maybe_set_github_status
+fi
 
 graceful_shutdown() {
   # Prevent multiple simultaneous shutdowns
@@ -169,7 +180,7 @@ graceful_shutdown() {
   # Disable the trap to prevent re-entry
   trap '' INT TERM HUP
 
-  # If a monitor set a reason, keep it; otherwise set a generic one.
+  # If a monitor set a reason, keep it; otherwise set a generic one
   if [ -z "${TERMINATION_REASON:-}" ] && [ -f "$TERMINATION_REASON_FILE" ]; then
     TERMINATION_REASON="$(cat "$TERMINATION_REASON_FILE" || true)"
   fi
@@ -218,7 +229,7 @@ graceful_shutdown() {
   export CMD_EXIT
   maybe_set_github_status
 
-  exit 0
+  exit $EXIT_SUCCESS
 }
 
 # Trap signals on the parent (the process SkyPilot watches)
@@ -254,7 +265,7 @@ terminate_process() {
 }
 
 run_cmd() {
-  echo "[INFO] Starting process $METTA_CMD"
+  echo "[INFO] Starting process $METTA_CMD (node rank: $RANK)"
 
   START_TIME=$(date +%s)
 
@@ -265,17 +276,17 @@ run_cmd() {
   sleep 1
   if ! kill -0 "$CMD_PID" 2>/dev/null; then
     echo "[ERROR] Command process died immediately!"
-    return 1  # Return failure immediately to avoid potential race
+    return 1
   fi
 
   CMD_PGID=$(ps -o pgid= -p "$CMD_PID" 2>/dev/null | tr -d ' ')
   echo "[INFO] Started $METTA_CMD process with PID: $CMD_PID, PGID: $CMD_PGID"
 
-  # Start timeout monitor if MAX_RUNTIME_HOURS is set
-  if [[ -n "${MAX_RUNTIME_HOURS:-}" ]] && [[ "${MAX_RUNTIME_HOURS}" != "None" ]]; then
+  # Master-only: Start timeout monitor if MAX_RUNTIME_HOURS is set
+  if [[ "$IS_MASTER" == "true" ]] && [[ -n "${MAX_RUNTIME_HOURS:-}" ]] && [[ "${MAX_RUNTIME_HOURS}" != "None" ]]; then
     (
       exec 2>&1
-      max_seconds=$(awk "BEGIN {print ${MAX_RUNTIME_HOURS} * 3600}")
+      max_seconds=$(awk "BEGIN {print int(${MAX_RUNTIME_HOURS} * 3600)}")
       echo "[INFO] Timeout monitor started - max runtime: ${MAX_RUNTIME_HOURS} hours (${max_seconds} seconds)"
       echo "[INFO] Checking every ${TIMEOUT_CHECK_INTERVAL} seconds"
 
@@ -294,7 +305,7 @@ run_cmd() {
         if [ $remaining -gt 0 ]; then
           elapsed_min=$((elapsed / 60))
           remaining_min=$((remaining / 60))
-          echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
+          [ "$DEBUG" = "1" ] && echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
         else
           echo "[INFO] Timeout limit reached - terminating process group"
           terminate_process "$CMD_PID" "max_runtime_reached"
@@ -306,7 +317,7 @@ run_cmd() {
     echo "[INFO] Started timeout monitor with PID: $TIMEOUT_MONITOR_PID"
   fi
 
-  # Start heartbeat monitor if enabled
+  # All nodes: Start heartbeat monitor if enabled
   if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
     echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE"
     echo "[INFO] Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
@@ -326,7 +337,7 @@ run_cmd() {
 
             # Print status occasionally
             if [ $((HEARTBEAT_COUNT % 10)) -eq 0 ]; then
-              echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
+              [ "$DEBUG" = "1" ] && echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
             fi
           fi
 
@@ -368,60 +379,83 @@ cleanup() {
   fi
   export CLEANUP_DONE=true
 
+  # Capture the actual exit code that triggered the trap
+  local actual_exit_code=$?
+
+  # If CMD_EXIT wasn't set (meaning we failed before run_cmd), use the actual exit code
+  if [ -z "${CMD_PID:-}" ]; then
+    CMD_EXIT=$actual_exit_code
+  fi
+
   # Read termination reason from file if it exists
   if [ -f "$TERMINATION_REASON_FILE" ]; then
     TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE")
     echo "[INFO] Termination reason from monitor: $TERMINATION_REASON"
   fi
 
-  # Check termination reason and set appropriate status
-  if [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
-    echo "[ERROR] Job terminated due to heartbeat timeout"
-    export GITHUB_STATUS_DESCRIPTION="Job failed - no heartbeat for ${HEARTBEAT_TIMEOUT} seconds"
-    maybe_send_discord_notification "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
+  # Master-only: Handle notifications and status updates
+  if [[ "$IS_MASTER" == "true" ]]; then
+    # Check termination reason and set appropriate status
+    if [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
+      echo "[ERROR] Job terminated due to heartbeat timeout"
+      export GITHUB_STATUS_DESCRIPTION="Job failed - no heartbeat for ${HEARTBEAT_TIMEOUT} seconds"
+      maybe_send_discord_notification "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
 
-  elif [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]]; then
-    echo "[INFO] Job terminated due to max runtime limit"
-    export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
-    maybe_send_discord_notification "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
-    # Map to success
-    CMD_EXIT=0
+    elif [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]]; then
+      echo "[INFO] Job terminated due to max runtime limit"
+      export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
+      maybe_send_discord_notification "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
+      # Map to success
+      CMD_EXIT=0
 
-  elif [[ $CMD_EXIT -eq 0 ]]; then
-    echo "[SUCCESS] Job completed successfully"
-    export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
-    export TERMINATION_REASON="completed"
-    maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
+    elif [[ $CMD_EXIT -eq $EXIT_SUCCESS ]]; then
+      echo "[SUCCESS] Job completed successfully"
+      export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
+      export TERMINATION_REASON="completed"
+      maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
 
-  else
-    echo "[ERROR] Job failed with exit code $CMD_EXIT"
-    export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
-    export TERMINATION_REASON="exit_code_${CMD_EXIT}"
-    maybe_send_discord_notification "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
+    elif [[ $CMD_EXIT -eq $EXIT_NCCL_TEST_FAILURE ]]; then
+      echo "[ERROR] Job failed during NCCL tests"
+      export GITHUB_STATUS_DESCRIPTION="NCCL tests failed"
+      export TERMINATION_REASON="nccl_test_failure"
+      maybe_send_discord_notification "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
+    else
+      echo "[ERROR] Job failed with exit code $CMD_EXIT"
+      export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
+      export TERMINATION_REASON="exit_code_${CMD_EXIT}"
+      maybe_send_discord_notification "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
+    fi
+
+    # Final GitHub status update
+    export CMD_EXIT
+    maybe_set_github_status
   fi
 
-  # Final summary
+  # Final summary (all nodes)
   echo "[SUMMARY] ===== Job Summary ====="
+  echo "[SUMMARY] Node Rank: ${RANK}"
   echo "[SUMMARY] Job ID: ${METTA_RUN_ID}"
   echo "[SUMMARY] Exit code: ${CMD_EXIT}"
   echo "[SUMMARY] Termination reason: ${TERMINATION_REASON:-unknown}"
   echo "[SUMMARY] ======================"
 
-  # The set_github_status.py script uses CMD_EXIT to determine status
-  export CMD_EXIT
-  maybe_set_github_status
-
   echo "[RUN] Job complete with exit code: $CMD_EXIT (reason: ${TERMINATION_REASON:-unknown})"
 
-  # Set the final exit code for the script (don't exit here!)
+  # Set the final exit code for the script
   if [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]] ||
-    [[ "${TERMINATION_REASON}" == "completed" ]] ||
-    [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
+     [[ "${TERMINATION_REASON}" == "completed" ]] ||
+     [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
     echo "[INFO] Will exit with code 0 to prevent SkyPilot restart"
     FINAL_EXIT_CODE=0
   else
     echo "[INFO] Will exit with actual exit code: $CMD_EXIT"
     FINAL_EXIT_CODE=$CMD_EXIT
+  fi
+
+  # Worker nodes: brief delay to let master finish cleanup
+  if [[ "$IS_MASTER" != "true" ]]; then
+    echo "[INFO] Worker node waiting briefly for master cleanup..."
+    sleep 3
   fi
 }
 
@@ -435,6 +469,10 @@ export -f terminate_monitors
 
 # Set up cleanup trap
 trap cleanup EXIT
+
+# All nodes: Run GPU diagnostics and NCCL tests
+echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
+uv run python ./devops/skypilot/test_nccl.py
 
 # Run the command
 run_cmd
