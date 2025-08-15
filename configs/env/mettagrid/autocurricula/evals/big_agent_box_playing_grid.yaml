@@ -3,7 +3,7 @@ defaults:
   - _self_
 
 game:
-  num_agents: 4
+  num_agents: 16
   max_steps: 500
   agent:
     initial_inventory:
@@ -11,6 +11,9 @@ game:
     rewards:
       inventory:
         heart: 1.0
+  inventory_item_names:
+    - battery_blue
+    - heart
   actions:
     attack:
       enabled: false
@@ -32,25 +35,16 @@ game:
       enabled: false
   map_builder:
     _target_: metta.map.mapgen.MapGen
-    width: 5
-    height: 5
-    border_width: 1
-    root:
-      type: metta.map.scenes.room_grid.RoomGrid
+    instances: 1
+    border_width: 6
+    instance_border_width: 3
+    instance_map:
+      type: metta.map.terrain_from_numpy.TerrainFromNumpy
       params:
-        rows: 1
-        columns: 1
-        border_width: 6
-        border_object: "wall"
-      children:
-        - where:
-            tags: ["room"]
-          scene:
-            type: metta.map.scenes.random.Random
-            params:
-              agents: 4
-              objects:
-                altar: 0
+        dir: terrain_maps_nohearts
+        agents: 16
+        objects:
+          altar: 0
   objects:
     altar:
       cooldown: 1000
@@ -60,3 +54,5 @@ game:
       type_id: 12
       resources_to_create:
         battery_blue: 1
+
+  no_agent_interference: true

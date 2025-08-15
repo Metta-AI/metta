@@ -1,0 +1,9 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: autocurricula
+
+simulations:
+  autocurricula/big_agent_box_playing_grid:
+      env: env/mettagrid/autocurricula/evals/big_agent_box_playing_grid
