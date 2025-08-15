@@ -15,6 +15,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from tensordict import TensorDict
 
+from metta.agent.util.weights_analysis import analyze_weights
+
 logger = logging.getLogger(__name__)
 
 
@@ -69,8 +71,11 @@ class PyTorchAgentMixin:
         """
         self.clip_range = clip_range
         self.analyze_weights_interval = analyze_weights_interval
+        self.l2_init_scale = 1  # Default L2-init scale
+        self.clip_scale = 1  # Default clip scale
 
-        # Additional kwargs are ignored (may be for other components)
+        # Store initial weights for L2-init regularization
+        self._store_initial_weights()
 
         # Note: action_index_tensor and cum_action_max_params are set by
         # MettaAgent.activate_actions() directly on the policy object
@@ -260,3 +265,41 @@ class PyTorchAgentMixin:
         # Pass through to the policy if it exists
         if hasattr(self, "policy") and hasattr(self.policy, "activate_action_embeddings"):
             self.policy.activate_action_embeddings(full_action_names, device)
+
+    def _store_initial_weights(self):
+        """Store initial weights for L2-init regularization."""
+        self.initial_weights = {}
+        for name, module in self.named_modules():
+            if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d, nn.ConvTranspose2d)):
+                if hasattr(module, 'weight'):
+                    # Store with full path for uniqueness
+                    self.initial_weights[name if name else "root"] = module.weight.data.clone()
+
+    def l2_init_loss(self) -> torch.Tensor:
+        """Calculate L2 initialization loss for regularization."""
+        total_loss = torch.tensor(0.0, dtype=torch.float32)
+        if hasattr(self, 'initial_weights'):
+            for name, module in self.named_modules():
+                if isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d, nn.ConvTranspose2d)):
+                    if hasattr(module, 'weight'):
+                        weight_name = name if name else "root"
+                        if weight_name in self.initial_weights:
+                            weight_diff = module.weight - self.initial_weights[weight_name].to(module.weight.device)
+                            total_loss = total_loss.to(module.weight.device)
+                            total_loss += torch.sum(weight_diff ** 2) * self.l2_init_scale
+        return total_loss
+
+    def update_l2_init_weight_copy(self):
+        """Update the stored initial weights for L2 regularization."""
+        self._store_initial_weights()
+
+    def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
+        """Compute weight metrics for monitoring."""
+        metrics_list = []
+        for name, module in self.named_modules():
+            if isinstance(module, nn.Linear):
+                if module.weight.data.dim() == 2:  # Only analyze 2D matrices
+                    metrics = analyze_weights(module.weight.data, delta)
+                    metrics["name"] = name if name else "root"
+                    metrics_list.append(metrics)
+        return metrics_list
