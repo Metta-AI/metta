@@ -258,6 +258,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     auto& agent = _agents[agent_idx];
     uint8_t packed = 0;
 
+    agent->genome = static_cast<ObservationType>(_rng() % 256);
+
     // Process up to 8 items (or all available items if fewer)
     size_t num_items = std::min(inventory_item_names.size(), size_t(8));
 
@@ -523,6 +525,13 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
     }
   }
 
+  // REWARD UPDATE FOR GENOME GAME
+  for (auto& agent : _agents) {
+    if (!(agent->box->location.r == 0 && agent->box->location.c == 0)) {
+      *(agent->reward) += 0.1f;
+    }
+  }
+
   // Compute observations for next step
   _compute_observations(actions);
 
@@ -718,7 +727,7 @@ py::dict MettaGrid::grid_objects() {
     // Inject agent-specific info
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
       obj_dict["orientation"] = static_cast<int>(agent->orientation);
-      obj_dict["genome"] = 63;
+      obj_dict["genome"] = agent->genome;
       obj_dict["group_id"] = agent->group;
       obj_dict["is_frozen"] = !!agent->frozen;
       obj_dict["freeze_remaining"] = agent->frozen;
