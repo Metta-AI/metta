@@ -223,10 +223,8 @@ class PyTorchAgentMixin:
         """
         Convert (action_type, action_param) pairs to discrete indices.
 
-        CRITICAL: This overrides MettaAgent's implementation with the compensating
-        formula that matches ComponentPolicy. The cumsum calculation in MettaAgent
-        is technically wrong, but ComponentPolicy compensates with this formula.
-        Both must be kept in sync.
+        Uses the corrected cumsum from MettaAgent which properly accounts for
+        the fact that an action with max_param=n has (n+1) possible values.
 
         Args:
             flattened_action: Actions as (action_type, action_param) pairs
@@ -242,9 +240,8 @@ class PyTorchAgentMixin:
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
 
-        # Match ComponentPolicy's compensating formula (includes action_type_numbers)
-        # This differs from MettaAgent's base implementation!
-        return action_type_numbers + cumulative_sum + action_params
+        # Simple offset by cumulative sum (with correct cumsum from MettaAgent)
+        return cumulative_sum + action_params
 
     def activate_action_embeddings(self, full_action_names: list[str], device):
         """

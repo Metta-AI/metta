@@ -287,10 +287,9 @@ class MettaAgent(nn.Module):
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
         # Precompute cumulative sums for faster conversion
-        # NOTE: This calculation is technically wrong (should be [p+1 for p in action_max_params])
-        # but ComponentPolicy compensates with its formula. Don't change without updating both!
+        # Each action with max_param p has (p+1) possible values (0 through p)
         self.cum_action_max_params = torch.cumsum(
-            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
+            torch.tensor([0] + [p + 1 for p in action_max_params], device=device, dtype=torch.long), dim=0
         )
 
         # Build full action names for embeddings
@@ -405,6 +404,7 @@ class MettaAgent(nn.Module):
         action_type_numbers = flattened_action[:, 0].long()
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
+        # Simple offset by cumulative sum (no compensation needed with correct cumsum)
         return cumulative_sum + action_params
 
     def _convert_logit_index_to_action(self, logit_indices: torch.Tensor) -> torch.Tensor:
