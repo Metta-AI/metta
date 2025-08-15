@@ -200,13 +200,7 @@ export class Context3d {
       this.dpr = 2.0 // Retina display only, we don't support other DPI scales.
     }
 
-    // Load atlas using the utility function
-    this.atlas = await loadAtlas(this.gl, atlasJsonUrl, atlasImageUrl, {
-      wrapS: this.gl.REPEAT,
-      wrapT: this.gl.REPEAT,
-      minFilter: this.gl.LINEAR_MIPMAP_LINEAR,
-      magFilter: this.gl.LINEAR,
-    })
+    this.atlas = await loadAtlas(this.gl, atlasJsonUrl, atlasImageUrl)
 
     if (!this.atlas) {
       this.fail('Failed to load atlas')
@@ -328,8 +322,7 @@ export class Context3d {
 
     const pos = new Vec2f(x, y)
 
-    // Calculate vertex positions (screen pixels, origin top-left)
-    // We'll make 4 vertices for a quad
+    // Calculate vertex positions (screen pixels, origin top-left) - 4 vertices for a quad
     const untransformedTopLeft = pos
     const untransformedBottomLeft = new Vec2f(pos.x(), pos.y() + height)
     const untransformedTopRight = new Vec2f(pos.x() + width, pos.y())
@@ -347,7 +340,10 @@ export class Context3d {
 
   /** Check if the image is in the atlas. */
   hasImage(imageName: string): boolean {
-    return this.atlas ? hasSprite(this.atlas, imageName) : false
+    if (this.atlas) {
+      return hasSprite(this.atlas, imageName)
+    }
+    return false
   }
 
   /** Draws an image from the atlas with its top-left corner at (x, y). */
