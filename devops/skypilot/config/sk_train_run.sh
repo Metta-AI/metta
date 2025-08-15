@@ -286,7 +286,7 @@ run_cmd() {
   if [[ "$IS_MASTER" == "true" ]] && [[ -n "${MAX_RUNTIME_HOURS:-}" ]] && [[ "${MAX_RUNTIME_HOURS}" != "None" ]]; then
     (
       exec 2>&1
-      max_seconds=$(awk "BEGIN {print ${MAX_RUNTIME_HOURS} * 3600}")
+      max_seconds=$(awk "BEGIN {print int(${MAX_RUNTIME_HOURS} * 3600)}")
       echo "[INFO] Timeout monitor started - max runtime: ${MAX_RUNTIME_HOURS} hours (${max_seconds} seconds)"
       echo "[INFO] Checking every ${TIMEOUT_CHECK_INTERVAL} seconds"
 
