@@ -335,7 +335,15 @@ class PRAnalyzer:
 
         for assessment_name, field_prefix in assessments:
             section = re.search(
-                rf"\*\*{assessment_name} Assessment:\*\*\s*(?:.*?)\*\*Score.*?:\*\*\s*(\d+).*?\*\*Notes:\*\*\s*(.+?)(?=\*\*|$)",
+                (
+                    rf"\*\*{assessment_name} Assessment:\*\*\s*"
+                    r"(?:.*?)"
+                    r"\*\*Score.*?:\*\*\s*"
+                    r"(\d+).*?"
+                    r"\*\*Notes:\*\*\s*"
+                    r"(.+?)"
+                    r"(?=\*\*|$)"
+                ),
                 response,
                 re.DOTALL | re.IGNORECASE,
             )

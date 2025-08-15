@@ -375,13 +375,20 @@ class AuthorReportGenerator:
 
                 if summary.get("author", "").lower() == author.lower():
                     reports_found = True
+                    period = summary.get("period", "Unknown")
+                    total_prs = summary.get("total_prs", 0)
+                    avg_scores = summary.get("average_scores", {})
+                    code_score = avg_scores.get("code_quality", "N/A")
+                    test_score = avg_scores.get("testing", "N/A")
+                    categories = summary.get("categories", {})
+                    categories_str = ", ".join(f"{k}: {v}" for k, v in categories.items())
+
                     context_parts.extend(
                         [
-                            f"\nPeriod: {summary.get('period', 'Unknown')}",
-                            f"- Total PRs: {summary.get('total_prs', 0)}",
-                            f"- Average Scores: Code {summary.get('average_scores', {}).get('code_quality', 'N/A')}/10, "
-                            f"Testing {summary.get('average_scores', {}).get('testing', 'N/A')}/10",
-                            f"- Categories: {', '.join(f'{k}: {v}' for k, v in summary.get('categories', {}).items())}",
+                            f"\nPeriod: {period}",
+                            f"- Total PRs: {total_prs}",
+                            f"- Average Scores: Code {code_score}/10, Testing {test_score}/10",
+                            f"- Categories: {categories_str}",
                         ]
                     )
 
