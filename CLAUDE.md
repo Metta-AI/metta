@@ -253,6 +253,20 @@ uv run ./tools/train.py agent=latent_attn_tiny
 
 # Disable wandb
 uv run ./tools/train.py wandb=off
+
+# Configure movement systems (8-way example)
+# Training: use ++trainer.env_overrides for environment config
+uv run ./tools/train.py run=8way_test \
+  ++trainer.env_overrides.game.actions.move.enabled=false \
+  ++trainer.env_overrides.game.actions.rotate.enabled=false \
+  ++trainer.env_overrides.game.actions.move_8way.enabled=true
+
+# Evaluation: use +replay_job.sim.env_overrides (must match training)
+uv run ./tools/play.py run=play_8way \
+  policy_uri=file://./train_dir/8way_test/checkpoints \
+  +replay_job.sim.env_overrides.game.actions.move.enabled=false \
+  +replay_job.sim.env_overrides.game.actions.rotate.enabled=false \
+  +replay_job.sim.env_overrides.game.actions.move_8way.enabled=true
 ```
 
 #### Hydra Configuration Patterns
@@ -260,6 +274,7 @@ uv run ./tools/train.py wandb=off
 - Use `+` prefix to add new config groups: `+user=your-custom-config-name`
 - Use `++` prefix to force override: `++trainer.device=cpu`
 - Config composition order matters - later overrides take precedence
+- **Important**: Use `env_overrides` path for environment configuration, not direct `mettagrid` overrides
 
 ### Development Workflows
 
@@ -356,7 +371,7 @@ uv run ./tools/train.py wandb=off
 - Example: `action_names()` → `action_names` (property)
 
 #### Policy and Agent Management
-- Validate policy types with runtime checking using `policy_as_metta_agent()`
+- Validate policy types with runtime checking
 - Use Union types for policies: `Union[MettaAgent, DistributedMettaAgent]`
 - Ensure proper type safety for policy handling throughout the system
 - Policy URIs follow format: `file://path/to/checkpoint` or `wandb://project/run/artifact`

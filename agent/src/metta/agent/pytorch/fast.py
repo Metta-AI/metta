@@ -22,7 +22,7 @@ class Fast(pufferlib.models.LSTMWrapper):
         super().__init__(env, policy, input_size, hidden_size)
 
     def forward(self, td: TensorDict, state=None, action=None):
-        observations = td["env_obs"].to(self.device)
+        observations = td["env_obs"]
 
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
@@ -36,8 +36,8 @@ class Fast(pufferlib.models.LSTMWrapper):
         # Prepare LSTM state
         lstm_h, lstm_c = state.get("lstm_h"), state.get("lstm_c")
         if lstm_h is not None and lstm_c is not None:
-            lstm_h = lstm_h.to(self.device)[: self.lstm.num_layers]
-            lstm_c = lstm_c.to(self.device)[: self.lstm.num_layers]
+            lstm_h = lstm_h[: self.lstm.num_layers]
+            lstm_c = lstm_c[: self.lstm.num_layers]
             lstm_state = (lstm_h, lstm_c)
         else:
             lstm_state = None
@@ -69,7 +69,7 @@ class Fast(pufferlib.models.LSTMWrapper):
 
         else:
             # ---------- Training Mode ----------
-            action = action.to(self.device)
+            action = action
             if action.dim() == 3:  # (B, T, 2) → flatten to (BT, 2)
                 B, T, A = action.shape
                 action = action.view(B * T, A)
@@ -91,10 +91,6 @@ class Fast(pufferlib.models.LSTMWrapper):
 
         return td
 
-    def clip_weights(self):
-        """Clip weights of the actor heads to prevent large updates."""
-        pass
-
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """Convert logit indices back to action pairs."""
         return self.action_index_tensor[action_logit_index]
@@ -114,7 +110,6 @@ class Policy(nn.Module):
         self.input_size = input_size
         self.is_continuous = False
         self.action_space = env.single_action_space
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.out_width = 11
         self.out_height = 11
@@ -173,8 +168,6 @@ class Policy(nn.Module):
         )[None, :, None, None]
         self.register_buffer("max_vec", max_vec)
 
-        self.to(self.device)
-
     def network_forward(self, x):
         x = x / self.max_vec
         x = self.cnn1(x)
@@ -189,7 +182,6 @@ class Policy(nn.Module):
         Encode observations into a hidden representation.
         """
 
-        observations = observations.to(self.device)
         token_observations = observations
         B = token_observations.shape[0]
         TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
