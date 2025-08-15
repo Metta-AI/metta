@@ -235,6 +235,7 @@ function App() {
             <Route path="/eval-tasks" element={<EvalTasks repo={state.repo} />} />
             <Route path="/leaderboards" element={<Leaderboards repo={state.repo} currentUser={state.currentUser} />} />
             <Route path="/leaderboards/create" element={<LeaderboardConfig repo={state.repo} />} />
+            <Route path="/leaderboards/:leaderboardId/edit" element={<LeaderboardConfig repo={state.repo} />} />
             <Route path="/leaderboards/:leaderboardId" element={<LeaderboardView repo={state.repo} />} />
             <Route path="/saved" element={<SavedDashboards repo={state.repo} currentUser={state.currentUser} />} />
             <Route path="/tokens" element={<TokenManager repo={state.repo} />} />
