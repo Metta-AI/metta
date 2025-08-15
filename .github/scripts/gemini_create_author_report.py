@@ -355,9 +355,36 @@ Please check the data integrity and try again.
 
         # Build the prompt with defensive checks
         prompt = f"""
-You are creating a comprehensive performance review report for {author} covering {date_range}.
+You are creating a performance review for {author} at a fast-moving startup with ~15 engineers.
 
-**STATISTICS:**
+**CONTEXT:**
+We are a fast-moving team that values **shipping velocity, customer impact, and pragmatic engineering** over perfect abstractions. Code should be clean and maintainable, but not at the cost of momentum.
+
+- We **prioritize iterative delivery** over big rewrites.
+- **Composition is favored over inheritance** — we avoid deep class hierarchies and prefer functions or small composable objects.
+- Verbose docstrings and excessive inline comments are discouraged; we prefer **clear code over redundant explanation**.
+- We are working in **C++, Python, and TypeScript**.
+- Python code is gradually being made safer with **incremental adoption of Pydantic and type hints**, but we still tolerate partial coverage.
+- In C++, clarity, correctness, and modern patterns matter more than exhaustive encapsulation or heavy OOP.
+- In TypeScript, we prefer practical type safety over perfect type gymnastics — runtime confidence is more important than theoretical purity.
+
+### 🧠 Philosophy on Learning & Style:
+- We prefer resources like:
+  - _The Pragmatic Programmer_
+  - _A Philosophy of Software Design_ by John Ousterhout
+  - Short, practical blog posts or open-source code examples
+- We generally avoid books like:
+  - _Clean Code_ (we find it dogmatic and out of step with our realities)
+  - _Working Effectively with Legacy Code_ (too heavy for our codebase size)
+- Our team appreciates **opinionated, efficient solutions** — not enterprise best practices for their own sake.
+
+### ✏️ Performance Reviews:
+- Should reflect our real-world trade-offs
+- Should **reward engineers who move quickly without breaking things**
+- Should avoid recommending slow or heavyweight process changes unless truly necessary
+- Suggestions should be **lightweight, high-leverage, and easy to apply**
+
+**AUTHOR'S WORK STATISTICS:**
 - Total PRs: {stats["total_prs"]}
 - Code Changes: {stats["total_additions"]} additions, {stats["total_deletions"]} deletions across {
             stats["total_files_changed"]
@@ -371,6 +398,7 @@ Documentation {stats["avg_documentation"]}/10, Testing {stats["avg_testing"]}/10
 {json.dumps(pr_details, indent=2)}
 
 **IDENTIFIED PATTERNS:**
+
 Common Strengths: {
             ", ".join(set(stats["all_strengths"][:10]))
             if stats["all_strengths"]
@@ -384,15 +412,17 @@ Areas for Growth: {
 
 {previous_context}
 
-Create a balanced, professional performance review report that:
-1. Highlights key accomplishments and impact
-2. Provides specific examples of excellent work
-3. Identifies patterns in code quality and practices
-4. Offers constructive feedback for professional growth
-5. Quantifies contribution and productivity
-6. Assesses technical skills and collaboration
-7. Evaluates the developer's experience level based on code patterns
-8. Tracks improvement over time if previous reports are available
+Create a balanced performance review that:
+1. Celebrates shipping velocity and customer impact
+2. Recognizes pragmatic trade-offs (e.g., "shipped fast to test with users")
+3. Suggests improvements that won't slow down development
+4. Focuses on high-impact quality improvements only
+5. Avoids enterprise-style recommendations (heavy process, extensive documentation)
+6. Emphasizes collaboration in a small team
+7. Avoid recommending books unless truly relevant. Favor low-overhead learning methods.
+
+**TONE:** Be encouraging and growth-focused. Avoid language like "concerning", "below expectations", or
+"must improve" unless there are critical issues. Frame suggestions as "opportunities" not "deficiencies".
 
 **OUTPUT FORMAT:**
 
@@ -400,56 +430,57 @@ Create a balanced, professional performance review report that:
 **Period:** {date_range}
 
 ## Executive Summary
-[2-3 paragraph overview of performance, key contributions, and overall assessment]
+[2-3 paragraph overview of performance, key contributions, and overall assessment. Emphasize impact, shipping velocity, and teamwork.]
 
 ## Experience Level Assessment
-[Based on the code quality, architectural decisions, problem-solving approaches, and technical sophistication observed
-in the PRs, assess whether this appears to be a junior (0-2 years), mid-level (2-5 years), senior (5+ years), or
-staff-level developer. Consider factors like:
-- Complexity of problems tackled
-- Code organization and design patterns
-- Error handling sophistication
-- Testing approaches
-- Documentation quality
-- Ability to work independently vs. needing guidance]
+[Based on the code quality, problem-solving approach, independence, and technical sophistication demonstrated across PRs,
+estimate whether the developer is at a junior (0–2 years), mid-level (2–5), senior (5+), or staff+ level.
+
+Focus on:
+- Scope and complexity of problems tackled
+- Code design and refactoring decisions
+- Testing strategy and trade-offs
+- Communication and initiative
+- Consistency and growth over time]
 
 ## Quantitative Analysis
-- **Productivity:** [Analysis of PR volume, code changes, and velocity]
-- **Code Quality:** [Assessment based on scores and patterns]
-- **Testing & Documentation:** [Evaluation of testing practices and documentation habits]
+- **Productivity:** [PR volume, lines changed, time-to-merge — focus on sustained contribution rate]
+- **Code Quality:** [Patterns in readability, maintainability, and review feedback]
+- **Testing & Documentation:** [Effort spent ensuring confidence in shipped code — keep expectations realistic for a fast-moving team]
 
 ## Progress & Improvement
-[If previous reports are available, analyze trends in code quality, types of work, and areas of growth. If no previous
-reports, state "No previous reports available for comparison."]
+[If previous reviews exist, discuss any trends in quality, impact, or behavior. Highlight both consistency and signs of growth.]
 
 ## Key Accomplishments
-[List 3-5 most significant contributions with specific impact]
+[List 3–5 impactful contributions with context: why it mattered, what problems it solved, how it moved the product forward.]
 
 ## Technical Strengths
-[Detailed analysis of demonstrated strengths with examples]
+[Highlight strong technical decisions, thoughtful trade-offs, and efficient problem solving. Look for patterns that reflect maturity or specialization.]
 
 ## Areas for Development
-[Constructive feedback on areas for improvement with specific suggestions]
+[Frame this as an opportunity to level up. Focus on small changes with big upside, e.g.:
+- Improving PR communication for faster reviews
+- Writing slightly more test coverage for risky changes
+- Sharing architectural thinking with the team
+Avoid suggesting heavy process unless necessary.]
 
 ## Notable Contributions
-[Highlight 2-3 PRs that best demonstrate the developer's capabilities]
+[Spotlight 2–3 PRs that best showcase the author’s technical skill, creativity, or product intuition.]
 
 ## Primary Learning Recommendation
-[Based on the patterns observed, identify ONE specific area of study or practice that would provide the highest ROI
-for this developer's growth. Be specific - suggest actual resources, books, courses, or projects they could undertake.
-Examples:
-- "Study 'Design Patterns' by Gang of Four to improve architectural decisions"
-- "Complete a course on advanced testing strategies, particularly around edge case identification"
-- "Practice refactoring legacy code to improve code organization skills"
-- "Study distributed systems concepts to better handle scalability challenges"]
+[Choose ONE area of growth that fits the developer’s current trajectory and workload. Avoid broad books unless truly warranted. Prefer things like:
+- “Add lightweight regression checks for async bugs”
+- “Try mob programming on tricky PRs for faster knowledge transfer”
+- “Write more descriptive commit messages to help future readers”]
 
 ## Additional Recommendations
-[Other specific actions for continued growth and development]
+[Optional. Only if there are clear, actionable ways to improve team-wide impact or efficiency.]
 
 **Closing Thoughts:**
-[{self.get_bonus_prompt()}]
+{self.get_bonus_prompt()}
 
-Be specific, balanced, and constructive. Use data to support observations. Maximum 1200 words.
+Be specific, supportive, and focused on high-leverage feedback. Maximum 2000 words.
+
 """
 
         # Generate report with error handling
