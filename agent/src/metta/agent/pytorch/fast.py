@@ -113,12 +113,12 @@ class Fast(LSTMWrapper):
             actions = torch.multinomial(action_probs, num_samples=1).view(-1)  # [batch_size]
 
             batch_indices = torch.arange(actions.shape[0], device=actions.device)
-            full_log_probs = log_probs[batch_indices, actions]  # [batch_size]
+            selected_log_probs = log_probs[batch_indices, actions]  # [batch_size]
 
             action = self._convert_logit_index_to_action(actions)
 
             td["actions"] = action.to(dtype=torch.int32)
-            td["act_log_prob"] = full_log_probs
+            td["act_log_prob"] = selected_log_probs
             td["values"] = value.flatten()
             td["full_log_probs"] = log_probs
 
@@ -135,11 +135,11 @@ class Fast(LSTMWrapper):
             action_logit_index = self._convert_action_to_logit_index(action)  # shape [BT]
 
             batch_indices = torch.arange(action_logit_index.shape[0], device=action_logit_index.device)
-            full_log_probs = action_log_probs[batch_indices, action_logit_index]
+            selected_log_probs = action_log_probs[batch_indices, action_logit_index]
 
             entropy = -(action_probs * action_log_probs).sum(dim=-1)  # [batch_size]
 
-            td["act_log_prob"] = full_log_probs.view(B, TT)
+            td["act_log_prob"] = selected_log_probs.view(B, TT)
             td["entropy"] = entropy.view(B, TT)
             td["full_log_probs"] = action_log_probs.view(B, T, -1)
             td["value"] = value.view(B, TT)
