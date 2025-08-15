@@ -19,7 +19,12 @@ export type FeedPostDTO = {
     id: string;
     title: string;
     abstract: string | null;
-    authors: string[] | null;
+    authors?: {
+      id: string;
+      name: string;
+      orcid?: string | null;
+      institution?: string | null;
+    }[];
     institutions: string[] | null;
     tags: string[] | null;
     link: string | null;
@@ -35,6 +40,7 @@ export type FeedPostDTO = {
   };
   createdAt: Date;
   updatedAt: Date;
+  lastActivityAt: Date; // Most recent activity (post creation or last comment)
 };
 
 export function toFeedPostDTO(
@@ -45,7 +51,23 @@ export function toFeedPostDTO(
 ): FeedPostDTO {
   const author = usersMap.get(dbModel.authorId);
   const paper = dbModel.paperId ? papersMap.get(dbModel.paperId) : null;
-  
+
+  // Calculate the most recent activity timestamp
+  // This is the max of post creation time and the most recent comment time
+  let lastActivityAt = dbModel.createdAt;
+  if (dbModel.comments && dbModel.comments.length > 0) {
+    const mostRecentCommentTime = dbModel.comments.reduce(
+      (latest: Date, comment: any) => {
+        return comment.createdAt > latest ? comment.createdAt : latest;
+      },
+      new Date(0)
+    );
+    lastActivityAt =
+      mostRecentCommentTime > dbModel.createdAt
+        ? mostRecentCommentTime
+        : dbModel.createdAt;
+  }
+
   return {
     id: dbModel.id,
     title: dbModel.title,
@@ -87,10 +109,11 @@ export function toFeedPostDTO(
       : undefined,
     createdAt: dbModel.createdAt,
     updatedAt: dbModel.updatedAt,
+    lastActivityAt: lastActivityAt,
   };
 }
 
-export async function loadFeedPostsPrisma({
+export async function loadFeedPosts({
   limit = 10,
   cursor,
 }: {
@@ -99,20 +122,29 @@ export async function loadFeedPostsPrisma({
 } = {}): Promise<Paginated<FeedPostDTO>> {
   // Get current user session
   const session = await auth();
-  
-  // Build the query with proper cursor-based pagination
-  const rows = await prisma.post.findMany({
-    where: cursor ? {
-      createdAt: {
-        lt: cursor,
+
+  // Fetch all posts with comments for activity-based sorting
+  // We can't easily sort by calculated field in Prisma, so we'll sort in memory
+  const allRows = await prisma.post.findMany({
+    orderBy: [
+      {
+        createdAt: "desc",
       },
-    } : undefined,
-    take: limit + 1,
-    orderBy: {
-      createdAt: 'desc',
-    },
+      {
+        id: "desc", // Secondary sort by ID to ensure consistent ordering
+      },
+    ],
     include: {
       author: true,
+      comments: {
+        select: {
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1, // Only need the most recent comment for each post
+      },
       paper: {
         select: {
           id: true,
@@ -152,6 +184,30 @@ export async function loadFeedPostsPrisma({
     },
   });
 
+  // Calculate lastActivityAt for each post and sort by it
+  const postsWithActivity = allRows
+    .map((row) => ({
+      ...row,
+      lastActivityAt:
+        row.comments.length > 0
+          ? row.comments[0].createdAt > row.createdAt
+            ? row.comments[0].createdAt
+            : row.createdAt
+          : row.createdAt,
+    }))
+    .sort((a, b) => b.lastActivityAt.getTime() - a.lastActivityAt.getTime());
+
+  // Apply cursor-based pagination
+  let filteredRows = postsWithActivity;
+  if (cursor) {
+    filteredRows = postsWithActivity.filter(
+      (row) => row.lastActivityAt < cursor
+    );
+  }
+
+  // Take the requested number + 1 for pagination
+  const rows = filteredRows.slice(0, limit + 1);
+
   // Fetch user paper interactions if user is authenticated
   let userPaperInteractionsMap = new Map<string, any>();
 
@@ -182,7 +238,7 @@ export async function loadFeedPostsPrisma({
   }
 
   // Transform the data to match the expected format
-  const posts = rows.map(row => {
+  const posts = rows.map((row) => {
     // Create maps for the lookup (maintaining compatibility with existing toFeedPostDTO function)
     const usersMap = new Map();
     if (row.author) {
@@ -197,5 +253,14 @@ export async function loadFeedPostsPrisma({
     return toFeedPostDTO(row, usersMap, papersMap, userPaperInteractionsMap);
   });
 
-  return posts;
-} 
+  // Check if there are more posts to load
+  const hasMore = posts.length > limit;
+  const nextCursor = hasMore ? posts[limit - 1]?.lastActivityAt : undefined;
+
+  async function loadMore(limit: number) {
+    "use server";
+    return loadFeedPosts({ cursor: nextCursor, limit });
+  }
+
+  return makePaginated(posts, limit, loadMore);
+}
