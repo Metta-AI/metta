@@ -12,12 +12,10 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.distribution_utils import get_from_master
 from metta.common.profiling.stopwatch import Stopwatch
-from metta.common.util.collections import remove_none_values
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.rl.kickstarter import Kickstarter
 from metta.rl.policy_management import cleanup_old_policies, validate_policy_environment_match
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
@@ -69,7 +67,6 @@ class CheckpointManager:
         policy_path: str,
         timer: Stopwatch,
         run_dir: str,
-        kickstarter: Kickstarter | None = None,
     ) -> bool:
         """Save trainer checkpoint if needed."""
         # Create checkpoint
@@ -79,7 +76,6 @@ class CheckpointManager:
             optimizer_state_dict=optimizer.state_dict(),
             policy_path=policy_path,
             stopwatch_state=timer.save_state(),
-            extra_args=remove_none_values({"teacher_pr_uri": kickstarter and kickstarter.teacher_uri}),
         )
 
         # Save checkpoint
@@ -263,7 +259,6 @@ def maybe_establish_checkpoint(
     initial_policy_record: PolicyRecord,
     optimizer: torch.optim.Optimizer,
     run_dir: str,
-    kickstarter: Kickstarter | None,
     wandb_run: WandbRun | None,
     force: bool = False,
 ) -> tuple[PolicyRecord, str | None] | None:
@@ -297,7 +292,6 @@ def maybe_establish_checkpoint(
         policy_path=new_record.uri,
         timer=timer,
         run_dir=run_dir,
-        kickstarter=kickstarter,
     )
 
     wandb_policy_name: str | None = None

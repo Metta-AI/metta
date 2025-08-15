@@ -12,6 +12,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.component_policy import ComponentPolicy
 from metta.agent.pytorch.agent_mapper import agent_classes
+from metta.rl.experience import Experience
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
@@ -122,19 +123,47 @@ class MettaAgent(nn.Module):
         # Delegate to policy - it handles all cases including legacy
         return self.policy(td, state, action)
 
-    def reset_memory(self) -> None:
-        """Reset memory - delegates to policy if it supports memory."""
-        if hasattr(self.policy, "reset_memory"):
-            self.policy.reset_memory()
+    def get_cfg(self) -> DictConfig:
+        return self.cfg
 
-    def get_memory(self) -> dict:
-        """Get memory state - delegates to policy if it supports memory."""
-        return getattr(self.policy, "get_memory", lambda: {})()
+    def on_new_training_run(self):
+        if hasattr(self.policy, "on_new_training_run"):
+            self.policy.on_new_training_run()
+
+    def on_rollout_start(self):
+        if hasattr(self.policy, "on_rollout_start"):
+            self.policy.on_rollout_start()
+
+    def on_train_mb_start(self):
+        if hasattr(self.policy, "on_train_mb_start"):
+            self.policy.on_train_mb_start()
+
+    def on_eval_start(self):
+        if hasattr(self.policy, "on_eval_start"):
+            self.policy.on_eval_start()
+
+    # need to revisit these methods
+    # def reset_memory(self) -> None:
+    #     """Reset memory - delegates to policy if it supports memory."""
+    #     if hasattr(self.policy, "reset_memory"):
+    #         self.policy.reset_memory()
+
+    # def get_memory(self) -> dict:
+    #     """Get memory state - delegates to policy if it supports memory."""
+    #     return getattr(self.policy, "get_memory", lambda: {})()
 
     def get_agent_experience_spec(self) -> Composite:
-        return Composite(
-            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
-        )
+        if hasattr(self.policy, "get_agent_experience_spec"):
+            return self.policy.get_agent_experience_spec()
+        else:
+            return Composite(
+                env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+                dones=UnboundedDiscrete(shape=torch.Size([]), dtype=torch.float32),
+            )
+
+    def attach_replay_buffer(self, experience: Experience):
+        """Losses expect to find a replay buffer in the policy."""
+        self.replay = experience
 
     def initialize_to_environment(
         self,
@@ -286,27 +315,6 @@ class MettaAgent(nn.Module):
         if hasattr(self.policy, "lstm"):
             return self.policy.lstm
         return None
-
-    def l2_init_loss(self) -> torch.Tensor:
-        """Calculate L2 initialization loss - delegates to policy."""
-        if hasattr(self.policy, "l2_init_loss"):
-            return self.policy.l2_init_loss()
-        return torch.tensor(0.0, dtype=torch.float32, device=self.device)
-
-    def clip_weights(self):
-        """Clip weights to prevent large updates."""
-        if self.policy is not None and hasattr(self.policy, "clip_weights"):
-            # Use policy's custom implementation if available
-            self.policy.clip_weights()
-        elif self.policy is not None:
-            # Default implementation: clamp all parameters to [-1, 1]
-            for p in self.policy.parameters():
-                p.data.clamp_(-1, 1)
-
-    def update_l2_init_weight_copy(self):
-        """Update L2 initialization weight copies - delegates to policy."""
-        if hasattr(self.policy, "update_l2_init_weight_copy"):
-            self.policy.update_l2_init_weight_copy()
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics - delegates to policy."""

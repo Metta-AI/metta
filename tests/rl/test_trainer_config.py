@@ -61,14 +61,6 @@ valid_trainer_config = {
         "vtrace_rho_clip": 1.0,
         "vtrace_c_clip": 1.0,
     },
-    "kickstart": {
-        "teacher_uri": None,
-        "action_loss_coef": 1.0,
-        "value_loss_coef": 1.0,
-        "anneal_ratio": 0.65,
-        "kickstart_steps": 1_000_000_000,
-        "additional_teachers": None,
-    },
     "hyperparameter_scheduler": {
         "learning_rate_schedule": {
             "_target_": "metta.rl.hyperparameter_scheduler.ConstantSchedule",
@@ -186,20 +178,12 @@ class TestTypedConfigs:
         objects from subparts of a validated TrainerConfig (e.g., when passing env_overrides
         to environment constructors or when using hydra.utils.instantiate).
         """
-        # Create a test config with env_overrides and kickstart
+        # Create a test config with env_overrides
         test_config_dict = {
             **valid_trainer_config,
             "env_overrides": {
                 "max_steps": 1000,
                 "num_agents": 4,
-            },
-            "kickstart": {
-                "teacher_uri": None,
-                "action_loss_coef": 1.0,
-                "value_loss_coef": 1.0,
-                "anneal_ratio": 0.65,
-                "kickstart_steps": 1_000_000_000,
-                "additional_teachers": [],
             },
             "hyperparameter_scheduler": {},
         }

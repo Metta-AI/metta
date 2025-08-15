@@ -24,6 +24,42 @@ from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase, ParamLayer
 
+# def initialize_weights(network: nn.Module, initialization: str, nonlinearity: str | None = None):
+#         """
+#         Initialize weights based on the specified initialization method.
+
+#         Supports Orthogonal, Xavier, Normal, and custom max_0_01 initializations.
+#         Each method scales weights appropriately based on fan-in and fan-out dimensions.
+#         Also initializes biases to zero if present.
+#         """
+#         fan_in = self._in_tensor_shapes[0][0]
+#         fan_out = self._out_tensor_shape[0]
+
+#         if initialization.lower() == "orthogonal":
+#             if nonlinearity == "nn.Tanh":
+#                 gain = np.sqrt(2)
+#             else:
+#                 gain = 1
+#             nn.init.orthogonal_(network.weight, gain=gain)
+#             largest_weight = network.weight.max().item()
+#         elif initialization.lower() == "xavier":
+#             largest_weight = np.sqrt(6 / (fan_in + fan_out))
+#             nn.init.xavier_uniform_(network.weight)
+#         elif initialization.lower() == "normal":
+#             largest_weight = np.sqrt(2 / fan_in)
+#             nn.init.normal_(network.weight, mean=0, std=largest_weight)
+#         elif initialization.lower() == "max_0_01":
+#             # set to uniform with largest weight = 0.01
+#             largest_weight = 0.01
+#             nn.init.uniform_(network.weight, a=-largest_weight, b=largest_weight)
+#         else:
+#             raise ValueError(f"Invalid initialization method: {initialization}")
+
+#         if hasattr(network, "bias") and isinstance(network.bias, torch.nn.parameter.Parameter):
+#             network.bias.data.fill_(0)
+
+#         return largest_weight
+
 
 class Linear(ParamLayer):
     """
@@ -36,7 +72,7 @@ class Linear(ParamLayer):
     def _make_net(self):
         self._out_tensor_shape = [self._nn_params.out_features]
         assert len(self._in_tensor_shapes[0]) == 1, (
-            "_input_tensor_shape for Linear should be 1d (ignoring batch dimension)"
+            "_input_tensor_shape for Linear should be 1d (we don't include the batch dimension)"
         )
         return nn.Linear(self._in_tensor_shapes[0][0], **self._nn_params)
 
@@ -118,7 +154,7 @@ class ResidualBlock(nn.Module):
 
 class Swish(nn.Module):
     """
-    This class cannot be used as a layer in MettaAgent. It is a helper class for ResidualBlock.
+    This class cannot be used as a layer in MettaAgent. It is a helper class for ResNetMLP.
     """
 
     def __init__(self):
