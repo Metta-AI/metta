@@ -40,8 +40,7 @@ class LSTM(LayerBase):
     def __setstate__(self, state):
         """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
         self.__dict__.update(state)
-        # Always reset hidden states when loading from checkpoint
-        # This handles batch size mismatches between training and inference
+        # Reset hidden states when loading from checkpoint to avoid batch size mismatch
         if not hasattr(self, "lstm_h"):
             self.lstm_h = {}
         if not hasattr(self, "lstm_c"):
