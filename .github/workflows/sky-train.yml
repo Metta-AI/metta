@@ -38,8 +38,8 @@ on:
     branches: [main]
 
 env:
-  DEFAULT_TRAINER_ENV: "env/mettagrid/arena/advanced"
-  DEFAULT_TIMEOUT_HOURS: 0.167 # 10 minutes = 0.167 hours
+  DEFAULT_TRAINER_ENV: "env/mettagrid/arena/basic_easy_shaped"
+  DEFAULT_TIMEOUT_HOURS: 0.333 # 20 minutes = 0.333 hours
   DEFAULT_NUM_GPUS: "4"
   DEFAULT_NUM_NODES: "2"
   DEFAULT_FORCE_RESTART_TEST: true
