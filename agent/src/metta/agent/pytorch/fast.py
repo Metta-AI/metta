@@ -7,41 +7,68 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-import pufferlib.models
 import pufferlib.pytorch
 
 logger = logging.getLogger(__name__)
 
 
-class Fast(pufferlib.models.LSTMWrapper):
+class LSTMWrapper(nn.Module):
+    """Enhanced LSTM wrapper that supports multi-layer LSTMs.
+    
+    Based on pufferlib.models.LSTMWrapper but with num_layers support
+    to match the YAML fast.yaml implementation which uses 2 layers.
+    """
+    
+    def __init__(self, env, policy, input_size=128, hidden_size=128, num_layers=2):
+        """Initialize LSTM wrapper with configurable number of layers.
+        
+        Args:
+            env: Environment
+            policy: The policy to wrap (must have encode_observations and decode_actions)
+            input_size: Input size to LSTM
+            hidden_size: Hidden size of LSTM
+            num_layers: Number of LSTM layers (default 2 to match YAML)
+        """
+        super().__init__()
+        self.obs_shape = env.single_observation_space.shape
+        
+        self.policy = policy
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+        self.is_continuous = self.policy.is_continuous
+        
+        # Create multi-layer LSTM
+        self.lstm = nn.LSTM(input_size, hidden_size, num_layers=num_layers)
+        
+        # Initialize parameters after LSTM creation
+        for name, param in self.lstm.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 1)  # Match YAML agent initialization
+            elif "weight" in name:
+                nn.init.orthogonal_(param, 1)  # Orthogonal initialization
+        
+        # Note: We don't create LSTMCell for multi-layer LSTMs
+        # as it would only work for single layer
+        
+        # Store action conversion tensors (will be set by MettaAgent)
+        self.action_index_tensor = None
+        self.cum_action_max_params = None
+
+
+class Fast(LSTMWrapper):
     """Fast CNN-based policy with LSTM that matches the YAML fast.yaml implementation."""
 
-    def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
-        logger.info(f"[DEBUG] Fast.__init__ called with input_size={input_size}, hidden_size={hidden_size}")
+    def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128, num_layers=2):
+        logger.info(f"[DEBUG] Fast.__init__ called with input_size={input_size}, hidden_size={hidden_size}, num_layers={num_layers}")
         if policy is None:
             policy = Policy(
                 env,
                 input_size=input_size,
                 hidden_size=hidden_size,
             )
-        super().__init__(env, policy, input_size, hidden_size)
-        
-        # CRITICAL FIX: Replace the 1-layer LSTM with 2-layer LSTM to match YAML
-        # The parent class creates a 1-layer LSTM, but YAML fast.yaml uses 2 layers
-        # We override the LSTM after parent init
-        del self.lstm  # Remove the 1-layer LSTM from parent
-        del self.cell  # Remove the LSTMCell from parent (not used with 2-layer LSTM)
-        self.lstm = nn.LSTM(input_size, hidden_size, num_layers=2)
-        
-        # Fix LSTM initialization to match YAML-based agent
-        # The parent class initializes parameters BEFORE creating the LSTM,
-        # but PyTorch's LSTM constructor overwrites them with default initialization.
-        # We need to re-initialize AFTER the LSTM is created.
-        for name, param in self.lstm.named_parameters():
-            if "bias" in name:
-                nn.init.constant_(param, 1)  # Match YAML agent (was 0 in pufferlib)
-            elif "weight" in name:
-                nn.init.orthogonal_(param, 1)  # Re-apply orthogonal init
+        # Pass num_layers=2 to match YAML configuration
+        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
 
         logger.info(f"[DEBUG] Fast initialized with {sum(p.numel() for p in self.parameters())} parameters")
         logger.info(f"[DEBUG] LSTM: {self.lstm.num_layers} layers, hidden_size={self.lstm.hidden_size}")
@@ -151,13 +178,13 @@ class Policy(nn.Module):
 
         self.out_width = 11
         self.out_height = 11
-        self.num_layers = 22
+        self.num_layers = 25  # Changed from 22 to match YAML (25 observation features)
 
         # Match YAML component initialization more closely
-        self.cnn1 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=22, out_channels=64, kernel_size=5, stride=3))
+        self.cnn1 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=25, out_channels=64, kernel_size=5, stride=3))
         self.cnn2 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1))
 
-        test_input = torch.zeros(1, 22, 11, 11)
+        test_input = torch.zeros(1, 25, 11, 11)  # Changed from 22 to match num_layers
         with torch.no_grad():
             test_output = self.cnn2(self.cnn1(test_input))
             self.flattened_size = test_output.numel() // test_output.shape[0]
@@ -186,30 +213,34 @@ class Policy(nn.Module):
         self._init_bilinear_actor()
 
         # Normalization vector matching YAML's ObservationNormalizer
+        # Need 25 values to match the 25 observation features
         max_vec = torch.tensor(
             [
-                9.0,
-                1.0,
-                1.0,
-                10.0,
-                3.0,
-                254.0,
-                1.0,
-                1.0,
-                235.0,
-                8.0,
-                9.0,
-                250.0,
-                29.0,
-                1.0,
-                1.0,
-                8.0,
-                1.0,
-                1.0,
-                6.0,
-                3.0,
-                1.0,
-                2.0,
+                9.0,   # 0
+                1.0,   # 1
+                1.0,   # 2
+                10.0,  # 3
+                3.0,   # 4
+                254.0, # 5
+                1.0,   # 6
+                1.0,   # 7
+                235.0, # 8
+                8.0,   # 9
+                9.0,   # 10
+                250.0, # 11
+                29.0,  # 12
+                1.0,   # 13
+                1.0,   # 14
+                8.0,   # 15
+                1.0,   # 16
+                1.0,   # 17
+                6.0,   # 18
+                3.0,   # 19
+                1.0,   # 20
+                2.0,   # 21
+                1.0,   # 22 - added
+                1.0,   # 23 - added
+                1.0,   # 24 - added
             ],
             dtype=torch.float32,
         )[None, :, None, None]
