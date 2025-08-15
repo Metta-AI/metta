@@ -123,6 +123,10 @@ class SLKickstarter(BaseLoss):
             ((teacher_value.squeeze() - student_value) ** 2).mean() * self.value_loss_coef * self.anneal_factor
         )
 
+        # clamp losses
+        ks_action_loss = torch.clamp(ks_action_loss, min=0.0)  # av this should never go negative yet it seems to!!!
+        ks_value_loss = torch.clamp(ks_value_loss, min=-0.001)
+
         loss = ks_action_loss + ks_value_loss
 
         self.loss_tracker.add("sl_ks_action_loss", float(ks_action_loss.item()))
