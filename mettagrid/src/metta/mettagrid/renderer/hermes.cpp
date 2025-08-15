@@ -29,7 +29,7 @@
 
 #define DRAW_COUNTER(ctx) ++*ctx.num_draws
 
-using namespace std::literals::string_view_literals;
+using std::literals::string_view_literals::operator""sv;
 
 static inline bool is_zero(float a) {
     return std::abs(a) < 0.001f;
@@ -908,8 +908,7 @@ static void Hermes_Cache(Hermes& ctx) {
 
             if (name == "agent"sv) {
                 ctx.types.agent = type_id;
-            }
-            else if (name == "wall"sv) {
+            } else if (name == "wall"sv) {
                 ctx.types.wall = type_id;
             }
         }
@@ -929,7 +928,7 @@ static void Hermes_Cache(Hermes& ctx) {
         const auto& name = handler->action_name();
 
         #define ACTION(s) else if (name == #s##sv) ctx.actions.s = static_cast<uint8_t>(action_id)
-        if (false) {}
+        if (false) {}  // NOLINT(whitespace/empty_if_body)
         ACTION(noop);
         ACTION(move);
         ACTION(rotate);
@@ -1126,15 +1125,15 @@ static void Hermes_Setup(Hermes& ctx) {
     agent_sprite("e", Orientation::Right);
     ctx.sprite_atlas.frozen = ctx.sprite_lookup["agents/frozen.png"];
 
-    wall_sprite("0", WallTile_0); // 0
-    wall_sprite("e", WallTile_E); // 1
-    wall_sprite("s", WallTile_S); // 2
+    wall_sprite("0", WallTile_0);
+    wall_sprite("e", WallTile_E);
+    wall_sprite("s", WallTile_S);
     wall_sprite("se", WallTile_S | WallTile_E);
-    wall_sprite("w", WallTile_W); // 3
+    wall_sprite("w", WallTile_W);
     wall_sprite("we", WallTile_W | WallTile_E);
     wall_sprite("ws", WallTile_W | WallTile_S);
     wall_sprite("wse", WallTile_W | WallTile_S | WallTile_E);
-    wall_sprite("n", WallTile_N); // 4
+    wall_sprite("n", WallTile_N);
     wall_sprite("ne", WallTile_N | WallTile_E);
     wall_sprite("ns", WallTile_N | WallTile_S);
     wall_sprite("nse", WallTile_N | WallTile_S | WallTile_E);
