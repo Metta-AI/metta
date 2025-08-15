@@ -170,9 +170,9 @@ class AgalitePolicy(nn.Module):
             observations = einops.rearrange(observations, "b t m c -> (b t) m c")
             B = observations.shape[0]
 
-        # Handle invalid tokens
-        observations = observations.clone()
-        observations[observations == 255] = 0
+        # Don't modify original tensor - ComponentPolicy doesn't do this (PR #2126)
+        # observations = observations.clone()
+        # observations[observations == 255] = 0
         coords_byte = observations[..., 0].to(torch.uint8)
 
         x_coords = ((coords_byte >> 4) & 0x0F).long()

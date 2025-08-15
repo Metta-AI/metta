@@ -164,6 +164,12 @@ class AGaLiTePolicy(nn.Module):
         self.value_head = init_layer(nn.Linear(1024, 1), std=1.0)
         self.actor_1 = init_layer(nn.Linear(d_model, 512), std=1.0)
         self.action_embeddings = nn.Embedding(100, 16)
+        
+        # Initialize action embeddings to match YAML ActionEmbedding component
+        nn.init.orthogonal_(self.action_embeddings.weight)
+        with torch.no_grad():
+            max_abs_value = torch.max(torch.abs(self.action_embeddings.weight))
+            self.action_embeddings.weight.mul_(0.1 / max_abs_value)
 
         # Action heads
         if hasattr(self.action_space, "nvec"):
@@ -225,7 +231,8 @@ class AGaLiTePolicy(nn.Module):
             token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
 
         assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
-        token_observations[token_observations == 255] = 0
+        # Don't modify original tensor - ComponentPolicy doesn't do this
+        # token_observations[token_observations == 255] = 0  # REMOVED per PR #2126
 
         # Convert tokens to grid representation
         coords_byte = token_observations[..., 0].to(torch.uint8)
