@@ -1,5 +1,5 @@
 coef_values=(0.03) # 0.10 0.20 0.40) # 0.03
-temperature_values=(0.05 0.07 0.12) #0.03
+temperature_values= (0.03)
 num_negatives_values=(8 16 32)
 
 base_args="sim=arena \
