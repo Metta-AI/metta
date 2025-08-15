@@ -30,7 +30,6 @@ def main(cfg: AnalysisToolConfig) -> None:
         data_dir=cfg.data_dir,
         wandb_entity=cfg.wandb.entity if isinstance(cfg.wandb, WandbConfigOn) else None,
         wandb_project=cfg.wandb.project if isinstance(cfg.wandb, WandbConfigOn) else None,
-        pytorch_cfg=getattr(cfg, "pytorch", None),
     )
     policy_pr = policy_store.policy_record(
         cfg.policy_uri, cfg.analysis.policy_selector.type, metric=cfg.analysis.policy_selector.metric
