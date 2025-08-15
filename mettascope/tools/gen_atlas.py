@@ -36,28 +36,15 @@ FONTS = [
 ]
 
 
-def _get_font_config(font: dict):
-    """Return the current font-related configuration that should trigger rebuilds when changed."""
-    cfg = {
-        "fontName": font["fontName"],
-        "fontPath": font["fontPath"],
-        "fontSize": font["fontSize"],
-        "fontCharset": font["fontCharset"],
-        "glyphInnerPadding": font["glyphInnerPadding"],
-    }
-    if os.path.exists(font["fontPath"]):
-        st = os.stat(font["fontPath"])
-        cfg["fontPathMtime"] = int(st.st_mtime)
-        cfg["fontPathSize"] = int(st.st_size)
-    else:
-        cfg["fontPathMtime"] = None
-        cfg["fontPathSize"] = None
-
-    return cfg
-
-
-def _config_hash(cfg: dict) -> str:
-    return hashlib.sha256(json.dumps(cfg, sort_keys=True).encode("utf-8")).hexdigest()
+def compute_build_hash() -> str:
+    """Hash this generator and the font files themselves to detect changes."""
+    sha = hashlib.sha256()
+    with open(os.path.abspath(__file__), "rb") as f:
+        sha.update(f.read())
+    for font in FONTS:
+        with open(font["fontPath"], "rb") as f:
+            sha.update(f.read())
+    return sha.hexdigest()
 
 
 def needs_rebuild(atlas_dir):
@@ -81,18 +68,13 @@ def needs_rebuild(atlas_dir):
                     relative_path = os.path.relpath(img_path, atlas_dir)
                     return True, f"Input file newer: {relative_path}"
 
-    # Check if font settings have changed since last build.
-    try:
-        with open(atlas_json, "r") as f:
-            data = json.load(f)
-        for font in FONTS:
-            current_hash = _config_hash(_get_font_config(font))
-            saved_hash = data.get("fonts", {}).get(font["fontName"], {}).get("fontConfigHash")
-            if saved_hash != current_hash:
-                return True, f"Font settings changed for {font['fontName']}"
-    except Exception:
-        # If we can't read or parse the file, or key is missing, force rebuild.
-        return True, "Font settings changed"
+    # Check if generator or font files have changed since last build using a build hash.
+    with open(atlas_json, "r") as f:
+        data = json.load(f)
+    saved_hash = data.get("buildHash")
+    current_hash = compute_build_hash()
+    if saved_hash != current_hash:
+        return True, "Build hash changed"
 
     return False, "No changes detected"
 
@@ -309,25 +291,20 @@ def main():
         print(f"Successfully packed {image_count} images into atlas")
 
     # Write the atlas image and the atlas json file.
-    try:
-        # Embed per-font config and hash directly in the font objects
-        for font in FONTS:
-            cfg = _get_font_config(font)
-            fid = font["fontName"]
-            if fid in fonts_meta:
-                fonts_meta[fid].update(cfg)
-                fonts_meta[fid]["fontConfigHash"] = _config_hash(cfg)
-        atlas_out = {
-            "images": dict(images),
-            "fonts": fonts_meta,
-        }
-        with open("dist/atlas.json", "w") as f:
-            json.dump(atlas_out, f, indent=2)
-        atlas_image.write_file("dist/atlas.png")
-        print("Atlas generation complete: dist/atlas.png and dist/atlas.json")
-    except Exception as e:
-        print(f"Error writing atlas files: {e}", file=sys.stderr)
-        sys.exit(1)
+    # Embed entire font config for clarity
+    for font in FONTS:
+        fid = font["fontName"]
+        if fid in fonts_meta:
+            fonts_meta[fid].update(font)
+    atlas_out = {
+        "images": dict(images),
+        "fonts": fonts_meta,
+        "buildHash": compute_build_hash(),
+    }
+    with open("dist/atlas.json", "w") as f:
+        json.dump(atlas_out, f, indent=2)
+    atlas_image.write_file("dist/atlas.png")
+    print("Atlas generation complete: dist/atlas.png and dist/atlas.json")
 
 
 if __name__ == "__main__":
