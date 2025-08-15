@@ -1,6 +1,9 @@
 from abc import abstractmethod
 
+from pydantic import Field
+
 from metta.common.util.config import Config
+from metta.rl.system_config import SystemConfig
 
 
 class Tool(Config):
@@ -14,6 +17,8 @@ class Tool(Config):
 
     The function can optionally take arguments, which will be passed to the tool when passed in `--args`.
     """
+
+    system: SystemConfig = Field(default_factory=SystemConfig)
 
     # Returns exit code, optionally.
     @abstractmethod

@@ -12,6 +12,7 @@ from pydantic import validate_call
 
 from metta.common.util.logging_helpers import init_logging
 from metta.common.util.tool import Tool
+from metta.rl.system_config import seed_everything
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +45,9 @@ def main():
     tool_cfg = validate_call(make_tool_cfg)(**args_conf)
     if not isinstance(tool_cfg, Tool):
         raise ValueError(f"The result of running {args.make_tool_cfg_path} must be a ToolConfig, got {tool_cfg}")
+
+    # Seed random number generators
+    seed_everything(tool_cfg.system)
 
     # Run the tool from config
     logger.info(f"Running tool config:\n{tool_cfg.yaml()}")
