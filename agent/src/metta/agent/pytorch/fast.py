@@ -40,7 +40,7 @@ class Fast(LSTMWrapper):
         # Initialize parity features to match ComponentPolicy
         self.clip_range = clip_range  # Match YAML's clip_range: 0
         self.analyze_weights_interval = 300  # Match YAML config
-    
+
     # Memory management methods are inherited from LSTMWrapper base class
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
@@ -72,10 +72,10 @@ class Fast(LSTMWrapper):
         # Forward LSTM
         hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, in_size)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
-        
+
         # Use base class method to store state with automatic detachment
         self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
-        
+
         flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
         # Decode
