@@ -1,13 +1,5 @@
 # Metta Sweep System
 
-<<<<<<< HEAD
-## Overview
-
-The Metta sweep system provides automated hyperparameter optimization using Bayesian optimization through the Protein
-optimizer, integrated with Weights & Biases (WandB) for experiment tracking and a centralized Cogweb database for sweep
-coordination. The system efficiently explores hyperparameter spaces to find optimal training configurations for
-reinforcement learning policies.
-=======
 A hyperparameter optimization system using Protein (Bayesian optimization with Gaussian Processes) integrated with WandB
 for efficient hyperparameter search and experiment tracking.
 
@@ -20,11 +12,10 @@ training iterations with different hyperparameter configurations, where each ite
 2. Trains a model with those hyperparameters
 3. Evaluates the trained model
 4. Records results back to the optimizer
->>>>>>> 50256677f (feat(sweep): Add phasing)
 
-## System Architecture
+## Architecture
 
-### Core Components
+The sweep system follows a modular architecture with clear separation of concerns:
 
 ```
 metta/
@@ -40,6 +31,10 @@ tools/
 ├── train.py                              # Training script invoked by sweeps
 └── get_best_params_from_sweep.py         # Extract optimal parameters from completed sweeps
 │
+experiments/
+└── dashboards/
+    └── sweep_dashboard.py                # Interactive analysis dashboard
+│
 configs/
 ├── sweep_job.yaml                        # Main sweep job configuration
 ├── sweep/                                # Sweep parameter configurations
@@ -51,6 +46,25 @@ devops/
 ├── sweep.sh                              # Shell wrapper for sweep execution
 └── skypilot/
     └── launch.py                         # Cloud deployment via SkyPilot
+```
+
+### Core Workflow
+
+The sweep execution follows this pipeline:
+
+The sweep system follows a modular architecture with clear separation of concerns:
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌───────────────────┐
+│   sweep_init    │───▶│     train.py    │───▶│   sweep_eval      │
+│                 │    │                 │    │                   │
+│ • Create sweep  │    │ • Load overrides│    │ • Evaluate        │
+│ • Get run_id    │    │ • Train model   │    │ • Record obs      │
+│ • Fetch obs     │    │ • Save policy   │    │ • Update Protein/WB│
+│ • Gen sugg      │    │ • Checkpoints   │    │                   │
+│ • Apply sugg    │    │                 │    │                   │
+│   observations  │    │                 │    │                   │
+└─────────────────┘    └─────────────────┘    └───────────────────┘
 ```
 
 ## Configuration System
@@ -82,8 +96,8 @@ sweep_job_overrides: # Applied to all training runs
       replay_dir: '' # No replays for sweeps
 ```
 
-<<<<<<< HEAD
-=======
+# <<<<<<< HEAD
+
 ### Sweep Phasing System
 
 The sweep system supports a phasing mechanism that allows you to dynamically adjust hyperparameter search strategies as
@@ -173,7 +187,8 @@ Each phase can override:
 4. **Resource Optimization**: Allocate more compute to promising configurations
 5. **Risk Management**: Avoid expensive failures in early exploration
 
->>>>>>> 50256677f (feat(sweep): Add phasing)
+> > > > > > > 50256677f (feat(sweep): Add phasing)
+
 ### Sweep Parameter Configurations (`configs/sweep/*.yaml`)
 
 The sweep system supports multiple parameter distributions for different types of hyperparameters:
@@ -328,57 +343,31 @@ The main script (`sweep_execute.py`) runs an infinite loop that:
 
 1. **Prepares Each Run** (`prepare_sweep_run`)
    - Fetches previous observations from WandB (up to `max_observations_to_load`)
-<<<<<<< HEAD
-=======
    - **Phase Selection** (if `schedule` is configured):
      - Counts total completed runs from observations
      - Determines current phase based on `num_runs` thresholds
      - Merges phase-specific overrides with base sweep config
      - Creates phase-specific Protein optimizer instance
->>>>>>> 50256677f (feat(sweep): Add phasing)
    - Updates Protein optimizer with historical data
    - Generates new hyperparameter suggestions using Gaussian Process
    - Gets unique run ID from Cogweb (e.g., `sweep_name.r.0`, `sweep_name.r.1`)
    - Returns run name and parameter suggestions
 
-2. **Launches Training** (`launch_training_subprocess`)
-   - Constructs command for `devops/train.sh`:
-     ```bash
-     ./devops/train.sh \
-       run=sweep_name.r.0 \
-       wandb.entity=<entity> \
-       wandb.project=<project> \
-       wandb.group=<sweep_name> \
-       wandb.name=sweep_name.r.0 \
-       ++trainer.batch_size=1024 \           # From protein suggestion
-       ++trainer.optimizer.learning_rate=0.0003 \
-       ++trainer.total_timesteps=1000000000 \
-       sim=arena                              # From sweep_job config
-     ```
-   - Parameters are passed via CLI using `++` prefix for force-override
-   - Training runs as subprocess with real-time logging
-   - Outputs saved to `{data_dir}/{run_name}/`
+### Sweep Config (`configs/sweep/`)
 
-<<<<<<< HEAD
-3. **Evaluates Results** (`evaluate_sweep_rollout`)
-   - Loads saved configuration from `sweep_eval_config.yaml`
-   - Initializes WandB context for recording
-   - Runs policy evaluation suite:
-     - Loads trained policy from checkpoints
-     - Executes simulation suite specified by `sim_name`
-     - Collects metrics (reward, success rate, etc.)
-   - Records observation to Protein via WandB:
-     - Suggestion parameters
-     - Objective value (metric score)
-     - Compute cost (training + eval time)
-     - Failure status
-   - Saves results to `sweep_eval_results.yaml`
+````yaml
+# configs/sweep/quick.yaml
+protein:
+  num_random_samples: 5 # Initial random exploration
+  max_suggestion_cost: 3600 # Max cost per suggestion (seconds)
+  resample_frequency: 0 # How often to resample suggestions
+  global_search_scale: 1 # Exploration vs exploitation
+  random_suggestions: 1024 # Random samples for acquisition
+  suggestions_per_pareto: 256 # Samples per Pareto point
 
-4. **Error Handling**
-   - On failure: increments consecutive failure counter
-   - Waits `rollout_retry_delay` seconds before retry
-   - Stops if `max_consecutive_failures` exceeded (0 = unlimited)
-   - On success: resets failure counter
+metric: reward # Objective metric name
+goal: maximize # maximize or minimize
+method: bayes # Optimization method
 
 ### Phase 3: Optimization Process
 
@@ -408,10 +397,88 @@ For multi-node training:
 
 ## Analyzing Results
 
+### Interactive Sweep Dashboard
+
+The sweep system includes a powerful interactive dashboard for real-time analysis and visualization of sweep results.
+The dashboard provides WandB-quality visualizations with full interactivity.
+
+#### Running the Dashboard
+
+```bash
+# Basic usage
+python experiments/dashboards/sweep_dashboard.py --sweep-name my_sweep
+
+# With custom entity and project
+python experiments/dashboards/sweep_dashboard.py \
+  --sweep-name my_sweep \
+  --entity metta-research \
+  --project metta
+
+# Limit observations and set hourly cost
+python experiments/dashboards/sweep_dashboard.py \
+  --sweep-name my_sweep \
+  --max-observations 500 \
+  --hourly-cost 5.0
+````
+
+#### Dashboard Features
+
+The interactive dashboard provides:
+
+1. **Summary Statistics Cards**:
+   - Total runs completed
+   - Best score achieved
+   - Total compute cost
+   - Average runtime
+
+2. **Interactive Visualizations**:
+   - **Cost vs Score Analysis**: Scatter plot with Pareto frontier highlighting
+   - **Parameter Importance**: Bar chart showing correlations with objective
+   - **Score Progression**: Timeline view with moving average
+   - **Efficiency Frontier**: Pareto optimal runs visualization
+   - **Distributions**: Histograms for score and cost distributions
+   - **Parameter Correlations**: Grid of scatter plots for all parameters vs score
+
+3. **Interactive Features**:
+   - **Dynamic Filtering**: Adjust score and cost ranges with sliders
+   - **Click for Details**: Click any point to see full run configuration
+   - **Hover Information**: Detailed tooltips on all visualizations
+   - **Trend Lines**: Automatic trend fitting for parameter correlations
+
+4. **Run Details Panel**:
+   - Click on any data point to display:
+     - Complete hyperparameter configuration
+     - Performance metrics
+     - Runtime and cost information
+     - Run identification details
+
+#### Dashboard Access
+
+Once launched, the dashboard runs as a local web server:
+
+- URL: `http://127.0.0.1:8050/`
+- Real-time updates as new runs complete
+- Export capabilities for all visualizations
+
+#### Dashboard Requirements
+
+The dashboard requires the following Python packages (typically already installed):
+
+- `dash` and `dash-bootstrap-components` for the web interface
+- `plotly` for interactive visualizations
+- `pandas` and `numpy` for data processing
+- `wandb` for fetching sweep data
+
+Install if needed:
+
+```bash
+pip install dash dash-bootstrap-components plotly
+```
+
 ### Extract Best Parameters
 
 ```bash
-# Get best configuration
+# Get best configuration from sweep
 ./tools/get_best_params_from_sweep.py sweep_name=my_sweep
 
 # Show top 5 configurations
@@ -420,54 +487,12 @@ For multi-node training:
 # Generate reusable config patch
 ./tools/get_best_params_from_sweep.py sweep_name=my_sweep \
   --output-dir configs/trainer/patch
-=======
-```yaml
-# configs/sweep/quick.yaml
-protein:
-  num_random_samples: 5 # Initial random exploration
-  max_suggestion_cost: 3600 # Max cost per suggestion (seconds)
-  resample_frequency: 0 # How often to resample suggestions
-  global_search_scale: 1 # Exploration vs exploitation
-  random_suggestions: 1024 # Random samples for acquisition
-  suggestions_per_pareto: 256 # Samples per Pareto point
-
-metric: reward # Objective metric name
-goal: maximize # maximize or minimize
-method: bayes # Optimization method
-
-parameters:
-  trainer:
-    optimizer:
-      learning_rate:
-        distribution: log_normal
-        min: 0.0001
-        max: 0.001
-        mean: 0.0005 # Search center point
-        scale: 0.5 # Search width
->>>>>>> 50256677f (feat(sweep): Add phasing)
 ```
 
-This generates a patch file for future training:
+````
 
-<<<<<<< HEAD
-```bash
-# Train with optimal parameters
-./tools/train.py run=production +trainer/patch=my_sweep_best
-```
+### Sweep Job Config (`configs/sweep_job.yaml`)
 
-### Monitor Progress
-
-View in WandB dashboard:
-
-- Filter by group name (sweep name)
-- Use parallel coordinates plot for parameter relationships
-- Track metric convergence over iterations
-- Analyze cost vs performance trade-offs
-
-## Integration Points
-
-### Cogweb Server
-=======
 Main configuration that combines:
 
 - `trainer`: Training parameters
@@ -491,7 +516,7 @@ learning_rate:
   max: 0.01
   scale: 'auto' # or numeric value, controls search width
   mean: 0.005 # search center point
-```
+````
 
 ### `int_uniform` - Integer uniform distribution
 
@@ -548,39 +573,93 @@ dropout_rate:
 - `"auto"`: Default scale of 0.5
 - `"time"`: For log distributions, scale = 1/(log2(max) - log2(min))
 - Numeric value: Custom search width around the mean
->>>>>>> 50256677f (feat(sweep): Add phasing)
 
-- Centralized sweep coordination
-- Unique run ID generation
-- Prevents duplicate runs across workers
-- API endpoint: `sweep_server_uri`
+## File Structure
 
-### WandB
+```
+train_dir/sweep/sweep_name/
+├── config.yaml              # Sweep metadata & wandb_sweep_id
+├── runs/                    # Individual training runs
+│   ├── sweep_name.r.0/      # First run
+│   │   ├── train_config_overrides.yaml
+│   │   ├── checkpoints/
+│   │   └── sweep_eval_results.yaml
+│   ├── sweep_name.r.1/      # Second run
+│   └── ...
+└── dist_*.yaml              # Distributed coordination files
+```
 
-- Stores all observations and metrics
-- Provides sweep visualization
-- Enables historical data loading
-- Groups runs by sweep name
+## Programmatic Usage
 
-### Evaluation System
+```python
+from metta.sweep.protein_metta import MettaProtein
+from omegaconf import OmegaConf
+import wandb
 
-- Uses `SimulationSuite` for policy evaluation
-- Runs suite specified by `sim_name`
-- Stores results in SQLite database (`eval/stats.db`)
-- Computes aggregate metrics for optimization
+# Setup config
+config = OmegaConf.create({
+    "sweep": {
+        "protein": {
+            "max_suggestion_cost": 3600,
+            "num_random_samples": 50
+        },
+        "parameters": {
+            "metric": "reward",
+            "goal": "maximize",
+            "trainer": {
+                "optimizer": {
+                    "learning_rate": {
+                        "distribution": "log_normal",
+                        "min": 1e-5,
+                        "max": 1e-2,
+                        "scale": "auto",
+                        "mean": 3e-4
+                    }
+                },
+                "batch_size": {
+                    "distribution": "uniform_pow2",
+                    "min": 16,
+                    "max": 128,
+                    "scale": "auto",
+                    "mean": 64
+                }
+            }
+        }
+    }
+})
 
-## Best Practices
+# Initialize with wandb
+wandb.init(project="my_project")
+optimizer = MettaProtein(config)
 
-1. **Start with `sweep=quick`** for testing (5 samples)
-2. **Set appropriate bounds** - avoid extremely wide search spaces
-3. **Use correct distributions**:
-   - `log_normal` for learning rates
-   - `uniform_pow2` for batch sizes
-   - `logit_normal` for probabilities
-4. **Monitor early iterations** before scaling up
-5. **Set `max_consecutive_failures`** > 0 for production
-6. **Limit `max_observations_to_load`** for large sweeps
-7. **Use descriptive sweep names** for organization
+# Get suggestions
+suggestion, info = optimizer.suggest()
+print(f"Try learning_rate: {suggestion['trainer']['optimizer']['learning_rate']}")
+print(f"Try batch_size: {suggestion['trainer']['batch_size']}")
+
+# Train your model...
+
+# Record results
+optimizer.record_observation(objective=objective_value, cost=120.0)
+```
+
+## Features
+
+- **Gaussian Process optimization** for sample-efficient search
+- **WandB integration** for experiment tracking and history
+- **Local filesystem caching** for fast sweep ID lookups
+- **OmegaConf support** with interpolation resolution
+- **Numpy type conversion** for compatibility
+- **Multi-objective optimization** with Pareto frontiers
+- **Historical run loading** from WandB sweeps
+- **Automatic run ID generation** with collision detection
+- **Distributed training support** via coordination files
+
+## Performance Optimizations
+
+- **Local cache**: Sweep IDs are cached locally to avoid expensive WandB API searches
+- **Batch loading**: Previous runs are loaded in batches for efficiency
+- **Lazy evaluation**: Suggestions are only computed when needed
 
 ### Phasing Best Practices
 
@@ -614,6 +693,7 @@ dropout_rate:
 ## Troubleshooting
 
 <<<<<<< HEAD
+
 ### Common Issues
 
 1. **Import errors**: Check PyTorch installation (macOS issues common)
@@ -623,7 +703,9 @@ dropout_rate:
 5. **OOM errors**: Reduce `batch_size` or `num_envs`
 
 ### Debug Mode
+
 =======
+
 ### Run ID Conflicts
 
 The system automatically generates unique run IDs (e.g., `sweep_name.r.0`, `sweep_name.r.1`). If conflicts occur, the
@@ -662,26 +744,42 @@ To add a new parameter distribution:
 
 The `tools/get_best_params_from_sweep.py` script helps you extract the best performing hyperparameters from a completed
 sweep:
->>>>>>> 50256677f (feat(sweep): Add phasing)
 
 ```bash
-# Enable detailed logging
-HYDRA_FULL_ERROR=1 ./tools/sweep_execute.py sweep_name=debug
+# Basic usage - generates config patch file
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep_name
 
-# Check intermediate files
-ls train_dir/<sweep_name>/<run_name>/
+# Show top N configurations
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep_name --top-n 5
+
+# Show all run scores
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep_name --show-scores
+
+# Custom output directory for patches
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep_name --output-dir my_patches
+
+# Skip patch generation (only show parameters)
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep_name --no-patch
+
+# Combine multiple options
+./tools/get_best_params_from_sweep.py sweep_name=my_sweep_name --top-n 3 --show-scores
+
+# Show help
+./tools/get_best_params_from_sweep.py --help
 ```
 
-### Recovery
+#### Features
 
-The system automatically handles:
+- **Automatic sweep discovery**: Finds sweep by name in your WandB project
+- **Config patch generation**: Creates Hydra-compatible patch files with `@package _global_` directive
+- **Multiple output formats**:
+  - YAML config patch for use with `+trainer/patch=`
+  - Command-line overrides for direct use
+  - Complete training commands
+- **Scientific notation**: Small values (< 0.01) are formatted in scientific notation for readability
+- **Top-N analysis**: Compare multiple high-performing configurations
+- **Score display**: Optionally show scores for all successful runs
 
-<<<<<<< HEAD
-- Resumption from interruption (no state lost)
-- Retry of failed runs
-- Loading historical observations
-- Skipping duplicate run IDs
-=======
 #### Available Options
 
 - `sweep_name=<name>` (required): Name of the sweep to analyze
@@ -745,4 +843,3 @@ trainer:
 ----------------------------------------
 ./devops/train.sh run=my_sweep_best trainer.optimizer.learning_rate=7.31e-04
 ```
->>>>>>> 50256677f (feat(sweep): Add phasing)
