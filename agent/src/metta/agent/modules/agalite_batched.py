@@ -10,39 +10,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-def batched_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:
-    """
-    Compute discounted sum for batched sequences using efficient cumulative operations.
-
-    This implements: y[t] = discount[t] * y[t-1] + x[t]
-    where y[-1] = start_state
-    """
-    T = x.shape[0]
-
-    if T == 0:
-        return x
-
-    # Ensure start_state has same shape as x[0]
-    if start_state.dim() < x.dim() - 1:
-        # Add missing dimensions
-        for _ in range(x.dim() - 1 - start_state.dim()):
-            start_state = start_state.unsqueeze(-1)
-
-    # For GPU efficiency, we can use a custom kernel or accumulate in chunks
-    # For now, use a simple loop that's still efficient on GPU
-
-    # Pre-allocate output tensor
-    output = torch.empty_like(x)
-
-    # Initialize with first step
-    output[0] = discounts[0] * start_state + x[0]
-
-    # Compute remaining steps
-    for t in range(1, T):
-        output[t] = discounts[t] * output[t - 1] + x[t]
-
-    return output
+# Import optimized version - critical for performance
+from metta.agent.modules.agalite_optimized import batched_discounted_sum
 
 
 class BatchedAttentionAGaLiTeLayer(nn.Module):

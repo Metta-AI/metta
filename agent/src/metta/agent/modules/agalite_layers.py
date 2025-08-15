@@ -10,45 +10,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-
-def discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:
-    """
-    Compute discounted sum: y[t] = discount[t] * y[t-1] + x[t]
-    where y[-1] = start_state
-
-    Args:
-        start_state: Initial state tensor of shape (B, ...)
-        x: Sequence tensor of shape (T, B, ...)
-        discounts: Discount factors of shape (T, B, ...)
-
-    Returns:
-        Discounted sum tensor of shape (T, B, ...)
-    """
-    T = x.shape[0]
-    if T == 0:
-        return x
-
-    # Ensure start_state has same shape as x[0]
-    if start_state.dim() < x.dim() - 1:
-        for _ in range(x.dim() - 1 - start_state.dim()):
-            start_state = start_state.unsqueeze(-1)
-
-    # Pre-allocate output list to avoid in-place operations
-    output_list = []
-
-    # Initialize with first step
-    prev = discounts[0] * start_state + x[0]
-    output_list.append(prev)
-
-    # Compute remaining steps
-    for t in range(1, T):
-        prev = discounts[t] * prev + x[t]
-        output_list.append(prev)
-
-    # Stack all outputs
-    output = torch.stack(output_list, dim=0)
-
-    return output
+# Import optimized version - critical for performance
+from metta.agent.modules.agalite_optimized import discounted_sum
 
 
 class GRUGatingUnit(nn.Module):
