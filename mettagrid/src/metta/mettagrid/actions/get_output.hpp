@@ -74,6 +74,16 @@ protected:
             creator->update_inventory(item, amount);
           }
         }
+        // Explicitly add reward to agent's reward pointer
+        if (creator->reward) {
+          RewardType creator_REWARD_TERM = -1.0f;
+          *(creator->reward) += creator_REWARD_TERM;
+        }
+      }
+
+      if (actor->reward) {
+        RewardType actor_REWARD_TERM = 1.0f;
+        *(actor->reward) += actor_REWARD_TERM;
       }
 
       // Reward the agent for opening the box and teleport back to top-left corner
