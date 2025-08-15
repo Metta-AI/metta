@@ -35,7 +35,7 @@ on:
 env:
   DEFAULT_TRAINER_ENV: "env/mettagrid/arena/advanced"
   DEFAULT_TIMEOUT_HOURS: 0.167 # 10 minutes = 0.167 hours
-  DEFAULT_NUM_GPUS: "2"
+  DEFAULT_NUM_GPUS: "4"
   DEFAULT_NUM_NODES: "2"
   RUN_NAME_PREFIX: "github.sky"
 
