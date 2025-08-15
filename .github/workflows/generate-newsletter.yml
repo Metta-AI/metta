@@ -166,7 +166,8 @@ jobs:
         run: |
           echo "Analyzing ${{ steps.pr-digest.outputs.total_pr_count }} PRs with AI..."
           echo "(${{ steps.pr-digest.outputs.new_pr_count }} new, rest from cache)"
-          uv run .github/scripts/gemini_analyze_pr_digest.py
+
+          uv run .github/scripts/gemini_create_newsletter.py
 
           # Verify outputs were created with detailed checking
           MISSING_FILES=()
