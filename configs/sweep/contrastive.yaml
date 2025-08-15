@@ -1,67 +1,73 @@
+protein:
+  num_random_samples: 10
+  max_suggestion_cost: 3600
+  resample_frequency: 0
+  global_search_scale: 1.0
+  random_suggestions: 1024
+  suggestions_per_pareto: 256
+  expansion_rate: 0.25
+  seed_with_search_center: true
+
+# Use navigation evaluation suite (defaults from sweep_job.yaml)
 metric: reward
 goal: maximize
 method: bayes
-max_observations_to_load: 250
-
-protein:
-  num_random_samples: 20
-  max_suggestion_cost: 3600
-  resample_frequency: 3
-  global_search_scale: 1.0
-  random_suggestions: 15
-  suggestions_per_pareto: 32
-  expansion_rate: 0.15
-  seed_with_search_center: true
+max_observations_to_load: 200
 
 parameters:
   trainer:
-    ppo:
+    contrastive:
+      # Weight on InfoNCE policy term
+      coef:
+        distribution: log_normal
+        min: 0.01
+        max: 0.5
+        mean: 0.1
+        scale: auto
+
+      # Number of negatives per anchor
+      num_negatives:
+        distribution: int_uniform
+        min: 8
+        max: 128
+        mean: 32
+        scale: auto
+
+      # Temperature for cosine similarities
+      temperature:
+        distribution: log_normal
+        min: 0.02
+        max: 0.3
+        mean: 0.07
+        scale: auto
+
+      # Geometric stride parameter for positive sampling (in (0,1))
       gamma:
         distribution: logit_normal
-        min: 0.95
+        min: 0.90
         max: 0.999
-        mean: 0.99
+        mean: 0.98
         scale: auto
 
-      gae_lambda:
-        distribution: logit_normal
-        min: 0.9
-        max: 0.99
-        mean: 0.95
-        scale: auto
-
-      clip_coef:
-        distribution: logit_normal
-        min: 0.1
-        max: 0.3
-        mean: 0.2
-        scale: auto
-
-      vf_coef:
-        distribution: logit_normal
-        min: 0.3
-        max: 0.8
-        mean: 0.5
-        scale: auto
-
-    update_epochs:
-      distribution: int_uniform
-      min: 1
-      max: 3
-      mean: 2
-      scale: auto
-
-    optimizer:
-      learning_rate:
+      # Negative hardness regularizer (log-sum-exp)
+      logsumexp_coef:
         distribution: log_normal
-        min: 1e-4
-        max: 1e-2
-        mean: 3e-4
+        min: 1.0e-5
+        max: 0.1
+        mean: 0.01
         scale: auto
 
-      eps:
+      # Variance regularizer strength and target
+      var_reg_coef:
         distribution: log_normal
-        min: 1e-9
-        max: 1e-7
-        mean: 1e-8
+        min: 1.0e-3
+        max: 2.0
+        mean: 1.0
+        scale: auto
+
+      var_reg_target:
+        distribution: uniform
+        min: 0.5
+        max: 1.5
+        mean: 1.0
         scale: auto
