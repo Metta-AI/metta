@@ -1,6 +1,3 @@
-# A background task that runs periodically and updates the leaderboard data.
-# Uses asyncio for consistent concurrency model.
-
 import asyncio
 import logging
 import uuid
