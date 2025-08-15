@@ -155,20 +155,20 @@ class MettaAgent(nn.Module):
         is_training: bool = True,
     ):
         """Initialize the agent to the current environment."""
-        logger.info(f"[DEBUG] initialize_to_environment called")
+        logger.info("[DEBUG] initialize_to_environment called")
         logger.info(f"[DEBUG]   Features: {len(features)} features")
         logger.info(f"[DEBUG]   Actions: {action_names}")
         logger.info(f"[DEBUG]   Max params: {action_max_params}")
         logger.info(f"[DEBUG]   Device: {device}")
-        
+
         # MettaAgent handles all initialization
         self.activate_actions(action_names, action_max_params, device)
         self.activate_observations(features, device)
-        
+
         # Log final parameter count after initialization
         total_params = sum(p.numel() for p in self.parameters())
         trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        logger.info(f"[DEBUG] After initialization:")
+        logger.info("[DEBUG] After initialization:")
         logger.info(f"[DEBUG]   Total params: {total_params:,}")
         logger.info(f"[DEBUG]   Trainable params: {trainable_params:,}")
 
@@ -269,10 +269,10 @@ class MettaAgent(nn.Module):
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Initialize action space for the agent."""
-        logger.info(f"[DEBUG] activate_actions called")
+        logger.info("[DEBUG] activate_actions called")
         logger.info(f"[DEBUG]   action_names: {action_names}")
         logger.info(f"[DEBUG]   action_max_params: {action_max_params}")
-        
+
         self.device = device
         self.action_max_params = action_max_params
         self.action_names = action_names
@@ -282,7 +282,7 @@ class MettaAgent(nn.Module):
         self.cum_action_max_params = torch.cumsum(
             torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )
-        
+
         logger.info(f"[DEBUG]   cum_action_max_params: {self.cum_action_max_params.tolist()}")
 
         # Build full action names for embeddings
@@ -291,10 +291,10 @@ class MettaAgent(nn.Module):
 
         # Activate embeddings if policy supports it
         if hasattr(self.policy, "activate_action_embeddings"):
-            logger.info(f"[DEBUG]   Calling policy.activate_action_embeddings")
+            logger.info("[DEBUG]   Calling policy.activate_action_embeddings")
             self.policy.activate_action_embeddings(full_action_names, device)
         else:
-            logger.info(f"[DEBUG]   Policy does not have activate_action_embeddings method")
+            logger.info("[DEBUG]   Policy does not have activate_action_embeddings method")
 
         # Create action index tensor
         self.action_index_tensor = torch.tensor(
