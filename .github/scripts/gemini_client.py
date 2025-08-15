@@ -10,8 +10,8 @@ import logging
 import time
 from typing import Optional
 
-import google.generativeai as genai
-from google.generativeai.types import HarmBlockThreshold, HarmCategory
+import google.generativeai as genai  # type: ignore
+from google.generativeai.types import HarmBlockThreshold, HarmCategory  # type: ignore
 
 # Model configuration - three tiers for different use cases
 MODEL_CONFIG = {

@@ -147,7 +147,7 @@ jobs:
       - name: Fetch previous reports for context
         uses: ./.github/actions/fetch-artifacts
         with:
-          workflow-name: "author-report.yml"
+          workflow-name: "generate-author-report.yml"
           artifact-name-pattern: "author-report-${{ steps.validate-author.outputs.author }}-*"
           num-artifacts: "3"
           output-directory: "previous-reports"
