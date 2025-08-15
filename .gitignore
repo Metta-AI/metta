@@ -1,3 +1,5 @@
+resources/
+
 # Environment and IDE
 .claude/tasks
 .claude/analysis
