@@ -37,6 +37,8 @@
     "@anthropic-ai/sdk": "^0.58.0",
     "@aws-sdk/client-textract": "^3.864.0",
     "@prisma/client": "^6.12.0",
+    "@tanstack/react-query": "^5.85.3",
+    "@tanstack/react-query-devtools": "^5.85.3",
     "@types/mathjax": "^0.0.40",
     "adm-zip": "^0.5.16",
     "ai": "^5.0.10",

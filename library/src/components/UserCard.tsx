@@ -1,10 +1,14 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { PaperWithUserContext, User, UserInteraction } from '@/posts/data/papers';
-import { toggleStarAction } from '@/posts/actions/toggleStarAction';
-import { toggleQueueAction } from '@/posts/actions/toggleQueueAction';
-import PaperOverlay from './PaperOverlay';
+import { useState } from "react";
+import {
+  PaperWithUserContext,
+  User,
+  UserInteraction,
+} from "@/posts/data/papers";
+import { useStarMutation } from "@/hooks/useStarMutation";
+import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
+import PaperOverlay from "./PaperOverlay";
 
 interface UserCardProps {
   user: User;
@@ -22,20 +26,24 @@ export default function UserCard({
   onClose,
 }: UserCardProps) {
   // State for paper overlay
-  const [selectedPaper, setSelectedPaper] = useState<PaperWithUserContext | null>(null);
+  const [selectedPaper, setSelectedPaper] =
+    useState<PaperWithUserContext | null>(null);
+
+  // Star mutation
+  const starMutation = useStarMutation();
 
   // Get papers starred by this user
-  const starredPapers = allPapers.filter(paper => {
-    const userInteraction = interactions.find(i => 
-      i.userId === user.id && i.paperId === paper.id && i.starred
+  const starredPapers = allPapers.filter((paper) => {
+    const userInteraction = interactions.find(
+      (i) => i.userId === user.id && i.paperId === paper.id && i.starred
     );
     return userInteraction !== undefined;
   });
 
   // Get papers queued by this user
-  const queuedPapers = allPapers.filter(paper => {
-    const userInteraction = interactions.find(i => 
-      i.userId === user.id && i.paperId === paper.id && i.queued
+  const queuedPapers = allPapers.filter((paper) => {
+    const userInteraction = interactions.find(
+      (i) => i.userId === user.id && i.paperId === paper.id && i.queued
     );
     return userInteraction !== undefined;
   });
@@ -43,12 +51,17 @@ export default function UserCard({
   // Generate user initials for profile circle
   const getUserInitials = (name: string | null, email: string | null) => {
     if (name) {
-      return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+      return name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
     }
     if (email) {
       return email.charAt(0).toUpperCase();
     }
-    return '?';
+    return "?";
   };
 
   // Handle paper overlay close
@@ -57,40 +70,29 @@ export default function UserCard({
   };
 
   // Handle toggle star
-  const handleToggleStar = async (paperId: string) => {
-    try {
-      const formData = new FormData();
-      formData.append('paperId', paperId);
-      await toggleStarAction(formData);
-      
-      // Update local state immediately for better UX
-      setSelectedPaper(prev => {
-        if (prev && prev.id === paperId) {
-          return { ...prev, isStarredByCurrentUser: !prev.isStarredByCurrentUser };
-        }
-        return prev;
-      });
-    } catch (error) {
-      console.error('Error toggling star:', error);
-    }
+  const handleToggleStar = (paperId: string) => {
+    starMutation.mutate(paperId);
   };
 
   // Handle toggle queue
   const handleToggleQueue = async (paperId: string) => {
     try {
       const formData = new FormData();
-      formData.append('paperId', paperId);
+      formData.append("paperId", paperId);
       await toggleQueueAction(formData);
-      
+
       // Update local state immediately for better UX
-      setSelectedPaper(prev => {
+      setSelectedPaper((prev) => {
         if (prev && prev.id === paperId) {
-          return { ...prev, isQueuedByCurrentUser: !prev.isQueuedByCurrentUser };
+          return {
+            ...prev,
+            isQueuedByCurrentUser: !prev.isQueuedByCurrentUser,
+          };
         }
         return prev;
       });
     } catch (error) {
-      console.error('Error toggling queue:', error);
+      console.error("Error toggling queue:", error);
     }
   };
 
@@ -102,58 +104,70 @@ export default function UserCard({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Semi-transparent backdrop */}
-      <div 
+      <div
         className="absolute inset-0 bg-black/20 backdrop-blur-sm"
         onClick={onClose}
       />
-      
+
       {/* User card */}
-      <div className="relative w-full max-w-4xl max-h-[90vh] overflow-y-auto bg-white rounded-xl shadow-2xl">
+      <div className="relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-white shadow-2xl">
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="space-y-6 p-6">
           {/* Header with close button */}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
               {/* Profile Circle */}
-              <div className="w-16 h-16 bg-blue-600 text-white rounded-full flex items-center justify-center text-xl font-semibold flex-shrink-0">
+              <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-xl font-semibold text-white">
                 {getUserInitials(user.name, user.email)}
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">
-                  {user.name || 'Unknown User'}
+                  {user.name || "Unknown User"}
                 </h1>
                 <p className="text-lg text-gray-600">{user.email}</p>
               </div>
             </div>
             <button
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+              className="flex-shrink-0 rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <svg
+                className="h-5 w-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
               </svg>
             </button>
           </div>
 
           {/* Starred Papers Section */}
           <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-3">
+            <h2 className="mb-3 text-xl font-bold text-gray-900">
               Starred ({starredPapers.length})
             </h2>
             {starredPapers.length > 0 ? (
-              <div className="bg-gray-50 rounded-lg border border-gray-200 divide-y divide-gray-200">
-                {starredPapers.map(paper => (
+              <div className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-gray-50">
+                {starredPapers.map((paper) => (
                   <div key={paper.id} className="p-3 hover:bg-gray-100">
                     <button
                       onClick={() => handlePaperClick(paper)}
-                      className="text-left w-full hover:text-blue-600 transition-colors"
+                      className="w-full text-left transition-colors hover:text-blue-600"
                     >
-                      <h3 className="text-base font-medium text-gray-900 truncate">
+                      <h3 className="truncate text-base font-medium text-gray-900">
                         {paper.title}
                       </h3>
                       {paper.authors && paper.authors.length > 0 && (
-                        <p className="text-sm text-gray-600 mt-1">
-                          {paper.authors.join(', ')}
+                        <p className="mt-1 text-sm text-gray-600">
+                          {paper.authors
+                            .map((author) => author.name)
+                            .join(", ")}
                         </p>
                       )}
                     </button>
@@ -161,7 +175,7 @@ export default function UserCard({
                 ))}
               </div>
             ) : (
-              <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center">
                 <p className="text-gray-500">No starred papers yet.</p>
               </div>
             )}
@@ -169,23 +183,25 @@ export default function UserCard({
 
           {/* Queued Papers Section */}
           <div>
-            <h2 className="text-xl font-bold text-gray-900 mb-3">
+            <h2 className="mb-3 text-xl font-bold text-gray-900">
               Queued ({queuedPapers.length})
             </h2>
             {queuedPapers.length > 0 ? (
-              <div className="bg-gray-50 rounded-lg border border-gray-200 divide-y divide-gray-200">
-                {queuedPapers.map(paper => (
+              <div className="divide-y divide-gray-200 rounded-lg border border-gray-200 bg-gray-50">
+                {queuedPapers.map((paper) => (
                   <div key={paper.id} className="p-3 hover:bg-gray-100">
                     <button
                       onClick={() => handlePaperClick(paper)}
-                      className="text-left w-full hover:text-blue-600 transition-colors"
+                      className="w-full text-left transition-colors hover:text-blue-600"
                     >
-                      <h3 className="text-base font-medium text-gray-900 truncate">
+                      <h3 className="truncate text-base font-medium text-gray-900">
                         {paper.title}
                       </h3>
                       {paper.authors && paper.authors.length > 0 && (
-                        <p className="text-sm text-gray-600 mt-1">
-                          {paper.authors.join(', ')}
+                        <p className="mt-1 text-sm text-gray-600">
+                          {paper.authors
+                            .map((author) => author.name)
+                            .join(", ")}
                         </p>
                       )}
                     </button>
@@ -193,7 +209,7 @@ export default function UserCard({
                 ))}
               </div>
             ) : (
-              <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 text-center">
+              <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center">
                 <p className="text-gray-500">No queued papers yet.</p>
               </div>
             )}
@@ -214,4 +230,4 @@ export default function UserCard({
       )}
     </div>
   );
-} 
+}

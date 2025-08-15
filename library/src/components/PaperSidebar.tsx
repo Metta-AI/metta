@@ -1,11 +1,10 @@
 "use client";
 
-import { FC, useState, useRef, useEffect } from "react";
+import { FC, useRef, useState } from "react";
 import { FeedPostDTO } from "@/posts/data/feed";
 import { LLMAbstract } from "@/lib/llm-abstract-generator-clean";
 import { useOverlayNavigation } from "@/components/OverlayStack";
-import { StarWidget } from "@/components/StarWidget";
-import { toggleStarAction } from "@/posts/actions/toggleStarAction";
+import { StarWidgetQuery } from "@/components/StarWidgetQuery";
 
 interface PaperSidebarProps {
   paper: FeedPostDTO["paper"];
@@ -55,42 +54,7 @@ const InstitutionsSection: FC<{ institutions: string[] }> = ({
 };
 
 export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
-  // Local state for optimistic star updates
-  const [localPaperData, setLocalPaperData] = useState(paper);
-
-  // Only update local state if the paper actually changed (not just re-rendered)
-  useEffect(() => {
-    if (!localPaperData || localPaperData.id !== paper?.id) {
-      setLocalPaperData(paper);
-    }
-  }, [paper, localPaperData]);
-
-  // Handle star toggle
-  const handleToggleStar = async () => {
-    if (!localPaperData) return;
-
-    try {
-      // Optimistic update
-      setLocalPaperData((prev) =>
-        prev
-          ? {
-              ...prev,
-              starred: !prev.starred,
-              stars: prev.starred ? prev.stars - 1 : prev.stars + 1,
-            }
-          : null
-      );
-
-      // Call the server action
-      await toggleStarAction({ paperId: localPaperData.id });
-    } catch (error) {
-      console.error("Failed to toggle star:", error);
-      // Revert optimistic update on error
-      setLocalPaperData(paper);
-    }
-  };
-
-  if (!localPaperData) {
+  if (!paper) {
     return (
       <div className="h-full w-full overflow-y-auto border-l border-gray-200 bg-gray-50 p-6">
         <div className="text-center text-gray-500">
@@ -108,21 +72,31 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
           Paper Overview
         </h2>
 
-        {/* Paper Title */}
-        <h3 className="mb-4 text-xl leading-tight font-bold text-gray-900">
-          {paper.source === "arxiv" && paper.externalId ? (
-            <a
-              href={`https://arxiv.org/abs/${paper.externalId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 underline transition-colors hover:text-blue-700"
-            >
-              {paper.title}
-            </a>
-          ) : (
-            paper.title
-          )}
-        </h3>
+        {/* Paper Title with Star Widget */}
+        <div className="mb-4 flex items-start gap-2">
+          <div className="mt-1 flex-shrink-0">
+            <StarWidgetQuery
+              paperId={paper.id}
+              initialTotalStars={paper.stars}
+              initialIsStarredByCurrentUser={paper.starred}
+              size="md"
+            />
+          </div>
+          <h3 className="flex-1 text-xl leading-tight font-bold text-gray-900">
+            {paper.source === "arxiv" && paper.externalId ? (
+              <a
+                href={`https://arxiv.org/abs/${paper.externalId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 underline transition-colors hover:text-blue-700"
+              >
+                {paper.title}
+              </a>
+            ) : (
+              paper.title
+            )}
+          </h3>
+        </div>
 
         {/* Paper Metadata */}
         <div className="space-y-2 text-sm text-gray-600">
@@ -152,16 +126,6 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
               </span>
             </div>
           )}
-
-          <div className="flex items-center gap-2">
-            <span className="font-medium">Stars:</span>
-            <StarWidget
-              totalStars={localPaperData.stars}
-              isStarredByCurrentUser={localPaperData.starred}
-              onClick={handleToggleStar}
-              size="xl"
-            />
-          </div>
         </div>
       </div>
 

@@ -13,7 +13,7 @@ import {
   UserInteraction,
 } from "@/posts/data/papers";
 import { useOverlayNavigation } from "@/components/OverlayStack";
-import { toggleStarAction } from "@/posts/actions/toggleStarAction";
+import { useStarMutation } from "@/hooks/useStarMutation";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import UserCard from "@/components/UserCard";
 
@@ -49,6 +49,9 @@ export const FeedPostsPage: FC<{
   const feedRef = useRef<HTMLDivElement>(null);
   const { openPaper } = useOverlayNavigation();
 
+  // Star mutation
+  const starMutation = useStarMutation();
+
   // User card state
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
@@ -80,16 +83,8 @@ export const FeedPostsPage: FC<{
   };
 
   // Handle toggle star
-  const handleToggleStar = async (paperId: string) => {
-    try {
-      const formData = new FormData();
-      formData.append("paperId", paperId);
-      await toggleStarAction(formData);
-
-      // The overlay stack handles its own state updates
-    } catch (error) {
-      console.error("Error toggling star:", error);
-    }
+  const handleToggleStar = (paperId: string) => {
+    starMutation.mutate(paperId);
   };
 
   // Handle toggle queue
