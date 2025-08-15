@@ -380,6 +380,28 @@ def train(
                     with torch.no_grad():
                         # Default: student policy acts for all agents
                         policy(td)
+
+                        # Create student agent mask (inverse of NPC mask)
+                        if npc_mask_per_env is not None:
+                            student_mask = ~npc_mask_per_env
+                            # Expand mask to match batch size
+                            if td["actions"].ndim == 2:
+                                # Shape like [B*agents_per_env, action_components]
+                                total = td["actions"].shape[0]
+                                if agents_per_env > 0 and total % agents_per_env == 0:
+                                    repeats = total // agents_per_env
+                                    student_mask_flat = student_mask.repeat(repeats)
+                                    td["is_student_agent"] = student_mask_flat.float()
+                                else:
+                                    # Default to all students if can't determine structure
+                                    td["is_student_agent"] = torch.ones(total, device=device, dtype=torch.float32)
+                            else:
+                                # For other shapes, use per-env mask
+                                td["is_student_agent"] = student_mask.float()
+                        else:
+                            # No NPCs, all agents are students
+                            td["is_student_agent"] = torch.ones(td.batch_size[0], device=device, dtype=torch.float32)
+
                         # If dual-policy is enabled and npc_policy is available, overwrite NPC agents' actions
                         if (
                             trainer_cfg.dual_policy.enabled

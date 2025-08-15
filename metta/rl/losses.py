@@ -70,6 +70,7 @@ def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dt
         act_log_prob=scalar_f32,
         values=scalar_f32,
         returns=scalar_f32,
+        is_student_agent=UnboundedContinuous(shape=(), dtype=torch.bool),  # Track which agents are student-controlled
     )
 
 
@@ -95,6 +96,10 @@ def process_minibatch_update(
     newvalue = policy_td["value"]
     full_logprobs = policy_td["full_log_probs"]
 
+    # Get student agent mask (1 for student agents, 0 for NPCs)
+    is_student = minibatch.get("is_student_agent", torch.ones_like(old_act_log_prob))
+    is_student = is_student.reshape(old_act_log_prob.shape)
+
     logratio = new_logprob - old_act_log_prob
     importance_sampling_ratio = logratio.exp()
 
@@ -118,14 +123,20 @@ def process_minibatch_update(
 
     from metta.rl.ppo import compute_ppo_losses
 
-    # Compute losses
+    # Apply student mask to key tensors (zero out NPC contributions)
+    masked_new_logprob = new_logprob * is_student
+    masked_entropy = entropy * is_student
+    masked_adv = adv * is_student
+    masked_importance_ratio = importance_sampling_ratio * is_student + (1 - is_student)  # NPCs get ratio of 1
+
+    # Compute losses (with masked values for NPCs)
     pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(
         minibatch,
-        new_logprob,
-        entropy,
+        masked_new_logprob,
+        masked_entropy,
         newvalue,
-        importance_sampling_ratio,
-        adv,
+        masked_importance_ratio,
+        masked_adv,
         trainer_cfg,
     )
 
