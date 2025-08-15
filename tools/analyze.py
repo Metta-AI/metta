@@ -17,10 +17,11 @@ logger = logging.getLogger("analyze")
 
 
 class AnalysisToolConfig(Config):
-    analysis: AnalysisConfig
-    policy_uri: str
     system: SystemConfig = Field(default_factory=SystemConfig)
     wandb: WandbConfig = Field(default_factory=WandbConfigOff)
+
+    analysis: AnalysisConfig
+    policy_uri: str
     data_dir: str = Field(default="./train_dir")
 
 

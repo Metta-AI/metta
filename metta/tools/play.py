@@ -1,24 +1,24 @@
-#!/usr/bin/env -S uv run
 # Starts a websocket server that allows you to play as a metta agent.
 
 import logging
 
+from pydantic import Field
+
 import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.config import Config
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
+from metta.common.util.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff
 from metta.rl.system_config import SystemConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
-from metta.util.metta_script import pydantic_metta_script
 
-logger = logging.getLogger("tools.play")
+logger = logging.getLogger(__name__)
 
 
-class PlayToolConfig(Config):
-    system: SystemConfig = SystemConfig()
-    wandb: WandbConfig = WandbConfigOff()
+class PlayTool(Tool):
+    system: SystemConfig = Field(default_factory=SystemConfig)
+    wandb: WandbConfig = Field(default_factory=WandbConfigOff)
     sim: SimulationConfig
     policy_uri: str | None = None
     selector_type: str = "latest"
@@ -27,8 +27,17 @@ class PlayToolConfig(Config):
     stats_dir: str = "./train_dir/stats"
     open_browser_on_start: bool = True
 
+    def invoke(self) -> None:
+        ws_url = "%2Fws"
 
-def create_simulation(cfg: PlayToolConfig) -> Simulation:
+        if self.open_browser_on_start:
+            server.run(self, open_url=f"?wsUrl={ws_url}")
+        else:
+            logger.info(f"Enter MettaGrid @ {DEV_METTASCOPE_FRONTEND_URL}?wsUrl={ws_url}")
+            server.run(self)
+
+
+def create_simulation(cfg: PlayTool) -> Simulation:
     """Create a simulation for playing/replaying."""
     logger.info(f"Creating simulation: {cfg.sim.name}")
 
@@ -52,16 +61,3 @@ def create_simulation(cfg: PlayToolConfig) -> Simulation:
         run_name="play_run",
     )
     return sim
-
-
-def main(cfg: PlayToolConfig) -> None:
-    ws_url = "%2Fws"
-
-    if cfg.open_browser_on_start:
-        server.run(cfg, open_url=f"?wsUrl={ws_url}")
-    else:
-        logger.info(f"Enter MettaGrid @ {DEV_METTASCOPE_FRONTEND_URL}?wsUrl={ws_url}")
-        server.run(cfg)
-
-
-pydantic_metta_script(main)

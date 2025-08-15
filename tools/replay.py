@@ -20,7 +20,7 @@ logger = logging.getLogger("tools.replay")
 
 # TODO: This job can be replaced with sim now that Simulations create replays
 class ReplayToolConfig(Config):
-    system: SystemConfig = SystemConfig()
+    system: SystemConfig = SystemConfig.Auto()
     wandb: WandbConfig = WandbConfigOff()
     sim: SimulationConfig
     policy_uri: str | None = None
@@ -69,10 +69,10 @@ def open_browser(replay_url: str, cfg: ReplayToolConfig) -> None:
 
             # Run a metascope server that serves the replay
             # Import PlayToolConfig to use with the server
-            from tools.play import PlayToolConfig
+            from tools.play import PlayTool
 
             # Create a PlayToolConfig from ReplayToolConfig (they have the same fields)
-            play_cfg = PlayToolConfig(
+            play_cfg = PlayTool(
                 system=cfg.system,
                 wandb=cfg.wandb,
                 sim=cfg.sim,

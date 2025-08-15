@@ -6,9 +6,9 @@ from metta.cogworks.curriculum.task_generator import ValueRange as vr
 from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
-from tools.play import PlayToolConfig
+from metta.tools.play import PlayTool
+from metta.tools.train import TrainTool
 from tools.replay import ReplayToolConfig
-from tools.train import TrainToolConfig
 
 arena = eb.make_arena(num_agents=24)
 arena.game.actions.swap.enabled = False
@@ -40,28 +40,26 @@ def make_replay_tool_cfg() -> ReplayToolConfig:
             name="arena",
         ),
         open_browser_on_start=True,
-        system=SystemConfig.MacBookPro(),
+        system=SystemConfig(),
         wandb=softmax.wandb_config(run="arena_replay"),
     )
 
 
-def make_play_tool_cfg() -> PlayToolConfig:
+def make_play_tool() -> PlayTool:
     eval_env = arena.model_copy()
     eval_env.game.max_steps = 100
-    return PlayToolConfig(
+    return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
             name="arena",
         ),
         open_browser_on_start=True,
-        system=SystemConfig.MacBookPro(),
+        system=SystemConfig(),
         wandb=softmax.wandb_config(run="arena_replay"),
     )
 
 
-def make_train_tool_cfg() -> TrainToolConfig:
-    run = "daveey-test-run-3"
-
+def make_train_tool(run: str) -> TrainTool:
     trainer_cfg = TrainerConfig()
     trainer_cfg.curriculum = curriculum_cfg
     trainer_cfg.evaluation = EvaluationConfig(
@@ -73,9 +71,9 @@ def make_train_tool_cfg() -> TrainToolConfig:
         ],
     )
 
-    return TrainToolConfig(
+    return TrainTool(
         trainer=trainer_cfg,
         wandb=softmax.wandb_config(run=run),
-        run="daveey-arena",
+        run=run,
         policy_architecture=yaml.safe_load(open("configs/agent/fast.yaml")),
     )

@@ -16,7 +16,7 @@ from metta.mettagrid.grid_object_formatter import format_grid_object
 from metta.sim.simulation import Simulation
 
 if TYPE_CHECKING:
-    from tools.play import PlayToolConfig
+    from tools.play import PlayTool
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -101,7 +101,7 @@ def paste_memory(sim: Simulation, agent_id: int, memory: tuple[list[float], list
     policy_state.lstm_h[:, agent_id, :] = th.tensor(lstm_h)
 
 
-def make_app(cfg: "PlayToolConfig"):
+def make_app(cfg: "PlayTool"):
     app = FastAPI()
 
     @app.get("/", response_class=HTMLResponse)
@@ -245,7 +245,7 @@ def make_app(cfg: "PlayToolConfig"):
     return app
 
 
-def run(cfg: "PlayToolConfig", open_url: str | None = None):
+def run(cfg: "PlayTool", open_url: str | None = None):
     app = make_app(cfg)
 
     if open_url:
