@@ -179,7 +179,6 @@ def _(Any, Dict, OmegaConf, get_cfg):
     #@.......m#
     ###########"""
 
-
     env_cfg = get_cfg("benchmark")  # type: ignore
     # Convert to plain dict so we can edit
     env_dict: Dict[str, Any] = OmegaConf.to_container(env_cfg, resolve=True)  # type: ignore
@@ -258,7 +257,7 @@ def _(
     time,
     widgets,
 ):
-    mo.stop(not observe_button.value) 
+    mo.stop(not observe_button.value)
 
     with contextlib.redirect_stdout(io.StringIO()):
         env, render_mode = setup_environment(cfg)
@@ -398,8 +397,8 @@ def _(
         # print(f"Episode {ep:3d}/{EVAL_EPISODES}: ore_red = {inv_count}")
     mean_score = np.mean(scores)
     std_score = np.std(scores)
-    #print("\n=== Summary ===")
-    #print(f"Mean ore_red: {mean_score:.2f} ± {std_score:.2f} (n={EVAL_EPISODES})")
+    # print("\n=== Summary ===")
+    # print(f"Mean ore_red: {mean_score:.2f} ± {std_score:.2f} (n={EVAL_EPISODES})")
     running_avg = pd.Series(scores).expanding().mean()
     display(
         pd.DataFrame(
@@ -495,7 +494,7 @@ def _(
     train_cmd = [
         str(repo_root / "tools" / "train.py"),
         f"run={run_name}",
-        #f"trainer.curriculum=tmp/{curriculum_name}",
+        # f"trainer.curriculum=tmp/{curriculum_name}",
         "wandb=off",
         "device=cpu",
         "trainer.total_timesteps=10000",  # tiny demo run
@@ -550,7 +549,9 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    observe_button2 = mo.ui.run_button(label="Click to observe your trained agent below")
+    observe_button2 = mo.ui.run_button(
+        label="Click to observe your trained agent below"
+    )
     observe_button2
     return (observe_button2,)
 
@@ -571,7 +572,7 @@ def _(
     time,
     widgets,
 ):
-    mo.stop(not observe_button2.value) 
+    mo.stop(not observe_button2.value)
     ckpt_dir = Path("train_dir") / run_name / "checkpoints"
     latest_ckpt = max(ckpt_dir.glob("*.pt"), key=lambda p: p.stat().st_mtime)
     print("Loading", latest_ckpt.name)
