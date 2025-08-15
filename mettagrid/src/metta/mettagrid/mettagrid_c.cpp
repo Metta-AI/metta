@@ -1,5 +1,14 @@
 #include "mettagrid_c.hpp"
 
+#include <pybind11/numpy.h>
+#include <pybind11/stl.h>
+
+#include <algorithm>
+#include <cmath>
+#include <numeric>
+#include <random>
+#include <iostream>
+
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
 #include "actions/change_color.hpp"
@@ -27,15 +36,6 @@
 #include "renderer/hermes.hpp"
 #include "stats_tracker.hpp"
 #include "types.hpp"
-
-#include <algorithm>
-#include <cmath>
-#include <numeric>
-#include <random>
-#include <iostream>
-
-#include <pybind11/numpy.h>
-#include <pybind11/stl.h>
 
 namespace py = pybind11;
 
