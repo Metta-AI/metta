@@ -1,3 +1,4 @@
+// NOLINT(cpplint)
 #ifdef METTA_WITH_RAYLIB
 #include "hermes.hpp"
 
