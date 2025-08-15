@@ -11,7 +11,7 @@ from omegaconf import OmegaConf
 from pydantic import validate_call
 
 from metta.common.util.logging_helpers import init_logging
-from metta.common.util.tool_config import Tool
+from metta.common.util.tool import Tool
 
 logger = logging.getLogger(__name__)
 
