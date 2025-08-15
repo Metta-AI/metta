@@ -70,8 +70,7 @@ class PyTorchAgentMixin:
         self.clip_range = clip_range
         self.analyze_weights_interval = analyze_weights_interval
 
-        if extra_kwargs:
-            logger.info(f"[DEBUG] Additional config parameters: {extra_kwargs}")
+        # Additional kwargs are ignored (may be for other components)
 
         # Note: action_index_tensor and cum_action_max_params are set by
         # MettaAgent.activate_actions() directly on the policy object
