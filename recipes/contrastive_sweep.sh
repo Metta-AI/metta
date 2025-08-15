@@ -15,7 +15,7 @@ base_args="sim=arena \
   ++trainer.contrastive.logsumexp_coef=0.01 \
   ++trainer.contrastive.var_reg_coef=1.0 \
   ++trainer.contrastive.var_reg_target=1.0" \
-  ++trainer.total_timesteps=200_000
+  ++total_timesteps=200_000
 
 for coef in "${coef_values[@]}"; do
   for temp in "${temperature_values[@]}"; do
