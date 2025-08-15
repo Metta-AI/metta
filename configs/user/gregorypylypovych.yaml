@@ -9,15 +9,18 @@ run: gregorypylypovych_2025_08_12_training_process_2
 trainer:
   simulation:
     skip_git_check: true
-    # evaluate_interval: 5
+    evaluate_interval: 100
     # evaluate_remote: false
   curriculum: env/mettagrid/curriculum/autocurricula/random
   # ppo:
   #   gamma: 0.999
   # minibatch_size: 16384
-  # checkpoint:
-  #   checkpoint_interval: 5
-  #   wandb_checkpoint_interval: 5
+  checkpoint:
+    checkpoint_interval: 100
+    wandb_checkpoint_interval: 100
+
+wandb:
+  enabled: true
 
 replay_job:
   sim:
