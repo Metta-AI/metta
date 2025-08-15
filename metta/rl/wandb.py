@@ -73,7 +73,8 @@ def setup_wandb_metrics(wandb_run: WandbRun) -> None:
 def setup_policy_evaluator_metrics(wandb_run: WandbRun) -> None:
     # Separate step metric for remote evaluation allows evaluation results to be logged without conflicts
     wandb_run.define_metric(POLICY_EVALUATOR_STEP_METRIC)
-    wandb_run.define_metric(f"{POLICY_EVALUATOR_METRIC_PREFIX}/*", step_metric=POLICY_EVALUATOR_STEP_METRIC)
+    for metric in (f"{POLICY_EVALUATOR_METRIC_PREFIX}/*", f"overview/{POLICY_EVALUATOR_METRIC_PREFIX}/*"):
+        wandb_run.define_metric(metric, step_metric=POLICY_EVALUATOR_STEP_METRIC)
 
 
 def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
