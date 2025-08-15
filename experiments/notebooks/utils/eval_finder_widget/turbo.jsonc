@@ -1,0 +1,12 @@
+{
+  "$schema": "https://turborepo.org/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "outputs": ["eval_finder_widget/static/**"]
+    },
+    // common linting and formatting tasks
+    "lint": {},
+    "lint:eslint": {}
+  }
+}
