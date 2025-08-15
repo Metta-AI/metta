@@ -6,23 +6,24 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-import pufferlib.models
 import pufferlib.pytorch
 from metta.agent.modules.encoders import ObsLatentAttn, ObsSelfAttn
 from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
+from metta.agent.pytorch.base import LSTMWrapper
 
 logger = logging.getLogger(__name__)
 
 
-class LatentAttnMed(pufferlib.models.LSTMWrapper):
-    def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
+class LatentAttnMed(LSTMWrapper):
+    def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128, num_layers=2):
         if policy is None:
             policy = Policy(
                 env,
                 input_size=input_size,
                 hidden_size=hidden_size,
             )
-        super().__init__(env, policy, input_size, hidden_size)
+        # Use enhanced LSTMWrapper with num_layers support
+        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
 
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"]
