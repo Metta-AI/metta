@@ -245,7 +245,7 @@ class TestObservations:
         for token in tokens:
             if token[1] == type_id and token[2] == feature_id:
                 return
-        assert False, f"{agent_name}: Expected token with type {type_id} and feature {feature_id} at ({x}, {y})"
+        raise AssertionError(f"{agent_name}: Expected token with type {type_id} and feature {feature_id} at ({x}, {y})")
 
     def test_agents_see_each_other(self, adjacent_agents_env):
         """Test that adjacent agents can see each other."""
