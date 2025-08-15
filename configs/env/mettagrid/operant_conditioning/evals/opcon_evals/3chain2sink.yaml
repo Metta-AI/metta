@@ -1,0 +1,101 @@
+defaults:
+  - /env/mettagrid/evals/opcon_evals/defaults@
+  - _self_
+
+game:
+  map_builder:
+    uri: "configs/env/mettagrid/maps/opcon_evals/3chain2sink.map"
+  agent:
+    rewards:
+      inventory:
+        heart: 1
+  objects:
+    # Chain: mine_red -> lasery -> temple; sinks: factory and generator_blue
+    mine_red:
+      input_resources: {}
+      output_resources:
+        ore_red: 1
+        ore_blue: 0
+        ore_green: 0
+        battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        heart: 0
+        armor: 0
+        laser: 0
+        blueprint: 0
+      max_output: 1
+      cooldown: 20
+    lasery:
+      input_resources:
+        ore_red: 1
+        ore_blue: 0
+        ore_green: 0
+        battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        heart: 0
+        armor: 0
+        laser: 0
+        blueprint: 0
+      output_resources:
+        ore_red: 0
+        ore_blue: 1
+        ore_green: 0
+        battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        heart: 0
+        armor: 0
+        laser: 0
+        blueprint: 0
+      max_output: 1
+      cooldown: 20
+    temple:
+      input_resources:
+        ore_blue: 1
+        heart: 0
+        blueprint: 0
+      output_resources:
+        heart: 1
+        blueprint: 0
+        ore_red: 0
+        ore_blue: 0
+        ore_green: 0
+        battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        armor: 0
+        laser: 0
+      max_output: 1
+      cooldown: 20
+    factory:
+      input_resources:
+        ore_red: 1
+        ore_blue: 1
+        ore_green: 1
+        battery_red: 1
+        battery_blue: 1
+        battery_green: 1
+        heart: 1
+        armor: 1
+        laser: 1
+        blueprint: 1
+      output_resources: {}
+      max_output: 1
+      cooldown: 20
+    generator_blue:
+      input_resources:
+        ore_red: 1
+        ore_blue: 1
+        ore_green: 1
+        battery_red: 1
+        battery_blue: 1
+        battery_green: 1
+        heart: 1
+        armor: 1
+        laser: 1
+        blueprint: 1
+      output_resources: {}
+      max_output: 1
+      cooldown: 20

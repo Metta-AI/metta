@@ -1,0 +1,74 @@
+wall:
+  type_id: 1
+  swappable: false
+
+mine_red:
+  type_id: 2
+  max_output: 1
+  conversion_ticks: 1
+  cooldown: 10
+  initial_resource_count: 0
+
+mine_blue:
+  type_id: 3
+  max_output: 1
+  conversion_ticks: 1
+  cooldown: 10
+  initial_resource_count: 0
+
+mine_green:
+  type_id: 4
+  max_output: 1
+  conversion_ticks: 1
+  cooldown: 10
+  initial_resource_count: 0
+
+generator_red:
+  type_id: 5
+  max_output: 1
+  conversion_ticks: 1
+  cooldown: 10
+  initial_resource_count: 0
+
+generator_blue:
+  type_id: 6
+  max_output: 1
+  conversion_ticks: 1
+  cooldown: 10
+  initial_resource_count: 0
+
+generator_green:
+  type_id: 7
+  max_output: 1
+  conversion_ticks: 1
+  cooldown: 10
+  initial_resource_count: 0
+
+lab:
+  type_id: 11
+  max_output: 1
+  conversion_ticks: 1
+  cooldown: 10
+  initial_resource_count: 0
+
+factory:
+  type_id: 12
+  max_output: 1
+  conversion_ticks: 1
+  cooldown: 10
+  initial_resource_count: 0
+
+temple:
+  type_id: 13
+  max_output: 1
+  conversion_ticks: 1
+  cooldown: 10
+  initial_resource_count: 0
+
+altar:
+  type_id: 14
+  max_output: 1
+  conversion_ticks: 1
+  cooldown: 10
+  initial_resource_count: 0
+

@@ -2,8 +2,6 @@ defaults:
   - game/agent: agent
   - game/agent/rewards: hearts
   - game/groups: solo
-  - game/objects:
-      - basic
   - _self_
 
 desync_episodes: true

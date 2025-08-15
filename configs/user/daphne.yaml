@@ -14,9 +14,11 @@ defaults:
 
 trainer:
   curriculum: /env/mettagrid/curriculum/operant_conditioning/2_converters
+  simulation:
+    skip_git_check: true
 
-policy_uri: wandb://run/daphne.operantconditioning.smoke_test2.08-06
+policy_uri: ${trained_policy_uri} # wandb://run/daphne.operantconditioning.smoke_test.3_converters.inventory.08-11
 
-run_id: 5
+run_id: 7
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints

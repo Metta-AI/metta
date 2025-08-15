@@ -1,0 +1,48 @@
+defaults:
+  - /env/mettagrid/operant_conditioning/in_context_learning/defaults@
+  - _self_
+game:
+  max_steps: 512
+  map_builder:
+    root:
+      params:
+        objects:
+          generator_green: 1
+          generator_red: 1
+          lab: 1
+          mine_green: 1
+          generator_blue: 1
+          mine_blue: 1
+  objects:
+    generator_green:
+      output_resources:
+        ore_blue: 1
+      cooldown: 20
+    generator_red:
+      input_resources:
+        ore_blue: 1
+      output_resources:
+        ore_green: 1
+      cooldown: 20
+    lab:
+      input_resources:
+        ore_green: 1
+      output_resources:
+        battery_red: 1
+      cooldown: 20
+    mine_green:
+      input_resources:
+        battery_red: 1
+      output_resources:
+        heart: 1
+      cooldown: 20
+    generator_blue:
+      input_resources:
+        ore_blue: 1
+        ore_green: 1
+        battery_red: 1
+    mine_blue:
+      input_resources:
+        ore_blue: 1
+        ore_green: 1
+        battery_red: 1
