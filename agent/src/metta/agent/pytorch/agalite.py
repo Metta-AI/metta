@@ -7,6 +7,7 @@ import logging
 from typing import Dict, Optional, Tuple
 
 import einops
+import numpy as np
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
@@ -158,9 +159,10 @@ class AGaLiTePolicy(nn.Module):
         )
 
         # Output heads
-        self.critic_1 = init_layer(nn.Linear(d_model, 1024))
+        # critic_1 uses std=sqrt(2) because it's followed by tanh
+        self.critic_1 = init_layer(nn.Linear(d_model, 1024), std=np.sqrt(2))
         self.value_head = init_layer(nn.Linear(1024, 1), std=1.0)
-        self.actor_1 = init_layer(nn.Linear(d_model, 512))
+        self.actor_1 = init_layer(nn.Linear(d_model, 512), std=1.0)
         self.action_embeddings = nn.Embedding(100, 16)
 
         # Action heads

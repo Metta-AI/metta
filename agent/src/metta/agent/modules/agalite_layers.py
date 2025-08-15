@@ -194,10 +194,11 @@ class AttentionAGaLiTeLayer(nn.Module):
         attn_out = self.dropout(self.project(attn_out))
 
         # Update memory - take the last timestep
+        # CRITICAL: Detach memory to prevent gradient accumulation across episodes
         new_tick = tick + T
-        new_tilde_k = final_keys[-1]  # (B, r, head_num, eta * head_dim)
-        new_tilde_v = final_values[-1]  # (B, r, head_num, head_dim)
-        new_s = final_s[-1]  # (B, head_num, eta * head_dim)
+        new_tilde_k = final_keys[-1].detach()  # (B, r, head_num, eta * head_dim)
+        new_tilde_v = final_values[-1].detach()  # (B, r, head_num, head_dim)
+        new_s = final_s[-1].detach()  # (B, head_num, eta * head_dim)
 
         return attn_out, (new_tilde_k, new_tilde_v, new_s, new_tick)
 
