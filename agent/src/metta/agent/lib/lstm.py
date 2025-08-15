@@ -110,7 +110,6 @@ class LSTM(LayerBase):
         else:
             training_env_id_start = training_env_id_start[0].item()
 
-        # Check if we have stored hidden states
         if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
             h_0 = self.lstm_h[training_env_id_start]
             c_0 = self.lstm_c[training_env_id_start]
@@ -122,7 +121,6 @@ class LSTM(LayerBase):
                 h_0 = h_0.masked_fill(reset_mask, 0)
                 c_0 = c_0.masked_fill(reset_mask, 0)
         else:
-            # Create new hidden states if they don't exist or have wrong shape
             h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
             c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
 
