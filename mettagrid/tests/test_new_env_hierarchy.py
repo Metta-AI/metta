@@ -7,7 +7,7 @@ works correctly while being compatible with the existing test framework.
 
 import numpy as np
 
-from metta.mettagrid.config.builder import make_arena
+from metta.mettagrid.config.envs import make_arena
 
 
 class TestNewEnvironmentHierarchy:
