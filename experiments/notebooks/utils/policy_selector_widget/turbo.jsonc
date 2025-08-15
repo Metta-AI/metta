@@ -3,6 +3,13 @@
   "extends": ["//"],
   "tasks": {
     "build": {
+      "inputs": [
+        "src/**",
+        "policy_selector_widget/**/*.py",
+        "package.json",
+        "vite.config.js",
+        "!policy_selector_widget/static/**"
+      ],
       "outputs": ["policy_selector_widget/static/**"]
     },
     // common linting and formatting tasks
