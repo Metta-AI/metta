@@ -189,7 +189,7 @@ class MettaAgent(nn.Module):
     def get_cfg(self) -> DictConfig:
         return self.cfg
 
-    def on_new_training_run(self):  # av is there a faster way than pythoning through all components?
+    def on_new_training_run(self):
         for _, component in self.components.items():
             component.on_new_training_run()
 

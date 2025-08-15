@@ -17,6 +17,8 @@ from metta.utils.batch import calculate_prioritized_sampling_params
 
 
 class PPO(BaseLoss):
+    """This could be slightly faster by looking for repeated access to hashed vars."""
+
     __slots__ = (
         "advantages",
         "anneal_beta",
@@ -73,15 +75,6 @@ class PPO(BaseLoss):
     def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
         self.policy.on_train_mb_start()
 
-        # # early exit if kl divergence is too high
-        # if trainer_state[3] == self.policy.replay.num_minibatches - 1:  # av check this
-        #     # Early exit if KL divergence is too high
-        #     if self.cfg.ppo.target_kl is not None:
-        #         average_approx_kl = self.loss_tracker.approx_kl_sum / self.loss_tracker.minibatches_processed
-        #         if average_approx_kl > self.cfg.ppo.target_kl:
-        #             self.early_exit = True
-        # Early exit if KL divergence is too high
-
         if self.loss_cfg.target_kl is not None and self.loss_tracker.minibatches_processed > 0:
             average_approx_kl = self.loss_tracker.get("approx_kl") / self.loss_tracker.minibatches_processed
             if average_approx_kl > self.loss_cfg.target_kl:
@@ -106,29 +99,21 @@ class PPO(BaseLoss):
         shared_loss_data["policy_td"] = policy_td  # write the policy output td for others to reuse
 
         loss = self.process_minibatch_update(
-            policy=self.policy,
             minibatch=minibatch,
             policy_td=policy_td,
             indices=indices,
             prio_weights=prio_weights,
         )
-        # # on last mb, do this
-        # if (
-        #     trainer_state[2] == self.cfg.update_epochs
-        # ):  # av check this increments properly. might need "on update epoch"
-        # Calculate explained variance
-        # On last minibatch of the update epoch, compute explained variance
-        if trainer_state.is_last_minibatch():
-            with torch.no_grad():
-                y_pred = self.policy.replay.buffer["values"].flatten()
-                y_true = self.advantages.flatten() + self.policy.replay.buffer["values"].flatten()
-                var_y = y_true.var()
-                ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
-                self.loss_tracker.set("explained_variance", float(ev))
-
-        # av write to shared_loss_data
 
         return loss, shared_loss_data
+
+    def on_train_phase_end(self) -> None:
+        with torch.no_grad():
+            y_pred = self.policy.replay.buffer["values"].flatten()
+            y_true = self.advantages.flatten() + self.policy.replay.buffer["values"].flatten()
+            var_y = y_true.var()
+            ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
+            self.loss_tracker.set("explained_variance", float(ev))
 
     def on_first_mb(self, trainer_state: TrainerState) -> tuple[Tensor, float]:
         # reset importance sampling ratio
@@ -165,7 +150,6 @@ class PPO(BaseLoss):
 
     def process_minibatch_update(
         self,
-        policy: PolicyAgent,
         minibatch: TensorDict,
         policy_td: TensorDict,
         indices: Tensor,

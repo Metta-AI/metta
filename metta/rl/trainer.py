@@ -383,11 +383,10 @@ def train(
                 epochs_trained = 0
 
                 for _update_epoch in range(trainer_cfg.update_epochs):
-                    # av the line below can be simplified
-                    trainer_state.start_update_epoch(_update_epoch, experience.num_minibatches)
+                    trainer_state.update_epoch = _update_epoch
                     for mb_idx in range(experience.num_minibatches):
                         trainer_state.mb_idx = mb_idx
-
+                        trainer_state.early_stop_update_epoch = False
                         total_loss = torch.tensor(0.0, device=device)
                         for _lname in list(policy_losses):
                             loss_obj = loss_instances[_lname]
@@ -406,9 +405,8 @@ def train(
                         # This also serves as a barrier for all ranks
                         total_loss.backward()
 
-                        # av ask richard or david what was intended here
                         if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
-                            torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
+                            torch.nn.utils.clip_grad_norm_(policy.parameters(), policy_cfg.losses.PPO.max_grad_norm)
                             optimizer.step()
 
                             if device.type == "cuda":
@@ -420,6 +418,10 @@ def train(
 
                         minibatch_idx += 1
                     epochs_trained += 1
+
+                for _lname in list(policy_losses):
+                    loss_obj = loss_instances[_lname]
+                    loss_obj.on_train_phase_end()
 
             epoch += epochs_trained
             trainer_state.epoch = epoch

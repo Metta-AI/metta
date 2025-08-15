@@ -86,6 +86,10 @@ class BaseLoss:
         """We've completed the rollout phase and are starting the train phase."""
         return
 
+    def on_train_phase_end(self) -> None:
+        """We've completed the train phase and will be transitioning to the next rollout phase."""
+        return
+
     def should_run_rollout(self, epoch: int) -> bool:
         """Whether this loss should run its rollout phase, based on the current agent step."""
         return self.rollout_start_epoch <= epoch < self.rollout_end_epoch
