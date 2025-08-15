@@ -21,6 +21,16 @@
       "binaryDir": "${sourceDir}/build-debug"
     },
     {
+      "name": "debug-gdb",
+      "inherits": "debug",
+      "description": "Enhanced debug build optimized for GDB/LLDB with full symbols",
+      "cacheVariables": {
+        "CMAKE_C_FLAGS_DEBUG": "-g3 -ggdb -O0 -fno-omit-frame-pointer -fno-inline -DDEBUG",
+        "CMAKE_CXX_FLAGS_DEBUG": "-g3 -ggdb -O0 -fno-omit-frame-pointer -fno-inline -DDEBUG"
+      },
+      "binaryDir": "${sourceDir}/build-debug"
+    },
+    {
       "name": "release",
       "inherits": "base",
       "description": "Release build (no tests)",
