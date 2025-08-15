@@ -17,7 +17,7 @@ logger = logging.getLogger("tools.play")
 
 
 class PlayToolConfig(Config):
-    system: SystemConfig = SystemConfig()
+    system: SystemConfig = SystemConfig.Auto()
     wandb: WandbConfig = WandbConfigOff()
     sim: SimulationConfig
     policy_uri: str | None = None
