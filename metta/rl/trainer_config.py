@@ -177,11 +177,10 @@ class TrainerConfig(Config):
     # Profile every 10K epochs: Infrequent to minimize overhead
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
-    # Distributed training
-    # Forward minibatch: Type 2 default chosen arbitrarily
+    # Forward minibatch
     forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
-    # Async factor 2: Type 2 default chosen arbitrarily, overlaps computation and communication for efficiency
-    #   (default assumes multiprocessing)
+
+    # Async factor 2: overlaps computation and communication for efficiency
     async_factor: int = Field(default=2, gt=0)
 
     # scheduler registry
@@ -192,7 +191,7 @@ class TrainerConfig(Config):
 
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware
-    num_workers: int = Field(default=1, gt=0)
+    rollout_workers: int = Field(default=1, gt=0)
 
     # Default curriculum: Simple environment for initial experiments
     curriculum: CurriculumConfig = env_curriculum(make_arena(num_agents=24))
@@ -220,9 +219,6 @@ class TrainerConfig(Config):
             raise ValueError("minibatch_size must be <= batch_size")
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
-
-        if not self.curriculum and not self.env:
-            raise ValueError("curriculum or env must be set")
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if self.evaluation and self.evaluation.evaluate_interval != 0:
