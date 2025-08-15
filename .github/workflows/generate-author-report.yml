@@ -172,7 +172,7 @@ jobs:
           echo "Analyzing ${{ steps.pr-digest.outputs.total_pr_count }} PRs by ${{ steps.validate-author.outputs.author }}..."
           echo "(${{ steps.pr-digest.outputs.new_pr_count }} new, rest from cache)"
 
-          uv run .github/scripts/create_pr_digest.py --filter-author
+          uv run .github/scripts/gemini_analyze_pr_digest.py --author-report
 
           # Verify outputs were created
           MISSING_FILES=()
