@@ -2,10 +2,10 @@
 
 ## Overview
 
-The Metta sweep system provides automated hyperparameter optimization using Bayesian optimization through the Protein
-optimizer, integrated with Weights & Biases (WandB) for experiment tracking and a centralized Cogweb database for sweep
-coordination. The system efficiently explores hyperparameter spaces to find optimal training configurations for
-reinforcement learning policies.
+NOTE: This README needs to be combed through carefully. The Metta sweep system provides automated hyperparameter
+optimization using Bayesian optimization through the Protein optimizer, integrated with Weights & Biases (WandB) for
+experiment tracking and a centralized Cogweb database for sweep coordination. The system efficiently explores
+hyperparameter spaces to find optimal training configurations for reinforcement learning policies.
 
 ## System Architecture
 
@@ -66,6 +66,95 @@ sweep_job_overrides: # Applied to all training runs
       evaluate_interval: 0 # No evaluation during training
       replay_dir: '' # No replays for sweeps
 ```
+
+### Sweep Phasing System
+
+The sweep system supports a phasing mechanism that allows you to dynamically adjust hyperparameter search strategies as
+the sweep progresses. This enables efficient exploration-exploitation trade-offs by starting with cheap exploratory runs
+and progressively moving to more expensive, focused exploitation.
+
+#### How Phasing Works
+
+1. **Phase Progression**: Phases are defined in the `schedule.phases` list and progress based on the total number of
+   completed runs
+2. **Dynamic Configuration**: Each phase can override any sweep configuration parameters (Protein settings, parameter
+   distributions, etc.)
+3. **Automatic Transition**: The system automatically switches to the next phase when the run count threshold is reached
+4. **Configuration Merging**: Phase-specific settings are merged with the base sweep configuration
+
+#### Example Phased Sweep Configuration
+
+```yaml
+schedule:
+  phases:
+    - name: 'explore_cheap'
+      num_runs: 100 # First 100 runs use this phase
+      sweep:
+        protein:
+          max_suggestion_cost: 1800 # 30 minutes max per run
+          random_suggestions: 18 # More exploration
+          expansion_rate: 0.18 # Higher exploration rate
+        parameters:
+          trainer:
+            total_timesteps: { mean: 300000000 } # 300M steps
+            batch_size: { mean: 524288 } # 2^19
+            minibatch_size: { mean: 8192 } # 2^13
+
+    - name: 'exploit_medium'
+      num_runs: 70 # Runs 101-170 use this phase
+      sweep:
+        protein:
+          max_suggestion_cost: 3600 # 1 hour max per run
+          random_suggestions: 10 # Less exploration
+          suggestions_per_pareto: 24 # More focused sampling
+          expansion_rate: 0.10 # Lower exploration rate
+        parameters:
+          trainer:
+            total_timesteps: { mean: 750000000 } # 750M steps
+            batch_size: { mean: 1048576 } # 2^20
+            minibatch_size: { mean: 16384 } # 2^14
+
+    - name: 'peak_expensive'
+      num_runs: 11 # Runs 171+ use this phase
+      sweep:
+        protein:
+          max_suggestion_cost: 7200 # 2 hours max per run
+          random_suggestions: 5 # Minimal exploration
+          suggestions_per_pareto: 16 # Highly focused
+          expansion_rate: 0.06 # Very low exploration
+        parameters:
+          trainer:
+            total_timesteps: { mean: 1000000000 } # 1B steps
+            batch_size: { mean: 1048576 } # 2^20
+            minibatch_size: { mean: 16384 } # 2^14
+```
+
+#### Phase Configuration Options
+
+Each phase can override:
+
+1. **Protein Settings** (`sweep.protein.*`):
+   - `max_suggestion_cost`: Maximum compute time per run (in seconds)
+   - `random_suggestions`: Number of random samples for acquisition
+   - `suggestions_per_pareto`: Samples per Pareto point
+   - `expansion_rate`: Exploration along cost dimension
+   - `resample_frequency`: Frequency of resampling from Pareto front
+   - `num_random_samples`: Initial random exploration samples
+   - `global_search_scale`: Exploration vs exploitation balance
+
+2. **Parameter Distributions** (`sweep.parameters.*`):
+   - Adjust `mean` values to shift search centers
+   - Modify `min`/`max` bounds to narrow/widen search
+   - Change `scale` for exploration width
+   - Override entire distribution configurations
+
+#### Benefits of Phasing
+
+1. **Cost Efficiency**: Start with cheap runs to identify promising regions
+2. **Progressive Refinement**: Gradually increase run quality and focus
+3. **Adaptive Exploration**: Adjust exploration-exploitation balance over time
+4. **Resource Optimization**: Allocate more compute to promising configurations
+5. **Risk Management**: Avoid expensive failures in early exploration
 
 ### Sweep Parameter Configurations (`configs/sweep/*.yaml`)
 
@@ -221,6 +310,11 @@ The main script (`sweep_execute.py`) runs an infinite loop that:
 
 1. **Prepares Each Run** (`prepare_sweep_run`)
    - Fetches previous observations from WandB (up to `max_observations_to_load`)
+   - **Phase Selection** (if `schedule` is configured):
+     - Counts total completed runs from observations
+     - Determines current phase based on `num_runs` thresholds
+     - Merges phase-specific overrides with base sweep config
+     - Creates phase-specific Protein optimizer instance
    - Updates Protein optimizer with historical data
    - Generates new hyperparameter suggestions using Gaussian Process
    - Gets unique run ID from Cogweb (e.g., `sweep_name.r.0`, `sweep_name.r.1`)
@@ -347,6 +441,8 @@ View in WandB dashboard:
 
 ## Best Practices
 
+### General Guidelines
+
 1. **Start with `sweep=quick`** for testing (5 samples)
 2. **Set appropriate bounds** - avoid extremely wide search spaces
 3. **Use correct distributions**:
@@ -357,6 +453,35 @@ View in WandB dashboard:
 5. **Set `max_consecutive_failures`** > 0 for production
 6. **Limit `max_observations_to_load`** for large sweeps
 7. **Use descriptive sweep names** for organization
+
+### Phasing Best Practices
+
+1. **Phase Design**:
+   - Start with 50-100 cheap exploration runs
+   - Use 30-70 medium runs for refinement
+   - Reserve 10-20 expensive runs for final optimization
+   - Total phase runs should match your compute budget
+
+2. **Cost Progression**:
+   - Each phase should be 2-4x more expensive than previous
+   - Align `max_suggestion_cost` with actual expected runtime (in seconds)
+   - Gradually increase `max_suggestion_cost` across phases
+
+3. **Parameter Tuning**:
+   - Gradually increase `total_timesteps` across phases
+   - Start with smaller batch sizes for faster iteration
+   - Shift `mean` values based on promising regions found
+
+4. **Exploration Strategy**:
+   - High `random_suggestions` (15-20) in early phases
+   - Low `random_suggestions` (3-5) in final phases
+   - Decrease `expansion_rate` as phases progress
+   - Increase `suggestions_per_pareto` for exploitation phases
+
+5. **Monitoring Transitions**:
+   - Watch WandB for phase transitions in run names
+   - Verify cost/performance trade-offs align with expectations
+   - Check that Protein is converging before final phase
 
 ## Troubleshooting
 

@@ -1,88 +1,87 @@
-protein:
-  num_random_samples: 20 # More exploration needed for cost modeling
-  max_suggestion_cost: 3600 # 1 hour - allow for longer runs
-  resample_frequency: 3 # More frequent resampling for cost trade-offs
-  global_search_scale: 1.0 # Standard scale for cost dimension exploration
-  random_suggestions: 15 # Keep higher for cost exploration
-  suggestions_per_pareto: 32 #
-  expansion_rate: 0.15 # Higher exploration along cost dimension
-  seed_with_search_center: true
-
 metric: reward
-
 goal: maximize
 method: bayes
 max_observations_to_load: 250
+
+protein:
+  num_random_samples: 20
+  max_suggestion_cost: 3600
+  resample_frequency: 3
+  global_search_scale: 1.0
+  random_suggestions: 15
+  suggestions_per_pareto: 32
+  expansion_rate: 0.15
+  seed_with_search_center: true
 
 parameters:
   trainer:
     total_timesteps:
       distribution: int_uniform
-      min: 500000000 # 500M
-      max: 2000000000 # 2B
-      mean: 1000000000 # 1B - reasonable starting point
+      min: 100000000
+      max: 2000000000
+      mean: 250000000
       scale: auto
 
     batch_size:
       distribution: uniform_pow2
-      min: 262144 # 2^18 - your original min is fine
-      max: 2097152 # 2^21 - reduced max for cost control
-      mean: 524288 # 2^19 - good default
+      min: 262144
+      max: 2097152
+      mean: 524288
       scale: auto
 
     minibatch_size:
       distribution: uniform_pow2
-      min: 2048 # 2^11 - fine
-      max: 32768 # 2^15 - reduced to ensure divisibility
-      mean: 8192 # 2^13 - good default
+      min: 2048
+      max: 32768
+      mean: 8192
       scale: auto
 
     bptt_horizon:
       distribution: uniform_pow2
-      min: 8 # 2^3 - fine
-      max: 32 # 2^5 - fine
-      mean: 16 # 2^4 - good default
+      min: 8
+      max: 32
+      mean: 16
       scale: auto
 
     ppo:
       gamma:
         distribution: logit_normal
-        min: 0.95 # Tighter range - gamma usually 0.99±0.02
+        min: 0.95
         max: 0.999
         mean: 0.99
         scale: auto
 
       gae_lambda:
         distribution: logit_normal
-        min: 0.9 # Tighter range - lambda usually 0.95±0.05
+        min: 0.9
         max: 0.99
         mean: 0.95
         scale: auto
 
       clip_coef:
         distribution: logit_normal
-        min: 0.1 # Your range is good
+        min: 0.1
         max: 0.3
         mean: 0.2
         scale: auto
 
       vf_coef:
         distribution: logit_normal
-        min: 0.3 # Narrower range - rarely optimal below 0.3
+        min: 0.3
         max: 0.8
         mean: 0.5
         scale: auto
 
       vf_clip_coef:
         distribution: log_normal
-        min: 5.0 # Narrower range around typical values
+        min: 5.0
         max: 20.0
         mean: 10.0
         scale: auto
 
       ent_coef:
         distribution: log_normal
-        min: 5e-4 # Tighter range
+        min: 5e-4
         max: 5e-3
         mean: 1e-3
         scale: auto
@@ -90,35 +89,35 @@ parameters:
     update_epochs:
       distribution: int_uniform
       min: 1
-      max: 6 # Reduced max - diminishing returns above 4-6
+      max: 6
       mean: 3
       scale: auto
 
     optimizer:
       learning_rate:
         distribution: log_normal
-        min: 1e-4 # Narrower range around typical RL values
+        min: 1e-4
         max: 1e-2
-        mean: 3e-4 # More conservative default
+        mean: 3e-4
         scale: auto
 
       beta1:
         distribution: logit_normal
-        min: 0.8 # Narrower range - Adam defaults work well
+        min: 0.8
         max: 0.95
         mean: 0.9
         scale: auto
 
       beta2:
         distribution: logit_normal
-        min: 0.99 # Very narrow range - beta2 is rarely tuned
+        min: 0.99
         max: 0.999
         mean: 0.999
         scale: auto
 
       eps:
         distribution: log_normal
-        min: 1e-9 # Narrower range
+        min: 1e-9
         max: 1e-7
         mean: 1e-8
         scale: auto
