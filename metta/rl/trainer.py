@@ -60,6 +60,7 @@ from metta.rl.wandb import (
 )
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
+from metta.agent.agent_config import AgentConfig
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
@@ -81,7 +82,7 @@ def train(
     run_dir: str,
     run: str,
     system_cfg: SystemConfig,
-    agent_cfg: DictConfig,
+    agent_cfg: DictConfig | AgentConfig,
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,

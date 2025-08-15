@@ -27,6 +27,7 @@ from tools.sweep_config_utils import (
     load_train_job_config_with_overrides,
     validate_train_job_config,
 )
+from metta.agent.agent_config import create_agent_config
 from tools.utils import get_policy_store_from_cfg
 
 logger = logging.getLogger(__name__)
@@ -112,12 +113,18 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
 
     policy_store = get_policy_store_from_cfg(cfg, wandb_run)
 
+    if isinstance(cfg.agent, DictConfig) and "agent_type" not in cfg.agent:
+        agent_cfg = create_agent_config(cfg.agent)
+    else:
+        agent_cfg = cfg.agent
+
+
     # Use the functional train interface directly
     train(
         run=cfg.run,
         run_dir=cfg.run_dir,
         system_cfg=system_cfg,
-        agent_cfg=cfg.agent,
+        agent_cfg=agent_cfg,
         device=torch.device(system_cfg.device),
         trainer_cfg=create_trainer_config(cfg),
         wandb_run=wandb_run,
