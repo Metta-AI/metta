@@ -4,7 +4,7 @@ from pydantic import ConfigDict, Field, model_validator
 
 from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
 from metta.common.util.config import Config
-from metta.mettagrid.config.builder import make_arena
+from metta.mettagrid.config.envs import make_arena
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 from metta.sim.simulation_config import SimulationConfig

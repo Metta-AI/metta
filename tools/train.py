@@ -6,7 +6,7 @@ import importlib
 import logging
 import os
 from logging import Logger
-from typing import Any
+from typing import Any, Optional
 
 import torch
 from omegaconf import DictConfig, OmegaConf
@@ -35,14 +35,12 @@ class TrainToolConfig(Config):
     wandb: WandbConfig = WandbConfigOff()
     policy_architecture: Any
     run: str
-    run_dir: str = Field(default="./train_dir")
-    data_dir: str = Field(default="./train_dir")
-
+    run_dir: Optional[str] = None
     # Stats server configuration
     stats_server_uri: str = "https://api.observatory.softmax-research.net"
 
     # Policy configuration
-    policy_uri: str | None = None
+    policy_uri: Optional[str] = None
 
     # Optional configurations
     map_preview_uri: str | None = None
@@ -52,10 +50,9 @@ class TrainToolConfig(Config):
     seed: int = Field(default=0)
 
     def model_post_init(self, __context):
-        """Post-initialization setup."""
         # Set run_dir based on run name if not explicitly set
-        if self.run_dir == "./train_dir":
-            self.run_dir = f"{self.data_dir}/{self.run}"
+        if self.run_dir is None:
+            self.run_dir = f"{self.system.data_dir}/{self.run}"
 
         # Set policy_uri if not set
         if not self.policy_uri:
@@ -123,10 +120,9 @@ def get_policy_store(cfg: TrainToolConfig, wandb_run: WandbRun | None = None) ->
     policy_store = PolicyStore(
         device=cfg.system.device,
         wandb_run=wandb_run,
-        data_dir=cfg.data_dir,
+        data_dir=cfg.system.data_dir,
         wandb_entity=wandb_entity,
         wandb_project=wandb_project,
-        pytorch_cfg=None,  # Not using pytorch config from old system
     )
     return policy_store
 
