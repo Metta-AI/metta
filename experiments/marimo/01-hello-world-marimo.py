@@ -503,8 +503,8 @@ def _(
         "trainer.batch_size=256",
         "trainer.minibatch_size=256",
         "trainer.num_workers=2",
-        "trainer.bptt_horizon=8",  # Mac-specific: limit BPTT horizon
-        "trainer.forward_pass_minibatch_target_size=2",  # Critical Mac setting to reduce agent count
+        "trainer.bptt_horizon=8",  
+        "trainer.forward_pass_minibatch_target_size=2",  
         "trainer.simulation.skip_git_check=true",  # Skip git check to avoid errors in notebooks
         "sim=sim",
         "+train_job.evals.name=hallway",
