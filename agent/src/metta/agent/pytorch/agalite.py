@@ -368,7 +368,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
             logits, values = self.forward_eval(observations, state)
             
             # Use mixin for inference mode processing
-            td = self.handle_inference_mode(td, logits, values)
+            td = self.forward_inference(td, logits, values)
 
         else:
             # Training mode - use parent's forward for BPTT
@@ -376,7 +376,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
 
             # Use mixin for training mode processing
             # Note: TransformerWrapper handles the reshaping of values
-            td = self.handle_training_mode(td, action, logits, values)
+            td = self.forward_training(td, action, logits, values)
             
             # Override value key for transformer (TransformerWrapper uses "value" not "values")
             td["value"] = values

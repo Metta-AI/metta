@@ -96,10 +96,10 @@ class AgaliteHybrid(PyTorchAgentMixin, LSTMWrapper):
         # Use mixin for mode-specific processing
         if action is None:
             # Mixin handles inference mode properly
-            td = self.handle_inference_mode(td, logits, value)
+            td = self.forward_inference(td, logits, value)
         else:
             # Mixin handles training mode with proper reshaping
-            td = self.handle_training_mode(td, action, logits, value)
+            td = self.forward_training(td, action, logits, value)
 
         return td
 
