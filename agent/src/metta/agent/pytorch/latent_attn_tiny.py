@@ -1,12 +1,12 @@
 import logging
 
 import einops
+import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-import pufferlib.pytorch
 from metta.agent.modules.encoders import ObsLatentAttn
 from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 from metta.agent.pytorch.base import LSTMWrapper
@@ -32,16 +32,24 @@ class LatentAttnTiny(LSTMWrapper):
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-        # Encode observations
-        hidden = self.policy.encode_observations(observations, state)
-
-        # Determine batch and time dimensions
+        # CRITICAL FIX: Set bptt and batch fields to match ComponentPolicy behavior
+        # ComponentPolicy sets these in every forward pass, and components depend on them
         if observations.dim() == 4:  # Training: [B, T, obs_tokens, 3]
             B = observations.shape[0]
             TT = observations.shape[1]
+            # Flatten batch dimension and set fields exactly like ComponentPolicy
+            total_batch = B * TT
+            td.set("bptt", torch.full((total_batch,), TT, device=observations.device, dtype=torch.long))
+            td.set("batch", torch.full((total_batch,), B, device=observations.device, dtype=torch.long))
         else:  # Inference: [B, obs_tokens, 3]
             B = observations.shape[0]
             TT = 1
+            # Set fields for inference mode
+            td.set("bptt", torch.full((B,), 1, device=observations.device, dtype=torch.long))
+            td.set("batch", torch.full((B,), B, device=observations.device, dtype=torch.long))
+
+        # Encode observations
+        hidden = self.policy.encode_observations(observations, state)
 
         # Use base class for proper LSTM state management (includes detachment!)
         lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
@@ -50,10 +58,10 @@ class LatentAttnTiny(LSTMWrapper):
         # LSTM forward pass
         hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, input_size)
         lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden, lstm_state)
-        
+
         # CRITICAL: Store with automatic detachment to prevent gradient accumulation
         self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
-        
+
         flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
         # Decode actions and value
@@ -77,10 +85,14 @@ class LatentAttnTiny(LSTMWrapper):
 
         else:
             # ---------- Training Mode ----------
-            action = action
+            # CRITICAL: ComponentPolicy expects the action to be flattened already during training
+            # The TD should be reshaped to match the flattened batch dimension
             if action.dim() == 3:  # (B, T, A) -> (BT, A)
-                B, T, A = action.shape
-                action = action.view(B * T, A)
+                batch_size_orig, time_steps, A = action.shape
+                action = action.view(batch_size_orig * time_steps, A)
+                # Also flatten the TD to match
+                if td.batch_dims > 1:
+                    td = td.reshape(td.batch_size.numel())
 
             action_log_probs = F.log_softmax(logits_list, dim=-1)
             action_probs = torch.exp(action_log_probs)
@@ -91,10 +103,18 @@ class LatentAttnTiny(LSTMWrapper):
 
             entropy = -(action_probs * action_log_probs).sum(dim=-1)
 
-            td["act_log_prob"] = full_log_probs.view(B, TT)
-            td["entropy"] = entropy.view(B, TT)
-            td["full_log_probs"] = action_log_probs.view(B, TT, -1)
-            td["value"] = value.view(B, TT)
+            # Store in flattened TD (will be reshaped by caller if needed)
+            td["act_log_prob"] = full_log_probs
+            td["entropy"] = entropy
+            td["full_log_probs"] = action_log_probs
+            td["value"] = value
+
+            # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
+            # The reshaping happens in ComponentPolicy.forward() after forward_training()
+            if "batch" in td.keys() and "bptt" in td.keys():
+                batch_size = td["batch"][0].item()
+                bptt_size = td["bptt"][0].item()
+                td = td.reshape(batch_size, bptt_size)
 
         return td
 

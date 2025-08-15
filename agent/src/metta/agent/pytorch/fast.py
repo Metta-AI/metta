@@ -50,20 +50,24 @@ class Fast(LSTMWrapper):
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-        # Encode obs
-        hidden = self.policy.encode_observations(observations, state)
-
-        # Handle both training (B, T) and inference (B,) shapes
+        # CRITICAL FIX: Set bptt and batch fields to match ComponentPolicy behavior
+        # ComponentPolicy sets these in every forward pass, and the LSTM component depends on them
         if observations.dim() == 4:  # Training: [B, T, obs_tokens, 3]
             B = observations.shape[0]
             TT = observations.shape[1]
+            # Flatten batch dimension and set fields exactly like ComponentPolicy
+            total_batch = B * TT
+            td.set("bptt", torch.full((total_batch,), TT, device=observations.device, dtype=torch.long))
+            td.set("batch", torch.full((total_batch,), B, device=observations.device, dtype=torch.long))
         else:  # Inference: [B, obs_tokens, 3]
             B = observations.shape[0]
             TT = 1
+            # Set fields for inference mode
+            td.set("bptt", torch.full((B,), 1, device=observations.device, dtype=torch.long))
+            td.set("batch", torch.full((B,), B, device=observations.device, dtype=torch.long))
 
-        # Note: ComponentPolicy doesn't set bptt/batch in forward pass
-        # These are set by the training loop if needed
-        # We just use B and TT directly for our LSTM management
+        # Encode obs
+        hidden = self.policy.encode_observations(observations, state)
 
         # Use base class method for LSTM state management
         lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
@@ -100,10 +104,14 @@ class Fast(LSTMWrapper):
 
         else:
             # ---------- Training Mode ----------
-            action = action
+            # CRITICAL: ComponentPolicy expects the action to be flattened already during training
+            # The TD should be reshaped to match the flattened batch dimension
             if action.dim() == 3:  # (B, T, 2) → flatten to (BT, 2)
-                B, T, A = action.shape
-                action = action.view(B * T, A)
+                batch_size_orig, time_steps, A = action.shape
+                action = action.view(batch_size_orig * time_steps, A)
+                # Also flatten the TD to match
+                if td.batch_dims > 1:
+                    td = td.reshape(td.batch_size.numel())
 
             action_log_probs = F.log_softmax(logits_list, dim=-1)
 
@@ -115,10 +123,18 @@ class Fast(LSTMWrapper):
 
             entropy = -(action_probs * action_log_probs).sum(dim=-1)  # [batch_size]
 
-            td["act_log_prob"] = selected_log_probs.view(B, TT)
-            td["entropy"] = entropy.view(B, TT)
-            td["full_log_probs"] = action_log_probs.view(B, TT, -1)
-            td["value"] = value.view(B, TT, -1)
+            # Store in flattened TD (will be reshaped by caller if needed)
+            td["act_log_prob"] = selected_log_probs
+            td["entropy"] = entropy
+            td["full_log_probs"] = action_log_probs
+            td["value"] = value
+
+            # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
+            # The reshaping happens in ComponentPolicy.forward() after forward_training()
+            if "batch" in td.keys() and "bptt" in td.keys():
+                batch_size = td["batch"][0].item()
+                bptt_size = td["bptt"][0].item()
+                td = td.reshape(batch_size, bptt_size)
 
         return td
 
