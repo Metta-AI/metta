@@ -172,8 +172,37 @@ class MettaGridEnv(PufferEnv, GymEnv):
         # all synced together. The desync_episodes flag is used to desync the episodes.
         # Ideally vecenv would have a way to desync the episodes, but it doesn't.
         if self._is_training and self._current_trial == 0 and self._current_episode == 0:
-            max_steps = game_config_dict["max_steps"]
-            game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
+            max_steps = int(game_config_dict.get("max_steps", 0))
+            if max_steps > 0:
+                # Randomize initial episode length for desync, but keep ColorTree windows aligned
+                color_tree_cfg = (
+                    game_config_dict.get("actions", {}).get("color_tree", {})
+                    if isinstance(game_config_dict.get("actions"), dict)
+                    else {}
+                )
+                target_sequence = color_tree_cfg.get("target_sequence", []) or []
+                sequence_length = int(len(target_sequence)) if isinstance(target_sequence, list) else 0
+                attempts_per_trial = int(color_tree_cfg.get("attempts_per_trial", 0))
+
+                if sequence_length > 0:
+                    # Compute min required steps and aligned max
+                    min_required = attempts_per_trial * sequence_length if attempts_per_trial > 0 else sequence_length
+                    # Round up overall max to a multiple of sequence_length
+                    max_aligned = (
+                        max_steps
+                        if max_steps % sequence_length == 0
+                        else max_steps + (sequence_length - (max_steps % sequence_length))
+                    )
+                    # Choose a random number of windows in [min_windows, max_windows]
+                    min_windows = max(1, min_required // sequence_length)
+                    max_windows = max(1, max_aligned // sequence_length)
+                    windows = int(np.random.randint(min_windows, max_windows + 1))
+                    game_config_dict["max_steps"] = windows * sequence_length
+                else:
+                    game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
+            else:
+                # No limit: leave as-is
+                pass
 
         self._map_labels = level.labels
 

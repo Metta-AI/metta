@@ -191,6 +191,28 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
             # Apply auto-generated color mapping if needed
             if hasattr(self, "_auto_color_mapping") and self._auto_color_mapping:
                 color_tree_cfg.color_to_item = self._color_items
+
+            # Align max_steps to sequence windows to avoid partial windows/reward spillover
+            # - Ensure it's at least attempts_per_trial * sequence_length
+            # - Round up to a multiple of sequence_length
+            try:
+                current_max_steps = getattr(env_cfg.game, "max_steps", 0)
+            except Exception:
+                current_max_steps = 0
+
+            if isinstance(current_max_steps, int) and current_max_steps > 0:
+                attempts = getattr(color_tree_cfg, "attempts_per_trial", 0) or 0
+                min_required = attempts * self._sequence_length if attempts > 0 else 0
+                desired_steps = current_max_steps if current_max_steps > 0 else min_required
+                if min_required > desired_steps:
+                    desired_steps = min_required
+
+                # Round up to nearest multiple of sequence_length
+                remainder = desired_steps % self._sequence_length
+                aligned_steps = desired_steps if remainder == 0 else desired_steps + (self._sequence_length - remainder)
+
+                if aligned_steps != current_max_steps:
+                    env_cfg.game.max_steps = int(aligned_steps)
         else:
             raise ValueError("ColorTree action not found in environment config")
 

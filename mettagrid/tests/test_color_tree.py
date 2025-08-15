@@ -214,3 +214,39 @@ def test_colortree_random_sampling_uniform(monkeypatch):
     # Tolerate moderate variance; with fixed seed this should pass comfortably
     for seq, c in counts.items():
         assert 0.8 * mean <= c <= 1.2 * mean, f"Sequence {seq} count {c} out of bounds"
+
+
+def test_curriculum_aligns_max_steps_to_sequence_windows(monkeypatch):
+    # fake task config to attach game config
+    def fake_curriculum_from_config_path(path, env_overrides=None):
+        base_cfg = OmegaConf.create(
+            {
+                "game": {
+                    "max_steps": 13,  # Intentionally too small and not multiple of sequence_length
+                    "actions": {
+                        "color_tree": {
+                            "target_sequence": [0, 1, 2, 3],
+                            "sequence_reward": 1.0,
+                            "color_to_item": {0: "ore_red", 1: "ore_green", 2: "ore_blue", 3: "armor"},
+                            "num_trials": 1,
+                            "trial_sequences": [],
+                            "attempts_per_trial": 5,  # requires at least 5 * 4 = 20 steps
+                            "reward_mode": "precise",
+                        }
+                    },
+                }
+            }
+        )
+        return SingleTaskCurriculum(path, base_cfg)
+
+    monkeypatch.setattr(
+        "metta.mettagrid.curriculum.random.curriculum_from_config_path",
+        fake_curriculum_from_config_path,
+    )
+
+    # sequence_length is 4; attempts_per_trial is 5 => require at least 20 and align to multiple of 4
+    curr = ColorTreeRandomFromSetCurriculum(tasks={"/dummy": 1.0}, num_colors=4, sequence_length=4)
+    task = curr.get_task()
+    cfg = task.env_cfg()
+    assert cfg.game.max_steps >= 20
+    assert cfg.game.max_steps % 4 == 0
