@@ -243,9 +243,6 @@ class ScorecardWidget(anywidget.AnyWidget):
         Returns:
             ScorecardWidget with real data
         """
-        # Step 1: Get available policies to find training run IDs
-        # TODO: backend should be doing the filtering, not frontend
-
         if (
             restrict_to_policy_ids == []
             or restrict_to_metrics == []
