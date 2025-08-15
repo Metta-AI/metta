@@ -6,7 +6,7 @@ This module tests the MettaGridGymEnv with Gymnasium's standard environment inte
 
 import numpy as np
 
-from metta.mettagrid.config.builder import make_arena
+from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.gym_env import MettaGridGymEnv
 
 

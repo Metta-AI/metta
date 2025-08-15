@@ -5,7 +5,7 @@ import numpy as np
 
 import mettascope.server
 from metta.map.utils.storable_map import StorableMap, grid_to_lines
-from metta.mettagrid.config.builder import make_arena
+from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.sim.map_preview import write_local_map_preview
 

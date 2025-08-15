@@ -34,7 +34,6 @@ uv run torchrun \
   --master-port=$MASTER_PORT \
   --node-rank=$NODE_INDEX \
   tools/train.py \
-  trainer.num_workers=null \
   "$@"
 EXIT_CODE=$?
 set -e

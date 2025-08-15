@@ -15,7 +15,7 @@ from metta.mettagrid import (
     dtype_terminals,
     dtype_truncations,
 )
-from metta.mettagrid.config.builder import make_arena
+from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.util.actions import generate_valid_random_actions
 from metta.util.metta_script import pydantic_metta_script
 from tools.utils import get_policy_store_from_cfg

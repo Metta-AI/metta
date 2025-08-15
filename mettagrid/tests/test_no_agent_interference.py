@@ -2,7 +2,7 @@
 import numpy as np
 import pytest
 
-from metta.mettagrid.config.builder import make_arena
+from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.actions import get_agent_position
 
