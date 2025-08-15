@@ -25,8 +25,8 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
-include = ["metta.common", "metta.common.*"]
+where = ["."]
+include = ["metta", "metta.common", "metta.common.*"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
@@ -38,7 +38,7 @@ markers = [
   "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["."]
 
 [tool.coverage.run]
 source = ["metta.common"]

@@ -43,8 +43,8 @@ set(NUMPY_INCLUDE_DIR ${Python3_NumPy_INCLUDE_DIRS})
 
 # ========================= METTAGRID LIBRARY =========================
 file(GLOB_RECURSE METTAGRID_SOURCES CONFIGURE_DEPENDS
-  ${CMAKE_CURRENT_SOURCE_DIR}/metta/mettagrid/*.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/metta/mettagrid/*.hpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/*.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/*.hpp
 )
 
 message(STATUS "Found sources: ${METTAGRID_SOURCES}")
@@ -53,7 +53,7 @@ add_library(mettagrid_obj OBJECT ${METTAGRID_SOURCES})
 target_link_libraries(mettagrid_obj PUBLIC pybind11::pybind11 Python3::Python)
 target_include_directories(mettagrid_obj PUBLIC
   ${NUMPY_INCLUDE_DIR}
-  ${CMAKE_CURRENT_SOURCE_DIR}/metta/mettagrid
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid
 )
 
 # Apply all flags to the object library

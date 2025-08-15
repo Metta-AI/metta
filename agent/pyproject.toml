@@ -27,8 +27,8 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
-include = ["metta.agent"]
+where = ["."]
+include = ["metta", "metta.agent", "metta.agent.*"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]
@@ -36,7 +36,7 @@ include = ["metta.agent"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["."]
 
 [tool.coverage.run]
 source = ["metta.agent"]

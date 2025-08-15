@@ -56,7 +56,7 @@ dev = ["pytest>=8.3.3", "pytest-benchmark>=5.1.0", "pytest-xdist>=3.8.0"]
 # uv builds are done in isolated environment, so tests and benchmarks are not built here.
 # See `./README.md` for more details.
 cmake.args = ["--preset", "release"]
-wheel.packages = ["src/metta"]
+wheel.packages = ["metta"]
 
 # Note: if you decide to use `editable.rebuild` here, consider that it's not
 # compatible with isolated builds.
@@ -85,8 +85,8 @@ cache-keys = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["src"]
-include = ["metta.mettagrid", "metta.mettagrid.*"]
+where = ["."]
+include = ["metta", "metta.mettagrid", "metta.mettagrid.*"]
 
 [tool.setuptools.package-data]
 "metta" = ["__init__.py"]

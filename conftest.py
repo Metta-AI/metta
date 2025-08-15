@@ -1,6 +1,6 @@
 import pytest
 
-from metta.common.test_support import docker_client_fixture
+from metta.common_old.test_support import docker_client_fixture
 
 
 def pytest_configure(config):
