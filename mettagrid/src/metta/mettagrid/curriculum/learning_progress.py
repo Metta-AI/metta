@@ -56,7 +56,7 @@ class LearningProgressCurriculum(RandomCurriculum):
         task_idx = list(self._curricula.keys()).index(id)
 
         # Collect data for learning progress
-        self._lp_tracker.collect_data({f"tasks/{task_idx}": [success_rate]})
+    self._lp_tracker.collect_data({f"tasks/{task_idx}": [success_rate]})
 
         # Update task weights based on learning progress
         lp_weights, _ = self._lp_tracker.calculate_dist()
