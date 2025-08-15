@@ -4,7 +4,7 @@ from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidg
 )
 from metta.app_backend.clients.scorecard_client import ScorecardClient
 from metta.app_backend.routes.scorecard_routes import ScorecardData
-from metta.setup.utils import info, warning
+from metta.setup.utils import warning
 from typing_extensions import Literal
 
 
@@ -12,6 +12,7 @@ async def fetch_real_scorecard_data(
     client: ScorecardClient,
     restrict_to_metrics: list[str] | None = None,
     restrict_to_policy_names: list[str] | None = None,
+    restrict_to_eval_names: list[str] | None = None,
     policy_selector: Literal["best", "latest"] = "best",
     max_policies: int = 30,
     include_run_free_policies: bool = False,
@@ -20,11 +21,13 @@ async def fetch_real_scorecard_data(
     Fetch real evaluation data using the metta HTTP API (same as repo.ts).
 
     Args:
-        metrics: List of metrics to include (e.g., ["reward", "heart.get"])
-        search_texts: List of search texts to use to find training runs (e.g., ["relh.skypilot", "daveey.arena.rnd"])
+        client: ScorecardClient instance
+        restrict_to_metrics: List of metrics to include (e.g., ["reward", "heart.get"])
+        restrict_to_policy_names: List of policy name filters (e.g., ["relh.skypilot", "daveey.arena.rnd"])
+        restrict_to_eval_names: List of specific evaluation names to include (e.g., ["navigation/labyrinth", "memory/easy"])
         policy_selector: "best" or "latest" policy selection strategy
-        api_base_url: Base URL for the stats server
         max_policies: Maximum number of policies to display
+        include_run_free_policies: Whether to include standalone policies
 
     Returns:
         ScorecardWidget with real data
@@ -50,24 +53,25 @@ async def fetch_real_scorecard_data(
 
     if not training_run_ids:
         raise Exception("No training runs found")
-    info(f"Training run IDs: {len(training_run_ids)}")
-    info(f"Run free policy IDs: {len(run_free_policy_ids)}")
+    print(f"Training run IDs: {len(training_run_ids)}")
+    print(f"Run free policy IDs: {len(run_free_policy_ids)}")
 
     # Step 2: Get available evaluations for these training runs
-    eval_names = await client.get_eval_names(training_run_ids, run_free_policy_ids)
-
-    if not eval_names:
-        warning("No evaluations found for selected training runs")
-        raise Exception("No evaluations found for selected training runs")
+    if restrict_to_eval_names:
+        # Use the specific eval names provided
+        eval_names = restrict_to_eval_names
+        print(f"Using provided eval names: {len(eval_names)} evaluations")
+    else:
+        # Get all available evaluations for these policies
+        eval_names = await client.get_eval_names(training_run_ids, run_free_policy_ids)
+        if not eval_names:
+            warning("No evaluations found for selected training runs")
+            raise Exception("No evaluations found for selected training runs")
+        print(f"Found {len(eval_names)} available evaluations")
 
     # Step 3: Get available metrics
-    # Flatten eval_names structure - it comes as [('category', ['eval1', 'eval2', ...])]
-    flat_eval_names = []
-    for category, evals in eval_names:
-        flat_eval_names.extend(evals)
-
     available_metrics = await client.get_available_metrics(
-        training_run_ids, run_free_policy_ids, flat_eval_names
+        training_run_ids, run_free_policy_ids, eval_names
     )
     if not available_metrics:
         warning("No metrics found")
@@ -81,7 +85,7 @@ async def fetch_real_scorecard_data(
         )
     )
     if not valid_metrics:
-        info(f"Available metrics: {sorted(available_metrics)}")
+        print(f"Available metrics: {sorted(available_metrics)}")
         if restrict_to_metrics:
             warning(
                 f"None of the requested metrics {restrict_to_metrics} are available"
@@ -94,7 +98,7 @@ async def fetch_real_scorecard_data(
     scorecard_data: ScorecardData = await client.generate_scorecard(
         training_run_ids=training_run_ids,
         run_free_policy_ids=[],
-        eval_names=flat_eval_names,
+        eval_names=eval_names,
         metric=primary_metric,
         policy_selector=policy_selector,
     )

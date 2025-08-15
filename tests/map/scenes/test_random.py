@@ -1,11 +1,5 @@
-import numpy as np
-
 from metta.map.scenes.random import Random
 from tests.map.scenes.utils import render_scene
-
-
-def make_grid(height: int, width: int) -> np.ndarray:
-    return np.full((height, width), "empty", dtype="<U50")
 
 
 def test_objects():

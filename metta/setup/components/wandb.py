@@ -2,6 +2,7 @@ import os
 import subprocess
 
 from metta.setup.components.base import SetupModule
+from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
 from metta.setup.utils import info, success, warning
 
@@ -35,13 +36,16 @@ class WandbSetup(SetupModule):
             success("W&B already configured")
             return
 
-        if self.config.user_type.is_softmax:
+        if self.config.user_type == UserType.SOFTMAX:
             info("""
                 Your Weights & Biases access should have been provisioned.
                 If you don't have access, contact your team lead.
 
                 Visit https://wandb.ai/authorize to get your API key.
             """)
+        elif self.config.user_type == UserType.SOFTMAX_DOCKER:
+            info("Weights & Biases access should be provided via environment variables.")
+            info("Skipping W&B setup.")
         else:
             info("""
                 To use Weights & Biases, you'll need an account.

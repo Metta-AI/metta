@@ -68,16 +68,21 @@ def log_training_progress(
             run_name=run_name,
         )
     else:
-        # Format total timesteps for readability
-        if total_timesteps >= 1e9:
-            total_steps_str = f"{total_timesteps:.0e}"
-        else:
-            total_steps_str = f"{total_timesteps:,}"
+
+        def human_readable_si(n: float, unit: str = "") -> str:
+            if n >= 1_000_000_000:
+                return f"{n / 1_000_000_000:.2f} G{unit}"
+            elif n >= 1_000_000:
+                return f"{n / 1_000_000:.2f} M{unit}"
+            elif n >= 1_000:
+                return f"{n / 1_000:.2f} k{unit}"
+            return f"{n:.0f} {unit}" if unit else f"{n:.0f}"
 
         run_info = f" [{run_name}]" if run_name else ""
+
         logger.info(
-            f"Epoch {epoch}{run_info}- "
-            f"{steps_per_sec:.0f} SPS- "
-            f"step {agent_step}/{total_steps_str}- "
-            f"({train_pct:.0f}% train- {rollout_pct:.0f}% rollout- {stats_pct:.0f}% stats)"
+            f"Epoch {epoch}{run_info} / "
+            f"{human_readable_si(steps_per_sec, 'sps')} / "
+            f"{agent_step / total_timesteps:.2%} of {human_readable_si(total_timesteps, 'steps')} / "
+            f"({train_pct:.0f}% train / {rollout_pct:.0f}% rollout / {stats_pct:.0f}% stats)"
         )

@@ -46,13 +46,9 @@ class TestGitignoreHandling(unittest.TestCase):
             "outputs": {
                 "output.log": "",
             },
-            "cython_debug": {
-                "debug.log": "",
-            },
             ".codeclipignore": (
                 "*.pyc\n__pycache__/\n/wandb/\ntrain_dir/\nreplays/\n*.egg-info\n"
                 "/build/\n/build_debug/\n.DS_Store\n.task\noutputs/\n*.so\n"
-                "cython_debug\nstats.profile\n/dist/\nplayer/dist/\nplayer/node_modules\n"
             ),
         }
         self._create_structure(self.base_path, structure)
@@ -96,7 +92,6 @@ class TestGitignoreHandling(unittest.TestCase):
 
         # Data files should be ignored due to extension
         self.assertTrue(_should_ignore(self.base_path / "outputs/output.log", gitignore_rules, self.base_path))
-        self.assertTrue(_should_ignore(self.base_path / "cython_debug/debug.log", gitignore_rules, self.base_path))
 
         # Paths that should not be ignored
         self.assertFalse(_should_ignore(self.base_path / "test.py", gitignore_rules, self.base_path))

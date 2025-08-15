@@ -43,8 +43,8 @@ def get_sky_jobs_data() -> pd.DataFrame:
         col_positions = {
             "ID": (header_line.find("ID"), header_line.find("TASK")),
             "TASK": (header_line.find("TASK"), header_line.find("NAME")),
-            "NAME": (header_line.find("NAME"), header_line.find("RESOURCES")),
-            "RESOURCES": (header_line.find("RESOURCES"), header_line.find("SUBMITTED")),
+            "NAME": (header_line.find("NAME"), header_line.find("REQUESTED")),
+            "REQUESTED": (header_line.find("REQUESTED"), header_line.find("SUBMITTED")),
             "SUBMITTED": (
                 header_line.find("SUBMITTED"),
                 header_line.find("TOT. DURATION"),
@@ -90,6 +90,14 @@ def get_sky_jobs_data() -> pd.DataFrame:
     except Exception as e:
         print(f"Error getting sky jobs data: {str(e)}")
         return pd.DataFrame()
+
+
+def sky_job_exists(job_name: str) -> bool:
+    """
+    Check if a sky job exists.
+    """
+    jobs = get_sky_jobs_data()
+    return job_name in jobs["NAME"].values
 
 
 def monitor_training_statuses(
