@@ -2,7 +2,7 @@ import logging
 import numbers
 import os
 from collections import defaultdict
-from typing import Any, Dict, cast
+from typing import cast
 
 import numpy as np
 import torch
@@ -17,7 +17,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.wandb_context import WandbRun
-from metta.core.distributed import setup_distributed_vars
+from metta.core.distributed import TorchDistributedConfig
 from metta.core.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
@@ -158,7 +158,8 @@ def train(
     wandb_run: WandbRun | None,
     policy_store: PolicyStore,
     stats_client: StatsClient | None,
-) -> dict[str, Any] | None:
+    torch_dist_cfg: TorchDistributedConfig,
+) -> None:
     """Main training loop for Metta agents."""
     logger.info(f"run_dir = {run_dir}")
 
@@ -169,14 +170,11 @@ def train(
         if files:
             logger.info(f"Recent checkpoints: {', '.join(files)}")
 
-    # Set up distributed
-    is_master, world_size, rank = setup_distributed_vars()
-
     # Create timer, Losses, profiler, curriculum
     timer = Stopwatch(logger)
     timer.start()
     losses = Losses()
-    torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, run_dir)
+    torch_profiler = TorchProfiler(torch_dist_cfg.is_master, trainer_cfg.profiler, wandb_run, run_dir)
     curriculum = trainer_cfg.curriculum.make()
 
     # Calculate batch sizes
@@ -219,7 +217,7 @@ def train(
         dual_policy_training_agents_pct=trainer_cfg.dual_policy.training_agents_pct,
     )
 
-    vecenv.async_reset(system_cfg.seed + rank)
+    vecenv.async_reset(system_cfg.seed + torch_dist_cfg.rank)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
@@ -258,8 +256,8 @@ def train(
         policy_store=policy_store,
         checkpoint_config=trainer_cfg.checkpoint,
         device=device,
-        is_master=is_master,
-        rank=rank,
+        is_master=torch_dist_cfg.is_master,
+        rank=torch_dist_cfg.rank,
         run_name=run,
     )
 
@@ -365,7 +363,7 @@ def train(
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
     # Set up monitoring (master only)
-    if is_master:
+    if torch_dist_cfg.is_master:
         logger.info("Starting training")
         memory_monitor, system_monitor = setup_monitoring(
             policy=policy,
@@ -376,7 +374,7 @@ def train(
         memory_monitor, system_monitor = None, None
 
     # Set up wandb metrics (master only)
-    if wandb_run and is_master:
+    if wandb_run and torch_dist_cfg.is_master:
         setup_wandb_metrics(wandb_run)
         log_model_parameters(policy, wandb_run)
 
@@ -401,7 +399,7 @@ def train(
         except Exception as e:
             logger.warning(f"Failed to create training run: {e}", exc_info=True)
 
-    if is_master:
+    if torch_dist_cfg.is_master:
         logger.info(f"Training on {device}")
     wandb_policy_name: str | None = None
 
@@ -556,7 +554,7 @@ def train(
                     if info:
                         raw_infos.extend(info)
 
-                agent_step += total_steps * world_size
+                agent_step += total_steps * torch_dist_cfg.world_size
             accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
             # Aggregate dual_policy stats across all distributed nodes
@@ -663,7 +661,7 @@ def train(
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
-        if not is_master:
+        if not torch_dist_cfg.is_master:
             # Only master needs to do bookkeeping
             continue
 
@@ -801,7 +799,7 @@ def train(
 
     vecenv.close()
 
-    if not is_master:
+    if not torch_dist_cfg.is_master:
         return
 
     logger.info("Training complete!")
