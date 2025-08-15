@@ -74,7 +74,7 @@ losses:
     schedule:
       train:
         begin_at_epoch: 75
-        end_at_epoch: 1100
+        end_at_epoch: 800
 
     anneal_ratio: 0.65 # ratio of kickstart_epochs to anneal to 0 coef
     teacher_uri: wandb://run/m.av.loss.leader.006
