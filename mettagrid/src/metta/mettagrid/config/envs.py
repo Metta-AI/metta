@@ -1,4 +1,4 @@
-from metta.mettagrid.config import object
+from metta.mettagrid.config import building
 from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
@@ -18,12 +18,12 @@ def make_arena(
     combat: bool = False,
 ) -> EnvConfig:
     objects = {
-        "wall": object.wall,
-        "altar": object.altar,
-        "mine_red": object.mine_red,
-        "generator_red": object.generator_red,
-        "lasery": object.lasery,
-        "armory": object.armory,
+        "wall": building.wall,
+        "altar": building.altar,
+        "mine_red": building.mine_red,
+        "generator_red": building.generator_red,
+        "lasery": building.lasery,
+        "armory": building.armory,
     }
 
     actions = ActionsConfig(
@@ -90,3 +90,39 @@ def make_arena(
             ),
         )
     )
+
+
+def make_nav(num_agents: int) -> EnvConfig:
+    altar = building.altar
+    altar.initial_resource_count = 1
+
+    cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=num_agents,
+            objects={
+                "altar": altar,
+                "wall": building.wall,
+            },
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                rotate=ActionConfig(),
+                put_items=ActionConfig(),
+                get_items=ActionConfig(),
+            ),
+            agent=AgentConfig(
+                rewards=AgentRewards(
+                    inventory=InventoryRewards(
+                        heart=0.333,
+                    ),
+                ),
+            ),
+            map_builder=RandomMapBuilderConfig(
+                agents=num_agents,
+                width=25,
+                height=25,
+                border_object="wall",
+                border_width=1,
+            ),
+        )
+    )
+    return cfg
