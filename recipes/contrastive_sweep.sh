@@ -1,7 +1,31 @@
-./devops/sweep.sh run=$USER.arena_contrastive \
-  sweep=contrastive \
-  sim=arena \
+#!/usr/bin/env bash
+set -euo pipefail
+
+coef_values=(0.03 0.10 0.20 0.40)
+temperature_values=(0.03 0.05 0.07 0.12)
+num_negatives_values=(8 16 32)
+
+base_args="sim=arena \
   ++trainer.curriculum=/env/mettagrid/curriculum/arena/learning_progress \
   ++trainer.optimizer.type=muon \
   ++trainer.optimizer.learning_rate=0.0045 \
-  ++trainer.simulation.evaluate_interval=50
+  ++trainer.simulation.evaluate_interval=50 \
+  ++trainer.contrastive.enabled=true \
+  ++trainer.contrastive.gamma=0.99 \
+  ++trainer.contrastive.logsumexp_coef=0.01 \
+  ++trainer.contrastive.var_reg_coef=1.0 \
+  ++trainer.contrastive.var_reg_target=1.0" \
+  ++trainer.total_timesteps=200_000
+
+for coef in "${coef_values[@]}"; do
+  for temp in "${temperature_values[@]}"; do
+    for neg in "${num_negatives_values[@]}"; do
+      run_id="$USER.arena_contrastive.manual.$(date +%m-%d-%H-%M)-c${coef}-t${temp}-n${neg}"
+      metta tool train run="$run_id" \
+        $base_args \
+        ++trainer.contrastive.coef="$coef" \
+        ++trainer.contrastive.temperature="$temp" \
+        ++trainer.contrastive.num_negatives="$neg"
+    done
+  done
+done
