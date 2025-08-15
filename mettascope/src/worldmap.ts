@@ -980,4 +980,7 @@ export function drawMap(panel: PanelInfo) {
   }
 
   ctx.restore()
+
+  const sample = 'The quick brown fox jumps over the lazy dog 0123456789'
+  ctx.drawText('plexSans', sample,512, 512, [1, 1, 1, 1])
 }

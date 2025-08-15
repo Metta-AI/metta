@@ -291,7 +291,6 @@ def main():
         print(f"Successfully packed {image_count} images into atlas")
 
     # Write the atlas image and the atlas json file.
-    # Embed entire font config for clarity
     for font in FONTS:
         fid = font["fontName"]
         if fid in fonts_meta:
