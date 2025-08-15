@@ -6,7 +6,7 @@ import {
   User,
   UserInteraction,
 } from "@/posts/data/papers";
-import { toggleStarAction } from "@/posts/actions/toggleStarAction";
+import { useStarMutation } from "@/hooks/useStarMutation";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { useOverlayNavigation } from "./OverlayStack";
 import { signOut } from "next-auth/react";
@@ -36,17 +36,12 @@ export function MeView({
   // Overlay navigation
   const { openPaper } = useOverlayNavigation();
 
-  // Handle toggle star
-  const handleToggleStar = async (paperId: string) => {
-    try {
-      const formData = new FormData();
-      formData.append("paperId", paperId);
-      await toggleStarAction(formData);
+  // Star mutation
+  const starMutation = useStarMutation();
 
-      // Local state update is now handled by the overlay stack system
-    } catch (error) {
-      console.error("Error toggling star:", error);
-    }
+  // Handle toggle star
+  const handleToggleStar = (paperId: string) => {
+    starMutation.mutate(paperId);
   };
 
   // Handle toggle queue

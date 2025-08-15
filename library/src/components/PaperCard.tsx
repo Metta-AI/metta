@@ -3,7 +3,7 @@
 import { FC, useState } from "react";
 
 import { FeedPostDTO } from "@/posts/data/feed";
-import { StarWidget } from "./StarWidget";
+import { StarWidgetQuery } from "./StarWidgetQuery";
 
 interface PaperCardProps {
   paper: FeedPostDTO["paper"];
@@ -36,12 +36,21 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
-      {/* Header with title and abstract toggle */}
+      {/* Header with star widget, title and abstract toggle */}
       <div className="mb-3 flex items-start justify-between">
-        <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 flex-1 items-start gap-2">
+          <div className="mt-1 flex-shrink-0">
+            <StarWidgetQuery
+              paperId={paper.id}
+              initialTotalStars={paper.stars}
+              initialIsStarredByCurrentUser={paper.starred}
+              size="md"
+              readonly={true}
+            />
+          </div>
           {/* Paper title - clickable */}
           <h3
-            className="mb-2 cursor-pointer text-lg font-semibold text-gray-900 transition-colors hover:text-blue-600"
+            className="cursor-pointer text-lg font-semibold text-gray-900 transition-colors hover:text-blue-600"
             onClick={handleTitleClick}
           >
             {paper.title}
@@ -76,17 +85,11 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
             ) : (
               <span>{paper.source}</span>
             )}
-            <span>•</span>
           </>
         )}
-        <StarWidget
-          totalStars={paper.stars}
-          isStarredByCurrentUser={paper.starred}
-          size="md"
-        />
         {paper.institutions && paper.institutions.length > 0 && (
           <>
-            <span>•</span>
+            {paper.source && <span>•</span>}
             <span>{paper.institutions.join(", ")}</span>
           </>
         )}

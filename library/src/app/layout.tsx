@@ -8,6 +8,7 @@ import { FC, PropsWithChildren } from "react";
 
 import { LibraryLayout } from "@/components/LibraryLayout";
 import { MathJaxProvider } from "@/components/MathJaxProvider";
+import { QueryProvider } from "@/lib/query-client";
 import { auth } from "@/lib/auth";
 
 export const metadata: Metadata = {
@@ -18,9 +19,11 @@ const GlobalProviders: FC<PropsWithChildren> = async ({ children }) => {
   // Configure any other global providers here
   return (
     <SessionProvider>
-      <NuqsAdapter>
-        <MathJaxProvider>{children}</MathJaxProvider>
-      </NuqsAdapter>
+      <QueryProvider>
+        <NuqsAdapter>
+          <MathJaxProvider>{children}</MathJaxProvider>
+        </NuqsAdapter>
+      </QueryProvider>
     </SessionProvider>
   );
 };

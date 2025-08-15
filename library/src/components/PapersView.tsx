@@ -6,11 +6,12 @@ import {
   User,
   UserInteraction,
 } from "@/posts/data/papers";
-import { toggleStarAction } from "@/posts/actions/toggleStarAction";
+
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { useOverlayNavigation } from "./OverlayStack";
 import UserCard from "./UserCard";
-import { StarWidget } from "./StarWidget";
+import { StarWidgetQuery } from "./StarWidgetQuery";
+import { useStarMutation } from "@/hooks/useStarMutation";
 
 /**
  * PapersView Component
@@ -101,6 +102,9 @@ export function PapersView({ papers, users, interactions }: PapersViewProps) {
 
   // Overlay navigation
   const { openPaper } = useOverlayNavigation();
+
+  // Star mutation
+  const starMutation = useStarMutation();
 
   // Create a map of users for quick lookup
   const usersMap = useMemo(() => {
@@ -220,21 +224,8 @@ export function PapersView({ papers, users, interactions }: PapersViewProps) {
   };
 
   // Handle toggle star
-  const handleToggleStar = async (paperId: string) => {
-    if (!paperId || typeof paperId !== "string") {
-      console.warn("Invalid paperId provided to handleToggleStar:", paperId);
-      return;
-    }
-
-    try {
-      const formData = new FormData();
-      formData.append("paperId", paperId);
-      await toggleStarAction(formData);
-
-      // Local state update is now handled by the overlay stack system
-    } catch (error) {
-      console.error("Error toggling star:", error);
-    }
+  const handleToggleStar = (paperId: string) => {
+    starMutation.mutate(paperId);
   };
 
   // Handle toggle queue
@@ -467,10 +458,10 @@ export function PapersView({ papers, users, interactions }: PapersViewProps) {
 
           return (
             <div className="flex items-center gap-2">
-              <StarWidget
-                totalStars={starCount}
-                isStarredByCurrentUser={paper.isStarredByCurrentUser}
-                onClick={() => handleToggleStar(paper.id)}
+              <StarWidgetQuery
+                paperId={paper.id}
+                initialTotalStars={starCount}
+                initialIsStarredByCurrentUser={paper.isStarredByCurrentUser}
                 size="md"
               />
               <button

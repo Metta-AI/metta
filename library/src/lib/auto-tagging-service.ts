@@ -122,9 +122,37 @@ export class AutoTaggingService {
         return [];
       }
 
+      const contentType = pdfResponse.headers.get("content-type");
+      console.log(`📄 PDF response content-type: ${contentType}`);
+
       const pdfBuffer = Buffer.from(await pdfResponse.arrayBuffer());
+      console.log(`📄 PDF buffer size: ${pdfBuffer.length} bytes`);
+
+      // Validate PDF header
+      const pdfHeader = pdfBuffer.slice(0, 4).toString();
+      console.log(`📄 PDF header: ${pdfHeader}`);
+      if (!pdfHeader.startsWith("%PDF")) {
+        console.warn(
+          `⚠️ Invalid PDF header: ${pdfHeader}. Content might not be a valid PDF.`
+        );
+        console.warn(
+          `⚠️ First 100 bytes: ${pdfBuffer.slice(0, 100).toString()}`
+        );
+        return [];
+      }
+
+      // Check file size (OpenAI has limits)
+      const maxSize = 512 * 1024 * 1024; // 512MB limit for OpenAI
+      if (pdfBuffer.length > maxSize) {
+        console.warn(
+          `⚠️ PDF too large: ${pdfBuffer.length} bytes (max: ${maxSize})`
+        );
+        return [];
+      }
+
       const tagVocabularyText = tagVocabulary.join(", ");
 
+      console.log(`📄 Sending PDF to OpenAI for analysis...`);
       const result = await generateObject({
         model: openai("gpt-4o"),
         schema: TagSuggestionSchema,
@@ -175,6 +203,19 @@ IMPORTANT: Only return tags that appear EXACTLY in the vocabulary list above.`,
       return validTags;
     } catch (error) {
       console.error(`❌ Error in PDF analysis:`, error);
+
+      // Log more details about the error
+      if (error && typeof error === "object") {
+        console.error(`❌ Error details:`, {
+          message: (error as any).message,
+          statusCode: (error as any).statusCode,
+          responseBody: (error as any).responseBody,
+          url: (error as any).url,
+          paperTitle: paper.title,
+          paperLink: paper.link,
+        });
+      }
+
       return [];
     }
   }

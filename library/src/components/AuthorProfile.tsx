@@ -3,7 +3,7 @@
 import { FC, useState } from "react";
 
 import { AuthorDTO } from "@/posts/data/authors-client";
-import { StarWidget } from "./StarWidget";
+import { StarWidgetQuery } from "./StarWidgetQuery";
 
 interface AuthorProfileProps {
   author: AuthorDTO;
@@ -244,10 +244,12 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
                       <div className="mb-2 flex items-center gap-2 text-sm text-gray-600">
                         <span>{formatDate(paper.createdAt)}</span>
                         <span>•</span>
-                        <StarWidget
-                          totalStars={paper.stars}
-                          isStarredByCurrentUser={false}
+                        <StarWidgetQuery
+                          paperId={paper.id}
+                          initialTotalStars={paper.stars}
+                          initialIsStarredByCurrentUser={false}
                           size="sm"
+                          readonly={true}
                         />
                       </div>
                       {paper.link && (
@@ -339,10 +341,12 @@ export const AuthorProfile: FC<AuthorProfileProps> = ({
                       <div className="mb-3 flex items-center gap-4 text-sm text-gray-600">
                         <span>{formatDate(paper.createdAt)}</span>
                         <span>•</span>
-                        <StarWidget
-                          totalStars={paper.stars}
-                          isStarredByCurrentUser={false}
+                        <StarWidgetQuery
+                          paperId={paper.id}
+                          initialTotalStars={paper.stars}
+                          initialIsStarredByCurrentUser={false}
                           size="sm"
+                          readonly={true}
                         />
                       </div>
                     </div>
