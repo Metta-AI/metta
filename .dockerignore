@@ -11,7 +11,6 @@
 checkpoints
 mettagrid/dist
 mettagrid/multirun
-cython_debug
 outputs
 replays
 stats.profile
@@ -39,6 +38,7 @@ mettascope/dist
 **/node_modules
 **/.next
 /observatory/.vite/
+/observatory/dist/
 
 wandb
 

@@ -17,11 +17,16 @@ fi
 # Extract sweep name from run
 sweep_name=$(echo "$args" | grep -E -o '(^|[[:space:]])run=[^ ]*' | sed 's/.*run=//')
 
-
 # Replace run=<name> with sweep_name=<name> - handle both start of string and after space
 args_for_rollout=$(echo "$args" | sed 's/^run=/sweep_name=/' | sed 's/ run=/ sweep_name=/g')
 
-source ./devops/setup.env # TODO: Make sure that this is the right source-ing.
+# TODO: review desired cmd ENV settings
+export PYTHONUNBUFFERED=1
+export PYTHONPATH=$PYTHONPATH:$(pwd)
+export PYTHONOPTIMIZE=1
+export HYDRA_FULL_ERROR=1
+export WANDB_DIR="./wandb"
+export DATA_DIR=${DATA_DIR:-./train_dir}
 
 echo "[INFO] Setting up sweep: $sweep_name"
 mkdir -p "${DATA_DIR}/sweep/$sweep_name"
@@ -42,7 +47,7 @@ MAX_CONSECUTIVE_FAILURES=3
 consecutive_failures=0
 
 while true; do
-  if ./devops/sweep_rollout.sh $args_for_rollout; then
+  if ./metta/sweep/sweep_rollout.py $args_for_rollout; then
     consecutive_failures=0
   else
     consecutive_failures=$((consecutive_failures + 1))

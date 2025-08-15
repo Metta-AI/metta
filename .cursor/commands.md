@@ -21,10 +21,10 @@ echo "Test ID: $TEST_ID"
 
 ```bash
 # Basic training (will run indefinitely, terminate with Ctrl+C after ~30 seconds)
-uv run ./tools/train.py run=test_$TEST_ID +hardware=macbook trainer.num_workers=2
+uv run ./tools/train.py run=test_$TEST_ID trainer.num_workers=2
 
 # Smoke test training (runs with deterministic settings for CI/CD)
-uv run ./tools/train.py run=smoke_$TEST_ID +hardware=macbook trainer.num_workers=2 +smoke_test=true
+uv run ./tools/train.py run=smoke_$TEST_ID trainer.num_workers=2 +smoke_test=true
 
 # Using cursor config (limited to 100k steps)
 uv run ./tools/train.py +user=cursor run=cursor_$TEST_ID trainer.num_workers=2
@@ -58,7 +58,7 @@ uv run ./tools/analyze.py run=cursor_analysis_$TEST_ID +user=cursor analysis.eva
 ### Basic 30-second test (copy-paste friendly)
 
 ```bash
-export TEST_ID=$(date +%Y%m%d_%H%M%S) && echo "Test ID: $TEST_ID" && uv run ./tools/train.py run=test_$TEST_ID +hardware=macbook trainer.total_timesteps=10000 trainer.num_workers=2
+export TEST_ID=$(date +%Y%m%d_%H%M%S) && echo "Test ID: $TEST_ID" && uv run ./tools/train.py run=test_$TEST_ID trainer.total_timesteps=10000 trainer.num_workers=2
 # After training completes or you Ctrl+C:
 uv run ./tools/sim.py run=eval_$TEST_ID policy_uri=file://./train_dir/test_$TEST_ID/checkpoints device=cpu sim=navigation
 uv run ./tools/analyze.py run=analysis_$TEST_ID analysis.policy_uri=file://./train_dir/test_$TEST_ID/checkpoints analysis.eval_db_uri=./train_dir/eval_$TEST_ID/stats.db
@@ -107,10 +107,10 @@ grep -r "agent_raw" train_dir/test_$TEST_ID/wandb || echo "✓ No agent_raw metr
 
 ```bash
 # Interactive simulation for manual testing and exploration
-uv run ./tools/play.py run=my_experiment +hardware=macbook wandb=off
+uv run ./tools/play.py run=my_experiment wandb=off
 
 # Interactive play with specific policy
-uv run ./tools/play.py run=play_$TEST_ID policy_uri=file://./train_dir/test_$TEST_ID/checkpoints +hardware=macbook
+uv run ./tools/play.py run=play_$TEST_ID policy_uri=file://./train_dir/test_$TEST_ID/checkpoints
 ```
 
 ## Navigation Evaluation Database
@@ -121,7 +121,7 @@ uv run ./tools/play.py run=play_$TEST_ID policy_uri=file://./train_dir/test_$TES
 # Add a policy to the navigation evals database
 uv run ./tools/sim.py eval=navigation run=RUN_NAME eval.policy_uri=POLICY_URI +eval_db_uri=wandb://artifacts/navigation_db
 
-# Analyze results with heatmap
+# Analyze results with scorecard
 uv run ./tools/analyze.py run=analyze +eval_db_uri=wandb://artifacts/navigation_db analyzer.policy_uri=POLICY_URI
 ```
 

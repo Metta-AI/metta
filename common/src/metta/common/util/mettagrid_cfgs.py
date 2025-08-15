@@ -3,10 +3,12 @@ from dataclasses import dataclass
 from typing import Literal
 
 import hydra
+import yaml
 from omegaconf import DictConfig, OmegaConf
 from typing_extensions import TypedDict
 
 from metta.common.util.config import config_from_path
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
 
 METTAGRID_CFG_ROOT = "env/mettagrid"
 
@@ -30,7 +32,18 @@ class MettagridCfgFileMetadata:
         elif path.startswith("curriculum/"):
             kind = "curriculum"
         else:
-            kind = "env"
+            with open("configs/" + METTAGRID_CFG_ROOT + "/" + path, "r") as f:
+                cfg = yaml.safe_load(f)
+                if "game" in cfg:
+                    kind = "env"
+                elif "curriculum" in cfg.get("_target_", ""):
+                    kind = "curriculum"
+                elif "env_overrides" in cfg:
+                    kind = "curriculum"
+                elif "mapgen" in cfg.get("_target_", ""):
+                    kind = "map"
+                else:
+                    kind = "unknown"
 
         return MettagridCfgFileMetadata(path=path, kind=kind)
 
@@ -97,6 +110,12 @@ class MettagridCfgFile:
             map_cfg = self.cfg
         elif self.metadata.kind == "env":
             map_cfg = self.cfg.game.map_builder
+        elif self.metadata.kind == "curriculum":
+            hydra_path = "/env/mettagrid/" + self.metadata.path.replace(".yaml", "")
+            with hydra.initialize(config_path="../../../../../configs", version_base=None):
+                curriculum = curriculum_from_config_path(hydra_path, OmegaConf.create({}))
+            task = curriculum.get_task()
+            map_cfg = task.original_env_cfg().game.map_builder
         else:
             raise ValueError(f"Config {self.metadata.path} is not a map or env")
 

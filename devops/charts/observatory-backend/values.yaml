@@ -14,3 +14,6 @@ image:
 secret_name: observatory-backend-env
 
 cert_manager_issuer: letsencrypt
+
+secrets:
+  anthropic: "anthropic-api-key"

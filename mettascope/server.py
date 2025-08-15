@@ -12,6 +12,8 @@ from fastapi.staticfiles import StaticFiles
 from omegaconf import DictConfig
 
 import mettascope.replays as replays
+from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
+from metta.mettagrid.grid_object_formatter import format_grid_object
 from metta.util.metta_script import metta_script
 
 # Set up logging
@@ -20,11 +22,12 @@ logger = logging.getLogger(__name__)
 
 
 class CustomStaticFiles(StaticFiles):
-    """StaticFiles that disables caching for specific file extensions and sets custom content types."""
+    """StaticFiles that disables caching for specific file extensions or filenames and sets custom content types."""
 
-    def __init__(self, *args, no_cache_extensions=None, custom_content_types=None, **kwargs):
+    def __init__(self, *args, no_cache_extensions=None, no_cache_filenames=None, custom_content_types=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.no_cache_extensions = no_cache_extensions or {".js", ".json"}
+        self.no_cache_filenames = no_cache_filenames or set()
         self.custom_content_types = custom_content_types or {}
 
     def file_response(
@@ -45,8 +48,8 @@ class CustomStaticFiles(StaticFiles):
         if file_ext in self.custom_content_types:
             response.headers["content-type"] = self.custom_content_types[file_ext]
 
-        # Handle caching
-        if file_ext in self.no_cache_extensions:
+        # Handle caching.
+        if file_ext in self.no_cache_extensions or file_path.name in self.no_cache_filenames:
             response.headers["Cache-Control"] = "no-store"
 
         return response
@@ -123,7 +126,11 @@ def make_app(cfg: DictConfig):
     app.mount("/data", StaticFiles(directory="mettascope/data"), name="data")
     app.mount(
         "/dist",
-        CustomStaticFiles(directory="mettascope/dist", no_cache_extensions={".js", ".json", ".css"}),
+        CustomStaticFiles(
+            directory="mettascope/dist",
+            no_cache_extensions={".js", ".json", ".css"},
+            no_cache_filenames={"atlas.png"},
+        ),
         name="dist",
     )
     app.mount(
@@ -165,17 +172,16 @@ def make_app(cfg: DictConfig):
             for i, grid_object in enumerate(env.grid_objects.values()):
                 if len(grid_objects) <= i:
                     grid_objects.append({})
-                for key, value in grid_object.items():
-                    grid_objects[i][key] = value
+
                 if "agent_id" in grid_object:
                     agent_id = grid_object["agent_id"]
-                    grid_objects[i]["action_success"] = bool(env.action_success[agent_id])
-                    grid_objects[i]["action"] = actions[agent_id].tolist()
-                    grid_objects[i]["reward"] = env.rewards[agent_id].item()
                     total_rewards[agent_id] += env.rewards[agent_id]
-                    grid_objects[i]["total_reward"] = total_rewards[agent_id].item()
 
-            await send_message(type="replay_step", replay_step={"step": current_step, "grid_objects": grid_objects})
+                update_object = format_grid_object(grid_object, actions, env.action_success, env.rewards, total_rewards)
+
+                grid_objects[i] = update_object
+
+            await send_message(type="replay_step", replay_step={"step": current_step, "objects": grid_objects})
 
         # Send the first replay step.
         await send_replay_step()
@@ -220,8 +226,8 @@ def make_app(cfg: DictConfig):
                 actions = sim.generate_actions()
                 if action_message is not None:
                     agent_id = action_message["agent_id"]
-                    actions[agent_id][0] = action_message["action"][0]
-                    actions[agent_id][1] = action_message["action"][1]
+                    actions[agent_id][0] = action_message["action_id"]
+                    actions[agent_id][1] = action_message["action_param"]
                 sim.step_simulation(actions)
 
                 await send_replay_step()
@@ -239,7 +245,7 @@ def run(cfg: DictConfig, open_url: str | None = None):
     app = make_app(cfg)
 
     if open_url:
-        server_url = "http://localhost:8000"
+        server_url = DEV_METTASCOPE_FRONTEND_URL
 
         @app.on_event("startup")
         async def _open_browser():
