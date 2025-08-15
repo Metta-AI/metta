@@ -1,5 +1,5 @@
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.config.builder as eb
+import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.task_generator import ValueRange as vr
 
 arena = eb.make_arena(num_agents=24)

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 
-from metta.mettagrid.config.builder import make_arena
+from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
