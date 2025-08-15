@@ -22,7 +22,7 @@ def guess_device() -> str:
     return f"cuda:{local_rank}"
 
 
-def guess_vectorization() -> str:
+def guess_vectorization() -> Literal["serial", "multiprocessing"]:
     if platform.system() == "Darwin":
         return "serial"
     return "multiprocessing"
