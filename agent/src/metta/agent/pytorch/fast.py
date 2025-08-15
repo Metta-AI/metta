@@ -2,6 +2,7 @@ import logging
 import math
 
 import einops
+import numpy as np
 import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
@@ -192,10 +193,15 @@ class Policy(nn.Module):
 
         # Match YAML component initialization more closely
         # Use dynamically determined num_layers as input channels
+        # Note: YAML uses orthogonal with gain=1, not sqrt(2) like pufferlib default
         self.cnn1 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(in_channels=self.num_layers, out_channels=64, kernel_size=5, stride=3)
+            nn.Conv2d(in_channels=self.num_layers, out_channels=64, kernel_size=5, stride=3),
+            std=1.0,  # Match YAML orthogonal gain=1
         )
-        self.cnn2 = pufferlib.pytorch.layer_init(nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1))
+        self.cnn2 = pufferlib.pytorch.layer_init(
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
+            std=1.0,  # Match YAML orthogonal gain=1
+        )
 
         test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
         with torch.no_grad():
@@ -204,15 +210,19 @@ class Policy(nn.Module):
 
         self.flatten = nn.Flatten()
 
-        self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(self.flattened_size, 128))
-        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, 128))
+        # Match YAML: Linear layers use orthogonal with gain=1
+        self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(self.flattened_size, 128), std=1.0)
+        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, 128), std=1.0)
 
         # Critic branch
-        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
+        # critic_1 uses gain=sqrt(2) because it's followed by tanh (YAML: nonlinearity: nn.Tanh)
+        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024), std=np.sqrt(2))
+        # value_head has no nonlinearity (YAML: nonlinearity: null), so gain=1
         self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
 
         # Actor branch
-        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
+        # actor_1 uses gain=1 (YAML default for Linear layers with ReLU)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512), std=1.0)
 
         # Action embeddings - will be properly initialized via activate_action_embeddings
         self.action_embeddings = nn.Embedding(100, 16)
