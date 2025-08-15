@@ -1,59 +1,54 @@
-from typing import Any, cast
+from typing import Literal, Optional
 
 import numpy as np
-from omegaconf import DictConfig, OmegaConf
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from metta.map.scene import load_class, make_scene, scene_cfg_to_dict
 from metta.map.scenes.copy_grid import CopyGrid
 from metta.map.scenes.room_grid import RoomGrid, RoomGridParams
 from metta.map.scenes.transplant_scene import TransplantScene
+from metta.map.terrain_from_numpy import TerrainFromNumpyConfig
 from metta.mettagrid.map_builder.map_builder import (
     GameMap,
-)
-from metta.mettagrid.map_builder.map_builder import (
-    MapBuilder as GameMapBuilder,
-)
-from metta.mettagrid.map_builder.map_builder import (
-    MapBuilderConfig as GameMapBuilderConfig,
+    MapBuilder,
+    MapBuilderConfig,
 )
 from metta.mettagrid.map_builder.utils import create_grid
 
 from .types import Area, AreaWhere, ChildrenAction, SceneCfg
 
 
-class MapGenParams(GameMapBuilderConfig):
-    ########## Global parameters ##########
+class MapGenConfig(MapBuilderConfig):
+    type: Literal["metta.map.mapgen.MapGenConfig"] = "metta.map.mapgen.MapGenConfig"
 
-    # Discriminator field for polymorphic serialization
-    type: str = "metta.map.mapgen.MapGen"
+    ########## Global parameters ##########
 
     # Default border_width value guarantees that agents don't see beyond the outer walls.
     # This value usually shouldn't be changed.
-    border_width: int = 5
+    border_width: int = Field(default=5, ge=0)
 
     # Random seed. If not set, a random seed will be generated.
     # Seeds for root scene and all its children will be derived from this seed, unless they set their own seeds.
-    seed: int | None = None
+    seed: int | None = Field(default=None, ge=0)
 
     ########## Single instance parameters ##########
 
     # Root scene configuration.
     # In YAML configs, this is usually the dict with `type` and `params` keys, and possible children.
-    root: SceneCfg | None = None
+    root: Optional[SceneCfg] = None
 
     # Inner grid size. Doesn't take outer border into account.
     # If `instances` is set, this is the size used for each instance.
     # The map must have either `width`, `height` and `root` set, or `instance_map`.
-    width: int | None = None
-    height: int | None = None
+    width: Optional[int] = Field(default=None, ge=0)
+    height: Optional[int] = Field(default=None, ge=0)
 
     # Alternative to `root`: Root map configuration.
     # Either this or `root` must be set.
     # The difference is that `root` doesn't have an intrinsic size, so you need to set `width` and `height` explicitly.
-    # `instance_map` must point to a `GameMapBuilder` configuration, with the class name specified in `type`, and params
+    # `instance_map` must point to a `MapBuilder` configuration, with the class name specified in `type`, and params
     # specified in `params` dict.
-    instance_map: dict[str, Any] | None = None
+    instance_map: Optional[MapBuilderConfig | TerrainFromNumpyConfig] = Field(default=None)
 
     ########## Multiple instances parameters ##########
 
@@ -69,17 +64,17 @@ class MapGenParams(GameMapBuilderConfig):
 
     # Number of root scene instances to generate. If set, the map will be generated as a grid of instances, separated by
     # the given `instance_border_width`.
-    instances: int | None = None
+    instances: Optional[int] = Field(default=None, ge=1)
 
     # Number of agents to generate. If set, MapGen will automatically compute the number of instances based on how many
     # agents there are in the root scene.
-    num_agents: int | None = None
+    num_agents: Optional[int] = Field(default=None, ge=0)
 
     # Inner border width between instances. This value usually shouldn't be changed.
-    instance_border_width: int = 5
+    instance_border_width: int = Field(default=5, ge=0)
 
     @model_validator(mode="after")
-    def validate_required_fields(self) -> "MapGenParams":
+    def validate_required_fields(self) -> "MapGenConfig":
         """Validate that either (root, width, height) are all set, or instance_map is set."""
         has_basic_config = self.root is not None
         has_instance_map = self.instance_map is not None and self.width is None and self.height is None
@@ -92,20 +87,18 @@ class MapGenParams(GameMapBuilderConfig):
 
     def create(self) -> "MapGen":
         """Create a MapGen builder from this configuration."""
-        return MapGen(**self.model_dump())
+        return MapGen(self)
 
 
 # Root map generator, based on scenes.
-class MapGen(GameMapBuilder):
-    def __init__(self, **kwargs):
-        params = MapGenParams(**kwargs)
-        self.params = params
+class MapGen(MapBuilder):
+    def __init__(self, config: MapGenConfig):
+        super().__init__(config)
+        self.config = config
 
-        self.root = params.root
-        if isinstance(self.root, DictConfig):
-            self.root = cast(dict, OmegaConf.to_container(self.root))
+        self.root = self.config.root
 
-        self.rng = np.random.default_rng(self.params.seed)
+        self.rng = np.random.default_rng(self.config.seed)
 
     def prebuild_instances(self):
         """
@@ -132,19 +125,19 @@ class MapGen(GameMapBuilder):
         self.instance_scene_factories: list[SceneCfg] = []
 
         # Can be None, but we'll set these fields to their actual values after the loop.
-        self.width = self.params.width
-        self.height = self.params.height
-        self.instances = self.params.instances
+        self.width = self.config.width
+        self.height = self.config.height
+        self.instances = self.config.instances
 
         def continue_to_prerender():
             if not self.width or not self.height:
                 # We haven't detected the instance size yet.
                 return True
-            if self.params.num_agents and not len(self.instance_scene_factories):
+            if self.config.num_agents and not len(self.instance_scene_factories):
                 # We need to derive the number of instances from the number of agents by rendering at least one
                 # instance.
                 return True
-            if self.params.instance_map and self.instances and self.instances > len(self.instance_scene_factories):
+            if self.config.instance_map and self.instances and self.instances > len(self.instance_scene_factories):
                 # We need to prebuild all instances.
                 return True
             return False
@@ -176,13 +169,12 @@ class MapGen(GameMapBuilder):
                     )
                 )
             else:
-                assert self.params.instance_map is not None
+                assert self.config.instance_map is not None
                 # Instance is a map, not a scene, so it defines its own size.
                 # We need to prerender it to find the full size of our grid.
-                instance_map_cls = load_class(self.params.instance_map["type"], check_is_scene=False)
-                instance_map = instance_map_cls(**self.params.instance_map["params"])
-                if not isinstance(instance_map, GameMapBuilder):
-                    raise ValueError("instance_map must be a GameMapBuilder")
+                instance_map = self.config.instance_map.create()
+                if not isinstance(instance_map, MapBuilder):
+                    raise ValueError("instance_map must be a MapBuilder")
 
                 instance_level = instance_map.build()
                 instance_grid = instance_level.grid
@@ -192,22 +184,21 @@ class MapGen(GameMapBuilder):
                     CopyGrid.factory(
                         {
                             "grid": instance_grid,
-                            "labels": instance_level.labels,
                         }
                     )
                 )
                 self.width = max(self.width or 0, instance_grid.shape[1])
                 self.height = max(self.height or 0, instance_grid.shape[0])
 
-            if self.params.num_agents and len(self.instance_scene_factories) == 1:
+            if self.config.num_agents and len(self.instance_scene_factories) == 1:
                 # First prebuilt instance, let's derive the number of instances from the number of agents.
                 instance_num_agents = int(np.count_nonzero(np.char.startswith(instance_grid, "agent")))
-                if self.params.num_agents % instance_num_agents != 0:
+                if self.config.num_agents % instance_num_agents != 0:
                     raise ValueError(
-                        f"Number of agents {self.params.num_agents} is not divisible by number of agents"
+                        f"Number of agents {self.config.num_agents} is not divisible by number of agents"
                         f" in a single instance {instance_num_agents}"
                     )
-                instances = self.params.num_agents // instance_num_agents
+                instances = self.config.num_agents // instance_num_agents
 
                 # Usually, when num_agents is set, you don't need to set `instances` explicitly.
                 if self.instances and self.instances != instances:
@@ -232,13 +223,13 @@ class MapGen(GameMapBuilder):
         assert self.width is not None and self.height is not None
 
         self.inner_width = (
-            self.width * self.instance_cols + (self.instance_cols - 1) * self.params.instance_border_width
+            self.width * self.instance_cols + (self.instance_cols - 1) * self.config.instance_border_width
         )
         self.inner_height = (
-            self.height * self.instance_rows + (self.instance_rows - 1) * self.params.instance_border_width
+            self.height * self.instance_rows + (self.instance_rows - 1) * self.config.instance_border_width
         )
 
-        bw = self.params.border_width
+        bw = self.config.border_width
 
         self.grid = create_grid(self.inner_height + 2 * bw, self.inner_width + 2 * bw)
 
@@ -306,7 +297,7 @@ class MapGen(GameMapBuilder):
             RoomGridParams(
                 rows=self.instance_rows,
                 columns=self.instance_cols,
-                border_width=self.params.instance_border_width,
+                border_width=self.config.instance_border_width,
             ),
             children_actions=children_actions,
         )
@@ -319,15 +310,6 @@ class MapGen(GameMapBuilder):
 
         self.root_scene = make_scene(root_scene_cfg, self.inner_area, rng=self.rng)
         self.root_scene.render_with_children()
-
-        labels = self.root_scene.get_labels()
-        area = self.inner_width * self.inner_height
-        if area < 4000:
-            labels.append("small")
-        elif area < 6000:
-            labels.append("medium")
-        else:
-            labels.append("large")
 
         return GameMap(self.grid)
 

@@ -25,7 +25,7 @@ import numpy as np
 
 # Gym adapter imports
 from metta.mettagrid import MettaGridGymEnv
-from metta.mettagrid.config.builder import make_arena
+from metta.mettagrid.config.envs import make_arena
 
 # Training framework imports
 try:
