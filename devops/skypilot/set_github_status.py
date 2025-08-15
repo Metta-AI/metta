@@ -64,7 +64,6 @@ def main() -> int:
     context = os.getenv("GITHUB_STATUS_CONTEXT", "Skypilot/E2E").strip()
     if not context:
         print("[ERROR] post_commit_status requires a valid context string!")
-
     desc = os.getenv(
         "GITHUB_STATUS_DESCRIPTION",
         "Training completed successfully" if state == "success" else f"Training failed (exit {cmd_exit})",
@@ -97,7 +96,6 @@ def main() -> int:
             if attempt == 4:
                 print(f"[ERROR] Failed to post status after retries: {e}")
                 return 2
-
             sleep_s = 2**attempt
             print(f"[WARN] Post failed (attempt {attempt}), retrying in {sleep_s}s: {e}")
             time.sleep(sleep_s)
