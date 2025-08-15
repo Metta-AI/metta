@@ -225,8 +225,8 @@ class AuthorReportGenerator:
             "What mythical creature best represents this developer's coding style, and why?",
             "A short fable in which the author learns a lesson about code review.",
             "A LinkedIn endorsement written by a medieval bard.",
-            "Imagine this author is a character in a fantasy novel. Describe their class, abilities, and greatest feat.",
-            "Draft the first lines of a documentary about this developer’s journey through this review period.",
+            "Imagine this author is a D&D character. Describe their class, level, abilities, feats, etc.",
+            "Draft the first lines of a Werner Hertzog documentary about this developer.",
             "Write a single tweet that encapsulates this author's coding spirit.",
         ]
         return random.choice(prompts)
@@ -347,15 +347,19 @@ Please check the data integrity and try again.
 You are creating a performance review for {author} at a fast-moving startup with ~15 engineers.
 
 **CONTEXT:**
-We are a fast-moving team that values **shipping velocity, customer impact, and pragmatic engineering** over perfect abstractions. Code should be clean and maintainable, but not at the cost of momentum.
+We are a fast-moving team that values **shipping velocity, customer impact, and pragmatic engineering** over perfect
+abstractions. Code should be clean and maintainable, but not at the cost of momentum.
 
 - We **prioritize iterative delivery** over big rewrites.
-- **Composition is favored over inheritance** — we avoid deep class hierarchies and prefer functions or small composable objects.
+- **Composition is favored over inheritance** — we avoid deep class hierarchies and prefer functions or small
+composable objects.
 - Verbose docstrings and excessive inline comments are discouraged; we prefer **clear code over redundant explanation**.
 - We are working in **C++, Python, and TypeScript**.
-- Python code is gradually being made safer with **incremental adoption of Pydantic and type hints**, but we still tolerate partial coverage.
+- Python code is gradually being made safer with **incremental adoption of Pydantic and type hints**, but we still
+tolerate partial coverage.
 - In C++, clarity, correctness, and modern patterns matter more than exhaustive encapsulation or heavy OOP.
-- In TypeScript, we prefer practical type safety over perfect type gymnastics — runtime confidence is more important than theoretical purity.
+- In TypeScript, we prefer practical type safety over perfect type gymnastics — runtime confidence is more important
+than theoretical purity.
 
 ### 🧠 Philosophy on Learning & Style:
 - We prefer resources like:
@@ -419,11 +423,13 @@ Create a balanced performance review that:
 **Period:** {date_range}
 
 ## Executive Summary
-[2-3 paragraph overview of performance, key contributions, and overall assessment. Emphasize impact, shipping velocity, and teamwork.]
+[2-3 paragraph overview of performance, key contributions, and overall assessment. Emphasize impact, shipping velocity,
+and teamwork.]
 
 ## Experience Level Assessment
-[Based on the code quality, problem-solving approach, independence, and technical sophistication demonstrated across PRs,
-estimate whether the developer is at a junior (0–2 years), mid-level (2–5), senior (5+), or staff+ level.
+[Based on the code quality, problem-solving approach, independence, and technical sophistication demonstrated across
+PRs,
+estimate whether the developer is at a junior (0-2 years), mid-level (2-5), senior (5+), or staff+ level.
 
 Focus on:
 - Scope and complexity of problems tackled
@@ -435,16 +441,20 @@ Focus on:
 ## Quantitative Analysis
 - **Productivity:** [PR volume, lines changed, time-to-merge — focus on sustained contribution rate]
 - **Code Quality:** [Patterns in readability, maintainability, and review feedback]
-- **Testing & Documentation:** [Effort spent ensuring confidence in shipped code — keep expectations realistic for a fast-moving team]
+- **Testing & Documentation:** [Effort spent ensuring confidence in shipped code — keep expectations realistic for
+a fast-moving team]
 
 ## Progress & Improvement
-[If previous reviews exist, discuss any trends in quality, impact, or behavior. Highlight both consistency and signs of growth.]
+[If previous reviews exist, discuss any trends in quality, impact, or behavior. Highlight both consistency and signs
+of growth.]
 
 ## Key Accomplishments
-[List 3–5 impactful contributions with context: why it mattered, what problems it solved, how it moved the product forward.]
+[List 3-5 impactful contributions with context: why it mattered, what problems it solved, how it moved the product
+forward.]
 
 ## Technical Strengths
-[Highlight strong technical decisions, thoughtful trade-offs, and efficient problem solving. Look for patterns that reflect maturity or specialization.]
+[Highlight strong technical decisions, thoughtful trade-offs, and efficient problem solving. Look for patterns that
+reflect maturity or specialization.]
 
 ## Areas for Development
 [Frame this as an opportunity to level up. Focus on small changes with big upside, e.g.:
@@ -454,10 +464,11 @@ Focus on:
 Avoid suggesting heavy process unless necessary.]
 
 ## Notable Contributions
-[Spotlight 2–3 PRs that best showcase the author’s technical skill, creativity, or product intuition.]
+[Spotlight 2-3 PRs that best showcase the author's technical skill, creativity, or product intuition.]
 
 ## Primary Learning Recommendation
-[Choose ONE area of growth that fits the developer’s current trajectory and workload. Avoid broad books unless truly warranted. Prefer things like:
+[Choose ONE area of growth that fits the developer's current trajectory and workload. Avoid broad books unless truly
+warranted. Prefer things like:
 - “Add lightweight regression checks for async bugs”
 - “Try mob programming on tricky PRs for faster knowledge transfer”
 - “Write more descriptive commit messages to help future readers”]
