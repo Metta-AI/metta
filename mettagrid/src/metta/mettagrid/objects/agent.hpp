@@ -10,6 +10,7 @@
 #include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
 #include "constants.hpp"
+#include "objects/box.hpp"
 #include "types.hpp"
 
 // #MettagridConfig
@@ -88,6 +89,8 @@ public:
   static constexpr size_t MAX_HISTORY_LENGTH = 1024;
   size_t history_count = 0;  // Total actions recorded (capped at MAX_HISTORY_LENGTH)
 
+  Box* box;
+
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
         frozen(0),
@@ -112,7 +115,8 @@ public:
         history_count(0),
         action_history{},
         action_arg_history{},
-        history_write_pos(0) {
+        history_write_pos(0),
+        box(nullptr) {
     populate_initial_inventory(config.initial_inventory);
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }

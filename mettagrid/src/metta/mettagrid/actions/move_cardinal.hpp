@@ -40,13 +40,15 @@ protected:
     GridLocation current_location = actor->location;
     GridLocation target_location = _grid->relative_location(current_location, move_direction);
 
+    // Update orientation to face movement direction
+    actor->orientation = move_direction;
+
     // Check if we are blocked by an obstacle
     if (!_grid->is_empty(target_location.r, target_location.c)) {
       return false;
     }
 
-    // Update orientation to face movement direction
-    actor->orientation = move_direction;
+
 
     // Move the agent with new orientation
     return _grid->move_object(actor->id, target_location);

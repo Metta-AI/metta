@@ -3,6 +3,8 @@ import os
 import sys
 from pathlib import Path
 
+from metta.common.util.lazypath import LazyPath
+
 PROD_STATS_SERVER_URI = "https://api.observatory.softmax-research.net"
 DEV_STATS_SERVER_URI = "http://localhost:8000"
 
@@ -24,7 +26,7 @@ METTA_AWS_REGION = "us-east-1"
 
 METTA_SKYPILOT_URL = "skypilot-api.softmax-research.net"
 
-METTA_ENV_FILE = Path(os.path.expanduser("~/.metta_env_path"))
+METTA_ENV_FILE = LazyPath(os.path.expanduser("~/.metta_env_path"))
 
 SOFTMAX_S3_BASE = "s3://softmax-public"
 
@@ -35,11 +37,15 @@ def main():
         sys.exit(1)
 
     key = sys.argv[1]
-
     val = globals().get(key)
+
     if val is None:
         print(f"Error: no such key '{key}'", file=sys.stderr)
         sys.exit(2)
+
+    # If it's callable (e.g. LazyPath), call it
+    if callable(val):
+        val = val()
 
     # If it's a Path, cast to string
     if isinstance(val, Path):

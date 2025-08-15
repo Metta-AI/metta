@@ -3,7 +3,7 @@ from typing import Optional
 import numpy as np
 import numpy.typing as npt
 
-from metta.mettagrid.level_builder import Level, LevelBuilder
+from metta.mettagrid.level_builder import Level, LevelBuilder, create_grid
 
 
 class Room(LevelBuilder):
@@ -29,7 +29,7 @@ class Room(LevelBuilder):
     def _add_border(self, room):
         b = self._border_width
         h, w = room.shape
-        final_level = np.full((h + b * 2, w + b * 2), self._border_object, dtype="<U50")
+        final_level = create_grid(h + b * 2, w + b * 2, fill_value=self._border_object)
         final_level[b : b + h, b : b + w] = room
         return final_level
 

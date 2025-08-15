@@ -17,6 +17,7 @@ game:
 
   # Movement metrics tracking
   track_movement_metrics: true
+  no_agent_interference: false
 
   # Global observation tokens configuration
   global_obs:
@@ -53,6 +54,8 @@ game:
       enabled: true
     put_items:
       enabled: true
+    place_box:
+      enabled: false
     get_items:
       enabled: true
     attack:

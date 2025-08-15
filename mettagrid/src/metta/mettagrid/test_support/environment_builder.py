@@ -7,6 +7,7 @@ from typing import Any, List, Optional, Tuple
 
 import numpy as np
 
+from metta.mettagrid.level_builder import create_grid
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions  # noqa: F401
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 
@@ -28,7 +29,7 @@ class TestEnvironmentBuilder:
     @staticmethod
     def create_basic_grid(width: int = 8, height: int = 4) -> np.ndarray:
         """Create a basic grid with walls around perimeter."""
-        game_map = np.full((height, width), "empty", dtype="<U50")
+        game_map = create_grid(height, width)
         game_map[0, :] = "wall"
         game_map[-1, :] = "wall"
         game_map[:, 0] = "wall"
@@ -57,6 +58,7 @@ class TestEnvironmentBuilder:
         num_observation_tokens: Optional[int] = None,
         max_steps: int = 1000,
         inventory_item_names: Optional[list[str]] = None,
+        no_agent_interference: bool = False,
         **kwargs,
     ) -> dict[str, Any]:
         """Create a test configuration for MettaGrid.
@@ -126,6 +128,7 @@ class TestEnvironmentBuilder:
             "obs_height": obs_height or DefaultEnvConfig.OBS_HEIGHT,
             "num_observation_tokens": num_observation_tokens or DefaultEnvConfig.NUM_OBS_TOKENS,
             "inventory_item_names": inventory_item_names,
+            "no_agent_interference": no_agent_interference,
             "global_obs": {
                 "episode_completion_pct": True,
                 "last_action": True,
