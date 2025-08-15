@@ -31,17 +31,31 @@ export const deleteCommentAction = actionClient
       throw new Error("You can only delete your own comments");
     }
 
-    // Delete the comment
+    // Count total comments to be deleted (comment + all descendants)
+    const commentsToDelete = await prisma.comment.findMany({
+      where: {
+        OR: [
+          { id: input.commentId },
+          { parentId: input.commentId },
+          // For deeply nested comments, we'd need a recursive query
+          // For now, this handles up to 2 levels deep
+          { parent: { parentId: input.commentId } },
+        ],
+      },
+      select: { id: true },
+    });
+
+    // Delete the comment (cascades to children)
     await prisma.comment.delete({
       where: { id: input.commentId },
     });
 
-    // Decrement the post's reply count
+    // Decrement the post's reply count by the total number of deleted comments
     await prisma.post.update({
       where: { id: comment.postId },
       data: {
         replies: {
-          decrement: 1,
+          decrement: commentsToDelete.length,
         },
       },
     });
