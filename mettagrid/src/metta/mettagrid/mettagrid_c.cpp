@@ -527,25 +527,21 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
    for (auto& agent : _agents) {
      if (_resource_loss_prob > 0.0f) {
        // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
-       std::vector<InventoryItem> items_to_remove;
-       for (auto& [item, qty] : agent->inventory) {
+       // Make a real copy of the agent's inventory map to avoid iterator invalidation
+       const auto inventory_copy = agent->inventory;
+       for (const auto& [item, qty] : inventory_copy) {
          if (qty > 0) {
-           int lost = int(std::generate_canonical<float, 10>(_rng)*_resource_loss_prob*qty)
+           double loss = _resource_loss_prob * qty;
+           int lost = static_cast<int>(std::floor(loss));
+           // With probability equal to the fractional part, lose one more
+           if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
+             lost += 1;
+           }
+
            if (lost > 0) {
-             // Don't try to lose more than the agent actually has
-             int actual_lost = std::min(lost, static_cast<int>(qty));
-             if (actual_lost > 0) {
-               qty -= actual_lost;
-               if (qty <= 0) {
-                 items_to_remove.push_back(item);
-               }
-             }
+            agent->update_inventory(item, -static_cast<InventoryDelta>(lost));
            }
          }
-       }
-       // Remove items that reached zero quantity
-       for (const auto& item : items_to_remove) {
-         agent->inventory.erase(item);
        }
      }
    }
