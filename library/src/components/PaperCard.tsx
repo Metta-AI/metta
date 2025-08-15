@@ -116,12 +116,19 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
       {paper.tags && paper.tags.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {paper.tags.map((tag, index) => (
-            <span
+            <button
               key={index}
-              className="rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700"
+              onClick={(e) => {
+                e.stopPropagation(); // Prevent triggering parent click handlers
+                const params = new URLSearchParams();
+                params.set("search", tag);
+                window.open(`/papers?${params.toString()}`, "_blank");
+              }}
+              className="cursor-pointer rounded-full bg-gray-100 px-2 py-1 text-xs text-gray-700 transition-colors hover:bg-gray-200"
+              title={`Click to view all papers tagged with "${tag}"`}
             >
               {tag}
-            </span>
+            </button>
           ))}
         </div>
       )}

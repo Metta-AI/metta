@@ -1,6 +1,7 @@
 "use client";
 
 import { FC, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { FeedPostDTO } from "@/posts/data/feed";
 import { LLMAbstract } from "@/lib/llm-abstract-generator-clean";
 import { useOverlayNavigation } from "@/components/OverlayStack";
@@ -54,6 +55,15 @@ const InstitutionsSection: FC<{ institutions: string[] }> = ({
 };
 
 export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
+  const router = useRouter();
+
+  // Handle tag click to navigate to papers view with tag filter
+  const handleTagClick = (tag: string) => {
+    const params = new URLSearchParams();
+    params.set("search", tag);
+    router.push(`/papers?${params.toString()}`);
+  };
+
   if (!paper) {
     return (
       <div className="h-full w-full overflow-y-auto border-l border-gray-200 bg-gray-50 p-6">
@@ -146,12 +156,14 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
           <h4 className="mb-3 font-semibold text-gray-900">Tags</h4>
           <div className="flex flex-wrap gap-2">
             {paper.tags.map((tag, index) => (
-              <span
+              <button
                 key={index}
-                className="inline-block rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800"
+                onClick={() => handleTagClick(tag)}
+                className="inline-block cursor-pointer rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800 transition-colors hover:bg-blue-200"
+                title={`Click to view all papers tagged with "${tag}"`}
               >
                 {tag}
-              </span>
+              </button>
             ))}
           </div>
         </div>

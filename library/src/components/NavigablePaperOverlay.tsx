@@ -224,12 +224,18 @@ export default function NavigablePaperOverlay({
             <h3 className="mb-3 text-sm font-medium text-gray-700">Tags</h3>
             <div className="flex flex-wrap gap-2">
               {paper.tags.map((tag, index) => (
-                <span
+                <button
                   key={index}
-                  className="inline-block rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800"
+                  onClick={() => {
+                    const params = new URLSearchParams();
+                    params.set("search", tag);
+                    window.open(`/papers?${params.toString()}`, "_blank");
+                  }}
+                  className="inline-block cursor-pointer rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800 transition-colors hover:bg-blue-200"
+                  title={`Click to view all papers tagged with "${tag}"`}
                 >
                   {tag}
-                </span>
+                </button>
               ))}
             </div>
           </div>
