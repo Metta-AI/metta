@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.14.16"
+__generated_with = "0.14.17"
 app = marimo.App()
 
 
@@ -19,7 +19,7 @@ def _(mo):
 
 @app.cell
 def _():
-    from experiments.notebooks.utils.policy_selector_widget import (
+    from experiments.notebooks.utils.policy_selector_widget.policy_selector_widget import (
         create_policy_selector_widget,
     )
 
@@ -45,6 +45,12 @@ def _():
 
 
 @app.cell
+def _(mo):
+    mo.md(r"""## Let's try with some real data from Metta's HTTP API""")
+    return
+
+
+@app.cell
 def _():
     from metta.app_backend.clients.scorecard_client import ScorecardClient
 
@@ -62,7 +68,7 @@ def _(client, create_policy_selector_widget, mo):
 
 
 @app.cell
-def _(mo, live_widget):
+def _(live_widget, mo):
     # Access the widget's value to trigger reactivity in Marimo
     selected_policies = live_widget.selected_policies
 
@@ -71,22 +77,33 @@ def _(mo, live_widget):
         mds.append(mo.md(f"  - {policy_id}"))
 
     mo.vstack(mds)
-    return (selected_policies,)
+    return
 
 
 @app.cell
-async def _(live_widget, client):
+async def _(client, live_widget, mo):
     # Access the widget's value to trigger reactivity in Marimo
-    from experiments.notebooks.utils.scorecard_widget.scorecard_widget.util import (
-        fetch_real_scorecard_data,
+    from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import (
+        ScorecardWidget,
     )
 
     policies_for_scorecard = live_widget.selected_policies
-    scorecard_widget = await fetch_real_scorecard_data(
-        client=client, restrict_to_policy_ids=policies_for_scorecard
+
+    scorecard_widget = ScorecardWidget(client=client)
+    await scorecard_widget.fetch_real_scorecard_data(
+        restrict_to_metrics=["heart.get", "reward"],
+        restrict_to_policy_ids=policies_for_scorecard,
+        policy_selector="latest",
+        max_policies=20,
     )
-    scorecard_widget
-    return (scorecard_widget,)
+
+    mo.ui.anywidget(scorecard_widget)
+    return
+
+
+@app.cell
+def _():
+    return
 
 
 if __name__ == "__main__":

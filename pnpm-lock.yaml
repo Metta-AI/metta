@@ -91,18 +91,30 @@ importers:
 
   experiments/notebooks/utils/scorecard_widget:
     dependencies:
+      object-assign:
+        specifier: ^4.1.1
+        version: 4.1.1
       plotly.js:
         specifier: ^3.0.3
         version: 3.1.0(mapbox-gl@1.13.3)
+      prop-types:
+        specifier: ^15.8.1
+        version: 15.8.1
       react:
         specifier: ^19.1.0
         version: 19.1.1
       react-dom:
         specifier: ^19.1.0
         version: 19.1.1(react@19.1.1)
+      react-is:
+        specifier: ^19.1.1
+        version: 19.1.1
       react-plotly.js:
         specifier: ^2.6.0
         version: 2.6.0(plotly.js@3.1.0(mapbox-gl@1.13.3))(react@19.1.1)
+      scheduler:
+        specifier: ^0.26.0
+        version: 0.26.0
     devDependencies:
       '@anywidget/vite':
         specifier: ^0.2.1
@@ -4048,6 +4060,9 @@ packages:
 
   react-is@16.13.1:
     resolution: {integrity: sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==}
+
+  react-is@19.1.1:
+    resolution: {integrity: sha512-tr41fA15Vn8p4X9ntI+yCyeGSf1TlYaY5vlTZfQmeLBrFo3psOPX6HhTDnFNL9uj3EhP0KAQ80cugCl4b4BERA==}
 
   react-plotly.js@2.6.0:
     resolution: {integrity: sha512-g93xcyhAVCSt9kV1svqG1clAEdL6k3U+jjuSzfTV7owaSU9Go6Ph8bl25J+jKfKvIGAEYpe4qj++WHJuc9IaeA==}
@@ -8787,6 +8802,8 @@ snapshots:
       scheduler: 0.26.0
 
   react-is@16.13.1: {}
+
+  react-is@19.1.1: {}
 
   react-plotly.js@2.6.0(plotly.js@2.35.3(mapbox-gl@1.13.3)(webpack@5.100.2))(react@19.1.1):
     dependencies:

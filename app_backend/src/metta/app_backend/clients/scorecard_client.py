@@ -33,10 +33,10 @@ class ScorecardClient(BaseAppBackendClient):
 
     async def search_policies(
         self,
-        search: str = None,
-        policy_type: str = None,
-        tags: list[str] = None,
-        user_id: str = None,
+        search: str | None = None,
+        policy_type: str | None = None,
+        tags: list[str] | None = None,
+        user_id: str | None = None,
         limit: int = 100,
         offset: int = 0,
     ) -> PoliciesResponse:
