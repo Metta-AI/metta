@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 
 class TrainToolConfig(Config):
-    system: SystemConfig = SystemConfig()
+    system: SystemConfig = SystemConfig.Auto()
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     wandb: WandbConfig = WandbConfigOff()
     policy_architecture: Any
@@ -44,7 +44,6 @@ class TrainToolConfig(Config):
 
     # Optional configurations
     map_preview_uri: str | None = None
-    bypass_mac_overrides: bool = False
 
     # Seed for reproducibility
     seed: int = Field(default=0)
