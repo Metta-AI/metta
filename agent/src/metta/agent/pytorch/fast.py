@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 class Fast(pufferlib.models.LSTMWrapper):
+    """Fast CNN-based policy with LSTM."""
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128):
+        logger.info(f"[DEBUG] Fast.__init__ called with input_size={input_size}, hidden_size={hidden_size}")
         if policy is None:
             policy = Policy(
                 env,
@@ -20,6 +22,19 @@ class Fast(pufferlib.models.LSTMWrapper):
                 hidden_size=hidden_size,
             )
         super().__init__(env, policy, input_size, hidden_size)
+        
+        # Fix LSTM initialization to match YAML-based agent
+        # The parent class initializes parameters BEFORE creating the LSTM,
+        # but PyTorch's LSTM constructor overwrites them with default initialization.
+        # We need to re-initialize AFTER the LSTM is created.
+        for name, param in self.lstm.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 1)  # Match YAML agent (was 0 in pufferlib)
+            elif "weight" in name:
+                nn.init.orthogonal_(param, 1)  # Re-apply orthogonal init
+        
+        logger.info(f"[DEBUG] Fast initialized with {sum(p.numel() for p in self.parameters())} parameters")
+        logger.info(f"[DEBUG] LSTM bias initialized to 1, weights orthogonal")
 
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"]
@@ -90,6 +105,17 @@ class Fast(pufferlib.models.LSTMWrapper):
             td["value"] = value.view(B, TT)
 
         return td
+    
+    def activate_action_embeddings(self, full_action_names: list[str], device):
+        """Activate action embeddings to match ComponentPolicy interface.
+        
+        This is called by MettaAgent.activate_actions() but was missing in the 
+        original Fast implementation, potentially causing the performance difference.
+        """
+        logger.info(f"[DEBUG] Fast.activate_action_embeddings called with {len(full_action_names)} actions")
+        # The Fast policy uses a fixed embedding size, so we just log for now
+        # In a proper fix, we might want to resize or remap the embeddings
+        pass
 
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
         """Convert logit indices back to action pairs."""
@@ -106,6 +132,7 @@ class Fast(pufferlib.models.LSTMWrapper):
 class Policy(nn.Module):
     def __init__(self, env, input_size=128, hidden_size=128):
         super().__init__()
+        logger.info(f"[DEBUG] Fast.Policy.__init__ called with input_size={input_size}, hidden_size={hidden_size}")
         self.hidden_size = hidden_size
         self.input_size = input_size
         self.is_continuous = False
@@ -223,6 +250,8 @@ class Policy(nn.Module):
 
         actor_features = self.actor_1(hidden)
 
+        # Use mean of all embeddings as a simple aggregation
+        # This matches what the YAML agent does with ActionEmbedding component
         action_embed = self.action_embeddings.weight.mean(dim=0).unsqueeze(0).expand(actor_features.shape[0], -1)
         combined_features = torch.cat([actor_features, action_embed], dim=-1)
 

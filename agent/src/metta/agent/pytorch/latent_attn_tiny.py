@@ -23,6 +23,13 @@ class LatentAttnTiny(pufferlib.models.LSTMWrapper):
                 hidden_size=hidden_size,
             )
         super().__init__(env, policy, input_size, hidden_size)
+        
+        # Fix LSTM initialization to match YAML-based agent
+        for name, param in self.lstm.named_parameters():
+            if "bias" in name:
+                nn.init.constant_(param, 1)  # Match YAML agent
+            elif "weight" in name:
+                nn.init.orthogonal_(param, 1)  # Re-apply orthogonal init
 
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"]

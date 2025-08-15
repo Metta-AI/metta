@@ -90,17 +90,22 @@ class MettaAgent(nn.Module):
             self.policy.to(self.device)
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
-        logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
+        logger.info(f"[DEBUG] MettaAgent initialized with {self._total_params:,} parameters")
+        logger.info(f"[DEBUG] Agent config type: {'py_agent' if agent_cfg.get('agent_type') in agent_classes else 'yaml_agent'}")
+        logger.info(f"[DEBUG] Policy type: {type(self.policy).__name__}")
 
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
+        logger.info(f"[DEBUG] Creating policy with agent_cfg: {agent_cfg}")
         if agent_cfg.get("agent_type") in agent_classes:
             # Create PyTorch policy
             AgentClass = agent_classes[agent_cfg.agent_type]
             policy = AgentClass(env=env)
-            logger.info(f"Using PyTorch Policy: {policy} (type: {agent_cfg.agent_type})")
+            logger.info(f"[DEBUG] Created PyTorch Policy: {policy} (type: {agent_cfg.agent_type})")
+            logger.info(f"[DEBUG] PyTorch Policy parameters: {sum(p.numel() for p in policy.parameters())}")
         else:
             # Create ComponentPolicy (YAML config)
+            logger.info(f"[DEBUG] Creating ComponentPolicy with agent_cfg keys: {list(agent_cfg.keys())}")
             policy = ComponentPolicy(
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
@@ -110,7 +115,10 @@ class MettaAgent(nn.Module):
                 device=system_cfg.device,
                 cfg=agent_cfg,
             )
-            logger.info(f"Using ComponentPolicy: {type(policy).__name__}")
+            logger.info(f"[DEBUG] Created ComponentPolicy: {type(policy).__name__}")
+            logger.info(f"[DEBUG] ComponentPolicy parameters: {sum(p.numel() for p in policy.parameters())}")
+            if hasattr(policy, 'components'):
+                logger.info(f"[DEBUG] ComponentPolicy components: {list(policy.components.keys())}")
 
         return policy
 
