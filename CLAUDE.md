@@ -255,6 +255,43 @@ uv run ./tools/train.py agent=latent_attn_tiny
 uv run ./tools/train.py wandb=off
 ```
 
+#### Movement System Configuration
+
+The project supports three movement systems (tank/cardinal/8-way). **Important**: Use the `env_overrides` path for movement configuration, not direct mettagrid overrides.
+
+```bash
+# Training with 8-way movement
+uv run ./tools/train.py run=8way_test \
+  ++trainer.env_overrides.game.actions.move.enabled=false \
+  ++trainer.env_overrides.game.actions.rotate.enabled=false \
+  ++trainer.env_overrides.game.actions.move_8way.enabled=true
+
+# Training with cardinal movement
+uv run ./tools/train.py run=cardinal_test \
+  ++trainer.env_overrides.game.actions.move.enabled=false \
+  ++trainer.env_overrides.game.actions.rotate.enabled=false \
+  ++trainer.env_overrides.game.actions.move_cardinal.enabled=true
+
+# Evaluation/play with 8-way movement (must match training)
+uv run ./tools/play.py run=play_8way \
+  policy_uri=file://./train_dir/8way_test/checkpoints \
+  +replay_job.sim.env_overrides.game.actions.move.enabled=false \
+  +replay_job.sim.env_overrides.game.actions.rotate.enabled=false \
+  +replay_job.sim.env_overrides.game.actions.move_8way.enabled=true
+
+# Evaluation/play with cardinal movement (must match training)
+uv run ./tools/play.py run=play_cardinal \
+  policy_uri=file://./train_dir/cardinal_test/checkpoints \
+  +replay_job.sim.env_overrides.game.actions.move.enabled=false \
+  +replay_job.sim.env_overrides.game.actions.rotate.enabled=false \
+  +replay_job.sim.env_overrides.game.actions.move_cardinal.enabled=true
+```
+
+**Key differences**:
+- Training: Use `++trainer.env_overrides.game.actions...` (double plus for force override)
+- Evaluation: Use `+replay_job.sim.env_overrides.game.actions...` (single plus for add override)
+- Policies must be evaluated with the same movement type they were trained with
+
 #### Hydra Configuration Patterns
 
 - Use `+` prefix to add new config groups: `+user=your-custom-config-name`
