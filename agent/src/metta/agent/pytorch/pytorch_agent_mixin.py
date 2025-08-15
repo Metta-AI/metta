@@ -1,12 +1,3 @@
-"""
-PyTorchAgentMixin: Shared functionality for all PyTorch-based agents.
-
-This mixin provides all the common functionality that PyTorch agents need
-to work properly with MettaAgent and the training pipeline. It ensures
-consistency across all PyTorch implementations and makes it easy to
-create new PyTorch agents that are fully compatible with the system.
-"""
-
 import logging
 from typing import Optional
 
