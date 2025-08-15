@@ -4,6 +4,7 @@
 import asyncio
 import logging
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -120,6 +121,36 @@ class LeaderboardUpdater:
                     return 0
                 return latest_episode_id_row[0] or 0
 
+    async def _batch_upsert_leaderboard_policy_scores(
+        self, leaderboard_id: uuid.UUID, policy_scores: dict[uuid.UUID, float], updated_at: datetime
+    ) -> None:
+        """Batch upsert leaderboard policy scores for multiple policies, chunked to avoid overwhelming the system."""
+        if not policy_scores:
+            return
+
+        # Prepare all batch data
+        all_batch_data = [(leaderboard_id, policy_id, score, score) for policy_id, score in policy_scores.items()]
+
+        # Process in chunks
+        async with self.repo.connect() as con:
+            async with con.cursor() as cursor:
+                await cursor.executemany(
+                    """
+                    INSERT INTO leaderboard_policy_scores (leaderboard_id, policy_id, score) VALUES (%s, %s, %s)
+                    ON CONFLICT (leaderboard_id, policy_id) DO UPDATE SET score = %s
+                    """,
+                    all_batch_data,
+                )
+
+            # if the leaderboard was updated during processing, throw an exception which will rollback this
+            # transaction, and also exit the processing of this leaderboard.
+            cur_updated_at = await con.execute("SELECT updated_at FROM leaderboards WHERE id = %s", (leaderboard_id,))
+            cur_updated_at_row = await cur_updated_at.fetchone()
+            if cur_updated_at_row is None:
+                raise RuntimeError(f"Leaderboard {leaderboard_id} not found")
+            if cur_updated_at_row[0] != updated_at:
+                raise RuntimeError(f"Leaderboard {leaderboard_id} was updated during processing")
+
     async def _update_leaderboard(self, leaderboard: LeaderboardRow, chunk_size: int = 5000):
         """This function maintains the (leaderboard_id, policy_id) -> score mapping in the leaderboard_policy_scores
         table.
@@ -152,7 +183,7 @@ class LeaderboardUpdater:
             )
 
             # Batch upsert all scores (chunked for large datasets)
-            await self.repo.batch_upsert_leaderboard_policy_scores(leaderboard.id, policy_scores)
+            await self._batch_upsert_leaderboard_policy_scores(leaderboard.id, policy_scores, leaderboard.updated_at)
 
         await self.repo.update_leaderboard_latest_episode(leaderboard.id, latest_episode_id)
 
@@ -160,4 +191,8 @@ class LeaderboardUpdater:
         """Run one iteration of the leaderboard update process."""
         leaderboards = await self.repo.list_leaderboards()
         for leaderboard in leaderboards:
-            await self._update_leaderboard(leaderboard)
+            try:
+                await self._update_leaderboard(leaderboard)
+            except Exception as e:
+                logger.error(f"Error updating leaderboard {leaderboard.id}: {e}")
+                # Continue with other leaderboards instead of failing completely
