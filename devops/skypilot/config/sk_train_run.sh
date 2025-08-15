@@ -398,11 +398,13 @@ cleanup() {
     # Check termination reason and set appropriate status
     if [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
       echo "[ERROR] Job terminated due to heartbeat timeout"
+      export GITHUB_STATUS_STATE="failure"
       export GITHUB_STATUS_DESCRIPTION="Job failed - no heartbeat for ${HEARTBEAT_TIMEOUT} seconds"
       maybe_send_discord_notification "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
 
     elif [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]]; then
       echo "[INFO] Job terminated due to max runtime limit"
+      export GITHUB_STATUS_STATE="success"
       export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
       maybe_send_discord_notification "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
       # Map to success
@@ -410,17 +412,21 @@ cleanup() {
 
     elif [[ $CMD_EXIT -eq $EXIT_SUCCESS ]]; then
       echo "[SUCCESS] Job completed successfully"
+      export GITHUB_STATUS_STATE="success"
       export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
       export TERMINATION_REASON="completed"
       maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
 
     elif [[ $CMD_EXIT -eq $EXIT_NCCL_TEST_FAILURE ]]; then
       echo "[ERROR] Job failed during NCCL tests"
-      export GITHUB_STATUS_DESCRIPTION="NCCL tests failed"
+      export GITHUB_STATUS_STATE="error"  # Changed from "failure" - this is infrastructure issue
+      export GITHUB_STATUS_DESCRIPTION="NCCL tests failed - GPU communication issue"
       export TERMINATION_REASON="nccl_test_failure"
-      maybe_send_discord_notification "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
+      maybe_send_discord_notification "⚠️" "SkyPilot Job NCCL Config Error" "${GITHUB_STATUS_DESCRIPTION}"
+
     else
       echo "[ERROR] Job failed with exit code $CMD_EXIT"
+      export GITHUB_STATUS_STATE="failure"
       export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
       export TERMINATION_REASON="exit_code_${CMD_EXIT}"
       maybe_send_discord_notification "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
@@ -434,7 +440,8 @@ cleanup() {
   # Final summary (all nodes)
   echo "[SUMMARY] ===== Job Summary ====="
   echo "[SUMMARY] Node Rank: ${RANK}"
-  echo "[SUMMARY] Job ID: ${METTA_RUN_ID}"
+  echo "[SUMMARY] Metta Run ID: ${METTA_RUN_ID}"
+  echo "[SUMMARY] Skypilot Task ID: ${SKYPILOT_TASK_ID}"
   echo "[SUMMARY] Exit code: ${CMD_EXIT}"
   echo "[SUMMARY] Termination reason: ${TERMINATION_REASON:-unknown}"
   echo "[SUMMARY] ======================"
