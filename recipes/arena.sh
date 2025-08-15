@@ -9,3 +9,4 @@
   trainer.simulation.evaluate_interval=50 \
   trainer.contrastive.enabled=false\
   "$@"
+

@@ -164,15 +164,14 @@ def process_minibatch_update(
         # Add weighted InfoNCE loss to total policy loss
         pg_loss = pg_loss + trainer_cfg.contrastive.coef * inf_pg_loss
 
-        # Aggregate contrastive metrics for logging
-        if isinstance(contrastive_metrics, dict):
-            losses.contrastive_loss_sum += float(contrastive_metrics.get("contrastive_loss", 0.0))
-            losses.contrastive_infonce_sum += float(contrastive_metrics.get("contrastive_infonce", 0.0))
-            losses.contrastive_logsumexp_sum += float(contrastive_metrics.get("contrastive_logsumexp", 0.0))
-            losses.contrastive_var_loss_sum += float(contrastive_metrics.get("contrastive_var_loss", 0.0))
-            losses.contrastive_pos_sim_sum += float(contrastive_metrics.get("contrastive_pos_sim", 0.0))
-            losses.contrastive_neg_sim_sum += float(contrastive_metrics.get("contrastive_neg_sim", 0.0))
-            losses.contrastive_batch_std_sum += float(contrastive_metrics.get("contrastive_batch_std", 0.0))
+        # Aggregate contrastive metrics for logging (assumed to exist)
+        losses.contrastive_loss_sum += float(contrastive_metrics["contrastive_loss"])
+        losses.contrastive_infonce_sum += float(contrastive_metrics["contrastive_infonce"])
+        losses.contrastive_logsumexp_sum += float(contrastive_metrics["contrastive_logsumexp"])
+        losses.contrastive_var_loss_sum += float(contrastive_metrics["contrastive_var_loss"])
+        losses.contrastive_pos_sim_sum += float(contrastive_metrics["contrastive_pos_sim"])
+        losses.contrastive_neg_sim_sum += float(contrastive_metrics["contrastive_neg_sim"])
+        losses.contrastive_batch_std_sum += float(contrastive_metrics["contrastive_batch_std"])
 
     # Kickstarter losses
     ks_action_loss, ks_value_loss = kickstarter.loss(
