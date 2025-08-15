@@ -1,5 +1,3 @@
-"""Cogworks curriculum package."""
-
 from typing import Optional
 
 from metta.mettagrid.mettagrid_config import EnvConfig
