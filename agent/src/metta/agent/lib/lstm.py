@@ -37,14 +37,23 @@ class LSTM(LayerBase):
         self.lstm_h: Dict[int, torch.Tensor] = {}
         self.lstm_c: Dict[int, torch.Tensor] = {}
 
-    def has_memory(self):
-        return True
-
-    def get_memory(self):
+    def __setstate__(self, state):
+        """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
+        self.__dict__.update(state)
+        # Always reset hidden states when loading from checkpoint
+        # This handles batch size mismatches between training and inference
         if not hasattr(self, "lstm_h"):
             self.lstm_h = {}
         if not hasattr(self, "lstm_c"):
             self.lstm_c = {}
+        # Clear any existing states to handle batch size mismatches
+        self.lstm_h.clear()
+        self.lstm_c.clear()
+
+    def has_memory(self):
+        return True
+
+    def get_memory(self):
         return self.lstm_h, self.lstm_c
 
     def set_memory(self, memory):
@@ -52,14 +61,8 @@ class LSTM(LayerBase):
         self.lstm_h, self.lstm_c = memory[0], memory[1]
 
     def reset_memory(self):
-        if hasattr(self, "lstm_h"):
-            self.lstm_h.clear()
-        else:
-            self.lstm_h = {}
-        if hasattr(self, "lstm_c"):
-            self.lstm_c.clear()
-        else:
-            self.lstm_c = {}
+        self.lstm_h.clear()
+        self.lstm_c.clear()
 
     def setup(self, source_components):
         """Setup the layer and create the network."""
@@ -106,12 +109,6 @@ class LSTM(LayerBase):
             training_env_id_start = 0
         else:
             training_env_id_start = training_env_id_start[0].item()
-
-        # Initialize lstm_h and lstm_c if they don't exist (e.g., after loading from checkpoint)
-        if not hasattr(self, "lstm_h"):
-            self.lstm_h = {}
-        if not hasattr(self, "lstm_c"):
-            self.lstm_c = {}
 
         # Check if we have stored hidden states and they have the correct shape
         if (
