@@ -1,7 +1,10 @@
+import logging
 import uuid
-from typing import Any, Type, TypeVar
+from pathlib import Path
+from typing import Any, Optional, Type, TypeVar
 
 import httpx
+import yaml
 from pydantic import BaseModel
 
 from metta.app_backend.clients.base_client import BaseAppBackendClient
@@ -23,6 +26,8 @@ from metta.app_backend.routes.stats_routes import (
 )
 from metta.common.util.collections import remove_none_values
 from metta.common.util.constants import PROD_STATS_SERVER_URI
+
+logger = logging.getLogger("stats_client")
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -134,8 +139,6 @@ class StatsClient:
             base_url=backend_url,
             timeout=30.0,
         )
-
-        from metta.common.util.stats_client_cfg import get_machine_token
 
         self.machine_token = machine_token or get_machine_token(backend_url)
         self._machine_token = self.machine_token
@@ -265,3 +268,52 @@ class StatsClient:
         return self._make_sync_request(
             PolicyScoresData, "POST", "/scorecard/score", json=request.model_dump(mode="json")
         )
+
+    @classmethod
+    def create(cls, stats_server_uri: str) -> Optional["StatsClient"]:
+        machine_token = get_machine_token(stats_server_uri)
+        if machine_token is None:
+            logger.warning(f"No machine token found for {stats_server_uri}, stats logging disabled")
+            return None
+        stats_client = cls(backend_url=stats_server_uri, machine_token=machine_token)
+        stats_client.validate_authenticated()
+        return stats_client
+
+
+def get_machine_token(stats_server_uri: str | None = None) -> str | None:
+    """Get machine token for the given stats server.
+
+    Args:
+        stats_server_uri: The stats server URI to get token for.
+                         If None, returns token from env var or legacy location.
+
+    Returns:
+        The machine token or None if not found.
+    """
+    yaml_file = Path.home() / ".metta" / "observatory_tokens.yaml"
+    if yaml_file.exists():
+        with open(yaml_file) as f:
+            tokens = yaml.safe_load(f) or {}
+        if isinstance(tokens, dict) and stats_server_uri in tokens:
+            token = tokens[stats_server_uri].strip()
+        else:
+            return None
+    elif stats_server_uri is None or stats_server_uri in (
+        "https://observatory.softmax-research.net/api",
+        PROD_STATS_SERVER_URI,
+    ):
+        # Fall back to legacy token file, which is assumed to contain production
+        # server tokens if it exists
+        legacy_file = Path.home() / ".metta" / "observatory_token"
+        if legacy_file.exists():
+            with open(legacy_file) as f:
+                token = f.read().strip()
+        else:
+            return None
+    else:
+        return None
+
+    if not token or token.lower() == "none":
+        return None
+
+    return token

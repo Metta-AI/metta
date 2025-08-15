@@ -25,7 +25,7 @@ from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
-from metta.common.wandb.wandb_context import WandbRun
+from metta.common.wandb.wandb_context import WandbConfig, WandbRun
 from metta.rl.puffer_policy import load_pytorch_policy
 from metta.sim.utils import get_pr_scores_from_stats_server
 
@@ -477,8 +477,8 @@ class PolicyStore:
     def create(
         cls,
         device: str,
-        wandb_config: Any,  # WandbConfig type
-        replay_dir: str = "./train_dir/replays",
+        data_dir: str,
+        wandb_config: WandbConfig,
         wandb_run: WandbRun | None = None,
     ) -> "PolicyStore":
         """Create a PolicyStore from a WandbConfig.
@@ -492,19 +492,12 @@ class PolicyStore:
         Returns:
             Configured PolicyStore instance
         """
-        wandb_entity = None
-        wandb_project = None
-
-        if wandb_config.enabled:
-            wandb_entity = getattr(wandb_config, "entity", None)
-            wandb_project = getattr(wandb_config, "project", None)
-
         return cls(
             device=device,
             wandb_run=wandb_run,
-            data_dir=replay_dir,
-            wandb_entity=wandb_entity,
-            wandb_project=wandb_project,
+            data_dir=data_dir,
+            wandb_entity=wandb_config.entity,
+            wandb_project=wandb_config.project,
         )
 
     def policy_record_or_mock(
