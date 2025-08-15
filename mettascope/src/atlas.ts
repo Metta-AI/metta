@@ -35,6 +35,7 @@ export interface Atlas {
   margin: number // Pixel margin added around sprites to prevent texture bleeding
 }
 
+/* Validates that an atlas object has the correct structure and types. */
 export function validateAtlas(atlas: Atlas): boolean {
   return (
     typeof atlas.margin === 'number' &&
@@ -46,6 +47,7 @@ export function validateAtlas(atlas: Atlas): boolean {
   )
 }
 
+/* Loads and parses atlas JSON data from a URL, returning sprite map and metadata. */
 export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, AtlasMetadata] | null> {
   try {
     const res = await fetch(url)
@@ -68,6 +70,7 @@ export async function loadAtlasJson(url: string): Promise<[AtlasSpriteMap, Atlas
   }
 }
 
+/* Loads an image from a URL and creates a premultiplied alpha ImageBitmap. */
 export async function loadAtlasImage(url: string): Promise<ImageBitmap | null> {
   try {
     const res = await fetch(url)
@@ -86,16 +89,41 @@ export async function loadAtlasImage(url: string): Promise<ImageBitmap | null> {
   }
 }
 
+type TextureWrapMode =
+  | WebGLRenderingContext['REPEAT']
+  | WebGLRenderingContext['CLAMP_TO_EDGE']
+  | WebGLRenderingContext['MIRRORED_REPEAT']
+
+type TextureFilterMode =
+  | WebGLRenderingContext['NEAREST']
+  | WebGLRenderingContext['LINEAR']
+  | WebGLRenderingContext['NEAREST_MIPMAP_NEAREST']
+  | WebGLRenderingContext['LINEAR_MIPMAP_NEAREST']
+  | WebGLRenderingContext['NEAREST_MIPMAP_LINEAR']
+  | WebGLRenderingContext['LINEAR_MIPMAP_LINEAR']
+
+type TextureMinFilterMode = TextureFilterMode
+type TextureMagFilterMode = WebGLRenderingContext['NEAREST'] | WebGLRenderingContext['LINEAR']
+
+/* Checks if a minification filter requires mipmaps. */
+function requiresMipmaps(gl: WebGLRenderingContext, minFilter: TextureMinFilterMode): boolean {
+  return (
+    minFilter === gl.NEAREST_MIPMAP_NEAREST ||
+    minFilter === gl.LINEAR_MIPMAP_NEAREST ||
+    minFilter === gl.NEAREST_MIPMAP_LINEAR ||
+    minFilter === gl.LINEAR_MIPMAP_LINEAR
+  )
+}
+
+/* Creates a WebGL texture from an image with specified wrap and filter modes. */
 export function createTexture(
   gl: WebGLRenderingContext,
   image: ImageBitmap,
-  options: {
-    wrapS?: number
-    wrapT?: number
-    minFilter?: number
-    magFilter?: number
-    generateMipmap?: boolean
-  } = {}
+  wrapS: TextureWrapMode,
+  wrapT: TextureWrapMode,
+  minFilter: TextureMinFilterMode,
+  magFilter: TextureMagFilterMode,
+  generateMipmap: boolean
 ): WebGLTexture | null {
   const texture = gl.createTexture()
   if (!texture) {
@@ -105,23 +133,24 @@ export function createTexture(
   gl.bindTexture(gl.TEXTURE_2D, texture)
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
 
-  if (options.generateMipmap !== false) {
+  if (generateMipmap !== false) {
     gl.generateMipmap(gl.TEXTURE_2D)
   }
 
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, options.wrapS ?? gl.REPEAT)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, options.wrapT ?? gl.REPEAT)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, options.minFilter ?? gl.LINEAR_MIPMAP_LINEAR)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, options.magFilter ?? gl.LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrapS)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrapT)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magFilter)
 
   return texture
 }
 
+/* Loads a complete texture atlas from JSON and image URLs. */
 export async function loadAtlas(
   gl: WebGLRenderingContext,
   jsonUrl: string,
   imageUrl: string,
-  textureOptions?: Parameters<typeof createTexture>[2]
+  generateMipmap: boolean = false
 ): Promise<Atlas | null> {
   const [json, image] = await Promise.all([loadAtlasJson(jsonUrl), loadAtlasImage(imageUrl)])
 
@@ -131,7 +160,15 @@ export async function loadAtlas(
 
   const [data, metadata] = json
 
-  const texture = createTexture(gl, image, textureOptions)
+  const texture = createTexture(
+    gl,
+    image,
+    gl.REPEAT, // wrapS
+    gl.REPEAT, // wrapT
+    gl.LINEAR_MIPMAP_LINEAR, // minFilter
+    gl.LINEAR, // magFilter
+    generateMipmap
+  )
   if (!texture) {
     return null
   }
@@ -145,6 +182,7 @@ export async function loadAtlas(
   }
 }
 
+/* Retrieves sprite bounds and UV coordinates for a named sprite in the atlas. */
 export function getSpriteBounds(
   atlas: Atlas,
   spriteName: string
@@ -180,36 +218,13 @@ export function getSpriteBounds(
   }
 }
 
-/**
- * Check if a sprite exists in the atlas.
- *
- * Only returns true if the entry is a valid sprite definition
- * (array of 4 numbers), not for metadata entries.
- *
- * @param atlas - The atlas to check
- * @param spriteName - Name of the sprite to look for
- * @returns True if the sprite exists, false otherwise
- *
- * @example
- * if (hasSprite(atlas, 'player.png')) {
- *   drawSprite('player.png', x, y)
- * }
- */
+/* Checks whether a sprite with the given name exists in the atlas. */
 export function hasSprite(atlas: Atlas, spriteName: string): boolean {
   const data = atlas.data[spriteName]
   return Array.isArray(data) && data.length === 4
 }
 
-/**
- * Get UV coordinates for a solid color pixel.
- *
- * @example
- * const whiteUV = getWhiteUV(atlas)
- * if (whiteUV) {
- *   // Draw a solid red rectangle
- *   drawRect(x, y, width, height, whiteUV.u, whiteUV.v, whiteUV.u, whiteUV.v, [1, 0, 0, 1])
- * }
- */
+/* Gets the UV coordinates for a solid white color pixel. */
 export function getWhiteUV(atlas: Atlas): { u: number; v: number } | null {
   const whiteSprite = atlas.data['white.png']
 
