@@ -86,8 +86,6 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         }
         self._client = None
 
-        print("🎯 PolicySelectorWidget initialized successfully!")
-
         # Set client if provided
         if client is not None:
             self.set_client(client)
@@ -100,13 +98,6 @@ class PolicySelectorWidget(anywidget.AnyWidget):
         self.observe(
             self._on_load_all_policies_requested, names="load_all_policies_requested"
         )
-
-        print("🔗 Observers set up for:")
-        print("   - selection_changed")
-        print("   - filter_changed")
-        print("   - api_search_requested")
-        print("   - search_trigger (alternative)")
-        print("   - load_all_policies_requested")
 
     def _on_selection_changed(self, change):
         """Handle policy selection events from JavaScript."""
@@ -122,11 +113,8 @@ class PolicySelectorWidget(anywidget.AnyWidget):
 
     def _on_api_search_requested(self, change):
         """Handle API search requests from JavaScript."""
-        print(f"🔔 _on_api_search_requested called with change: {change}")
         if change["new"]:
             search_params = change["new"]
-            print(f"🔍 API search requested from React: {search_params}")
-
             # Check if client is configured
             if not self._client:
                 print("⚠️ No client configured - cannot perform API search")
@@ -170,17 +158,15 @@ class PolicySelectorWidget(anywidget.AnyWidget):
                         for p in response.policies
                     ]
 
-                    print(f"📊 Sync search returned {len(policies)} results")
                     self.policy_data = list(policies)
+
                     # Signal search completion to React
                     completion_signal = {
                         "searchTerm": search_term,
                         "resultCount": len(policies),
                         "timestamp": __import__("time").time(),
                     }
-                    print(f"📤 Sending completion signal to React: {completion_signal}")
                     self.api_search_completed = completion_signal
-                    print("✅ Sync search completed successfully")
 
                 else:
                     print("🔄 No sync method, falling back to async in thread...")
@@ -592,8 +578,6 @@ class PolicySelectorWidget(anywidget.AnyWidget):
                 policy_type=policy_type,
                 tags=tags,
             )
-
-            print(f"📊 Search returned {len(results)} results")
 
             # Force update the policy data to trigger React re-render
             # Use a new list to ensure trait change is detected

@@ -54,11 +54,39 @@ def _():
 
 
 @app.cell
-def _(client, create_policy_selector_widget):
-    live_widget = create_policy_selector_widget(client=client)
+def _(client, create_policy_selector_widget, mo):
+    live_widget = mo.ui.anywidget(create_policy_selector_widget(client=client))
 
     live_widget
-    return
+    return (live_widget,)
+
+
+@app.cell
+def _(mo, live_widget):
+    # Access the widget's value to trigger reactivity in Marimo
+    selected_policies = live_widget.selected_policies
+
+    mds = [mo.md(f"## You selected {len(selected_policies)} policies:")]
+    for policy_id in selected_policies:
+        mds.append(mo.md(f"  - {policy_id}"))
+
+    mo.vstack(mds)
+    return (selected_policies,)
+
+
+@app.cell
+async def _(live_widget, client):
+    # Access the widget's value to trigger reactivity in Marimo
+    from experiments.notebooks.utils.scorecard_widget.scorecard_widget.util import (
+        fetch_real_scorecard_data,
+    )
+
+    policies_for_scorecard = live_widget.selected_policies
+    scorecard_widget = await fetch_real_scorecard_data(
+        client=client, restrict_to_policy_ids=policies_for_scorecard
+    )
+    scorecard_widget
+    return (scorecard_widget,)
 
 
 if __name__ == "__main__":

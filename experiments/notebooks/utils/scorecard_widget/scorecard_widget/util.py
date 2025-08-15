@@ -10,6 +10,7 @@ from typing_extensions import Literal
 
 async def fetch_real_scorecard_data(
     client: ScorecardClient,
+    restrict_to_policy_ids: list[str] | None = None,
     restrict_to_metrics: list[str] | None = None,
     restrict_to_policy_names: list[str] | None = None,
     restrict_to_eval_names: list[str] | None = None,
@@ -50,6 +51,18 @@ async def fetch_real_scorecard_data(
             training_run_ids.append(policy.id)
         elif policy.type == "policy" and include_run_free_policies:
             run_free_policy_ids.append(policy.id)
+
+    if restrict_to_policy_ids:
+        training_run_ids = [
+            policy_id
+            for policy_id in restrict_to_policy_ids
+            if policy_id in training_run_ids
+        ]
+        run_free_policy_ids = [
+            policy_id
+            for policy_id in restrict_to_policy_ids
+            if policy_id in run_free_policy_ids
+        ]
 
     if not training_run_ids:
         raise Exception("No training runs found")

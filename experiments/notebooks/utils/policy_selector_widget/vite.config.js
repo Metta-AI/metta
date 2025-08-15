@@ -11,6 +11,12 @@ export default defineConfig({
       entry: ["src/index.tsx"],
       formats: ["es"],
     },
+    rollupOptions: {
+      external: (id) => {
+        // Don't externalize react and react-dom for anywidget builds
+        return false;
+      },
+    },
   },
   plugins: [
     react(),
