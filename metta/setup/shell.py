@@ -1,5 +1,4 @@
 import importlib.util
-import logging
 import sys
 from functools import partial
 
@@ -15,16 +14,13 @@ sys.path.insert(0, str(get_repo_root() / "tools"))
 from validate_config import load_and_print_config  # type: ignore
 
 __name__ = "__ipython__"
-logger = logging.getLogger(__name__)
 
 REPO_ROOT = get_repo_root()
 CONFIGS_DIR = REPO_ROOT / "configs"
 
 load_cfg = partial(load_and_print_config, exit_on_failure=False, print_cfg=False)
 
-from metta.common.util.stats_client_cfg import get_stats_client  # noqa
 from metta.agent.policy_store import PolicyStore  # noqa
-from metta.app_backend.clients.stats_client import StatsClient  # noqa
 
 
 def get_policy_store_from_cfg(cfg: DictConfig, wandb_run: WandbRun | None = None) -> PolicyStore:
