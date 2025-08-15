@@ -219,3 +219,6 @@ simulations:
     env: env/mettagrid/systematic_exploration_memory/evals/venture_out
   systematic_exploration_memory/you_shall_not_pass:
     env: env/mettagrid/systematic_exploration_memory/evals/you_shall_not_pass
+  autocurricula/big_agent_box_playing_grid:
+    env: env/mettagrid/autocurricula/evals/big_agent_box_playing_grid
+
