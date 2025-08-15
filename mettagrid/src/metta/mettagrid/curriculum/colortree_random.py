@@ -145,9 +145,9 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
             self._call_counter += 1
             call_id = self._call_counter
 
-            # Use a deterministic but well-distributed selection
-            # This avoids creating new RNG objects repeatedly
-            sequence_index = (self._rng.randint(0, 2**31) + call_id) % len(self.sequence_pool)
+            # Use proper random selection without modulo bias
+            # randrange is better than randint + modulo for avoiding bias
+            sequence_index = self._rng.randrange(len(self.sequence_pool))
             selected_sequence = self.sequence_pool[sequence_index]
             self._last_selected_sequence = selected_sequence
 

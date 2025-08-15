@@ -168,7 +168,6 @@ protected:
     // Advance write index
     write_index++;
     if (write_index == _max_sequence_size) {
-      write_index = 0;
       agent_data.window_filled = true;
     }
     agent_data.position_in_sequence = write_index;
@@ -247,9 +246,10 @@ protected:
       actor->stats.add("color_tree.sequence_length", static_cast<float>(_max_sequence_size));
       actor->stats.add("color_tree.max_theoretical_reward_per_window", _sequence_reward);
 
-      // Reset window correctness for next window
+      // Reset window state
       agent_data.correctness_mask = 0;
       agent_data.correct_positions_count = 0;
+      agent_data.position_in_sequence = 0;
     }
 
     return true;
