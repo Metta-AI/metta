@@ -201,6 +201,8 @@ def _(Any, Dict, OmegaConf, get_cfg):
     env_dict["game"]["objects"]["mine_red"]["max_conversions"] = -1  # type: ignore
     env_dict["game"]["objects"]["generator_red"]["max_conversions"] = -1  # type: ignore
     env_dict["game"]["agent"]["rewards"]["inventory"]["ore_red"] = 1.0
+    # Ensure proper observation token count for Mac
+    env_dict["game"]["num_observation_tokens"] = 200  # Default value expected by MettaAgent
 
     cfg = OmegaConf.create(
         {
@@ -492,15 +494,19 @@ def _(
     # Build command
     repo_root = get_repo_root()
     train_cmd = [
+        "uv", "run",  # Add uv run prefix for proper environment activation
         str(repo_root / "tools" / "train.py"),
         f"run={run_name}",
-        # f"trainer.curriculum=tmp/{curriculum_name}",
+        f"trainer.curriculum=tmp/{curriculum_name}",  # Uncommented - this is critical!
         "wandb=off",
         "device=cpu",
         "trainer.total_timesteps=10000",  # tiny demo run
         "trainer.batch_size=256",
         "trainer.minibatch_size=256",
         "trainer.num_workers=2",
+        "trainer.bptt_horizon=8",  # Mac-specific: limit BPTT horizon
+        "trainer.forward_pass_minibatch_target_size=2",  # Critical Mac setting to reduce agent count
+        "trainer.simulation.skip_git_check=true",  # Skip git check to avoid errors in notebooks
         "sim=sim",
         "+train_job.evals.name=hallway",
         "+train_job.evals.num_episodes=1",
