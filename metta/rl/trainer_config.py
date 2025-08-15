@@ -7,6 +7,8 @@ from metta.common.util.config import Config
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
+CheckpointFileType = Literal["pt", "safetensors", "pt_also_emit_safetensors"]
+
 
 class OptimizerConfig(Config):
     type: Literal["adam", "muon"] = "adam"
@@ -53,6 +55,8 @@ class CheckpointConfig(Config):
     # W&B every 5 min: Less frequent due to network overhead and storage costs
     wandb_checkpoint_interval: int = Field(default=300, ge=0)  # 0 to disable
     checkpoint_dir: str = Field(default="")
+    # Checkpoint file type: Controls the format of saved checkpoint files
+    checkpoint_file_type: CheckpointFileType = Field(default="pt")
 
     @model_validator(mode="after")
     def validate_fields(self) -> "CheckpointConfig":
