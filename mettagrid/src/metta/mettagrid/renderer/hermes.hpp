@@ -15,8 +15,8 @@ extern "C" {
 #endif
 
 struct  Hermes; typedef struct Hermes Hermes;
-Hermes* Hermes_Init ();
-void    Hermes_Quit (Hermes* ctx);
+Hermes* Hermes_Init();
+void    Hermes_Quit(Hermes* ctx);
 void    Hermes_Scene(Hermes* ctx, const MettaGrid* env);
 bool    Hermes_Frame(Hermes* ctx);
 
