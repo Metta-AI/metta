@@ -138,7 +138,7 @@ export async function autoImportArxivPaperSync(
         link: paperData.arxivUrl,
         source: "arxiv",
         externalId: paperData.id,
-        tags: paperData.categories, // Use arXiv categories as tags
+        tags: [], // No longer importing arXiv categories as tags
         institutions: [], // Empty for now - will be filled by background process
       },
     });
@@ -263,7 +263,7 @@ export async function autoImportArxivPaper(
         link: paperData.arxivUrl,
         source: "arxiv",
         externalId: paperData.id,
-        tags: paperData.categories, // Use arXiv categories as tags
+        tags: [], // No longer importing arXiv categories as tags
         institutions: institutions, // Institutions extracted from PDF
       },
     });
