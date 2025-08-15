@@ -52,8 +52,6 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
 
-    # clip_weights() is provided by PyTorchAgentMixin
-
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"]
@@ -144,11 +142,6 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
                 td = td.reshape(batch_size, bptt_size)
 
         return td
-
-    # _convert_logit_index_to_action and _convert_action_to_logit_index
-    # are provided by PyTorchAgentMixin
-    
-    # activate_action_embeddings is provided by PyTorchAgentMixin
 
 
 class Policy(nn.Module):

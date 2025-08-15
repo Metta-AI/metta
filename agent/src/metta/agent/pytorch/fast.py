@@ -10,7 +10,6 @@ import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
-# Import base classes and mixin
 from metta.agent.pytorch.base import LSTMWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
@@ -46,8 +45,6 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
 
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
-    
-    # clip_weights() is provided by PyTorchAgentMixin
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict, state=None, action=None):
@@ -98,12 +95,6 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
             td = self.handle_training_mode(td, action, logits_list, value)
 
         return td
-
-    # _convert_logit_index_to_action and _convert_action_to_logit_index
-    # are provided by PyTorchAgentMixin
-    
-    # activate_action_embeddings is provided by PyTorchAgentMixin
-
 
 class Policy(nn.Module):
     def __init__(self, env, input_size=128, hidden_size=128):
@@ -186,9 +177,6 @@ class Policy(nn.Module):
         self.active_action_names = []
         self.num_active_actions = 100  # Default
 
-        # Note: Weight tracking, clipping, and L2-init are now handled by MettaAgent's
-        # default implementations. We only need to track effective_rank for critic_1
-        # to match the YAML configuration's specific requirement.
         self.effective_rank_enabled = True  # For critic_1 matching YAML
 
     def _initialize_action_embeddings(self):
@@ -334,14 +322,3 @@ class Policy(nn.Module):
         logits = biased_scores.reshape(batch_size, num_actions)
 
         return logits, value
-
-    # Note: The following methods are now handled by MettaAgent's default implementations:
-    # - _store_initial_weights()
-    # - clip_weights()
-    # - l2_init_loss()
-    # - update_l2_init_weight_copy()
-    # - compute_weight_metrics()
-    #
-    # MettaAgent provides general implementations that work for any PyTorch policy.
-    # We could override them here if we needed custom behavior, but the defaults
-    # work perfectly for Fast.

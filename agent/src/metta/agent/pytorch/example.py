@@ -86,9 +86,6 @@ class Example(PyTorchAgentMixin, LSTMWrapper):
             td = td.reshape(B, TT)
         return td
 
-    # Note: _prepare_lstm_state is no longer needed as we use base class _manage_lstm_state
-    # The base class method handles state management with automatic detachment
-
     def _sample_actions(self, logits_list: list[torch.Tensor]):
         """Samples discrete actions from logits and computes log-probs and entropy."""
         actions, selected_log_probs, entropies, full_log_probs = [], [], [], []

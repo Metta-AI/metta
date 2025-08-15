@@ -90,6 +90,7 @@ class MettaAgent(nn.Module):
             self.policy.to(self.device)
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
 
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
@@ -97,8 +98,8 @@ class MettaAgent(nn.Module):
             # Create PyTorch policy with configuration parameters
             AgentClass = agent_classes[agent_cfg.agent_type]
             
-            # Extract configuration parameters that PyTorch policies might need
-            # These are commonly used across policies
+            # Extract configuration parameters that PyTorch policies need
+            # All PyTorch agents must use the mixin which handles these
             policy_kwargs = {
                 "env": env,
                 "clip_range": agent_cfg.get("clip_range", 0),
@@ -111,13 +112,8 @@ class MettaAgent(nn.Module):
                 if key not in ["agent_type", "clip_range", "analyze_weights_interval", "_target_"]:
                     policy_kwargs[key] = value
             
-            try:
-                policy = AgentClass(**policy_kwargs)
-            except TypeError as e:
-                # Fallback for policies that don't accept these parameters yet
-                logger.warning(f"Policy {AgentClass.__name__} doesn't accept all config parameters: {e}")
-                logger.warning("Falling back to env-only constructor")
-                policy = AgentClass(env=env)
+            # All PyTorch agents must accept these parameters via the mixin
+            policy = AgentClass(**policy_kwargs)
         else:
             # Create ComponentPolicy (YAML config)
             policy = ComponentPolicy(
@@ -275,9 +271,7 @@ class MettaAgent(nn.Module):
         self.action_names = action_names
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
-        # Precompute cumulative sums for faster conversion
-        # NOTE: This calculation is technically wrong (should be [p+1 for p in action_max_params])
-        # but ComponentPolicy compensates with its formula. Don't change without updating both!
+        # Precompute cumulative sums for faster conversion, Multi-Discrete
         self.cum_action_max_params = torch.cumsum(
             torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )

@@ -228,10 +228,9 @@ class PyTorchAgentMixin:
         """
         Convert (action_type, action_param) pairs to discrete indices.
 
-        CRITICAL: This overrides MettaAgent's implementation with the compensating
-        formula that matches ComponentPolicy. The cumsum calculation in MettaAgent
-        is technically wrong, but ComponentPolicy compensates with this formula.
-        Both must be kept in sync.
+        For MultiDiscrete action spaces, actions are represented as pairs:
+        - action_type: which action type (e.g., move, attack, etc.)
+        - action_param: parameter for that action type
 
         Args:
             flattened_action: Actions as (action_type, action_param) pairs
@@ -247,8 +246,7 @@ class PyTorchAgentMixin:
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
 
-        # Match ComponentPolicy's compensating formula (includes action_type_numbers)
-        # This differs from MettaAgent's base implementation!
+        # Formula for MultiDiscrete action space conversion
         return action_type_numbers + cumulative_sum + action_params
 
     def activate_action_embeddings(self, full_action_names: list[str], device):

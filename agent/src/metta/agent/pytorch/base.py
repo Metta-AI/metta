@@ -231,9 +231,9 @@ def convert_action_to_logit_index(
 ) -> torch.Tensor:
     """Convert flattened actions to logit indices.
 
-    NOTE: This function uses the compensating formula that matches ComponentPolicy.
-    The cumsum calculation in MettaAgent is technically wrong, but ComponentPolicy
-    compensates with this formula. Both must be kept in sync.
+    For MultiDiscrete action spaces, actions are represented as pairs:
+    - action_type: which action type (e.g., move, attack, etc.)
+    - action_param: parameter for that action type
 
     Args:
         flattened_action: Actions in [action_type, action_param] format
@@ -246,5 +246,5 @@ def convert_action_to_logit_index(
     action_params = flattened_action[:, 1].long()
     cumulative_sum = cum_action_max_params[action_type_numbers]
 
-    # Match ComponentPolicy's compensating formula
+    # Formula for MultiDiscrete action space conversion
     return action_type_numbers + cumulative_sum + action_params
