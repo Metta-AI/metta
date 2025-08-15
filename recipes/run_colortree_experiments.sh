@@ -24,11 +24,19 @@ STAMP=$(date +%Y%m%d_%H%M%S)
 # Run experiments
 for steps in 16 32 64; do
     for num_colors in 2 3; do
-        # Set color_to_item mapping based on number of colors
+        # Build color_to_item overrides based on number of colors
+        # Using individual key overrides to avoid Hydra parsing issues with dictionary syntax
         if [ "$num_colors" -eq 2 ]; then
-            color_map="{0: ore_red, 1: ore_green}"
+            color_overrides=(
+                "+trainer.env_overrides.game.actions.color_tree.color_to_item.0=ore_red"
+                "+trainer.env_overrides.game.actions.color_tree.color_to_item.1=ore_green"
+            )
         else
-            color_map="{0: ore_red, 1: ore_green, 2: ore_blue}"
+            color_overrides=(
+                "+trainer.env_overrides.game.actions.color_tree.color_to_item.0=ore_red"
+                "+trainer.env_overrides.game.actions.color_tree.color_to_item.1=ore_green"
+                "+trainer.env_overrides.game.actions.color_tree.color_to_item.2=ore_blue"
+            )
         fi
 
         # Launch the run with proper env_overrides
@@ -47,7 +55,7 @@ for steps in 16 32 64; do
             +trainer.curriculum.sequence_length=4 \
             sim=colortree \
             +trainer.env_overrides.game.max_steps=$steps \
-            "+trainer.env_overrides.game.actions.color_tree.color_to_item=${color_map}" \
+            "${color_overrides[@]}" \
             "+trainer.env_overrides.game.actions.color_tree.reward_mode=precise" \
             "$@"
 
