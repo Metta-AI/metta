@@ -68,6 +68,7 @@ class PPO(BaseLoss):
             "explained_variance",
         ]
 
+    # BaseLoss calls this method
     def run_rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
         with torch.no_grad():
             self.policy(td)
@@ -75,6 +76,7 @@ class PPO(BaseLoss):
             # Store experience
             self.policy.replay.store(data_td=td, env_id=trainer_state.training_env_id)
 
+    # BaseLoss calls this method
     def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
         """This is the PPO algorithm training loop."""
         # Tell the policy that we're starting a new minibatch so it can do things like reset its memory
@@ -88,10 +90,10 @@ class PPO(BaseLoss):
 
         # On the first minibatch of the update epoch, compute advantages and sampling params
         if trainer_state.mb_idx == 0:
-            self.advantages, self.anneal_beta = self.on_first_mb(trainer_state)
+            self.advantages, self.anneal_beta = self._on_first_mb(trainer_state)
 
         # Then sample from the buffer (this happens at every minibatch)
-        minibatch, indices, prio_weights = self.sample_minibatch(
+        minibatch, indices, prio_weights = self._sample_minibatch(
             advantages=self.advantages,
             prio_alpha=self.loss_cfg.prioritized_experience_replay.prio_alpha,
             prio_beta=self.anneal_beta,
@@ -106,7 +108,7 @@ class PPO(BaseLoss):
         shared_loss_data["policy_td"] = policy_td  # write the policy output td for others to reuse
 
         # Finally, calculate the loss!
-        loss = self.process_minibatch_update(
+        loss = self._process_minibatch_update(
             minibatch=minibatch,
             policy_td=policy_td,
             indices=indices,
@@ -123,7 +125,7 @@ class PPO(BaseLoss):
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker.set("explained_variance", float(ev))
 
-    def on_first_mb(self, trainer_state: TrainerState) -> tuple[Tensor, float]:
+    def _on_first_mb(self, trainer_state: TrainerState) -> tuple[Tensor, float]:
         # reset importance sampling ratio
         if "ratio" in self.policy.replay.buffer.keys():
             self.policy.replay.buffer["ratio"].fill_(1.0)
@@ -156,7 +158,7 @@ class PPO(BaseLoss):
 
         return advantages, anneal_beta
 
-    def process_minibatch_update(
+    def _process_minibatch_update(
         self,
         minibatch: TensorDict,
         policy_td: TensorDict,
@@ -265,7 +267,7 @@ class PPO(BaseLoss):
 
         return pg_loss, v_loss, entropy_loss, approx_kl, clipfrac
 
-    def sample_minibatch(
+    def _sample_minibatch(
         self,
         advantages: Tensor,
         prio_alpha: float,
