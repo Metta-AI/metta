@@ -697,25 +697,6 @@ export class Context3d {
       const drawW = sw + 2 * m
       const drawH = sh + 2 * m
 
-      // Outline pass: draw the glyph tinted black around the main position for readability.
-      const oa = color.length >= 4 ? color[3] : 1
-      const outlineColor: number[] = [0, 0, 0, oa]
-      // 8-directional offsets for a 1px border in screen space.
-      const px = 1 / Math.max(scale, 1e-6)
-      const offsets = [
-        [-1, 0],
-        [1, 0],
-        [0, -1],
-        [0, 1],
-        [-1, -1],
-        [1, -1],
-        [-1, 1],
-        [1, 1],
-      ] as const
-      for (const [dx, dy] of offsets) {
-        this.drawRect(drawX + dx * px, drawY + dy * px, drawW, drawH, u0, v0, u1, v1, outlineColor)
-      }
-
       // Main glyph.
       this.drawRect(drawX, drawY, drawW, drawH, u0, v0, u1, v1, color)
 

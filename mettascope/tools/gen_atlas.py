@@ -171,6 +171,8 @@ def generate_font_glyphs(font_cfg: dict):
     font.size = float(font_cfg["fontSize"])
     white = pixie.Paint(pixie.SOLID_PAINT)
     white.color = pixie.Color(1.0, 1.0, 1.0, 1.0)
+    black = pixie.Paint(pixie.SOLID_PAINT)
+    black.color = pixie.Color(0.0, 0.0, 0.0, 1.0)
     font.paint = white
     scale = font.scale()
     ascent_px = typeface.ascent() * scale
@@ -200,6 +202,19 @@ def generate_font_glyphs(font_cfg: dict):
             img = pixie.Image(gw, gh)
             img.fill(pixie.Color(0, 0, 0, 0))
             # Draw the arrangement translated to inside the padding.
+            # First, bake a simple 1px black outline by drawing 8 offsets.
+            font.paint = black
+            outline_px = 1
+            for dx, dy in [(-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, -1), (-1, 1), (1, 1)]:
+                img.arrangement_fill_text(
+                    arrangement,
+                    pixie.translate(
+                        -bounds.x + font_cfg["glyphInnerPadding"] + dx * outline_px,
+                        -bounds.y + font_cfg["glyphInnerPadding"] + dy * outline_px,
+                    ),
+                )
+            # Then, draw the main glyph in white.
+            font.paint = white
             img.arrangement_fill_text(
                 arrangement,
                 pixie.translate(-bounds.x + font_cfg["glyphInnerPadding"], -bounds.y + font_cfg["glyphInnerPadding"]),
