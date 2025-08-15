@@ -5,6 +5,7 @@ import {
 } from "../../scripts/fetch-arxiv-paper";
 import { extractInstitutionsFromPdf } from "./pdf-institution-extractor";
 import { PaperAbstractService } from "./paper-abstract-service";
+import { AutoTaggingService } from "./auto-tagging-service";
 
 /**
  * Normalizes author name for consistent storage
@@ -161,6 +162,12 @@ export async function autoImportArxivPaperSync(
       );
     });
 
+    // Auto-tag the paper in the background (don't wait for it to complete)
+    console.log(`🏷️ Queuing auto-tagging for paper: ${paper.id}`);
+    AutoTaggingService.autoTagPaper(paper.id).catch((error) => {
+      console.error(`❌ Failed to auto-tag paper ${paper.id}:`, error);
+    });
+
     return paper.id;
   } catch (error) {
     console.error(`❌ Failed to auto-import arXiv paper (sync):`, error);
@@ -284,6 +291,12 @@ export async function autoImportArxivPaper(
         `❌ Failed to generate LLM abstract for paper ${paper.id}:`,
         error
       );
+    });
+
+    // Auto-tag the paper in the background (don't wait for it to complete)
+    console.log(`🏷️ Queuing auto-tagging for paper: ${paper.id}`);
+    AutoTaggingService.autoTagPaper(paper.id).catch((error) => {
+      console.error(`❌ Failed to auto-tag paper ${paper.id}:`, error);
     });
 
     return paper.id;
