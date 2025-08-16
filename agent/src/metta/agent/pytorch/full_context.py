@@ -76,7 +76,19 @@ class Policy(nn.Module):
         else:
             obs_space = env.observation_space
         self.obs_shape = obs_space.shape
-        obs_dim = self.obs_shape[0] * self.obs_shape[1] if len(self.obs_shape) == 2 else self.obs_shape[0]
+        
+        # Calculate observation dimension (handle various shapes)
+        if len(self.obs_shape) == 3:
+            # Image observations (H, W, C)
+            obs_dim = self.obs_shape[0] * self.obs_shape[1] * self.obs_shape[2]
+        elif len(self.obs_shape) == 2:
+            # Matrix observations (M, F)
+            obs_dim = self.obs_shape[0] * self.obs_shape[1]
+        elif len(self.obs_shape) == 1:
+            # Vector observations
+            obs_dim = self.obs_shape[0]
+        else:
+            raise ValueError(f"Unsupported observation shape: {self.obs_shape}")
         
         # Simple observation encoder with layer norm for stability
         self.obs_encoder = nn.Sequential(
@@ -89,6 +101,8 @@ class Policy(nn.Module):
         )
         
         # Full-context transformer core (optimized for parallel processing)
+        logger.info(f"Creating FullContextTransformer with hidden_size={hidden_size}, "
+                   f"n_heads={n_heads}, n_layers={n_layers}")
         self._transformer = FullContextTransformer(
             d_model=hidden_size,
             n_heads=n_heads,
@@ -99,6 +113,7 @@ class Policy(nn.Module):
             use_causal_mask=use_causal_mask,
             use_gating=use_gating,
         )
+        logger.info("FullContextTransformer created successfully")
         
         # Action heads for multi-discrete actions
         self.action_heads = nn.ModuleList([
@@ -118,6 +133,10 @@ class Policy(nn.Module):
         Returns:
             Encoded observations
         """
+        # Convert to float32 if needed (observations might be uint8)
+        if observations.dtype != torch.float32:
+            observations = observations.float() / 255.0  # Normalize to [0, 1] if uint8
+        
         # Flatten observations if needed
         original_shape = observations.shape
         if len(original_shape) > 2:
@@ -164,8 +183,23 @@ class Policy(nn.Module):
             new_memory: Updated memory (None for full-context)
         """
         # Full-context transformer doesn't need memory
+        # Memory could be None or empty dict - both are fine
         output = self._transformer(hidden)
+        # Return None for memory since we don't use it
         return output, None
+    
+    def initialize_memory(self, batch_size: int) -> dict:
+        """Initialize memory for the transformer.
+        
+        This method is expected by TransformerWrapper.
+        
+        Args:
+            batch_size: Batch size
+            
+        Returns:
+            Empty dict (no memory needed for full-context transformer)
+        """
+        return {}
 
 
 class FullContext(PyTorchAgentMixin, TransformerWrapper):
@@ -210,33 +244,45 @@ class FullContext(PyTorchAgentMixin, TransformerWrapper):
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
         
+        # Log initialization
+        logger.info("Initializing FullContext transformer agent...")
+        
         # Log batch size information if available
         if hasattr(env, 'num_envs'):
             num_envs = getattr(env, 'num_envs', 1)
             num_agents = getattr(env, 'num_agents', 1)
             total_batch = num_envs * num_agents
-            logger.info(f"Initializing FullContext transformer for batch size {total_batch} "
-                       f"({num_envs} envs × {num_agents} agents)")
+            logger.info(f"Batch size: {total_batch} ({num_envs} envs × {num_agents} agents)")
         
         if policy is None:
-            policy = Policy(
-                env,
-                input_size=input_size,
-                hidden_size=hidden_size,
-                n_heads=n_heads,
-                n_layers=n_layers,
-                d_ff=d_ff,
-                max_seq_len=max_seq_len,
-                dropout=dropout,
-                use_causal_mask=use_causal_mask,
-                use_gating=use_gating,
-            )
+            logger.info("Creating Policy network...")
+            try:
+                policy = Policy(
+                    env,
+                    input_size=input_size,
+                    hidden_size=hidden_size,
+                    n_heads=n_heads,
+                    n_layers=n_layers,
+                    d_ff=d_ff,
+                    max_seq_len=max_seq_len,
+                    dropout=dropout,
+                    use_causal_mask=use_causal_mask,
+                    use_gating=use_gating,
+                )
+                logger.info("Policy network created successfully")
+            except Exception as e:
+                logger.error(f"Failed to create Policy network: {e}")
+                raise
         
         # Initialize transformer wrapper
+        logger.info("Initializing TransformerWrapper...")
         super().__init__(env, policy, hidden_size)
+        logger.info("TransformerWrapper initialized successfully")
         
         # Initialize mixin with configuration parameters
+        logger.info("Initializing PyTorchAgentMixin...")
         self.init_mixin(**mixin_params)
+        logger.info("FullContext agent initialization complete")
     
     def forward(self, td: TensorDict, state=None, action=None):
         """Forward pass through the agent.

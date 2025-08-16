@@ -288,6 +288,12 @@ class FullContextTransformer(nn.Module):
         # Initialize gates for identity mapping if using gating
         if use_gating:
             self._init_gates_for_identity()
+        
+        # Log successful initialization
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(f"FullContextTransformer initialized: d_model={d_model}, n_heads={n_heads}, "
+                   f"n_layers={n_layers}, use_gating={use_gating}")
     
     def _init_gates_for_identity(self):
         """Initialize gates to favor identity mapping at start of training."""
