@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.14.16"
+__generated_with = "0.14.17"
 app = marimo.App(width="medium", app_title="Hello metta-ai")
 
 
@@ -243,7 +243,6 @@ def _(mo):
 def _(mo):
     observe_button = mo.ui.run_button(label="Click to run observation below")
     observe_button
-
     return (observe_button,)
 
 
@@ -502,13 +501,15 @@ def _(
         f"trainer.curriculum=tmp/{curriculum_name}",
         "wandb=off",
         "device=cpu",
-        "trainer.total_timesteps=10000",  # tiny demo run
+        "trainer.total_timesteps=100000",
         "trainer.batch_size=256",  # Must be divisible by bptt_horizon
         "trainer.minibatch_size=128",  # Adjusted for bptt_horizon=64
-        "trainer.num_workers=2",
+        "trainer.num_workers=8",
         "trainer.bptt_horizon=64",  # Longer horizon for better temporal learning
         "trainer.forward_pass_minibatch_target_size=2",
         "trainer.simulation.skip_git_check=true",  # Skip git check to avoid errors in notebooks
+        "trainer.checkpoint.checkpoint_interval=500",  # Skip git check to avoid errors in notebooks
+        "trainer.simulation.evaluate_interval=500",  # Skip git check to avoid errors in notebooks
         "sim=sim",
         "+train_job.evals.name=hallway",
         "+train_job.evals.num_episodes=1",
