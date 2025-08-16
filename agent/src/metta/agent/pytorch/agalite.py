@@ -29,6 +29,9 @@ except ImportError:
     UNIFIED_MODE_AVAILABLE = False
     logger.warning("Unified AGaLiTe not available, falling back to legacy implementation")
 
+# Check if torch.compile is available for turbo mode
+TURBO_MODE_AVAILABLE = hasattr(torch, 'compile')
+
 # Legacy fast mode (deprecated)
 try:
     from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
@@ -73,6 +76,7 @@ class AGaLiTeCore(nn.Module):
         use_layer_norm: bool = True,
         use_ffc: bool = True,
         optimize_for_speed: bool = False,
+        use_turbo_mode: bool = False,  # Use compiled/optimized version
     ):
         super().__init__()
         self.n_layers = n_layers
@@ -81,8 +85,9 @@ class AGaLiTeCore(nn.Module):
         self.d_ffc = d_ffc
         self.n_heads = n_heads
         
-        # Check if unified implementation is available
+        # Check implementation mode
         self.use_unified = UNIFIED_MODE_AVAILABLE
+        self.use_turbo = use_turbo_mode and TURBO_MODE_AVAILABLE
         
         if self.use_unified:
             # Use the new unified implementation
@@ -94,8 +99,12 @@ class AGaLiTeCore(nn.Module):
                 optimize_for_speed = True
                 logger.info("use_fast_mode is deprecated, using optimize_for_speed instead")
             
-            logger.info(f"Using UnifiedAGaLiTe with eta={eta}, r={r}, "
-                       f"gru={use_gru_gating}, norm={use_layer_norm}, ffc={use_ffc}")
+            if self.use_turbo:
+                logger.info(f"Using UnifiedAGaLiTe (TURBO MODE with torch.compile) eta={eta}, r={r}, "
+                           f"gru={use_gru_gating}, norm={use_layer_norm}, ffc={use_ffc}")
+            else:
+                logger.info(f"Using UnifiedAGaLiTe with eta={eta}, r={r}, "
+                           f"gru={use_gru_gating}, norm={use_layer_norm}, ffc={use_ffc}")
         else:
             # Fall back to legacy implementation
             self.use_fast_mode = use_fast_mode
@@ -127,6 +136,7 @@ class AGaLiTeCore(nn.Module):
                 use_layer_norm=use_layer_norm,
                 use_ffc=use_ffc,
                 optimize_for_speed=optimize_for_speed,
+                use_turbo_mode=self.use_turbo,
             )
         else:
             # Legacy implementation
@@ -164,7 +174,7 @@ class AGaLiTeCore(nn.Module):
     ) -> Tuple[torch.Tensor, Dict[str, Tuple]]:
         """Forward pass for AGaLiTe."""
         if self.use_unified:
-            # Use unified implementation
+            # Use unified implementation (with or without turbo)
             return self.model(inputs, terminations, memory)
         else:
             # Legacy implementation
@@ -239,6 +249,7 @@ class AGaLiTePolicy(nn.Module):
         reset_on_terminate: bool = True,
         dropout: float = 0.0,
         use_fast_mode: bool = False,
+        use_turbo_mode: bool = False,
     ):
         super().__init__()
         self.action_space = env.single_action_space
@@ -294,6 +305,7 @@ class AGaLiTePolicy(nn.Module):
             reset_on_terminate=reset_on_terminate,
             dropout=dropout,
             use_fast_mode=use_fast_mode,
+            use_turbo_mode=use_turbo_mode,
         )
 
         # Output heads
@@ -473,6 +485,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         use_layer_norm: bool = True,
         use_ffc: bool = True,
         optimize_for_speed: bool = False,
+        use_turbo_mode: bool = False,
         **kwargs,
     ):
         """Initialize AGaLiTe with mixin support.
@@ -511,6 +524,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
             reset_on_terminate=reset_on_terminate,
             dropout=dropout,
             use_fast_mode=use_fast_mode,
+            use_turbo_mode=use_turbo_mode,
         )
 
         # Initialize with TransformerWrapper

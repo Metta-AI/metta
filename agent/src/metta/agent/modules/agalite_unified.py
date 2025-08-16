@@ -12,6 +12,9 @@ from typing import Tuple, Dict, Optional
 from metta.agent.modules.agalite_optimized import discounted_sum
 from metta.agent.modules.gru_gating import SimpleGRUGatingUnit
 
+# Check if torch.compile is available for turbo mode
+TURBO_AVAILABLE = hasattr(torch, 'compile')
+
 
 class UnifiedAGaLiTeLayer(nn.Module):
     """
@@ -391,6 +394,7 @@ class UnifiedAGaLiTe(nn.Module):
         optimize_large_batch: bool = True,
         # Feature flags for gradual migration
         optimize_for_speed: bool = False,  # Reduces eta/r when True
+        use_turbo_mode: bool = False,  # Use torch.compile for speedup
     ):
         super().__init__()
         self.n_layers = n_layers
@@ -413,22 +417,26 @@ class UnifiedAGaLiTe(nn.Module):
         # Create layers
         self.layers = nn.ModuleList()
         for _ in range(n_layers):
-            self.layers.append(
-                UnifiedAGaLiTeLayer(
-                    d_model=d_model,
-                    head_num=n_heads,
-                    head_dim=d_head,
-                    d_ffc=d_ffc,
-                    eta=self.eta,
-                    r=self.r,
-                    reset_hidden_on_terminate=reset_on_terminate,
-                    dropout=dropout,
-                    use_layer_norm=use_layer_norm,
-                    use_gru_gating=use_gru_gating,
-                    use_ffc=use_ffc,
-                    optimize_large_batch=optimize_large_batch,
-                )
+            layer = UnifiedAGaLiTeLayer(
+                d_model=d_model,
+                head_num=n_heads,
+                head_dim=d_head,
+                d_ffc=d_ffc,
+                eta=self.eta,
+                r=self.r,
+                reset_hidden_on_terminate=reset_on_terminate,
+                dropout=dropout,
+                use_layer_norm=use_layer_norm,
+                use_gru_gating=use_gru_gating,
+                use_ffc=use_ffc,
+                optimize_large_batch=optimize_large_batch,
             )
+            
+            # Apply torch.compile if turbo mode is enabled
+            if use_turbo_mode and TURBO_AVAILABLE:
+                layer = torch.compile(layer, mode="reduce-overhead", fullgraph=True)
+            
+            self.layers.append(layer)
         
         # Initialize input embedding
         nn.init.orthogonal_(self.input_embed.weight, gain=math.sqrt(2))
