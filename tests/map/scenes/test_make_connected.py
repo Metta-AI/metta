@@ -1,6 +1,6 @@
+from metta.map.scene import ChildrenAction
 from metta.map.scenes.make_connected import MakeConnected
 from metta.map.scenes.room_grid import RoomGrid
-from metta.map.types import ChildrenAction
 from tests.map.scenes.utils import assert_connected, render_scene
 
 
