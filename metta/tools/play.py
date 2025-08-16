@@ -9,7 +9,6 @@ from metta.agent.policy_store import PolicyStore
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.util.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff
-from metta.rl.system_config import SystemConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 
@@ -17,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 
 class PlayTool(Tool):
-    system: SystemConfig = Field(default_factory=SystemConfig)
     wandb: WandbConfig = Field(default_factory=WandbConfigOff)
     sim: SimulationConfig
     policy_uri: str | None = None
