@@ -45,9 +45,7 @@ class Fast(nn.Module):
         self.clip_range = self.cfg.get("clip_range", 0)
 
         # Device setup
-        self.device = torch.device(device) if device else torch.device(
-            "cuda" if torch.cuda.is_available() else "cpu"
-        )
+        self.device = torch.device(device) if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Validate and extract observation key
         obs_key = self.cfg.get("observations", {}).get("obs_key", "grid_obs")
@@ -65,7 +63,7 @@ class Fast(nn.Module):
         }
 
         # Action space handling
-        if action_space is not None and hasattr(action_space, 'nvec'):
+        if action_space is not None and hasattr(action_space, "nvec"):
             action_nvec = action_space.nvec
         else:
             action_nvec = [100]  # default
@@ -91,11 +89,13 @@ class Fast(nn.Module):
                 name="cnn1",
                 nn_params=DictConfig({"out_channels": 64, "kernel_size": 5, "stride": 3, "padding": 0}),
                 sources=[{"name": "obs_normalizer"}],
+                **self.agent_attributes
             ),
             "cnn2": Conv2d(
                 name="cnn2",
                 nn_params=DictConfig({"out_channels": 64, "kernel_size": 3, "stride": 1, "padding": 0}),
                 sources=[{"name": "cnn1"}],
+                **self.agent_attributes
             ),
             "obs_flattener": Flatten(
                 name="obs_flattener",
@@ -105,11 +105,13 @@ class Fast(nn.Module):
                 name="fc1",
                 nn_params=DictConfig({"out_features": 128}),
                 sources=[{"name": "obs_flattener"}],
+                **self.agent_attributes
             ),
             "encoded_obs": Linear(
                 name="encoded_obs",
                 nn_params=DictConfig({"out_features": 128}),
                 sources=[{"name": "fc1"}],
+                **self.agent_attributes
             ),
             "_core_": LSTM(
                 name="_core_",
@@ -120,16 +122,19 @@ class Fast(nn.Module):
                 name="critic_1",
                 nn_params=DictConfig({"out_features": 1024}),
                 sources=[{"name": "_core_"}],
+                **self.agent_attributes
             ),
             "_value_": Linear(
                 name="_value_",
                 nn_params=DictConfig({"out_features": 1}),
                 sources=[{"name": "critic_1"}],
+                **self.agent_attributes
             ),
             "actor_1": Linear(
                 name="actor_1",
                 nn_params=DictConfig({"out_features": 512}),
                 sources=[{"name": "_core_"}],
+                **self.agent_attributes
             ),
             "_action_embeds_": ActionEmbedding(
                 name="_action_embeds_",
@@ -394,10 +399,8 @@ class Fast(nn.Module):
 # Example usage matching the original test
 if __name__ == "__main__":
     from omegaconf import OmegaConf
-    cfg = OmegaConf.create({
-        "clip_range": 0,
-        "observations": {"obs_key": "grid_obs"}
-    })
+
+    cfg = OmegaConf.create({"clip_range": 0, "observations": {"obs_key": "grid_obs"}})
     policy = Fast(cfg=cfg)
     dummy_obs = torch.randn(1, 22, 32, 32)
     td = TensorDict({"grid_obs": dummy_obs}, batch_size=[1])
