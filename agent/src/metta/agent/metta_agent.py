@@ -11,7 +11,6 @@ from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.component_policy import ComponentPolicy
-from metta.agent.component_policies.fast import Fast
 from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.rl.system_config import SystemConfig
 
@@ -101,7 +100,7 @@ class MettaAgent(nn.Module):
             logger.info(f"Using PyTorch Policy: {policy} (type: {agent_cfg.agent_type})")
         else:
             # Create ComponentPolicy (YAML config)
-            policy = Fast(
+            policy = ComponentPolicy(
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
                 obs_height=self.obs_height,

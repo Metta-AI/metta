@@ -3,22 +3,20 @@ from typing import Optional, Union
 
 import gymnasium as gym
 import torch
+from omegaconf import DictConfig, OmegaConf
 from tensordict import TensorDict
 from torch import nn
-from omegaconf import DictConfig, OmegaConf
-from torch.nn.modules import padding
 
-from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
-from metta.agent.util.safe_get import safe_get_from_obs_space
-from metta.agent.util.debug import assert_shape
-from metta.common.util.datastruct import duplicates
-
-from metta.agent.lib.nn_layer_library import Conv2d, Linear, Flatten
-from metta.agent.lib.lstm import LSTM
 from metta.agent.lib.action import ActionEmbedding
 from metta.agent.lib.actor import MettaActorSingleHead
-from metta.agent.lib.observation_normalizer import ObservationNormalizer
+from metta.agent.lib.lstm import LSTM
+from metta.agent.lib.nn_layer_library import Conv2d, Flatten, Linear
 from metta.agent.lib.obs_token_to_box_shaper import ObsTokenToBoxShaper
+from metta.agent.lib.observation_normalizer import ObservationNormalizer
+from metta.agent.util.debug import assert_shape
+from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
+from metta.agent.util.safe_get import safe_get_from_obs_space
+from metta.common.util.datastruct import duplicates
 
 logger = logging.getLogger(__name__)
 
