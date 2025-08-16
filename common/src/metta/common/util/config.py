@@ -4,7 +4,7 @@ from typing import Any, Dict, Optional, TypeVar, cast
 
 import hydra
 from omegaconf import DictConfig, ListConfig, OmegaConf
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 T = TypeVar("T")
 
@@ -18,7 +18,7 @@ class Config(BaseModel):
     - .yaml() → YAML string
     """
 
-    model_config = {"extra": "forbid"}
+    model_config = ConfigDict(extra="forbid")
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         if len(args) == 1 and not kwargs and isinstance(args[0], (DictConfig, dict)):
