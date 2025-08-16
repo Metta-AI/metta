@@ -515,21 +515,24 @@ def _(
         "wandb=off",
         "device=cpu",
         "trainer.total_timesteps=100000",
-        "trainer.batch_size=256",  # Must be divisible by bptt_horizon
+        "trainer.batch_size=1024",  # Must be divisible by bptt_horizon
         "trainer.minibatch_size=128",  # Adjusted for bptt_horizon=64
+        "trainer.forward_pass_minibatch_target_size=2",  # Richard said we need this line
         "trainer.num_workers=8",
         "trainer.bptt_horizon=64",  # Longer horizon for better temporal learning
-        "trainer.forward_pass_minibatch_target_size=2",  # Richard said we need this line
         "trainer.simulation.skip_git_check=true",  # Skip git check to avoid errors in notebooks
         "trainer.simulation.evaluate_remote=false",
         "trainer.checkpoint.checkpoint_interval=500",  # Skip
         "trainer.simulation.evaluate_interval=500",  # Skip
+        "trainer.checkpoint.wandb_checkpoint_interval=500",  # Skip
         "sim=sim",
         "+train_job.evals.name=hallway",
         "+train_job.evals.num_episodes=1",
         "+train_job.evals.simulations={}",
+        "bypass_mac_overrides=true",
     ]
 
+    print("Training command:", " ".join(train_cmd))  # Debug line
     process = subprocess.Popen(
         train_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
     )
@@ -618,10 +621,9 @@ def _(
     map_box2 = widgets.HTML()
     display(header2, map_box2)
     _obs, _ = trained_env.reset()
-    for _step in range(auto_cfg.renderer_job.num_steps * 10):
+    for _step in range(auto_cfg.renderer_job.num_steps):
         _actions = trained_policy.predict(_obs)
-        print(_actions)
-        _obs, _, _, _, _ = trained_env.step(_actions)
+        _obs, a, _, _, _ = trained_env.step(_actions)
         _agent_obj = next(
             (o for o in trained_env.grid_objects.values() if o.get("agent_id") == 0)
         )
