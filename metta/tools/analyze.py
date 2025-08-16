@@ -9,13 +9,11 @@ from metta.common.util.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff, WandbConfigOn
 from metta.eval.analysis import analyze
 from metta.eval.analysis_config import AnalysisConfig
-from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger(__name__)
 
 
 class AnalysisTool(Tool):
-    system: SystemConfig = Field(default_factory=SystemConfig)
     wandb: WandbConfig = Field(default_factory=WandbConfigOff)
 
     analysis: AnalysisConfig
