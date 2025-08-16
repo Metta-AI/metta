@@ -69,9 +69,12 @@ def main() -> int:
         "Training completed successfully" if state == "success" else failure_message,
     )
 
-    task_id = os.getenv("SKYPILOT_TASK_ID", "").strip()
-    if task_id:
-        desc += f" - [ jl {task_id} ]"
+    job_id = os.getenv("SKYPILOT_JOB_ID", "").strip()
+    if job_id:
+        print(f"[INFO] Setting GitHub status for job {job_id}")
+        desc += f" - [ jl {job_id} ]"
+    else:
+        print("[INFO] No SkyPilot job ID found")
 
     # The target_url is a URL that GitHub will associate with the commit status. When users view the commit status
     # on GitHub (for example, in pull requests or on the commit page), they can click on the status check and be
