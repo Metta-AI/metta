@@ -320,20 +320,16 @@ class FullContext(PyTorchAgentMixin, TransformerWrapper):
         if action is None:
             # Inference mode - use forward_eval from parent
             logits, values = super().forward_eval(observations, state)
-            # Convert logits to list (mixin expects a list)
-            logits_list = [logits]
-            # Mixin handles inference mode
-            td = self.forward_inference(td, logits_list, values)
+            # The parent methods return logits as a tensor already
+            td = self.forward_inference(td, logits, values)
         else:
             # Training mode - use forward from parent
             logits, values = super().forward(observations, state)
-            # Convert logits to list (mixin expects a list)
-            logits_list = [logits]
-            # Mixin handles training mode with proper reshaping
+            # Pass logits directly to forward_training (it expects a tensor)
             td = self.forward_training(
                 td=td,
                 action=action,
-                logits_list=logits_list,
+                logits_list=logits,  # This is already a tensor, not a list
                 value=values,
             )
         
