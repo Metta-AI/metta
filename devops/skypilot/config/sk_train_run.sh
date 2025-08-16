@@ -12,7 +12,7 @@ fi
 
 # Determine node role using SkyPilot environment variables
 RANK=${SKYPILOT_NODE_RANK:-0}
-IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
+export IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
 TOTAL_NODES=${SKYPILOT_NUM_NODES:-1}
 
 # Master-only: Collect SkyPilot latency
@@ -150,6 +150,13 @@ maybe_send_discord_notification() {
 maybe_set_github_status() {
   if [[ "$IS_MASTER" != "true" ]] || [ "$ENABLE_GITHUB_STATUS" != "true" ]; then
     return 0
+  fi
+
+  # Read SkyPilot job ID from file and export it
+  if [ -f /tmp/.sky_tmp/sky_job_id ]; then
+    export SKYPILOT_JOB_ID=$(cat /tmp/.sky_tmp/sky_job_id)
+  else
+    export SKYPILOT_JOB_ID=""
   fi
 
   echo "[RUN] Setting GitHub status: ${GITHUB_STATUS_STATE:-} - ${GITHUB_STATUS_DESCRIPTION:-}"

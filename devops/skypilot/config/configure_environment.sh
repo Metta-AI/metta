@@ -32,7 +32,12 @@ if [ -f "$RESTART_COUNT_FILE" ]; then
 else
     RESTART_COUNT=0
 fi
-echo "$RESTART_COUNT" > "$RESTART_COUNT_FILE"
+
+if [[ "$IS_MASTER" == "true" ]]; then
+    echo "$RESTART_COUNT" > "$RESTART_COUNT_FILE"
+else
+    echo "[INFO] Skipping RESTART_COUNT update on non-master node"
+fi
 
 # Read accumulated runtime
 if [ -f "$ACCUMULATED_RUNTIME_FILE" ]; then
