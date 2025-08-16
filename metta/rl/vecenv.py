@@ -43,11 +43,13 @@ def make_env_func(
         is_training=is_training,
     )
     set_buffers(env, buf)
+    env._current_task = task
     
     def on_episode_done(obs, rew, term, trunc, info):
         nonlocal task
         task.complete(rew.mean())
         task = curriculum.get_task()
+        env._current_task = task
         env.set_env_config(task.get_env_cfg())
 
     env.set_on_episode_done(on_episode_done)
