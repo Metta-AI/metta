@@ -67,32 +67,31 @@ def _(live_widget):
         mds.append(mo.md(f"  - {policy_id}"))
 
     mo.vstack(mds)
-    return
+    return (selected_policies,)
 
 
 @app.cell
-async def _(client, live_widget):
+async def _(client, selected_policies):
     # Access the widget's value to trigger reactivity in Marimo
     from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import (
         ScorecardWidget,
     )
 
-    policies_for_scorecard = live_widget.selected_policies
+    policies_for_scorecard = selected_policies
     scorecard_widget = ScorecardWidget(client=client)
+
+    # policies_for_scorecard.append("92865a86-bc10-4a72-a251-cd8326508f4a")
 
     await scorecard_widget.fetch_real_scorecard_data(
         restrict_to_metrics=["heart.get", "reward"],
         restrict_to_policy_ids=policies_for_scorecard,
+        restrict_to_policy_names=["zfogg.new_run_name.08-15.1"],
         policy_selector="latest",
         max_policies=20,
+        ignore_missing_policies=True,
     )
 
     scorecard_widget
-    return
-
-
-@app.cell
-def _():
     return
 
 

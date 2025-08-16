@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "metta": {
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "-m",
+        "mcp_server.server"
+      ],
+      "env": {},
+      "transport": "stdio"
+    },
+    "metta-observatory": {
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "-m",
+        "metta.app_backend.mcp_stdio_server"
+      ],
+      "env": {
+        "FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER": "true"
+      },
+      "transport": "stdio"
+    }
+  }
+}

@@ -20,6 +20,7 @@ dependencies = [
   "pytest-asyncio>=1.0.0",
   "httpx>=0.28.1",
   "metta-common",
+  "fastmcp>=2.11.3",
 ]
 
 [dependency-groups]
