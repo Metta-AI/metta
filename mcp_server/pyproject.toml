@@ -11,6 +11,7 @@ dependencies = [
     "typing>=3.7.4.3",
     "pathlib>=1.0.1",
     "fastmcp>=2.11.3",
+    "modelcontextprotocol>=0.1.0",
 ]
 
 [build-system]
