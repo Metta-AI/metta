@@ -246,6 +246,7 @@ class ScorecardClient(BaseAppBackendClient):
                 training_run_ids.append(policy.id)
             elif (
                 policy.type == "policy"
+                # and include_run_free_policies # FIXME: i'm not sure when to do this exactly
                 and (
                     restrict_to_policy_ids
                     and any(filter_policy_id == policy.id for filter_policy_id in restrict_to_policy_ids)
@@ -254,7 +255,6 @@ class ScorecardClient(BaseAppBackendClient):
                     restrict_to_policy_names
                     and any(filter_policy_name == policy.name for filter_policy_name in restrict_to_policy_names)
                 )
-                and include_run_free_policies
             ):
                 print(policy.type, policy.name, policy.id)
                 run_free_policy_ids.append(policy.id)
