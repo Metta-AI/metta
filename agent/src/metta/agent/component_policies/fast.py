@@ -34,19 +34,16 @@ class Fast(nn.Module):
         action_space: Optional[gym.spaces.Space] = None,
         feature_normalizations: Optional[dict[int, float]] = None,
         device: Optional[str] = None,
-        cfg: Optional[DictConfig] = None,
     ):
         super().__init__()
 
-        # Build components immediately, matching ComponentPolicy approach
-        self.cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True)) if cfg else OmegaConf.create({})
-        self.clip_range = self.cfg.get("clip_range", 0)
+        self.clip_range = 0
 
         # Device setup
         self.device = torch.device(device) if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Validate and extract observation key
-        obs_key = self.cfg.get("observations", {}).get("obs_key", "grid_obs")
+        obs_key = "grid_obs"
         obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape") if obs_space is not None else None
 
         # Create agent attributes dict like ComponentPolicy
@@ -392,15 +389,3 @@ class Fast(nn.Module):
         if "_core_" in self.components:
             return getattr(self.components["_core_"], "num_layers", None)
         return None
-
-
-# Example usage matching the original test
-if __name__ == "__main__":
-    from omegaconf import OmegaConf
-
-    cfg = OmegaConf.create({"clip_range": 0, "observations": {"obs_key": "grid_obs"}})
-    policy = Fast(cfg=cfg)
-    dummy_obs = torch.randn(1, 22, 32, 32)
-    td = TensorDict({"grid_obs": dummy_obs}, batch_size=[1])
-    _ = policy(td)  # warm-up
-    print(f"Policy parameters: {sum(p.numel() for p in policy.parameters())}")

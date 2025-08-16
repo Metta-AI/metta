@@ -93,21 +93,35 @@ class MettaAgent(nn.Module):
 
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
-        if agent_cfg.get("agent_type") in agent_classes:
-            # Create PyTorch policy
-            AgentClass = agent_classes[agent_cfg.agent_type]
-            policy = AgentClass(env=env)
-            logger.info(f"Using PyTorch Policy: {policy} (type: {agent_cfg.agent_type})")
-        else:
+
+        # map agent_cfg.agent_type to the appropriate policy class
+        try:
+            if agent_cfg.get("agent_type") in agent_classes:
+                # Create PyTorch policy
+                AgentClass = agent_classes[agent_cfg.agent_type]
+                policy = AgentClass(env=env)
+                logger.info(f"Using PyTorch Policy: {policy} (type: {agent_cfg.agent_type})")
+            else:
+                raise
+        except:
+            policy_name = agent_cfg
+
+            logger.info(f"Using ComponentPolicy: {policy_name}")
+
+            from metta.agent.component_policies.agent_mapper import agent_classes as component_agent_classes
+
+            AgentClass = component_agent_classes[policy_name]
+
+
+
             # Create ComponentPolicy (YAML config)
-            policy = ComponentPolicy(
+            policy = AgentClass(
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
                 obs_height=self.obs_height,
                 action_space=self.action_space,
                 feature_normalizations=self.feature_normalizations,
                 device=system_cfg.device,
-                cfg=agent_cfg,
             )
             logger.info(f"Using ComponentPolicy: {type(policy).__name__}")
 
