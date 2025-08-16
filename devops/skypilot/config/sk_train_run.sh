@@ -72,12 +72,13 @@ export CMD_PID=""
 export CMD_PGID=""
 export START_TIME=0
 
-export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
+export HEARTBEAT_FILE="${HEARTBEAT_FILE:-${WANDB_DIR:-.}/heartbeat.txt}"
 export TERMINATION_REASON=""
 
 # Configurable intervals
 export TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-60}
 export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
+export CLUSTER_STOP_CHECK_INTERVAL=${CLUSTER_STOP_CHECK_INTERVAL:-15}
 
 # Flag to prevent multiple shutdowns
 export SHUTDOWN_IN_PROGRESS=0
@@ -254,6 +255,12 @@ terminate_monitors() {
     wait "$TIMEOUT_MONITOR_PID" 2>/dev/null || true
     echo "[INFO] Terminated timeout monitor"
   fi
+
+  if [[ -n "${CLUSTER_STOP_MONITOR_PID:-}" ]] && kill -0 "$CLUSTER_STOP_MONITOR_PID" 2>/dev/null; then
+    kill "$CLUSTER_STOP_MONITOR_PID" 2>/dev/null || true
+    wait "$CLUSTER_STOP_MONITOR_PID" 2>/dev/null || true
+    echo "[INFO] Terminated cluster-stop monitor"
+  fi
 }
 
 terminate_process() {
@@ -349,7 +356,7 @@ run_cmd() {
     echo "[INFO] Started timeout monitor with PID: $TIMEOUT_MONITOR_PID"
   fi
 
-  if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
+  if [[ "$IS_MASTER" == "true" ]] && [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
     echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE"
     echo "[INFO] Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
 
@@ -380,14 +387,6 @@ run_cmd() {
           fi
         fi
 
-        # --- cluster stop check ---
-        if [ -n "${CLUSTER_STOP_FILE:-}" ] && [ -s "$CLUSTER_STOP_FILE" ]; then
-          reason="$(cat "$CLUSTER_STOP_FILE" 2>/dev/null || true)"
-          echo "[INFO] Cluster stop flag detected (${reason:-no-reason}); requesting shutdown"
-          terminate_process "$CMD_PID" "${reason:-cluster_stop}"
-          break
-        fi
-
         sleep "$HEARTBEAT_CHECK_INTERVAL"
       done
 
@@ -395,6 +394,29 @@ run_cmd() {
     ) &
     HEARTBEAT_MONITOR_PID=$!
     echo "[INFO] Started heartbeat monitor with PID: $HEARTBEAT_MONITOR_PID"
+  fi
+
+
+  # Start a cluster-stop monitor that always runs, regardless of heartbeat settings
+  if [ -n "${CLUSTER_STOP_FILE:-}" ]; then
+    (
+      exec 2>&1
+      echo "[INFO] Cluster-stop monitor started; checking every ${CLUSTER_STOP_CHECK_INTERVAL}s"
+      while kill -0 "$CMD_PID" 2>/dev/null; do
+        if [ -s "$CLUSTER_STOP_FILE" ]; then
+          reason="$(cat "$CLUSTER_STOP_FILE" 2>/dev/null || true)"
+          echo "[INFO] Cluster stop flag detected (${reason:-no-reason}); requesting shutdown"
+          terminate_process "$CMD_PID" "${reason:-cluster_stop}"
+          break
+        fi
+        sleep "$CLUSTER_STOP_CHECK_INTERVAL"
+      done
+      echo "[INFO] Cluster-stop monitor exiting]"
+    ) &
+    CLUSTER_STOP_MONITOR_PID=$!
+    echo "[INFO] Started cluster-stop monitor with PID: $CLUSTER_STOP_MONITOR_PID"
+  else
+    echo "[INFO] Cluster-stop monitor disabled (CLUSTER_STOP_FILE not set)"
   fi
 
   # Wait for command to finish
@@ -517,6 +539,7 @@ cleanup() {
 # Export variables needed by cleanup
 export TIMEOUT_MONITOR_PID=""
 export HEARTBEAT_MONITOR_PID=""
+export CLUSTER_STOP_MONITOR_PID=""
 export CMD_EXIT=1  # Default exit code
 export FINAL_EXIT_CODE=1 # Default to failure
 export -f terminate_process
