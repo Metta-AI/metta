@@ -205,12 +205,25 @@ def _(Any, Dict, OmegaConf, get_cfg):
         200  # Default value expected by MettaAgent
     )
 
+    # Disable+enable to make the environment we need
+    env_dict["game"]["actions"]["attack"]["enabled"] = 0
+    env_dict["game"]["actions"]["noop"]["enabled"] = 0
+    env_dict["game"]["actions"]["move"]["enabled"] = 0
+    env_dict["game"]["actions"]["rotate"]["enabled"] = 0
+    env_dict["game"]["actions"]["move_cardinal"] = {"enabled": 1}
+    env_dict["game"]["actions"]["move_8way"] = {"enabled": 0}
+    env_dict["game"]["actions"]["change_color"]["enabled"] = 0
+    env_dict["game"]["actions"]["change_glyph"]["enabled"] = 0
+    env_dict["game"]["actions"]["swap"]["enabled"] = 0
+    env_dict["game"]["actions"]["put_items"]["enabled"] = 0
+    env_dict["game"]["actions"]["get_items"]["enabled"] = 1
+
     cfg = OmegaConf.create(
         {
             "env": env_dict,
             "renderer_job": {
                 "policy_type": "opportunistic",
-                "num_steps": 100,
+                "num_steps": 200,
                 "num_agents": 1,
                 "sleep_time": 0.04,
             },
@@ -510,6 +523,7 @@ def _(
         "trainer.simulation.skip_git_check=true",  # Skip git check to avoid errors in notebooks
         "trainer.checkpoint.checkpoint_interval=500",  # Skip git check to avoid errors in notebooks
         "trainer.simulation.evaluate_interval=500",  # Skip git check to avoid errors in notebooks
+        "trainer.simulation.evaluate_remote=false",  # Skip git check to avoid errors in notebooks
         "sim=sim",
         "+train_job.evals.name=hallway",
         "+train_job.evals.num_episodes=1",
@@ -591,7 +605,7 @@ def _(
             "policy_uri": f"file://{latest_ckpt.absolute()}",
             "renderer_job": {
                 "policy_type": "trained",
-                "num_steps": 100,
+                "num_steps": 1000,
                 "num_agents": 1,
                 "sleep_time": 0.04,
             },
@@ -604,8 +618,9 @@ def _(
     map_box2 = widgets.HTML()
     display(header2, map_box2)
     _obs, _ = trained_env.reset()
-    for _step in range(auto_cfg.renderer_job.num_steps):
+    for _step in range(auto_cfg.renderer_job.num_steps * 10):
         _actions = trained_policy.predict(_obs)
+        print(_actions)
         _obs, _, _, _, _ = trained_env.step(_actions)
         _agent_obj = next(
             (o for o in trained_env.grid_objects.values() if o.get("agent_id") == 0)
