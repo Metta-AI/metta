@@ -47,8 +47,6 @@ class TestObservations:
         assert (obs[0, -1, :] == TokenTypes.EMPTY_TOKEN).all()
         assert (obs[1, -1, :] == TokenTypes.EMPTY_TOKEN).all()
 
-    # Example flaky run: https://github.com/Metta-AI/metta/actions/runs/16996023412/job/48186817369
-    @pytest.mark.skip(reason="Flaky test")
     def test_detailed_wall_observations(self, basic_env):
         """Test detailed wall observations for both agents."""
         obs, _ = basic_env.reset()

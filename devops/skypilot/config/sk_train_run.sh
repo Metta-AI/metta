@@ -12,26 +12,8 @@ fi
 
 # Determine node role using SkyPilot environment variables
 RANK=${SKYPILOT_NODE_RANK:-0}
-IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
+export IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
 TOTAL_NODES=${SKYPILOT_NUM_NODES:-1}
-
-DEBUG=${DEBUG:-0}
-
-EXIT_SUCCESS=0
-EXIT_FAILURE=1
-EXIT_NCCL_TEST_FAILURE=42
-
-echo "[CONFIG] Run Configuration:"
-echo "  - NODE_RANK: ${RANK}"
-echo "  - IS_MASTER: ${IS_MASTER}"
-echo "  - TOTAL_NODES: ${TOTAL_NODES}"
-echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
-echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
-echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
-echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
-echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
-echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
-[ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
 # Master-only: Collect SkyPilot latency
 if [[ "$IS_MASTER" == "true" ]]; then
@@ -64,6 +46,24 @@ fi
 bash ./devops/skypilot/config/configure_environment.sh
 source "$METTA_ENV_FILE"
 
+EXIT_SUCCESS=0
+EXIT_FAILURE=1
+EXIT_NCCL_TEST_FAILURE=42
+
+echo "[CONFIG] Run Configuration:"
+echo "  - NODE_RANK: ${RANK}"
+echo "  - IS_MASTER: ${IS_MASTER}"
+echo "  - TOTAL_NODES: ${TOTAL_NODES}"
+echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
+echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
+echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
+echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
+echo "  - RESTART_COUNT: ${RESTART_COUNT}"
+echo "  - ACCUMULATED_RUNTIME: ${ACCUMULATED_RUNTIME}s ($((ACCUMULATED_RUNTIME / 60))m)"
+echo "  - TEST_JOB_RESTART: ${TEST_JOB_RESTART:-0}"
+echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
+echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
+
 # Create a temp directory for IPC files
 export IPC_DIR="/tmp/metta_job_$$"
 mkdir -p "$IPC_DIR"
@@ -72,12 +72,13 @@ export CMD_PID=""
 export CMD_PGID=""
 export START_TIME=0
 
-export HEARTBEAT_FILE=${HEARTBEAT_FILE:-$WANDB_DIR/heartbeat.txt}
+export HEARTBEAT_FILE="${HEARTBEAT_FILE:-${WANDB_DIR:-.}/heartbeat.txt}"
 export TERMINATION_REASON=""
 
 # Configurable intervals
 export TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-60}
 export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
+export CLUSTER_STOP_CHECK_INTERVAL=${CLUSTER_STOP_CHECK_INTERVAL:-15}
 
 # Flag to prevent multiple shutdowns
 export SHUTDOWN_IN_PROGRESS=0
@@ -152,11 +153,18 @@ maybe_set_github_status() {
     return 0
   fi
 
+  # Read SkyPilot job ID from file and export it
+  if [ -f /tmp/.sky_tmp/sky_job_id ]; then
+    export SKYPILOT_JOB_ID=$(cat /tmp/.sky_tmp/sky_job_id)
+  else
+    export SKYPILOT_JOB_ID=""
+  fi
+
   echo "[RUN] Setting GitHub status: ${GITHUB_STATUS_STATE:-} - ${GITHUB_STATUS_DESCRIPTION:-}"
   uv run devops/skypilot/set_github_status.py || echo "[WARN] GitHub status update failed; continuing"
 }
 
-# Export the functions so they're available in subshells
+# Export the functions so they're available to sub-shells
 export -f maybe_send_discord_notification
 export -f maybe_set_github_status
 
@@ -247,6 +255,12 @@ terminate_monitors() {
     wait "$TIMEOUT_MONITOR_PID" 2>/dev/null || true
     echo "[INFO] Terminated timeout monitor"
   fi
+
+  if [[ -n "${CLUSTER_STOP_MONITOR_PID:-}" ]] && kill -0 "$CLUSTER_STOP_MONITOR_PID" 2>/dev/null; then
+    kill "$CLUSTER_STOP_MONITOR_PID" 2>/dev/null || true
+    wait "$CLUSTER_STOP_MONITOR_PID" 2>/dev/null || true
+    echo "[INFO] Terminated cluster-stop monitor"
+  fi
 }
 
 terminate_process() {
@@ -256,6 +270,11 @@ terminate_process() {
   echo "[INFO] Requesting graceful shutdown (reason: $reason)"
   echo "$reason" > "$TERMINATION_REASON_FILE"
   TERMINATION_REASON="$reason"
+
+  # Master broadcasts the stop to all nodes via shared flag
+  if [[ "$IS_MASTER" == "true" ]] && [ -n "${CLUSTER_STOP_FILE:-}" ]; then
+    echo "$reason" > "$CLUSTER_STOP_FILE"
+  fi
 
   # Only send signal if not already shutting down
   if [ $SHUTDOWN_IN_PROGRESS -eq 0 ]; then
@@ -287,8 +306,17 @@ run_cmd() {
     (
       exec 2>&1
       max_seconds=$(awk "BEGIN {print int(${MAX_RUNTIME_HOURS} * 3600)}")
+      remaining_at_start=$((max_seconds - ACCUMULATED_RUNTIME))
       echo "[INFO] Timeout monitor started - max runtime: ${MAX_RUNTIME_HOURS} hours (${max_seconds} seconds)"
+      echo "[INFO] Already accumulated: ${ACCUMULATED_RUNTIME}s, remaining: ${remaining_at_start}s"
       echo "[INFO] Checking every ${TIMEOUT_CHECK_INTERVAL} seconds"
+
+      force_restart_seconds=""
+      if [[ -n "${TEST_JOB_RESTART:-}" ]] && [[ "${TEST_JOB_RESTART}" != "0" ]] && [ $RESTART_COUNT -eq 0 ]; then
+        # Calculate 30% of remaining runtime (not total runtime)
+        force_restart_seconds=$(awk "BEGIN {print int(${remaining_at_start} * 0.3)}")
+        echo "[INFO] Force restart test enabled - will restart after ${force_restart_seconds}s (30% of remaining ${remaining_at_start}s)"
+      fi
 
       while true; do
         sleep "$TIMEOUT_CHECK_INTERVAL"
@@ -300,12 +328,23 @@ run_cmd() {
         fi
 
         elapsed=$(($(date +%s) - START_TIME))
-        remaining=$((max_seconds - elapsed))
+        total_runtime=$((ACCUMULATED_RUNTIME + elapsed))
+        echo "$total_runtime" > "${ACCUMULATED_RUNTIME_FILE}"
 
+        # restart test check
+        if [[ -n "${force_restart_seconds:-}" ]] && [ $elapsed -ge $force_restart_seconds ]; then
+          echo "[INFO] Force restart test triggered after ${elapsed} seconds"
+          total_runtime=$((ACCUMULATED_RUNTIME + elapsed))
+          echo "$total_runtime" > "${ACCUMULATED_RUNTIME_FILE}"
+          terminate_process "$CMD_PID" "force_restart_test"
+          break
+        fi
+
+        remaining=$((max_seconds - total_runtime))
         if [ $remaining -gt 0 ]; then
           elapsed_min=$((elapsed / 60))
           remaining_min=$((remaining / 60))
-          [ "$DEBUG" = "1" ] && echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
+          echo "[INFO] Timeout Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
         else
           echo "[INFO] Timeout limit reached - terminating process group"
           terminate_process "$CMD_PID" "max_runtime_reached"
@@ -317,8 +356,7 @@ run_cmd() {
     echo "[INFO] Started timeout monitor with PID: $TIMEOUT_MONITOR_PID"
   fi
 
-  # All nodes: Start heartbeat monitor if enabled
-  if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
+  if [[ "$IS_MASTER" == "true" ]] && [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
     echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE"
     echo "[INFO] Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
 
@@ -337,7 +375,7 @@ run_cmd() {
 
             # Print status occasionally
             if [ $((HEARTBEAT_COUNT % 10)) -eq 0 ]; then
-              [ "$DEBUG" = "1" ] && echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
+              echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
             fi
           fi
 
@@ -356,6 +394,29 @@ run_cmd() {
     ) &
     HEARTBEAT_MONITOR_PID=$!
     echo "[INFO] Started heartbeat monitor with PID: $HEARTBEAT_MONITOR_PID"
+  fi
+
+
+  # Start a cluster-stop monitor that always runs, regardless of heartbeat settings
+  if [ -n "${CLUSTER_STOP_FILE:-}" ]; then
+    (
+      exec 2>&1
+      echo "[INFO] Cluster-stop monitor started; checking every ${CLUSTER_STOP_CHECK_INTERVAL}s"
+      while kill -0 "$CMD_PID" 2>/dev/null; do
+        if [ -s "$CLUSTER_STOP_FILE" ]; then
+          reason="$(cat "$CLUSTER_STOP_FILE" 2>/dev/null || true)"
+          echo "[INFO] Cluster stop flag detected (${reason:-no-reason}); requesting shutdown"
+          terminate_process "$CMD_PID" "${reason:-cluster_stop}"
+          break
+        fi
+        sleep "$CLUSTER_STOP_CHECK_INTERVAL"
+      done
+      echo "[INFO] Cluster-stop monitor exiting]"
+    ) &
+    CLUSTER_STOP_MONITOR_PID=$!
+    echo "[INFO] Started cluster-stop monitor with PID: $CLUSTER_STOP_MONITOR_PID"
+  else
+    echo "[INFO] Cluster-stop monitor disabled (CLUSTER_STOP_FILE not set)"
   fi
 
   # Wait for command to finish
@@ -406,16 +467,25 @@ cleanup() {
       echo "[INFO] Job terminated due to max runtime limit"
       export GITHUB_STATUS_STATE="success"
       export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
-      maybe_send_discord_notification "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
+      # maybe_send_discord_notification "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
       # Map to success
       CMD_EXIT=0
+
+    elif [[ "${TERMINATION_REASON}" == "force_restart_test" ]]; then
+      echo "[INFO] Job restarting for test purposes"
+      export GITHUB_STATUS_STATE="pending"
+      export GITHUB_STATUS_DESCRIPTION="Forced a restart test in run #${RESTART_COUNT}"
+      # maybe_send_discord_notification "🔄" "SkyPilot Job Restarting (Test)" "${GITHUB_STATUS_DESCRIPTION}"
+      # Set exit code to trigger restart
+      CMD_EXIT=1
+      FINAL_EXIT_CODE=1
 
     elif [[ $CMD_EXIT -eq $EXIT_SUCCESS ]]; then
       echo "[SUCCESS] Job completed successfully"
       export GITHUB_STATUS_STATE="success"
       export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
       export TERMINATION_REASON="completed"
-      maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
+      # maybe_send_discord_notification "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
 
     elif [[ $CMD_EXIT -eq $EXIT_NCCL_TEST_FAILURE ]]; then
       echo "[ERROR] Job failed during NCCL tests"
@@ -469,6 +539,7 @@ cleanup() {
 # Export variables needed by cleanup
 export TIMEOUT_MONITOR_PID=""
 export HEARTBEAT_MONITOR_PID=""
+export CLUSTER_STOP_MONITOR_PID=""
 export CMD_EXIT=1  # Default exit code
 export FINAL_EXIT_CODE=1 # Default to failure
 export -f terminate_process
@@ -477,13 +548,21 @@ export -f terminate_monitors
 # Set up cleanup trap
 trap cleanup EXIT
 
-# All nodes: Run GPU diagnostics and NCCL tests
-echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
-uv run python ./devops/skypilot/test_nccl.py
+# All nodes: Run GPU diagnostics and NCCL tests (first start only)
+if [ "${RESTART_COUNT:-0}" -eq 0 ]; then
+  echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
+  uv run python ./devops/skypilot/test_nccl.py
+else
+  echo "[SKIP] Skipping NCCL test on restart (RESTART_COUNT=${RESTART_COUNT})"
+fi
 
 # Run the command
 run_cmd
 CMD_EXIT=$?
+
+if [[ "$IS_MASTER" == "true" ]] && [ -z "${TERMINATION_REASON:-}" ] && [ -n "${CLUSTER_STOP_FILE:-}" ]; then
+  echo "completed" > "$CLUSTER_STOP_FILE"
+fi
 
 # Exit with the appropriate code (cleanup will run automatically)
 exit ${FINAL_EXIT_CODE:-$CMD_EXIT}

@@ -21,7 +21,7 @@ trainer:
 
 replay_job:
   sim:
-    env: env/mettagrid/autocurricula/terrain_from_numpy
+    env: env/mettagrid/autocurricula/defaults
     env_overrides:
       game:
         no_agent_interference: true
