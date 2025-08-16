@@ -1,25 +1,23 @@
-from typing import Literal, Optional
+from typing import TYPE_CHECKING, Literal, Optional
 
 import numpy as np
 from pydantic import Field, model_validator
+
+if TYPE_CHECKING:
+    from metta.map import MapGenConfigUnion
 
 from metta.map.scene import load_class, make_scene, scene_cfg_to_dict
 from metta.map.scenes.copy_grid import CopyGrid
 from metta.map.scenes.room_grid import RoomGrid, RoomGridParams
 from metta.map.scenes.transplant_scene import TransplantScene
-from metta.map.terrain_from_numpy import TerrainFromNumpyConfig
-from metta.mettagrid.map_builder.map_builder import (
-    GameMap,
-    MapBuilder,
-    MapBuilderConfig,
-)
+from metta.mettagrid.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from metta.mettagrid.map_builder.utils import create_grid
 
 from .types import Area, AreaWhere, ChildrenAction, SceneCfg
 
 
 class MapGenConfig(MapBuilderConfig):
-    type: Literal["metta.map.mapgen.MapGenConfig"] = "metta.map.mapgen.MapGenConfig"
+    type: Literal["mapgen"] = "mapgen"
 
     ########## Global parameters ##########
 
@@ -48,7 +46,7 @@ class MapGenConfig(MapBuilderConfig):
     # The difference is that `root` doesn't have an intrinsic size, so you need to set `width` and `height` explicitly.
     # `instance_map` must point to a `MapBuilder` configuration, with the class name specified in `type`, and params
     # specified in `params` dict.
-    instance_map: Optional[MapBuilderConfig | TerrainFromNumpyConfig] = Field(default=None)
+    instance_map: Optional["MapGenConfigUnion"] = Field(default=None)
 
     ########## Multiple instances parameters ##########
 

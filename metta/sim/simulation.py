@@ -81,8 +81,6 @@ class Simulation:
             self._wandb_policy_name, self._wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
 
         # ---------------- env config ----------------------------------- #
-        logger.info(f"config.env {cfg.env.model_dump_json(indent=2)}")
-
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
 
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()

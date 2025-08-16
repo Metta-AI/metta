@@ -3,11 +3,8 @@ import metta.mettagrid.config.envs as eb
 import softmax.softmax as softmax
 import yaml
 from metta.cogworks.curriculum.task_generator import ValueRange as vr
-from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
-from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 
 arena = eb.make_arena(num_agents=24)
@@ -31,44 +28,22 @@ arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
 curriculum_cfg = cc.curriculum(arena_tasks, num_tasks=4)
 
 
-def make_replay_tool() -> ReplayTool:
-    eval_env = arena.model_copy()
-    eval_env.game.max_steps = 100
-    return ReplayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            name="arena",
+def train(run: str) -> TrainTool:
+    trainer_cfg = TrainerConfig(
+        curriculum=curriculum_cfg,
+        evaluation=EvaluationConfig(
+            replay_dir=f"s3://softmax-public/replays/{run}",
+            evaluate_remote=False,
+            evaluate_local=True,
+            simulations=[
+                SimulationConfig(
+                    name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
+                ),
+                SimulationConfig(
+                    name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
+                ),
+            ],
         ),
-        open_browser_on_start=True,
-        system=SystemConfig(),
-        wandb=softmax.wandb_config(run="arena_replay"),
-    )
-
-
-def make_play_tool() -> PlayTool:
-    eval_env = arena.model_copy()
-    eval_env.game.max_steps = 100
-    return PlayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            name="arena",
-        ),
-        open_browser_on_start=True,
-        system=SystemConfig(),
-        wandb=softmax.wandb_config(run="arena_replay"),
-    )
-
-
-def make_train_tool(run: str) -> TrainTool:
-    trainer_cfg = TrainerConfig()
-    trainer_cfg.curriculum = curriculum_cfg
-    trainer_cfg.evaluation = EvaluationConfig(
-        replay_dir=f"s3://softmax-public/replays/{run}",
-        evaluate_remote=False,
-        evaluate_local=True,
-        simulations=[
-            SimulationConfig(name="arena", env=arena),
-        ],
     )
 
     return TrainTool(
