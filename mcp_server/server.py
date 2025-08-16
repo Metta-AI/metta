@@ -470,7 +470,7 @@ async def get_wandb_run_url(run_name: str, project: str | None = None, entity: s
     entity = entity or cfg["entity"]
     project = project or cfg["project"]
     wandb_api = WandbApi()
-    run = wandb_api.runs(f"{entity}/{project}/runs/${run_name}")
+    run = wandb_api.runs(f"{entity}/{project}/runs/{run_name}")
     return f"https://wandb.ai/{entity}/{project}/runs/{run.id}"
 
 
