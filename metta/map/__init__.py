@@ -8,10 +8,12 @@ from pydantic import Field
 
 from metta.map.mapgen import MapGenConfig
 from metta.map.terrain_from_numpy import TerrainFromNumpyConfig
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
 
 # Define the discriminated union here to avoid circular imports
 MapGenConfigUnion = Annotated[
     Union[
+        Annotated[AsciiMapBuilderConfig, Field(discriminator="type")],
         Annotated[MapGenConfig, Field(discriminator="type")],
         Annotated[TerrainFromNumpyConfig, Field(discriminator="type")],
     ],

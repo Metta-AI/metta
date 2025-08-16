@@ -3,7 +3,7 @@ import random
 from metta.map.load import Load
 from metta.mettagrid.util import file as file_utils
 
-from .types import SceneCfg
+from .scene import SceneCfg
 
 
 class LoadRandomFromIndex(Load):

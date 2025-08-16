@@ -1,7 +1,7 @@
+from metta.map.scene import ChildrenAction
 from metta.map.scenes.inline_ascii import InlineAscii
 from metta.map.scenes.nop import Nop
 from metta.map.scenes.remove_agents import RemoveAgents
-from metta.map.types import ChildrenAction
 from tests.map.scenes.utils import assert_grid, render_scene
 
 

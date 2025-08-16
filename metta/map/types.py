@@ -1,7 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Callable, Literal
-
-import numpy as np
+from typing import Literal
 
 from metta.common.util.config import Config
 from metta.mettagrid.map_builder.map_builder import MapGrid
@@ -71,15 +69,6 @@ class Area:
         return Area(x=new_x, y=new_y, width=new_width, height=new_height, grid=sliced_grid, tags=self.tags.copy())
 
 
-# Scene configs can be either:
-# - a dict with `type`, `params`, and optionally `children` keys (this is how we define scenes in YAML configs)
-# - a string path to a scene config file (this is how we load reusable scene configs from `scenes/` directory)
-# - a function that takes a MapGrid and returns a Scene instance (useful for children actions produced in Python code)
-#
-# See `metta.map.scene.make_scene` implementation for more details.
-SceneCfg = dict | str | Callable[[Area, np.random.Generator], Any]
-
-
 class AreaWhere(Config):
     tags: list[str] = []
 
@@ -90,7 +79,3 @@ class AreaQuery(Config):
     lock: str | None = None
     where: Literal["full"] | AreaWhere | None = None
     order_by: Literal["random", "first", "last"] = "random"
-
-
-class ChildrenAction(AreaQuery):
-    scene: SceneCfg

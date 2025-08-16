@@ -2,6 +2,7 @@ from typing import Callable
 
 from metta.map.mapgen import MapGenConfig
 from metta.map.random.int import IntConstantDistribution
+from metta.map.scene import ChildrenAction
 from metta.map.scenes.ascii import Ascii
 from metta.map.scenes.inline_ascii import InlineAscii
 from metta.map.scenes.layout import Layout, LayoutArea
@@ -10,7 +11,7 @@ from metta.map.scenes.mean_distance import MeanDistance
 from metta.map.scenes.radial_maze import RadialMaze
 from metta.map.scenes.random import Random
 from metta.map.scenes.room_grid import RoomGrid
-from metta.map.types import AreaWhere, ChildrenAction
+from metta.map.types import AreaWhere
 from metta.mettagrid.config.envs import make_nav
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
 from metta.mettagrid.mettagrid_config import EnvConfig
