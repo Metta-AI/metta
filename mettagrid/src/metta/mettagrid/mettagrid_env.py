@@ -185,19 +185,25 @@ class MettaGridEnv(PufferEnv, GymEnv):
                 attempts_per_trial = int(color_tree_cfg.get("attempts_per_trial", 0))
 
                 if sequence_length > 0:
-                    # Compute min required steps and aligned max
-                    min_required = attempts_per_trial * sequence_length if attempts_per_trial > 0 else sequence_length
-                    # Round up overall max to a multiple of sequence_length
-                    max_aligned = (
-                        max_steps
-                        if max_steps % sequence_length == 0
-                        else max_steps + (sequence_length - (max_steps % sequence_length))
-                    )
-                    # Choose a random number of windows in [min_windows, max_windows]
-                    min_windows = max(1, min_required // sequence_length)
-                    max_windows = max(1, max_aligned // sequence_length)
-                    windows = int(np.random.randint(min_windows, max_windows + 1))
-                    game_config_dict["max_steps"] = windows * sequence_length
+                    # If attempts_per_trial is set, respect it; otherwise compute from max_steps
+                    if attempts_per_trial > 0:
+                        min_required = attempts_per_trial * sequence_length
+                        # Round up overall max to a multiple of sequence_length
+                        max_aligned = (
+                            max_steps
+                            if max_steps % sequence_length == 0
+                            else max_steps + (sequence_length - (max_steps % sequence_length))
+                        )
+                        min_windows = max(1, min_required // sequence_length)
+                        max_windows = max(1, max_aligned // sequence_length)
+                        windows = int(np.random.randint(min_windows, max_windows + 1))
+                        game_config_dict["max_steps"] = windows * sequence_length
+                    else:
+                        # attempts not set: derive attempts from current max_steps
+                        windows = max(1, max_steps // sequence_length)
+                        # desync by choosing a random number of full windows in [1..windows]
+                        windows = int(np.random.randint(1, windows + 1))
+                        game_config_dict["max_steps"] = windows * sequence_length
                 else:
                     game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
             else:

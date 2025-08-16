@@ -145,7 +145,13 @@ class TestColorTreePartial:
 class TestColorTreeDense:
     def test_dense_mode_gives_immediate_reward_and_window_completion(self):
         target = [0, 1, 2, 3]
-        env = create_color_tree_env(target_sequence=target, sequence_reward=4.0, reward_mode="dense")
+        # Need 4 inventory items to map color 3
+        env = create_color_tree_env(
+            target_sequence=target,
+            sequence_reward=4.0,
+            reward_mode="dense",
+            inventory_item_names=("ore_red", "ore_green", "ore_blue", "armor"),
+        )
 
         per_pos = 1.0  # sequence_reward / len(target)
 
@@ -173,6 +179,7 @@ def test_colortree_random_sampling_uniform(monkeypatch):
         base_cfg = OmegaConf.create(
             {
                 "game": {
+                    "num_agents": 1,
                     "actions": {
                         "color_tree": {
                             "target_sequence": [0, 1],
@@ -183,7 +190,7 @@ def test_colortree_random_sampling_uniform(monkeypatch):
                             "attempts_per_trial": 8,
                             "reward_mode": "precise",
                         }
-                    }
+                    },
                 }
             }
         )
@@ -222,6 +229,7 @@ def test_curriculum_aligns_max_steps_to_sequence_windows(monkeypatch):
         base_cfg = OmegaConf.create(
             {
                 "game": {
+                    "num_agents": 1,
                     "max_steps": 13,  # Intentionally too small and not multiple of sequence_length
                     "actions": {
                         "color_tree": {
@@ -248,5 +256,6 @@ def test_curriculum_aligns_max_steps_to_sequence_windows(monkeypatch):
     curr = ColorTreeRandomFromSetCurriculum(tasks={"/dummy": 1.0}, num_colors=4, sequence_length=4)
     task = curr.get_task()
     cfg = task.env_cfg()
-    assert cfg.game.max_steps >= 20
-    assert cfg.game.max_steps % 4 == 0
+    # attempts are now computed from max_steps; since starting max_steps was 13 and seq_len=4,
+    # computed attempts = floor(13/4) = 3, and we do not increase max_steps here.
+    assert cfg.game.actions.color_tree.attempts_per_trial == 3
