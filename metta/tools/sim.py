@@ -11,6 +11,8 @@ import json
 import logging
 import sys
 import uuid
+from datetime import datetime
+from pathlib import Path
 
 import torch
 from pydantic import Field
@@ -27,16 +29,31 @@ from metta.sim.simulation_config import SimulationConfig
 logger = logging.getLogger(__name__)
 
 
+def _determine_run_name(policy_uri: str) -> str:
+    if policy_uri.startswith("file://"):
+        # Extract checkpoint name from file path
+        checkpoint_path = Path(policy_uri.replace("file://", ""))
+        return f"eval_{checkpoint_path.stem}"
+    elif policy_uri.startswith("wandb://"):
+        # Extract artifact name from wandb URI
+        # Format: wandb://entity/project/artifact:version
+        artifact_part = policy_uri.split("/")[-1]
+        return f"eval_{artifact_part.replace(':', '_')}"
+    else:
+        # Fallback to timestamp
+        return f"eval_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+
 class SimTool(Tool):
     # required params:
     simulations: list[SimulationConfig]  # list of simulations to run
     policy_uris: list[str]  # list of policy uris to evaluate
-    stats_dir: str  # The (local) directory where stats should be stored
     replay_dir: str  # where to store replays
 
     wandb: WandbConfig = Field(default_factory=WandbConfigOff)
 
     selector_type: PolicySelectorType = "top"
+    stats_dir: str | None = None  # The (local) directory where stats should be stored
     stats_db_uri: str | None = None  # If set, export stats to this url (local path, wandb:// or s3://)
     stats_server_uri: str | None = None  # If set, send stats to this http server
     register_missing_policies: bool = False
@@ -74,13 +91,14 @@ class SimTool(Tool):
             eval_task_id = uuid.UUID(self.eval_task_id)
 
         for policy_uri, policy_prs in policy_records_by_uri.items():
+            eval_run_name = _determine_run_name(policy_uri)
             results = {"policy_uri": policy_uri, "checkpoints": []}
             for pr in policy_prs:
                 eval_results = evaluate_policy(
                     policy_record=pr,
                     simulations=self.simulations,
                     stats_dir=self.stats_dir,
-                    replay_dir=f"{self.replay_dir}/{pr.run_name}",
+                    replay_dir=f"{self.replay_dir}/{eval_run_name}/{pr.run_name}",
                     device=device,
                     vectorization=self.system.vectorization,
                     export_stats_db_uri=self.stats_db_uri,
