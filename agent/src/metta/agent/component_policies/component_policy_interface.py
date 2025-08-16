@@ -283,7 +283,34 @@ class ComponentPolicyInterface(nn.Module, ABC):
         return list(results.values())
 
     # ============================================================================
-    # Helper Methods
+    # Feature/Normalization Methods
+    # ============================================================================
+
+    def _apply_feature_remapping(self, remap_tensor: torch.Tensor):
+        """Apply feature remapping to observation component."""
+        if "_obs_" in self.components:
+            obs_component = self.components["_obs_"]
+            if hasattr(obs_component, "update_feature_remapping"):
+                obs_component.update_feature_remapping(remap_tensor)
+
+    def update_normalization_factors(self, features: dict[str, dict], original_feature_mapping: dict[str, int] | None):
+        """Update normalization factors for ObsAttrValNorm components after feature remapping."""
+        for _, component in self.components.items():
+            if hasattr(component, "__class__") and "ObsAttrValNorm" in component.__class__.__name__:
+                # Create normalization tensor with remapped IDs
+                norm_tensor = torch.ones(256, dtype=torch.float32)
+                for name, props in features.items():
+                    if original_feature_mapping and name in original_feature_mapping and "normalization" in props:
+                        feature_id = props["id"]
+                        norm_value = props["normalization"]
+                        norm_tensor[feature_id] = norm_value
+
+                # Update the component's normalization tensor
+                if hasattr(component, "update_normalization_tensor"):
+                    component.update_normalization_tensor(norm_tensor)
+
+    # ============================================================================
+    # Helper Methods and Properties
     # ============================================================================
 
     def _apply_to_components(self, method_name, *args, **kwargs):

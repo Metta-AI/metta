@@ -13,7 +13,7 @@ from metta.agent.lib.lstm import LSTM
 from metta.agent.lib.nn_layer_library import Conv2d, Flatten, Linear
 from metta.agent.lib.obs_token_to_box_shaper import ObsTokenToBoxShaper
 from metta.agent.lib.observation_normalizer import ObservationNormalizer
-from metta.agent.component_policy import ComponentPolicyInterface
+from metta.agent.component_policies.component_policy_interface import ComponentPolicyInterface
 
 logger = logging.getLogger(__name__)
 

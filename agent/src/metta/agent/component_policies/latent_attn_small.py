@@ -13,7 +13,7 @@ from metta.agent.lib.lstm import LSTM
 from metta.agent.lib.nn_layer_library import Linear
 from metta.agent.lib.obs_tokenizers import ObsTokenPadStrip, ObsAttrValNorm, ObsAttrEmbedFourier
 from metta.agent.lib.obs_enc import ObsLatentAttn, ObsSelfAttn
-from metta.agent.component_policy import ComponentPolicyInterface
+from metta.agent.component_policies.component_policy_interface import ComponentPolicyInterface
 
 logger = logging.getLogger(__name__)
 
