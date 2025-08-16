@@ -31,9 +31,8 @@ def make_env_func(
         # Running in a new process, so we need to reinitialize logging
         init_logging(run_dir=run_dir)
 
-    # Get initial task
-    initial_task = curriculum.get_task()
-    env_cfg = initial_task.get_env_cfg()
+    task = curriculum.get_task()
+    env_cfg = task.get_env_cfg()
 
     # Create the environment instance
     env = MettaGridEnv(
@@ -45,9 +44,7 @@ def make_env_func(
     )
     set_buffers(env, buf)
     
-    # Use a list to hold the current task reference to avoid closure issues
-    # This allows proper garbage collection of old tasks
-    current_task_holder = [initial_task]
+    current_task_holder = [task]
     
     def on_episode_done(obs, rew, term, trunc, info):
         # Complete the current task
