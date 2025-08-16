@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import random
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, ClassVar, Literal, Union
+from typing import Annotated, Any, ClassVar, Literal, Sequence, Union
 
 from omegaconf import OmegaConf
 from pydantic import ConfigDict, Field, field_validator
@@ -202,7 +202,7 @@ class BucketedTaskGeneratorConfig(TaskGeneratorConfig):
         default_factory=dict, description="Buckets for sampling, keys are config paths"
     )
 
-    def add_bucket(self, path: str, values: list[int | float | str | ValueRange]) -> "BucketedTaskGeneratorConfig":
+    def add_bucket(self, path: str, values: Sequence[int | float | str | ValueRange]) -> "BucketedTaskGeneratorConfig":
         """Add a bucket of values for a specific configuration path."""
         assert path not in self.buckets, f"Bucket {path} already exists"
         self.buckets[path] = values
