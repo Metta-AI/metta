@@ -89,13 +89,13 @@ class Fast(nn.Module):
                 name="cnn1",
                 nn_params=DictConfig({"out_channels": 64, "kernel_size": 5, "stride": 3, "padding": 0}),
                 sources=[{"name": "obs_normalizer"}],
-                **self.agent_attributes
+                **self.agent_attributes,
             ),
             "cnn2": Conv2d(
                 name="cnn2",
                 nn_params=DictConfig({"out_channels": 64, "kernel_size": 3, "stride": 1, "padding": 0}),
                 sources=[{"name": "cnn1"}],
-                **self.agent_attributes
+                **self.agent_attributes,
             ),
             "obs_flattener": Flatten(
                 name="obs_flattener",
@@ -105,13 +105,13 @@ class Fast(nn.Module):
                 name="fc1",
                 nn_params=DictConfig({"out_features": 128}),
                 sources=[{"name": "obs_flattener"}],
-                **self.agent_attributes
+                **self.agent_attributes,
             ),
             "encoded_obs": Linear(
                 name="encoded_obs",
                 nn_params=DictConfig({"out_features": 128}),
                 sources=[{"name": "fc1"}],
-                **self.agent_attributes
+                **self.agent_attributes,
             ),
             "_core_": LSTM(
                 name="_core_",
@@ -122,19 +122,19 @@ class Fast(nn.Module):
                 name="critic_1",
                 nn_params=DictConfig({"out_features": 1024}),
                 sources=[{"name": "_core_"}],
-                **self.agent_attributes
+                **self.agent_attributes,
             ),
             "_value_": Linear(
                 name="_value_",
                 nn_params=DictConfig({"out_features": 1}),
                 sources=[{"name": "critic_1"}],
-                **self.agent_attributes
+                **self.agent_attributes,
             ),
             "actor_1": Linear(
                 name="actor_1",
                 nn_params=DictConfig({"out_features": 512}),
                 sources=[{"name": "_core_"}],
-                **self.agent_attributes
+                **self.agent_attributes,
             ),
             "_action_embeds_": ActionEmbedding(
                 name="_action_embeds_",
