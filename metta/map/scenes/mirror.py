@@ -3,8 +3,8 @@ from typing import Literal
 from pydantic import ConfigDict, Field
 
 from metta.common.util.config import Config
-from metta.map.scene import Scene
-from metta.map.types import AreaWhere, ChildrenAction, SceneCfg
+from metta.map.scene import ChildrenAction, Scene, SceneCfg
+from metta.map.types import AreaWhere
 
 Symmetry = Literal["horizontal", "vertical", "x4"]
 
