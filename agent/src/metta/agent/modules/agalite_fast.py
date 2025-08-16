@@ -133,7 +133,9 @@ class FastAGaLiTeLayer(nn.Module):
         if self.reset_hidden_on_terminate:
             term_mask = (1 - terminations.float()).unsqueeze(2).unsqueeze(3)
             discount_gamma = (1 - gammas_expanded) * term_mask
-            discount_beta = (1 - beta) * term_mask.squeeze(3)
+            # For beta, we need term_mask with shape (T, B, head_num, head_dim)
+            term_mask_beta = (1 - terminations.float()).unsqueeze(2).unsqueeze(3)
+            discount_beta = (1 - beta) * term_mask_beta
         else:
             discount_gamma = 1 - gammas_expanded
             discount_beta = 1 - beta
@@ -161,7 +163,7 @@ class FastAGaLiTeLayer(nn.Module):
                 fv = discounted_sum(
                     tilde_v_prev[:, chunk_slice] if tilde_v_prev.ndim > 1 else tilde_v_prev,
                     values_osc[:, chunk_slice],
-                    discount_beta[:, chunk_slice].unsqueeze(2).unsqueeze(3)
+                    discount_beta[:, chunk_slice].unsqueeze(2)
                 )
                 final_values_chunks.append(fv)
                 
@@ -178,7 +180,7 @@ class FastAGaLiTeLayer(nn.Module):
         else:
             # Normal processing
             final_keys = discounted_sum(tilde_k_prev, keys_osc, discount_gamma.unsqueeze(2))
-            final_values = discounted_sum(tilde_v_prev, values_osc, discount_beta.unsqueeze(2).unsqueeze(3))
+            final_values = discounted_sum(tilde_v_prev, values_osc, discount_beta.unsqueeze(2))
             final_s = discounted_sum(s_prev, s, discount_gamma)
         
         # Attention computation (optimized)
