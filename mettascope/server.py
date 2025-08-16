@@ -157,7 +157,7 @@ def make_app(cfg: "PlayTool"):
         await send_message(type="message", message="Connecting!")
 
         # Create a simulation that we are going to play.
-        from tools.play import create_simulation
+        from metta.tools.play import create_simulation
 
         sim = create_simulation(cfg)
         sim.start_simulation()

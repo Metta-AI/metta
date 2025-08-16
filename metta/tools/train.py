@@ -1,6 +1,6 @@
-import copy
 import logging
 import os
+import platform
 from logging import Logger
 from typing import Any, Optional
 
@@ -52,23 +52,9 @@ class TrainTool(Tool):
         # Set up checkpoint and replay directories
         if not self.trainer.checkpoint.checkpoint_dir:
             self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
-        if self.trainer.evaluation and not self.trainer.evaluation.replay_dir:
-            self.trainer.evaluation.replay_dir = f"{self.run_dir}/replays/"
-
-    def to_mini(self) -> "TrainTool":
-        cfg = copy.deepcopy(self)
-        cfg.trainer.minibatch_size = min(cfg.trainer.minibatch_size, 1024)
-        cfg.trainer.batch_size = min(cfg.trainer.batch_size, 1024)
-        cfg.trainer.async_factor = 1
-        cfg.trainer.forward_pass_minibatch_target_size = min(cfg.trainer.forward_pass_minibatch_target_size, 4)
-        cfg.trainer.checkpoint.checkpoint_interval = min(cfg.trainer.checkpoint.checkpoint_interval, 10)
-        cfg.trainer.checkpoint.wandb_checkpoint_interval = min(cfg.trainer.checkpoint.wandb_checkpoint_interval, 10)
-        cfg.trainer.bptt_horizon = min(cfg.trainer.bptt_horizon, 8)
-        if cfg.trainer.evaluation:
-            cfg.trainer.evaluation.evaluate_interval = min(cfg.trainer.evaluation.evaluate_interval, 10)
-        return cfg
 
     def invoke(self) -> int:
+        assert self.run_dir is not None
         os.makedirs(self.run_dir, exist_ok=True)
 
         record_heartbeat()
@@ -79,6 +65,9 @@ class TrainTool(Tool):
         init_logging(run_dir=self.run_dir)
 
         torch_dist_cfg = setup_torch_distributed(self.system.device)
+
+        if not self.trainer.checkpoint.checkpoint_dir:
+            self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
 
         logger.info(
             f"Training {self.run} on "
@@ -102,19 +91,19 @@ class TrainTool(Tool):
 def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_run: WandbRun | None, logger: Logger):
     assert cfg.run_dir is not None
     assert cfg.run is not None
+    run_dir = cfg.run_dir
 
-    configure_vecenv_settings(cfg)
+    _configure_vecenv_settings(cfg)
 
-    stats_client = configure_evaluation_settings(cfg)
+    stats_client = _configure_evaluation_settings(cfg)
 
     # Handle distributed training batch scaling
-    if torch.distributed.is_initialized():
-        world_size = torch.distributed.get_world_size()
+    if torch_dist_cfg.distributed:
         if cfg.trainer.scale_batches_by_world_size:
             cfg.trainer.forward_pass_minibatch_target_size = (
-                cfg.trainer.forward_pass_minibatch_target_size // world_size
+                cfg.trainer.forward_pass_minibatch_target_size // torch_dist_cfg.world_size
             )
-            cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
+            cfg.trainer.batch_size = cfg.trainer.batch_size // torch_dist_cfg.world_size
 
     policy_store = PolicyStore.create(
         device=cfg.system.device,
@@ -123,16 +112,19 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         wandb_run=wandb_run,
     )
 
+    if platform.system() == "Darwin":
+        cfg = _minimize_config_for_debugging(cfg)
+
     # Save configuration
     if torch_dist_cfg.is_master:
-        with open(os.path.join(cfg.run_dir, "config.json"), "w") as f:
+        with open(os.path.join(run_dir, "config.json"), "w") as f:
             f.write(cfg.model_dump_json(indent=2))
-            logger.info(f"Config saved to {os.path.join(cfg.run_dir, 'config.json')}")
+            logger.info(f"Config saved to {os.path.join(run_dir, 'config.json')}")
 
     # Use the functional train interface directly
     train(
         run=cfg.run,
-        run_dir=cfg.run_dir,
+        run_dir=run_dir,
         system_cfg=cfg.system,
         agent_cfg=OmegaConf.create(cfg.policy_architecture),
         device=torch.device(cfg.system.device),
@@ -144,7 +136,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
     )
 
 
-def configure_vecenv_settings(cfg: TrainTool) -> None:
+def _configure_vecenv_settings(cfg: TrainTool) -> None:
     """Calculate default number of workers based on hardware."""
     if cfg.system.vectorization == "serial":
         cfg.trainer.rollout_workers = 1
@@ -155,7 +147,7 @@ def configure_vecenv_settings(cfg: TrainTool) -> None:
     cfg.trainer.rollout_workers = max(1, ideal_workers)
 
 
-def configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
+def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
     stats_client: StatsClient | None = None
     if cfg.stats_server_uri is not None:
         stats_client = StatsClient.create(cfg.stats_server_uri)
@@ -180,3 +172,16 @@ def configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
                 logger.info("No git hash available for remote evaluations")
 
     return stats_client
+
+
+def _minimize_config_for_debugging(cfg: TrainTool) -> TrainTool:
+    cfg.trainer.minibatch_size = min(cfg.trainer.minibatch_size, 1024)
+    cfg.trainer.batch_size = min(cfg.trainer.batch_size, 1024)
+    cfg.trainer.async_factor = 1
+    cfg.trainer.forward_pass_minibatch_target_size = min(cfg.trainer.forward_pass_minibatch_target_size, 4)
+    cfg.trainer.checkpoint.checkpoint_interval = min(cfg.trainer.checkpoint.checkpoint_interval, 10)
+    cfg.trainer.checkpoint.wandb_checkpoint_interval = min(cfg.trainer.checkpoint.wandb_checkpoint_interval, 10)
+    cfg.trainer.bptt_horizon = min(cfg.trainer.bptt_horizon, 8)
+    if cfg.trainer.evaluation:
+        cfg.trainer.evaluation.evaluate_interval = min(cfg.trainer.evaluation.evaluate_interval, 10)
+    return cfg
