@@ -112,11 +112,12 @@ def main():
     if not isinstance(tool_cfg, Tool):
         raise ValueError(f"The result of running {args.make_tool_cfg_path} must be a ToolConfig, got {tool_cfg}")
 
-    tool_cfg = apply_overrides(tool_cfg, args.overrides)
+    overrides = args.overrides or []
+    tool_cfg = apply_overrides(tool_cfg, overrides)
 
     logger.info(
         f"Tool config produced by {args.make_tool_cfg_path}({', '.join(make_tool_args)}), "
-        + f"with overrides {', '.join(args.overrides)}:"
+        + f"with overrides {', '.join(overrides)}:"
         + "\n---------------------\n"
         + str(tool_cfg.yaml())
     )
