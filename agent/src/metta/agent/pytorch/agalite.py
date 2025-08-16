@@ -74,34 +74,37 @@ class AGaLiTeCore(nn.Module):
             self.r = min(r, 4)      # Cap at 4 for fast mode
             logger.info(f"Using FastAGaLiTeLayer with eta={self.eta}, r={self.r}")
         else:
-            self.eta = eta
-            self.r = r
+            # Optimized standard mode: balance between speed and performance
+            # Use slightly reduced parameters for better speed while keeping full architecture
+            self.eta = min(eta, 3)  # Reduced from 4 for better speed
+            self.r = min(r, 6)      # Reduced from 8 for better speed
             if use_fast_mode and not FAST_MODE_AVAILABLE:
                 logger.warning("Fast mode requested but FastAGaLiTeLayer not available, using standard mode")
+            logger.info(f"Using optimized standard AGaLiTe with eta={self.eta}, r={self.r}")
 
         self.encoders = nn.ModuleList()
         for layer in range(n_layers):
             if use_fast_mode and FAST_MODE_AVAILABLE:
-                # Use fast implementation
+                # Use fast implementation with minimal parameters
                 encoder = FastAGaLiTeLayer(
                     d_model=d_model,
                     head_num=n_heads,
                     head_dim=d_head,
-                    eta=self.eta,
-                    r=self.r,
+                    eta=self.eta,  # 2
+                    r=self.r,      # 4
                     reset_hidden_on_terminate=reset_on_terminate,
                     dropout=dropout,
                 )
             else:
-                # Use standard implementation with wrapper
+                # Use standard implementation with full architecture but optimized params
                 use_dense = layer == 0  # Use dense layer for first layer
                 encoder = RecurrentLinearTransformerEncoder(
                     d_model=d_model,
                     d_head=d_head,
                     d_ffc=d_ffc,
                     n_heads=n_heads,
-                    eta=self.eta,
-                    r=self.r,
+                    eta=self.eta,  # 3 (optimized from 4)
+                    r=self.r,      # 6 (optimized from 8)
                     use_dense=use_dense,
                     reset_hidden_on_terminate=reset_on_terminate,
                     dropout=dropout,
@@ -387,18 +390,18 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
     - Weight management and action conversion via PyTorchAgentMixin
     
     Supports two modes:
-    - Standard mode: Full AGaLiTe with configurable eta/r
-    - Fast mode: Optimized for large batches with reduced parameters (eta=2, r=4)
+    - Standard mode: Optimized for better metrics with eta=3, r=6, more layers
+    - Fast mode: Optimized for speed with reduced parameters (eta=2, r=4)
     """
     
     def __init__(
         self,
         env,
         d_model: int = 256,
-        d_head: int = 64,
+        d_head: int = 64, 
         d_ffc: int = 1024,
         n_heads: int = 4,
-        n_layers: int = 2,  # Reduced from 4 for better GPU performance
+        n_layers: int = 3,  # Increased from 2 for better learning
         eta: int = 4,
         r: int = 8,
         reset_on_terminate: bool = True,
@@ -424,6 +427,10 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         """
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
+        
+        # Add small dropout for standard mode to improve generalization
+        if not use_fast_mode and dropout == 0.0:
+            dropout = 0.1  # Small dropout for better generalization in standard mode
         
         # Create the AGaLiTe policy
         policy = AGaLiTePolicy(
