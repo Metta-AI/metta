@@ -16,7 +16,6 @@ from metta.common.util.logging_helpers import init_file_logging, init_logging
 from metta.common.util.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff, WandbContext, WandbRun
 from metta.core.distributed import TorchDistributedConfig, setup_torch_distributed
-from metta.rl.system_config import SystemConfig
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
 
@@ -24,7 +23,6 @@ logger = logging.getLogger(__name__)
 
 
 class TrainTool(Tool):
-    system: SystemConfig = Field(default_factory=SystemConfig)
     trainer: TrainerConfig = Field(default_factory=TrainerConfig)
     wandb: WandbConfig = WandbConfigOff()
     policy_architecture: Any

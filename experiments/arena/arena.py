@@ -7,8 +7,8 @@ from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
-from tools.replay import ReplayToolConfig
 
 arena = eb.make_arena(num_agents=24)
 arena.game.actions.swap.enabled = False
@@ -31,10 +31,10 @@ arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
 curriculum_cfg = cc.curriculum(arena_tasks, num_tasks=4)
 
 
-def make_replay_tool_cfg() -> ReplayToolConfig:
+def make_replay_tool() -> ReplayTool:
     eval_env = arena.model_copy()
     eval_env.game.max_steps = 100
-    return ReplayToolConfig(
+    return ReplayTool(
         sim=SimulationConfig(
             env=eval_env,
             name="arena",

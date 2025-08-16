@@ -16,7 +16,7 @@ from metta.mettagrid.grid_object_formatter import format_grid_object
 from metta.sim.simulation import Simulation
 
 if TYPE_CHECKING:
-    from tools.play import PlayTool
+    from metta.tools.play import PlayTool
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -157,7 +157,7 @@ def make_app(cfg: "PlayTool"):
         await send_message(type="message", message="Connecting!")
 
         # Create a simulation that we are going to play.
-        from tools.play import create_simulation
+        from metta.tools.play import create_simulation
 
         sim = create_simulation(cfg)
         sim.start_simulation()
