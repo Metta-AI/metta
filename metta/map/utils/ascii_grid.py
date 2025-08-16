@@ -1,6 +1,6 @@
 from metta.map.types import MapGrid
 from metta.mettagrid.char_encoder import char_to_grid_object, grid_object_to_char
-from metta.mettagrid.level_builder import create_grid
+from metta.mettagrid.map_builder.utils import create_grid
 
 
 def add_pretty_border(lines: list[str]) -> list[str]:

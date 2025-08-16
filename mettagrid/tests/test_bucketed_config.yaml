@@ -10,7 +10,7 @@ env_cfg_template:
       - thing_2
 
     map_builder:
-      _target_: metta.mettagrid.room.random.Random
+      _target_: metta.mettagrid.map_builder.random.RandomMapBuilderConfig
       width: 30 # This will be overridden by buckets
       height: 30 # This will be overridden by buckets
       objects:

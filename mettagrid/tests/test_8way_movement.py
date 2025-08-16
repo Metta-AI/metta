@@ -2,36 +2,44 @@
 
 import numpy as np
 
+from metta.mettagrid.core import MettaGridCore
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
 from metta.mettagrid.mettagrid_c import dtype_actions
-from metta.mettagrid.test_support import TestEnvironmentBuilder
+from metta.mettagrid.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    EnvConfig,
+    GameConfig,
+)
 
 
 def test_8way_movement_all_directions():
     """Test 8-way movement in all eight directions."""
-    env = TestEnvironmentBuilder.create_environment(
-        game_map=[
-            [".", ".", ".", ".", "."],
-            [".", ".", ".", ".", "."],
-            [".", ".", "agent.player", ".", "."],
-            [".", ".", ".", ".", "."],
-            [".", ".", ".", ".", "."],
-        ],
-        num_agents=1,
-        actions={
-            "move": {"enabled": False},
-            "rotate": {"enabled": False},
-            "move_8way": {"enabled": True},
-        },
+    env_cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=1,
+            actions=ActionsConfig(move_8way=ActionConfig()),
+            map_builder=AsciiMapBuilderConfig(
+                map_data=[
+                    [".", ".", ".", ".", "."],
+                    [".", ".", ".", ".", "."],
+                    [".", ".", "agent.player", ".", "."],
+                    [".", ".", ".", ".", "."],
+                    [".", ".", ".", ".", "."],
+                ],
+            ),
+        )
     )
+    env = MettaGridCore(env_cfg)
     env.reset()
 
-    objects = env.grid_objects()
+    objects = env.grid_objects
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
     initial_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
     _ = objects[agent_id]["orientation"]
     assert initial_pos == (2, 2)
 
-    action_names = env.action_names()
+    action_names = env.action_names
     move_8dir_idx = action_names.index("move_8way")
 
     # Test all 8 directions
@@ -51,7 +59,7 @@ def test_8way_movement_all_directions():
         actions[0] = [move_8dir_idx, direction]
         env.step(actions)
 
-        objects = env.grid_objects()
+        objects = env.grid_objects
         actual_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
         assert actual_pos == expected_pos, f"Direction {direction}: expected {expected_pos}, got {actual_pos}"
 
@@ -75,27 +83,28 @@ def test_8way_movement_all_directions():
 
 def test_8way_movement_obstacles():
     """Test that 8-way movement respects obstacles."""
-    env = TestEnvironmentBuilder.create_environment(
-        game_map=[
-            ["wall", "wall", "wall", "wall", "wall"],
-            ["wall", ".", ".", ".", "wall"],
-            ["wall", ".", "agent.player", ".", "wall"],
-            ["wall", ".", ".", ".", "wall"],
-            ["wall", "wall", "wall", "wall", "wall"],
-        ],
-        num_agents=1,
-        actions={
-            "move": {"enabled": False},
-            "rotate": {"enabled": False},
-            "move_8way": {"enabled": True},
-        },
+    env_cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=1,
+            actions=ActionsConfig(move_8way=ActionConfig()),
+            map_builder=AsciiMapBuilderConfig(
+                map_data=[
+                    ["wall", "wall", "wall", "wall", "wall"],
+                    ["wall", ".", ".", ".", "wall"],
+                    ["wall", ".", "agent.player", ".", "wall"],
+                    ["wall", ".", ".", ".", "wall"],
+                    ["wall", "wall", "wall", "wall", "wall"],
+                ],
+            ),
+        )
     )
+    env = MettaGridCore(env_cfg)
     env.reset()
 
-    objects = env.grid_objects()
+    objects = env.grid_objects
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
 
-    action_names = env.action_names()
+    action_names = env.action_names
     move_8dir_idx = action_names.index("move_8way")
 
     # Test diagonal movements near corners
@@ -107,7 +116,7 @@ def test_8way_movement_obstacles():
     actions[0] = [move_8dir_idx, 6]  # West
     env.step(actions)
 
-    objects = env.grid_objects()
+    objects = env.grid_objects
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
 
     # Try to move Northwest into wall - should fail
@@ -116,31 +125,32 @@ def test_8way_movement_obstacles():
     assert not env.action_success()[0]
 
     # Position should remain unchanged
-    objects = env.grid_objects()
+    objects = env.grid_objects
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
 
 
 def test_orientation_changes_with_8way():
     """Test that orientation changes to match movement direction with 8-way movement."""
-    env = TestEnvironmentBuilder.create_environment(
-        game_map=[
-            [".", ".", ".", ".", "."],
-            [".", "agent.player", ".", ".", "."],
-            [".", ".", ".", ".", "."],
-        ],
-        num_agents=1,
-        actions={
-            "move": {"enabled": False},
-            "rotate": {"enabled": True},  # Keep rotate to test orientation
-            "move_8way": {"enabled": True},
-        },
+    env_cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=1,
+            actions=ActionsConfig(move_8way=ActionConfig()),
+            map_builder=AsciiMapBuilderConfig(
+                map_data=[
+                    [".", ".", ".", ".", "."],
+                    [".", "agent.player", ".", ".", "."],
+                    [".", ".", ".", ".", "."],
+                ],
+            ),
+        ),
     )
+    env = MettaGridCore(env_cfg)
     env.reset()
 
-    objects = env.grid_objects()
+    objects = env.grid_objects
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
 
-    action_names = env.action_names()
+    action_names = env.action_names
     move_8dir_idx = action_names.index("move_8way")
     rotate_idx = action_names.index("rotate")
 
@@ -149,7 +159,7 @@ def test_orientation_changes_with_8way():
     actions[0] = [rotate_idx, 3]  # Face right
     env.step(actions)
 
-    objects = env.grid_objects()
+    objects = env.grid_objects
     assert objects[agent_id]["orientation"] == 3  # Right
 
     # Now move in various directions and verify orientation changes appropriately
@@ -172,7 +182,7 @@ def test_orientation_changes_with_8way():
         actions[0] = [move_8dir_idx, direction]
         env.step(actions)
 
-        objects = env.grid_objects()
+        objects = env.grid_objects
         expected_orient = expected_orientations[direction]
         assert objects[agent_id]["orientation"] == expected_orient, (
             f"Direction {direction}: expected orientation {expected_orient}, got {objects[agent_id]['orientation']}"
@@ -181,25 +191,26 @@ def test_orientation_changes_with_8way():
 
 def test_cardinal_movement_changes_orientation():
     """Test that cardinal movement changes orientation to match movement direction."""
-    env = TestEnvironmentBuilder.create_environment(
-        game_map=[
-            [".", ".", ".", ".", "."],
-            [".", "agent.player", ".", ".", "."],
-            [".", ".", ".", ".", "."],
-        ],
-        num_agents=1,
-        actions={
-            "move": {"enabled": False},
-            "rotate": {"enabled": True},
-            "move_cardinal": {"enabled": True},
-        },
+    env_cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=1,
+            actions=ActionsConfig(move_cardinal=ActionConfig()),
+            map_builder=AsciiMapBuilderConfig(
+                map_data=[
+                    [".", ".", ".", ".", "."],
+                    [".", "agent.player", ".", ".", "."],
+                    [".", ".", ".", ".", "."],
+                ],
+            ),
+        )
     )
+    env = MettaGridCore(env_cfg)
     env.reset()
 
-    objects = env.grid_objects()
+    objects = env.grid_objects
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
 
-    action_names = env.action_names()
+    action_names = env.action_names
     move_cardinal_idx = action_names.index("move_cardinal")
     rotate_idx = action_names.index("rotate")
 
@@ -208,14 +219,14 @@ def test_cardinal_movement_changes_orientation():
     actions[0] = [rotate_idx, 3]  # Face right
     env.step(actions)
 
-    objects = env.grid_objects()
+    objects = env.grid_objects
     assert objects[agent_id]["orientation"] == 3
 
     # Move north with cardinal movement
     actions[0] = [move_cardinal_idx, 0]  # North
     env.step(actions)
 
-    objects = env.grid_objects()
+    objects = env.grid_objects
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (0, 1)
     # Orientation should change to match movement direction (north = 0)
     assert objects[agent_id]["orientation"] == 0
@@ -224,25 +235,31 @@ def test_cardinal_movement_changes_orientation():
 def test_8way_movement_with_simple_environment():
     """Test 8-way movement using the simple environment builder."""
     # Create a larger environment to test diagonal movements
-    env = TestEnvironmentBuilder.create_simple_environment(
-        width=8,
-        height=8,
-        agent_positions=[(4, 4)],  # Agent in center
-        actions={
-            "move": {"enabled": False},
-            "rotate": {"enabled": False},
-            "move_8way": {"enabled": True},
-        },
+    env_cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=1,
+            actions=ActionsConfig(move_8way=ActionConfig()),
+            map_builder=AsciiMapBuilderConfig(
+                map_data=[
+                    [".", ".", ".", ".", "."],
+                    [".", ".", ".", ".", "."],
+                    [".", ".", "agent.player", ".", "."],
+                    [".", ".", ".", ".", "."],
+                    [".", ".", ".", ".", "."],
+                ],
+            ),
+        ),
     )
+    env = MettaGridCore(env_cfg)
     env.reset()
 
-    objects = env.grid_objects()
+    objects = env.grid_objects
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     # Verify agent is at expected position
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 4)
 
-    action_names = env.action_names()
+    action_names = env.action_names
     move_8dir_idx = action_names.index("move_8way")
 
     # Test diagonal movement pattern (diamond shape)
@@ -251,50 +268,51 @@ def test_8way_movement_with_simple_environment():
     # Move Northeast
     actions[0] = [move_8dir_idx, 1]
     env.step(actions)
-    objects = env.grid_objects()
+    objects = env.grid_objects
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (3, 5)
 
     # Move Southeast
     actions[0] = [move_8dir_idx, 3]
     env.step(actions)
-    objects = env.grid_objects()
+    objects = env.grid_objects
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 6)
 
     # Move Southwest
     actions[0] = [move_8dir_idx, 5]
     env.step(actions)
-    objects = env.grid_objects()
+    objects = env.grid_objects
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (5, 5)
 
     # Move Northwest - back to near start
     actions[0] = [move_8dir_idx, 7]
     env.step(actions)
-    objects = env.grid_objects()
+    objects = env.grid_objects
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 4)
 
 
 def test_8way_movement_boundary_check():
     """Test 8-way movement respects environment boundaries."""
     # Small environment to easily test boundaries
-    env = TestEnvironmentBuilder.create_environment(
-        game_map=[
-            [".", ".", "."],
-            [".", "agent.player", "."],
-            [".", ".", "."],
-        ],
-        num_agents=1,
-        actions={
-            "move": {"enabled": False},
-            "rotate": {"enabled": False},
-            "move_8way": {"enabled": True},
-        },
+    env_cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=1,
+            actions=ActionsConfig(move_8way=ActionConfig()),
+            map_builder=AsciiMapBuilderConfig(
+                map_data=[
+                    [".", ".", "."],
+                    [".", "agent.player", "."],
+                    [".", ".", "."],
+                ],
+            ),
+        )
     )
+    env = MettaGridCore(env_cfg)
     env.reset()
 
-    objects = env.grid_objects()
+    objects = env.grid_objects
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
-    action_names = env.action_names()
+    action_names = env.action_names
     move_8dir_idx = action_names.index("move_8way")
 
     # Move to top-left corner
@@ -302,7 +320,7 @@ def test_8way_movement_boundary_check():
     actions[0] = [move_8dir_idx, 7]  # Northwest
     env.step(actions)
 
-    objects = env.grid_objects()
+    objects = env.grid_objects
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (0, 0)
 
     # Try to move further northwest - should fail
@@ -325,7 +343,7 @@ def test_8way_movement_boundary_check():
     env.step(actions)
     assert env.action_success()[0]
 
-    objects = env.grid_objects()
+    objects = env.grid_objects
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
 
 

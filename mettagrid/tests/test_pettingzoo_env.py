@@ -5,72 +5,19 @@ This module tests the MettaGridPettingZooEnv with PettingZoo's ParallelEnv inter
 """
 
 import numpy as np
-import pytest
-from omegaconf import DictConfig
 from pettingzoo.test import parallel_api_test
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.config.builder import make_arena
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
 
-@pytest.fixture
-def simple_config():
-    """Create a simple navigation configuration."""
-    return DictConfig(
-        {
-            "game": {
-                "max_steps": 100,
-                "num_agents": 3,
-                "obs_width": 7,
-                "obs_height": 7,
-                "num_observation_tokens": 50,
-                "inventory_item_names": [
-                    "ore_red",
-                    "ore_blue",
-                    "battery_red",
-                    "battery_blue",
-                    "heart",
-                ],
-                "groups": {"agent": {"id": 0, "sprite": 0}},
-                "agent": {
-                    "default_resource_limit": 10,
-                    "rewards": {"inventory": {"heart": 1.0}},
-                },
-                "actions": {
-                    "noop": {"enabled": True},
-                    "move": {"enabled": True},
-                    "rotate": {"enabled": True},
-                    "put_items": {"enabled": True},
-                    "get_items": {"enabled": True},
-                    "attack": {"enabled": True},
-                    "swap": {"enabled": True},
-                    "change_color": {"enabled": False},
-                    "change_glyph": {"enabled": False, "number_of_glyphs": 0},
-                },
-                "objects": {
-                    "wall": {"type_id": 1, "swappable": False},
-                },
-                "map_builder": {
-                    "_target_": "metta.mettagrid.room.random.Random",
-                    "agents": 3,
-                    "width": 16,
-                    "height": 16,
-                    "border_width": 1,
-                    "objects": {},
-                },
-            }
-        }
-    )
-
-
-def test_pettingzoo_env_creation(simple_config):
+def test_pettingzoo_env_creation():
     """Test PettingZoo environment creation and properties."""
-    curriculum = SingleTaskCurriculum("pettingzoo_test", simple_config)
-
+    cfg = make_arena(num_agents=3)
+    cfg.game.max_steps = 100
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        cfg,
         render_mode=None,
-        is_training=False,
     )
 
     # Test environment properties
@@ -83,13 +30,13 @@ def test_pettingzoo_env_creation(simple_config):
     env.close()
 
 
-def test_pettingzoo_env_reset(simple_config):
+def test_pettingzoo_env_reset():
     """Test PettingZoo environment reset functionality."""
-    curriculum = SingleTaskCurriculum("pettingzoo_reset_test", simple_config)
+    cfg = make_arena(num_agents=3)
+    cfg.game.max_steps = 100
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        cfg,
         render_mode=None,
-        is_training=False,
     )
 
     # Test reset
@@ -103,20 +50,18 @@ def test_pettingzoo_env_reset(simple_config):
     # Check observation shapes
     for agent in env.agents:
         assert agent in observations
-        assert observations[agent].shape == (50, 3)
+        assert observations[agent].shape == (200, 3)
         assert agent in infos
         assert isinstance(infos[agent], dict)
 
     env.close()
 
 
-def test_pettingzoo_env_step(simple_config):
+def test_pettingzoo_env_step():
     """Test PettingZoo environment step functionality."""
-    curriculum = SingleTaskCurriculum("pettingzoo_step_test", simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        make_arena(num_agents=3),
         render_mode=None,
-        is_training=False,
     )
 
     observations, infos = env.reset(seed=42)
@@ -145,7 +90,7 @@ def test_pettingzoo_env_step(simple_config):
             assert agent in truncations
             assert agent in infos
 
-            assert observations[agent].shape == (50, 3)
+            assert observations[agent].shape == (200, 3)
             assert isinstance(rewards[agent], (int, float))
             assert isinstance(terminations[agent], bool)
             assert isinstance(truncations[agent], bool)
@@ -154,13 +99,11 @@ def test_pettingzoo_env_step(simple_config):
     env.close()
 
 
-def test_pettingzoo_env_agent_removal(simple_config):
+def test_pettingzoo_env_agent_removal():
     """Test that agents are properly removed when terminated."""
-    curriculum = SingleTaskCurriculum("pettingzoo_removal_test", simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        make_arena(num_agents=3),
         render_mode=None,
-        is_training=False,
     )
 
     observations, infos = env.reset(seed=42)
@@ -187,13 +130,11 @@ def test_pettingzoo_env_agent_removal(simple_config):
     env.close()
 
 
-def test_pettingzoo_env_spaces(simple_config):
+def test_pettingzoo_env_spaces():
     """Test PettingZoo environment observation and action spaces."""
-    curriculum = SingleTaskCurriculum("pettingzoo_spaces_test", simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        make_arena(num_agents=3),
         render_mode=None,
-        is_training=False,
     )
 
     # Test space methods
@@ -211,13 +152,11 @@ def test_pettingzoo_env_spaces(simple_config):
     env.close()
 
 
-def test_pettingzoo_env_state(simple_config):
+def test_pettingzoo_env_state():
     """Test PettingZoo environment state functionality."""
-    curriculum = SingleTaskCurriculum("pettingzoo_state_test", simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        make_arena(num_agents=3),
         render_mode=None,
-        is_training=False,
     )
 
     observations, infos = env.reset(seed=42)
@@ -234,13 +173,11 @@ def test_pettingzoo_env_state(simple_config):
     env.close()
 
 
-def test_pettingzoo_api_compliance(simple_config):
+def test_pettingzoo_api_compliance():
     """Test official PettingZoo API compliance."""
-    curriculum = SingleTaskCurriculum("pettingzoo_compliance_test", simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        make_arena(num_agents=3),
         render_mode=None,
-        is_training=False,
     )
 
     # Run the official PettingZoo parallel API compliance test
@@ -249,13 +186,11 @@ def test_pettingzoo_api_compliance(simple_config):
     env.close()
 
 
-def test_pettingzoo_episode_lifecycle(simple_config):
+def test_pettingzoo_episode_lifecycle():
     """Test the complete episode lifecycle with PettingZoo API."""
-    curriculum = SingleTaskCurriculum("pettingzoo_lifecycle_test", simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        make_arena(num_agents=3),
         render_mode=None,
-        is_training=False,
     )
 
     # Reset environment
@@ -311,13 +246,11 @@ def test_pettingzoo_episode_lifecycle(simple_config):
     env.close()
 
 
-def test_pettingzoo_action_observation_spaces(simple_config):
+def test_pettingzoo_action_observation_spaces():
     """Test that action and observation spaces are properly configured."""
-    curriculum = SingleTaskCurriculum("pettingzoo_spaces_validation_test", simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        make_arena(num_agents=5),
         render_mode=None,
-        is_training=False,
     )
 
     # Reset to ensure environment is initialized
@@ -345,13 +278,11 @@ def test_pettingzoo_action_observation_spaces(simple_config):
     env.close()
 
 
-def test_pettingzoo_render_functionality(simple_config):
+def test_pettingzoo_render_functionality():
     """Test that rendering works with PettingZoo interface."""
-    curriculum = SingleTaskCurriculum("pettingzoo_render_test", simple_config)
     env = MettaGridPettingZooEnv(
-        curriculum=curriculum,
+        make_arena(num_agents=5),
         render_mode="human",
-        is_training=False,
     )
 
     # Reset environment

@@ -56,8 +56,6 @@ class SimulationSuite:
 
         for name, sim_config in self._config.simulations.items():
             try:
-                # merge global simulation suite overrides with simulation-specific overrides
-                sim_config.env_overrides = {**self._config.env_overrides, **sim_config.env_overrides}
                 sim = Simulation(
                     name,
                     sim_config,

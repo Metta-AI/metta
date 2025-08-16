@@ -1,31 +1,37 @@
+import json
 import os
 from typing import Any
 
-from omegaconf import DictConfig, ListConfig, OmegaConf
 from pydantic import ValidationError
 
-from metta.common.util.config import copy_omegaconf_config
-from metta.rl.trainer_config import create_trainer_config
+from metta.rl.trainer_config import TrainerConfig
 
 
-def save_train_job_override_config(
-    cfg: DictConfig | ListConfig, overrides: DictConfig | ListConfig | dict[str, Any]
-) -> str:
+def save_train_job_override_config(cfg: Any, overrides: dict[str, Any]) -> str:
     """Save a train job config overrides file.
 
     Args:
-        cfg: The config to save the overrides for
+        cfg: The config to save the overrides for (TrainToolConfig or dict)
         overrides: The overrides to save
 
     Returns:
         The path to the saved overrides file
     """
-    save_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
-    OmegaConf.save(overrides, save_path)
+    # Get run_dir from config
+    if hasattr(cfg, "run_dir"):
+        run_dir = cfg.run_dir
+    elif isinstance(cfg, dict):
+        run_dir = cfg.get("run_dir", "./train_dir")
+    else:
+        run_dir = "./train_dir"
+
+    save_path = os.path.join(run_dir, "train_config_overrides.json")
+    with open(save_path, "w") as f:
+        json.dump(overrides, f, indent=2)
     return save_path
 
 
-def merge_train_job_config_overrides(base_cfg: DictConfig, overrides: DictConfig | dict[str, Any]) -> DictConfig:
+def merge_train_job_config_overrides(base_cfg: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
     """Merge two train job configs. Note: the overrides take precedence over the base config.
 
     Args:
@@ -35,45 +41,71 @@ def merge_train_job_config_overrides(base_cfg: DictConfig, overrides: DictConfig
     Returns:
         The merged config
     """
-    cfg_copy = copy_omegaconf_config(base_cfg)
+    import copy
 
-    OmegaConf.set_struct(cfg_copy, False)
-    merged_cfg: DictConfig = OmegaConf.merge(cfg_copy, overrides)  # type: ignore[assignment]
-    OmegaConf.set_struct(merged_cfg, True)
-    return merged_cfg
+    def deep_merge(base: dict, override: dict) -> dict:
+        """Recursively merge override into base."""
+        result = copy.deepcopy(base)
+        for key, value in override.items():
+            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+                result[key] = deep_merge(result[key], value)
+            else:
+                result[key] = value
+        return result
+
+    return deep_merge(base_cfg, overrides)
 
 
-def validate_train_job_config(cfg: DictConfig) -> DictConfig:
+def validate_train_job_config(trainer_cfg: TrainerConfig) -> TrainerConfig:
     """Validate a train job config.
 
     Args:
-        cfg: The config to validate
+        trainer_cfg: The trainer config to validate
 
     Returns:
         The validated config
     """
     try:
-        create_trainer_config(cfg)  # type: ignore[arg-type]
+        # The TrainerConfig is already a pydantic model, so validation happens automatically
+        # Just ensure it's valid by accessing a field
+        _ = trainer_cfg.total_timesteps
+        return trainer_cfg
     except (ValueError, TypeError, ValidationError) as e:
         raise ValueError("Invalid trainer config") from e
-    return cfg
 
 
-def load_train_job_config_with_overrides(cfg: DictConfig) -> DictConfig:
+def load_train_job_config_with_overrides(cfg: Any) -> Any:
     """
     Load a train job config with overrides.
-    Overrides are expected to be in the run_dir as `train_config_overrides.yaml`.
+    Overrides are expected to be in the run_dir as `train_config_overrides.json`.
 
     Args:
-        cfg: The base config to load
+        cfg: The base config to load (TrainToolConfig or dict)
 
     Returns:
-        The loaded config
+        The loaded config with overrides applied
     """
-    overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
-    if os.path.exists(overrides_path):
-        override_cfg: DictConfig = OmegaConf.load(overrides_path)  # type: ignore[assignment]
+    # Get run_dir from config
+    if hasattr(cfg, "run_dir"):
+        run_dir = cfg.run_dir
+    elif isinstance(cfg, dict):
+        run_dir = cfg.get("run_dir", "./train_dir")
+    else:
+        run_dir = "./train_dir"
 
-        # Since sweep_job mimics train_job.yaml, just merge them directly
-        cfg = merge_train_job_config_overrides(cfg, override_cfg)
+    overrides_path = os.path.join(run_dir, "train_config_overrides.json")
+    if os.path.exists(overrides_path):
+        with open(overrides_path, "r") as f:
+            override_dict = json.load(f)
+
+        if isinstance(cfg, dict):
+            # It's already a dict
+            return merge_train_job_config_overrides(cfg, override_dict)
+        elif hasattr(cfg, "model_dump"):
+            # It's a pydantic model
+            base_dict = cfg.model_dump()
+            merged_dict = merge_train_job_config_overrides(base_dict, override_dict)
+            # Create a new instance with merged config
+            return type(cfg).model_validate(merged_dict)
+
     return cfg

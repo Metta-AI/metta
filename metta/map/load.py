@@ -5,14 +5,13 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.map.scene import make_scene
 from metta.map.utils.storable_map import StorableMap
-from metta.mettagrid.level_builder import Level
-from metta.mettagrid.room.room import Room
+from metta.mettagrid.map_builder.map_builder import GameMap
 
 from .types import Area, SceneCfg
 
 
 # Note that this class can't be a scene, because the width and height come from the stored data.
-class Load(Room):
+class Load(GameMap):
     """
     Load a pregenerated map from a URI (file or S3 object).
 
@@ -22,7 +21,7 @@ class Load(Room):
     _extra_root: dict | None = None
 
     def __init__(self, uri: str, extra_root: SceneCfg | DictConfig | None = None):
-        super().__init__()
+        super().__init__(grid=None)
         self._uri = uri
         self._storable_map = StorableMap.from_uri(uri)
 
@@ -41,4 +40,4 @@ class Load(Room):
             root_scene = make_scene(self._extra_root, area, rng=np.random.default_rng())
             root_scene.render_with_children()
 
-        return Level(grid=grid, labels=[])
+        return GameMap(grid=grid)

@@ -59,20 +59,20 @@ class TestCurriculumConfig:
 
     def test_curriculum_config_creation(self):
         """Test creating a CurriculumConfig with valid parameters."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
         config = CurriculumConfig(
-            task_generator_config=task_gen_config, max_task_id=1000, num_active_tasks=50, new_task_rate=0.05
+            task_generator=task_gen_config, max_task_id=1000, num_active_tasks=50, new_task_rate=0.05
         )
 
-        assert config.task_generator_config is task_gen_config
+        assert config.task_generator is task_gen_config
         assert config.max_task_id == 1000
         assert config.num_active_tasks == 50
         assert config.new_task_rate == 0.05
 
     def test_curriculum_config_defaults(self):
         """Test that CurriculumConfig uses correct default values."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config)
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        config = CurriculumConfig(task_generator=task_gen_config)
 
         assert config.max_task_id == 1000000
         assert config.num_active_tasks == 100
@@ -80,27 +80,25 @@ class TestCurriculumConfig:
 
     def test_curriculum_config_validation_num_active_tasks(self):
         """Test that num_active_tasks validation works."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
 
         # This should fail because num_active_tasks > max_task_id
         with pytest.raises(ValueError):
-            CurriculumConfig(task_generator_config=task_gen_config, max_task_id=100, num_active_tasks=200)
+            CurriculumConfig(task_generator=task_gen_config, max_task_id=100, num_active_tasks=200)
 
     def test_curriculum_config_edge_case_values(self):
         """Test edge case values for parameters."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
 
         # Test minimum values
-        config = CurriculumConfig(
-            task_generator_config=task_gen_config, max_task_id=1, num_active_tasks=1, new_task_rate=0.0
-        )
+        config = CurriculumConfig(task_generator=task_gen_config, max_task_id=1, num_active_tasks=1, new_task_rate=0.0)
         assert config.max_task_id == 1
         assert config.num_active_tasks == 1
         assert config.new_task_rate == 0.0
 
         # Test maximum values
         config = CurriculumConfig(
-            task_generator_config=task_gen_config, max_task_id=1000000, num_active_tasks=1000000, new_task_rate=1.0
+            task_generator=task_gen_config, max_task_id=1000000, num_active_tasks=1000000, new_task_rate=1.0
         )
         assert config.new_task_rate == 1.0
 
@@ -110,10 +108,8 @@ class TestCurriculum:
 
     def create_test_config(self):
         """Helper to create a test configuration."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        return CurriculumConfig(
-            task_generator_config=task_gen_config, max_task_id=1000, num_active_tasks=5, new_task_rate=0.1
-        )
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        return CurriculumConfig(task_generator=task_gen_config, max_task_id=1000, num_active_tasks=5, new_task_rate=0.1)
 
     def test_curriculum_creation(self):
         """Test creating a Curriculum."""
@@ -288,9 +284,9 @@ class TestCurriculumEdgeCases:
 
     def test_curriculum_with_new_task_rate_zero(self):
         """Test curriculum behavior when new_task_rate is 0."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
         config = CurriculumConfig(
-            task_generator_config=task_gen_config,
+            task_generator=task_gen_config,
             num_active_tasks=3,
             new_task_rate=0.0,  # Never create new tasks after capacity
         )
@@ -311,9 +307,9 @@ class TestCurriculumEdgeCases:
 
     def test_curriculum_with_new_task_rate_one(self):
         """Test curriculum behavior when new_task_rate is 1.0."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
         config = CurriculumConfig(
-            task_generator_config=task_gen_config,
+            task_generator=task_gen_config,
             num_active_tasks=3,
             new_task_rate=1.0,  # Always create new tasks after capacity
         )
@@ -335,8 +331,8 @@ class TestCurriculumEdgeCases:
 
     def test_curriculum_with_single_task_capacity(self):
         """Test curriculum with capacity of 1."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config, num_active_tasks=1, new_task_rate=0.5)
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=1, new_task_rate=0.5)
         curriculum = Curriculum(config, seed=0)
 
         # Should always maintain exactly 1 task
@@ -347,9 +343,9 @@ class TestCurriculumEdgeCases:
 
     def test_curriculum_max_task_id_boundary(self):
         """Test task ID generation at max_task_id boundary."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
         config = CurriculumConfig(
-            task_generator_config=task_gen_config,
+            task_generator=task_gen_config,
             max_task_id=2,  # IDs 0, 1, 2 possible (3 total)
             num_active_tasks=2,
         )

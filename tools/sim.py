@@ -18,7 +18,6 @@ from datetime import datetime
 from pathlib import Path
 
 import torch
-from omegaconf import DictConfig
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicySelectorType
@@ -26,10 +25,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.eval.eval_service import evaluate_policy
-from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.stats import process_policy_evaluator_stats
-from metta.rl.system_config import create_system_config
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.util.metta_script import metta_script
 from tools.utils import get_policy_store_from_cfg
@@ -39,7 +35,7 @@ from tools.utils import get_policy_store_from_cfg
 # --------------------------------------------------------------------------- #
 
 
-class SimJob(Config):
+class SimToolConfig(Config):
     simulation_suite: SimulationSuiteConfig
     policy_uris: list[str]
     selector_type: PolicySelectorType = "top"
@@ -69,35 +65,29 @@ def _determine_run_name(policy_uri: str) -> str:
 # --------------------------------------------------------------------------- #
 
 
-def main(cfg: DictConfig) -> None:
+def main(cfg: SimToolConfig) -> None:
     logger = logging.getLogger("tools.sim")
     if not cfg.get("run"):
         cfg.run = _determine_run_name(cfg.policy_uri)
         logger.info(f"Auto-generated run name: {cfg.run}")
 
-    sim_job = SimJob(cfg.sim_job)
-    logger.info(f"Sim job:\n{sim_job}")
-    training_curriculum: Curriculum | None = None
+    logger.info(f"Sim job:\n{cfg}")
 
     if cfg.sim_suite_config_path:
         with open(cfg.sim_suite_config_path, "r") as f:
             sim_suite_config_dict = json.load(f)
-        sim_job.simulation_suite = SimulationSuiteConfig.model_validate(sim_suite_config_dict)
-        logger.info(f"Sim suite config:\n{sim_job.simulation_suite}")
+        cfg.simulation_suite = SimulationSuiteConfig.model_validate(sim_suite_config_dict)
+        logger.info(f"Sim suite config:\n{cfg.simulation_suite}")
 
     if cfg.trainer_task_path:
         logger.info(f"Loading trainer task from {cfg.trainer_task_path}")
         with open(cfg.trainer_task_path, "r") as f:
             trainer_task_dict = json.load(f)
         logger.info(f"Trainer task:\n{trainer_task_dict}")
-        if curriculum_name := trainer_task_dict.get("curriculum"):
-            training_curriculum = curriculum_from_config_path(
-                curriculum_name, DictConfig(trainer_task_dict.get("env_overrides", {}))
-            )
-            logger.info(f"Training curriculum:\n{training_curriculum}")
+        # Note: trainer_task_path functionality removed - no longer used after refactoring
 
     # Create env config
-    system_config = create_system_config(cfg)
+    system_config = cfg.system
 
     policy_store = get_policy_store_from_cfg(cfg)
     stats_client: StatsClient | None = get_stats_client(cfg, logger)
@@ -107,16 +97,14 @@ def main(cfg: DictConfig) -> None:
     policy_records_by_uri: dict[str, list[PolicyRecord]] = {
         policy_uri: policy_store.policy_records(
             uri_or_config=policy_uri,
-            selector_type=sim_job.selector_type,
+            selector_type=cfg.selector_type,
             n=1,
-            metric=sim_job.simulation_suite.name + "_score",
-            stats_client=stats_client,
-            eval_name=sim_job.simulation_suite.name,
+            metric=cfg.simulation_suite.name + "_score",
         )
-        for policy_uri in sim_job.policy_uris
+        for policy_uri in cfg.policy_uris
     }
 
-    all_results = {"simulation_suite": sim_job.simulation_suite.name, "policies": []}
+    all_results = {"simulation_suite": cfg.simulation_suite.name, "policies": []}
     device = torch.device(cfg.device)
 
     # Get eval_task_id from config if provided
@@ -128,17 +116,16 @@ def main(cfg: DictConfig) -> None:
         for pr in policy_prs:
             eval_results = evaluate_policy(
                 policy_record=pr,
-                simulation_suite=sim_job.simulation_suite,
-                stats_dir=sim_job.stats_dir,
-                replay_dir=f"{sim_job.replay_dir}/{pr.run_name}",
+                simulation_suite=cfg.simulation_suite,
+                stats_dir=cfg.stats_dir,
+                replay_dir=f"{cfg.replay_dir}/{pr.run_name}",
                 device=device,
                 vectorization=system_config.vectorization,
-                export_stats_db_uri=sim_job.stats_db_uri,
+                export_stats_db_uri=cfg.stats_db_uri,
                 policy_store=policy_store,
                 stats_client=stats_client,
                 logger=logger,
                 eval_task_id=eval_task_id,
-                training_curriculum=training_curriculum,
             )
             if cfg.push_metrics_to_wandb:
                 try:

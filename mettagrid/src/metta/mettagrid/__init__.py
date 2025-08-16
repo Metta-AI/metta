@@ -17,9 +17,8 @@ from __future__ import annotations
 from metta.mettagrid.core import MettaGridCore
 
 # Import other commonly used classes
-from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.gym_env import MettaGridGymEnv, SingleAgentMettaGridGymEnv
-from metta.mettagrid.level_builder import Level
+from metta.mettagrid.gym_env import MettaGridGymEnv
+from metta.mettagrid.map_builder.map_builder import GameMap
 
 # Import data types from C++ module (source of truth)
 from metta.mettagrid.mettagrid_c import (
@@ -31,19 +30,21 @@ from metta.mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
+from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 
 __all__ = [
+    # Config
+    "EnvConfig",
     # Core classes
     "MettaGridCore",
     # Main environment (backward compatible)
     "MettaGridEnv",
     # Environment adapters
     "MettaGridGymEnv",
-    "SingleAgentMettaGridGymEnv",
     "MettaGridPettingZooEnv",
     # Data types
     "dtype_actions",
@@ -54,8 +55,7 @@ __all__ = [
     "dtype_masks",
     "dtype_success",
     # Supporting classes
-    "Curriculum",
-    "Level",
+    "GameMap",
     "ReplayWriter",
     "StatsWriter",
 ]
