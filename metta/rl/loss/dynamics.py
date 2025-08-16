@@ -9,6 +9,8 @@ from metta.rl.trainer_state import TrainerState
 
 
 class Dynamics(BaseLoss):
+    """The dynamics term in the Muesli loss."""
+
     def losses_to_track(self) -> list[str]:
         return [
             "dynamics_returns_loss",

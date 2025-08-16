@@ -44,7 +44,7 @@ losses:
 
   dynamics:
     path: metta.rl.loss.dynamics.Dynamics
-    returns_step_look_ahead: 2
+    returns_step_look_ahead: 5
     returns_pred_coef: 0.3
     reward_pred_coef: 0.3
 
