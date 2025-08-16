@@ -1,4 +1,3 @@
-#!/usr/bin/env -S uv run
 # Generate a replay file that can be used in MettaScope to visualize a single run.
 
 import logging
@@ -7,20 +6,19 @@ from urllib.parse import quote
 
 import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
-from metta.common.util.config import Config
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
+from metta.common.util.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff
 from metta.rl.system_config import SystemConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
-from metta.util.metta_script import pydantic_metta_script
 
-logger = logging.getLogger("tools.replay")
+logger = logging.getLogger(__name__)
 
 
 # TODO: This job can be replaced with sim now that Simulations create replays
-class ReplayToolConfig(Config):
-    system: SystemConfig = SystemConfig.Auto()
+class ReplayTool(Tool):
+    system: SystemConfig = SystemConfig()
     wandb: WandbConfig = WandbConfigOff()
     sim: SimulationConfig
     policy_uri: str | None = None
@@ -29,36 +27,35 @@ class ReplayToolConfig(Config):
     stats_dir: str = "./train_dir/stats"
     open_browser_on_start: bool = True
 
+    def invoke(self) -> None:
+        # Create policy store directly without WandbContext
+        policy_store = PolicyStore.create(
+            device=self.system.device,
+            wandb_config=self.wandb,
+            data_dir=self.system.data_dir,
+            wandb_run=None,
+        )
 
-def replay(cfg: ReplayToolConfig) -> None:
-    # Create policy store directly without WandbContext
-    policy_store = PolicyStore.create(
-        device=cfg.system.device,
-        wandb_config=cfg.wandb,
-        data_dir=cfg.system.data_dir,
-        wandb_run=None,
-    )
+        # Create simulation using the helper method with explicit parameters
+        sim = Simulation.create(
+            sim_config=self.sim,
+            policy_store=policy_store,
+            device=self.system.device,
+            vectorization=self.system.vectorization,
+            stats_dir=self.stats_dir,
+            replay_dir=self.replay_dir,
+            policy_uri=self.policy_uri,
+            run_name="replay_run",
+        )
 
-    # Create simulation using the helper method with explicit parameters
-    sim = Simulation.create(
-        sim_config=cfg.sim,
-        policy_store=policy_store,
-        device=cfg.system.device,
-        vectorization=cfg.system.vectorization,
-        stats_dir=cfg.stats_dir,
-        replay_dir=cfg.replay_dir,
-        policy_uri=cfg.policy_uri,
-        run_name="replay_run",
-    )
+        result = sim.simulate()
+        key, version = result.stats_db.key_and_version(sim.policy_record)
+        replay_url = result.stats_db.get_replay_urls(key, version)[0]
 
-    result = sim.simulate()
-    key, version = result.stats_db.key_and_version(sim.policy_record)
-    replay_url = result.stats_db.get_replay_urls(key, version)[0]
-
-    open_browser(replay_url, cfg)
+        open_browser(replay_url, self)
 
 
-def open_browser(replay_url: str, cfg: ReplayToolConfig) -> None:
+def open_browser(replay_url: str, cfg: ReplayTool) -> None:
     # Only on macos open a browser to the replay
     if platform.system() == "Darwin":
         if not replay_url.startswith("http"):
@@ -69,9 +66,9 @@ def open_browser(replay_url: str, cfg: ReplayToolConfig) -> None:
 
             # Run a metascope server that serves the replay
             # Import PlayToolConfig to use with the server
-            from tools.play import PlayTool
+            from metta.tools.play import PlayTool
 
-            # Create a PlayToolConfig from ReplayToolConfig (they have the same fields)
+            # Create a PlayTool from ReplayTool (they have the same fields)
             play_cfg = PlayTool(
                 system=cfg.system,
                 wandb=cfg.wandb,
@@ -88,6 +85,3 @@ def open_browser(replay_url: str, cfg: ReplayToolConfig) -> None:
             else:
                 logger.info(f"Enter MettaGrid @ {full_url}")
                 server.run(play_cfg)
-
-
-pydantic_metta_script(replay)
