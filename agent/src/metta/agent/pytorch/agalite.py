@@ -21,23 +21,13 @@ from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
 logger = logging.getLogger(__name__)
 
-# Import unified implementation
-try:
-    from metta.agent.modules.agalite_unified import UnifiedAGaLiTe, UnifiedAGaLiTeLayer
-    UNIFIED_MODE_AVAILABLE = True
-except ImportError:
-    UNIFIED_MODE_AVAILABLE = False
-    logger.warning("Unified AGaLiTe not available, falling back to legacy implementation")
-
-# Check if torch.compile is available for turbo mode
-TURBO_MODE_AVAILABLE = hasattr(torch, 'compile')
-
-# Legacy fast mode (deprecated)
+# Import fast implementation for large batch processing
 try:
     from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
     FAST_MODE_AVAILABLE = True
 except ImportError:
     FAST_MODE_AVAILABLE = False
+    logger.warning("FastAGaLiTeLayer not available")
 
 # Install parallel discounted_sum for GPU performance
 try:
@@ -52,11 +42,9 @@ class AGaLiTeCore(nn.Module):
     Full AGaLiTe transformer model with proper memory handling.
     Processes entire BPTT sequences as context.
     
-    Uses unified implementation by default that includes all features:
-    - GRU gating units for gradient flow
-    - Feed-forward components
-    - Layer normalization
-    - Optimized batch processing
+    Supports two modes:
+    - Standard mode: Full AGaLiTe with configurable eta/r
+    - Fast mode: Optimized for large batches with reduced parameters
     """
 
     def __init__(
@@ -70,13 +58,7 @@ class AGaLiTeCore(nn.Module):
         r: int,
         reset_on_terminate: bool = True,
         dropout: float = 0.0,
-        use_fast_mode: bool = False,  # Deprecated, kept for compatibility
-        # New unified mode parameters
-        use_gru_gating: bool = True,
-        use_layer_norm: bool = True,
-        use_ffc: bool = True,
-        optimize_for_speed: bool = False,
-        use_turbo_mode: bool = False,  # Use compiled/optimized version
+        use_fast_mode: bool = False,
     ):
         super().__init__()
         self.n_layers = n_layers
@@ -84,129 +66,75 @@ class AGaLiTeCore(nn.Module):
         self.d_head = d_head
         self.d_ffc = d_ffc
         self.n_heads = n_heads
+        self.use_fast_mode = use_fast_mode
         
-        # Check implementation mode
-        self.use_unified = UNIFIED_MODE_AVAILABLE
-        self.use_turbo = use_turbo_mode and TURBO_MODE_AVAILABLE
-        
-        if self.use_unified:
-            # Use the new unified implementation
+        # Fast mode uses reduced parameters for efficiency
+        if use_fast_mode and FAST_MODE_AVAILABLE:
+            self.eta = min(eta, 2)  # Cap at 2 for fast mode
+            self.r = min(r, 4)      # Cap at 4 for fast mode
+            logger.info(f"Using FastAGaLiTeLayer with eta={self.eta}, r={self.r}")
+        else:
             self.eta = eta
             self.r = r
-            
-            # Handle legacy fast_mode flag
-            if use_fast_mode:
-                optimize_for_speed = True
-                logger.info("use_fast_mode is deprecated, using optimize_for_speed instead")
-            
-            if self.use_turbo:
-                logger.info(f"Using UnifiedAGaLiTe (TURBO MODE with torch.compile) eta={eta}, r={r}, "
-                           f"gru={use_gru_gating}, norm={use_layer_norm}, ffc={use_ffc}")
-            else:
-                logger.info(f"Using UnifiedAGaLiTe with eta={eta}, r={r}, "
-                           f"gru={use_gru_gating}, norm={use_layer_norm}, ffc={use_ffc}")
-        else:
-            # Fall back to legacy implementation
-            self.use_fast_mode = use_fast_mode
-            
-            # Fast mode uses reduced parameters for efficiency
-            if use_fast_mode and FAST_MODE_AVAILABLE:
-                self.eta = min(eta, 2)  # Cap at 2 for fast mode
-                self.r = min(r, 4)      # Cap at 4 for fast mode
-                logger.info(f"Using FastAGaLiTeLayer with eta={self.eta}, r={self.r}")
-            else:
-                self.eta = eta
-                self.r = r
-                if use_fast_mode and not FAST_MODE_AVAILABLE:
-                    logger.warning("Fast mode requested but FastAGaLiTeLayer not available, using standard mode")
+            if use_fast_mode and not FAST_MODE_AVAILABLE:
+                logger.warning("Fast mode requested but FastAGaLiTeLayer not available, using standard mode")
 
-        if self.use_unified:
-            # Create unified model
-            self.model = UnifiedAGaLiTe(
-                n_layers=n_layers,
-                d_model=d_model,
-                d_head=d_head,
-                d_ffc=d_ffc,
-                n_heads=n_heads,
-                eta=self.eta,
-                r=self.r,
-                reset_on_terminate=reset_on_terminate,
-                dropout=dropout,
-                use_gru_gating=use_gru_gating,
-                use_layer_norm=use_layer_norm,
-                use_ffc=use_ffc,
-                optimize_for_speed=optimize_for_speed,
-                use_turbo_mode=self.use_turbo,
-            )
-        else:
-            # Legacy implementation
-            self.encoders = nn.ModuleList()
-            for layer in range(n_layers):
-                if use_fast_mode and FAST_MODE_AVAILABLE:
-                    # Use fast implementation
-                    encoder = FastAGaLiTeLayer(
-                        d_model=d_model,
-                        head_num=n_heads,
-                        head_dim=d_head,
-                        eta=self.eta,
-                        r=self.r,
-                        reset_hidden_on_terminate=reset_on_terminate,
-                        dropout=dropout,
-                    )
-                else:
-                    # Use standard implementation with wrapper
-                    use_dense = layer == 0  # Use dense layer for first layer
-                    encoder = RecurrentLinearTransformerEncoder(
-                        d_model=d_model,
-                        d_head=d_head,
-                        d_ffc=d_ffc,
-                        n_heads=n_heads,
-                        eta=self.eta,
-                        r=self.r,
-                        use_dense=use_dense,
-                        reset_hidden_on_terminate=reset_on_terminate,
-                        dropout=dropout,
-                    )
-                self.encoders.append(encoder)
+        self.encoders = nn.ModuleList()
+        for layer in range(n_layers):
+            if use_fast_mode and FAST_MODE_AVAILABLE:
+                # Use fast implementation
+                encoder = FastAGaLiTeLayer(
+                    d_model=d_model,
+                    head_num=n_heads,
+                    head_dim=d_head,
+                    eta=self.eta,
+                    r=self.r,
+                    reset_hidden_on_terminate=reset_on_terminate,
+                    dropout=dropout,
+                )
+            else:
+                # Use standard implementation with wrapper
+                use_dense = layer == 0  # Use dense layer for first layer
+                encoder = RecurrentLinearTransformerEncoder(
+                    d_model=d_model,
+                    d_head=d_head,
+                    d_ffc=d_ffc,
+                    n_heads=n_heads,
+                    eta=self.eta,
+                    r=self.r,
+                    use_dense=use_dense,
+                    reset_hidden_on_terminate=reset_on_terminate,
+                    dropout=dropout,
+                )
+            self.encoders.append(encoder)
 
     def forward(
         self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Dict[str, Tuple]
     ) -> Tuple[torch.Tensor, Dict[str, Tuple]]:
         """Forward pass for AGaLiTe."""
-        if self.use_unified:
-            # Use unified implementation (with or without turbo)
-            return self.model(inputs, terminations, memory)
-        else:
-            # Legacy implementation
-            u_i = inputs
-            new_memory = {}
+        u_i = inputs
+        new_memory = {}
 
-            for layer_idx, encoder in enumerate(self.encoders):
-                layer_key = f"layer_{layer_idx + 1}"
-                if hasattr(self, 'use_fast_mode') and self.use_fast_mode and FAST_MODE_AVAILABLE:
-                    # Fast mode: encoder is FastAGaLiTeLayer, add residual connection
-                    residual = u_i
-                    attn_out, memory_updated = encoder(u_i, terminations, memory[layer_key])
-                    u_i = residual + attn_out  # Residual connection
-                else:
-                    # Standard mode: encoder is RecurrentLinearTransformerEncoder  
-                    u_i, memory_updated = encoder(u_i, terminations, memory[layer_key])
-                new_memory[layer_key] = memory_updated
+        for layer_idx, encoder in enumerate(self.encoders):
+            layer_key = f"layer_{layer_idx + 1}"
+            if self.use_fast_mode and FAST_MODE_AVAILABLE:
+                # Fast mode: encoder is FastAGaLiTeLayer, add residual connection
+                residual = u_i
+                attn_out, memory_updated = encoder(u_i, terminations, memory[layer_key])
+                u_i = residual + attn_out  # Residual connection
+            else:
+                # Standard mode: encoder is RecurrentLinearTransformerEncoder  
+                u_i, memory_updated = encoder(u_i, terminations, memory[layer_key])
+            new_memory[layer_key] = memory_updated
 
-            return u_i, new_memory
+        return u_i, new_memory
 
     def initialize_memory(self, batch_size: int, device: torch.device = None) -> Dict[str, Tuple]:
         """Initialize memory for this model instance."""
-        if self.use_unified:
-            # Use unified model's initialize_memory
-            return self.model.initialize_memory(batch_size, device)
-        else:
-            # Legacy static method call
-            return self.initialize_memory_static(
-                batch_size, self.n_layers, self.n_heads, self.d_head, 
-                self.eta, self.r, device, 
-                getattr(self, 'use_fast_mode', False)
-            )
+        return self.initialize_memory_static(
+            batch_size, self.n_layers, self.n_heads, self.d_head, 
+            self.eta, self.r, device, self.use_fast_mode
+        )
 
     @staticmethod
     def initialize_memory_static(
@@ -249,7 +177,6 @@ class AGaLiTePolicy(nn.Module):
         reset_on_terminate: bool = True,
         dropout: float = 0.0,
         use_fast_mode: bool = False,
-        use_turbo_mode: bool = False,
     ):
         super().__init__()
         self.action_space = env.single_action_space
@@ -305,7 +232,6 @@ class AGaLiTePolicy(nn.Module):
             reset_on_terminate=reset_on_terminate,
             dropout=dropout,
             use_fast_mode=use_fast_mode,
-            use_turbo_mode=use_turbo_mode,
         )
 
         # Output heads
@@ -460,11 +386,9 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
     - Full compatibility with Metta's training infrastructure
     - Weight management and action conversion via PyTorchAgentMixin
     
-    By default, uses the unified implementation with all features:
-    - GRU gating units for gradient flow
-    - Feed-forward components (MLP after attention)
-    - Layer normalization (pre-norm architecture)
-    - Optimized batch processing for large environments
+    Supports two modes:
+    - Standard mode: Full AGaLiTe with configurable eta/r
+    - Fast mode: Optimized for large batches with reduced parameters (eta=2, r=4)
     """
     
     def __init__(
@@ -479,13 +403,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         r: int = 8,
         reset_on_terminate: bool = True,
         dropout: float = 0.0,
-        use_fast_mode: bool = False,  # Deprecated
-        # New unified parameters
-        use_gru_gating: bool = True,
-        use_layer_norm: bool = True,
-        use_ffc: bool = True,
-        optimize_for_speed: bool = False,
-        use_turbo_mode: bool = False,
+        use_fast_mode: bool = False,
         **kwargs,
     ):
         """Initialize AGaLiTe with mixin support.
@@ -501,11 +419,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
             r: AGaLiTe r parameter (approximation order)
             reset_on_terminate: Whether to reset memory on termination
             dropout: Dropout rate
-            use_fast_mode: [Deprecated] Use optimize_for_speed instead
-            use_gru_gating: Whether to use GRU gating units (default: True)
-            use_layer_norm: Whether to use layer normalization (default: True)
-            use_ffc: Whether to use feed-forward component (default: True)
-            optimize_for_speed: Reduces eta/r for faster processing (default: False)
+            use_fast_mode: Enable fast mode with reduced eta/r (default: False)
             **kwargs: Configuration parameters handled by mixin (clip_range, analyze_weights_interval, etc.)
         """
         # Extract mixin parameters before passing to parent
@@ -524,7 +438,6 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
             reset_on_terminate=reset_on_terminate,
             dropout=dropout,
             use_fast_mode=use_fast_mode,
-            use_turbo_mode=use_turbo_mode,
         )
 
         # Initialize with TransformerWrapper
