@@ -344,8 +344,7 @@ run_cmd() {
     echo "[INFO] Started timeout monitor with PID: $TIMEOUT_MONITOR_PID"
   fi
 
-  # All nodes: Start heartbeat monitor if enabled
-  if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
+  if [[ "$IS_MASTER" == "true" ]] && [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
     echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE"
     echo "[INFO] Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
 
