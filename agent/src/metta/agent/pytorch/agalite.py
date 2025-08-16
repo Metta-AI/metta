@@ -19,6 +19,13 @@ from metta.agent.modules.agalite_layers import AttentionAGaLiTeLayer, RecurrentL
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
+# Install parallel discounted_sum for GPU performance
+try:
+    from metta.agent.modules.agalite_parallel import install_parallel_discounted_sum
+    install_parallel_discounted_sum()
+except ImportError:
+    pass  # Fall back to sequential version
+
 logger = logging.getLogger(__name__)
 
 
@@ -317,7 +324,7 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         d_head: int = 64,
         d_ffc: int = 1024,
         n_heads: int = 4,
-        n_layers: int = 4,
+        n_layers: int = 2,  # Reduced from 4 for better GPU performance
         eta: int = 4,
         r: int = 8,
         reset_on_terminate: bool = True,
