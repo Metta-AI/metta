@@ -46,9 +46,11 @@ def make_env_func(
     env._current_task = task
 
     def on_episode_done(obs, rew, term, trunc, info):
-        env._current_task.complete(rew.mean())
-        env._current_task = curriculum.get_task()
-        env.set_env_config(env._current_task.get_env_cfg())
+        nonlocal task
+        task.complete(rew.mean())
+        task = curriculum.get_task()
+        env._current_task = task
+        env.set_env_config(task.get_env_cfg())
 
     env.set_on_episode_done(on_episode_done)
 
