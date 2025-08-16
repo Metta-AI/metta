@@ -24,6 +24,7 @@ mkdir -p "$JOB_METADATA_DIR"
 # Files to track
 RESTART_COUNT_FILE="$JOB_METADATA_DIR/restart_count"
 ACCUMULATED_RUNTIME_FILE="$JOB_METADATA_DIR/accumulated_runtime"
+CLUSTER_STOP_FILE="$JOB_METADATA_DIR/cluster_stop"
 
 # Initialize or update restart tracking
 if [ -f "$RESTART_COUNT_FILE" ]; then
@@ -35,8 +36,10 @@ fi
 
 if [[ "$IS_MASTER" == "true" ]]; then
     echo "$RESTART_COUNT" > "$RESTART_COUNT_FILE"
+    # Clear any stale cluster stop flag at the beginning of a fresh attempt
+    : > "$CLUSTER_STOP_FILE" 2>/dev/null || true
 else
-    echo "[INFO] Skipping RESTART_COUNT update on non-master node"
+    echo "[INFO] Skipping signal file updates on non-master node"
 fi
 
 # Read accumulated runtime
@@ -74,6 +77,7 @@ export NODE_INDEX="\${SKYPILOT_NODE_RANK}"
 export RESTART_COUNT="${RESTART_COUNT}"
 export ACCUMULATED_RUNTIME="${ACCUMULATED_RUNTIME}"
 export ACCUMULATED_RUNTIME_FILE="${ACCUMULATED_RUNTIME_FILE}"
+export CLUSTER_STOP_FILE="${CLUSTER_STOP_FILE}"
 
 # NCCL Configuration
 export NCCL_PORT_RANGE="\${NCCL_PORT_RANGE:-43000-43063}"
