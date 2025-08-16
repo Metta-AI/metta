@@ -7,7 +7,6 @@ from metta.common.util.config import Config
 if TYPE_CHECKING:
     from metta.cogworks.curriculum.curriculum import CurriculumConfig
     from metta.sim.simulation_config import SimulationConfig
-from metta.mettagrid.map_builder import MapBuilderConfigUnion
 from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 
 # ===== Python Configuration Models =====
@@ -205,7 +204,9 @@ class GameConfig(Config):
     # and other parts of the template can read from there.
     params: Optional[Any] = None
 
-    map_builder: MapBuilderConfigUnion = RandomMapBuilderConfig(agents=24)
+    # Map builder configuration - accepts any MapBuilder config including MapGenConfig
+    # We use Any here to avoid circular imports with MapGenConfig
+    map_builder: Any = RandomMapBuilderConfig(agents=24)
 
     # Movement metrics configuration
     track_movement_metrics: bool = Field(
