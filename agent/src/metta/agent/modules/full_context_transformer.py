@@ -266,10 +266,10 @@ class FullContextTransformer(nn.Module):
         for layer in self.layers:
             if hasattr(layer, 'gate1'):
                 # Initialize to favor passing through original input
-                nn.init.xavier_uniform_(layer.gate1.Wz, gain=0.1)
-                nn.init.xavier_uniform_(layer.gate1.Uz, gain=0.1)
-                nn.init.xavier_uniform_(layer.gate2.Wz, gain=0.1)
-                nn.init.xavier_uniform_(layer.gate2.Uz, gain=0.1)
+                nn.init.xavier_uniform_(layer.gate1.Wz.weight, gain=0.1)
+                nn.init.xavier_uniform_(layer.gate1.Uz.weight, gain=0.1)
+                nn.init.xavier_uniform_(layer.gate2.Wz.weight, gain=0.1)
+                nn.init.xavier_uniform_(layer.gate2.Uz.weight, gain=0.1)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass through the transformer.

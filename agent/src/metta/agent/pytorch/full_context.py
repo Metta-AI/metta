@@ -1,7 +1,7 @@
 """
 Full-context transformer agent for Metta.
 
-This agent uses a standard transformer decoder that views the entire BPTT
+This agent uses a transformer with GTrXL-style stabilization that views the entire BPTT
 trajectory at once, using all observations as context to predict actions.
 """
 
@@ -12,9 +12,7 @@ import torch
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.modules.encoders import ObsLatentAttn
 from metta.agent.modules.full_context_transformer import FullContextTransformer
-from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
@@ -35,6 +33,7 @@ class Policy(nn.Module):
         max_seq_len: int = 256,
         dropout: float = 0.1,
         use_causal_mask: bool = True,
+        use_gating: bool = True,
     ):
         """Initialize the policy network.
         
@@ -48,6 +47,7 @@ class Policy(nn.Module):
             max_seq_len: Maximum sequence length
             dropout: Dropout rate
             use_causal_mask: Whether to use causal masking
+            use_gating: Whether to use GRU gating
         """
         super().__init__()
         
@@ -69,15 +69,22 @@ class Policy(nn.Module):
         else:
             raise NotImplementedError(f"Action space {type(action_space)} not supported")
         
-        # Observation processing
-        self.embed_fourier = ObsAttrEmbedFourier()
-        self.pad_strip = ObsTokenPadStrip(1, 1)
-        self.val_norm = ObsAttrValNorm()
-        self.obs_encoder = ObsLatentAttn(
-            input_size=input_size,
-            use_cls=False,
-            return_seq_output=False,
-            num_output=1,
+        # Get observation shape
+        if hasattr(env, 'single_observation_space'):
+            obs_space = env.single_observation_space
+        else:
+            obs_space = env.observation_space
+        self.obs_shape = obs_space.shape
+        obs_dim = self.obs_shape[0] * self.obs_shape[1] if len(self.obs_shape) == 2 else self.obs_shape[0]
+        
+        # Simple observation encoder with layer norm for stability
+        self.obs_encoder = nn.Sequential(
+            nn.Linear(obs_dim, hidden_size),
+            nn.LayerNorm(hidden_size),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_size, hidden_size),
+            nn.LayerNorm(hidden_size),
         )
         
         # Full-context transformer core
@@ -89,6 +96,7 @@ class Policy(nn.Module):
             max_seq_len=max_seq_len,
             dropout=dropout,
             use_causal_mask=use_causal_mask,
+            use_gating=use_gating,
         )
         
         # Action heads for multi-discrete actions
@@ -109,13 +117,15 @@ class Policy(nn.Module):
         Returns:
             Encoded observations
         """
-        # Process observations through tokenizers
-        tokens = self.embed_fourier(observations)
-        tokens = self.pad_strip(tokens)
-        tokens = self.val_norm(tokens)
+        # Flatten observations if needed
+        original_shape = observations.shape
+        if len(original_shape) > 2:
+            # Flatten all but batch dimension
+            batch_size = original_shape[0]
+            observations = observations.reshape(batch_size, -1)
         
-        # Encode with attention
-        hidden = self.obs_encoder(tokens)
+        # Encode through MLP
+        hidden = self.obs_encoder(observations)
         
         return hidden
     
@@ -160,7 +170,7 @@ class Policy(nn.Module):
 class FullContext(PyTorchAgentMixin, TransformerWrapper):
     """Full-context transformer agent.
     
-    This agent uses a standard transformer decoder that processes the entire
+    This agent uses a transformer with GTrXL-style stabilization that processes the entire
     BPTT trajectory at once, using all observations as context.
     """
     
@@ -176,6 +186,7 @@ class FullContext(PyTorchAgentMixin, TransformerWrapper):
         max_seq_len: int = 256,
         dropout: float = 0.1,
         use_causal_mask: bool = True,
+        use_gating: bool = True,
         **kwargs,
     ):
         """Initialize the full-context transformer agent.
@@ -191,6 +202,7 @@ class FullContext(PyTorchAgentMixin, TransformerWrapper):
             max_seq_len: Maximum sequence length
             dropout: Dropout rate
             use_causal_mask: Whether to use causal masking
+            use_gating: Whether to use GRU gating
             **kwargs: Configuration parameters handled by mixin
         """
         # Extract mixin parameters before passing to parent
@@ -207,6 +219,7 @@ class FullContext(PyTorchAgentMixin, TransformerWrapper):
                 max_seq_len=max_seq_len,
                 dropout=dropout,
                 use_causal_mask=use_causal_mask,
+                use_gating=use_gating,
             )
         
         # Initialize transformer wrapper
