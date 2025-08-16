@@ -1,1 +1,1 @@
-# This file makes the map directory a Python package
+# metta/map/__init__.py

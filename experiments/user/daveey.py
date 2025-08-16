@@ -5,6 +5,8 @@ import metta.mettagrid.config.envs as eb
 import softmax.softmax as softmax
 import yaml
 from metta.cogworks.curriculum.task_generator import ValueRange as vr
+from metta.map.mapgen import MapGenConfig
+from metta.map.terrain_from_numpy import TerrainFromNumpyConfig
 from metta.mettagrid.map_builder import AsciiMapBuilderConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -38,17 +40,17 @@ varied_terrain.game.objects["altar"].cooldown = 1000
 #         dir="varied_terrain/dense_large",
 #     ).pack()
 
-# varied_terrain.game.map_builder = MapGenConfig(
-#     instances=4,
-#     border_width=6,
-#     instance_border_width=3,
-#     root="hallway",
-#     # instance_map=TerrainFromNumpyConfig(
-#     #     agents=1,
-#     #     objects={"altar": 10},
-#     #     dir="varied_terrain/dense_large",
-#     # )
-# )
+varied_terrain.game.map_builder = MapGenConfig(
+    instances=4,
+    border_width=6,
+    instance_border_width=3,
+    # root="hallway",
+    instance_map=TerrainFromNumpyConfig(
+        agents=1,
+        objects={"altar": 10},
+        dir="varied_terrain/dense_large",
+    ),
+)
 
 ########################################################
 # Tools
@@ -69,7 +71,7 @@ varied_terrain.game.objects["altar"].cooldown = 1000
 
 
 def tool_cfg_play() -> PlayTool:
-    eval_env = varied_terrain.model_copy()
+    eval_env = arena.model_copy()
     eval_env.game.max_steps = 100
     return PlayTool(
         sim=SimulationConfig(
@@ -81,7 +83,7 @@ def tool_cfg_play() -> PlayTool:
     )
 
 
-def tool_cfg_train(run: str) -> TrainTool:
+def tool_cfg_train(run: str = "daveey-arena") -> TrainTool:
     # make a set of training tasks for the arena
     arena_tasks = cc.tasks(arena)
 
@@ -104,7 +106,6 @@ def tool_cfg_train(run: str) -> TrainTool:
     trainer_cfg = TrainerConfig()
     trainer_cfg.curriculum = curriculum_cfg
     trainer_cfg.evaluation = EvaluationConfig(
-        replay_dir=f"s3://softmax-public/replays/{run}",
         evaluate_remote=False,
         evaluate_local=True,
         simulations=[
