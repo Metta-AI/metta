@@ -1,7 +1,6 @@
 from metta.common.util.config import Config
-from metta.map.scene import Scene
+from metta.map.scene import ChildrenAction, Scene
 from metta.map.scenes.inline_ascii import InlineAscii
-from metta.map.types import ChildrenAction
 from metta.map.utils.ascii_grid import char_grid_to_lines
 
 

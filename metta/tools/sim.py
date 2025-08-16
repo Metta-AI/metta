@@ -68,7 +68,7 @@ class SimTool(Tool):
             data_dir=self.system.data_dir,
             wandb_run=None,
         )
-        stats_client: StatsClient | None
+        stats_client: StatsClient | None = None
         if self.stats_server_uri is not None:
             stats_client = StatsClient.create(self.stats_server_uri)
 

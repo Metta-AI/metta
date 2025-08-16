@@ -1,19 +1,86 @@
 from __future__ import annotations
 
 import importlib
-from typing import Generic, Optional, Type, TypeVar, get_args, get_origin
+from typing import Any, Callable, Generic, Optional, Type, TypeVar, Union, get_args, get_origin
 
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
+from pydantic import ValidationInfo, field_serializer, field_validator
 
 from metta.common.util.config import Config
 from metta.map.config import scenes_root
 from metta.map.random.int import MaybeSeed
-from metta.map.types import Area, AreaQuery, ChildrenAction, MapGrid, SceneCfg
+from metta.map.types import Area, AreaQuery, MapGrid
 
 ParamsT = TypeVar("ParamsT", bound=Config)
 
 SceneT = TypeVar("SceneT", bound="Scene")
+
+
+def _ensure_scene_cls(v: Any) -> type["Scene"]:
+    if isinstance(v, str):
+        return load_class(v)
+    if not issubclass(v, Scene):
+        raise ValueError(f"Class {v} does not inherit from Scene")
+    return v
+
+
+class SceneConfig(Config):
+    type: type[Scene]
+    params: Config
+    children: list["ChildrenAction"] | None = None
+    seed: int | None = None
+
+    def create(self, area: Area, rng: np.random.Generator) -> Scene:
+        return self.type(area=area, params=self.params, seed=self.seed or rng, children_actions=self.children)
+
+    # Turn strings into classes, ensure subclass of Scene
+    @field_validator("type", mode="before")
+    @classmethod
+    def _validate_type(cls, v: Any) -> type[Scene]:
+        return _ensure_scene_cls(v)
+
+    @field_serializer("type")
+    def _serialize_type(self, type: type[Scene], _info):
+        return f"{type.__module__}.{type.__name__}"
+
+    # Validate/convert params using the already-validated 'type'
+    @field_validator("params", mode="before")
+    @classmethod
+    def _validate_params(cls, v: Any, info: ValidationInfo) -> Any:
+        scene_cls = info.data.get("type")
+        if scene_cls is None:
+            # Shouldn't happen because "type" is defined before "params"
+            raise TypeError("'type' must be provided before 'params'")
+        scene_cls = _ensure_scene_cls(scene_cls)
+        return scene_cls.validate_params(v)
+
+    @field_serializer("params")
+    def _serialize_params(self, params: Config, _info):
+        return params.model_dump()
+
+
+# Scene configs can be either:
+# - a dict with `type`, `params`, and optionally `children` keys (this is how we define scenes in YAML configs)
+# - a string path to a scene config file (this is how we load reusable scene configs from `scenes/` directory)
+# - a function that takes a MapGrid and returns a Scene instance (useful for children actions produced in Python code)
+#
+# See `metta.map.scene.make_scene` implementation for more details.
+SceneCfg = Union[
+    # structured Pydantic config - main mode
+    SceneConfig,
+    # legacy from yaml - a dict with `type`, `params` and optionally `children` keys
+    dict,
+    # a string path to a scene config file (this is how we load reusable scene configs from `scenes/` directory)
+    str,
+    # a function that takes a MapGrid and returns a Scene instance (useful for children actions produced in Python code)
+    # legacy style from Scene.factory
+    Callable[[Area, np.random.Generator], Any],
+]
+
+
+class ChildrenAction(AreaQuery):
+    scene: SceneCfg
 
 
 class Scene(Generic[ParamsT]):
@@ -51,11 +118,11 @@ class Scene(Generic[ParamsT]):
     @classmethod
     def validate_params(cls, params: ParamsT | DictConfig | dict | None) -> ParamsT:
         if params is None:
-            return cls.Params({})
+            return cls.Params()
         if isinstance(params, DictConfig):
-            return cls.Params(params)
+            return cls.Params.model_validate(OmegaConf.to_container(params))
         elif isinstance(params, dict):
-            return cls.Params(**params)
+            return cls.Params.model_validate(params)
         elif isinstance(params, cls.Params):
             return params
         else:
@@ -213,9 +280,14 @@ class Scene(Generic[ParamsT]):
         cls: Type[SceneT],
         params: dict | Config,
         children_actions: Optional[list[ChildrenAction]] = None,
-        seed: MaybeSeed = None,
-    ) -> SceneCfg:
-        return lambda area, rng: cls(area=area, params=params, seed=seed or rng, children_actions=children_actions)
+        seed: int | None = None,
+    ) -> SceneConfig:
+        return SceneConfig(
+            type=cls,
+            params=params,
+            children=children_actions,
+            seed=seed,
+        )
 
     @classmethod
     def intrinsic_size(cls, params: ParamsT) -> tuple[int, int] | None:
@@ -288,8 +360,8 @@ def load_class(full_class_name: str, check_is_scene=True) -> type[Scene]:
 
 
 def scene_cfg_to_dict(cfg: SceneCfg) -> dict:
-    if callable(cfg):
-        raise ValueError("Callable scene configs are not supported")
+    if isinstance(cfg, SceneConfig):
+        return cfg.model_dump()
     if isinstance(cfg, str):
         if cfg.startswith("/"):
             cfg = cfg[1:]
@@ -305,13 +377,8 @@ def scene_cfg_to_dict(cfg: SceneCfg) -> dict:
 
 
 def make_scene(cfg: SceneCfg, area: Area, rng: np.random.Generator) -> Scene:
-    if callable(cfg):
-        # Some scene configs are lambdas, usually produced by `Scene.factory()` helper.
-        # These are often useful for dynamically produced children actions in `get_children()`.
-        scene = cfg(area, rng)
-        if not isinstance(scene, Scene):
-            raise ValueError(f"Scene callback didn't return a valid scene: {scene}")
-        return scene
+    if isinstance(cfg, SceneConfig):
+        return cfg.create(area, rng)
 
     dict_cfg = scene_cfg_to_dict(cfg)
 
@@ -325,3 +392,6 @@ def make_scene(cfg: SceneCfg, area: Area, rng: np.random.Generator) -> Scene:
         children_actions=dict_cfg.get("children", []),
         seed=dict_cfg.get("seed", rng),
     )
+
+
+SceneConfig.model_rebuild()
