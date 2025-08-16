@@ -238,11 +238,11 @@ class AgalitePolicy(nn.Module):
         # Don't modify original tensor (PR #2126)
         
         # Extract coordinates and attributes (matching ObsTokenToBoxShaper exactly)
-        coords_byte = observations[..., 0].to(torch.uint8)
-        x_coords = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B, M]
-        y_coords = (coords_byte & 0x0F).long()  # Shape: [B, M]
-        atr_indices = observations[..., 1].long()  # Shape: [B, M]
-        atr_values = observations[..., 2].float()  # Shape: [B, M]
+        coords_byte = token_observations[..., 0].to(torch.uint8)
+        x_coords = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
+        y_coords = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+        atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M]
+        atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
         
         # Create mask for valid tokens (matching ComponentPolicy)
         valid_tokens = coords_byte != 0xFF
@@ -272,12 +272,12 @@ class AgalitePolicy(nn.Module):
         safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
         safe_values = torch.where(valid_mask, atr_values, torch.zeros_like(atr_values))
         
-        # Scatter values into a flattened buffer, then reshape to [B, L, W, H]
+        # Scatter values into a flattened buffer, then reshape to [B_TT, L, W, H]
         box_flat = torch.zeros(
-            (B, self.num_layers * dim_per_layer), dtype=atr_values.dtype, device=observations.device
+            (B_TT, self.num_layers * dim_per_layer), dtype=atr_values.dtype, device=token_observations.device
         )
         box_flat.scatter_(1, safe_index, safe_values)
-        box_obs = box_flat.view(B, self.num_layers, self.out_width, self.out_height)
+        box_obs = box_flat.view(B_TT, self.num_layers, self.out_width, self.out_height)
 
         # Simply pass through CNN (no AGaLiTe overhead)
         return self.network_forward(box_obs)
