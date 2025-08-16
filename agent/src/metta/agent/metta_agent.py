@@ -10,7 +10,6 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.component_policy import ComponentPolicy
 from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.rl.system_config import SystemConfig
 
@@ -95,24 +94,18 @@ class MettaAgent(nn.Module):
         """Create the appropriate policy based on configuration."""
 
         # map agent_cfg.agent_type to the appropriate policy class
-        try:
-            if agent_cfg.get("agent_type") in agent_classes:
-                # Create PyTorch policy
-                AgentClass = agent_classes[agent_cfg.agent_type]
-                policy = AgentClass(env=env)
-                logger.info(f"Using PyTorch Policy: {policy} (type: {agent_cfg.agent_type})")
-            else:
-                raise
-        except:
+        if agent_cfg.split(".")[-1] == "py" and agent_cfg.split(".")[0] in agent_classes:
+            # Create PyTorch policy
+            policy_name = agent_cfg.split(".")[0]
+            AgentClass = agent_classes[policy_name]
+            policy = AgentClass(env=env)
+            logger.info(f"Using PyTorch Policy: {policy} (type: {policy_name})")
+        else:
             policy_name = agent_cfg
-
-            logger.info(f"Using ComponentPolicy: {policy_name}")
 
             from metta.agent.component_policies.agent_mapper import agent_classes as component_agent_classes
 
-            AgentClass = component_agent_classes[policy_name]
-
-
+            AgentClass = component_agent_classes[policy_name.split(".")[0]]
 
             # Create ComponentPolicy (YAML config)
             policy = AgentClass(
@@ -123,7 +116,7 @@ class MettaAgent(nn.Module):
                 feature_normalizations=self.feature_normalizations,
                 device=system_cfg.device,
             )
-            logger.info(f"Using ComponentPolicy: {type(policy).__name__}")
+            logger.info(f"Using ComponentPolicy: {policy_name}")
 
         return policy
 
