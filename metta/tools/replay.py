@@ -9,7 +9,6 @@ from metta.agent.policy_store import PolicyStore
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.util.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff
-from metta.rl.system_config import SystemConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
 
@@ -18,7 +17,6 @@ logger = logging.getLogger(__name__)
 
 # TODO: This job can be replaced with sim now that Simulations create replays
 class ReplayTool(Tool):
-    system: SystemConfig = SystemConfig()
     wandb: WandbConfig = WandbConfigOff()
     sim: SimulationConfig
     policy_uri: str | None = None
