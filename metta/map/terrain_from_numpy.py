@@ -53,9 +53,7 @@ def download_from_s3(s3_path: str, save_path: str):
 
 
 class TerrainFromNumpyConfig(MapBuilderConfig):
-    type: Literal["metta.map.terrain_from_numpy.TerrainFromNumpyConfig"] = (
-        "metta.map.terrain_from_numpy.TerrainFromNumpyConfig"
-    )
+    type: Literal["terrain_from_numpy"] = "terrain_from_numpy"
     objects: dict[str, int] = Field(default_factory=dict)
     agents: int | dict[str, int] = Field(default=0, ge=0)
     dir: str

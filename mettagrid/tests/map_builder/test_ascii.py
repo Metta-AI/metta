@@ -17,7 +17,7 @@ class TestAsciiMapBuilderConfig:
             temp_file = f.name
 
         try:
-            config = AsciiMapBuilderConfig(uri=temp_file)
+            config = AsciiMapBuilderConfig.from_uri(temp_file)
             builder = config.create()
             assert isinstance(builder, AsciiMapBuilder)
         finally:
@@ -36,7 +36,7 @@ class TestAsciiMapBuilder:
             temp_file = f.name
 
         try:
-            config = AsciiMapBuilderConfig(uri=temp_file)
+            config = AsciiMapBuilderConfig.from_uri(temp_file)
             builder = AsciiMapBuilder(config)
             game_map = builder.build()
 
@@ -62,7 +62,7 @@ class TestAsciiMapBuilder:
             temp_file = f.name
 
         try:
-            config = AsciiMapBuilderConfig(uri=temp_file)
+            config = AsciiMapBuilderConfig.from_uri(temp_file)
             builder = AsciiMapBuilder(config)
             game_map = builder.build()
 
@@ -88,7 +88,7 @@ class TestAsciiMapBuilder:
             temp_file = f.name
 
         try:
-            config = AsciiMapBuilderConfig(uri=temp_file)
+            config = AsciiMapBuilderConfig.from_uri(temp_file)
             builder = AsciiMapBuilder(config)
             game_map = builder.build()
 
@@ -105,7 +105,7 @@ class TestAsciiMapBuilder:
             temp_file = f.name
 
         try:
-            config = AsciiMapBuilderConfig(uri=temp_file)
+            config = AsciiMapBuilderConfig.from_uri(temp_file)
             builder = AsciiMapBuilder(config)
             game_map = builder.build()
 
@@ -115,8 +115,8 @@ class TestAsciiMapBuilder:
             os.unlink(temp_file)
 
     def test_file_not_found(self):
-        config = AsciiMapBuilderConfig(uri="nonexistent_file.txt")
         with pytest.raises(FileNotFoundError):
+            config = AsciiMapBuilderConfig.from_uri("nonexistent_file.txt")
             AsciiMapBuilder(config)
 
     def test_with_aliases(self):
@@ -130,7 +130,7 @@ WWW"""
             temp_file = f.name
 
         try:
-            config = AsciiMapBuilderConfig(uri=temp_file)
+            config = AsciiMapBuilderConfig.from_uri(temp_file)
             builder = AsciiMapBuilder(config)
             game_map = builder.build()
 
@@ -154,7 +154,7 @@ WWW"""
             temp_file = f.name
 
         try:
-            config = AsciiMapBuilderConfig(uri=temp_file)
+            config = AsciiMapBuilderConfig.from_uri(temp_file)
             builder = AsciiMapBuilder(config)
             game_map = builder.build()
 
@@ -179,7 +179,7 @@ WWW"""
             temp_file = f.name
 
         try:
-            config = AsciiMapBuilderConfig(uri=temp_file)
+            config = AsciiMapBuilderConfig.from_uri(temp_file)
             with pytest.raises(AssertionError, match="All lines in ASCII map must have the same length"):
                 AsciiMapBuilder(config)
         finally:
@@ -194,7 +194,7 @@ WWW"""
             temp_file = f.name
 
         try:
-            config = AsciiMapBuilderConfig(uri=temp_file)
+            config = AsciiMapBuilderConfig.from_uri(temp_file)
             builder = AsciiMapBuilder(config)
             game_map = builder.build()
 
