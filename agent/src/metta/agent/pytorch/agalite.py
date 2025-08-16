@@ -456,25 +456,26 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         """
         observations = td["env_obs"]
 
-        # Initialize state if needed (handle both None and lazy init cases)
-        if state is None or state.get("needs_init", False):
+        # Determine dimensions from observations FIRST
+        if observations.dim() == 4:  # Training
             B = observations.shape[0]
+            TT = observations.shape[1]
+        else:  # Inference
+            B = observations.shape[0]
+            TT = 1
+
+        # Initialize state if needed (handle both None and lazy init cases)
+        # Use the correct batch size B determined above
+        if state is None or state.get("needs_init", False):
             state = self.reset_memory(B, observations.device)
 
         # Store terminations if available
         if "dones" in td:
             state["terminations"] = td["dones"]
             
-        # Determine dimensions from observations
-        if observations.dim() == 4:  # Training
-            B = observations.shape[0]
-            TT = observations.shape[1]
-            # Reshape TD for training if needed (following Fast agent pattern)
-            if td.batch_dims > 1:
-                td = td.reshape(B * TT)
-        else:  # Inference
-            B = observations.shape[0]
-            TT = 1
+        # Reshape TD for training if needed (following Fast agent pattern)
+        if observations.dim() == 4 and td.batch_dims > 1:
+            td = td.reshape(B * TT)
             
         # Set critical TensorDict fields using mixin (TD is already reshaped if needed)
         self.set_tensordict_fields(td, observations)

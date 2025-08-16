@@ -17,7 +17,9 @@ def jit_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: to
     # Build output list to avoid in-place operations
     output_list = []
     
-    # First step
+    # First step - we expect matching shapes for broadcasting
+    # Note: JIT doesn't support f-strings, so we skip the detailed error message
+    
     prev = discounts[0] * start_state + x[0]
     output_list.append(prev)
     
@@ -45,6 +47,7 @@ def discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.
     Returns:
         Discounted sum tensor of shape (T, B, ...)
     """
+    
     # Ensure start_state has same shape as x[0]
     if start_state.dim() < x.dim() - 1:
         for _ in range(x.dim() - 1 - start_state.dim()):
