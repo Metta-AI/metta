@@ -1,25 +1,33 @@
+
+
 import logging
 from typing import Optional, Union
+from abc import ABC, abstractmethod
 
 import gymnasium as gym
 import torch
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 from tensordict import TensorDict
 from torch import nn
 
+from metta.agent.lib.action import ActionEmbedding
+from metta.agent.lib.actor import MettaActorSingleHead
+from metta.agent.lib.lstm import LSTM
+from metta.agent.lib.nn_layer_library import Linear
+from metta.agent.lib.obs_tokenizers import ObsTokenPadStrip, ObsAttrValNorm, ObsAttrEmbedFourier
+from metta.agent.lib.obs_enc import ObsLatentAttn, ObsSelfAttn
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
 from metta.common.util.datastruct import duplicates
-from metta.common.util.instantiate import instantiate
 
-logger = logging.getLogger("component_policy")
+logger = logging.getLogger(__name__)
 
 
-class ComponentPolicy(nn.Module):
-    # ============================================================================
-    # Initialization and Setup
-    # ============================================================================
+class ComponentPolicyInterface(nn.Module, ABC):
+    """
+    Abstract base class for component-based policies.
+    """
 
     def __init__(
         self,
@@ -29,52 +37,54 @@ class ComponentPolicy(nn.Module):
         action_space: Optional[gym.spaces.Space] = None,
         feature_normalizations: Optional[dict[int, float]] = None,
         device: Optional[str] = None,
-        cfg: DictConfig = None,
     ):
         super().__init__()
 
-        # Build components immediately, just like old MettaAgent did
-        self.cfg = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))
-        self.clip_range = self.cfg.clip_range
+        self.clip_range = 0
+
+        # Device setup
+        self.device = torch.device(device) if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Validate and extract observation key
-        if not (hasattr(self.cfg.observations, "obs_key") and self.cfg.observations.obs_key is not None):
-            raise ValueError("Configuration missing required field 'observations.obs_key'")
+        obs_key = "grid_obs"
+        obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape") if obs_space is not None else None
 
-        obs_key = self.cfg.observations.obs_key
-        obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape")
-
+        # Create agent attributes dict
         self.agent_attributes = {
             "clip_range": self.clip_range,
             "action_space": action_space,
             "feature_normalizations": feature_normalizations,
             "obs_width": obs_width,
             "obs_height": obs_height,
-            "obs_key": self.cfg.observations.obs_key,
+            "obs_key": obs_key,
             "obs_shape": obs_shape,
         }
 
-        self.components = nn.ModuleDict()
-        component_cfgs = self.cfg.components
+        # Action space handling
+        if action_space is not None and hasattr(action_space, "nvec"):
+            action_nvec = action_space.nvec
+        else:
+            action_nvec = [100]  # default
 
-        # First pass: instantiate all configured components
-        for component_key in component_cfgs:
-            component_name = str(component_key)
-            comp_dict = dict(component_cfgs[component_key], **self.agent_attributes, name=component_name)
-            self.components[component_name] = instantiate(comp_dict)
+        self.action_nvec = action_nvec
+        self.components = nn.ModuleDict()
+
+        # Build components using the abstract method
+        components = self._build_components()
+
+        # Add all components to the ModuleDict
+        self.components.update(components)
 
         # Setup components
-        component = self.components["_value_"]
-        self._setup_components(component)
-        component = self.components["_action_"]
-        self._setup_components(component)
+        self._setup_components(self.components["_value_"])
+        self._setup_components(self.components["_action_"])
 
         # Track components with memory
         self.components_with_memory = []
         for name, component in self.components.items():
             if not getattr(component, "ready", False):
-                raise RuntimeError(f"Component {name} in ComponentPolicy was never setup.")
-            if component.has_memory():
+                raise RuntimeError(f"Component {name} in {self.__class__.__name__} policy was never setup.")
+            if hasattr(component, "has_memory") and component.has_memory():
                 self.components_with_memory.append(name)
 
         # Check for duplicate component names
@@ -82,31 +92,35 @@ class ComponentPolicy(nn.Module):
         if duplicate_names := duplicates(all_names):
             raise ValueError(f"Duplicate component names found: {duplicate_names}")
 
-        self.components = self.components.to(device)
+        # Move to device
+        self.components = self.components.to(self.device)
 
-        logger.info(f"ComponentPolicy components: {self.components}")
+        logger.info(f"{self.__class__.__name__} policy components: {self.components}")
 
         # Initialize action conversion tensors (will be set by MettaAgent)
         self.cum_action_max_params = None
         self.action_index_tensor = None
 
+        logger.info(f"{self.__class__.__name__} policy initialized with components: {list(self.components.keys())}")
+
+    @abstractmethod
+    def _build_components(self) -> dict:
+        """Build the component dictionary. Must be implemented by subclasses."""
+        pass
+
     def _setup_components(self, component):
-        """Setup component connections - matching old MettaAgent logic.
-        _sources is a list of dicts albeit many layers simply have one element.
-        It must always have a "name" and that name should be the same as the relevant key in self.components.
-        source_components is a dict of components that are sources for the current component.
-        """
+        """Setup component connections."""
         # Skip if already setup
         if getattr(component, "ready", False):
             return
 
-        # recursively setup all source components first
+        # Recursively setup all source components first
         if hasattr(component, "_sources") and component._sources is not None:
             for source in component._sources:
                 logger.info(f"setting up {component._name} with source {source['name']}")
                 self._setup_components(self.components[source["name"]])
 
-        # setup the current component and pass in the source components
+        # Setup the current component and pass in the source components
         source_components = None
         if hasattr(component, "_sources") and component._sources is not None:
             source_components = {}
@@ -114,14 +128,9 @@ class ComponentPolicy(nn.Module):
                 source_components[source["name"]] = self.components[source["name"]]
         component.setup(source_components)
 
-    # ============================================================================
-    # Forward Pass Methods
-    # ============================================================================
-
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
-        """Forward pass of the ComponentPolicy - matches original MettaAgent forward() logic."""
-
-        # Handle BPTT reshaping like the original
+        """Forward pass."""
+        # Handle BPTT reshaping
         if td.batch_dims > 1:
             B = td.batch_size[0]
             TT = td.batch_size[1]
@@ -133,6 +142,7 @@ class ComponentPolicy(nn.Module):
             td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
             td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
 
+        # Run the value and action components
         self.components["_value_"](td)
         self.components["_action_"](td)
 
@@ -140,6 +150,7 @@ class ComponentPolicy(nn.Module):
             output_td = self.forward_inference(td)
         else:
             output_td = self.forward_training(td, action)
+            # Reshape back for training mode
             batch_size = td["batch"][0].item()
             bptt_size = td["bptt"][0].item()
             output_td = output_td.reshape(batch_size, bptt_size)
@@ -147,7 +158,7 @@ class ComponentPolicy(nn.Module):
         return output_td
 
     def forward_inference(self, td: TensorDict) -> TensorDict:
-        """Inference mode - sample actions and store them in td."""
+        """Sample actions for inference."""
         value = td["_value_"]
         logits = td["_action_"]
 
@@ -170,11 +181,10 @@ class ComponentPolicy(nn.Module):
         td["act_log_prob"] = action_log_prob
         td["values"] = value.flatten()
         td["full_log_probs"] = full_log_probs
-
         return td
 
     def forward_training(self, td: TensorDict, action: torch.Tensor) -> TensorDict:
-        """Training mode - evaluate provided actions."""
+        """Evaluate actions for training."""
         value = td["_value_"]
         logits = td["_action_"]
 
@@ -201,19 +211,12 @@ class ComponentPolicy(nn.Module):
         td["entropy"] = entropy
         td["value"] = value
         td["full_log_probs"] = full_log_probs
-
         return td
-
-    # ============================================================================
-    # Action Conversion Methods
-    # ============================================================================
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """Convert (action_type, action_param) pairs to discrete indices."""
-        # Validate that we have a non-empty batch dimension
         if flattened_action.size(0) == 0:
             raise ValueError("'flattened_action' dimension 0 ('BT') has invalid size 0, expected a positive value")
-
         action_type_numbers = flattened_action[:, 0].long()
         action_params = flattened_action[:, 1].long()
         cumulative_sum = self.cum_action_max_params[action_type_numbers]
@@ -247,7 +250,8 @@ class ComponentPolicy(nn.Module):
         """Get memory state from all components that have memory."""
         memory = {}
         for name in self.components_with_memory:
-            memory[name] = self.components[name].get_memory()
+            if hasattr(self.components[name], "get_memory"):
+                memory[name] = self.components[name].get_memory()
         return memory
 
     # ============================================================================
@@ -279,34 +283,7 @@ class ComponentPolicy(nn.Module):
         return list(results.values())
 
     # ============================================================================
-    # Feature/Normalization Methods
-    # ============================================================================
-
-    def _apply_feature_remapping(self, remap_tensor: torch.Tensor):
-        """Apply feature remapping to observation component."""
-        if "_obs_" in self.components:
-            obs_component = self.components["_obs_"]
-            if hasattr(obs_component, "update_feature_remapping"):
-                obs_component.update_feature_remapping(remap_tensor)
-
-    def update_normalization_factors(self, features: dict[str, dict], original_feature_mapping: dict[str, int] | None):
-        """Update normalization factors for ObsAttrValNorm components after feature remapping."""
-        for _, component in self.components.items():
-            if hasattr(component, "__class__") and "ObsAttrValNorm" in component.__class__.__name__:
-                # Create normalization tensor with remapped IDs
-                norm_tensor = torch.ones(256, dtype=torch.float32)
-                for name, props in features.items():
-                    if original_feature_mapping and name in original_feature_mapping and "normalization" in props:
-                        feature_id = props["id"]
-                        norm_value = props["normalization"]
-                        norm_tensor[feature_id] = norm_value
-
-                # Update the component's normalization tensor
-                if hasattr(component, "update_normalization_tensor"):
-                    component.update_normalization_tensor(norm_tensor)
-
-    # ============================================================================
-    # Helper Methods and Properties
+    # Helper Methods
     # ============================================================================
 
     def _apply_to_components(self, method_name, *args, **kwargs):
@@ -326,4 +303,21 @@ class ComponentPolicy(nn.Module):
         """Access to LSTM component if it exists."""
         if "_core_" in self.components and hasattr(self.components["_core_"], "_net"):
             return self.components["_core_"]._net
+        elif "_core_" in self.components:
+            return self.components["_core_"]
         return None
+
+    @property
+    def hidden_size(self):
+        """Get hidden size from LSTM component."""
+        if "_core_" in self.components:
+            return getattr(self.components["_core_"], "hidden_size", None)
+        return None
+
+    @property
+    def num_lstm_layers(self):
+        """Get number of LSTM layers."""
+        if "_core_" in self.components:
+            return getattr(self.components["_core_"], "num_layers", None)
+        return None
+
