@@ -16,6 +16,20 @@ from wandb.apis.public.api import Api as WandbApi
 
 from metta.app_backend.clients.scorecard_client import ScorecardClient
 
+backend_url = os.environ.get("METTA_MCP_BACKEND_URL", "http://localhost:8000")
+if backend_url != "http://localhost:8000":
+    # For production backend, set debug user email to bypass authentication
+    os.environ["DEBUG_USER_EMAIL"] = "zachary@stem.ai"
+    print(f"Set DEBUG_USER_EMAIL for MCP stdio mode with backend: {backend_url}")
+
+    # Also set production database URI for SQL routes if provided
+    production_db_uri = os.environ.get("PRODUCTION_STATS_DB_URI")
+    if production_db_uri:
+        os.environ["STATS_DB_URI"] = production_db_uri
+        print("Set STATS_DB_URI to production database for SQL routes")
+    else:
+        print("Warning: PRODUCTION_STATS_DB_URI not set, SQL routes will use local database")
+
 CONFIG_PATH = Path(__file__).resolve().parent / "metta.mcp.json"
 try:
     CONFIG = json.loads(Path(CONFIG_PATH).read_text())
@@ -27,7 +41,9 @@ mcp = FastMCP("metta")
 
 
 def _get_backend_url(dev_mode: bool) -> str:
-    if dev_mode:
+    if backend_url:
+        return backend_url
+    if dev_mode == "true":
         return CONFIG["resources"]["app_backend_scorecard"]["default_url"]
     else:
         return CONFIG["resources"]["app_backend_scorecard"]["production_url"]
@@ -166,6 +182,23 @@ async def run_sql_query(sql: str, dev_mode: bool = False) -> dict[str, Any]:
     """
     async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
         result = await client.sql_query(sql)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def artificial_intelligence_sql_query_generation(sql: str, dev_mode: bool = False) -> dict[str, Any]:
+    """Generate an SQL query using artificial intelligence according to the
+    schema of the database. Very useful for when you get errors or don't know
+
+    Args:
+        sql (str): SQL statement to execute.
+        dev_mode (bool): When True, use the default/local backend URL; otherwise use production.
+
+    Returns:
+        dict[str, Any]: Result payload returned by the backend for the query.
+    """
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.generate_ai_query(sql)
         return result.model_dump()
 
 
@@ -438,20 +471,17 @@ async def get_s3_object_head(
 
 
 @mcp.tool()
-async def list_skypilot_jobs() -> list[dict[str, Any]]:
+async def list_skypilot_jobs() -> str | None:
     """List active Skypilot jobs for the logged in user.
 
     Returns:
-        list[dict[str, Any]]: Job entries returned by `sky status --json`.
+        str: Text about jobs statuses returned by `sky status --verbose`.
     """
-    result = subprocess.run(["sky", "status", "--json"], capture_output=True, text=True, check=False)
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip())
-    try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError:
-        return []
-    return data
+    result = subprocess.run(["sky", "status", "--verbose"], capture_output=True, text=True, check=False)
+    if result.returncode == 0:
+        return result.stdout.strip()
+    else:
+        return f"return code: {result.returncode} - {result.stderr.strip()}"
 
 
 @mcp.tool()
@@ -470,8 +500,8 @@ async def get_wandb_run_url(run_name: str, project: str | None = None, entity: s
     entity = entity or cfg["entity"]
     project = project or cfg["project"]
     wandb_api = WandbApi()
-    run = wandb_api.runs(f"{entity}/{project}/runs/{run_name}")
-    return f"https://wandb.ai/{entity}/{project}/runs/{run.id}"
+    run = wandb_api.runs(f"{entity}/{project}/runs/${run_name}")
+    return run.url
 
 
 @mcp.tool()
@@ -483,6 +513,542 @@ async def whoami(dev_mode: bool = False) -> str:
             return result
         except ConnectionError as e:
             return f"Error: {e}"
+
+
+# Dashboard Tools
+@mcp.tool()
+async def list_saved_dashboards(dev_mode: bool = False) -> dict[str, Any]:
+    """List all saved dashboards."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.list_saved_dashboards()
+        return result.model_dump()
+
+
+@mcp.tool()
+async def create_saved_dashboard(
+    name: str,
+    type: str,
+    dashboard_state: dict[str, Any],
+    description: str | None = None,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Create a new saved dashboard (always creates a new row, even if name is duplicate)."""
+    from metta.app_backend.routes.dashboard_routes import SavedDashboardCreate
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        dashboard_data = SavedDashboardCreate(
+            name=name,
+            type=type,
+            dashboard_state=dashboard_state,
+            description=description,
+        )
+        result = await client.create_saved_dashboard(dashboard_data)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def get_saved_dashboard(dashboard_id: str, dev_mode: bool = False) -> dict[str, Any]:
+    """Get a specific saved dashboard by ID."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_saved_dashboard(dashboard_id)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def update_saved_dashboard(
+    dashboard_id: str,
+    dashboard_state: dict[str, Any],
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Update an existing saved dashboard."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.update_saved_dashboard(dashboard_id, dashboard_state)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def delete_saved_dashboard(dashboard_id: str, dev_mode: bool = False) -> dict[str, str]:
+    """Delete a saved dashboard."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.delete_saved_dashboard(dashboard_id)
+        return result.model_dump()
+
+
+# Entity Routes (Training Runs)
+@mcp.tool()
+async def get_training_runs(dev_mode: bool = False) -> dict[str, Any]:
+    """Get all training runs."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_training_runs()
+        return result.model_dump()
+
+
+@mcp.tool()
+async def get_training_run(run_id: str, dev_mode: bool = False) -> dict[str, Any]:
+    """Get a specific training run by ID."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_training_run(run_id)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def update_training_run_description(run_id: str, description: str, dev_mode: bool = False) -> dict[str, Any]:
+    """Update the description of a training run."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.update_training_run_description(run_id, description)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def update_training_run_tags(run_id: str, tags: list[str] | str, dev_mode: bool = False) -> dict[str, Any]:
+    """Update the tags of a training run."""
+    tags_list = _parse_str_or_list(tags)
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.update_training_run_tags(run_id, tags_list)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def get_training_run_policies(run_id: str, dev_mode: bool = False) -> list[dict[str, Any]]:
+    """Get policies for a training run with epoch information."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_training_run_policies(run_id)
+        return [policy.model_dump() for policy in result.policies]
+
+
+# Task Management Tools
+@mcp.tool()
+async def create_task(
+    policy_id: str,
+    sim_suite: str,
+    attributes: dict[str, Any] | None = None,
+    git_hash: str | None = None,
+    env_overrides: dict[str, Any] | None = None,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Create Task"""
+    import uuid
+
+    from metta.app_backend.routes.eval_task_routes import TaskCreateRequest
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        task_data = TaskCreateRequest(
+            policy_id=uuid.UUID(policy_id),
+            sim_suite=sim_suite,
+            attributes=attributes or {},
+            git_hash=git_hash,
+            env_overrides=env_overrides or {},
+        )
+        result = await client.create_task(task_data)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def get_latest_assigned_task_for_worker(assignee: str, dev_mode: bool = False) -> dict[str, Any] | None:
+    """Get Latest Assigned Task For Worker"""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_latest_assigned_task_for_worker(assignee)
+        return result.model_dump() if result else None
+
+
+@mcp.tool()
+async def get_available_tasks(limit: int = 200, dev_mode: bool = False) -> dict[str, Any]:
+    """Get Available Tasks"""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_available_tasks(limit=limit)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def claim_tasks(
+    tasks: list[str] | str,
+    assignee: str,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Claim Tasks"""
+    import uuid
+
+    task_uuids = [uuid.UUID(task_id) for task_id in _parse_str_or_list(tasks)]
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.claim_tasks(task_uuids, assignee)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def get_claimed_tasks(assignee: str | None = None, dev_mode: bool = False) -> dict[str, Any]:
+    """Get Claimed Tasks"""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_claimed_tasks(assignee)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def get_git_hashes_for_workers(assignees: list[str] | str, dev_mode: bool = False) -> dict[str, Any]:
+    """Get Git Hashes For Workers"""
+    assignee_list = _parse_str_or_list(assignees)
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_git_hashes_for_workers(assignee_list)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def get_all_tasks(
+    limit: int = 500,
+    git_hash: str | None = None,
+    policy_ids: list[str] | str | None = None,
+    sim_suites: list[str] | str | None = None,
+    statuses: list[str] | str | None = None,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Get All Tasks"""
+    import uuid
+
+    policy_ids_list = None
+    if policy_ids:
+        policy_ids_list = [uuid.UUID(pid) for pid in _parse_str_or_list(policy_ids)]
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_all_tasks(
+            limit=limit,
+            statuses=_parse_optional_str_or_list(statuses),
+            git_hash=git_hash,
+            policy_ids=policy_ids_list,
+            sim_suites=_parse_optional_str_or_list(sim_suites),
+        )
+        return result.model_dump()
+
+
+@mcp.tool()
+async def update_task_statuses(
+    updates: dict[str, dict[str, Any]],
+    require_assignee: str | None = None,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Update Task Statuses"""
+    import uuid
+
+    # Convert string keys to UUIDs and leave update dicts as-is for the client to handle
+    converted_updates = {}
+    for task_id_str, update_dict in updates.items():
+        task_id = uuid.UUID(task_id_str)
+        converted_updates[task_id] = update_dict
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.update_task_statuses(converted_updates, require_assignee)
+        return result.model_dump()
+
+
+# Leaderboard Tools
+@mcp.tool()
+async def list_leaderboards(dev_mode: bool = False) -> dict[str, Any]:
+    """List all leaderboards for the current user."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.list_leaderboards()
+        return result.model_dump()
+
+
+@mcp.tool()
+async def create_leaderboard(
+    name: str,
+    evals: list[str] | str,
+    metric: str,
+    start_date: str,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Create a new leaderboard."""
+    from metta.app_backend.routes.leaderboard_routes import LeaderboardCreateOrUpdate
+
+    eval_list = _parse_str_or_list(evals)
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        leaderboard_data = LeaderboardCreateOrUpdate(
+            name=name,
+            evals=eval_list,
+            metric=metric,
+            start_date=start_date,
+        )
+        result = await client.create_leaderboard(leaderboard_data)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def get_leaderboard(leaderboard_id: str, dev_mode: bool = False) -> dict[str, Any]:
+    """Get a specific leaderboard by ID."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_leaderboard(leaderboard_id)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def update_leaderboard(
+    leaderboard_id: str,
+    name: str,
+    evals: list[str] | str,
+    metric: str,
+    start_date: str,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Update a leaderboard."""
+    from metta.app_backend.routes.leaderboard_routes import LeaderboardCreateOrUpdate
+
+    eval_list = _parse_str_or_list(evals)
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        leaderboard_data = LeaderboardCreateOrUpdate(
+            name=name,
+            evals=eval_list,
+            metric=metric,
+            start_date=start_date,
+        )
+        result = await client.update_leaderboard(leaderboard_id, leaderboard_data)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def delete_leaderboard(leaderboard_id: str, dev_mode: bool = False) -> dict[str, str]:
+    """Delete a leaderboard."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.delete_leaderboard(leaderboard_id)
+        return result.model_dump()
+
+
+# Stats and Metrics Tools
+@mcp.tool()
+async def get_policy_ids(policy_names: list[str] | str, dev_mode: bool = False) -> dict[str, Any]:
+    """Get policy IDs for given policy names."""
+    policy_names_list = _parse_str_or_list(policy_names)
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_policy_ids(policy_names_list)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def create_training_run(
+    name: str,
+    attributes: dict[str, str] | None = None,
+    url: str | None = None,
+    description: str | None = None,
+    tags: list[str] | str | None = None,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Create a new training run."""
+    from metta.app_backend.routes.stats_routes import TrainingRunCreate
+
+    tags_list = _parse_optional_str_or_list(tags) if tags else None
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        training_run_data = TrainingRunCreate(
+            name=name,
+            attributes=attributes or {},
+            url=url,
+            description=description,
+            tags=tags_list,
+        )
+        result = await client.create_training_run(training_run_data)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def create_epoch(
+    run_id: str,
+    start_training_epoch: int,
+    end_training_epoch: int,
+    attributes: dict[str, str] | None = None,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Create a new policy epoch."""
+    from metta.app_backend.routes.stats_routes import EpochCreate
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        epoch_data = EpochCreate(
+            start_training_epoch=start_training_epoch,
+            end_training_epoch=end_training_epoch,
+            attributes=attributes or {},
+        )
+        result = await client.create_epoch(run_id, epoch_data)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def create_policy(
+    name: str,
+    description: str | None = None,
+    url: str | None = None,
+    epoch_id: str | None = None,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Create a new policy."""
+    import uuid
+
+    from metta.app_backend.routes.stats_routes import PolicyCreate
+
+    epoch_uuid = uuid.UUID(epoch_id) if epoch_id else None
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        policy_data = PolicyCreate(
+            name=name,
+            description=description,
+            url=url,
+            epoch_id=epoch_uuid,
+        )
+        result = await client.create_policy(policy_data)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def record_episode(
+    agent_policies: dict[int, str],
+    agent_metrics: dict[int, dict[str, float]],
+    primary_policy_id: str,
+    stats_epoch: str | None = None,
+    eval_name: str | None = None,
+    simulation_suite: str | None = None,
+    replay_url: str | None = None,
+    attributes: dict[str, Any] | None = None,
+    eval_task_id: str | None = None,
+    tags: list[str] | str | None = None,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Record a new episode with agent policies and metrics."""
+    import uuid
+
+    from metta.app_backend.routes.stats_routes import EpisodeCreate
+
+    # Convert string policy IDs to UUIDs in agent_policies dict
+    agent_policies_uuids = {agent_id: uuid.UUID(policy_id) for agent_id, policy_id in agent_policies.items()}
+
+    tags_list = _parse_optional_str_or_list(tags) if tags else None
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        episode_data = EpisodeCreate(
+            agent_policies=agent_policies_uuids,
+            agent_metrics=agent_metrics,
+            primary_policy_id=uuid.UUID(primary_policy_id),
+            stats_epoch=uuid.UUID(stats_epoch) if stats_epoch else None,
+            eval_name=eval_name,
+            simulation_suite=simulation_suite,
+            replay_url=replay_url,
+            attributes=attributes or {},
+            eval_task_id=uuid.UUID(eval_task_id) if eval_task_id else None,
+            tags=tags_list,
+        )
+        result = await client.record_episode(episode_data)
+        return result.model_dump()
+
+
+# Sweep Tools
+@mcp.tool()
+async def create_sweep(
+    sweep_name: str,
+    project: str,
+    entity: str,
+    wandb_sweep_id: str,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Initialize a new sweep or return existing sweep info (idempotent)."""
+    from metta.app_backend.routes.sweep_routes import SweepCreateRequest
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        request_data = SweepCreateRequest(
+            project=project,
+            entity=entity,
+            wandb_sweep_id=wandb_sweep_id,
+        )
+        result = await client.create_sweep(sweep_name, request_data)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def get_sweep(sweep_name: str, dev_mode: bool = False) -> dict[str, Any]:
+    """Get sweep information by name."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_sweep(sweep_name)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def get_next_run_id(sweep_name: str, dev_mode: bool = False) -> dict[str, Any]:
+    """Get the next run ID for a sweep (atomic operation)."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_next_run_id(sweep_name)
+        return result.model_dump()
+
+
+# Token Management Tools
+@mcp.tool()
+async def list_tokens(dev_mode: bool = False) -> dict[str, Any]:
+    """List all machine tokens for the authenticated user."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.list_tokens()
+        return result.model_dump()
+
+
+@mcp.tool()
+async def create_token(name: str, dev_mode: bool = False) -> dict[str, Any]:
+    """Create a new machine token for the authenticated user."""
+    from metta.app_backend.routes.token_routes import TokenCreate
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        token_data = TokenCreate(name=name)
+        result = await client.create_token(token_data)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def delete_token(token_id: str, dev_mode: bool = False) -> dict[str, str]:
+    """Delete a machine token for the authenticated user."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.delete_token(token_id)
+        return result
+
+
+# Score Routes
+@mcp.tool()
+async def get_policy_scores(
+    policy_ids: list[str] | str,
+    eval_names: list[str] | str,
+    metrics: list[str] | str,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Get Policy Scores"""
+    import uuid
+
+    policy_ids_list = [uuid.UUID(pid) for pid in _parse_str_or_list(policy_ids)]
+    eval_names_list = _parse_str_or_list(eval_names)
+    metrics_list = _parse_str_or_list(metrics)
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_policy_scores(policy_ids_list, eval_names_list, metrics_list)
+        return result.model_dump()
+
+
+# Enhanced Scorecard Generation
+@mcp.tool()
+async def generate_policy_scorecard(
+    training_run_ids: list[str] | str,
+    run_free_policy_ids: list[str] | str,
+    eval_names: list[str] | str,
+    metric: str,
+    training_run_policy_selector: Literal["best", "latest"] = "latest",
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Generate scorecard data based on training run and policy selection."""
+    training_run_ids_list = _parse_str_or_list(training_run_ids)
+    run_free_policy_ids_list = _parse_str_or_list(run_free_policy_ids)
+    eval_names_list = _parse_str_or_list(eval_names)
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.generate_scorecard(
+            training_run_ids=training_run_ids_list,
+            run_free_policy_ids=run_free_policy_ids_list,
+            eval_names=eval_names_list,
+            metric=metric,
+            policy_selector=training_run_policy_selector,
+        )
+        return result.model_dump()
 
 
 if __name__ == "__main__":

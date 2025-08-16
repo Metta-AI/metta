@@ -1,9 +1,42 @@
+import uuid
 from logging import warning
 from typing import Any, Dict, Generic, Literal, TypeVar
 
 from pydantic import RootModel
 
 from metta.app_backend.clients.base_client import BaseAppBackendClient
+from metta.app_backend.routes.dashboard_routes import (
+    SavedDashboardCreate,
+    SavedDashboardDeleteResponse,
+    SavedDashboardListResponse,
+    SavedDashboardResponse,
+)
+from metta.app_backend.routes.entity_routes import (
+    TrainingRunDescriptionUpdate,
+    TrainingRunListResponse,
+    TrainingRunPolicy,
+    TrainingRunPolicyListResponse,
+    TrainingRunResponse,
+    TrainingRunTagsUpdate,
+)
+from metta.app_backend.routes.eval_task_routes import (
+    GitHashesRequest,
+    GitHashesResponse,
+    TaskClaimRequest,
+    TaskClaimResponse,
+    TaskCreateRequest,
+    TaskResponse,
+    TasksResponse,
+    TaskUpdateRequest,
+    TaskUpdateResponse,
+)
+from metta.app_backend.routes.leaderboard_routes import (
+    LeaderboardCreateOrUpdate,
+    LeaderboardDeleteResponse,
+    LeaderboardListResponse,
+    LeaderboardResponse,
+)
+from metta.app_backend.routes.score_routes import PolicyScoresData, PolicyScoresRequest
 from metta.app_backend.routes.scorecard_routes import (
     EvalsRequest,
     MetricsRequest,
@@ -13,6 +46,30 @@ from metta.app_backend.routes.scorecard_routes import (
     ScorecardRequest,
 )
 from metta.app_backend.routes.sql_routes import AIQueryRequest, AIQueryResponse, SQLQueryRequest, SQLQueryResponse
+from metta.app_backend.routes.stats_routes import (
+    EpisodeCreate,
+    EpisodeResponse,
+    EpochCreate,
+    EpochResponse,
+    PolicyCreate,
+    PolicyIdResponse,
+    PolicyResponse,
+    TrainingRunCreate,
+)
+from metta.app_backend.routes.stats_routes import (
+    TrainingRunResponse as StatsTrainingRunResponse,
+)
+from metta.app_backend.routes.sweep_routes import (
+    RunIdResponse,
+    SweepCreateRequest,
+    SweepCreateResponse,
+    SweepInfo,
+)
+from metta.app_backend.routes.token_routes import (
+    TokenCreate,
+    TokenListResponse,
+    TokenResponse,
+)
 
 T = TypeVar("T")
 
@@ -360,3 +417,243 @@ class ScorecardClient(BaseAppBackendClient):
                     }
 
         return cells
+
+    # Dashboard Routes
+    async def list_saved_dashboards(self) -> SavedDashboardListResponse:
+        """List all saved dashboards."""
+        return await self._make_request(SavedDashboardListResponse, "GET", "/dashboard/saved")
+
+    async def get_saved_dashboard(self, dashboard_id: str) -> SavedDashboardResponse:
+        """Get a specific saved dashboard by ID."""
+        return await self._make_request(SavedDashboardResponse, "GET", f"/dashboard/saved/{dashboard_id}")
+
+    async def create_saved_dashboard(self, dashboard_data: SavedDashboardCreate) -> SavedDashboardResponse:
+        """Create a new saved dashboard."""
+        return await self._make_request(
+            SavedDashboardResponse, "POST", "/dashboard/saved", json=dashboard_data.model_dump(mode="json")
+        )
+
+    async def update_saved_dashboard(
+        self, dashboard_id: str, dashboard_state: Dict[str, Any]
+    ) -> SavedDashboardResponse:
+        """Update an existing saved dashboard."""
+        return await self._make_request(
+            SavedDashboardResponse, "PUT", f"/dashboard/saved/{dashboard_id}", json=dashboard_state
+        )
+
+    async def delete_saved_dashboard(self, dashboard_id: str) -> SavedDashboardDeleteResponse:
+        """Delete a saved dashboard."""
+        return await self._make_request(SavedDashboardDeleteResponse, "DELETE", f"/dashboard/saved/{dashboard_id}")
+
+    # Entity Routes (Training Runs)
+    async def get_training_runs(self) -> TrainingRunListResponse:
+        """Get all training runs."""
+        return await self._make_request(TrainingRunListResponse, "GET", "/training-runs")
+
+    async def get_training_run(self, run_id: str) -> TrainingRunResponse:
+        """Get a specific training run by ID."""
+        return await self._make_request(TrainingRunResponse, "GET", f"/training-runs/{run_id}")
+
+    async def update_training_run_description(self, run_id: str, description: str) -> TrainingRunResponse:
+        """Update the description of a training run."""
+        payload = TrainingRunDescriptionUpdate(description=description)
+        return await self._make_request(
+            TrainingRunResponse, "PUT", f"/training-runs/{run_id}/description", json=payload.model_dump(mode="json")
+        )
+
+    async def update_training_run_tags(self, run_id: str, tags: list[str]) -> TrainingRunResponse:
+        """Update the tags of a training run."""
+        payload = TrainingRunTagsUpdate(tags=tags)
+        return await self._make_request(
+            TrainingRunResponse, "PUT", f"/training-runs/{run_id}/tags", json=payload.model_dump(mode="json")
+        )
+
+    async def get_training_run_policies(self, run_id: str) -> TrainingRunPolicyListResponse:
+        """Get policies for a training run with epoch information."""
+        headers = {"X-Auth-Token": self._machine_token} if self._machine_token else {}
+        response = await self._http_client.get(f"/training-runs/{run_id}/policies", headers=headers)
+        response.raise_for_status()
+        data = response.json()
+
+        # Handle both response formats: raw list or wrapped object
+        if isinstance(data, list):
+            # Raw list format - convert to our expected format
+            policies = [TrainingRunPolicy.model_validate(policy) for policy in data]
+            return TrainingRunPolicyListResponse(policies=policies)
+        else:
+            # Wrapped object format - use model validation
+            return TrainingRunPolicyListResponse.model_validate(data)
+
+    # Evaluation Task Routes
+    async def create_task(self, task_data: TaskCreateRequest) -> TaskResponse:
+        """Create a new evaluation task."""
+        return await self._make_request(TaskResponse, "POST", "/tasks", json=task_data.model_dump(mode="json"))
+
+    async def get_latest_assigned_task_for_worker(self, assignee: str) -> TaskResponse | None:
+        """Get the latest assigned task for a worker."""
+        return await self._make_request(TaskResponse, "GET", f"/tasks/latest?assignee={assignee}")
+
+    async def get_available_tasks(self, limit: int = 200) -> TasksResponse:
+        """Get available tasks."""
+        return await self._make_request(TasksResponse, "GET", f"/tasks/available?limit={limit}")
+
+    async def claim_tasks(self, tasks: list[uuid.UUID], assignee: str) -> TaskClaimResponse:
+        """Claim tasks."""
+        payload = TaskClaimRequest(tasks=tasks, assignee=assignee)
+        return await self._make_request(TaskClaimResponse, "POST", "/tasks/claim", json=payload.model_dump(mode="json"))
+
+    async def get_claimed_tasks(self, assignee: str | None = None) -> TasksResponse:
+        """Get claimed tasks."""
+        url = "/tasks/claimed"
+        if assignee:
+            url += f"?assignee={assignee}"
+        return await self._make_request(TasksResponse, "GET", url)
+
+    async def get_git_hashes_for_workers(self, assignees: list[str]) -> GitHashesResponse:
+        """Get git hashes for workers."""
+        payload = GitHashesRequest(assignees=assignees)
+        return await self._make_request(
+            GitHashesResponse, "POST", "/tasks/git-hashes", json=payload.model_dump(mode="json")
+        )
+
+    async def get_all_tasks(
+        self,
+        limit: int = 500,
+        statuses: list[str] | None = None,
+        git_hash: str | None = None,
+        policy_ids: list[uuid.UUID] | None = None,
+        sim_suites: list[str] | None = None,
+    ) -> TasksResponse:
+        """Get all tasks with optional filtering."""
+        params: dict[str, Any] = {"limit": limit}
+        if statuses:
+            params["statuses"] = statuses
+        if git_hash:
+            params["git_hash"] = git_hash
+        if policy_ids:
+            params["policy_ids"] = [str(pid) for pid in policy_ids]
+        if sim_suites:
+            params["sim_suites"] = sim_suites
+
+        query_string = "&".join(
+            [
+                f"{k}={v}" if not isinstance(v, list) else "&".join([f"{k}={item}" for item in v])
+                for k, v in params.items()
+            ]
+        )
+        return await self._make_request(TasksResponse, "GET", f"/tasks/all?{query_string}")
+
+    async def update_task_statuses(
+        self, updates: dict[uuid.UUID, Any], require_assignee: str | None = None
+    ) -> TaskUpdateResponse:
+        """Update task statuses."""
+        payload = TaskUpdateRequest(updates=updates, require_assignee=require_assignee)
+        return await self._make_request(
+            TaskUpdateResponse, "POST", "/tasks/claimed/update", json=payload.model_dump(mode="json")
+        )
+
+    # Leaderboard Routes
+    async def list_leaderboards(self) -> LeaderboardListResponse:
+        """List all leaderboards."""
+        return await self._make_request(LeaderboardListResponse, "GET", "/leaderboards")
+
+    async def get_leaderboard(self, leaderboard_id: str) -> LeaderboardResponse:
+        """Get a specific leaderboard by ID."""
+        return await self._make_request(LeaderboardResponse, "GET", f"/leaderboards/{leaderboard_id}")
+
+    async def create_leaderboard(self, leaderboard_data: LeaderboardCreateOrUpdate) -> LeaderboardResponse:
+        """Create a new leaderboard."""
+        return await self._make_request(
+            LeaderboardResponse, "POST", "/leaderboards", json=leaderboard_data.model_dump(mode="json")
+        )
+
+    async def update_leaderboard(
+        self, leaderboard_id: str, leaderboard_data: LeaderboardCreateOrUpdate
+    ) -> LeaderboardResponse:
+        """Update a leaderboard."""
+        return await self._make_request(
+            LeaderboardResponse, "PUT", f"/leaderboards/{leaderboard_id}", json=leaderboard_data.model_dump(mode="json")
+        )
+
+    async def delete_leaderboard(self, leaderboard_id: str) -> LeaderboardDeleteResponse:
+        """Delete a leaderboard."""
+        headers = {"X-Auth-Token": self._machine_token} if self._machine_token else {}
+        response = await self._http_client.delete(f"/leaderboards/{leaderboard_id}", headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        return LeaderboardDeleteResponse.model_validate(data)
+
+    # Score Routes
+    async def get_policy_scores(
+        self, policy_ids: list[uuid.UUID], eval_names: list[str], metrics: list[str]
+    ) -> PolicyScoresData:
+        """Get policy scores for given policies, evaluations and metrics."""
+        payload = PolicyScoresRequest(policy_ids=policy_ids, eval_names=eval_names, metrics=metrics)
+        return await self._make_request(
+            PolicyScoresData, "POST", "/scorecard/score", json=payload.model_dump(mode="json")
+        )
+
+    # Stats Routes
+    async def get_policy_ids(self, policy_names: list[str]) -> PolicyIdResponse:
+        """Get policy IDs for given policy names."""
+        query_string = "&".join([f"policy_names={name}" for name in policy_names])
+        return await self._make_request(PolicyIdResponse, "GET", f"/stats/policies/ids?{query_string}")
+
+    async def create_training_run(self, training_run_data: TrainingRunCreate) -> StatsTrainingRunResponse:
+        """Create a new training run."""
+        headers = {"X-Auth-Token": self._machine_token} if self._machine_token else {}
+        response = await self._http_client.post(
+            "/stats/training-runs", headers=headers, json=training_run_data.model_dump(mode="json")
+        )
+        response.raise_for_status()
+        data = response.json()
+        return StatsTrainingRunResponse.model_validate(data)
+
+    async def create_epoch(self, run_id: str, epoch_data: EpochCreate) -> EpochResponse:
+        """Create a new policy epoch."""
+        return await self._make_request(
+            EpochResponse, "POST", f"/stats/training-runs/{run_id}/epochs", json=epoch_data.model_dump(mode="json")
+        )
+
+    async def create_policy(self, policy_data: PolicyCreate) -> PolicyResponse:
+        """Create a new policy."""
+        return await self._make_request(
+            PolicyResponse, "POST", "/stats/policies", json=policy_data.model_dump(mode="json")
+        )
+
+    async def record_episode(self, episode_data: EpisodeCreate) -> EpisodeResponse:
+        """Record a new episode with agent policies and metrics."""
+        return await self._make_request(
+            EpisodeResponse, "POST", "/stats/episodes", json=episode_data.model_dump(mode="json")
+        )
+
+    # Sweep Routes
+    async def create_sweep(self, sweep_name: str, request_data: SweepCreateRequest) -> SweepCreateResponse:
+        """Initialize a new sweep or return existing sweep info."""
+        return await self._make_request(
+            SweepCreateResponse, "POST", f"/sweeps/{sweep_name}/create_sweep", json=request_data.model_dump(mode="json")
+        )
+
+    async def get_sweep(self, sweep_name: str) -> SweepInfo:
+        """Get sweep information by name."""
+        return await self._make_request(SweepInfo, "GET", f"/sweeps/{sweep_name}")
+
+    async def get_next_run_id(self, sweep_name: str) -> RunIdResponse:
+        """Get the next run ID for a sweep."""
+        return await self._make_request(RunIdResponse, "POST", f"/sweeps/{sweep_name}/runs/next")
+
+    # Token Routes
+    async def create_token(self, token_data: TokenCreate) -> TokenResponse:
+        """Create a new machine token."""
+        return await self._make_request(TokenResponse, "POST", "/tokens", json=token_data.model_dump(mode="json"))
+
+    async def list_tokens(self) -> TokenListResponse:
+        """List all machine tokens."""
+        return await self._make_request(TokenListResponse, "GET", "/tokens")
+
+    async def delete_token(self, token_id: str) -> Dict[str, str]:
+        """Delete a machine token."""
+        headers = {"X-Auth-Token": self._machine_token} if self._machine_token else {}
+        response = await self._http_client.delete(f"/tokens/{token_id}", headers=headers)
+        response.raise_for_status()
+        return response.json()

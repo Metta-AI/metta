@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from psycopg import errors as pg_errors
+from psycopg.sql import SQL
 from pydantic import BaseModel
 
 from metta.app_backend.auth import create_user_or_token_dependency
@@ -162,7 +163,7 @@ def create_sql_router(metta_repo: MettaRepo) -> APIRouter:
                     await con.execute("SET statement_timeout = '20s'")
 
                     # Execute the query
-                    result = await con.execute(request.query)
+                    result = await con.execute(SQL(request.query))  # type: ignore
 
                     # Get column names
                     columns = []
