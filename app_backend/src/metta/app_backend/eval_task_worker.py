@@ -28,7 +28,6 @@ from metta.app_backend.routes.eval_task_routes import (
 )
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
-from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.util.git import METTA_API_REPO_URL
 from metta.common.util.logging_helpers import init_logging
 
@@ -129,15 +128,16 @@ class SimTaskExecutor(AbstractTaskExecutor):
         cmd = [
             "uv",
             "run",
-            "tools/sim.py",
+            "tools/run.py",
+            "experiments.evals.run",
+            "--args",
             f"policy_uri=wandb://run/{policy_name}",
-            f"sim={task.sim_suite}",
+            f"sim_suite={task.sim_suite}",
+            # TODO - move these to evals.run defaults?
+            "--overrides",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
-            "device=cpu",
-            "vectorization=serial",
             "push_metrics_to_wandb=true",
-            f"sim_job.replay_dir={SOFTMAX_S3_BASE}/replays/" + "${run}",
         ]
 
         with tempfile.TemporaryDirectory(prefix=f"metta-policy-evaluator-{task.id}", dir="/tmp") as task_tmp_dir:
