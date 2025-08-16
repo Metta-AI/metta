@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "metta-common"
+name = "softmax-common"
 version = "0.1.0"
 description = "Common utilities for metta packages"
 authors = [{ name = "David Bloomin", email = "daveey@gmail.com" }]

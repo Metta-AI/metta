@@ -32,7 +32,7 @@ dependencies = [
     "gymnasium==0.29.1",
     "hydra-core>=1.4.0.dev1",
     "matplotlib>=3.10.3",
-    "metta-common",
+    "softmax-common",
     "numpy>=1.26.4,<2",
     "omegaconf>=2.4.0.dev3",
     "pandas>=2.3.0",
@@ -93,7 +93,7 @@ include = ["metta", "metta.mettagrid", "metta.mettagrid.*"]
 "metta.mettagrid" = ["py.typed"]
 
 [tool.uv.sources]
-metta-common = { workspace = true }
+softmax-common = { workspace = true }
 
 [tool.coverage.run]
 source = ["metta.mettagrid"]

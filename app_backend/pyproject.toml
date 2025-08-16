@@ -19,7 +19,7 @@ dependencies = [
   "pydantic>=2.11.5",
   "pytest-asyncio>=1.0.0",
   "httpx>=0.28.1",
-  "metta-common",
+  "softmax-common",
 ]
 
 [dependency-groups]
@@ -49,4 +49,4 @@ markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 source = ["metta.app_backend"]
 
 [tool.uv.sources]
-metta-common = { workspace = true }
+softmax-common = { workspace = true }
