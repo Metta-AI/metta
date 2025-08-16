@@ -94,17 +94,17 @@ class TestPolymorphicSerialization:
             temp_path = f.name
 
         try:
-            config = AsciiMapBuilderConfig(type="ascii", uri=temp_path)
+            config = AsciiMapBuilderConfig.from_uri(temp_path)
 
             # Test serialization
             serialized = config.model_dump()
             assert serialized["type"] == "ascii"
-            assert serialized["uri"] == temp_path
+            assert serialized["map_data"] == [["#", "#", "#"], ["#", ".", "#"], ["#", "#", "#"]]
 
             # Test deserialization
             deserialized = AsciiMapBuilderConfig.model_validate(serialized)
             assert deserialized.type == "ascii"
-            assert deserialized.uri == temp_path
+            assert deserialized.map_data == [["#", "#", "#"], ["#", ".", "#"], ["#", "#", "#"]]
 
         finally:
             Path(temp_path).unlink()
@@ -116,7 +116,7 @@ class TestPolymorphicSerialization:
             {"type": "random", "width": 10, "height": 10},
             {"type": "maze_prim", "width": 15, "height": 15, "start_pos": [1, 1], "end_pos": [13, 13]},
             {"type": "maze_kruskal", "width": 21, "height": 21, "start_pos": [0, 0], "end_pos": [20, 20]},
-            {"type": "ascii", "uri": "/dev/null"},
+            {"type": "ascii", "map_data": [["#", "#", "#"], ["#", ".", "#"], ["#", "#", "#"]]},
         ]
 
         for config_dict in valid_configs:
@@ -246,7 +246,7 @@ class TestPolymorphicSerialization:
             temp_path = f.name
 
         try:
-            ascii_config = AsciiMapBuilderConfig(uri=temp_path)
+            ascii_config = AsciiMapBuilderConfig.from_uri(temp_path)
             assert ascii_config.type == "ascii"
         finally:
             Path(temp_path).unlink()
