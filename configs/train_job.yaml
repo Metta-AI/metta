@@ -1,11 +1,11 @@
 defaults:
   - common
-  - agent: fast
   - trainer: trainer
   - sim: arena
   - wandb: metta_research
   - _self_
 
+agent: fast
 seed: 1
 py_agent: null
 
