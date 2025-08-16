@@ -65,6 +65,7 @@ struct GameConfig {
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
   bool track_movement_metrics;
   bool no_agent_interference = false;
+  float resource_loss_prob = 0.0;
   bool recipe_details_obs = false;
 };
 
@@ -154,6 +155,7 @@ private:
 
   // Movement tracking
   bool _track_movement_metrics;
+  float _resource_loss_prob;
   bool _no_agent_interference;
 
   void init_action_handlers();
