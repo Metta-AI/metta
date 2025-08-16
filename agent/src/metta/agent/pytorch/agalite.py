@@ -194,13 +194,14 @@ class AGaLiTePolicy(nn.Module):
         self.d_head = d_head
         self.use_fast_mode = use_fast_mode
         
-        # Adjust parameters for fast mode
+        # Adjust parameters to match AGaLiTeCore
         if use_fast_mode and FAST_MODE_AVAILABLE:
             self.eta = min(eta, 2)
             self.r = min(r, 4)
         else:
-            self.eta = eta
-            self.r = r
+            # Standard mode uses optimized parameters to match AGaLiTeCore
+            self.eta = min(eta, 3)
+            self.r = min(r, 6)
         
         self.reset_on_terminate = reset_on_terminate
 
