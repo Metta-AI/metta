@@ -5,7 +5,7 @@ import { sendAction } from './replay.js'
 
 // Small timing window to combine two directional key presses (e.g., W+A -> Northwest).
 const COMBO_WINDOW_MS = 100
-let comboKeys: Set<'w' | 'a' | 's' | 'd'> = new Set()
+const comboKeys: Set<'w' | 'a' | 's' | 'd'> = new Set()
 let comboTimer: number | null = null
 
 // Queue up a key press for a directional combo.

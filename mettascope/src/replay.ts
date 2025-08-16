@@ -2,8 +2,8 @@ import { updateAgentTable } from './agentpanel.js'
 import * as Common from './common.js'
 import { ctx, html, state, ui } from './common.js'
 import { onResize, requestFrame, updateStep } from './main.js'
-import { focusFullMap } from './worldmap.js'
 import { validateReplayData, validateReplayStep } from './validation.js'
+import { focusFullMap } from './worldmap.js'
 
 /** This represents a sequence of values sort of like a movie timeline. */
 export class Sequence<T> {
@@ -256,7 +256,7 @@ function fixReplay() {
   // Create action image mappings for faster access.
   state.replay.actionImages = []
   for (const actionName of state.replay.actionNames) {
-    let imagePath = `trace/${actionName}.png`
+    const imagePath = `trace/${actionName}.png`
 
     if (ctx.hasImage(imagePath)) {
       state.replay.actionImages.push(imagePath)
