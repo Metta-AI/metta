@@ -167,7 +167,7 @@ class FastAGaLiTeLayer(nn.Module):
                 chunk_slice = slice(i, end_i)
                 
                 fk = discounted_sum(
-                    tilde_k_prev[:, chunk_slice] if tilde_k_prev.ndim > 1 else tilde_k_prev,
+                    tilde_k_prev[chunk_slice] if tilde_k_prev.ndim > 1 else tilde_k_prev,
                     keys_osc[:, chunk_slice],
                     discount_gamma[:, chunk_slice].unsqueeze(2)
                 )
@@ -179,14 +179,14 @@ class FastAGaLiTeLayer(nn.Module):
                 # We need to expand discount_beta to match values_osc shape
                 discount_beta_expanded = discount_beta[:, chunk_slice].unsqueeze(2).expand(-1, -1, self.r, -1, -1)
                 fv = discounted_sum(
-                    tilde_v_prev[:, chunk_slice] if tilde_v_prev.ndim > 1 else tilde_v_prev,
+                    tilde_v_prev[chunk_slice] if tilde_v_prev.ndim > 1 else tilde_v_prev,
                     values_osc[:, chunk_slice],
                     discount_beta_expanded
                 )
                 final_values_chunks.append(fv)
                 
                 fs = discounted_sum(
-                    s_prev[:, chunk_slice] if s_prev.ndim > 1 else s_prev,
+                    s_prev[chunk_slice] if s_prev.ndim > 1 else s_prev,
                     s[:, chunk_slice],
                     discount_gamma[:, chunk_slice]
                 )
