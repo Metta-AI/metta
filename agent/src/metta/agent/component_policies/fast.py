@@ -1,19 +1,14 @@
 import logging
-from typing import Optional, Union
 
-import gymnasium as gym
-import torch
-from omegaconf import DictConfig, OmegaConf
-from tensordict import TensorDict
-from torch import nn
+from omegaconf import DictConfig
 
+from metta.agent.component_policies.component_policy_interface import ComponentPolicyInterface
 from metta.agent.lib.action import ActionEmbedding
 from metta.agent.lib.actor import MettaActorSingleHead
 from metta.agent.lib.lstm import LSTM
 from metta.agent.lib.nn_layer_library import Conv2d, Flatten, Linear
 from metta.agent.lib.obs_token_to_box_shaper import ObsTokenToBoxShaper
 from metta.agent.lib.observation_normalizer import ObservationNormalizer
-from metta.agent.component_policies.component_policy_interface import ComponentPolicyInterface
 
 logger = logging.getLogger(__name__)
 

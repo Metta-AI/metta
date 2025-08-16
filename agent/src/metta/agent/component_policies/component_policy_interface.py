@@ -1,21 +1,12 @@
-
-
 import logging
-from typing import Optional, Union
 from abc import ABC, abstractmethod
+from typing import Optional, Union
 
 import gymnasium as gym
 import torch
-from omegaconf import DictConfig
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.lib.action import ActionEmbedding
-from metta.agent.lib.actor import MettaActorSingleHead
-from metta.agent.lib.lstm import LSTM
-from metta.agent.lib.nn_layer_library import Linear
-from metta.agent.lib.obs_tokenizers import ObsTokenPadStrip, ObsAttrValNorm, ObsAttrEmbedFourier
-from metta.agent.lib.obs_enc import ObsLatentAttn, ObsSelfAttn
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
@@ -347,4 +338,3 @@ class ComponentPolicyInterface(nn.Module, ABC):
         if "_core_" in self.components:
             return getattr(self.components["_core_"], "num_layers", None)
         return None
-
