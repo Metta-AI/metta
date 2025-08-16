@@ -23,7 +23,7 @@ import torch.nn.functional as F
 class PositionalEncoding(nn.Module):
     """Sinusoidal positional encoding for transformer."""
     
-    def __init__(self, d_model: int, max_len: int = 5000, dropout: float = 0.1):
+    def __init__(self, d_model: int, max_len: int = 10000, dropout: float = 0.1):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
         
@@ -44,7 +44,10 @@ class PositionalEncoding(nn.Module):
         Args:
             x: Tensor of shape (seq_len, batch, d_model)
         """
-        x = x + self.pe[:x.size(0)]
+        seq_len = x.size(0)
+        if seq_len > self.pe.size(0):
+            raise ValueError(f"Sequence length {seq_len} exceeds maximum positional encoding length {self.pe.size(0)}")
+        x = x + self.pe[:seq_len]
         return self.dropout(x)
 
 
@@ -86,6 +89,10 @@ class FusedGRUGating(nn.Module):
         h = torch.tanh(gates[..., 2, :] * r)  # Candidate with reset
         
         return (1 - z) * x + z * h  # Interpolate
+
+
+# Backward compatibility alias for old checkpoints
+GRUGatingMechanism = FusedGRUGating
 
 
 class MultiHeadSelfAttention(nn.Module):
@@ -314,19 +321,39 @@ class FullContextTransformer(nn.Module):
         Returns:
             Output of same shape as input
         """
+        # Log input shape for debugging
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.debug(f"FullContextTransformer.forward input shape: {x.shape}")
+        
         # Handle both (T, B, d_model) and (B, T, d_model) formats
         if x.dim() == 3:
-            if x.shape[0] > x.shape[1]:
-                # Likely (T, B, d_model)
-                T, B, _ = x.shape
-                needs_transpose = False
-            else:
-                # Likely (B, T, d_model)
-                B, T, _ = x.shape
-                x = x.transpose(0, 1)
-                needs_transpose = True
+            # The TransformerWrapper should always give us (T, B, d_model)
+            # where T is sequence length and B is batch size
+            T, B, D = x.shape
+            needs_transpose = False
+            
+            # Sanity check - if T is unreasonably large, something is wrong
+            if T > self.positional_encoding.pe.size(0):
+                logger.error(f"Sequence length {T} exceeds max positional encoding length {self.positional_encoding.pe.size(0)}")
+                logger.error(f"Input shape: {x.shape}")
+                # Try to handle it as (B, T, d_model) instead
+                if B <= self.positional_encoding.pe.size(0):
+                    logger.warning(f"Assuming input is (B, T, d_model) and transposing")
+                    x = x.transpose(0, 1)
+                    T, B, D = x.shape
+                    needs_transpose = True
+                else:
+                    raise ValueError(f"Sequence length {T} exceeds maximum {self.positional_encoding.pe.size(0)}")
+        elif x.dim() == 2:
+            # Single timestep (B, d_model) - add time dimension
+            x = x.unsqueeze(0)  # (1, B, d_model)
+            T, B, D = x.shape
+            needs_transpose = False
         else:
-            raise ValueError(f"Expected 3D tensor, got shape {x.shape}")
+            raise ValueError(f"Expected 2D or 3D tensor, got shape {x.shape}")
+        
+        logger.debug(f"After reshaping: T={T}, B={B}, D={D}")
         
         # Normalize input (stabilization)
         x = self.input_norm(x)
@@ -345,6 +372,9 @@ class FullContextTransformer(nn.Module):
         # Restore original format if needed
         if needs_transpose:
             x = x.transpose(0, 1)
+        elif x.size(0) == 1:
+            # Remove time dimension if it was added for single timestep
+            x = x.squeeze(0)
         
         return x
     
