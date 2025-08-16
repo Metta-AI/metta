@@ -9,7 +9,8 @@ from .map_builder import GameMap, MapBuilder, MapBuilderConfig
 from .maze import MazeKruskalMapBuilderConfig, MazePrimMapBuilderConfig
 from .random import RandomMapBuilderConfig
 
-# Define the discriminated union here to avoid circular imports
+# Define the discriminated union for core map builders only
+# MapGenConfig and TerrainFromNumpyConfig are in a separate union in metta.map
 MapBuilderConfigUnion = Annotated[
     Union[
         Annotated[AsciiMapBuilderConfig, Field(discriminator="type")],

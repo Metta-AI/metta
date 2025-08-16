@@ -53,9 +53,9 @@ class TorchProfiler:
     def on_epoch_end(self, epoch: int) -> None:
         force = (epoch == self._first_profile_epoch) if not self._active else False
         if should_run(epoch, self._profiler_config.interval_epochs, force=force):
-            self.setup_profiler(epoch)
+            self._setup_profiler(epoch)
 
-    def setup_profiler(self, epoch):
+    def _setup_profiler(self, epoch):
         """Prepare the profiler to start on the next context entry."""
         if self._active:
             logger.warning("Profiler setup called while already active. Profiling will occur for the current setup.")

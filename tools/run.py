@@ -88,7 +88,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("make_tool_cfg_path", type=str, help="Path to the function to run")
     parser.add_argument("--args", nargs="*")
-    parser.add_argument("--overrides", nargs="*")
+    parser.add_argument("--overrides", nargs="*", default=[])
     args = parser.parse_args()
 
     init_logging()

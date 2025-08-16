@@ -1,7 +1,8 @@
 import numpy as np
 import pytest
 
-from metta.map.mapgen import MapGen
+# Import MapGenConfig first from __init__ to avoid circular import
+from metta.map.mapgen import MapGenConfig
 from metta.map.scenes.inline_ascii import InlineAscii
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.scenes.transplant_scene import TransplantScene
@@ -12,12 +13,12 @@ class TestMapGenSize:
     def test_basic_dimensions(self):
         (width, height, border_width) = (10, 10, 2)
 
-        mg = MapGen(
+        mg = MapGenConfig(
             root={"type": "metta.map.scenes.nop.Nop"},
             width=width,
             height=height,
             border_width=border_width,
-        )
+        ).create()
         level = mg.build()
         expected_shape = (height + 2 * border_width, width + 2 * border_width)
         assert level.grid.shape == expected_shape
@@ -32,28 +33,28 @@ class TestMapGenSize:
         assert np.all(grid[bw:-bw, bw:-bw] == "empty")
 
     def test_dimensions_required(self):
-        mg = MapGen(
+        mg = MapGenConfig(
             root={"type": "metta.map.scenes.nop.Nop"},
-        )
+        ).create()
         with pytest.raises(ValueError, match="width and height must be provided"):
             mg.build()
 
     def test_intrinsic_size(self):
-        mg = MapGen(
+        mg = MapGenConfig(
             root={"type": "metta.map.scenes.inline_ascii.InlineAscii", "params": {"data": "@"}},
             border_width=2,
-        )
+        ).create()
         level = mg.build()
         assert level.grid.shape == (5, 5)
         assert level.grid[2, 2] == "agent.agent"
 
     def test_intrinsic_size_with_explicit_dimensions(self):
-        mg = MapGen(
+        mg = MapGenConfig(
             root={"type": "metta.map.scenes.inline_ascii.InlineAscii", "params": {"data": "@"}},
             width=10,
             height=10,
             border_width=2,
-        )
+        ).create()
         level = mg.build()
         assert level.grid.shape == (14, 14)
 
@@ -69,14 +70,14 @@ class TestMapGenInstances:
     )
     def test_instances(self, instances, instance_bw):
         width, height, border_width = 5, 3, 2
-        mg = MapGen(
+        mg = MapGenConfig(
             root={"type": "metta.map.scenes.inline_ascii.InlineAscii", "params": {"data": "@"}},
             width=width,
             height=height,
             border_width=border_width,
             instances=instances,
             instance_border_width=instance_bw,
-        )
+        ).create()
         level = mg.build()
 
         rows = int(np.ceil(np.sqrt(instances)))
@@ -89,7 +90,7 @@ class TestMapGenInstances:
         assert np.count_nonzero(np.char.startswith(level.grid, "agent")) == instances
 
     def test_num_agents(self):
-        mg = MapGen(
+        mg = MapGenConfig(
             root={
                 "type": "metta.map.scenes.inline_ascii.InlineAscii",
                 "params": {
@@ -103,7 +104,7 @@ class TestMapGenInstances:
             num_agents=10,
             instance_border_width=1,
             border_width=2,
-        )
+        ).create()
         level = mg.build()
         assert_raw_grid(
             level.grid,

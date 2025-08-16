@@ -1,3 +1,5 @@
+from metta.map.mapgen import MapGenConfig
+from metta.map.types import SceneCfg
 from metta.mettagrid.config import building
 from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 from metta.mettagrid.mettagrid_config import (
@@ -15,7 +17,7 @@ from metta.mettagrid.mettagrid_config import (
 
 def make_arena(
     num_agents: int,
-    combat: bool = False,
+    combat: bool = True,
 ) -> EnvConfig:
     objects = {
         "wall": building.wall,
@@ -28,26 +30,24 @@ def make_arena(
 
     actions = ActionsConfig(
         noop=ActionConfig(),
-        move=ActionConfig(),
         move_8way=ActionConfig(),
-        move_cardinal=ActionConfig(),
         rotate=ActionConfig(),
         put_items=ActionConfig(),
         get_items=ActionConfig(),
         attack=AttackActionConfig(
-            required_resources={
+            consumed_resources={
                 "laser": 1,
             },
             defense_resources={
                 "armor": 1,
             },
         ),
-        swap=ActionConfig(),
-        change_color=ActionConfig(),
+        swap=ActionConfig(enabled=False),
+        change_color=ActionConfig(enabled=False),
     )
 
     if not combat:
-        actions.attack.required_resources = {"laser": 100}
+        actions.attack.consumed_resources = {"laser": 100}
 
     return EnvConfig(
         game=GameConfig(
@@ -72,21 +72,29 @@ def make_arena(
                     props=AgentConfig(),
                 ),
             },
-            map_builder=RandomMapBuilderConfig(
+            map_builder=MapGenConfig(
                 agents=num_agents,
                 width=25,
                 height=25,
-                border_object="wall",
-                border_width=1,
-                objects={
-                    "wall": 10,
-                    "altar": 3,
-                    "mine_red": 10,
-                    "generator_red": 10,
-                    "lasery": 5,
-                    "armory": 5,
-                },
-                seed=42,
+                instances=num_agents // 6,
+                border_width=6,
+                instance_border_width=0,
+                root=SceneCfg(
+                    {
+                        "type": "metta.map.scenes.random.Random",
+                        "params": {
+                            "agents": 6,
+                            "objects": {
+                                "wall": 20,
+                                "altar": 5,
+                                "mine_red": 10,
+                                "generator_red": 5,
+                                "lasery": 1,
+                                "armory": 1,
+                            },
+                        },
+                    }
+                ),
             ),
         )
     )

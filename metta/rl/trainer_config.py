@@ -50,21 +50,16 @@ class InitialPolicyConfig(Config):
 
 
 class CheckpointConfig(Config):
-    # Checkpoint every 60s: Balance between recovery granularity and I/O overhead
-    checkpoint_interval: int = Field(default=50, gt=0)
-    # W&B every 5 min: Less frequent due to network overhead and storage costs
-    wandb_checkpoint_interval: int = Field(default=50, ge=0)  # 0 to disable
-    checkpoint_dir: str = Field(default="./train_dir/checkpoints/")
-
-    @model_validator(mode="after")
-    def validate_fields(self) -> "CheckpointConfig":
-        assert self.checkpoint_dir, "checkpoint_dir must be set"
-        return self
+    # Checkpoint every 5 epochs
+    checkpoint_interval: int = Field(default=5, ge=0)
+    # W&B every 5 epochs
+    wandb_checkpoint_interval: int = Field(default=5, ge=0)
+    checkpoint_dir: str | None = Field(default=None)
 
 
 class EvaluationConfig(Config):
     simulations: List[SimulationConfig] = Field(default_factory=list)
-    replay_dir: str = Field(default="./train_dir/replays/")
+    replay_dir: str = Field(default="s3://softmax-public/replays/")
 
     # Interval at which to evaluate and generate replays: Type 2 arbitrary default
     evaluate_interval: int = Field(default=50, ge=0)  # 0 to disable
@@ -197,7 +192,6 @@ class TrainerConfig(Config):
     curriculum: CurriculumConfig = env_curriculum(make_arena(num_agents=24))
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
-    # Checkpoint configuration
     checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig)
 
     # Simulation configuration
