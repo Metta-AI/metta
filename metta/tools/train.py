@@ -69,23 +69,22 @@ class TrainTool(Tool):
         return cfg
 
     def invoke(self) -> int:
-        """Main training entry point."""
+        os.makedirs(self.run_dir, exist_ok=True)
+
         record_heartbeat()
 
         assert self.run_dir is not None
         init_file_logging(run_dir=self.run_dir)
 
-        os.makedirs(self.run_dir, exist_ok=True)
-
         init_logging(run_dir=self.run_dir)
+
+        torch_dist_cfg = setup_torch_distributed(self.system.device)
 
         logger.info(
             f"Training {self.run} on "
             + f"{os.environ.get('NODE_INDEX', '0')}: "
             + f"{os.environ.get('LOCAL_RANK', '0')} ({self.system.device})"
         )
-
-        torch_dist_cfg = setup_torch_distributed(self.system.device)
 
         logger.info(f"Training {self.run} on {self.system.device}")
         if torch_dist_cfg.is_master:
@@ -100,40 +99,63 @@ class TrainTool(Tool):
         return 0
 
 
-def calculate_default_num_workers(is_serial: bool) -> int:
-    """Calculate default number of workers based on hardware."""
-    if is_serial:
-        return 1
-
-    import multiprocessing
-
-    cpu_count = multiprocessing.cpu_count() or 1
-
-    if torch.cuda.is_available() and torch.distributed.is_initialized():
-        num_gpus = torch.cuda.device_count()
-    else:
-        num_gpus = 1
-
-    ideal_workers = (cpu_count // 2) // num_gpus
-
-    # Round down to nearest power of 2
-    num_workers = 1
-    while num_workers * 2 <= ideal_workers:
-        num_workers *= 2
-
-    return max(1, num_workers)
-
-
 def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_run: WandbRun | None, logger: Logger):
-    """Handle the training process."""
     assert cfg.run_dir is not None
     assert cfg.run is not None
 
-    # Set default num_workers if not set
-    if cfg.trainer.num_workers == 1 and cfg.system.vectorization == "multiprocessing":
-        cfg.trainer.num_workers = calculate_default_num_workers(cfg.system.vectorization == "serial")
-        logger.info(f"Setting num_workers to {cfg.trainer.num_workers} based on hardware")
+    configure_vecenv_settings(cfg)
 
+    stats_client = configure_evaluation_settings(cfg)
+
+    # Handle distributed training batch scaling
+    if torch.distributed.is_initialized():
+        world_size = torch.distributed.get_world_size()
+        if cfg.trainer.scale_batches_by_world_size:
+            cfg.trainer.forward_pass_minibatch_target_size = (
+                cfg.trainer.forward_pass_minibatch_target_size // world_size
+            )
+            cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
+
+    policy_store = PolicyStore.create(
+        device=cfg.system.device,
+        data_dir=cfg.system.data_dir,
+        wandb_config=cfg.wandb,
+        wandb_run=wandb_run,
+    )
+
+    # Save configuration
+    if torch_dist_cfg.is_master:
+        with open(os.path.join(cfg.run_dir, "config.json"), "w") as f:
+            f.write(cfg.model_dump_json(indent=2))
+            logger.info(f"Config saved to {os.path.join(cfg.run_dir, 'config.json')}")
+
+    # Use the functional train interface directly
+    train(
+        run=cfg.run,
+        run_dir=cfg.run_dir,
+        system_cfg=cfg.system,
+        agent_cfg=OmegaConf.create(cfg.policy_architecture),
+        device=torch.device(cfg.system.device),
+        trainer_cfg=cfg.trainer,
+        wandb_run=wandb_run,
+        policy_store=policy_store,
+        stats_client=stats_client,
+        torch_dist_cfg=torch_dist_cfg,
+    )
+
+
+def configure_vecenv_settings(cfg: TrainTool) -> None:
+    """Calculate default number of workers based on hardware."""
+    if cfg.system.vectorization == "serial":
+        cfg.trainer.rollout_workers = 1
+        cfg.trainer.async_factor = 1
+        return
+
+    ideal_workers = (os.cpu_count() // 2) // torch.cuda.device_count()
+    cfg.trainer.rollout_workers = max(1, ideal_workers)
+
+
+def configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
     stats_client: StatsClient | None = None
     if cfg.stats_server_uri is not None:
         stats_client = StatsClient.create(cfg.stats_server_uri)
@@ -157,38 +179,4 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
             else:
                 logger.info("No git hash available for remote evaluations")
 
-    # Save configuration
-    if os.environ.get("RANK", "0") == "0":  # master only
-        with open(os.path.join(cfg.run_dir, "config.json"), "w") as f:
-            f.write(cfg.model_dump_json(indent=2))
-            logger.info(f"Config saved to {os.path.join(cfg.run_dir, 'config.json')}")
-
-    # Handle distributed training batch scaling
-    if torch.distributed.is_initialized():
-        world_size = torch.distributed.get_world_size()
-        if cfg.trainer.scale_batches_by_world_size:
-            cfg.trainer.forward_pass_minibatch_target_size = (
-                cfg.trainer.forward_pass_minibatch_target_size // world_size
-            )
-            cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
-
-    policy_store = PolicyStore.create(
-        device=cfg.system.device,
-        data_dir=cfg.system.data_dir,
-        wandb_config=cfg.wandb,
-        wandb_run=wandb_run,
-    )
-
-    # Use the functional train interface directly
-    train(
-        run=cfg.run,
-        run_dir=cfg.run_dir,
-        system_cfg=cfg.system,
-        agent_cfg=OmegaConf.create(cfg.policy_architecture),
-        device=torch.device(cfg.system.device),
-        trainer_cfg=cfg.trainer,
-        wandb_run=wandb_run,
-        policy_store=policy_store,
-        stats_client=stats_client,
-        torch_dist_cfg=torch_dist_cfg,
-    )
+    return stats_client

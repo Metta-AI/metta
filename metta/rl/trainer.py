@@ -109,7 +109,7 @@ def train(
     target_batch_size, batch_size, num_envs = calculate_batch_sizes(
         trainer_cfg.forward_pass_minibatch_target_size,
         num_agents,
-        trainer_cfg.num_workers,
+        trainer_cfg.rollout_workers,
         trainer_cfg.async_factor,
     )
 
@@ -119,7 +119,7 @@ def train(
         system_cfg.vectorization,
         num_envs=num_envs,
         batch_size=batch_size,
-        num_workers=trainer_cfg.num_workers,
+        num_workers=trainer_cfg.rollout_workers,
         zero_copy=trainer_cfg.zero_copy,
         is_training=True,
     )

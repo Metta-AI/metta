@@ -69,7 +69,7 @@ def main():
     seed_everything(tool_cfg.system)
 
     # Run the tool from config
-    logger.info(f"Running tool config:\n{tool_cfg.yaml()}")
+    logger.info(f"Running tool config: {module_name}.{func_name}")
     result = tool_cfg.invoke()
 
     if result is not None:

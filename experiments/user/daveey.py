@@ -6,9 +6,10 @@ from metta.cogworks.curriculum.task_generator import ValueRange as vr
 from metta.mettagrid.map_builder import AsciiMapBuilderConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
+
+# from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
-from tools.play import PlayTool
-from tools.replay import ReplayToolConfig
 
 ########################################################
 # Environments
@@ -52,17 +53,17 @@ varied_terrain.game.objects["altar"].cooldown = 1000
 ########################################################
 
 
-def tool_cfg_replay() -> ReplayToolConfig:
-    eval_env = obstacles.model_copy()
-    eval_env.game.max_steps = 100
-    return ReplayToolConfig(
-        sim=SimulationConfig(
-            env=eval_env,
-            name="arena",
-        ),
-        open_browser_on_start=True,
-        wandb=softmax.wandb_config(run="arena_replay"),
-    )
+# def tool_cfg_replay() -> ReplayTool:
+#     eval_env = obstacles.model_copy()
+#     eval_env.game.max_steps = 100
+#     return ReplayTool(
+#         sim=SimulationConfig(
+#             env=eval_env,
+#             name="arena",
+#         ),
+#         open_browser_on_start=True,
+#         wandb=softmax.wandb_config(run="arena_replay"),
+#     )
 
 
 def tool_cfg_play() -> PlayTool:
@@ -78,9 +79,7 @@ def tool_cfg_play() -> PlayTool:
     )
 
 
-def tool_cfg_train() -> TrainTool:
-    run = "daveey-test-run-3"
-
+def tool_cfg_train(run: str) -> TrainTool:
     # make a set of training tasks for the arena
     arena_tasks = cc.tasks(arena)
 
@@ -114,6 +113,6 @@ def tool_cfg_train() -> TrainTool:
     return TrainTool(
         trainer=trainer_cfg,
         wandb=softmax.wandb_config(run=run),
-        run="daveey-arena",
+        run=run,
         policy_architecture=yaml.safe_load(open("configs/agent/fast.yaml")),
     )
