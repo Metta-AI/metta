@@ -9,11 +9,11 @@ from pydantic import ValidationError
 
 from metta.mettagrid.map_builder import (
     AsciiMapBuilderConfig,
-    MapBuilderConfigUnion,
     MazeKruskalMapBuilderConfig,
     MazePrimMapBuilderConfig,
     RandomMapBuilderConfig,
 )
+from metta.mettagrid.map_builder.map_builder import MapBuilderConfig
 
 
 class TestPolymorphicSerialization:
@@ -148,7 +148,7 @@ class TestPolymorphicSerialization:
 
         # Create a test model that uses the union
         class TestContainer(BaseModel):
-            config: MapBuilderConfigUnion
+            config: MapBuilderConfig
 
         # Test valid configs for each type
         test_cases = [

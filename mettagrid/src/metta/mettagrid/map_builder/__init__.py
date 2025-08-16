@@ -4,6 +4,8 @@ from typing import Annotated, Union
 
 from pydantic import Field
 
+from metta.map.mapgen import MapGenConfig
+
 from .ascii import AsciiMapBuilderConfig
 from .map_builder import GameMap, MapBuilder, MapBuilderConfig
 from .maze import MazeKruskalMapBuilderConfig, MazePrimMapBuilderConfig
@@ -17,6 +19,8 @@ MapBuilderConfigUnion = Annotated[
         Annotated[MazePrimMapBuilderConfig, Field(discriminator="type")],
         Annotated[MazeKruskalMapBuilderConfig, Field(discriminator="type")],
         Annotated[RandomMapBuilderConfig, Field(discriminator="type")],
+        # FIXME #dehydration - mettagrid shouldn't import from metta
+        Annotated[MapGenConfig, Field(discriminator="type")],
     ],
     Field(discriminator="type"),
 ]
