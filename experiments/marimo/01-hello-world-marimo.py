@@ -519,11 +519,11 @@ def _(
         "trainer.minibatch_size=128",  # Adjusted for bptt_horizon=64
         "trainer.num_workers=8",
         "trainer.bptt_horizon=64",  # Longer horizon for better temporal learning
-        "trainer.forward_pass_minibatch_target_size=2",
+        "trainer.forward_pass_minibatch_target_size=2",  # Richard said we need this line
         "trainer.simulation.skip_git_check=true",  # Skip git check to avoid errors in notebooks
-        "trainer.checkpoint.checkpoint_interval=500",  # Skip git check to avoid errors in notebooks
-        "trainer.simulation.evaluate_interval=500",  # Skip git check to avoid errors in notebooks
-        "trainer.simulation.evaluate_remote=false",  # Skip git check to avoid errors in notebooks
+        "trainer.simulation.evaluate_remote=false",
+        "trainer.checkpoint.checkpoint_interval=500",  # Skip
+        "trainer.simulation.evaluate_interval=500",  # Skip
         "sim=sim",
         "+train_job.evals.name=hallway",
         "+train_job.evals.num_episodes=1",
