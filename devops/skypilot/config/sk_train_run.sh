@@ -513,9 +513,13 @@ export -f terminate_monitors
 # Set up cleanup trap
 trap cleanup EXIT
 
-# All nodes: Run GPU diagnostics and NCCL tests
-echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
-uv run python ./devops/skypilot/test_nccl.py
+# All nodes: Run GPU diagnostics and NCCL tests (first start only)
+if [ "${RESTART_COUNT:-0}" -eq 0 ]; then
+  echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
+  uv run python ./devops/skypilot/test_nccl.py
+else
+  echo "[SKIP] Skipping NCCL test on restart (RESTART_COUNT=${RESTART_COUNT})"
+fi
 
 # Run the command
 run_cmd
