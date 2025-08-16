@@ -6,14 +6,14 @@ from pydantic import Field, model_validator
 if TYPE_CHECKING:
     from metta.map import MapGenConfigUnion
 
-from metta.map.scene import load_class, make_scene, scene_cfg_to_dict
+from metta.map.scene import ChildrenAction, SceneCfg, load_class, make_scene, scene_cfg_to_dict
 from metta.map.scenes.copy_grid import CopyGrid
 from metta.map.scenes.room_grid import RoomGrid, RoomGridParams
 from metta.map.scenes.transplant_scene import TransplantScene
 from metta.mettagrid.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from metta.mettagrid.map_builder.utils import create_grid
 
-from .types import Area, AreaWhere, ChildrenAction, SceneCfg
+from .types import Area, AreaWhere
 
 
 class MapGenConfig(MapBuilderConfig):
