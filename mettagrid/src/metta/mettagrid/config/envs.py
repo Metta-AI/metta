@@ -29,7 +29,7 @@ def make_arena(
 
     actions = ActionsConfig(
         noop=ActionConfig(),
-        move_8way=ActionConfig(),
+        move=ActionConfig(),
         rotate=ActionConfig(),
         put_items=ActionConfig(),
         get_items=ActionConfig(),
@@ -100,6 +100,7 @@ def make_arena(
 def make_nav(num_agents: int) -> EnvConfig:
     altar = building.altar
     altar.initial_resource_count = 1
+    altar.cooldown = 1000
 
     cfg = EnvConfig(
         game=GameConfig(
@@ -116,7 +117,7 @@ def make_nav(num_agents: int) -> EnvConfig:
             agent=AgentConfig(
                 rewards=AgentRewards(
                     inventory=InventoryRewards(
-                        heart=0.333,
+                        heart=1,
                     ),
                 ),
             ),
