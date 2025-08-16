@@ -32,7 +32,18 @@ def get_observation(
     """Receive observations from the environment."""
     with timer("get_observation.recv"):
         o, r, d, t, info, env_id, mask = vecenv.recv()
-        env_id = slice(env_id.start, env_id.stop)
+        # Handle both slice and numpy array cases for env_id
+        if hasattr(env_id, "start") and hasattr(env_id, "stop"):
+            # It's already a slice
+            env_id = slice(env_id.start, env_id.stop)
+        elif isinstance(env_id, np.ndarray):
+            # It's a numpy array, convert to slice using first and last elements
+            if len(env_id) > 0:
+                env_id = slice(int(env_id[0]), int(env_id[-1]) + 1)
+            else:
+                env_id = slice(0, 0)
+        # If it's something else, try to use it as-is
+
     with timer("get_observation.convert"):
         o = torch.as_tensor(o, device=device, dtype=torch.uint8)
         r = torch.as_tensor(r, device=device, dtype=torch.float32)
