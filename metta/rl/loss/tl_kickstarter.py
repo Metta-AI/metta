@@ -9,7 +9,6 @@ from torchrl.data import Composite
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.rl.loss.base_loss import BaseLoss
-from metta.rl.loss.loss_tracker import LossTracker
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
 
@@ -30,11 +29,10 @@ class TLKickstarter(BaseLoss):
         trainer_cfg: TrainerConfig,
         vec_env: Any,
         device: torch.device,
-        loss_tracker: LossTracker,
         policy_store: PolicyStore,
         instance_name: str,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, loss_tracker, policy_store, instance_name)
+        super().__init__(policy, trainer_cfg, vec_env, device, policy_store, instance_name)
         self.action_loss_coef = self.loss_cfg.action_loss_coef
         self.value_loss_coef = self.loss_cfg.value_loss_coef
 
@@ -51,9 +49,6 @@ class TLKickstarter(BaseLoss):
 
     def get_experience_spec(self) -> Composite:
         return self.teacher_policy_spec
-
-    def losses_to_track(self) -> list[str]:
-        return ["tl_ks_action_loss", "tl_ks_value_loss"]
 
     def on_rollout_start(self) -> None:
         self.teacher_policy.on_rollout_start()
@@ -84,7 +79,7 @@ class TLKickstarter(BaseLoss):
 
         loss = ks_action_loss + ks_value_loss
 
-        self.loss_tracker.add("tl_ks_action_loss", float(ks_action_loss.item()))
-        self.loss_tracker.add("tl_ks_value_loss", float(ks_value_loss.item()))
+        self.loss_tracker["tl_ks_action_loss"] += float(ks_action_loss.item())
+        self.loss_tracker["tl_ks_value_loss"] += float(ks_value_loss.item())
 
         return loss, shared_loss_data

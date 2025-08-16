@@ -21,7 +21,6 @@ from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 from metta.rl.evaluate import upload_replay_html
 from metta.rl.experience import Experience
-from metta.rl.loss.base_loss import LossTracker
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import should_run
 from metta.rl.wandb import (
@@ -130,7 +129,7 @@ def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
 
 def process_training_stats(
     raw_stats: dict[str, Any],
-    losses: LossTracker,
+    losses_stats: dict[str, Any],
     experience: Experience,
     trainer_config: TrainerConfig,
 ) -> dict[str, Any]:
@@ -159,7 +158,6 @@ def process_training_stats(
             mean_stats[k] = v
 
     # Get loss and experience statistics
-    losses_stats = losses.stats() if hasattr(losses, "stats") else {}
     experience_stats = experience.stats() if hasattr(experience, "stats") else {}
 
     # Calculate environment statistics
@@ -323,7 +321,7 @@ def build_wandb_stats(
 
 def process_stats(
     stats: dict[str, Any],
-    losses: LossTracker,
+    losses_stats: dict[str, Any],
     evals: EvalRewardSummary,
     grad_stats: dict[str, float],
     experience: Experience,
@@ -346,7 +344,7 @@ def process_stats(
     # Process training stats
     processed_stats = process_training_stats(
         raw_stats=stats,
-        losses=losses,
+        losses_stats=losses_stats,
         experience=experience,
         trainer_config=trainer_cfg,
     )

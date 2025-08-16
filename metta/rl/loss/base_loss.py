@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Any
 
 import torch
@@ -7,7 +8,6 @@ from torchrl.data import Composite
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
-from metta.rl.loss.loss_tracker import LossTracker
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
 
@@ -49,7 +49,6 @@ class BaseLoss:
         trainer_cfg: TrainerConfig,
         vec_env: Any,
         device: torch.device,
-        loss_tracker: LossTracker,
         policy_store: PolicyStore,
         instance_name: str,
     ):
@@ -59,40 +58,46 @@ class BaseLoss:
         self.policy_cfg = self.policy.get_cfg()
         self.vec_env = vec_env
         self.device = device
-        self.loss_tracker = loss_tracker
+        self.loss_tracker = defaultdict(float)
         self.policy_store = policy_store
         self.instance_name = instance_name
         self.loss_cfg = self.policy_cfg.losses.get(self.instance_name, {})
 
         self._get_schedule()
 
-    # ----------- INITIALIZE REPLAY BUFFER AND LOSS TRACKER -----------
     def get_experience_spec(self) -> Composite:
-        """Optional extension of the experience spec required by this loss."""
+        """Optional extension of the experience replay buffer spec required by this loss."""
         return Composite()
 
-    def losses_to_track(self) -> list[str]:
-        """
-        Declare metric keys this loss would like the trainer to track and report.
+    # ------------------------ UTILITY METHODS -----------------------------
 
-        Default returns an empty list for compatibility. Concrete losses can
-        override to request specific keys (e.g., ["policy_loss", "value_loss"]).
-        """
-        return []
+    def stats(self) -> dict[str, float]:
+        """Cycles through keys in self.loss_tracker, normalizes by trainer_state.mb_idx, and returns a dictionary of
+        metrics to track. Expects the super loss class to add keys dynamically to this dict as it updates its values
+        for the first time.
+        Note that this doesn't check for name collisions from other losses. If there is more than one instance of a
+        specific loss class then its values will be summed."""
+        return self.loss_tracker
+        # return {k: v for k, v in self.loss_tracker.items()} # av shouldn't this just return the stats dict?
 
-    # ----------- END INITIALIZE REPLAY BUFFER AND LOSS TRACKER -----------
+    def zero_loss_tracker(self):
+        """Zero all values in the loss tracker."""
+        for k in self.loss_tracker.keys():
+            self.loss_tracker[k] = 0.0
+
+    # ------------------------ END UTILITY METHODS -----------------------------
 
     # ======================================================================
     # ============================ CONTROL FLOW ============================
     # BaseLoss provides defaults for every control flow method and even handles the scheduling logic. Simply override
     # any of these methods in your Loss class to implement your own logic when needed.
 
-    def on_new_training_run(self) -> None:
+    def on_new_training_run(self, trainer_state: TrainerState) -> None:
         """We're at the very beginning of the training loop."""
         self.policy.on_new_training_run()
         return
 
-    def on_rollout_start(self) -> None:
+    def on_rollout_start(self, trainer_state: TrainerState) -> None:
         """We're about to start a new rollout phase."""
         self.policy.on_rollout_start()
         return
@@ -109,10 +114,6 @@ class BaseLoss:
         the scheduling logic."""
         return
 
-    def on_training_phase_start(self) -> None:
-        """We've completed the rollout phase and are starting the train phase."""
-        return
-
     def train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
         """Repeatedly called training steps until the total number of minibatches (set in cfg) is reached.
         Compute loss and write any shared minibatch data needed by other losses."""
@@ -125,12 +126,23 @@ class BaseLoss:
         the scheduling logic."""
         return torch.tensor(0.0, device=self.device, dtype=torch.float32), shared_loss_data
 
-    def on_mb_end(self):
+    def on_mb_end(self, trainer_state: TrainerState) -> None:
         """For instance, allow losses with their own optimizers to run"""
         return
 
-    def on_train_phase_end(self) -> None:
-        """We've completed the train phase and will be transitioning to the next rollout phase."""
+    def on_train_phase_end(self, trainer_state: TrainerState) -> None:
+        """We've completed the train phase and will be transitioning to the next rollout phase. Average stats then call
+        internal method _on_train_phase_end."""
+        self._on_train_phase_end(trainer_state)
+        for k, v in self.loss_tracker.items():
+            if trainer_state.mb_idx > 0:
+                self.loss_tracker[k] = v / trainer_state.mb_idx
+            else:
+                self.loss_tracker[k] = 0.0
+        return
+
+    def _on_train_phase_end(self, trainer_state: TrainerState) -> None:
+        """Override this method in subclasses to implement train phase end logic."""
         return
 
     def save_loss_states(self):

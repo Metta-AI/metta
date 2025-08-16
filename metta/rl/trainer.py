@@ -30,7 +30,6 @@ from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_check
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.loss.base_loss import BaseLoss
-from metta.rl.loss.loss_tracker import LossTracker
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
@@ -104,10 +103,9 @@ def train(
     # Set up distributed
     is_master, world_size, rank = setup_distributed_vars()
 
-    # Create timer, LossTracker, profiler, curriculum
+    # Create timer, profiler, curriculum
     timer = Stopwatch(logger)
     timer.start()
-    loss_tracker = LossTracker()
     torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, run_dir)
     curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
 
@@ -228,11 +226,9 @@ def train(
             trainer_cfg,
             vecenv,
             device,
-            loss_tracker,
             policy_store,
             loss_instance_name,
         )
-    loss_tracker.configure_from_losses(list(loss_instances.values()))
 
     # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()
@@ -330,7 +326,7 @@ def train(
                 total_steps = 0
                 experience.reset_for_rollout()
                 for _loss_name in list(policy_losses):
-                    loss_instances[_loss_name].on_rollout_start()
+                    loss_instances[_loss_name].on_rollout_start(trainer_state)
 
                 buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
                 buffer_step = buffer_step.select(*policy_spec.keys())
@@ -375,12 +371,13 @@ def train(
 
             # ---- TRAINING PHASE ----
             with timer("_train"):
-                loss_tracker.zero()
                 shared_loss_mb_data.zero_()
 
                 # Train for multiple epochs
-                minibatch_idx = 0
                 epochs_trained = 0
+                for _lname in list(policy_losses):
+                    loss_obj = loss_instances[_lname]
+                    loss_obj.zero_loss_tracker()
 
                 for _update_epoch in range(trainer_cfg.update_epochs):
                     trainer_state.update_epoch = _update_epoch
@@ -393,9 +390,6 @@ def train(
                             loss_val, shared_loss_mb_data = loss_obj.train(shared_loss_mb_data, trainer_state)
                             total_loss = total_loss + loss_val
 
-                        # Count this minibatch once for averaging metrics
-                        loss_tracker.minibatches_processed += 1
-
                         if trainer_state.early_stop_update_epoch:
                             break
 
@@ -405,7 +399,7 @@ def train(
                         # This also serves as a barrier for all ranks
                         total_loss.backward()
 
-                        if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
+                        if (mb_idx + 1) % experience.accumulate_minibatches == 0:
                             torch.nn.utils.clip_grad_norm_(policy.parameters(), policy_cfg.losses.PPO.max_grad_norm)
                             optimizer.step()
 
@@ -414,14 +408,13 @@ def train(
 
                         for _lname in list(policy_losses):
                             loss_obj = loss_instances[_lname]
-                            loss_obj.on_mb_end()
+                            loss_obj.on_mb_end(trainer_state)
 
-                        minibatch_idx += 1
                     epochs_trained += 1
 
                 for _lname in list(policy_losses):
                     loss_obj = loss_instances[_lname]
-                    loss_obj.on_train_phase_end()
+                    loss_obj.on_train_phase_end(trainer_state)
 
             epoch += epochs_trained
             trainer_state.epoch = epoch
@@ -437,12 +430,17 @@ def train(
 
         torch_profiler.on_epoch_end(epoch)
 
+        losses_stats = {}
+        for _lname in list(policy_losses):
+            loss_obj = loss_instances[_lname]
+            losses_stats.update(loss_obj.stats())
+
         with timer("_process_stats"):
             if wandb_run:
                 process_stats(
                     agent_cfg=agent_cfg,
                     stats=stats_tracker.rollout_stats,
-                    losses=loss_tracker,
+                    losses_stats=losses_stats,
                     evals=eval_scores,
                     grad_stats=stats_tracker.grad_stats,
                     experience=experience,

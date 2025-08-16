@@ -9,7 +9,6 @@ from torch.nn import functional as F
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.rl.loss.base_loss import BaseLoss
-from metta.rl.loss.loss_tracker import LossTracker
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
 
@@ -27,11 +26,10 @@ class EMA(BaseLoss):
         trainer_cfg: TrainerConfig,
         vec_env: Any,
         device: torch.device,
-        loss_tracker: LossTracker,
         policy_store: PolicyStore,
         instance_name: str,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, loss_tracker, policy_store, instance_name)
+        super().__init__(policy, trainer_cfg, vec_env, device, policy_store, instance_name)
 
         self.target_model = copy.deepcopy(self.policy)
         for param in self.target_model.parameters():
@@ -74,8 +72,5 @@ class EMA(BaseLoss):
         shared_loss_data["EMA"]["target_pred"] = target_pred.reshape(B, TT, -1)
 
         loss = F.mse_loss(pred, target_pred) * self.ema_coef
-        self.loss_tracker.add("EMA_mse_loss", float(loss.item()))
+        self.loss_tracker["EMA_mse_loss"] += float(loss.item())
         return loss, shared_loss_data
-
-    def losses_to_track(self) -> list[str]:
-        return ["EMA_mse_loss"]

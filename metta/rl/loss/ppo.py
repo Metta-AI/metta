@@ -10,7 +10,6 @@ from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.loss.base_loss import BaseLoss
-from metta.rl.loss.loss_tracker import LossTracker
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
 from metta.utils.batch import calculate_prioritized_sampling_params
@@ -30,11 +29,10 @@ class PPO(BaseLoss):
         trainer_cfg: TrainerConfig,
         vec_env: Any,
         device: torch.device,
-        loss_tracker: LossTracker,
         policy_store: PolicyStore,
         loss_instance_name: str,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, loss_tracker, policy_store, loss_instance_name)
+        super().__init__(policy, trainer_cfg, vec_env, device, policy_store, loss_instance_name)
         self.advantages = torch.tensor(0.0, device=self.device)
         self.anneal_beta = 0.0
 
@@ -56,18 +54,6 @@ class PPO(BaseLoss):
             values=scalar_f32,
         )
 
-    def losses_to_track(self) -> list[str]:
-        return [
-            "policy_loss",
-            "value_loss",
-            "entropy",
-            "approx_kl",
-            "clipfrac",
-            "importance",
-            "current_logprobs",
-            "explained_variance",
-        ]
-
     # BaseLoss calls this method
     def run_rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
         with torch.no_grad():
@@ -83,8 +69,8 @@ class PPO(BaseLoss):
         self.policy.on_train_mb_start()
 
         # Check if we should early stop this update epoch (on subsequent minibatches)
-        if self.loss_cfg.target_kl is not None and self.loss_tracker.minibatches_processed > 0:
-            average_approx_kl = self.loss_tracker.get("approx_kl") / self.loss_tracker.minibatches_processed
+        if self.loss_cfg.target_kl is not None and trainer_state.mb_idx > 0:
+            average_approx_kl = self.loss_tracker["approx_kl"] / trainer_state.mb_idx
             if average_approx_kl > self.loss_cfg.target_kl:
                 trainer_state.early_stop_update_epoch = True
 
@@ -117,13 +103,13 @@ class PPO(BaseLoss):
 
         return loss, shared_loss_data
 
-    def on_train_phase_end(self) -> None:
+    def _on_train_phase_end(self, trainer_state: TrainerState) -> None:
         with torch.no_grad():
             y_pred = self.policy.replay.buffer["values"].flatten()
             y_true = self.advantages.flatten() + self.policy.replay.buffer["values"].flatten()
             var_y = y_true.var()
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
-            self.loss_tracker.set("explained_variance", float(ev))
+            self.loss_tracker["explained_variance"] += float(ev)
 
     def _on_first_mb(self, trainer_state: TrainerState) -> tuple[Tensor, float]:
         # reset importance sampling ratio
@@ -211,13 +197,14 @@ class PPO(BaseLoss):
         self.policy.replay.update(indices, update_td)
 
         # Update loss tracking
-        self.loss_tracker.add("policy_loss", float(pg_loss.item()))
-        self.loss_tracker.add("value_loss", float(v_loss.item()))
-        self.loss_tracker.add("entropy", float(entropy_loss.item()))
-        self.loss_tracker.add("approx_kl", float(approx_kl.item()))
-        self.loss_tracker.add("clipfrac", float(clipfrac.item()))
-        self.loss_tracker.add("importance", float(importance_sampling_ratio.mean().item()))
-        self.loss_tracker.add("current_logprobs", float(new_logprob.mean().item()))
+        self.loss_tracker["policy_loss"] += float(pg_loss.item())
+        self.loss_tracker["value_loss"] += float(v_loss.item())
+        self.loss_tracker["entropy"] += float(entropy_loss.item())
+        self.loss_tracker["approx_kl"] += float(approx_kl.item())
+        self.loss_tracker["clipfrac"] += float(clipfrac.item())
+        # av why were these getting normalized by mb_idx???
+        self.loss_tracker["importance"] += float(importance_sampling_ratio.mean().item())
+        self.loss_tracker["current_logprobs"] += float(new_logprob.mean().item())
 
         return loss
 

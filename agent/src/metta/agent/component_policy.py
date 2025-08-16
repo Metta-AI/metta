@@ -30,7 +30,7 @@ class ComponentPolicy(nn.Module):
         action_space: Optional[gym.spaces.Space] = None,
         feature_normalizations: Optional[dict[int, float]] = None,
         device: Optional[str] = None,
-        cfg: Optional[DictConfig] = None,
+        cfg: DictConfig = None,
     ):
         super().__init__()
 
