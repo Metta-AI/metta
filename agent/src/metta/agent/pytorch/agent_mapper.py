@@ -1,5 +1,6 @@
 from metta.agent.pytorch.agalite import AGaLiTe
 from metta.agent.pytorch.agalite_hybrid import AgaliteHybrid
+from metta.agent.pytorch.agalite_optimized import AGaLiTeOptimized
 from metta.agent.pytorch.example import Example
 from metta.agent.pytorch.fast import Fast
 from metta.agent.pytorch.latent_attn_med import LatentAttnMed
@@ -10,6 +11,7 @@ from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny
 agent_classes = {
     "agalite": AGaLiTe,
     "agalite_hybrid": AgaliteHybrid,
+    "agalite_optimized": AGaLiTeOptimized,
     "example": Example,
     "fast": Fast,
     "latent_attn_small": LatentAttnSmall,
