@@ -1,0 +1,282 @@
+name: Generate Author Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      author:
+        description: "GitHub username of the PR author"
+        required: true
+        type: string
+      days_to_scan:
+        description: "Number of days to scan"
+        required: false
+        default: "30"
+        type: choice
+        options: ["7", "14", "30", "60", "90", "180", "365"]
+      force_refresh:
+        description: "Force cache refresh for existing PRs"
+        required: false
+        default: false
+        type: boolean
+      include_draft_prs:
+        description: "Include draft PRs in the report"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  generate-author-report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Author Input
+        id: validate-author
+        run: |
+          # Basic validation of author username
+          AUTHOR="${{ inputs.author }}"
+
+          # Remove any leading @ symbol if present
+          AUTHOR="${AUTHOR#@}"
+
+          # Validate username format (GitHub usernames can contain alphanumeric and hyphens)
+          if [[ ! "$AUTHOR" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$ ]]; then
+            echo "❌ Invalid GitHub username format: $AUTHOR"
+            exit 1
+          fi
+
+          echo "author=$AUTHOR" >> $GITHUB_OUTPUT
+          echo "✅ Generating report for author: $AUTHOR"
+
+      - name: Check if author exists in repository
+        id: check-author
+        run: |
+          echo "Checking if ${{ steps.validate-author.outputs.author }} has PRs in this repository..."
+
+          # Use GitHub CLI to check for PRs by this author
+          AUTHOR_PRS=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --author "${{ steps.validate-author.outputs.author }}" \
+            --state merged \
+            --limit 1 \
+            --json number \
+            || echo "[]")
+
+          if [ "$AUTHOR_PRS" = "[]" ]; then
+            echo "⚠️ Warning: No merged PRs found for ${{ steps.validate-author.outputs.author }} in ${{ github.repository }}"
+            echo "has_prs_in_repo=false" >> $GITHUB_OUTPUT
+          else
+            echo "✅ Found merged PRs for ${{ steps.validate-author.outputs.author }}"
+            echo "has_prs_in_repo=true" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Restore PR Summaries Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            pr-summaries/
+          key: pr-summaries-${{ github.repository }}-${{ github.run_number }}
+          restore-keys: |
+            pr-summaries-${{ github.repository }}-
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.3"
+          enable-cache: true
+
+      - name: Create Author PR Digest
+        id: pr-digest
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DAYS_TO_SCAN: ${{ inputs.days_to_scan }}
+          PR_AUTHOR: ${{ steps.validate-author.outputs.author }}
+          INCLUDE_DRAFT_PRS: ${{ inputs.include_draft_prs }}
+          PR_DIGEST_FILE: "pr_digest_output.json"
+        run: |
+          echo "Creating PR digest for author '${{ steps.validate-author.outputs.author }}' for last ${{ inputs.days_to_scan }} days..."
+
+          # Show cache status before running
+          if [ -d "pr-summaries" ]; then
+            CACHED_COUNT=$(find pr-summaries -name "pr_*.txt" | wc -l)
+            echo "📁 Found existing pr-summaries directory with $CACHED_COUNT cached PRs"
+          else
+            echo "📁 No pr-summaries directory found, starting fresh"
+          fi
+
+          # Note: You'll need to modify create_pr_digest.py to support author filtering
+          # For now, assuming the script accepts PR_AUTHOR environment variable
+          uv run .github/scripts/create_pr_digest.py --filter-author
+
+          # Output digest info for next step with error handling
+          if [ -f "pr_digest_output.json" ]; then
+            # Extract PR counts with error handling
+            if ! TOTAL_PR_COUNT=$(jq length pr_digest_output.json); then
+              echo "❌ Failed to parse PR digest JSON"
+              exit 1
+            fi
+
+            # Count new PRs (those without _from_cache flag)
+            if ! NEW_PR_COUNT=$(jq '[.[] | select(._from_cache != true)] | length' pr_digest_output.json); then
+              echo "❌ Failed to count new PRs"
+              exit 1
+            fi
+
+            echo "✅ Created author PR digest:"
+            echo "   - Author: ${{ steps.validate-author.outputs.author }}"
+            echo "   - Total PRs by author: $TOTAL_PR_COUNT"
+            echo "   - New PRs to cache: $NEW_PR_COUNT"
+            echo "   - PRs from cache: $((TOTAL_PR_COUNT - NEW_PR_COUNT))"
+            echo "   - Date range: ${{ steps.pr-digest.outputs.date_range_display }}"
+
+            # Set output for conditional steps
+            if [ "$TOTAL_PR_COUNT" -eq "0" ]; then
+              echo "has_prs=false" >> $GITHUB_OUTPUT
+            else
+              echo "has_prs=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "❌ Failed to create PR digest - pr_digest_output.json not found"
+            exit 1
+          fi
+
+      - name: Fetch previous reports for context
+        uses: ./.github/actions/fetch-artifacts
+        with:
+          workflow-name: "generate-author-report.yml"
+          artifact-name-pattern: "author-report-${{ steps.validate-author.outputs.author }}-*"
+          num-artifacts: "3"
+          output-directory: "previous-reports"
+        continue-on-error: true
+
+      - name: Generate Author Report
+        id: report
+        if: ${{ steps.pr-digest.outputs.has_prs == 'true' }}
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          PR_DIGEST_FILE: ${{ steps.pr-digest.outputs.digest_file }}
+          PR_DIGEST_STATS_FILE: ${{ steps.pr-digest.outputs.stats_file }}
+          REPORT_AUTHOR: ${{ steps.validate-author.outputs.author }}
+          REPORT_PERIOD: ${{ steps.pr-digest.outputs.date_range_display }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          FORCE_REFRESH: ${{ inputs.force_refresh || 'false' }}
+          PREVIOUS_REPORTS_DIR: "previous-reports"
+          REPORT_TYPE: "author"
+        run: |
+          echo "Analyzing ${{ steps.pr-digest.outputs.total_pr_count }} PRs by ${{ steps.validate-author.outputs.author }}..."
+          echo "(${{ steps.pr-digest.outputs.new_pr_count }} new, rest from cache)"
+
+          uv run .github/scripts/gemini_analyze_pr_digest.py --author-report
+
+          # Verify outputs were created
+          MISSING_FILES=()
+
+          if [ ! -f "author_report_output.md" ]; then
+            MISSING_FILES+=("author_report_output.md")
+          fi
+
+          if [ ! -f "author_report_summary.json" ]; then
+            MISSING_FILES+=("author_report_summary.json")
+          fi
+
+          if [ ${#MISSING_FILES[@]} -eq 0 ]; then
+            echo "✅ Author report generation completed successfully"
+            echo ""
+            echo "Generated files:"
+            for file in author_report_output.md author_report_summary.json pr_summary_data.json; do
+              if [ -f "$file" ]; then
+                SIZE=$(stat -f%z "$file" 2>/dev/null || stat -c%s "$file")
+                echo "- $file (${SIZE} bytes)"
+              fi
+            done
+          else
+            echo "❌ Report generation failed - missing required files:"
+            for file in "${MISSING_FILES[@]}"; do
+              echo "  - $file"
+            done
+            exit 1
+          fi
+
+      - name: Handle No PRs Case
+        if: ${{ steps.pr-digest.outputs.has_prs == 'false' }}
+        run: |
+          echo "ℹ️ No PRs found for author '${{ steps.validate-author.outputs.author }}' in the specified time period"
+
+          cat > author_report_output.md << EOF
+          # PR Report for @${{ steps.validate-author.outputs.author }}
+
+          **Period**: ${{ steps.pr-digest.outputs.date_range_display }}
+
+          No PRs were found for this author during the specified time period.
+          EOF
+
+          cat > author_report_summary.json << EOF
+          {
+            "author": "${{ steps.validate-author.outputs.author }}",
+            "period": "${{ steps.pr-digest.outputs.date_range_display }}",
+            "total_prs": 0,
+            "message": "No PRs found for this author in the specified period"
+          }
+          EOF
+
+          echo "[]" > pr_summary_data.json
+
+      - name: Create Report Summary
+        if: ${{ steps.pr-digest.outputs.has_prs == 'true' }}
+        run: |
+          echo "## Author Report Summary"
+          echo ""
+          echo "- **Author**: @${{ steps.validate-author.outputs.author }}"
+          echo "- **Period**: ${{ steps.pr-digest.outputs.date_range_display }}"
+          echo "- **Total PRs**: ${{ steps.pr-digest.outputs.total_pr_count }}"
+          echo ""
+
+          # Display a preview of the report
+          if [ -f "author_report_output.md" ]; then
+            echo "### Report Preview (first 50 lines):"
+            echo '```'
+            head -n 50 author_report_output.md
+            echo '```'
+          fi
+
+      - name: Save PR Summaries Cache
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            pr-summaries/
+          key: pr-summaries-${{ github.repository }}-${{ github.run_number }}
+
+      - name: Upload Report Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: author-report-${{ steps.validate-author.outputs.author }}-${{ github.run_number }}
+          path: |
+            author_report_output.md
+            author_report_summary.json
+            pr_summary_data.json
+            pr-summaries/
+            pr_digest_output.json
+
+      - name: Create Job Summary
+        if: always()
+        run: |
+          if [ -f "author_report_output.md" ]; then
+            {
+              echo "# Author PR Report"
+              echo ""
+              cat author_report_output.md
+            } >> $GITHUB_STEP_SUMMARY
+          else
+            {
+              echo "# Author PR Report"
+              echo ""
+              echo "Report generation failed or no PRs found for @${{ steps.validate-author.outputs.author }}"
+            } >> $GITHUB_STEP_SUMMARY
+          fi

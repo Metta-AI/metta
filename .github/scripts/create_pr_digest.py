@@ -76,13 +76,22 @@ class CachedPRSummary:
             logging.error(f"Error parsing merge date for PR #{self.pr_number}: {e}")
             return False
 
+    def is_by_author(self, author: str) -> bool:
+        """Check if this PR was authored by the specified user."""
+        metadata = self.load_metadata()
+        if not metadata or not metadata.get("author"):
+            return False
+
+        return metadata["author"].lower() == author.lower()
+
 
 class PRDigestCreator:
     """Creates a digest of merged PRs, utilizing cache effectively."""
 
-    def __init__(self, token: str, repository: str):
+    def __init__(self, token: str, repository: str, filter_author: Optional[str] = None):
         self.token = token
         self.repository = repository
+        self.filter_author = filter_author
         self.session = requests.Session()
         self.session.headers.update(
             {
@@ -112,7 +121,7 @@ class PRDigestCreator:
 
         return cached_summaries
 
-    def get_merged_prs_in_range(self, since: datetime, until: datetime) -> List[Dict]:
+    def get_merged_prs_in_range(self, since: datetime, until: datetime, include_drafts: bool = False) -> List[Dict]:
         """Fetch list of merged PRs within the date range from GitHub API."""
         url = f"https://api.github.com/repos/{self.repository}/pulls"
         params = {"state": "closed", "sort": "updated", "direction": "desc", "per_page": 100}
@@ -135,24 +144,37 @@ class PRDigestCreator:
 
             page_found_recent = False
             for pr in prs:
+                # Skip if not merged (unless including drafts that were closed)
                 if not pr.get("merged_at"):
+                    if not (include_drafts and pr.get("draft") and pr.get("closed_at")):
+                        continue
+
+                # Use merged_at or closed_at for drafts
+                date_field = pr.get("merged_at") or pr.get("closed_at")
+                if not date_field:
                     continue
 
-                merged_at = datetime.fromisoformat(pr["merged_at"].replace("Z", "+00:00"))
+                closed_at = datetime.fromisoformat(date_field.replace("Z", "+00:00"))
 
-                if since <= merged_at <= until:
+                # Apply author filter if specified
+                if self.filter_author and pr["user"]["login"].lower() != self.filter_author.lower():
+                    continue
+
+                if since <= closed_at <= until:
                     all_prs.append(
                         {
                             "number": pr["number"],
                             "title": pr["title"],
-                            "merged_at": pr["merged_at"],
+                            "merged_at": pr.get("merged_at"),
+                            "closed_at": pr.get("closed_at"),
                             "html_url": pr["html_url"],
                             "author": pr["user"]["login"],
+                            "draft": pr.get("draft", False),
                         }
                     )
                     consecutive_old_prs = 0
                     page_found_recent = True
-                elif merged_at < since:
+                elif closed_at < since:
                     consecutive_old_prs += 1
 
             if not page_found_recent:
@@ -167,7 +189,8 @@ class PRDigestCreator:
                 logging.warning("Reached maximum page limit (50), stopping...")
                 break
 
-        logging.info(f"Found {len(all_prs)} merged PRs in date range from GitHub API")
+        author_msg = f" by {self.filter_author}" if self.filter_author else ""
+        logging.info(f"Found {len(all_prs)} merged PRs{author_msg} in date range from GitHub API")
         return all_prs
 
     def get_pr_details(self, pr_number: int) -> Optional[Dict]:
@@ -178,6 +201,10 @@ class PRDigestCreator:
             pr_response = self.session.get(pr_url)
             pr_response.raise_for_status()
             pr_data = pr_response.json()
+
+            # Skip if author doesn't match filter
+            if self.filter_author and pr_data["user"]["login"].lower() != self.filter_author.lower():
+                return None
 
             # Get PR diff
             diff_url = f"https://api.github.com/repos/{self.repository}/pulls/{pr_number}.diff"
@@ -193,19 +220,23 @@ class PRDigestCreator:
                 "body": pr_data.get("body", ""),
                 "author": pr_data["user"]["login"],
                 "merged_at": pr_data["merged_at"],
+                "closed_at": pr_data.get("closed_at"),
                 "html_url": pr_data["html_url"],
                 "labels": labels,
                 "diff": diff_response.text,
                 "additions": pr_data.get("additions", 0),
                 "deletions": pr_data.get("deletions", 0),
                 "changed_files": pr_data.get("changed_files", 0),
+                "draft": pr_data.get("draft", False),
             }
 
         except Exception as e:
             logging.error(f"Error fetching details for PR #{pr_number}: {e}")
             return None
 
-    def create_digest(self, since_str: str, until_str: str) -> Tuple[List[Dict], Dict[str, int]]:
+    def create_digest(
+        self, since_str: str, until_str: str, include_drafts: bool = False
+    ) -> Tuple[List[Dict], Dict[str, int]]:
         """Create a complete digest of PRs for the time period.
 
         Returns:
@@ -215,19 +246,24 @@ class PRDigestCreator:
         since = datetime.fromisoformat(since_str.replace("Z", "+00:00"))
         until = datetime.fromisoformat(until_str.replace("Z", "+00:00"))
 
-        logging.info(f"Creating PR digest for {self.repository} from {since_str} to {until_str}")
+        author_msg = f" by {self.filter_author}" if self.filter_author else ""
+        logging.info(f"Creating PR digest for {self.repository}{author_msg} from {since_str} to {until_str}")
 
         # Step 1: Load all cached summaries
         cached_summaries = self.load_all_cached_summaries()
 
         # Step 2: Get list of PRs in date range from GitHub
-        prs_from_github = self.get_merged_prs_in_range(since, until)
+        prs_from_github = self.get_merged_prs_in_range(since, until, include_drafts)
         github_pr_numbers = {pr["number"] for pr in prs_from_github}
 
-        # Step 3: Find cached PRs that are in our date range
+        # Step 3: Find cached PRs that are in our date range (and by author if filtering)
         cached_prs_in_range = []
         for pr_num, cached_summary in cached_summaries.items():
             if cached_summary.is_in_date_range(since, until):
+                # Apply author filter if specified
+                if self.filter_author and not cached_summary.is_by_author(self.filter_author):
+                    continue
+
                 metadata = cached_summary.load_metadata()
                 if metadata:
                     cached_prs_in_range.append(pr_num)
@@ -253,10 +289,13 @@ class PRDigestCreator:
             "github_api_returned": len(prs_from_github),
             "additional_from_cache": len(additional_cached_prs),
             "cached_pr_numbers": list(cached_prs_in_range),  # Include list of cached PR numbers
+            "filter_author": self.filter_author,
+            "include_drafts": include_drafts,
         }
 
         logging.info(f"""
 === PR Digest Statistics ===
+Author Filter: {self.filter_author or "None"}
 Total PRs in date range: {stats["total_prs_in_range"]}
   - From GitHub API: {stats["github_api_returned"]}
   - Additional from cache: {stats["additional_from_cache"]}
@@ -279,12 +318,19 @@ Need to fetch and summarize: {stats["new_prs_to_fetch"]}
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+    # Check if we're filtering by author
+    filter_author_mode = "--filter-author" in sys.argv
+
     # Define required environment variables
     required_env_vars = {
         "GITHUB_TOKEN": "GitHub Token",
         "GITHUB_REPOSITORY": "GitHub repository name",
         "DAYS_TO_SCAN": "Days to process",
     }
+
+    # Add author requirement if filtering
+    if filter_author_mode:
+        required_env_vars["PR_AUTHOR"] = "PR author to filter by"
 
     # Validate required environment variables
     env_values = {}
@@ -307,6 +353,8 @@ def main():
     github_token = env_values["GITHUB_TOKEN"]
     github_repository = env_values["GITHUB_REPOSITORY"]
     days_to_scan = env_values["DAYS_TO_SCAN"]
+    filter_author = env_values.get("PR_AUTHOR") if filter_author_mode else None
+    include_drafts = os.getenv("INCLUDE_DRAFT_PRS", "false").lower() == "true"
     output_file = os.getenv("PR_DIGEST_FILE", "pr_digest_output.json")
 
     days = int(days_to_scan)
@@ -316,18 +364,23 @@ def main():
     until = until_date.isoformat() + "Z"
 
     logging.info(f"Date range: {since} to {until}")
+    if filter_author:
+        logging.info(f"Filtering by author: {filter_author}")
+    if include_drafts:
+        logging.info("Including draft PRs")
 
-    creator = PRDigestCreator(github_token, github_repository)
+    creator = PRDigestCreator(github_token, github_repository, filter_author)
 
     try:
-        prs_to_process, stats = creator.create_digest(since, until)
+        prs_to_process, stats = creator.create_digest(since, until, include_drafts)
 
         # Save PRs that need processing to file
         output_path = Path(output_file)
         with open(output_path, "w") as f:
             json.dump(prs_to_process, f, indent=2)
 
-        print("✅ PR Digest created successfully")
+        author_msg = f" by {filter_author}" if filter_author else ""
+        print(f"✅ PR Digest created successfully{author_msg}")
         print(f"   - Total PRs in period: {stats['total_prs_in_range']}")
         print(f"   - Already summarized: {stats['cached_prs_in_range']}")
         print(f"   - New PRs to process: {stats['new_prs_to_fetch']}")
@@ -358,6 +411,10 @@ def main():
                 since_formatted = since_pst.strftime("%B %d, %Y")
                 until_formatted = until_pst.strftime("%B %d, %Y")
                 f.write(f"date_range_display={since_formatted} to {until_formatted}\n")
+
+                # Add author info if filtering
+                if filter_author:
+                    f.write(f"filter_author={filter_author}\n")
 
     except Exception as e:
         logging.error(f"Failed to create PR digest: {e}")
