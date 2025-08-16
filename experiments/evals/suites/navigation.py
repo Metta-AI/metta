@@ -395,7 +395,7 @@ def make_labyrinth_env() -> EnvConfig:
     return env
 
 
-def make_navigation_eval() -> list[SimulationConfig]:
+def make_navigation_eval_suite() -> list[SimulationConfig]:
     env_config_makers: list[Callable[[], EnvConfig]] = [
         make_corridors_env,
         make_cylinder_easy_env,

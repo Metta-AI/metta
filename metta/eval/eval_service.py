@@ -19,7 +19,7 @@ def evaluate_policy(
     simulations: list[SimulationConfig],
     device: torch.device,
     vectorization: str,
-    stats_dir: str = "/tmp/stats",
+    stats_dir: str | None = None,
     replay_dir: str | None = None,
     export_stats_db_uri: str | None = None,
     stats_epoch_id: uuid.UUID | None = None,
@@ -38,6 +38,8 @@ def evaluate_policy(
         Dictionary containing simulation results and metrics
     """
     pr = policy_record
+
+    stats_dir = stats_dir or "/tmp/stats"
 
     # For each checkpoint of the policy, simulate
     logger.info(f"Evaluating policy {pr.uri}")
