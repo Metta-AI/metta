@@ -84,14 +84,12 @@ class AutoScaler(AbstractWorkerScaler):
     async def get_desired_workers(self, num_workers: int) -> int:
         num_unclaimed_tasks = (await self._task_client.count_tasks("status = 'unprocessed'")).count
         avg_task_runtime = await self._get_avg_task_runtime()
-        desired_workers = await self._compute_desired_workers(avg_task_runtime)
 
         if num_unclaimed_tasks > num_workers * 5:
             # We have a big backlog of tasks.  Launch enough workers to work through the backlog in 1 hour
-            desired_extra_workers = math.ceil(num_unclaimed_tasks * avg_task_runtime / 3600)
-            return num_workers + desired_extra_workers
+            return math.ceil(num_unclaimed_tasks * avg_task_runtime / 3600)
         else:
-            return desired_workers
+            return await self._compute_desired_workers(avg_task_runtime)
 
 
 class EvalTaskOrchestrator:

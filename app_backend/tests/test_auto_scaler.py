@@ -127,10 +127,9 @@ class TestAutoScaler:
 
         # With 100 unclaimed tasks > 5 * 2 workers, should add workers for backlog
         # Extra workers = ceil(100 tasks * 120s/task / 3600s/hour) = ceil(3.33) = 4
-        expected_extra_workers = math.ceil(100 * 120.0 / 3600)
-        expected_total = current_workers + expected_extra_workers
-        assert result == expected_total
-        assert result == 6
+        expected_workers = math.ceil(100 * 120.0 / 3600)
+        assert result == expected_workers
+        assert result == 4
 
         # Verify get_avg_runtime was not called since done tasks <= 20
         mock_task_client.get_avg_runtime.assert_not_called()
@@ -258,9 +257,9 @@ class TestAutoScaler:
         result = await auto_scaler.get_desired_workers(num_workers=current_workers)
 
         # Extra workers needed = ceil(1000 tasks * 60s/task / 3600s/hour) = ceil(16.67) = 17
-        expected_total = current_workers + math.ceil(1000 * 60.0 / 3600)
+        expected_total = math.ceil(1000 * 60.0 / 3600)
         assert result == expected_total
-        assert result == 22
+        assert result == 17
 
     @pytest.mark.asyncio
     async def test_zero_tasks_scenario(self, auto_scaler, mock_task_client):
