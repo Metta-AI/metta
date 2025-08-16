@@ -22,15 +22,10 @@ class TransformerWrapper(nn.Module):
     def __setstate__(self, state):
         """Ensure transformer memory states are properly initialized after loading from checkpoint.
         
-        This prevents hangs and batch size mismatches when resuming from checkpoints.
-        Similar to LSTM's __setstate__, we clear memory to handle batch size changes.
+        Similar to LSTM's __setstate__, prevents batch size mismatches when resuming.
         """
         self.__dict__.update(state)
-        # Reset memory states when loading from checkpoint to avoid batch size mismatch
-        if not hasattr(self, "transformer_memory"):
-            self.transformer_memory = {}
-        # Clear any existing states to handle batch size mismatches
-        self.transformer_memory.clear()
+        # Memory will be reinitialized on first forward pass after loading
 
     def __init__(self, env, policy, hidden_size: int = 256):
         """
@@ -55,9 +50,6 @@ class TransformerWrapper(nn.Module):
                 nn.init.constant_(param, 0)
             elif "weight" in name and param.ndim >= 2:
                 nn.init.orthogonal_(param, 1.0)
-        
-        # Store memory states for each environment (similar to LSTM)
-        self.transformer_memory = {}
 
     def forward_eval(self, observations: torch.Tensor, state: Dict[str, Any]) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -77,9 +69,8 @@ class TransformerWrapper(nn.Module):
         # Encode observations
         hidden = self.policy.encode_observations(observations, state=state)
 
-        # Get transformer memory from per-environment storage
-        env_id = state.get("env_id", 0)
-        memory = self.transformer_memory.get(env_id, None)
+        # Get transformer memory if it exists
+        memory = state.get("transformer_memory", None)
 
         # Process through transformer (single timestep)
         # Add time dimension for transformer
@@ -96,9 +87,11 @@ class TransformerWrapper(nn.Module):
         # Remove time dimension
         hidden = hidden.squeeze(0)
 
-        # Store updated memory in per-environment storage
-        self.transformer_memory[env_id] = new_memory
-        state["transformer_memory"] = new_memory
+        # Store updated memory with detachment to prevent gradient accumulation
+        if new_memory is not None:
+            state["transformer_memory"] = self._detach_memory(new_memory)
+        else:
+            state["transformer_memory"] = new_memory
         state["hidden"] = hidden
 
         # Decode actions
@@ -122,14 +115,7 @@ class TransformerWrapper(nn.Module):
             values: Value estimates of shape (B, T) or (B,)
         """
         x = observations
-        
-        # Get environment ID for memory tracking
-        training_env_id_start = state.get("training_env_id_start", 0)
-        if isinstance(training_env_id_start, torch.Tensor):
-            training_env_id_start = training_env_id_start.item()
-        
-        # Get memory from per-environment storage
-        memory = self.transformer_memory.get(training_env_id_start, None)
+        memory = state.get("transformer_memory", None)
 
         # Determine input shape
         x_shape, space_shape = x.shape, self.obs_shape
@@ -187,12 +173,11 @@ class TransformerWrapper(nn.Module):
         if TT > 1:
             values = values.reshape(B, TT)
 
-        # Update state and per-environment storage with detached memory
-        # Critical: detach memory to prevent infinite gradient accumulation
+        # Update state with detachment to prevent gradient accumulation
         if new_memory is not None:
-            detached_memory = self._detach_memory(new_memory)
-            self.transformer_memory[training_env_id_start] = detached_memory
-            state["transformer_memory"] = new_memory  # Keep attached for current pass
+            state["transformer_memory"] = self._detach_memory(new_memory)
+        else:
+            state["transformer_memory"] = new_memory
         state["hidden"] = hidden
 
         return logits, values
@@ -239,58 +224,10 @@ class TransformerWrapper(nn.Module):
             "needs_init": False,
         }
     
-    def has_memory(self):
-        """Indicate that this policy has memory (transformer states)."""
-        return True
-    
-    def get_memory(self):
-        """Get current transformer memory states for checkpointing.
-        
-        Returns a pickle-safe representation of the memory state.
-        """
-        # Return the per-environment memory storage
-        if self.transformer_memory:
-            # Make sure memory is CPU and detached for safe pickling
-            safe_memory = {}
-            for env_id, mem in self.transformer_memory.items():
-                safe_memory[env_id] = self._make_pickle_safe(mem)
-            return safe_memory
-        return {}
-    
-    def set_memory(self, memory):
-        """Set transformer memory states from checkpoint."""
-        # Note: memory will be properly reinitialized by __setstate__ if needed
-        if isinstance(memory, dict):
-            self.transformer_memory = memory
-        else:
-            self.transformer_memory = {}
-    
-    def reset_memory(self):
-        """Reset all transformer memory states."""
-        self.transformer_memory.clear()
-    
-    def reset_env_memory(self, env_id):
-        """Reset transformer memory for a specific environment."""
-        if env_id in self.transformer_memory:
-            del self.transformer_memory[env_id]
-    
-    def _make_pickle_safe(self, obj):
-        """Make an object pickle-safe by detaching and moving to CPU."""
-        if isinstance(obj, torch.Tensor):
-            return obj.detach().cpu()
-        elif isinstance(obj, tuple):
-            return tuple(self._make_pickle_safe(item) for item in obj)
-        elif isinstance(obj, list):
-            return [self._make_pickle_safe(item) for item in obj]
-        elif isinstance(obj, dict):
-            return {k: self._make_pickle_safe(v) for k, v in obj.items()}
-        else:
-            return obj
-    
     def _detach_memory(self, memory):
         """Detach memory tensors to prevent gradient accumulation.
         
-        Critical for preventing memory leaks and training instability.
+        Critical for preventing memory leaks during long training runs.
         """
         if memory is None:
             return None
