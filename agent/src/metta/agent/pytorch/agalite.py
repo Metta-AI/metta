@@ -155,8 +155,11 @@ class AGaLiTeCore(nn.Module):
                     batch_size, n_heads, d_head, actual_eta, actual_r, device
                 )
             else:
+                # Standard mode also uses optimized parameters
+                actual_eta = min(eta, 3)
+                actual_r = min(r, 6)
                 memory_dict[f"layer_{layer}"] = AttentionAGaLiTeLayer.initialize_memory(
-                    batch_size, n_heads, d_head, eta, r, device
+                    batch_size, n_heads, d_head, actual_eta, actual_r, device
                 )
         return memory_dict
 
