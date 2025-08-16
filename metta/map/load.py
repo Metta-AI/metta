@@ -3,11 +3,11 @@ from typing import cast
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-from metta.map.scene import make_scene
+from metta.map.scene import SceneCfg, make_scene
 from metta.map.utils.storable_map import StorableMap
 from metta.mettagrid.map_builder.map_builder import GameMap
 
-from .types import Area, SceneCfg
+from .types import Area
 
 
 # Note that this class can't be a scene, because the width and height come from the stored data.
