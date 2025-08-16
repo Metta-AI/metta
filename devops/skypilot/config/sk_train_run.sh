@@ -264,6 +264,11 @@ terminate_process() {
   echo "$reason" > "$TERMINATION_REASON_FILE"
   TERMINATION_REASON="$reason"
 
+  # Master broadcasts the stop to all nodes via shared flag
+  if [[ "$IS_MASTER" == "true" ]] && [ -n "${CLUSTER_STOP_FILE:-}" ]; then
+    echo "$reason" > "$CLUSTER_STOP_FILE"
+  fi
+
   # Only send signal if not already shutting down
   if [ $SHUTDOWN_IN_PROGRESS -eq 0 ]; then
     # Send TERM to self, which will trigger graceful_shutdown
@@ -344,7 +349,7 @@ run_cmd() {
     echo "[INFO] Started timeout monitor with PID: $TIMEOUT_MONITOR_PID"
   fi
 
-  if [[ "$IS_MASTER" == "true" ]] && [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
+  if [[ "${HEARTBEAT_TIMEOUT}" != "0" ]]; then
     echo "[INFO] Starting heartbeat monitor ${HEARTBEAT_TIMEOUT}s on $HEARTBEAT_FILE"
     echo "[INFO] Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
 
@@ -373,6 +378,14 @@ run_cmd() {
             terminate_process "$CMD_PID" "heartbeat_timeout"
             break
           fi
+        fi
+
+        # --- cluster stop check ---
+        if [ -n "${CLUSTER_STOP_FILE:-}" ] && [ -s "$CLUSTER_STOP_FILE" ]; then
+          reason="$(cat "$CLUSTER_STOP_FILE" 2>/dev/null || true)"
+          echo "[INFO] Cluster stop flag detected (${reason:-no-reason}); requesting shutdown"
+          terminate_process "$CMD_PID" "${reason:-cluster_stop}"
+          break
         fi
 
         sleep "$HEARTBEAT_CHECK_INTERVAL"
@@ -523,6 +536,10 @@ fi
 # Run the command
 run_cmd
 CMD_EXIT=$?
+
+if [[ "$IS_MASTER" == "true" ]] && [ -z "${TERMINATION_REASON:-}" ] && [ -n "${CLUSTER_STOP_FILE:-}" ]; then
+  echo "completed" > "$CLUSTER_STOP_FILE"
+fi
 
 # Exit with the appropriate code (cleanup will run automatically)
 exit ${FINAL_EXIT_CODE:-$CMD_EXIT}
