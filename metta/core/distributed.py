@@ -32,6 +32,7 @@ def setup_torch_distributed(device: str) -> TorchDistributedConfig:
         torch.distributed.init_process_group(backend="nccl")
 
         torch.cuda.set_device(device)
+        distributed = True
         local_rank = torch.distributed.get_rank()
         world_size = torch.distributed.get_world_size()
         rank = torch.distributed.get_rank()

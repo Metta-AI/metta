@@ -79,9 +79,7 @@ def tool_cfg_play() -> PlayTool:
     )
 
 
-def tool_cfg_train() -> TrainTool:
-    run = "daveey-arena"
-
+def tool_cfg_train(run: str) -> TrainTool:
     # make a set of training tasks for the arena
     arena_tasks = cc.tasks(arena)
 
