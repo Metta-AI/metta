@@ -128,7 +128,7 @@ kickstart:
 
 # Dual-policy training configuration (for training against NPC policies)
 dual_policy:
-  enabled: true
+  enabled: false # Set to true only when providing an NPC policy URI
   checkpoint_npc:
     uri: null
     type: top

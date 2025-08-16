@@ -39,7 +39,11 @@ from metta.rl.policy_management import (
     initialize_policy_for_environment,
     wrap_agent_distributed,
 )
-from metta.rl.rollout import get_observation, send_observation
+from metta.rl.rollout import (
+    get_observation,
+    run_dual_policy_rollout,
+    send_observation,
+)
 from metta.rl.stats import (
     StatsTracker,
     accumulate_rollout_stats,
@@ -158,26 +162,39 @@ def train(
 
     # Load NPC checkpoint policy if dual-policy is enabled
     npc_policy = None
-    if trainer_cfg.dual_policy.enabled and trainer_cfg.dual_policy.checkpoint_npc.uri:
-        try:
-            npc_record = policy_store.policy_record(trainer_cfg.dual_policy.checkpoint_npc.uri)
-            npc_policy = npc_record.policy
-            # Initialize policy to environment
-            features = metta_grid_env.get_observation_features()
-            npc_policy.initialize_to_environment(
-                features,
-                metta_grid_env.action_names,
-                metta_grid_env.max_action_args,
-                device,
+    npc_record = None  # Initialize to None for later reference
+    if trainer_cfg.dual_policy.enabled:
+        if not trainer_cfg.dual_policy.checkpoint_npc.uri:
+            logger.warning(
+                "dual_policy.enabled is True but no checkpoint_npc.uri provided. "
+                "Disabling dual-policy mode. Set dual_policy.enabled=false to suppress this warning."
             )
-        except Exception as e:
-            logger.error(
-                f"Failed to load NPC checkpoint policy {trainer_cfg.dual_policy.checkpoint_npc.uri}: {e}",
-                exc_info=True,
-            )
-            # Disable dual policy if NPC loading fails
             trainer_cfg.dual_policy.enabled = False
-            logger.warning("Disabling dual policy training due to NPC policy load failure")
+        else:
+            try:
+                npc_record = policy_store.policy_record(trainer_cfg.dual_policy.checkpoint_npc.uri)
+                npc_policy = npc_record.policy
+                # Initialize policy to environment
+                features = metta_grid_env.get_observation_features()
+                npc_policy.initialize_to_environment(
+                    features,
+                    metta_grid_env.action_names,
+                    metta_grid_env.max_action_args,
+                    device,
+                )
+                logger.info(f"Loaded NPC policy from {trainer_cfg.dual_policy.checkpoint_npc.uri}")
+                logger.info(f"NPC policy run name: {npc_record.run_name}")
+                logger.info(
+                    f"Dual-policy training enabled: {trainer_cfg.dual_policy.training_agents_pct:.1%} training agents"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Failed to load NPC checkpoint policy {trainer_cfg.dual_policy.checkpoint_npc.uri}: {e}",
+                    exc_info=True,
+                )
+                # Disable dual policy if NPC loading fails
+                trainer_cfg.dual_policy.enabled = False
+                logger.warning("Disabling dual policy training due to NPC policy load failure")
 
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
@@ -352,7 +369,8 @@ def train(
                 # Precompute agent split per-env and publish to env for logging
                 npc_mask_per_env: torch.Tensor | None = None
                 agents_per_env = metta_grid_env.num_agents
-                if trainer_cfg.dual_policy.enabled and agents_per_env > 0:
+                # Only create NPC mask if dual-policy is enabled AND NPC policy is loaded
+                if trainer_cfg.dual_policy.enabled and npc_policy is not None and agents_per_env > 0:
                     npc_count = int(round(agents_per_env * (1.0 - trainer_cfg.dual_policy.training_agents_pct)))
                     # Ensure at least 1 student agent and at most agents_per_env-1 NPCs
                     npc_count = max(0, min(npc_count, agents_per_env - 1))
@@ -377,25 +395,40 @@ def train(
                     o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
                     total_steps += num_steps
 
-                    td = buffer_step[training_env_id].clone()
-                    td["env_obs"] = o
-                    td["rewards"] = r
-                    td["dones"] = d.float()
-                    td["truncateds"] = t.float()
-                    td.set(
-                        "training_env_id_start",
-                        torch.full(
-                            td.batch_size,
-                            training_env_id.start,
-                            device=td.device,
-                            dtype=torch.long,
-                        ),
-                    )
+                    # Run policy inference (dual-policy or single-policy)
+                    if trainer_cfg.dual_policy.enabled and npc_policy is not None:
+                        # Dual-policy training: students use training policy, NPCs use frozen policy
+                        # NPCs are marked with is_student_agent=0 for reward masking
+                        actions, selected_action_log_probs, values, lstm_state_to_store = run_dual_policy_rollout(
+                            training_policy=policy,
+                            npc_policy_record=npc_record,  # type: ignore
+                            observations=o,
+                            experience=experience,
+                            training_env_id_start=training_env_id.start,
+                            device=device,
+                            training_agents_pct=trainer_cfg.dual_policy.training_agents_pct,
+                            num_agents_per_env=agents_per_env,
+                            num_envs=vecenv.num_envs,
+                        )
 
-                    # Inference
-                    with torch.no_grad():
-                        # Default: student policy acts for all agents
-                        policy(td)
+                        # Create TensorDict for experience storage
+                        td = buffer_step[training_env_id].clone()
+                        td["env_obs"] = o
+                        td["rewards"] = r
+                        td["dones"] = d.float()
+                        td["truncateds"] = t.float()
+                        td["actions"] = actions
+                        td["act_log_prob"] = selected_action_log_probs
+                        td["value"] = values
+                        td.set(
+                            "training_env_id_start",
+                            torch.full(
+                                td.batch_size,
+                                training_env_id.start,
+                                device=td.device,
+                                dtype=torch.long,
+                            ),
+                        )
 
                         # Create student agent mask (inverse of NPC mask)
                         if npc_mask_per_env is not None and agents_per_env > 0:
@@ -418,34 +451,31 @@ def train(
                             # No NPCs, all agents are students
                             td["is_student_agent"] = torch.ones(td.batch_size[0], device=device, dtype=torch.float32)
 
-                        # If dual-policy is enabled and npc_policy is available, overwrite NPC agents' actions
-                        if (
-                            trainer_cfg.dual_policy.enabled
-                            and npc_policy is not None
-                            and npc_mask_per_env is not None
-                            and npc_mask_per_env.any().item()
-                        ):
-                            td_npc = td.clone()
-                            npc_policy(td_npc)
-                            actions = td["actions"].clone()
-                            # Merge NPC actions depending on action tensor shape
-                            if actions.ndim >= 3:
-                                # Shape like [B, num_agents, action_components]
-                                actions[..., npc_mask_per_env, :] = td_npc["actions"][..., npc_mask_per_env, :]
-                            elif actions.ndim == 2:
-                                # Shape like [B*agents_per_env, action_components]
-                                total = actions.shape[0]
-                                if agents_per_env > 0 and total % agents_per_env == 0:
-                                    repeats = total // agents_per_env
-                                    npc_mask_flat = npc_mask_per_env.repeat(repeats)
-                                    actions[npc_mask_flat, :] = td_npc["actions"][npc_mask_flat, :]
-                                else:
-                                    # Unable to infer grouping; skip merge to avoid shape errors
-                                    pass
-                            else:
-                                # Unsupported shape; skip merge
-                                pass
-                            td["actions"] = actions
+                        # LSTM state is handled by experience.store
+
+                    else:
+                        # Single-policy training: all agents use training policy
+                        td = buffer_step[training_env_id].clone()
+                        td["env_obs"] = o
+                        td["rewards"] = r
+                        td["dones"] = d.float()
+                        td["truncateds"] = t.float()
+                        td.set(
+                            "training_env_id_start",
+                            torch.full(
+                                td.batch_size,
+                                training_env_id.start,
+                                device=td.device,
+                                dtype=torch.long,
+                            ),
+                        )
+
+                        # Inference
+                        with torch.no_grad():
+                            policy(td)
+
+                        # All agents are students
+                        td["is_student_agent"] = torch.ones(td.batch_size[0], device=device, dtype=torch.float32)
 
                     # Store experience
                     experience.store(
