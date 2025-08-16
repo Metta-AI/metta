@@ -14,25 +14,20 @@ from metta.agent.pytorch.base import LSTMWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 from pufferlib.pytorch import layer_init as init_layer
 
-from metta.agent.modules.agalite_batched import BatchedAGaLiTe
-
 logger = logging.getLogger(__name__)
 
 
 class AgaliteHybrid(PyTorchAgentMixin, LSTMWrapper):
-    """Hybrid AGaLiTe-LSTM architecture for efficient RL training.
+    """Simplified hybrid architecture matching Fast's performance characteristics.
 
-    This uses AGaLiTe's sophisticated attention-based observation encoding
-    combined with LSTM for temporal processing. This hybrid approach provides:
-    - AGaLiTe's powerful observation processing with linear attention
-    - LSTM's efficient O(1) temporal state updates
-    - Full compatibility with Metta's training infrastructure via mixin
-    - Automatic gradient detachment and proper state management
+    This is a streamlined version that:
+    - Uses Fast's proven CNN architecture without AGaLiTe overhead
+    - Maintains Fast's LSTM dimensions (128) for better learning
+    - Keeps improved observation encoding (scatter-based) and initialization
+    - Removes redundant AGaLiTe processing that was hurting performance
+    """
 
-    Note: This is not the pure AGaLiTe transformer from the paper, but a
-    practical hybrid that achieves better training efficiency."""
-
-    def __init__(self, env, policy=None, input_size=256, hidden_size=256, num_layers=2, **kwargs):
+    def __init__(self, env, policy=None, input_size=128, hidden_size=128, num_layers=2, **kwargs):
         """Initialize with mixin support for configuration parameters.
         
         Args:
@@ -110,48 +105,45 @@ class AgaliteHybrid(PyTorchAgentMixin, LSTMWrapper):
 class AgalitePolicy(nn.Module):
     """Inner policy using AGaLiTe architecture."""
 
-    def __init__(self, env, input_size=256, hidden_size=256):
+    def __init__(self, env, input_size=128, hidden_size=128):
         super().__init__()
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.is_continuous = False  # Required by PufferLib
         self.action_space = env.single_action_space
+        
         # Observation parameters
-        self.out_width = 11
-        self.out_height = 11
-        self.num_layers = 22
+        self.out_width = env.obs_width if hasattr(env, "obs_width") else 11
+        self.out_height = env.obs_height if hasattr(env, "obs_height") else 11
+        
+        # Dynamically determine num_layers from environment (matching Fast)
+        if hasattr(env, "feature_normalizations"):
+            self.num_layers = max(env.feature_normalizations.keys()) + 1
+        else:
+            self.num_layers = 25  # Default fallback
 
-        # Create observation encoders
-        self.cnn_encoder = nn.Sequential(
-            init_layer(nn.Conv2d(self.num_layers, 128, 5, stride=3)),
-            nn.ReLU(),
-            init_layer(nn.Conv2d(128, 128, 3, stride=1)),
-            nn.ReLU(),
-            nn.Flatten(),
-            init_layer(nn.Linear(128, input_size // 2)),
-            nn.ReLU(),
+        # CNN architecture matching Fast exactly
+        # Note: Using std=1.0 to match YAML orthogonal gain=1
+        self.cnn1 = init_layer(
+            nn.Conv2d(in_channels=self.num_layers, out_channels=64, kernel_size=5, stride=3),
+            std=1.0  # Match Fast's initialization
         )
-
-        self.self_encoder = nn.Sequential(
-            init_layer(nn.Linear(self.num_layers, input_size // 2)),
-            nn.ReLU(),
+        self.cnn2 = init_layer(
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
+            std=1.0  # Match Fast's initialization
         )
-
-        # AGaLiTe core (without LSTM since PufferLib wrapper handles that)
-        self.agalite_core = BatchedAGaLiTe(
-            n_layers=2,  # Reduced for efficiency
-            d_model=input_size,
-            d_head=64,
-            d_ffc=hidden_size * 2,
-            n_heads=4,
-            eta=4,
-            r=4,
-            reset_on_terminate=True,
-            dropout=0.0,  # No dropout for inference speed
-        )
-
-        # Initialize AGaLiTe memory
-        self.agalite_memory = None
+        
+        # Calculate flattened size
+        test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
+        with torch.no_grad():
+            test_output = self.cnn2(self.cnn1(test_input))
+            self.flattened_size = test_output.numel() // test_output.shape[0]
+        
+        self.flatten = nn.Flatten()
+        
+        # Linear layers matching Fast
+        self.fc1 = init_layer(nn.Linear(self.flattened_size, 128), std=1.0)
+        self.encoded_obs = init_layer(nn.Linear(128, input_size), std=1.0)
 
         # Critic branch - Two layers matching Fast
         # critic_1 uses gain=sqrt(2) because it's followed by tanh
@@ -217,17 +209,33 @@ class AgalitePolicy(nn.Module):
         self.active_action_names = full_action_names
         self.num_active_actions = len(full_action_names)
 
+    def network_forward(self, x):
+        """CNN forward pass matching Fast exactly."""
+        x = x / self.max_vec
+        x = self.cnn1(x)
+        x = F.relu(x)  # ReLU after cnn1 (matching Fast)
+        x = self.cnn2(x)
+        x = F.relu(x)  # ReLU after cnn2 (matching Fast)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        x = F.relu(x)  # ReLU after fc1 (matching Fast)
+        x = self.encoded_obs(x)
+        x = F.relu(x)  # ReLU after encoded_obs (matching Fast)
+        return x
+
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
-        """Encode observations into features."""
-        B = observations.shape[0]
+        """Encode observations matching Fast but with scatter-based placement."""
+        token_observations = observations
+        B = token_observations.shape[0]
+        TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
+        B_TT = B * TT
 
-        # Process token observations
-        if observations.dim() != 3:
-            observations = einops.rearrange(observations, "b t m c -> (b t) m c")
-            B = observations.shape[0]
-
-        # Don't modify original tensor - ComponentPolicy doesn't do this (PR #2126)
-        # observations[observations == 255] = 0  # REMOVED
+        if token_observations.dim() != 3:
+            token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
+        
+        assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
+        
+        # Don't modify original tensor (PR #2126)
         
         # Extract coordinates and attributes (matching ObsTokenToBoxShaper exactly)
         coords_byte = observations[..., 0].to(torch.uint8)
@@ -271,54 +279,8 @@ class AgalitePolicy(nn.Module):
         box_flat.scatter_(1, safe_index, safe_values)
         box_obs = box_flat.view(B, self.num_layers, self.out_width, self.out_height)
 
-        # Normalize and encode
-        features = box_obs / self.max_vec
-        self_features = self.self_encoder(features[:, :, 5, 5])
-        cnn_features = self.cnn_encoder(features)
-
-        encoded = torch.cat([self_features, cnn_features], dim=1)
-
-        # Pass through AGaLiTe core (without time dimension - LSTM wrapper handles that)
-        # Initialize memory if needed
-        if self.agalite_memory is None:
-            self.agalite_memory = BatchedAGaLiTe.initialize_memory(
-                batch_size=B,
-                n_layers=2,
-                n_heads=4,
-                d_head=64,
-                eta=4,
-                r=4,
-                device=encoded.device,
-            )
-
-        # Check if batch size changed
-        memory_batch_size = next(iter(next(iter(self.agalite_memory.values())))).shape[0]
-        if memory_batch_size != B:
-            # Reinitialize memory for new batch size
-            self.agalite_memory = BatchedAGaLiTe.initialize_memory(
-                batch_size=B,
-                n_layers=2,
-                n_heads=4,
-                d_head=64,
-                eta=4,
-                r=4,
-                device=encoded.device,
-            )
-
-        # Add time dimension for AGaLiTe
-        encoded = encoded.unsqueeze(0)  # (1, B, features)
-        terminations = torch.zeros(1, B, device=encoded.device)
-
-        # Forward through AGaLiTe
-        agalite_out, new_memory = self.agalite_core(encoded, terminations, self.agalite_memory)
-
-        # Detach memory to prevent gradient accumulation
-        self.agalite_memory = {
-            key: tuple(tensor.detach() for tensor in layer_memory) for key, layer_memory in new_memory.items()
-        }
-
-        # Remove time dimension
-        return agalite_out.squeeze(0)
+        # Simply pass through CNN (no AGaLiTe overhead)
+        return self.network_forward(box_obs)
 
     def decode_actions(self, hidden: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Decode actions using two-layer critic and bilinear actor."""
@@ -354,6 +316,7 @@ class AgalitePolicy(nn.Module):
         
         return logits, value
 
-    def reset_memory(self):
-        """Reset AGaLiTe memory."""
-        self.agalite_memory = None
+    def activate_action_embeddings(self, full_action_names: list[str], device):
+        """Activate action embeddings, matching Fast's behavior."""
+        self.active_action_names = full_action_names
+        self.num_active_actions = len(full_action_names)
