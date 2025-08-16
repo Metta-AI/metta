@@ -43,6 +43,7 @@ game:
     - blueprint
 
   # Show recipe inputs in observations for all converters
+  resource_loss_prob: 0.0
   recipe_details_obs: false
 
   actions:

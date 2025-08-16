@@ -47,7 +47,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       _global_obs_config(cfg.global_obs),
       _num_observation_tokens(cfg.num_observation_tokens),
       _track_movement_metrics(cfg.track_movement_metrics),
-      _no_agent_interference(cfg.no_agent_interference) {
+      _no_agent_interference(cfg.no_agent_interference),
+      _resource_loss_prob(cfg.resource_loss_prob) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -521,6 +522,29 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
       _action_success[agent_idx] = handler->handle_action(agent->id, arg);
     }
   }
+
+     // Handle resource loss
+   for (auto& agent : _agents) {
+     if (_resource_loss_prob > 0.0f) {
+       // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
+       // Make a real copy of the agent's inventory map to avoid iterator invalidation
+       const auto inventory_copy = agent->inventory;
+       for (const auto& [item, qty] : inventory_copy) {
+         if (qty > 0) {
+           double loss = _resource_loss_prob * qty;
+           int lost = static_cast<int>(std::floor(loss));
+           // With probability equal to the fractional part, lose one more
+           if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
+             lost += 1;
+           }
+
+           if (lost > 0) {
+            agent->update_inventory(item, -static_cast<InventoryDelta>(lost));
+           }
+         }
+       }
+     }
+   }
 
   // Compute observations for next step
   _compute_observations(actions);
@@ -1119,6 +1143,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
                     bool,
                     bool,
+                    float,
                     bool>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
@@ -1132,6 +1157,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("objects"),
            py::arg("track_movement_metrics"),
            py::arg("no_agent_interference") = false,
+           py::arg("resource_loss_prob") = 0.0f,
            py::arg("recipe_details_obs") = false)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
@@ -1143,6 +1169,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("global_obs", &GameConfig::global_obs)
       .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
       .def_readwrite("no_agent_interference", &GameConfig::no_agent_interference)
+      .def_readwrite("resource_loss_prob", &GameConfig::resource_loss_prob)
       .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!
