@@ -44,7 +44,7 @@ def make_env_func(
     )
     set_buffers(env, buf)
     env._current_task = task
-    
+
     def on_episode_done(obs, rew, term, trunc, info):
         nonlocal task
         task.complete(rew.mean())
