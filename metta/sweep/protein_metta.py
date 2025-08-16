@@ -7,7 +7,7 @@ from metta.common.util.numpy_helpers import clean_numpy_types
 
 from .protein import Protein
 
-logger = logging.getLogger("wandb_protein")
+logger = logging.getLogger("metta_protein")
 
 # Ensure appropriate logging level for debugging observation loading issues
 if logger.level == logging.NOTSET:

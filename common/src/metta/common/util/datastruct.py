@@ -1,5 +1,5 @@
 from collections import Counter
-from typing import Hashable, Iterable, List
+from typing import Any, Dict, Hashable, Iterable, List
 
 from omegaconf import DictConfig, ListConfig
 
@@ -63,6 +63,42 @@ def flatten_config(obj, parent_key="", sep="."):
         items[parent_key] = obj
 
     return items
+
+
+def convert_dict_to_cli_args(suggestion: Dict[str, Any], prefix: str = "") -> list[str]:
+    """Convert a nested dictionary to Hydra command-line arguments."""
+    args = []
+
+    for key, value in suggestion.items():
+        # Build the full key path
+        full_key = f"{prefix}.{key}" if prefix else key
+
+        if isinstance(value, dict):
+            # Recursively handle nested dictionaries
+            args.extend(convert_dict_to_cli_args(value, full_key))
+        else:
+            # Convert the value to a string appropriate for command line
+            if isinstance(value, bool):
+                str_value = "true" if value else "false"
+            elif isinstance(value, (int, float)):
+                # Use scientific notation for very small/large numbers
+                if isinstance(value, float) and (abs(value) < 1e-6 or abs(value) > 1e6):
+                    str_value = f"{value:.6e}"
+                else:
+                    str_value = str(value)
+            elif value is None:
+                str_value = "null"
+            else:
+                # Quote strings if they contain spaces or special characters
+                str_value = str(value)
+                if " " in str_value or "=" in str_value:
+                    str_value = f"'{str_value}'"
+
+            # Use ++ prefix to force add-or-override keys regardless of struct mode
+            # This works for both existing keys and new keys
+            args.append(f"++{full_key}={str_value}")
+
+    return args
 
 
 def duplicates(iterable: Iterable[Hashable]) -> List[Hashable]:
