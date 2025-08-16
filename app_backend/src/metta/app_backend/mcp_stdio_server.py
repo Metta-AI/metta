@@ -34,13 +34,9 @@ def main():
         },
     )
 
-    print("🚀 Starting Metta Observatory MCP server in stdio mode", file=sys.stderr)
-
     # Run in stdio mode
     mcp.run()
 
 
 if __name__ == "__main__":
-    import sys
-
     main()
