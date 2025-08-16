@@ -7,8 +7,6 @@ Simulation driver for evaluating policies in the Metta environment.
    ▸ export the merged stats DB if an output URI is provided
 """
 
-from __future__ import annotations
-
 import json
 import logging
 import sys
@@ -26,22 +24,26 @@ from metta.eval.eval_service import evaluate_policy
 from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationConfig
 
+logger = logging.getLogger(__name__)
+
 
 class SimTool(Tool):
-    wandb: WandbConfig = Field(default_factory=WandbConfigOff)
-    simulations: list[SimulationConfig]
-    policy_uris: list[str]
-    selector_type: PolicySelectorType = "top"
-    stats_db_uri: str
-    register_missing_policies: bool = False
+    # required params:
+    simulations: list[SimulationConfig]  # list of simulations to run
+    policy_uris: list[str]  # list of policy uris to evaluate
     stats_dir: str  # The (local) directory where stats should be stored
     replay_dir: str  # where to store replays
+
+    wandb: WandbConfig = Field(default_factory=WandbConfigOff)
+
+    selector_type: PolicySelectorType = "top"
+    stats_db_uri: str | None = None  # If set, export stats to this url (local path, wandb:// or s3://)
+    stats_server_uri: str | None = None  # If set, send stats to this http server
+    register_missing_policies: bool = False
     eval_task_id: str | None = None
     push_metrics_to_wandb: bool = False
 
     def invoke(self) -> None:
-        logger = logging.getLogger("tools.sim")
-
         # TODO(daveey): #dehydration
         policy_store = PolicyStore.create(
             device=self.system.device,
@@ -50,8 +52,8 @@ class SimTool(Tool):
             wandb_run=None,
         )
         stats_client: StatsClient | None
-        if self.stats_db_uri is not None:
-            stats_client = StatsClient.create(self.stats_db_uri)
+        if self.stats_server_uri is not None:
+            stats_client = StatsClient.create(self.stats_server_uri)
 
         policy_records_by_uri: dict[str, list[PolicyRecord]] = {
             policy_uri: policy_store.policy_records(
