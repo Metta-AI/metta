@@ -114,7 +114,6 @@ def make_nav(num_agents: int) -> EnvConfig:
             actions=ActionsConfig(
                 move=ActionConfig(),
                 rotate=ActionConfig(),
-                put_items=ActionConfig(),
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
