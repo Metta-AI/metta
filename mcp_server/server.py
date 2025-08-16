@@ -11,11 +11,12 @@ import boto3
 
 # from mcp.server import FastMCP
 from fastmcp import FastMCP
+from pydantic.types import Json
 from wandb.apis.public.api import Api as WandbApi
 
 from metta.app_backend.clients.scorecard_client import ScorecardClient
 
-CONFIG_PATH = Path(__file__).resolve() / "metta.mcp.json"
+CONFIG_PATH = Path(__file__).resolve().parent / "metta.mcp.json"
 try:
     CONFIG = json.loads(Path(CONFIG_PATH).read_text())
 except Exception:
@@ -32,25 +33,60 @@ def _get_backend_url(dev_mode: bool) -> str:
         return CONFIG["resources"]["app_backend_scorecard"]["production_url"]
 
 
+def _parse_json_maybe(value: str) -> Json | None:
+    if isinstance(value, str) and value.strip().startswith("["):
+        try:
+            import json
+
+            parsed = json.loads(value)
+            return parsed
+        except (json.JSONDecodeError, ValueError):
+            # Not valid JSON, fall through to CSV parsing
+            pass
+    return None
+
+
 def _parse_str_or_list(value: str | list[str] | None) -> list[str]:
     """Normalize tool args that may arrive as CSV strings or lists.
 
     - "a,b,c" -> ["a", "b", "c"]
     - ["a", "b"] -> ["a", "b"]
-    - None -> []
+    - '["a", "b"]' -> ["a", "b"]  (JSON array)
     """
     if value is None:
         return []
+
     if isinstance(value, list):
         return value
+
+    maybe_json = _parse_json_maybe(value)
+    if maybe_json is not None:
+        return [str(item) for item in maybe_json]
+
+    # Parse as CSV
     return [part.strip() for part in value.split(",") if part.strip()]
 
 
 def _parse_optional_str_or_list(value: str | list[str] | None) -> list[str] | None:
+    """Normalize tool args that may arrive as CSV strings or lists.
+
+    - "a,b,c" -> ["a", "b", "c"]
+    - ["a", "b"] -> ["a", "b"]
+    - '["a", "b"]' -> ["a", "b"]  (JSON array)
+    - None -> None // []
+    """
+
     if value is None:
         return None
+
     if isinstance(value, list):
         return value
+
+    # Check if it's a JSON array string
+    maybe_json = _parse_json_maybe(value)
+    if maybe_json is not None:
+        return [str(item) for item in maybe_json]
+
     return [p.strip() for p in value.split(",") if p.strip()]
 
 
@@ -318,6 +354,90 @@ async def list_s3_objects(
 
 
 @mcp.tool()
+async def list_s3_prefixes(
+    bucket: str | None = None,
+    prefix: str | None = None,
+    limit: int = 100,
+) -> list[str]:
+    """List common prefixes ("directories") in an S3 bucket under a prefix.
+
+    Args:
+        bucket (str | None): Bucket name. Uses first configured bucket when None.
+        prefix (str | None): Key prefix to look under.
+        limit (int): Maximum number of results to return. Defaults to 100.
+
+    Returns:
+        list[str]: Discovered common prefixes ending with '/'.
+    """
+    cfg = CONFIG["resources"]["aws_s3"]
+    bucket_name = bucket or cfg["buckets"][0]
+    s3 = boto3.client("s3", region_name=cfg.get("region"))
+    paginator = s3.get_paginator("list_objects_v2")
+    page_iterator = paginator.paginate(
+        Bucket=bucket_name,
+        Prefix=prefix or "",
+        Delimiter="/",
+        PaginationConfig={"MaxItems": limit},
+    )
+    prefixes: list[str] = []
+    for page in page_iterator:
+        for cp in page.get("CommonPrefixes", []):
+            p = cp.get("Prefix")
+            if p:
+                prefixes.append(p)
+    return prefixes
+
+
+@mcp.tool()
+async def get_s3_object_head(
+    bucket: str | None,
+    key: str,
+) -> dict[str, Any]:
+    """Fetch S3 object metadata (HEAD) without downloading the body.
+
+    Args:
+        bucket (str | None): Bucket name. Uses first configured bucket when None.
+        key (str): Object key to inspect.
+
+    Returns:
+        dict[str, Any]: Object metadata such as size, content type, ETag, and custom metadata.
+    """
+    cfg = CONFIG["resources"]["aws_s3"]
+    bucket_name = bucket or cfg["buckets"][0]
+    s3 = boto3.client("s3", region_name=cfg.get("region"))
+    resp = s3.head_object(Bucket=bucket_name, Key=key)
+
+    def _serialize(value: Any) -> Any:
+        try:
+            # Serialize datetimes and other objects that expose isoformat
+            if hasattr(value, "isoformat"):
+                return value.isoformat()  # type: ignore[no-any-return]
+        except Exception:
+            pass
+        return value
+
+    # Select a subset plus pass-through Metadata
+    fields = [
+        "ContentLength",
+        "ContentType",
+        "ETag",
+        "LastModified",
+        "StorageClass",
+        "ContentEncoding",
+        "ContentLanguage",
+        "CacheControl",
+        "Expires",
+        "VersionId",
+        "Metadata",
+    ]
+    result: dict[str, Any] = {}
+    for f in fields:
+        if f in resp:
+            result[f] = _serialize(resp[f])
+    return result
+
+
+@mcp.tool()
 async def list_skypilot_jobs() -> list[dict[str, Any]]:
     """List active Skypilot jobs for the logged in user.
 
@@ -332,6 +452,37 @@ async def list_skypilot_jobs() -> list[dict[str, Any]]:
     except json.JSONDecodeError:
         return []
     return data
+
+
+@mcp.tool()
+async def get_wandb_run_url(run_name: str, project: str | None = None, entity: str | None = None) -> str:
+    """Get the URL for a specific Weights & Biases run by name.
+
+    Args:
+        run_name (str): The run name or id to fetch.
+        project (str | None): W&B project name. Uses configured default when None.
+        entity (str | None): W&B entity (organization or user). Uses configured default when None.
+
+    Returns:
+        str: The URL for the run.
+    """
+    cfg = CONFIG["resources"]["wandb"]
+    entity = entity or cfg["entity"]
+    project = project or cfg["project"]
+    wandb_api = WandbApi()
+    run = wandb_api.runs(f"{entity}/{project}/runs/${run_name}")
+    return f"https://wandb.ai/{entity}/{project}/runs/{run.id}"
+
+
+@mcp.tool()
+async def whoami(dev_mode: bool = False) -> str:
+    """Get the current user's email."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        try:
+            result = await client.validate_authenticated()
+            return result
+        except ConnectionError as e:
+            return f"Error: {e}"
 
 
 if __name__ == "__main__":
