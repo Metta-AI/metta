@@ -11,7 +11,9 @@ This script:
 
 import asyncio
 import logging
+import math
 import os
+from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 
 from ddtrace.trace import tracer
@@ -40,21 +42,74 @@ class WorkerInfo(BaseModel):
     assigned_task: TaskResponse | None = None
 
 
+class AbstractWorkerScaler(ABC):
+    @abstractmethod
+    async def get_desired_workers(self, num_workers: int) -> int:
+        pass
+
+
+class FixedScaler(AbstractWorkerScaler):
+    def __init__(self, num_workers: int):
+        self._num_workers = num_workers
+
+    async def get_desired_workers(self, num_workers: int) -> int:
+        return self._num_workers
+
+
+class AutoScaler(AbstractWorkerScaler):
+    def __init__(self, task_client: EvalTaskClient, default_task_runtime: float, logger: logging.Logger):
+        self._task_client = task_client
+        self._default_task_runtime = default_task_runtime
+        self._logger = logger
+
+    async def _compute_desired_workers(self, avg_task_runtime: float) -> int:
+        num_tasks_per_day = (await self._task_client.count_tasks("created_at > NOW() - INTERVAL '1 day'")).count
+        total_work_time_seconds = num_tasks_per_day * avg_task_runtime
+        single_worker_work_time_seconds = 60 * 60 * 24
+        return math.ceil(total_work_time_seconds / single_worker_work_time_seconds * 1.2)  # 20% buffer
+
+    async def _get_avg_task_runtime(self) -> float:
+        avg_task_runtime = self._default_task_runtime
+        num_done_tasks_last_day = (
+            await self._task_client.count_tasks("status = 'done' AND created_at > NOW() - INTERVAL '1 day'")
+        ).count
+        if num_done_tasks_last_day > 20:
+            avg_runtime_last_day = (
+                await self._task_client.get_avg_runtime("status = 'done' AND created_at > NOW() - INTERVAL '1 day'")
+            ).avg_runtime
+            if avg_runtime_last_day is not None:
+                avg_task_runtime = avg_runtime_last_day
+        return avg_task_runtime
+
+    async def get_desired_workers(self, num_workers: int) -> int:
+        num_unclaimed_tasks = (await self._task_client.count_tasks("status = 'unprocessed'")).count
+        avg_task_runtime = await self._get_avg_task_runtime()
+        desired_workers = await self._compute_desired_workers(avg_task_runtime)
+
+        if num_unclaimed_tasks > num_workers * 5:
+            # We have a big backlog of tasks.  Launch enough workers to work through the backlog in 1 hour
+            desired_extra_workers = math.ceil(num_unclaimed_tasks * avg_task_runtime / 3600)
+            return num_workers + desired_extra_workers
+        else:
+            return desired_workers
+
+
 class EvalTaskOrchestrator:
     def __init__(
         self,
         task_client: EvalTaskClient,
         worker_manager: AbstractWorkerManager,
+        worker_scaler: AbstractWorkerScaler,
         poll_interval: float = 5.0,
         worker_idle_timeout: float = 1200.0,
-        max_workers: int = 5,
+        default_avg_runtime: float = 200.0,
         logger: logging.Logger | None = None,
     ):
         self._task_client = task_client
         self._worker_manager = worker_manager
+        self._worker_scaler = worker_scaler
         self._poll_interval = poll_interval
         self._worker_idle_timeout = worker_idle_timeout
-        self._max_workers = max_workers
         self._logger = logger or logging.getLogger(__name__)
 
     @trace("orchestrator.claim_task")
@@ -155,10 +210,23 @@ class EvalTaskOrchestrator:
             if not worker.assigned_task and worker.worker.status == "Running":
                 await self._assign_task_to_worker(worker, available_tasks_by_git_hash)
 
-    async def _start_new_workers(self, alive_workers_by_name: dict[str, WorkerInfo]) -> None:
-        # Todo: start workers on demand.  For now just start fixed number of workers
-        for _ in range(self._max_workers - len(alive_workers_by_name)):
-            self._worker_manager.start_worker()
+    async def _scale_workers(self, alive_workers_by_name: dict[str, WorkerInfo]) -> None:
+        desired_workers = await self._worker_scaler.get_desired_workers(len(alive_workers_by_name))
+        if desired_workers > len(alive_workers_by_name):
+            self._logger.info(f"Launching {desired_workers - len(alive_workers_by_name)} extra workers")
+            for _ in range(desired_workers - len(alive_workers_by_name)):
+                self._worker_manager.start_worker()
+        elif desired_workers < len(alive_workers_by_name):
+            # If we have too many workers, kill some idle workers
+            idle_workers = [
+                w for w in alive_workers_by_name.values() if not w.assigned_task and w.worker.status == "Running"
+            ]
+            if idle_workers:
+                num_workers_to_kill = max(len(idle_workers), len(alive_workers_by_name) - desired_workers)
+                self._logger.info(f"Killing {num_workers_to_kill} idle workers")
+                for worker in idle_workers[:num_workers_to_kill]:
+                    self._worker_manager.cleanup_worker(worker.worker.name)
+                    del alive_workers_by_name[worker.worker.name]
 
     @trace("orchestrator.run_cycle")
     async def run_cycle(self) -> None:
@@ -169,7 +237,7 @@ class EvalTaskOrchestrator:
 
         await self._assign_tasks_to_workers(alive_workers_by_name)
 
-        await self._start_new_workers(alive_workers_by_name)
+        await self._scale_workers(alive_workers_by_name)
 
     async def run(self) -> None:
         self._logger.info(f"Backend URL: {getattr(self._task_client, '_base_url', 'unknown')}")
@@ -201,7 +269,6 @@ async def main() -> None:
     docker_image = os.environ.get("DOCKER_IMAGE", "metta-policy-evaluator-local:latest")
     poll_interval = float(os.environ.get("POLL_INTERVAL", "5"))
     worker_idle_timeout = float(os.environ.get("WORKER_IDLE_TIMEOUT", "1200"))
-    max_workers = int(os.environ.get("MAX_WORKERS", "5"))
     machine_token = os.environ["MACHINE_TOKEN"]
 
     task_client = EvalTaskClient(backend_url)
@@ -213,12 +280,13 @@ async def main() -> None:
         machine_token=machine_token,
         logger=logger,
     )
+    worker_scaler = AutoScaler(task_client, 120.0, logger)
     orchestrator = EvalTaskOrchestrator(
         task_client=task_client,
         worker_manager=worker_manager,
+        worker_scaler=worker_scaler,
         poll_interval=poll_interval,
         worker_idle_timeout=worker_idle_timeout,
-        max_workers=max_workers,
         logger=logger,
     )
 
