@@ -66,8 +66,8 @@ class FusedGRUGating(nn.Module):
         self.gate_proj = nn.Linear(2 * d_model, 3 * d_model, bias=False)
         self.bg = nn.Parameter(torch.full([d_model], bg))
         
-        # Initialize for identity mapping
-        nn.init.xavier_uniform_(self.gate_proj.weight, gain=0.1)
+        # Initialize with orthogonal init for stability (matching AGaLiTe)
+        nn.init.orthogonal_(self.gate_proj.weight, gain=math.sqrt(2))
         
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Apply GRU gating with fused operations.
@@ -120,9 +120,9 @@ class MultiHeadSelfAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.scale = 1.0 / math.sqrt(self.d_k)
         
-        # Initialize weights
-        nn.init.xavier_uniform_(self.qkv_proj.weight, gain=math.sqrt(2))
-        nn.init.xavier_uniform_(self.out_proj.weight)
+        # Initialize weights with orthogonal init (matching AGaLiTe)
+        nn.init.orthogonal_(self.qkv_proj.weight, gain=math.sqrt(2))
+        nn.init.orthogonal_(self.out_proj.weight, gain=math.sqrt(2))
         nn.init.constant_(self.out_proj.bias, 0)
         
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -193,7 +193,7 @@ class TransformerBlock(nn.Module):
         super().__init__()
         self.use_gating = use_gating
         
-        # Pre-normalization (key for stability)
+        # Post-normalization (matching AGaLiTe architecture)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
         
@@ -201,40 +201,53 @@ class TransformerBlock(nn.Module):
         self.attention = MultiHeadSelfAttention(d_model, n_heads, dropout, use_causal_mask)
         self.feed_forward = nn.Sequential(
             nn.Linear(d_model, d_ff),
-            nn.GELU(),
+            nn.ReLU(),  # Use ReLU like AGaLiTe, not GELU
             nn.Dropout(dropout),
             nn.Linear(d_ff, d_model),
             nn.Dropout(dropout),
         )
         
+        # Initialize feed-forward with orthogonal init
+        for module in self.feed_forward:
+            if isinstance(module, nn.Linear):
+                nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
+                nn.init.constant_(module.bias, 0)
+        
         # Gating mechanisms (instead of residual connections)
         if use_gating:
-            self.gate1 = FusedGRUGating(d_model)
-            self.gate2 = FusedGRUGating(d_model)
+            self.gate1 = FusedGRUGating(d_model, bg=2.0)
+            self.gate2 = FusedGRUGating(d_model, bg=2.0)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Process batch of sequences from multiple environments/agents."""
-        # Pre-norm + attention
-        normalized = self.norm1(x)
-        attn_out = self.attention(normalized)
+        """Process batch of sequences from multiple environments/agents.
         
-        # Gate or residual
+        Following AGaLiTe architecture:
+        1. LayerNorm -> Attention -> ReLU -> GRU Gate
+        2. LayerNorm -> FFN -> ReLU -> GRU Gate
+        """
+        # Layer norm + attention (post-norm style like AGaLiTe)
+        ln1_out = self.norm1(x)
+        attn_out = self.attention(ln1_out)
+        attn_out = F.relu(attn_out)  # ReLU activation after attention like AGaLiTe
+        
+        # First GRU gating
         if self.use_gating:
-            x = self.gate1(x, attn_out)
+            gating1_out = self.gate1(x, attn_out)
         else:
-            x = x + attn_out
+            gating1_out = x + attn_out
         
-        # Pre-norm + feed-forward
-        normalized = self.norm2(x)
-        ff_out = self.feed_forward(normalized)
+        # Layer norm + feed-forward
+        ln2_out = self.norm2(gating1_out)
+        ff_out = self.feed_forward(ln2_out)
+        ff_out = F.relu(ff_out)  # ReLU activation after FFN like AGaLiTe
         
-        # Gate or residual
+        # Second GRU gating
         if self.use_gating:
-            x = self.gate2(x, ff_out)
+            out = self.gate2(gating1_out, ff_out)
         else:
-            x = x + ff_out
+            out = gating1_out + ff_out
         
-        return x
+        return out
 
 
 class FullContextTransformer(nn.Module):
@@ -280,8 +293,12 @@ class FullContextTransformer(nn.Module):
         # Positional encoding
         self.positional_encoding = PositionalEncoding(d_model, max_seq_len, dropout)
         
-        # Input layer norm (stabilizes initial training)
-        self.input_norm = nn.LayerNorm(d_model)
+        # Optional input embedding layer (like AGaLiTe's use_dense)
+        self.use_input_proj = True
+        if self.use_input_proj:
+            self.input_proj = nn.Linear(d_model, d_model)
+            nn.init.orthogonal_(self.input_proj.weight, gain=math.sqrt(2))
+            nn.init.constant_(self.input_proj.bias, 0)
         
         # Transformer layers with gating
         self.layers = nn.ModuleList([
@@ -289,7 +306,7 @@ class FullContextTransformer(nn.Module):
             for _ in range(n_layers)
         ])
         
-        # Output layer norm
+        # Output layer norm (applied at the end)
         self.output_norm = nn.LayerNorm(d_model)
         
         # Initialize gates for identity mapping if using gating
@@ -303,13 +320,15 @@ class FullContextTransformer(nn.Module):
                    f"n_layers={n_layers}, use_gating={use_gating}")
     
     def _init_gates_for_identity(self):
-        """Initialize gates to favor identity mapping at start of training."""
-        for layer in self.layers:
-            if hasattr(layer, 'gate1'):
-                # Small initialization to favor passing through original input
-                with torch.no_grad():
-                    layer.gate1.gate_proj.weight.mul_(0.1)
-                    layer.gate2.gate_proj.weight.mul_(0.1)
+        """Initialize gates to favor identity mapping at start of training.
+        
+        The GRU gates are already initialized with:
+        - Orthogonal weight init (gain=sqrt(2))
+        - Bias bg=2.0 for update gate to favor identity
+        This matches AGaLiTe's initialization strategy.
+        """
+        # No additional modification needed - gates are properly initialized
+        pass
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Forward pass processing sequences from multiple environments/agents.
@@ -355,8 +374,10 @@ class FullContextTransformer(nn.Module):
         
         logger.debug(f"After reshaping: T={T}, B={B}, D={D}")
         
-        # Normalize input (stabilization)
-        x = self.input_norm(x)
+        # Optional input projection (like AGaLiTe's embedding layer)
+        if self.use_input_proj:
+            x = self.input_proj(x)
+            x = F.relu(x)  # Activation after input projection
         
         # Add positional encoding
         x = self.positional_encoding(x)
@@ -476,15 +497,21 @@ class FullContextTransformerPolicy(nn.Module):
         self.hidden_dim = hidden_dim
         self.action_dim = action_dim
         
-        # Observation encoder (with layer norm for stability)
+        # Observation encoder (matching activation patterns)
         self.obs_encoder = nn.Sequential(
             nn.Linear(observation_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
-            nn.GELU(),
+            nn.ReLU(),  # Use ReLU for consistency
             nn.Dropout(dropout),
             nn.Linear(hidden_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
         )
+        
+        # Initialize encoder with orthogonal init
+        for module in self.obs_encoder:
+            if isinstance(module, nn.Linear):
+                nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
+                nn.init.constant_(module.bias, 0)
         
         # Full-context transformer
         self.transformer = FullContextTransformer(
@@ -502,7 +529,7 @@ class FullContextTransformerPolicy(nn.Module):
         self.actor = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
-            nn.GELU(),
+            nn.ReLU(),  # Use ReLU for consistency
             nn.Linear(hidden_dim, action_dim),
         )
         
@@ -510,9 +537,16 @@ class FullContextTransformerPolicy(nn.Module):
         self.critic = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
             nn.LayerNorm(hidden_dim),
-            nn.GELU(),
+            nn.ReLU(),  # Use ReLU for consistency
             nn.Linear(hidden_dim, 1),
         )
+        
+        # Initialize actor and critic with orthogonal init
+        for head in [self.actor, self.critic]:
+            for module in head:
+                if isinstance(module, nn.Linear):
+                    nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
+                    nn.init.constant_(module.bias, 0)
         
     def encode_observations(self, obs: torch.Tensor, state: Optional[Dict] = None) -> torch.Tensor:
         """Encode observations to hidden representation.

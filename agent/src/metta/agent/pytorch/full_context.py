@@ -7,6 +7,7 @@ Optimized for parallel processing across thousands of environments/agents.
 """
 
 import logging
+import math
 from typing import Optional
 
 import torch
@@ -90,15 +91,21 @@ class Policy(nn.Module):
         else:
             raise ValueError(f"Unsupported observation shape: {self.obs_shape}")
         
-        # Simple observation encoder with layer norm for stability
+        # Observation encoder with orthogonal init (matching AGaLiTe patterns)
         self.obs_encoder = nn.Sequential(
             nn.Linear(obs_dim, hidden_size),
             nn.LayerNorm(hidden_size),
-            nn.GELU(),
+            nn.ReLU(),  # Use ReLU for consistency with AGaLiTe
             nn.Dropout(dropout),
             nn.Linear(hidden_size, hidden_size),
             nn.LayerNorm(hidden_size),
         )
+        
+        # Initialize encoder with orthogonal init
+        for module in self.obs_encoder:
+            if isinstance(module, nn.Linear):
+                nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
+                nn.init.constant_(module.bias, 0)
         
         # Full-context transformer core (optimized for parallel processing)
         logger.info(f"Creating FullContextTransformer with hidden_size={hidden_size}, "
@@ -115,13 +122,20 @@ class Policy(nn.Module):
         )
         logger.info("FullContextTransformer created successfully")
         
-        # Action heads for multi-discrete actions
+        # Action heads for multi-discrete actions with proper init
         self.action_heads = nn.ModuleList([
             nn.Linear(hidden_size, dim) for dim in self.action_dims
         ])
         
-        # Value head
+        # Initialize action heads
+        for head in self.action_heads:
+            nn.init.orthogonal_(head.weight, gain=1.0)  # Smaller gain for action heads
+            nn.init.constant_(head.bias, 0)
+        
+        # Value head with proper init
         self.value_head = nn.Linear(hidden_size, 1)
+        nn.init.orthogonal_(self.value_head.weight, gain=1.0)
+        nn.init.constant_(self.value_head.bias, 0)
         
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
         """Encode observations to hidden representation.
