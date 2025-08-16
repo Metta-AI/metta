@@ -325,6 +325,11 @@ class FullContext(PyTorchAgentMixin, TransformerWrapper):
         else:
             # Training mode - use forward from parent
             logits, values = super().forward(observations, state)
+            
+            # TransformerWrapper returns values as (B, T) but mixin expects (B*T,)
+            if values.dim() == 2:
+                values = values.reshape(-1)  # Flatten to (B*T,)
+            
             # Pass logits directly to forward_training (it expects a tensor)
             td = self.forward_training(
                 td=td,
