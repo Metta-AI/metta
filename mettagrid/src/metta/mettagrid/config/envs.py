@@ -1,5 +1,4 @@
 from metta.map.mapgen import MapGenConfig
-from metta.map.types import SceneCfg
 from metta.mettagrid.config import building
 from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 from metta.mettagrid.mettagrid_config import (
@@ -73,28 +72,26 @@ def make_arena(
                 ),
             },
             map_builder=MapGenConfig(
-                agents=num_agents,
+                num_agents=num_agents,
                 width=25,
                 height=25,
                 instances=num_agents // 6,
                 border_width=6,
                 instance_border_width=0,
-                root=SceneCfg(
-                    {
-                        "type": "metta.map.scenes.random.Random",
-                        "params": {
-                            "agents": 6,
-                            "objects": {
-                                "wall": 20,
-                                "altar": 5,
-                                "mine_red": 10,
-                                "generator_red": 5,
-                                "lasery": 1,
-                                "armory": 1,
-                            },
+                root={
+                    "type": "metta.map.scenes.random.Random",
+                    "params": {
+                        "agents": 6,
+                        "objects": {
+                            "wall": 20,
+                            "altar": 5,
+                            "mine_red": 10,
+                            "generator_red": 5,
+                            "lasery": 1,
+                            "armory": 1,
                         },
-                    }
-                ),
+                    },
+                },
             ),
         )
     )
