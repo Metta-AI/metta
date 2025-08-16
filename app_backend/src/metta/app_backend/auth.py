@@ -8,7 +8,10 @@ from metta.app_backend.metta_repo import MettaRepo
 
 def user_from_header(request: Request) -> str | None:
     """Extract user email from request headers."""
-    return config.debug_user_email or request.headers.get("X-Auth-Request-Email")
+    # Always use debug email if set (for MCP and development)
+    if config.debug_user_email:
+        return config.debug_user_email
+    return request.headers.get("X-Auth-Request-Email")
 
 
 async def user_from_header_or_token(request: Request, metta_repo: MettaRepo) -> str | None:

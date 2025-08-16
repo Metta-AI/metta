@@ -2464,6 +2464,7 @@ version = "0.1.0"
 source = { editable = "app_backend" }
 dependencies = [
     { name = "fastapi" },
+    { name = "fastmcp" },
     { name = "httpx" },
     { name = "metta-common" },
     { name = "psycopg", extra = ["binary", "pool"] },
@@ -2485,6 +2486,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115.5" },
+    { name = "fastmcp", specifier = ">=2.11.3" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "metta-common", editable = "common" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2.9" },
