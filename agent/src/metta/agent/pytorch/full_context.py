@@ -3,6 +3,7 @@ Full-context transformer agent for Metta.
 
 This agent uses a transformer with GTrXL-style stabilization that views the entire BPTT
 trajectory at once, using all observations as context to predict actions.
+Optimized for parallel processing across thousands of environments/agents.
 """
 
 import logging
@@ -39,7 +40,7 @@ class Policy(nn.Module):
         
         Args:
             env: Environment
-            input_size: Input embedding size
+            input_size: Input embedding size  
             hidden_size: Hidden dimension for transformer
             n_heads: Number of attention heads
             n_layers: Number of transformer layers
@@ -87,7 +88,7 @@ class Policy(nn.Module):
             nn.LayerNorm(hidden_size),
         )
         
-        # Full-context transformer core
+        # Full-context transformer core (optimized for parallel processing)
         self._transformer = FullContextTransformer(
             d_model=hidden_size,
             n_heads=n_heads,
@@ -154,7 +155,7 @@ class Policy(nn.Module):
         This method is expected by TransformerWrapper.
         
         Args:
-            hidden: Input tensor of shape (T, B, hidden_dim)
+            hidden: Input tensor of shape (T, B, hidden_dim) where B = num_envs * num_agents
             terminations: Termination flags (unused for full-context)
             memory: Previous memory state (unused for full-context)
             
@@ -171,7 +172,8 @@ class FullContext(PyTorchAgentMixin, TransformerWrapper):
     """Full-context transformer agent.
     
     This agent uses a transformer with GTrXL-style stabilization that processes the entire
-    BPTT trajectory at once, using all observations as context.
+    BPTT trajectory at once, using all observations as context. Optimized for parallel
+    processing across thousands of environments and agents.
     """
     
     def __init__(
@@ -199,7 +201,7 @@ class FullContext(PyTorchAgentMixin, TransformerWrapper):
             n_heads: Number of attention heads
             n_layers: Number of transformer layers
             d_ff: Feed-forward dimension
-            max_seq_len: Maximum sequence length
+            max_seq_len: Maximum sequence length (should be >= BPTT horizon)
             dropout: Dropout rate
             use_causal_mask: Whether to use causal masking
             use_gating: Whether to use GRU gating
@@ -207,6 +209,14 @@ class FullContext(PyTorchAgentMixin, TransformerWrapper):
         """
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
+        
+        # Log batch size information if available
+        if hasattr(env, 'num_envs'):
+            num_envs = getattr(env, 'num_envs', 1)
+            num_agents = getattr(env, 'num_agents', 1)
+            total_batch = num_envs * num_agents
+            logger.info(f"Initializing FullContext transformer for batch size {total_batch} "
+                       f"({num_envs} envs × {num_agents} agents)")
         
         if policy is None:
             policy = Policy(
@@ -230,6 +240,8 @@ class FullContext(PyTorchAgentMixin, TransformerWrapper):
     
     def forward(self, td: TensorDict, state=None, action=None):
         """Forward pass through the agent.
+        
+        Processes observations from multiple environments and agents in parallel.
         
         Args:
             td: TensorDict with observations and other data
