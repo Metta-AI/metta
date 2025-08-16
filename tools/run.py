@@ -44,7 +44,7 @@ def apply_override(tool: T, key: str, value: Any) -> T:
     key_path = key.split(".")
 
     def fail(error: str) -> NoReturn:
-        raise ValueError(f"Override failed. Full config:\n {tool.yaml()}\nOverride {key} failed: {error}")
+        raise ValueError(f"Override failed. Full config:\n {tool.model_dump_json()}\nOverride {key} failed: {error}")
 
     cfg: Config = tool
     traversed_path: list[str] = []
@@ -119,7 +119,7 @@ def main():
         f"Tool config produced by {args.make_tool_cfg_path}({', '.join(make_tool_args)}), "
         + f"with overrides {', '.join(overrides)}:"
         + "\n---------------------\n"
-        + str(tool_cfg.yaml())
+        + str(tool_cfg.model_dump_json())
     )
 
     # Seed random number generators

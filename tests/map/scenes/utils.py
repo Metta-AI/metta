@@ -1,8 +1,8 @@
 import pytest
 
 from metta.map.random.int import MaybeSeed
-from metta.map.scene import Scene
-from metta.map.types import Area, ChildrenAction, MapGrid
+from metta.map.scene import ChildrenAction, Scene
+from metta.map.types import Area, MapGrid
 from metta.map.utils.ascii_grid import add_pretty_border, char_grid_to_lines
 from metta.map.utils.storable_map import grid_to_lines
 from metta.mettagrid.map_builder.utils import create_grid
