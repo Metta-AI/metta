@@ -153,7 +153,7 @@ class TestSceneTree:
         scene = make_scene(
             [
                 ChildrenAction(
-                    scene=MockScene.factory({}),
+                    scene=MockScene.factory(),
                     where=AreaWhere(tags=["tag1"]),
                 )
             ]
