@@ -61,12 +61,9 @@ class SceneConfig(Config):
 
 
 # Scene configs can be either:
-# - a dict with `type`, `params`, and optionally `children` keys (this is how we define scenes in YAML configs)
+# - a Pydantic config object (this is how we define scenes in Python code)
 # - a string path to a scene config file (this is how we load reusable scene configs from `scenes/` directory)
-# - a function that takes a MapGrid and returns a Scene instance (useful for children actions produced in Python code)
-#
-# See `metta.map.scene.make_scene` implementation for more details.
-SceneCfg = Union[
+SceneConfigOrFile = Union[
     # structured Pydantic config - main mode
     SceneConfig,
     # a string path to a scene config file (this is how we load reusable scene configs from `scenes/` directory)
@@ -75,7 +72,7 @@ SceneCfg = Union[
 
 
 class ChildrenAction(AreaQuery):
-    scene: SceneCfg
+    scene: SceneConfigOrFile
 
 
 class Scene(Generic[ParamsT]):
@@ -341,13 +338,13 @@ def load_class(full_class_name: str, check_is_scene=True) -> type[Scene]:
     return cls
 
 
-def scene_cfg_to_dict(cfg: SceneCfg) -> dict:
+def resolve_scene_config(cfg: SceneConfigOrFile) -> SceneConfig:
     if isinstance(cfg, SceneConfig):
-        return cfg.model_dump()
-    if isinstance(cfg, str):
-        if cfg.startswith("/"):
-            cfg = cfg[1:]
-        cfg = OmegaConf.load(f"{scenes_root}/{cfg}")  # type: ignore
+        return cfg
+
+    if cfg.startswith("/"):
+        cfg = cfg[1:]
+    cfg = OmegaConf.load(f"{scenes_root}/{cfg}")  # type: ignore
 
     if isinstance(cfg, DictConfig):
         cfg = OmegaConf.to_container(cfg)  # type: ignore
@@ -355,25 +352,12 @@ def scene_cfg_to_dict(cfg: SceneCfg) -> dict:
     if not isinstance(cfg, dict):
         raise ValueError(f"Invalid scene config: {cfg}, type: {type(cfg)}")
 
-    return cfg
+    return SceneConfig.model_validate(cfg)
 
 
-def make_scene(cfg: SceneCfg, area: Area, rng: np.random.Generator) -> Scene:
-    if isinstance(cfg, SceneConfig):
-        return cfg.create(area, rng)
-
-    dict_cfg = scene_cfg_to_dict(cfg)
-
-    cls = load_class(dict_cfg["type"])
-    return cls(
-        area=area,
-        params=dict_cfg.get("params", {}),
-        # in OmegaConf, the field is called `children` for convenience, but it's not a list of scenes, but a list of
-        # children actions.
-        # In Python code, we use `children_actions` instead. `children` is for the list of actual scenes.
-        children_actions=dict_cfg.get("children", []),
-        seed=dict_cfg.get("seed", rng),
-    )
+def make_scene(cfg: SceneConfigOrFile, area: Area, rng: np.random.Generator) -> Scene:
+    config = resolve_scene_config(cfg)
+    return config.create(area, rng)
 
 
 SceneConfig.model_rebuild()
