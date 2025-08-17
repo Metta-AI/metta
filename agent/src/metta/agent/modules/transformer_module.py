@@ -1,8 +1,8 @@
 """
-Full-context transformer with GTrXL-style stabilization optimized for parallel processing.
+Transformer module with GTrXL-style stabilization optimized for parallel processing.
 
-This module implements a transformer decoder that processes entire BPTT trajectories
-at once, using state-of-the-art stabilization techniques from GTrXL and optimizations
+This is the stable baseline transformer that processes entire BPTT trajectories
+at once, using stabilization techniques from GTrXL and optimizations
 for processing thousands of environments/agents in parallel.
 
 Key features:
@@ -247,7 +247,7 @@ class TransformerBlock(nn.Module):
         return out
 
 
-class FullContextTransformer(nn.Module):
+class TransformerModule(nn.Module):
     """
     Full-context transformer optimized for parallel processing across environments/agents.
 
@@ -458,7 +458,7 @@ class FullContextTransformer(nn.Module):
         return {}
 
 
-class FullContextTransformerPolicy(nn.Module):
+class TransformerModulePolicy(nn.Module):
     """
     Policy network using the full-context transformer.
 

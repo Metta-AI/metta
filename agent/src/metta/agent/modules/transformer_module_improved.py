@@ -1,11 +1,12 @@
 """
-Improved full-context transformer with better initialization and positional encoding.
+Improved transformer module with experimental enhancements.
 
-Key improvements:
+Key improvements over baseline:
 1. Proper transformer initialization (smaller gains)
-2. Learnable positional embeddings option
-3. Better attention scaling
+2. Learnable positional embeddings option  
+3. GELU activation for better gradient flow
 4. Layer normalization placement optimization
+5. Separate attention dropout
 """
 
 import math
@@ -234,7 +235,7 @@ class ImprovedTransformerBlock(nn.Module):
         return x
 
 
-class ImprovedFullContextTransformer(nn.Module):
+class TransformerModuleImproved(nn.Module):
     """
     Improved full-context transformer with better initialization and features.
     
