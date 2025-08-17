@@ -1,7 +1,7 @@
+import numpy as np
 import pytest
 
-from metta.map.random.int import MaybeSeed
-from metta.map.scene import ChildrenAction, Scene
+from metta.map.scene import Scene, SceneConfig
 from metta.map.types import Area, MapGrid
 from metta.map.utils.ascii_grid import add_pretty_border, char_grid_to_lines
 from metta.map.utils.storable_map import grid_to_lines
@@ -9,15 +9,12 @@ from metta.mettagrid.map_builder.utils import create_grid
 
 
 def render_scene(
-    cls: type[Scene],
-    params: dict,
+    scene_cfg: SceneConfig,
     shape: tuple[int, int],
-    children: list[ChildrenAction] | None = None,
-    seed: MaybeSeed = None,
 ):
     grid = create_grid(shape[0], shape[1])
     area = Area.root_area_from_grid(grid)
-    scene = cls(area=area, params=params, children_actions=children or [], seed=seed)
+    scene = scene_cfg.create(area, np.random.default_rng())
     scene.render_with_children()
     return scene
 

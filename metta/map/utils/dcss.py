@@ -4,10 +4,12 @@ import re
 import urllib.request
 from dataclasses import dataclass
 from multiprocessing import Pool
+from pathlib import Path
 
 from omegaconf import OmegaConf
 
 from metta.map.config import scenes_root
+from metta.map.scene import SceneConfig
 from metta.map.utils.make_scene_config import (
     make_convchain_config_from_pattern,
     make_wfc_config_from_pattern,
@@ -93,11 +95,13 @@ def process_map_entry(map_entry: DCSSMap):
     pattern = map_entry.pattern
     logger.info(f"Processing map: {name}")
 
+    def save_config(config: SceneConfig, dir: Path):
+        dir.mkdir(parents=True, exist_ok=True)
+        OmegaConf.save(OmegaConf.create(config.model_dump()), dir / f"{name}.yaml")
+
     # convchain
     convchain_config = make_convchain_config_from_pattern(pattern)
-    convchain_dir = dir / "convchain"
-    convchain_dir.mkdir(parents=True, exist_ok=True)
-    OmegaConf.save(convchain_config, convchain_dir / f"{name}.yaml")
+    save_config(convchain_config, dir / "convchain")
 
     # wfc
     wfc_config = make_wfc_config_from_pattern(map_entry.pattern)
@@ -105,8 +109,7 @@ def process_map_entry(map_entry: DCSSMap):
         logger.warning(f"Invalid pattern for WFC: {map_entry.name}")
         return
 
-    wfc_dir.mkdir(parents=True, exist_ok=True)
-    OmegaConf.save(wfc_config, wfc_dir / f"{name}.yaml")
+    save_config(wfc_config, wfc_dir)
 
 
 def generate_scenes_from_dcss_maps():
