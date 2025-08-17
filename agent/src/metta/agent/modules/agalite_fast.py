@@ -47,10 +47,11 @@ class FastAGaLiTeLayer(nn.Module):
         # Pre-compute oscillatory frequencies
         self.register_buffer("omegas", torch.linspace(-math.pi, math.pi, r))
 
-        # Initialize weights - use values from working version
-        nn.init.orthogonal_(self.fused_projection.weight, gain=math.sqrt(2))
+        # Initialize weights conservatively to prevent instability
+        # Smaller gains help prevent gradient explosion in recurrent networks
+        nn.init.xavier_uniform_(self.fused_projection.weight)
         nn.init.constant_(self.fused_projection.bias, 0.0)
-        nn.init.orthogonal_(self.project.weight, gain=1.0)
+        nn.init.xavier_uniform_(self.project.weight)
         nn.init.constant_(self.project.bias, 0.0)
 
     def forward(self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple) -> Tuple[torch.Tensor, Tuple]:
@@ -171,19 +172,23 @@ class FastAGaLiTeLayer(nn.Module):
         final_values_reshaped = final_values.reshape(T, B, self.r, self.head_num, self.head_dim)
         kv = (final_values_reshaped * attn_scores.unsqueeze(-1).unsqueeze(-1)).sum(dim=2)
 
-        # Normalization
+        # Normalization with stability
         norm = (final_s * queries_expanded).sum(dim=-1, keepdim=True)
-        attn_out = kv / (2 * self.r * norm + self.eps)
+        # Clamp norm to prevent division issues
+        norm = torch.clamp(norm, min=self.eps, max=1e6)
+        attn_out = kv / (2 * self.r * norm)
 
-        # Output projection
+        # Output projection with value clamping for stability
         attn_out = attn_out.reshape(T, B, self.head_num * self.head_dim)
+        # Clamp before projection to prevent extreme values
+        attn_out = torch.clamp(attn_out, min=-10, max=10)
         attn_out = self.dropout(self.project(attn_out))
 
-        # Update memory - detach to prevent gradient accumulation
+        # Update memory - detach and clone to fully break gradient chain
         new_tick = tick + T
-        new_tilde_k = final_keys[-1].detach()
-        new_tilde_v = final_values[-1].detach()
-        new_s = final_s[-1].detach()
+        new_tilde_k = final_keys[-1].detach().clone()
+        new_tilde_v = final_values[-1].detach().clone()
+        new_s = final_s[-1].detach().clone()
 
         return attn_out, (new_tilde_k, new_tilde_v, new_s, new_tick)
 
