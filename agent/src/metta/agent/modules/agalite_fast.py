@@ -238,11 +238,12 @@ class FastAGaLiTeLayer(nn.Module):
             # If NaN detected, return zeros to prevent propagation
             attn_out = torch.zeros_like(attn_out)
 
-        # Update memory
-        new_tick = tick + T
-        new_tilde_k = final_keys[-1].detach()
-        new_tilde_v = final_values[-1].detach()
-        new_s = final_s[-1].detach()
+        # Update memory - use clone to avoid inplace operation issues
+        with torch.no_grad():
+            new_tick = tick.clone() + T
+            new_tilde_k = final_keys[-1].clone().detach()
+            new_tilde_v = final_values[-1].clone().detach()
+            new_s = final_s[-1].clone().detach()
 
         return attn_out, (new_tilde_k, new_tilde_v, new_s, new_tick)
 

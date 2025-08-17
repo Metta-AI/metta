@@ -13,6 +13,8 @@ from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
 from metta.agent.pytorch.agalite import AGaLiTePolicy
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
+from tensordict import TensorDict
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,56 @@ class AGaLiTeOptimized(PyTorchAgentMixin, TransformerWrapper):
 
         # Initialize mixin
         self.init_mixin(**mixin_params)
+
+    @torch._dynamo.disable  # Avoid graph breaks with recurrent state
+    def forward(self, td: TensorDict, state: Optional[Dict] = None, action: Optional[torch.Tensor] = None):
+        """Forward pass with proper TensorDict handling.
+
+        Follows the same pattern as AGaLiTe base implementation.
+        """
+        observations = td["env_obs"]
+
+        # Determine dimensions from observations
+        if observations.dim() == 4:  # Training
+            B = observations.shape[0]
+            TT = observations.shape[1]
+        else:  # Inference
+            B = observations.shape[0]
+            TT = 1
+
+        # Initialize state if needed
+        if state is None or state.get("needs_init", False):
+            state = self.reset_memory(B, observations.device)
+
+        # Store terminations if available
+        if "dones" in td:
+            state["terminations"] = td["dones"]
+
+        # Reshape TD for training if needed
+        if observations.dim() == 4 and td.batch_dims > 1:
+            td = td.reshape(B * TT)
+
+        # Set critical TensorDict fields using mixin
+        self.set_tensordict_fields(td, observations)
+
+        # Determine if we're in training or inference mode
+        if action is None:
+            # Inference mode
+            logits, values = self.forward_eval(observations, state)
+            td = self.forward_inference(td, logits, values)
+        else:
+            # Training mode - use parent's forward for BPTT
+            logits, values = super().forward(observations, state)
+
+            # The mixin expects values to be flattened for training
+            if values.dim() == 2:  # (B, T) from TransformerWrapper
+                values_flat = values.flatten()
+            else:
+                values_flat = values
+
+            td = self.forward_training(td, action, logits, values_flat)
+
+        return td
 
 
 class OptimizedPolicy(AGaLiTePolicy):

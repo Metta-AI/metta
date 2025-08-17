@@ -61,9 +61,8 @@ class AGaLiTeTurboCore(nn.Module):
                 dropout=dropout,
             )
 
-    @torch.compile(mode="reduce-overhead")  # Compile for maximum performance
     def forward(self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Dict) -> Tuple[torch.Tensor, Dict]:
-        """Optimized forward with compiler optimization."""
+        """Optimized forward pass."""
         # Layer 1
         u_i = inputs
         attn_out, memory1 = self.layer(u_i, terminations, memory["layer_1"])
@@ -139,7 +138,7 @@ class AGaLiTeTurboPolicy(nn.Module):
 
         # Efficient output heads
         self.critic = nn.Linear(d_model, 1)
-        
+
         # Get actual action space size
         if hasattr(self.action_space, "nvec"):
             action_size = sum(self.action_space.nvec)
@@ -147,7 +146,7 @@ class AGaLiTeTurboPolicy(nn.Module):
             action_size = self.action_space.n
         else:
             action_size = 100  # Fallback
-        
+
         self.actor = nn.Linear(d_model, action_size)
 
         # Initialize weights efficiently
@@ -157,7 +156,6 @@ class AGaLiTeTurboPolicy(nn.Module):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0)
 
-    @torch.compile(mode="reduce-overhead")
     def encode_observations(self, observations: torch.Tensor, state: Optional[Dict] = None) -> torch.Tensor:
         """Fast observation encoding."""
         # Simplified encoding for speed
