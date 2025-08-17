@@ -7,12 +7,12 @@ import einops
 import numpy as np
 import torch
 import torch.nn.functional as F
+from pufferlib.pytorch import layer_init as init_layer
 from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.pytorch.base import LSTMWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
-from pufferlib.pytorch import layer_init as init_layer
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +29,10 @@ class AgaliteHybrid(PyTorchAgentMixin, LSTMWrapper):
 
     def __init__(self, env, policy=None, input_size=128, hidden_size=128, num_layers=2, **kwargs):
         """Initialize with mixin support for configuration parameters.
-        
+
         Args:
             env: Environment
-            policy: Optional inner policy 
+            policy: Optional inner policy
             input_size: LSTM input size
             hidden_size: LSTM hidden size
             num_layers: Number of LSTM layers
@@ -40,7 +40,7 @@ class AgaliteHybrid(PyTorchAgentMixin, LSTMWrapper):
         """
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
-        
+
         if policy is None:
             policy = AgalitePolicy(env, input_size=input_size, hidden_size=hidden_size)
 
@@ -111,11 +111,11 @@ class AgalitePolicy(nn.Module):
         self.hidden_size = hidden_size
         self.is_continuous = False  # Required by PufferLib
         self.action_space = env.single_action_space
-        
+
         # Observation parameters
         self.out_width = env.obs_width if hasattr(env, "obs_width") else 11
         self.out_height = env.obs_height if hasattr(env, "obs_height") else 11
-        
+
         # Dynamically determine num_layers from environment (matching Fast)
         if hasattr(env, "feature_normalizations"):
             self.num_layers = max(env.feature_normalizations.keys()) + 1
@@ -126,21 +126,21 @@ class AgalitePolicy(nn.Module):
         # Note: Using std=1.0 to match YAML orthogonal gain=1
         self.cnn1 = init_layer(
             nn.Conv2d(in_channels=self.num_layers, out_channels=64, kernel_size=5, stride=3),
-            std=1.0  # Match Fast's initialization
+            std=1.0,  # Match Fast's initialization
         )
         self.cnn2 = init_layer(
             nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
-            std=1.0  # Match Fast's initialization
+            std=1.0,  # Match Fast's initialization
         )
-        
+
         # Calculate flattened size
         test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
         with torch.no_grad():
             test_output = self.cnn2(self.cnn1(test_input))
             self.flattened_size = test_output.numel() // test_output.shape[0]
-        
+
         self.flatten = nn.Flatten()
-        
+
         # Linear layers matching Fast
         self.fc1 = init_layer(nn.Linear(self.flattened_size, 128), std=1.0)
         self.encoded_obs = init_layer(nn.Linear(128, input_size), std=1.0)
@@ -150,19 +150,19 @@ class AgalitePolicy(nn.Module):
         self.critic_1 = init_layer(nn.Linear(input_size, 1024), std=np.sqrt(2))
         # value_head has no nonlinearity, so gain=1
         self.value_head = init_layer(nn.Linear(1024, 1), std=1.0)
-        
+
         # Actor branch
         # actor_1 uses gain=1 (for ReLU activation)
         self.actor_1 = init_layer(nn.Linear(input_size, 512), std=1.0)
-        
+
         # Action embeddings - will be properly initialized
         self.action_embeddings = nn.Embedding(100, 16)
         self._initialize_action_embeddings()
-        
+
         # Store for dynamic action head
         self.action_embed_dim = 16
         self.actor_hidden_dim = 512
-        
+
         # Bilinear layer to match MettaActorSingleHead
         self._init_bilinear_actor()
 
@@ -178,7 +178,7 @@ class AgalitePolicy(nn.Module):
             # Fallback normalization vector
             max_vec = torch.ones(1, self.num_layers, 1, 1, dtype=torch.float32)
         self.register_buffer("max_vec", max_vec)
-        
+
         # Track active actions
         self.active_action_names = []
         self.num_active_actions = 100  # Default
@@ -232,25 +232,25 @@ class AgalitePolicy(nn.Module):
 
         if token_observations.dim() != 3:
             token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
-        
+
         assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
-        
+
         # Don't modify original tensor (PR #2126)
-        
+
         # Extract coordinates and attributes (matching ObsTokenToBoxShaper exactly)
         coords_byte = token_observations[..., 0].to(torch.uint8)
         x_coords = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
         y_coords = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
         atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M]
         atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
-        
+
         # Create mask for valid tokens (matching ComponentPolicy)
         valid_tokens = coords_byte != 0xFF
-        
+
         # Additional validation: ensure atr_indices are within valid range
         valid_atr = atr_indices < self.num_layers
         valid_mask = valid_tokens & valid_atr
-        
+
         # Log warning for out-of-bounds indices (matching ComponentPolicy)
         invalid_atr_mask = valid_tokens & ~valid_atr
         if invalid_atr_mask.any():
@@ -261,17 +261,17 @@ class AgalitePolicy(nn.Module):
                 f"This may indicate the policy was trained with fewer observation channels.",
                 stacklevel=2,
             )
-        
+
         # Use scatter-based write to avoid multi-dim advanced indexing (matching ComponentPolicy)
         # Compute flattened spatial index and a combined index that encodes (layer, x, y)
         flat_spatial_index = x_coords * self.out_height + y_coords  # [B, M]
         dim_per_layer = self.out_width * self.out_height
         combined_index = atr_indices * dim_per_layer + flat_spatial_index  # [B, M]
-        
+
         # Mask out invalid entries by directing them to index 0 with value 0
         safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
         safe_values = torch.where(valid_mask, atr_values, torch.zeros_like(atr_values))
-        
+
         # Scatter values into a flattened buffer, then reshape to [B_TT, L, W, H]
         box_flat = torch.zeros(
             (B_TT, self.num_layers * dim_per_layer), dtype=atr_values.dtype, device=token_observations.device
@@ -287,33 +287,33 @@ class AgalitePolicy(nn.Module):
         # Critic branch - two layers matching Fast
         critic_features = torch.tanh(self.critic_1(hidden))
         value = self.value_head(critic_features)
-        
+
         # Actor branch with bilinear interaction
         actor_features = self.actor_1(hidden)
         actor_features = F.relu(actor_features)  # ReLU after actor_1
-        
+
         # Get action embeddings for all actions
-        action_embeds = self.action_embeddings.weight[:self.num_active_actions]  # [num_actions, embed_dim]
-        
+        action_embeds = self.action_embeddings.weight[: self.num_active_actions]  # [num_actions, embed_dim]
+
         # Bilinear interaction for action selection
         batch_size = actor_features.shape[0]
         num_actions = action_embeds.shape[0]
-        
+
         # Expand for batched computation
         actor_repeated = actor_features.unsqueeze(1).expand(-1, num_actions, -1)
         actor_reshaped = actor_repeated.reshape(-1, self.actor_hidden_dim)
         action_embeds_expanded = action_embeds.unsqueeze(0).expand(batch_size, -1, -1)
         action_embeds_reshaped = action_embeds_expanded.reshape(-1, self.action_embed_dim)
-        
+
         # Bilinear operation
         query = torch.einsum("n h, k h e -> n k e", actor_reshaped, self.actor_W)
         query = torch.tanh(query)
         scores = torch.einsum("n k e, n e -> n k", query, action_embeds_reshaped)
         biased_scores = scores + self.actor_bias
-        
+
         # Reshape to [batch_size, num_actions]
         logits = biased_scores.reshape(batch_size, num_actions)
-        
+
         return logits, value
 
     def activate_action_embeddings(self, full_action_names: list[str], device):

@@ -187,49 +187,11 @@ class PyTorchAgentMixin:
         Returns:
             Updated TensorDict with sampled actions
         """
-        # Check for NaN/Inf in logits
-        if torch.isnan(logits_list).any() or torch.isinf(logits_list).any():
-            import sys
-            print(f"ERROR: Invalid logits detected in forward_inference", file=sys.stderr)
-            print(f"  logits contains NaN: {torch.isnan(logits_list).any()}", file=sys.stderr)
-            print(f"  logits contains Inf: {torch.isinf(logits_list).any()}", file=sys.stderr)
-            print(f"  logits min: {logits_list.min()}, max: {logits_list.max()}", file=sys.stderr)
-            # Replace invalid values to prevent crash
-            logits_list = torch.nan_to_num(logits_list, nan=0.0, posinf=10.0, neginf=-10.0)
-        
         log_probs = F.log_softmax(logits_list, dim=-1)
         action_probs = torch.exp(log_probs)
-        
-        # Check for invalid probabilities
-        if torch.isnan(action_probs).any() or (action_probs < 0).any() or (action_probs.sum(dim=-1) == 0).any():
-            import sys
-            print(f"ERROR: Invalid action probabilities", file=sys.stderr)
-            print(f"  action_probs contains NaN: {torch.isnan(action_probs).any()}", file=sys.stderr)
-            print(f"  action_probs contains negative: {(action_probs < 0).any()}", file=sys.stderr)
-            print(f"  action_probs has zero-sum rows: {(action_probs.sum(dim=-1) == 0).any()}", file=sys.stderr)
-            # Add small epsilon to prevent multinomial sampling issues
-            action_probs = action_probs + 1e-10
-            action_probs = action_probs / action_probs.sum(dim=-1, keepdim=True)
 
-        try:
-            actions = torch.multinomial(action_probs, num_samples=1).view(-1)
-        except RuntimeError as e:
-            import sys
-            print(f"ERROR in multinomial sampling: {e}", file=sys.stderr)
-            print(f"  action_probs shape: {action_probs.shape}", file=sys.stderr)
-            print(f"  action_probs device: {action_probs.device}", file=sys.stderr)
-            print(f"  action_probs min: {action_probs.min()}, max: {action_probs.max()}", file=sys.stderr)
-            print(f"  action_probs sum per row: {action_probs.sum(dim=-1)[:5]}", file=sys.stderr)
-            # Fallback to argmax if multinomial fails
-            actions = action_probs.argmax(dim=-1)
-        
-        # Check if actions are within valid range
-        if actions.max() >= log_probs.shape[-1]:
-            import sys
-            print(f"ERROR: Action index out of bounds", file=sys.stderr)
-            print(f"  actions max: {actions.max()}, log_probs shape: {log_probs.shape}", file=sys.stderr)
-            actions = actions.clamp(max=log_probs.shape[-1] - 1)
-        
+        actions = torch.multinomial(action_probs, num_samples=1).view(-1)
+
         batch_indices = torch.arange(actions.shape[0], device=actions.device)
         selected_log_probs = log_probs[batch_indices, actions]
 
