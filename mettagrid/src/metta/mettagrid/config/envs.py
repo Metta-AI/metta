@@ -56,7 +56,6 @@ def make_arena(
             num_agents=num_agents,
             width=25,
             height=25,
-            instances=num_agents // 6,
             border_width=6,
             instance_border_width=0,
             root=metta.map.scenes.random.Random.factory(

@@ -1,6 +1,6 @@
 import numpy as np
 
-from metta.map.scene import SceneCfg, make_scene
+from metta.map.scene import SceneConfigOrFile, make_scene
 from metta.map.utils.storable_map import StorableMap
 from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 
@@ -9,7 +9,7 @@ from .types import Area
 
 class LoadConfig(MapBuilderConfig):
     uri: str
-    extra_root: SceneCfg | None = None
+    extra_root: SceneConfigOrFile | None = None
 
     def create(self) -> "Load":
         return Load(self)
