@@ -134,15 +134,9 @@ class AGaLiTeOptimizedPolicy(AGaLiTePolicy):
             use_fast_mode=True,
         )
 
-        # Apply very conservative initialization to prevent gradient issues
-        for name, param in self.named_parameters():
-            if "weight" in name and param.dim() >= 2:
-                # Use much smaller initialization to prevent gradient explosion
-                # Scale down based on eta and r values
-                gain = 0.1 / math.sqrt(eta * r)
-                torch.nn.init.orthogonal_(param, gain=gain)
-            elif "bias" in name:
-                torch.nn.init.constant_(param, 0.0)
+        # Apply standard initialization matching working implementations
+        # This is handled by the base classes already, so we don't need
+        # to override unless we encounter stability issues
 
     def initialize_memory(self, batch_size: int) -> Dict:
         """Initialize memory with custom eta/r values."""
