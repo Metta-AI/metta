@@ -404,11 +404,11 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         d_ffc: int = 1024,
         n_heads: int = 4,
         n_layers: int = 2,  # Reduced from 4 for better GPU performance
-        eta: int = 4,
-        r: int = 8,
+        eta: int = 2,  # Fast mode default for stability
+        r: int = 4,  # Fast mode default for stability
         reset_on_terminate: bool = True,
         dropout: float = 0.0,
-        use_fast_mode: bool = False,
+        use_fast_mode: bool = True,  # Default to fast mode (stable)
         **kwargs,
     ):
         """Initialize AGaLiTe with mixin support.

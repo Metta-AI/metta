@@ -9,7 +9,7 @@ import torch
 @torch.jit.script
 def jit_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:
     """JIT-compiled discounted sum that avoids inplace operations.
-    
+
     This version builds the output sequentially without modifying existing tensors,
     which is essential for autograd compatibility.
     """
@@ -19,17 +19,17 @@ def jit_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: to
 
     # Build outputs list - this avoids inplace operations
     outputs = []
-    
+
     # Initialize with first step
     current = discounts[0] * start_state + x[0]
     outputs.append(current)
-    
+
     # Process remaining timesteps
     for t in range(1, T):
         # Create new tensor for each timestep (no inplace modification)
         current = discounts[t] * current + x[t]
         outputs.append(current)
-    
+
     # Stack all outputs into final tensor
     return torch.stack(outputs, dim=0)
 

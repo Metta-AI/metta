@@ -241,7 +241,7 @@ class FastAGaLiTeLayer(nn.Module):
         # Update memory - completely detach from computation graph
         # We need to create new tensors that have no connection to the computation graph
         new_tick = (tick + T).detach()
-        
+
         # Extract the last timestep and ensure complete detachment
         # Using .data creates a tensor that shares storage but has no grad connection
         new_tilde_k = final_keys[-1].data.clone()
