@@ -46,7 +46,7 @@ class HorizontalMirror(Scene[InnerMirrorParams]):
                 where=AreaWhere(tags=["original"]),
             ),
             ChildrenAction(
-                scene=Mirrored.factory(params={"parent": self, "flip_x": True}),
+                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_x=True)),
                 where=AreaWhere(tags=["mirrored"]),
             ),
         ]
@@ -65,7 +65,7 @@ class VerticalMirror(Scene[InnerMirrorParams]):
                 where=AreaWhere(tags=["original"]),
             ),
             ChildrenAction(
-                scene=Mirrored.factory(params={"parent": self, "flip_y": True}),
+                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_y=True)),
                 where=AreaWhere(tags=["mirrored"]),
             ),
         ]
@@ -81,15 +81,15 @@ class X4Mirror(Scene[InnerMirrorParams]):
         return [
             ChildrenAction(scene=self.params.scene, where=AreaWhere(tags=["original"])),
             ChildrenAction(
-                scene=Mirrored.factory(params={"parent": self, "flip_x": True}),
+                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_x=True)),
                 where=AreaWhere(tags=["mirrored_x"]),
             ),
             ChildrenAction(
-                scene=Mirrored.factory(params={"parent": self, "flip_y": True}),
+                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_y=True)),
                 where=AreaWhere(tags=["mirrored_y"]),
             ),
             ChildrenAction(
-                scene=Mirrored.factory(params={"parent": self, "flip_x": True, "flip_y": True}),
+                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_x=True, flip_y=True)),
                 where=AreaWhere(tags=["mirrored_xy"]),
             ),
         ]

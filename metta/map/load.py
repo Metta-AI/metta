@@ -5,13 +5,21 @@ from omegaconf import DictConfig, OmegaConf
 
 from metta.map.scene import SceneCfg, make_scene
 from metta.map.utils.storable_map import StorableMap
-from metta.mettagrid.map_builder.map_builder import GameMap
+from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 
 from .types import Area
 
 
+class LoadConfig(MapBuilderConfig):
+    uri: str
+    extra_root: SceneCfg | DictConfig | None = None
+
+    def create(self) -> "Load":
+        return Load(self)
+
+
 # Note that this class can't be a scene, because the width and height come from the stored data.
-class Load(GameMap):
+class Load(MapBuilder):
     """
     Load a pregenerated map from a URI (file or S3 object).
 
@@ -20,16 +28,13 @@ class Load(GameMap):
 
     _extra_root: dict | None = None
 
-    def __init__(self, uri: str, extra_root: SceneCfg | DictConfig | None = None):
-        super().__init__(grid=None)
-        self._uri = uri
-        self._storable_map = StorableMap.from_uri(uri)
+    def __init__(self, config: LoadConfig):
+        super().__init__(config=config)
+        self._uri = config.uri
+        self._storable_map = StorableMap.from_uri(self._uri)
 
-        if isinstance(extra_root, DictConfig):
-            extra_root = cast(dict, OmegaConf.to_container(extra_root))
-
-        if isinstance(extra_root, dict):
-            self._extra_root = extra_root
+        if isinstance(config.extra_root, DictConfig):
+            self._extra_root = cast(dict, OmegaConf.to_container(config.extra_root))
 
     def build(self):
         grid = self._storable_map.grid

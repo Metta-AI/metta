@@ -6,7 +6,7 @@ from softmax import softmax
 
 
 # Used by eval_task_worker.py
-def eval(policy_uri: str, sim_suite: str, replay_dir: str) -> SimTool:
+def eval(policy_uri: str, sim_suite: str) -> SimTool:
     simulations = get_eval_suite(sim_suite)
 
     return SimTool(
