@@ -19,16 +19,16 @@ logger = logging.getLogger(__name__)
 
 class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
     """
-    AGaLiTe Improved - Experimental version for testing optimizations.
+    AGaLiTe Improved - Optimized version with enhanced stability.
 
-    This combines:
-    - Optimized parameters (eta=3, r=6) for better capacity than fast mode
-    - 2-3 layers for reasonable depth
+    This variant provides:
+    - Fast mode with stable parameters (eta=2, r=4)
+    - Small dropout (0.05) for better generalization
     - Efficient FastAGaLiTeLayer implementation
-    - Proper observation encoding from base AGaLiTe
+    - Same architecture as base AGaLiTe but with dropout
     - Option to experiment with token-native processing
 
-    Goal: Achieve better performance than fast mode while staying faithful to AGaLiTe paper.
+    Goal: Provide a stable, production-ready AGaLiTe with minor improvements.
     """
 
     def __init__(
@@ -38,15 +38,15 @@ class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
         d_head: int = 64,
         d_ffc: int = 1024,
         n_heads: int = 4,
-        n_layers: int = 3,  # More layers for better capacity
-        eta: int = 3,  # Higher than fast mode (2) but still stable
-        r: int = 6,  # Higher than fast mode (4) for more oscillatory components
+        n_layers: int = 2,  # Same as normal AGaLiTe for stability
+        eta: int = 2,  # Fast mode value (required for FastAGaLiTeLayer)
+        r: int = 4,  # Fast mode value (required for FastAGaLiTeLayer)
         reset_on_terminate: bool = True,
         dropout: float = 0.05,  # Small dropout for generalization
         use_token_native: bool = False,  # Option to use token-native processing
         **kwargs,
     ):
-        """Initialize AGaLiTe Improved with experimental parameters.
+        """Initialize AGaLiTe Improved with stable parameters.
 
         Args:
             env: Environment
@@ -54,9 +54,9 @@ class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
             d_head: Head dimension (64)
             d_ffc: Feedforward dimension (1024)
             n_heads: Number of attention heads (4)
-            n_layers: Number of transformer layers (3)
-            eta: AGaLiTe eta parameter for feature expansion (3)
-            r: AGaLiTe r parameter for oscillatory components (6)
+            n_layers: Number of transformer layers (2)
+            eta: AGaLiTe eta parameter for feature expansion (2)
+            r: AGaLiTe r parameter for oscillatory components (4)
             reset_on_terminate: Whether to reset memory on termination
             dropout: Dropout rate (0.05)
             use_token_native: Use token-native observation processing (experimental)
@@ -82,8 +82,7 @@ class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
                 dropout=dropout,
             )
         else:
-            # Use regular AGaLiTePolicy with adjusted parameters
-            # Fast mode will automatically cap eta=2, r=4 for stability
+            # Use regular AGaLiTePolicy with fast mode
             policy = AGaLiTePolicy(
                 env=env,
                 d_model=d_model,
@@ -91,8 +90,8 @@ class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
                 d_ffc=d_ffc,
                 n_heads=n_heads,
                 n_layers=n_layers,
-                eta=eta,  # Will be capped to 2 internally
-                r=r,  # Will be capped to 4 internally
+                eta=eta,
+                r=r,
                 reset_on_terminate=reset_on_terminate,
                 dropout=dropout,
                 use_fast_mode=True,  # Always use fast mode for performance
