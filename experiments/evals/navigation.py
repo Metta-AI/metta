@@ -12,14 +12,14 @@ from metta.map.scenes.radial_maze import RadialMaze
 from metta.map.scenes.random import Random
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.types import AreaWhere
-from metta.mettagrid.config.envs import make_nav
+from metta.mettagrid.config.envs import make_navigation
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.sim.simulation_config import SimulationConfig
 
 
 def make_ascii_env(max_steps: int, ascii_map: str, border_width: int = 1) -> EnvConfig:
-    env = make_nav(num_agents=1)
+    env = make_navigation(num_agents=1)
     env.game.max_steps = max_steps
     env.game.map_builder = MapGenConfig(
         border_width=border_width,
@@ -79,7 +79,7 @@ def make_obstacles0_env() -> EnvConfig:
 
 
 def make_obstacles1_env() -> EnvConfig:
-    env = make_nav(num_agents=1)
+    env = make_navigation(num_agents=1)
     env.game.max_steps = 300
     env.game.objects["altar"].cooldown = 255
     env.game.map_builder = MapGenConfig(
@@ -129,7 +129,7 @@ def make_radial_small_env() -> EnvConfig:
 
 
 def make_radialmaze_env() -> EnvConfig:
-    env = make_nav(num_agents=1)
+    env = make_navigation(num_agents=1)
     env.game.max_steps = 200
     env.game.map_builder = MapGenConfig(
         width=20,
@@ -185,7 +185,7 @@ def make_walkaround_env() -> EnvConfig:
 
 
 def make_walls_outofsight_env() -> EnvConfig:
-    env = make_nav(num_agents=1)
+    env = make_navigation(num_agents=1)
     env.game.max_steps = 120
     env.game.map_builder = MapGenConfig(
         width=25,
@@ -202,7 +202,7 @@ def make_walls_outofsight_env() -> EnvConfig:
 
 
 def make_walls_sparse_env() -> EnvConfig:
-    env = make_nav(num_agents=1)
+    env = make_navigation(num_agents=1)
     env.game.max_steps = 250
     env.game.map_builder = MapGenConfig(
         width=35,
@@ -219,7 +219,7 @@ def make_walls_sparse_env() -> EnvConfig:
 
 
 def make_walls_withinsight_env() -> EnvConfig:
-    env = make_nav(num_agents=1)
+    env = make_navigation(num_agents=1)
     env.game.max_steps = 75
     env.game.map_builder = MapGenConfig(
         width=12,
@@ -243,7 +243,7 @@ def make_wanderout_env() -> EnvConfig:
 
 
 def make_emptyspace_outofsight_env() -> EnvConfig:
-    env = make_nav(num_agents=1)
+    env = make_navigation(num_agents=1)
     env.game.max_steps = 150
     env.game.map_builder = MapGenConfig(
         width=25,
@@ -260,7 +260,7 @@ def make_emptyspace_outofsight_env() -> EnvConfig:
 
 
 def make_emptyspace_withinsight_env() -> EnvConfig:
-    env = make_nav(num_agents=1)
+    env = make_navigation(num_agents=1)
     env.game.max_steps = 45
     env.game.map_builder = MapGenConfig(
         width=12,
@@ -277,7 +277,7 @@ def make_emptyspace_withinsight_env() -> EnvConfig:
 
 
 def make_emptyspace_sparse_medium_env() -> EnvConfig:
-    env = make_nav(num_agents=1)
+    env = make_navigation(num_agents=1)
     env.game.max_steps = 1000
     env.game.map_builder = MapGenConfig(
         width=100,
@@ -318,7 +318,7 @@ def make_emptyspace_sparse_medium_env() -> EnvConfig:
 
 
 def make_emptyspace_sparse_env() -> EnvConfig:
-    env = make_nav(num_agents=1)
+    env = make_navigation(num_agents=1)
     env.game.max_steps = 300
     env.game.map_builder = MapGenConfig(
         width=60,
@@ -335,7 +335,7 @@ def make_emptyspace_sparse_env() -> EnvConfig:
 
 
 def make_labyrinth_env() -> EnvConfig:
-    env = make_nav(num_agents=1)
+    env = make_navigation(num_agents=1)
     env.game.max_steps = 250
     env.game.map_builder = MapGenConfig(
         width=31,

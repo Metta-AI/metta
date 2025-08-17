@@ -6,10 +6,10 @@ import os
 import signal
 import sys
 import warnings
-from typing import Any, NoReturn, cast
+from typing import Any, cast
 
 from omegaconf import OmegaConf
-from pydantic import TypeAdapter, validate_call
+from pydantic import validate_call
 from typing_extensions import TypeVar
 
 from metta.common.util.config import Config
@@ -38,51 +38,6 @@ def init_mettagrid_system_environment() -> None:
 
 
 T = TypeVar("T", bound=Config)
-
-
-def apply_override(cfg: T, key: str, value: Any) -> T:
-    key_path = key.split(".")
-
-    def fail(error: str) -> NoReturn:
-        raise ValueError(
-            f"Override failed. Full config:\n {cfg.model_dump_json(indent=2)}\nOverride {key} failed: {error}"
-        )
-
-    inner_cfg: Config = cfg
-    traversed_path: list[str] = []
-    for key_part in key_path[:-1]:
-        if not hasattr(inner_cfg, key_part):
-            failed_path = ".".join(traversed_path + [key_part])
-            fail(f"key {failed_path} not found")
-
-        next_inner_cfg = getattr(inner_cfg, key_part)
-        if not isinstance(next_inner_cfg, Config):
-            failed_path = ".".join(traversed_path + [key_part])
-            fail(f"key {failed_path} is not a Config object")
-
-        inner_cfg = next_inner_cfg
-        traversed_path.append(key_part)
-
-    if not hasattr(inner_cfg, key_path[-1]):
-        fail(f"key {key} not found")
-
-    cls = type(inner_cfg)
-    field = cls.model_fields.get(key_path[-1])
-    if field is None:
-        fail(f"key {key} is not a valid field")
-
-    value = TypeAdapter(field.annotation).validate_python(value)
-    setattr(inner_cfg, key_path[-1], value)
-
-    return cfg
-
-
-def apply_overrides(cfg: T, overrides: list[str]) -> T:
-    for override in overrides:
-        key, value = override.split("=")
-        apply_override(cfg, key, value)
-
-    return cfg
 
 
 def main():
@@ -121,7 +76,9 @@ def main():
         raise ValueError(f"The result of running {args.make_tool_cfg_path} must be a ToolConfig, got {tool_cfg}")
 
     overrides = args.overrides or []
-    tool_cfg = apply_overrides(tool_cfg, overrides)
+    for override in overrides:
+        key, value = override.split("=")
+        tool_cfg = tool_cfg.override(key, value)
 
     logger.info(
         f"Tool config produced by {args.make_tool_cfg_path}({', '.join(make_tool_args)}), "

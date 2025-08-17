@@ -3,6 +3,7 @@ from typing import Optional
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
+from .curriculum_env import CurriculumEnv
 from .task import Task
 from .task_generator import (
     BucketedTaskGenerator,
@@ -33,6 +34,7 @@ __all__ = [
     "ValueRange",
     "tasks",
     "curriculum",
+    "CurriculumEnv",
 ]
 
 
