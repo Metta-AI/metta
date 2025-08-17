@@ -47,16 +47,14 @@ class FastAGaLiTeLayer(nn.Module):
         # Pre-compute oscillatory frequencies
         self.register_buffer("omegas", torch.linspace(-math.pi, math.pi, r))
 
-        # Initialize with much smaller values to prevent gradient explosion
-        # Use very conservative initialization for stability
-        init_gain = 0.1 / math.sqrt(eta * r)  # Reduced from 1.0 to 0.1
-        nn.init.orthogonal_(self.fused_projection.weight, gain=init_gain)
-        nn.init.constant_(self.fused_projection.bias, 0)
-        nn.init.orthogonal_(self.project.weight, gain=init_gain)
-        nn.init.constant_(self.project.bias, 0)
-
-        # Add gradient clipping to prevent explosion
-        self.register_buffer("grad_clip_value", torch.tensor(1.0))
+        # Initialize using standard pattern from working implementations  
+        # Use smaller std for recurrent layers to prevent gradient issues
+        # This matches the pattern of using std=1.0 for intermediate layers
+        init_std = 1.0  # Standard initialization like actor layers
+        nn.init.orthogonal_(self.fused_projection.weight, gain=init_std)
+        nn.init.constant_(self.fused_projection.bias, 0.0)
+        nn.init.orthogonal_(self.project.weight, gain=init_std)
+        nn.init.constant_(self.project.bias, 0.0)
 
     def forward(self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple) -> Tuple[torch.Tensor, Tuple]:
         """Optimized forward pass for large batches."""
