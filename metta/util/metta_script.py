@@ -19,25 +19,6 @@ from metta.common.util.logging_helpers import init_logging
 logger = logging.getLogger(__name__)
 
 
-def hydraless_metta_script(main: Callable[[], int | None]) -> None:
-    """
-    Wrapper for Metta scripts that does not use Hydra.
-    """
-    # If not running as a script, there's nothing to do.
-    caller_frame: FrameType = inspect.stack()[1].frame
-    caller_globals = caller_frame.f_globals
-    if caller_globals.get("__name__") != "__main__":
-        return
-
-    # Exit on ctrl+c
-    signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
-
-    # Call the original function
-    result = main()
-    if result is not None:
-        sys.exit(result)
-
-
 T = TypeVar("T", bound=BaseModel)
 
 
