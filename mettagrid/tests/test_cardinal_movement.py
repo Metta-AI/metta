@@ -20,12 +20,16 @@ def test_cardinal_movement_basic():
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
-            actions=ActionsConfig(move_cardinal=ActionConfig()),
+            actions=ActionsConfig(
+                move_cardinal=ActionConfig(),
+                rotate=ActionConfig(),
+                noop=ActionConfig(),
+            ),
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
-                    [".", ".", "agent.player", ".", "."],
+                    [".", ".", "@", ".", "."],
                     [".", ".", ".", ".", "."],
                 ],
             ),
@@ -88,14 +92,18 @@ def test_cardinal_movement_obstacles():
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
-            actions=ActionsConfig(move_cardinal=ActionConfig()),
+            actions=ActionsConfig(
+                move_cardinal=ActionConfig(),
+                rotate=ActionConfig(),
+                noop=ActionConfig(),
+            ),
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
-                    ["wall", "wall", "wall", "wall", "wall"],
-                    ["wall", ".", ".", ".", "wall"],
-                    ["wall", ".", "agent.player", ".", "wall"],
-                    ["wall", ".", ".", ".", "wall"],
-                    ["wall", "wall", "wall", "wall", "wall"],
+                    ["#", "#", "#", "#", "#"],
+                    ["#", ".", ".", ".", "#"],
+                    ["#", ".", "@", ".", "#"],
+                    ["#", ".", ".", ".", "#"],
+                    ["#", "#", "#", "#", "#"],
                 ],
             ),
         )
@@ -149,11 +157,15 @@ def test_orientation_preserved_in_cardinal_mode():
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
-            actions=ActionsConfig(move_cardinal=ActionConfig()),
+            actions=ActionsConfig(
+                move_cardinal=ActionConfig(),
+                rotate=ActionConfig(),
+                noop=ActionConfig(),
+            ),
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     [".", ".", "."],
-                    [".", "agent.player", "."],
+                    [".", "@", "."],
                     [".", ".", "."],
                 ],
             ),
@@ -221,12 +233,16 @@ def test_orientation_changes_with_cardinal_movement():
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
-            actions=ActionsConfig(move_cardinal=ActionConfig()),
+            actions=ActionsConfig(
+                move_cardinal=ActionConfig(),
+                rotate=ActionConfig(),
+                noop=ActionConfig(),
+            ),
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
-                    ["wall", "wall", "wall"],
-                    ["wall", "agent.player", "wall"],
-                    ["wall", "wall", "wall"],
+                    ["#", "#", "#"],
+                    ["#", "@", "#"],
+                    ["#", "#", "#"],
                 ],
             ),
         )
@@ -276,12 +292,16 @@ def test_hybrid_movement_mode():
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
-            actions=ActionsConfig(move_cardinal=ActionConfig()),
+            actions=ActionsConfig(
+                move_cardinal=ActionConfig(),
+                rotate=ActionConfig(),
+                noop=ActionConfig(),
+            ),
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
-                    [".", ".", "agent.player", ".", "."],
+                    [".", ".", "@", ".", "."],
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
                 ],
@@ -334,12 +354,16 @@ def test_cardinal_movement_with_simple_environment():
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
-            actions=ActionsConfig(move_cardinal=ActionConfig()),
+            actions=ActionsConfig(
+                move_cardinal=ActionConfig(),
+                rotate=ActionConfig(),
+                noop=ActionConfig(),
+            ),
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
-                    [".", ".", "agent.player", ".", "."],
+                    [".", ".", "@", ".", "."],
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
                 ],

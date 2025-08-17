@@ -1,6 +1,9 @@
 import metta.mettagrid.config.envs as eb
-from experiments import arena
+from experiments import arena, navigation
 from metta.mettagrid.map_builder import AsciiMapBuilderConfig
+from metta.tools.play import PlayTool
+from metta.tools.sim import SimTool
+from metta.tools.train import TrainTool
 
 ########################################################
 # Arena
@@ -26,14 +29,24 @@ obstacles_env.game.max_steps = 100
 #     )
 
 
-def train():
-    env = arena.make_env()
+def train() -> TrainTool:
+    env = navigation.make_env()
     env.game.max_steps = 100
-    cfg = arena.train(
+    cfg = navigation.train(
         run="local.daveey.1",
-        curriculum=arena.make_curriculum(env),
+        curriculum=navigation.make_curriculum(env),
     )
     return cfg
 
 
-play = arena.play
+def play() -> PlayTool:
+    env = arena.make_evals()[0].env
+    env.game.max_steps = 100
+    # env.game.agent.initial_inventory["battery_red"] = 10
+    cfg = arena.play(env)
+    return cfg
+
+
+def evaluate() -> SimTool:
+    cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
+    return cfg

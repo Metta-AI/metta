@@ -8,6 +8,8 @@ works correctly while being compatible with the existing test framework.
 import numpy as np
 
 from metta.mettagrid.config.envs import make_arena
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig
 
 
 class TestNewEnvironmentHierarchy:
@@ -28,10 +30,26 @@ class TestNewEnvironmentHierarchy:
         """Test that Gymnasium environments can be created."""
         from metta.mettagrid.gym_env import MettaGridGymEnv
 
-        env = MettaGridGymEnv(
-            make_arena(num_agents=1),
-            render_mode=None,
+        cfg = EnvConfig(
+            game=GameConfig(
+                num_agents=1,
+                actions=ActionsConfig(
+                    move=ActionConfig(),
+                    noop=ActionConfig(),
+                    rotate=ActionConfig(),
+                ),
+                map_builder=AsciiMapBuilderConfig(
+                    map_data=[
+                        ["#", "#", "#", "#", "#"],
+                        ["#", ".", ".", ".", "#"],
+                        ["#", ".", "@", ".", "#"],
+                        ["#", ".", ".", ".", "#"],
+                        ["#", "#", "#", "#", "#"],
+                    ],
+                ),
+            )
         )
+        env = MettaGridGymEnv(cfg, render_mode=None)
 
         assert env is not None
         env.close()
@@ -40,10 +58,26 @@ class TestNewEnvironmentHierarchy:
         """Test basic Gymnasium environment operations."""
         from metta.mettagrid.gym_env import MettaGridGymEnv
 
-        env = MettaGridGymEnv(
-            make_arena(num_agents=1),
-            render_mode=None,
+        cfg = EnvConfig(
+            game=GameConfig(
+                num_agents=1,
+                actions=ActionsConfig(
+                    move=ActionConfig(),
+                    noop=ActionConfig(),
+                    rotate=ActionConfig(),
+                ),
+                map_builder=AsciiMapBuilderConfig(
+                    map_data=[
+                        ["#", "#", "#", "#", "#"],
+                        ["#", ".", ".", ".", "#"],
+                        ["#", ".", "@", ".", "#"],
+                        ["#", ".", ".", ".", "#"],
+                        ["#", "#", "#", "#", "#"],
+                    ],
+                ),
+            )
         )
+        env = MettaGridGymEnv(cfg, render_mode=None)
 
         # Test reset
         obs, info = env.reset(seed=42)
@@ -66,10 +100,27 @@ class TestNewEnvironmentHierarchy:
         from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
         # Create PettingZoo config
-        env = MettaGridPettingZooEnv(
-            make_arena(num_agents=3),
-            render_mode=None,
+        cfg = EnvConfig(
+            game=GameConfig(
+                num_agents=3,
+                actions=ActionsConfig(
+                    move=ActionConfig(),
+                    noop=ActionConfig(),
+                    rotate=ActionConfig(),
+                ),
+                map_builder=AsciiMapBuilderConfig(
+                    map_data=[
+                        ["#", "#", "#", "#", "#", "#", "#"],
+                        ["#", ".", ".", ".", ".", ".", "#"],
+                        ["#", ".", "1", ".", "2", ".", "#"],
+                        ["#", ".", ".", "3", ".", ".", "#"],
+                        ["#", ".", ".", ".", ".", ".", "#"],
+                        ["#", "#", "#", "#", "#", "#", "#"],
+                    ],
+                ),
+            )
         )
+        env = MettaGridPettingZooEnv(cfg, render_mode=None)
 
         assert env is not None
         env.close()
@@ -79,10 +130,27 @@ class TestNewEnvironmentHierarchy:
         from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
         # Create multi-agent config
-        env = MettaGridPettingZooEnv(
-            make_arena(num_agents=3),
-            render_mode=None,
+        cfg = EnvConfig(
+            game=GameConfig(
+                num_agents=3,
+                actions=ActionsConfig(
+                    move=ActionConfig(),
+                    noop=ActionConfig(),
+                    rotate=ActionConfig(),
+                ),
+                map_builder=AsciiMapBuilderConfig(
+                    map_data=[
+                        ["#", "#", "#", "#", "#", "#", "#"],
+                        ["#", ".", ".", ".", ".", ".", "#"],
+                        ["#", ".", "1", ".", "2", ".", "#"],
+                        ["#", ".", ".", "3", ".", ".", "#"],
+                        ["#", ".", ".", ".", ".", ".", "#"],
+                        ["#", "#", "#", "#", "#", "#", "#"],
+                    ],
+                ),
+            )
         )
+        env = MettaGridPettingZooEnv(cfg, render_mode=None)
 
         # Test reset
         observations, infos = env.reset(seed=42)
