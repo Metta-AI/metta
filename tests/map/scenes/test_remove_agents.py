@@ -13,18 +13,18 @@ def test_basic():
         children=[
             ChildrenAction(
                 scene=InlineAscii.factory(
-                    {
-                        "data": """
-                    ###
-                    @@.
-                    ###
+                    InlineAscii.Params(
+                        data="""
+                            ###
+                            @@.
+                            ###
                         """
-                    }
+                    )
                 ),
                 where="full",
             ),
             ChildrenAction(
-                scene=RemoveAgents.factory({}),
+                scene=RemoveAgents.factory(),
                 where="full",
             ),
         ],
