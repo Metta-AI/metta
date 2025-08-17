@@ -147,9 +147,6 @@ class VariedTerrain(Scene[VariedTerrainParams]):
                     self.grid[r, c] = obj_name
                     self._occupancy[r, c] = True
 
-    def get_labels(self) -> list[str]:
-        return [*super().get_labels(), self.params.style]
-
     # ---------------------------
     # Helper Functions
     # ---------------------------

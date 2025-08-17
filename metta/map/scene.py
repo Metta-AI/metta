@@ -298,10 +298,6 @@ class Scene(Generic[ParamsT]):
 
         return None
 
-    def get_labels(self) -> list[str]:
-        # default: use the scene class name as a label
-        return [self.__class__.__name__]
-
     def transplant_to_grid(self, grid: MapGrid, shift_x: int, shift_y: int, is_root: bool = True):
         """
         Transplants the scene to a new grid.
