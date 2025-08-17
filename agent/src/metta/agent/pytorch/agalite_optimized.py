@@ -4,7 +4,6 @@ Uses FastAGaLiTeLayer architecture with enhanced parameters for better metrics.
 """
 
 import logging
-import math
 from typing import Dict, Tuple
 
 import torch

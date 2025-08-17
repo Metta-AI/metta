@@ -47,7 +47,7 @@ class FastAGaLiTeLayer(nn.Module):
         # Pre-compute oscillatory frequencies
         self.register_buffer("omegas", torch.linspace(-math.pi, math.pi, r))
 
-        # Initialize using standard pattern from working implementations  
+        # Initialize using standard pattern from working implementations
         # Use smaller std for recurrent layers to prevent gradient issues
         # This matches the pattern of using std=1.0 for intermediate layers
         init_std = 1.0  # Standard initialization like actor layers
