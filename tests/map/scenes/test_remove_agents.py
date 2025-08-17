@@ -7,27 +7,27 @@ from tests.map.scenes.utils import assert_grid, render_scene
 
 def test_basic():
     scene = render_scene(
-        Nop,
-        {},
-        (3, 3),
-        children=[
-            ChildrenAction(
-                scene=InlineAscii.factory(
-                    InlineAscii.Params(
-                        data="""
+        Nop.factory(
+            children_actions=[
+                ChildrenAction(
+                    scene=InlineAscii.factory(
+                        InlineAscii.Params(
+                            data="""
                             ###
                             @@.
                             ###
                         """
-                    )
+                        )
+                    ),
+                    where="full",
                 ),
-                where="full",
-            ),
-            ChildrenAction(
-                scene=RemoveAgents.factory(),
-                where="full",
-            ),
-        ],
+                ChildrenAction(
+                    scene=RemoveAgents.factory(),
+                    where="full",
+                ),
+            ],
+        ),
+        (3, 3),
     )
 
     assert_grid(
