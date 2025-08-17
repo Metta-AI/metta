@@ -7,6 +7,7 @@ import pufferlib
 import pyro
 import torch
 from pyro.contrib import gp as gp
+from scipy import stats
 
 
 class Space:
@@ -223,10 +224,12 @@ class Random:
         sweep_config,
         global_search_scale=1,
         random_suggestions=1024,
+        acquisition_fn="naive",  # Added for API consistency
     ):
         self.hyperparameters = Hyperparameters(sweep_config)
         self.global_search_scale = global_search_scale
         self.random_suggestions = random_suggestions
+        self.acquisition_fn = acquisition_fn  # Ignored but kept for API consistency
         self.success_observations = []
 
     def suggest(self, fill=None):
@@ -253,12 +256,14 @@ class ParetoGenetic:
         suggestions_per_pareto=1,
         bias_cost=True,
         log_bias=False,
+        acquisition_fn="naive",  # Added for API consistency
     ):
         self.hyperparameters = Hyperparameters(sweep_config)
         self.global_search_scale = global_search_scale
         self.suggestions_per_pareto = suggestions_per_pareto
         self.bias_cost = bias_cost
         self.log_bias = log_bias
+        self.acquisition_fn = acquisition_fn  # Ignored but kept for API consistency
         self.success_observations = []
 
     def suggest(self, fill=None):
@@ -317,6 +322,8 @@ class Protein:
         suggestions_per_pareto=256,
         seed_with_search_center=True,
         expansion_rate=0.25,
+        acquisition_fn="naive",
+        ucb_beta=2.0,
     ):
         self.hyperparameters = Hyperparameters(sweep_config)
         self.num_random_samples = num_random_samples
@@ -327,11 +334,82 @@ class Protein:
         self.resample_frequency = resample_frequency
         self.max_suggestion_cost = max_suggestion_cost
         self.expansion_rate = expansion_rate
+        self.acquisition_fn = acquisition_fn
+        self.ucb_beta = ucb_beta
         self.success_observations = []
         self.failure_observations = []
         self.suggestion_idx = 0
         self.gp_score, self.score_opt = create_gp(self.hyperparameters.num)
         self.gp_cost, self.cost_opt = create_gp(self.hyperparameters.num)
+
+        # Validate acquisition function
+        if acquisition_fn not in ["naive", "ei", "ucb"]:
+            raise ValueError(f"Invalid acquisition function: {acquisition_fn}. Must be one of: 'naive', 'ei', 'ucb'")
+
+    def _compute_ei(self, mean, std, best_value):
+        """
+        Compute Expected Improvement acquisition function.
+
+        Args:
+            mean: Predicted mean from GP
+            std: Predicted standard deviation from GP
+            best_value: Best observed value so far
+
+        Returns:
+            Expected improvement values
+        """
+        # Handle maximize vs minimize
+        if self.hyperparameters.optimize_direction == 1:  # maximize
+            improvement = mean - best_value
+        else:  # minimize
+            improvement = best_value - mean
+
+        # Avoid division by zero
+        std = np.maximum(std, 1e-9)
+
+        # Compute EI
+        z = improvement / std
+        ei = improvement * stats.norm.cdf(z) + std * stats.norm.pdf(z)
+
+        return ei
+
+    def _compute_ucb(self, mean, std, beta=None):
+        """
+        Compute Upper Confidence Bound acquisition function.
+
+        Args:
+            mean: Predicted mean from GP
+            std: Predicted standard deviation from GP
+            beta: Exploration parameter (higher = more exploration)
+
+        Returns:
+            UCB values
+        """
+        if beta is None:
+            beta = self.ucb_beta
+
+        # UCB = mean + beta * std for maximization
+        # UCB = mean - beta * std for minimization
+        ucb = mean + self.hyperparameters.optimize_direction * beta * std
+
+        return ucb
+
+    def _compute_naive_acquisition(self, gp_y_norm, gp_log_c_norm, max_c_mask):
+        """
+        Compute the original naive acquisition function.
+
+        Args:
+            gp_y_norm: Normalized predicted scores
+            gp_log_c_norm: Normalized predicted log costs
+            max_c_mask: Mask for maximum cost constraint
+
+        Returns:
+            Acquisition scores
+        """
+        target = (1 + self.expansion_rate) * np.random.rand()
+        weight = 1 - abs(target - gp_log_c_norm)
+        suggestion_scores = self.hyperparameters.optimize_direction * max_c_mask * (gp_y_norm * weight)
+        return suggestion_scores
 
     def suggest(self, fill):
         info = {}
@@ -377,20 +455,33 @@ class Protein:
             gp_y_norm, gp_y_norm_var = self.gp_score(suggestions)
             gp_log_c_norm, _ = self.gp_cost(suggestions)
         gp_y_norm = gp_y_norm.numpy()
+        gp_y_norm_std = np.sqrt(gp_y_norm_var.numpy())
         gp_log_c_norm = gp_log_c_norm.numpy()
         gp_y = gp_y_norm * (max_score - min_score) + min_score
+        gp_y_std = gp_y_norm_std * (max_score - min_score)
         gp_log_c = gp_log_c_norm * (log_c_max - log_c_min) + log_c_min
         gp_c = np.exp(gp_log_c)
 
         max_c_mask = gp_c < self.max_suggestion_cost
-        target = (1 + self.expansion_rate) * np.random.rand()
-        weight = 1 - abs(target - gp_log_c_norm)
-        suggestion_scores = self.hyperparameters.optimize_direction * max_c_mask * (gp_y_norm * weight)
+
+        # Choose acquisition function
+        if self.acquisition_fn == "ei":
+            # Find best observed value
+            best_observed = np.max(y) if self.hyperparameters.optimize_direction == 1 else np.min(y)
+            ei_scores = self._compute_ei(gp_y, gp_y_std, best_observed)
+            suggestion_scores = max_c_mask * ei_scores
+        elif self.acquisition_fn == "ucb":
+            ucb_scores = self._compute_ucb(gp_y, gp_y_std)
+            suggestion_scores = max_c_mask * self.hyperparameters.optimize_direction * ucb_scores
+        else:  # naive
+            suggestion_scores = self._compute_naive_acquisition(gp_y_norm, gp_log_c_norm, max_c_mask)
+
         best_idx = np.argmax(suggestion_scores)
         info = dict(
             cost=gp_c[best_idx].item(),
             score=gp_y[best_idx].item(),
             rating=suggestion_scores[best_idx].item(),
+            acquisition_fn=self.acquisition_fn,
         )
         best = suggestions[best_idx].numpy()
         return self.hyperparameters.to_dict(best, fill), info

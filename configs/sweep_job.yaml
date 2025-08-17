@@ -15,43 +15,51 @@ settings:
 schedule:
   phases:
     - name: "explore_cheap"
-      num_runs: 100 # 100 * 1800 = 180,000s
+      num_runs: 80 # 80 × 1B = 80B timesteps = $560
       sweep:
         protein:
           max_suggestion_cost: 1800
           random_suggestions: 18
           expansion_rate: 0.18
+          # Use UCB with high beta for broad exploration in early phase
+          acquisition_fn: ucb
+          ucb_beta: 2.5 # High value encourages exploration of uncertain regions
         parameters:
           trainer:
-            total_timesteps: { mean: 300000000 }
+            total_timesteps: { mean: 1000000000 } # 1B - explore around first plateau
             batch_size: { mean: 524288 } # 2^19
             minibatch_size: { mean: 8192 } # 2^13
 
     - name: "exploit_medium"
-      num_runs: 70 # 70 * 3600 = 252,000s
+      num_runs: 50 # 50 × 2B = 100B timesteps = $700
       sweep:
         protein:
           max_suggestion_cost: 3600
           random_suggestions: 10
           suggestions_per_pareto: 24
           expansion_rate: 0.10
+          # Use EI for balanced exploration/exploitation in middle phase
+          acquisition_fn: ei # EI naturally balances exploration and exploitation
         parameters:
           trainer:
-            total_timesteps: { mean: 750000000 }
+            total_timesteps: { mean: 2000000000 } # 2B - explore intermediate plateau
             batch_size: { mean: 1048576 } # 2^20
             minibatch_size: { mean: 16384 } # 2^14
 
     - name: "peak_expensive"
-      num_runs: 11 # 11 * 7200 = 79,200s
+      num_runs: 7 # 7 × 3.5B = 24.5B timesteps = $171.50
       sweep:
         protein:
           max_suggestion_cost: 7200
           random_suggestions: 5
           suggestions_per_pareto: 16
           expansion_rate: 0.06
+          # Use UCB with low beta for exploitation in final phase
+          acquisition_fn: ucb
+          ucb_beta: 1.0 # Low value focuses on exploitation of promising regions
         parameters:
           trainer:
-            total_timesteps: { mean: 1000000000 } # 1B
+            total_timesteps: { mean: 3500000000 } # 3.5B - explore optimal convergence
             batch_size: { mean: 1048576 } # 2^20
             minibatch_size: { mean: 16384 } # 2^14
 
