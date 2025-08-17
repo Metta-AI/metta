@@ -101,7 +101,7 @@ def make_arena(
     )
 
 
-def make_nav(num_agents: int) -> EnvConfig:
+def make_navigation(num_agents: int) -> EnvConfig:
     altar = building.altar
     altar.initial_resource_count = 1
     altar.cooldown = 1000
