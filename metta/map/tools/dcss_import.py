@@ -8,13 +8,13 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
+from metta.common.util.tool import Tool
 from metta.map.config import scenes_root
 from metta.map.scene import SceneConfig
 from metta.map.utils.make_scene_config import (
     make_convchain_config_from_pattern,
     make_wfc_config_from_pattern,
 )
-from metta.util.metta_script import hydraless_metta_script
 
 # This script extracts maps from Dungeon Crawl Stone Soup into individual yaml scene files.
 
@@ -97,7 +97,15 @@ def process_map_entry(map_entry: DCSSMap):
 
     def save_config(config: SceneConfig, dir: Path):
         dir.mkdir(parents=True, exist_ok=True)
-        OmegaConf.save(OmegaConf.create(config.model_dump()), dir / f"{name}.yaml")
+        OmegaConf.save(
+            OmegaConf.create(
+                config.model_dump(
+                    exclude_unset=True,
+                    exclude_defaults=True,
+                )
+            ),
+            dir / f"{name}.yaml",
+        )
 
     # convchain
     convchain_config = make_convchain_config_from_pattern(pattern)
@@ -121,4 +129,6 @@ def generate_scenes_from_dcss_maps():
         pool.map(process_map_entry, maps)
 
 
-hydraless_metta_script(generate_scenes_from_dcss_maps)
+class DCSSImportTool(Tool):
+    def invoke(self):
+        generate_scenes_from_dcss_maps()
