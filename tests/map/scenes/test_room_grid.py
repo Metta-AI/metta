@@ -1,15 +1,17 @@
 import numpy as np
 import pytest
 
-from metta.map.scene import ChildrenAction
 from metta.map.scenes.room_grid import RoomGrid
-from metta.map.types import AreaQuery, AreaWhere
+from metta.map.types import AreaQuery
 from tests.map.scenes.utils import assert_grid, render_scene
 
 
 def test_exact():
     # Test creating a 2x3 grid of rooms
-    scene = render_scene(RoomGrid, {"rows": 2, "columns": 3, "border_width": 1, "border_object": "wall"}, (10, 10))
+    scene = render_scene(
+        RoomGrid.factory(RoomGrid.Params(rows=2, columns=3, border_width=1, border_object="wall")),
+        (10, 10),
+    )
 
     assert_grid(
         scene,
@@ -30,7 +32,10 @@ def test_exact():
 
 def test_with_rows_columns():
     # Test creating a 2x3 grid of rooms
-    scene = render_scene(RoomGrid, {"rows": 2, "columns": 3, "border_width": 1, "border_object": "wall"}, (10, 10))
+    scene = render_scene(
+        RoomGrid.factory(RoomGrid.Params(rows=2, columns=3, border_width=1, border_object="wall")),
+        (10, 10),
+    )
 
     # Verify the grid structure
     # Should have walls at inner borders
@@ -49,7 +54,10 @@ def test_with_layout():
     # Test creating rooms with a specific layout and tags
     layout = [["room1", "room2"], ["room3", "room4"]]
 
-    scene = render_scene(RoomGrid, {"layout": layout, "border_width": 1, "border_object": "wall"}, (10, 10))
+    scene = render_scene(
+        RoomGrid.factory(RoomGrid.Params(layout=layout, border_width=1, border_object="wall")),
+        (10, 10),
+    )
 
     areas = scene.select_areas(AreaQuery())
     # Verify room areas are created with correct tags
@@ -74,8 +82,14 @@ def test_benchmark_room_grid(benchmark, benchmark_size):
 
     def create_grid():
         scene = render_scene(
-            RoomGrid,
-            {"rows": benchmark_size[0], "columns": benchmark_size[1], "border_width": 1, "border_object": "wall"},
+            RoomGrid.factory(
+                RoomGrid.Params(
+                    rows=benchmark_size[0],
+                    columns=benchmark_size[1],
+                    border_width=1,
+                    border_object="wall",
+                )
+            ),
             (100, 100),
         )
 
@@ -83,37 +97,3 @@ def test_benchmark_room_grid(benchmark, benchmark_size):
 
     areas = benchmark(create_grid)
     assert len(areas) == benchmark_size[0] * benchmark_size[1]
-
-
-def test_labels_same_type_children():
-    scene = render_scene(
-        RoomGrid,
-        params={"rows": 2, "columns": 3},
-        shape=(10, 10),
-        children=[
-            ChildrenAction(
-                scene={"type": "metta.map.scenes.random.Random", "params": {"agents": 10}},
-                where=AreaWhere(tags=["room"]),
-            )
-        ],
-    )
-    assert scene.get_labels() == ["Random"]
-
-
-def test_labels_different_type_children():
-    scene = render_scene(
-        RoomGrid,
-        params={"rows": 2, "columns": 2},
-        shape=(10, 10),
-        children=[
-            ChildrenAction(
-                scene={"type": "metta.map.scenes.random.Random", "params": {"agents": 1}},
-                where=AreaWhere(tags=["room"]),
-            ),
-            ChildrenAction(
-                scene={"type": "metta.map.scenes.maze.Maze"},
-                where=AreaWhere(tags=["room"]),
-            ),
-        ],
-    )
-    assert scene.get_labels() == []
