@@ -139,7 +139,16 @@ class AGaLiTeTurboPolicy(nn.Module):
 
         # Efficient output heads
         self.critic = nn.Linear(d_model, 1)
-        self.actor = nn.Linear(d_model, 100)  # Assuming max 100 actions
+        
+        # Get actual action space size
+        if hasattr(self.action_space, "nvec"):
+            action_size = sum(self.action_space.nvec)
+        elif hasattr(self.action_space, "n"):
+            action_size = self.action_space.n
+        else:
+            action_size = 100  # Fallback
+        
+        self.actor = nn.Linear(d_model, action_size)
 
         # Initialize weights efficiently
         for m in self.modules():
