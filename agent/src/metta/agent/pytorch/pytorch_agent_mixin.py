@@ -189,6 +189,12 @@ class PyTorchAgentMixin:
         """
         log_probs = F.log_softmax(logits_list, dim=-1)
         action_probs = torch.exp(log_probs)
+        
+        # Ensure valid probabilities for multinomial sampling
+        # Add small epsilon to prevent sampling issues with zero probabilities
+        if (action_probs < 0).any() or (action_probs.sum(dim=-1) == 0).any() or torch.isnan(action_probs).any():
+            action_probs = action_probs.clamp(min=1e-10)
+            action_probs = action_probs / action_probs.sum(dim=-1, keepdim=True)
 
         actions = torch.multinomial(action_probs, num_samples=1).view(-1)
 

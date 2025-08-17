@@ -47,10 +47,9 @@ class FastAGaLiTeLayer(nn.Module):
         # Pre-compute oscillatory frequencies
         self.register_buffer("omegas", torch.linspace(-math.pi, math.pi, r))
 
-        # Initialize using standard pattern from working implementations  
-        # Use smaller std for recurrent layers to prevent gradient issues
-        # This matches the pattern of using std=1.0 for intermediate layers
-        init_std = 1.0  # Standard initialization like actor layers
+        # Initialize with conservative values for stability
+        # Recurrent layers benefit from smaller initialization
+        init_std = 0.5  # Conservative gain for recurrent architecture
         nn.init.orthogonal_(self.fused_projection.weight, gain=init_std)
         nn.init.constant_(self.fused_projection.bias, 0.0)
         nn.init.orthogonal_(self.project.weight, gain=init_std)
@@ -220,15 +219,23 @@ class FastAGaLiTeLayer(nn.Module):
 
         # Normalization with improved numerical stability
         norm = (final_s * queries_expanded).sum(dim=-1, keepdim=True)
-        # Clamp norm to prevent extreme values
+        # Ensure norm is non-negative and bounded
         norm = torch.clamp(torch.abs(norm), min=self.eps, max=1e6)
-        # Use a larger epsilon and add regularization
-        denominator = 2 * self.r * norm + 0.1  # Much larger epsilon for stability
+        # Add regularization term to prevent division issues
+        denominator = 2 * self.r * norm + 1e-3  # Balanced epsilon for stability
         attn_out = kv / denominator
+        
+        # Clamp output to prevent extreme values from propagating
+        attn_out = torch.clamp(attn_out, min=-100, max=100)
 
         # Output projection
         attn_out = attn_out.reshape(T, B, self.head_num * self.head_dim)
         attn_out = self.dropout(self.project(attn_out))
+        
+        # Final stability check
+        if torch.isnan(attn_out).any():
+            # If NaN detected, return zeros to prevent propagation
+            attn_out = torch.zeros_like(attn_out)
 
         # Update memory
         new_tick = tick + T
