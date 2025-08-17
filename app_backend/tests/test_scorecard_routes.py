@@ -1,4 +1,5 @@
 import datetime
+import uuid
 
 import pytest
 from fastapi.testclient import TestClient
@@ -2235,7 +2236,6 @@ class TestPolicyScorecardRoutes:
         # manually running the update logic using the stats_repo fixture.
 
         # Import the necessary components for manual leaderboard update
-        import uuid
 
         from metta.app_backend.leaderboard_updater import LeaderboardUpdater
 
@@ -2344,6 +2344,191 @@ class TestPolicyScorecardRoutes:
         assert leaderboard_scorecard["policyAverageScores"] == individual_scorecard["policyAverageScores"]
         assert leaderboard_scorecard["evalAverageScores"] == individual_scorecard["evalAverageScores"]
         assert leaderboard_scorecard["evalMaxScores"] == individual_scorecard["evalMaxScores"]
+
+    def test_search_policies_by_name(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+        """Test searching policies by name."""
+        # Create test data with distinctive names
+        test_data = create_test_data("navigation_search_test", num_policies=2, create_run_free_policies=1)
+
+        # Record episodes so policies appear in unified_training_runs view
+        record_episodes(
+            test_data,
+            eval_category="navigation",
+            env_names=["search_env"],
+            metric_values={"policy_0_search_env": 75.0, "policy_1_search_env": 85.0, "policy_2_search_env": 65.0},
+        )
+
+        # Test search by partial name match
+        search_request = {"search": "navigation_search"}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        # Should find policies containing the search term
+        assert "policies" in result
+        assert len(result["policies"]) >= 1
+        found_policies = [p for p in result["policies"] if "navigation_search" in p["name"]]
+        assert len(found_policies) >= 1
+
+        # Test case-insensitive search
+        search_request = {"search": "NAVIGATION"}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        found_policies = [p for p in result["policies"] if "navigation" in p["name"].lower()]
+        assert len(found_policies) >= 1
+
+    def test_search_policies_by_type(self, test_client: TestClient, create_test_data) -> None:
+        """Test filtering policies by type."""
+        # Create test data with both types
+        create_test_data("search_policies_type", num_policies=1, create_run_free_policies=2)
+
+        # Test filter by training_run type
+        search_request = {"policy_type": "training_run"}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        # All returned policies should be training runs
+        for policy in result["policies"]:
+            assert policy["type"] == "training_run"
+
+        # Test filter by policy type
+        search_request = {"policy_type": "policy"}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        # All returned policies should be run-free policies
+        for policy in result["policies"]:
+            assert policy["type"] == "policy"
+
+    def test_search_policies_by_tags(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+        """Test filtering policies by tags."""
+        # Create test data that will have the scorecard_test tag
+        test_data = create_test_data("search_tags_test", num_policies=2, create_run_free_policies=1)
+
+        # Record episodes so policies appear in unified_training_runs view
+        record_episodes(
+            test_data,
+            eval_category="navigation",
+            env_names=["tag_env"],
+            metric_values={"policy_0_tag_env": 80.0, "policy_1_tag_env": 90.0, "policy_2_tag_env": 70.0},
+        )
+
+        # Test filter by tag that we know exists in test data (scorecard_test)
+        search_request = {"tags": ["scorecard_test"]}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        # Find training runs with scorecard_test tag
+        tagged_policies = [p for p in result["policies"] if "scorecard_test" in p.get("tags", [])]
+        assert len(tagged_policies) >= 1
+
+        # Test filter by multiple tags (should match policies with ANY of the tags)
+        search_request = {"tags": ["test_tag", "nonexistent"]}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        # Should still find policies with test_tag (which exists in test data)
+        tagged_policies = [p for p in result["policies"] if "test_tag" in p.get("tags", [])]
+        assert len(tagged_policies) >= 1
+
+    def test_search_policies_combined_filters(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+        """Test combining multiple search filters."""
+        # Create test data
+        test_data = create_test_data("combined_filter_test", num_policies=2, create_run_free_policies=1)
+
+        # Record episodes so policies appear in unified_training_runs view
+        record_episodes(
+            test_data,
+            eval_category="navigation",
+            env_names=["combined_env"],
+            metric_values={"policy_0_combined_env": 80.0, "policy_1_combined_env": 90.0, "policy_2_combined_env": 70.0},
+        )
+
+        # Test combining search term, type, and tags using existing test data
+        search_request = {
+            "search": "combined_filter",  # Part of the training run name
+            "policy_type": "training_run",
+            "tags": ["scorecard_test"],  # Tag that exists in test data
+        }
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        # Should find training runs that match ALL criteria
+        matching_policies = []
+        for policy in result["policies"]:
+            if (
+                "combined_filter" in policy["name"].lower()
+                and policy["type"] == "training_run"
+                and "scorecard_test" in policy.get("tags", [])
+            ):
+                matching_policies.append(policy)
+
+        assert len(matching_policies) >= 1
+
+    def test_search_policies_pagination(self, test_client: TestClient, create_test_data) -> None:
+        """Test pagination in search results."""
+        # Create test data
+        create_test_data("search_pagination", num_policies=5, create_run_free_policies=3)
+
+        # Test with limit
+        search_request = {"limit": 2}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        assert len(result["policies"]) <= 2
+
+        # Test with offset
+        search_request = {"limit": 3, "offset": 2}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        assert len(result["policies"]) <= 3
+
+    def test_search_policies_empty_results(self, test_client: TestClient) -> None:
+        """Test search with no matching results."""
+        search_request = {"search": "nonexistent_policy_name_12345"}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        assert len(result["policies"]) == 0
+
+    def test_search_policies_invalid_parameters(self, test_client: TestClient) -> None:
+        """Test search with invalid parameters."""
+        # Test invalid policy type
+        search_request = {"policy_type": "invalid_type"}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200  # Should return empty results, not error
+        result = response.json()
+        assert "policies" in result
+        assert len(result["policies"]) == 0
+
+        # Test excessive limit (should be capped)
+        search_request = {"limit": 2000}  # Over the 1000 limit
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 422  # Validation error
+
+        # Test negative offset
+        search_request = {"offset": -1}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 422  # Validation error
 
 
 if __name__ == "__main__":

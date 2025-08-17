@@ -134,7 +134,7 @@ def _create_policy_aware_eval_metadata(
     eval_names: List[str],
     completed_evals: List[str],
     performance_data: Dict[str, Any],
-    category_filter: List[str] = None,
+    category_filter: List[str] | None = None,
 ) -> List[Dict[str, Any]]:
     """
     Create policy-aware eval metadata from eval names and performance data.
