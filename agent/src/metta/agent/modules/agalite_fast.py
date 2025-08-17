@@ -153,48 +153,11 @@ class FastAGaLiTeLayer(nn.Module):
             discount_gamma = 1 - gammas_expanded
             discount_beta = 1 - beta
 
-        # Discounted sums (the sequential part)
-        # Optimize by processing in chunks if B is very large
-        if B > 1024:
-            # Split batch for better memory usage
-            chunk_size = 512
-            final_keys_chunks = []
-            final_values_chunks = []
-            final_s_chunks = []
-
-            for i in range(0, B, chunk_size):
-                end_i = min(i + chunk_size, B)
-                chunk_slice = slice(i, end_i)
-
-                fk = discounted_sum(
-                    tilde_k_prev[chunk_slice],
-                    keys_osc[:, chunk_slice],
-                    discount_gamma[:, chunk_slice].unsqueeze(2),
-                )
-                final_keys_chunks.append(fk)
-
-                fv = discounted_sum(
-                    tilde_v_prev[chunk_slice],
-                    values_osc[:, chunk_slice],
-                    discount_beta[:, chunk_slice].unsqueeze(2).unsqueeze(3),
-                )
-                final_values_chunks.append(fv)
-
-                fs = discounted_sum(
-                    s_prev[chunk_slice],
-                    s[:, chunk_slice],
-                    discount_gamma[:, chunk_slice],
-                )
-                final_s_chunks.append(fs)
-
-            final_keys = torch.cat(final_keys_chunks, dim=1)
-            final_values = torch.cat(final_values_chunks, dim=1)
-            final_s = torch.cat(final_s_chunks, dim=1)
-        else:
-            # Normal processing
-            final_keys = discounted_sum(tilde_k_prev, keys_osc, discount_gamma.unsqueeze(2))
-            final_values = discounted_sum(tilde_v_prev, values_osc, discount_beta.unsqueeze(2).unsqueeze(3))
-            final_s = discounted_sum(s_prev, s, discount_gamma)
+        # Discounted sums - always use normal processing
+        # (chunking code has bugs and is rarely used in practice)
+        final_keys = discounted_sum(tilde_k_prev, keys_osc, discount_gamma.unsqueeze(2))
+        final_values = discounted_sum(tilde_v_prev, values_osc, discount_beta.unsqueeze(2).unsqueeze(3))
+        final_s = discounted_sum(s_prev, s, discount_gamma)
 
         # Attention computation (optimized)
         # Use batched operations instead of einsum
