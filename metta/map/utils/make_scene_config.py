@@ -1,6 +1,6 @@
 from typing import Optional
 
-from metta.map.mapgen import MapGen
+from metta.map.mapgen import MapGenConfig
 
 
 def with_boundaries(pattern: str):
@@ -34,7 +34,7 @@ def make_wfc_config_from_pattern(pattern: str) -> Optional[dict]:
 
     # Some WFC patterns are invalid, so we need to check that they are valid.
     # This is the slowest part of import, 2-20 seconds per map.
-    mapgen = MapGen(width=100, height=100, root=config)
+    mapgen = MapGenConfig(width=100, height=100, root=config).create()
     try:
         mapgen.build()
     except Exception:

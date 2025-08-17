@@ -13,8 +13,8 @@ def test_objects():
             RandomScene,
             dict(
                 candidates=[
-                    {"scene": InlineAscii.factory(params={"data": "#"}), "weight": 1},
-                    {"scene": InlineAscii.factory(params={"data": "_"}), "weight": 1},
+                    {"scene": InlineAscii.factory(InlineAscii.Params(data="#")), "weight": 1},
+                    {"scene": InlineAscii.factory(InlineAscii.Params(data="_")), "weight": 1},
                 ]
             ),
             (1, 1),
