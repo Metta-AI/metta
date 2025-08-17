@@ -47,11 +47,12 @@ class FastAGaLiTeLayer(nn.Module):
         # Pre-compute oscillatory frequencies
         self.register_buffer("omegas", torch.linspace(-math.pi, math.pi, r))
 
-        # Initialize weights with balanced scaling
-        # Use smaller gain to prevent initial instability
-        nn.init.orthogonal_(self.fused_projection.weight, gain=1.0)
+        # Initialize with conservative values for stability
+        # Use the richard-transformer branch value which works
+        init_std = 0.5  # Conservative gain for recurrent architecture
+        nn.init.orthogonal_(self.fused_projection.weight, gain=init_std)
         nn.init.constant_(self.fused_projection.bias, 0.0)
-        nn.init.orthogonal_(self.project.weight, gain=1.0)
+        nn.init.orthogonal_(self.project.weight, gain=init_std)
         nn.init.constant_(self.project.bias, 0.0)
 
     @torch._dynamo.disable  # Avoid graph breaks in recurrent computation
@@ -226,10 +227,6 @@ class FastAGaLiTeLayer(nn.Module):
         # Output projection
         attn_out = attn_out.reshape(T, B, self.head_num * self.head_dim)
         attn_out = self.dropout(self.project(attn_out))
-
-        # Stability check: clamp output to prevent extreme values
-        # This prevents gradient explosion and NaN propagation
-        attn_out = torch.clamp(attn_out, min=-10.0, max=10.0)
 
         # Update memory - detach to prevent gradient accumulation
         new_tick = tick + T
