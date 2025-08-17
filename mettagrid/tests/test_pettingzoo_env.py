@@ -8,13 +8,55 @@ import numpy as np
 from pettingzoo.test import parallel_api_test
 
 from metta.mettagrid.config.envs import make_arena
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
+
+
+def make_pettingzoo_env(num_agents=3, max_steps=100):
+    """Create a test PettingZoo environment with a simple map."""
+    if num_agents == 3:
+        map_data = [
+            ["#", "#", "#", "#", "#", "#", "#"],
+            ["#", ".", ".", ".", ".", ".", "#"],
+            ["#", ".", "1", ".", "2", ".", "#"],
+            ["#", ".", ".", "3", ".", ".", "#"],
+            ["#", ".", ".", ".", ".", ".", "#"],
+            ["#", "#", "#", "#", "#", "#", "#"],
+        ]
+    elif num_agents == 5:
+        map_data = [
+            ["#", "#", "#", "#", "#", "#", "#", "#"],
+            ["#", ".", "1", ".", ".", "2", ".", "#"],
+            ["#", ".", ".", ".", ".", ".", ".", "#"],
+            ["#", ".", "3", ".", ".", "4", ".", "#"],
+            ["#", ".", ".", ".", ".", ".", ".", "#"],
+            ["#", ".", ".", ".", "5", ".", ".", "#"],
+            ["#", ".", ".", ".", ".", ".", ".", "#"],
+            ["#", "#", "#", "#", "#", "#", "#", "#"],
+        ]
+    else:
+        # Default to num_agents=6 which works with make_arena
+        return make_arena(num_agents=num_agents)
+
+    cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=num_agents,
+            max_steps=max_steps,
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                noop=ActionConfig(),
+                rotate=ActionConfig(),
+            ),
+            map_builder=AsciiMapBuilderConfig(map_data=map_data),
+        )
+    )
+    return cfg
 
 
 def test_pettingzoo_env_creation():
     """Test PettingZoo environment creation and properties."""
-    cfg = make_arena(num_agents=3)
-    cfg.game.max_steps = 100
+    cfg = make_pettingzoo_env(num_agents=3, max_steps=100)
     env = MettaGridPettingZooEnv(
         cfg,
         render_mode=None,
@@ -32,8 +74,7 @@ def test_pettingzoo_env_creation():
 
 def test_pettingzoo_env_reset():
     """Test PettingZoo environment reset functionality."""
-    cfg = make_arena(num_agents=3)
-    cfg.game.max_steps = 100
+    cfg = make_pettingzoo_env(num_agents=3, max_steps=100)
     env = MettaGridPettingZooEnv(
         cfg,
         render_mode=None,
@@ -60,7 +101,7 @@ def test_pettingzoo_env_reset():
 def test_pettingzoo_env_step():
     """Test PettingZoo environment step functionality."""
     env = MettaGridPettingZooEnv(
-        make_arena(num_agents=3),
+        make_pettingzoo_env(num_agents=3),
         render_mode=None,
     )
 
@@ -102,7 +143,7 @@ def test_pettingzoo_env_step():
 def test_pettingzoo_env_agent_removal():
     """Test that agents are properly removed when terminated."""
     env = MettaGridPettingZooEnv(
-        make_arena(num_agents=3),
+        make_pettingzoo_env(num_agents=3),
         render_mode=None,
     )
 
@@ -133,7 +174,7 @@ def test_pettingzoo_env_agent_removal():
 def test_pettingzoo_env_spaces():
     """Test PettingZoo environment observation and action spaces."""
     env = MettaGridPettingZooEnv(
-        make_arena(num_agents=3),
+        make_pettingzoo_env(num_agents=3),
         render_mode=None,
     )
 
@@ -155,7 +196,7 @@ def test_pettingzoo_env_spaces():
 def test_pettingzoo_env_state():
     """Test PettingZoo environment state functionality."""
     env = MettaGridPettingZooEnv(
-        make_arena(num_agents=3),
+        make_pettingzoo_env(num_agents=3),
         render_mode=None,
     )
 
@@ -176,7 +217,7 @@ def test_pettingzoo_env_state():
 def test_pettingzoo_api_compliance():
     """Test official PettingZoo API compliance."""
     env = MettaGridPettingZooEnv(
-        make_arena(num_agents=3),
+        make_pettingzoo_env(num_agents=3),
         render_mode=None,
     )
 
@@ -189,7 +230,7 @@ def test_pettingzoo_api_compliance():
 def test_pettingzoo_episode_lifecycle():
     """Test the complete episode lifecycle with PettingZoo API."""
     env = MettaGridPettingZooEnv(
-        make_arena(num_agents=3),
+        make_pettingzoo_env(num_agents=3),
         render_mode=None,
     )
 
@@ -249,7 +290,7 @@ def test_pettingzoo_episode_lifecycle():
 def test_pettingzoo_action_observation_spaces():
     """Test that action and observation spaces are properly configured."""
     env = MettaGridPettingZooEnv(
-        make_arena(num_agents=5),
+        make_pettingzoo_env(num_agents=5),
         render_mode=None,
     )
 
@@ -281,7 +322,7 @@ def test_pettingzoo_action_observation_spaces():
 def test_pettingzoo_render_functionality():
     """Test that rendering works with PettingZoo interface."""
     env = MettaGridPettingZooEnv(
-        make_arena(num_agents=5),
+        make_pettingzoo_env(num_agents=5),
         render_mode="human",
     )
 
