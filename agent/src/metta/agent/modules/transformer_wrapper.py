@@ -21,7 +21,7 @@ class TransformerWrapper(nn.Module):
 
     def __setstate__(self, state):
         """Ensure transformer memory states are properly initialized after loading from checkpoint.
-        
+
         Similar to LSTM's __setstate__, prevents batch size mismatches when resuming.
         """
         self.__dict__.update(state)
@@ -223,10 +223,10 @@ class TransformerWrapper(nn.Module):
             "hidden": None,
             "needs_init": False,
         }
-    
+
     def _detach_memory(self, memory):
         """Detach memory tensors to prevent gradient accumulation.
-        
+
         Critical for preventing memory leaks during long training runs.
         """
         if memory is None:
