@@ -14,14 +14,8 @@ from metta.agent.pytorch.agalite import AGaLiTe, AGaLiTeCore, AGaLiTePolicy
 
 logger = logging.getLogger(__name__)
 
-# Import fast implementation to verify it's available
-try:
-    from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
-
-    FAST_MODE_AVAILABLE = True
-except ImportError as e:
-    FAST_MODE_AVAILABLE = False
-    raise ImportError("FastAGaLiTeLayer required for AGaLiTeOptimized") from e
+# Import required fast implementation
+from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
 
 
 class AGaLiTeOptimizedCore(AGaLiTeCore):
