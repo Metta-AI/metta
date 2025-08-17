@@ -37,50 +37,52 @@ def init_mettagrid_system_environment() -> None:
     warnings.filterwarnings("ignore", category=DeprecationWarning, module="pygame.pkgdata")
 
 
-T = TypeVar("T", bound=Tool)
+T = TypeVar("T", bound=Config)
 
 
-def apply_override(tool: T, key: str, value: Any) -> T:
+def apply_override(cfg: T, key: str, value: Any) -> T:
     key_path = key.split(".")
 
     def fail(error: str) -> NoReturn:
-        raise ValueError(f"Override failed. Full config:\n {tool.model_dump_json()}\nOverride {key} failed: {error}")
+        raise ValueError(
+            f"Override failed. Full config:\n {cfg.model_dump_json(indent=2)}\nOverride {key} failed: {error}"
+        )
 
-    cfg: Config = tool
+    inner_cfg: Config = cfg
     traversed_path: list[str] = []
     for key_part in key_path[:-1]:
-        if not hasattr(cfg, key_part):
+        if not hasattr(inner_cfg, key_part):
             failed_path = ".".join(traversed_path + [key_part])
             fail(f"key {failed_path} not found")
 
-        sub_cfg = getattr(cfg, key_part)
-        if not isinstance(sub_cfg, Config):
+        next_inner_cfg = getattr(inner_cfg, key_part)
+        if not isinstance(next_inner_cfg, Config):
             failed_path = ".".join(traversed_path + [key_part])
             fail(f"key {failed_path} is not a Config object")
 
-        cfg = sub_cfg
+        inner_cfg = next_inner_cfg
         traversed_path.append(key_part)
 
-    if not hasattr(cfg, key_path[-1]):
+    if not hasattr(inner_cfg, key_path[-1]):
         fail(f"key {key} not found")
 
-    cls = type(cfg)
+    cls = type(inner_cfg)
     field = cls.model_fields.get(key_path[-1])
     if field is None:
         fail(f"key {key} is not a valid field")
 
     value = TypeAdapter(field.annotation).validate_python(value)
-    setattr(cfg, key_path[-1], value)
+    setattr(inner_cfg, key_path[-1], value)
 
-    return tool
+    return cfg
 
 
-def apply_overrides(tool: T, overrides: list[str]) -> T:
+def apply_overrides(cfg: T, overrides: list[str]) -> T:
     for override in overrides:
         key, value = override.split("=")
-        apply_override(tool, key, value)
+        apply_override(cfg, key, value)
 
-    return tool
+    return cfg
 
 
 def main():
@@ -108,7 +110,13 @@ def main():
     module_name, func_name = args.make_tool_cfg_path.rsplit(".", 1)
     make_tool_cfg = importlib.import_module(module_name).__getattribute__(func_name)
 
-    tool_cfg = validate_call(make_tool_cfg)(**args_conf)
+    if issubclass(make_tool_cfg, Tool):
+        # tool config constructor
+        tool_cfg = make_tool_cfg(**args_conf)
+    else:
+        # function that makes a tool config
+        tool_cfg = validate_call(make_tool_cfg)(**args_conf)
+
     if not isinstance(tool_cfg, Tool):
         raise ValueError(f"The result of running {args.make_tool_cfg_path} must be a ToolConfig, got {tool_cfg}")
 
@@ -119,7 +127,7 @@ def main():
         f"Tool config produced by {args.make_tool_cfg_path}({', '.join(make_tool_args)}), "
         + f"with overrides {', '.join(overrides)}:"
         + "\n---------------------\n"
-        + str(tool_cfg.model_dump_json())
+        + str(tool_cfg.model_dump_json(indent=2))
     )
 
     # Seed random number generators
