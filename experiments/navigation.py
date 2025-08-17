@@ -1,16 +1,17 @@
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 import softmax.softmax as softmax
-import yaml
 from metta.cogworks.curriculum.task_generator import ValueRange as vr
 from metta.map.mapgen import MapGenConfig
 from metta.map.terrain_from_numpy import TerrainFromNumpyConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
 from metta.tools.train import TrainTool
 
 from experiments.evals.navigation import make_navigation_eval_suite
 
-nav = eb.make_nav(num_agents=4)
+nav = eb.make_navigation(num_agents=4)
 
 nav.game.map_builder = MapGenConfig(
     instances=4,
@@ -56,5 +57,14 @@ def train(run: str) -> TrainTool:
         trainer=trainer_cfg,
         wandb=softmax.wandb_config(run=run),
         run=run,
-        policy_architecture=yaml.safe_load(open("configs/agent/fast.yaml")),
+    )
+
+
+def play() -> PlayTool:
+    return PlayTool(
+        sim=SimulationConfig(
+            env=nav,
+            name="navigation",
+        ),
+        wandb=softmax.wandb_config(run="navigation.play"),
     )

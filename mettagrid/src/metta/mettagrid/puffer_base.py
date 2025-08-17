@@ -24,7 +24,7 @@ This avoids double-wrapping while maintaining full PufferLib compatibility.
 
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
 from pufferlib import PufferEnv
@@ -47,9 +47,6 @@ assert dtype_terminals == np.dtype(np.bool_)
 assert dtype_truncations == np.dtype(np.bool_)
 assert dtype_rewards == np.dtype(np.float32)
 assert dtype_actions == np.dtype(np.int32)
-
-# Type for done handler callback function
-DoneHandlerType = Callable[[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]], None]
 
 
 class MettaGridPufferBase(MettaGridCore, PufferEnv):
@@ -94,16 +91,11 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
 
         # Auto-Reset
         self._should_reset = False
-        self._on_episode_done: Optional[DoneHandlerType] = None
 
         self.observations: np.ndarray
         self.terminals: np.ndarray
         self.truncations: np.ndarray
         self.rewards: np.ndarray
-
-    def set_on_episode_done(self, handler: DoneHandlerType) -> None:
-        """Set the callback function to be called when an episode completes."""
-        self._on_episode_done = handler
 
     # PufferLib required properties
     @property
@@ -140,19 +132,8 @@ class MettaGridPufferBase(MettaGridCore, PufferEnv):
         observations, rewards, terminals, truncations, infos = super().step(actions)
         if terminals.all() or truncations.all():
             self._should_reset = True
-            if self._on_episode_done is not None:
-                self._on_episode_done(observations, rewards, terminals, truncations, infos)
 
         return observations, rewards, terminals, truncations, infos
-
-    def set_env_config(self, env_config: EnvConfig) -> None:
-        """Set the environment configuration.
-
-        Args:
-            env_config: Environment configuration
-        """
-        assert self._should_reset, "Environment must be done before setting new config"
-        MettaGridCore.set_env_config(self, env_config)
 
     # PufferLib required properties
     @property
