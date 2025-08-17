@@ -52,17 +52,44 @@ def get_position_component(object, step, component):
     return result
 
 
-def read_replay_map(input, step):
-    if input["version"] != 1:
-        raise ValueError("Unsupported replay version")
+def get_location(object, step):
+    x = object["location"]
+    if not isinstance(x[1], list):
+        return x
+    result = [0, 0, 0]
+    for [frame, value] in x:
+        if frame > step:
+            break
+        result = value
+    return result
+
+
+def read_replay_map(input, step, debug):
     if input["max_steps"] <= step:
         raise ValueError("Step is out of range")
+
+    version = input["version"]
+    match version:
+        case 1:
+            objects_key = "grid_objects"
+            type_names_key = "object_types"
+            type_id_key = "type"
+        case 2:
+            objects_key = "objects"
+            type_names_key = "type_names"
+            type_id_key = "type_id"
+        case x:
+            raise ValueError("Unsupported replay version:", x)
+
+    if debug:
+        print("Keys:", input.keys())
+        print("Vals:", input[objects_key][0].keys())
 
     # Setup phase: map object types to drawing functions.
     agent_type_id = -1
     shape = []
     fills = []
-    for type_id, object_type in enumerate(input["object_types"]):
+    for type_id, object_type in enumerate(input[type_names_key]):
         if object_type == "agent":
             agent_type_id = type_id
         if object_type in colors:
@@ -77,12 +104,17 @@ def read_replay_map(input, step):
             case _:
                 shape.append(path_wall)
 
-    objects = input["grid_objects"]
+    objects = input[objects_key]
     nodes = [0] * len(objects)
     for i, object in enumerate(objects):
-        x = get_position_component(object, step, "c")
-        y = get_position_component(object, step, "r")
-        nodes[i] = y | (x << 16) | (object["type"] << 32) | (object.get("agent_id", 0) << 48)
+        match version:
+            case 1:
+                x = get_position_component(object, step, "c")
+                y = get_position_component(object, step, "r")
+            case 2:
+                [x, y, _] = get_location(object, step)
+
+        nodes[i] = y | (x << 16) | (object[type_id_key] << 32) | (object.get("agent_id", 0) << 48)
 
     size = input["map_size"]
     return [size[0], size[1], nodes, shape, fills, agent_type_id]
@@ -292,15 +324,11 @@ def main():
         else:
             input_json = zlib.decompress(input_raw)
             input_data = json.loads(input_json)
-            input = read_replay_map(input_data, args.step)
+            input = read_replay_map(input_data, args.step, args.debug)
     except Exception as e:
         print(f"Error reading replay file: {e}", file=sys.stderr)
         print(traceback.format_exc())
         sys.exit(1)
-
-    if args.debug:
-        print("Keys:", input_data.keys())
-        print("Vals:", input_data["grid_objects"][0].keys())
 
     # Transform the replay data into a thumbnail image.
     try:

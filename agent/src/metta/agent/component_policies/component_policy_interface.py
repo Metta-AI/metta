@@ -1,12 +1,12 @@
 import logging
 from abc import ABC, abstractmethod
-from typing import Optional, Union
+from typing import Optional
 
-import gymnasium as gym
 import torch
 from tensordict import TensorDict
 from torch import nn
 
+from metta.agent.agent_config import ComponentPolicyConfig
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space
@@ -20,40 +20,38 @@ class ComponentPolicyInterface(nn.Module, ABC):
     Abstract base class for component-based policies.
     """
 
-    def __init__(
-        self,
-        obs_space: Optional[Union[gym.spaces.Space, gym.spaces.Dict]] = None,
-        obs_width: Optional[int] = None,
-        obs_height: Optional[int] = None,
-        action_space: Optional[gym.spaces.Space] = None,
-        feature_normalizations: Optional[dict[int, float]] = None,
-        device: Optional[str] = None,
-    ):
+    def __init__(self, config: ComponentPolicyConfig):
         super().__init__()
 
         self.clip_range = 0
 
         # Device setup
-        self.device = torch.device(device) if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.device = (
+            torch.device(config.device)
+            if config.device
+            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        )
 
         # Validate and extract observation key
         obs_key = "grid_obs"
-        obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape") if obs_space is not None else None
+        obs_shape = (
+            safe_get_from_obs_space(config.obs_space, obs_key, "shape") if config.obs_space is not None else None
+        )
 
         # Create agent attributes dict
         self.agent_attributes = {
             "clip_range": self.clip_range,
-            "action_space": action_space,
-            "feature_normalizations": feature_normalizations,
-            "obs_width": obs_width,
-            "obs_height": obs_height,
+            "action_space": config.action_space,
+            "feature_normalizations": config.feature_normalizations,
+            "obs_width": config.obs_width,
+            "obs_height": config.obs_height,
             "obs_key": obs_key,
             "obs_shape": obs_shape,
         }
 
         # Action space handling
-        if action_space is not None and hasattr(action_space, "nvec"):
-            action_nvec = action_space.nvec
+        if config.action_space is not None and hasattr(config.action_space, "nvec"):
+            action_nvec = config.action_space.nvec
         else:
             action_nvec = [100]  # default
 
