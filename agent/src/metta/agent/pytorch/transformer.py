@@ -14,16 +14,15 @@ import warnings
 from typing import Optional
 
 import einops
-import numpy as np
 import torch
 import torch.nn.functional as F
-from pufferlib.pytorch import layer_init as init_layer
 from tensordict import TensorDict
 from torch import nn
 
 from metta.agent.modules.transformer_module import TransformerModule
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
+from pufferlib.pytorch import layer_init as init_layer
 
 logger = logging.getLogger(__name__)
 

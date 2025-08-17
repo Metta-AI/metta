@@ -514,8 +514,8 @@ class TransformerModulePolicy(nn.Module):
                 nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
                 nn.init.constant_(module.bias, 0)
 
-        # Full-context transformer
-        self.transformer = FullContextTransformer(
+        # Transformer module
+        self.transformer = TransformerModule(
             d_model=hidden_dim,
             n_heads=n_heads,
             n_layers=n_layers,
