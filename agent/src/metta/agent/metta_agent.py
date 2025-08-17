@@ -111,7 +111,9 @@ class MettaAgent(MettaAgentInterface):
             AgentClass = component_agent_classes[policy_name.split(".")[0]]
 
             # Create ComponentPolicy (YAML config)
-            policy = AgentClass(
+            from metta.agent.component_policies.config import ComponentPolicyConfig
+
+            component_config = ComponentPolicyConfig(
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
                 obs_height=self.obs_height,
@@ -119,6 +121,7 @@ class MettaAgent(MettaAgentInterface):
                 feature_normalizations=self.feature_normalizations,
                 device=system_cfg.device,
             )
+            policy = AgentClass(component_config)
             logger.info(f"Using ComponentPolicy: {policy_name}")
 
         return policy
