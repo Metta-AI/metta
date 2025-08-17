@@ -451,13 +451,11 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
 
+    @torch._dynamo.disable  # Avoid graph breaks with recurrent state
     def forward(self, td: TensorDict, state: Optional[Dict] = None, action: Optional[torch.Tensor] = None):
-        """Forward pass compatible with MettaAgent expectations.
+        """Optimized forward pass with compiler directives.
 
-        Follows the Fast agent pattern for TensorDict handling:
-        - Reshape TD early if in training mode
-        - Keep it flat throughout processing
-        - Don't reshape back (caller handles that)
+        Uses Fast agent pattern for efficient TensorDict handling.
         """
         observations = td["env_obs"]
 

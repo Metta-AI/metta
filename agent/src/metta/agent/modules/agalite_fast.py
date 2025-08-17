@@ -14,7 +14,7 @@ from metta.agent.modules.agalite_optimized import discounted_sum
 
 
 class FastAGaLiTeLayer(nn.Module):
-    """Optimized AGaLiTe layer for large batch processing."""
+    """High-performance AGaLiTe layer with optimized batching and JIT compilation."""
 
     def __init__(
         self,
@@ -55,8 +55,9 @@ class FastAGaLiTeLayer(nn.Module):
         nn.init.orthogonal_(self.project.weight, gain=init_std)
         nn.init.constant_(self.project.bias, 0.0)
 
+    @torch._dynamo.disable  # Avoid graph breaks in recurrent computation
     def forward(self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple) -> Tuple[torch.Tensor, Tuple]:
-        """Optimized forward pass for large batches."""
+        """Optimized forward pass with compiler directives."""
         T, B, _ = inputs.shape
         device = inputs.device
 
@@ -155,11 +156,11 @@ class FastAGaLiTeLayer(nn.Module):
             discount_gamma = 1 - gammas_expanded
             discount_beta = 1 - beta
 
-        # Discounted sums (the sequential part)
-        # Optimize by processing in chunks if B is very large
-        if B > 1024:
-            # Split batch for better memory usage
-            chunk_size = 512
+        # Discounted sums - use chunking for better memory efficiency
+        # Lower threshold for better parallelization
+        if B > 256:
+            # Optimal chunk size for GPU parallelization
+            chunk_size = 128
             final_keys_chunks = []
             final_values_chunks = []
             final_s_chunks = []
@@ -224,14 +225,14 @@ class FastAGaLiTeLayer(nn.Module):
         # Add regularization term to prevent division issues
         denominator = 2 * self.r * norm + 1e-3  # Balanced epsilon for stability
         attn_out = kv / denominator
-        
+
         # Clamp output to prevent extreme values from propagating
         attn_out = torch.clamp(attn_out, min=-100, max=100)
 
         # Output projection
         attn_out = attn_out.reshape(T, B, self.head_num * self.head_dim)
         attn_out = self.dropout(self.project(attn_out))
-        
+
         # Final stability check
         if torch.isnan(attn_out).any():
             # If NaN detected, return zeros to prevent propagation

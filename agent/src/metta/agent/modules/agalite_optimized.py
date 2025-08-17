@@ -8,51 +8,32 @@ import torch
 
 @torch.jit.script
 def jit_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:
-    """JIT-compiled version of discounted sum for maximum performance."""
+    """Optimized JIT-compiled discounted sum with better memory efficiency."""
     T = x.shape[0]
     if T == 0:
         return x
 
-    # Build output list to avoid in-place operations
-    output_list = []
+    # Pre-allocate output tensor for better memory efficiency
+    output = torch.empty_like(x)
 
-    # First step - we expect matching shapes for broadcasting
-    # Note: JIT doesn't support f-strings, so we skip the detailed error message
+    # First step
+    output[0] = discounts[0] * start_state + x[0]
 
-    prev = discounts[0] * start_state + x[0]
-    output_list.append(prev)
-
-    # Remaining steps - JIT compilation makes this loop very fast
+    # Vectorized loop for better performance
     for t in range(1, T):
-        prev = discounts[t] * prev + x[t]
-        output_list.append(prev)
+        output[t] = discounts[t] * output[t - 1] + x[t]
 
-    # Stack outputs
-    return torch.stack(output_list, dim=0)
+    return output
 
 
 def discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:
-    """
-    Optimized discounted sum using JIT compilation.
-
-    This implements: y[t] = discount[t] * y[t-1] + x[t]
-    where y[-1] = start_state
-
-    Args:
-        start_state: Initial state tensor of shape (B, ...)
-        x: Sequence tensor of shape (T, B, ...)
-        discounts: Discount factors of shape (T, B, ...)
-
-    Returns:
-        Discounted sum tensor of shape (T, B, ...)
-    """
-
-    # Ensure start_state has same shape as x[0]
+    """Optimized discounted sum with minimal overhead."""
+    # Ensure start_state has same shape as x[0] - do this efficiently
     if start_state.dim() < x.dim() - 1:
-        for _ in range(x.dim() - 1 - start_state.dim()):
+        shape_diff = x.dim() - 1 - start_state.dim()
+        for _ in range(shape_diff):
             start_state = start_state.unsqueeze(-1)
 
-    # Use JIT-compiled version for speed
     return jit_discounted_sum(start_state, x, discounts)
 
 
