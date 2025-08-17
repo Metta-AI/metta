@@ -6,7 +6,6 @@ from typing import Any, Optional
 
 import torch
 from omegaconf import OmegaConf
-from pydantic import Field
 
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
@@ -23,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 
 class TrainTool(Tool):
-    trainer: TrainerConfig = Field(default_factory=TrainerConfig)
+    trainer: TrainerConfig = TrainerConfig()
     wandb: WandbConfig = WandbConfigOff()
     policy_architecture: Any
     run: str
