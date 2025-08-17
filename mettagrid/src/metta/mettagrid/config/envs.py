@@ -62,7 +62,7 @@ def make_arena(
                 params=metta.map.scenes.random.Random.Params(
                     agents=6,
                     objects={
-                        "wall": 20,
+                        "wall": 10,
                         "altar": 5,
                         "mine_red": 10,
                         "generator_red": 5,
@@ -74,6 +74,7 @@ def make_arena(
         )
 
     return EnvConfig(
+        label="arena" + (".combat" if combat else ""),
         game=GameConfig(
             num_agents=num_agents,
             actions=actions,
@@ -97,14 +98,15 @@ def make_arena(
                 ),
             },
             map_builder=map_builder,
-        )
+        ),
     )
 
 
 def make_navigation(num_agents: int) -> EnvConfig:
-    altar = building.altar
-    altar.initial_resource_count = 1
-    altar.cooldown = 1000
+    # Use the standard altar configuration
+    altar = building.altar.model_copy()  # Make a copy to avoid modifying the global object
+    altar.initial_resource_count = 10  # Start with 10 hearts available
+    altar.cooldown = 100  # Cooldown between conversions
 
     cfg = EnvConfig(
         game=GameConfig(
@@ -119,6 +121,9 @@ def make_navigation(num_agents: int) -> EnvConfig:
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
+                initial_inventory={
+                    "battery_red": 30,  # Give agents starting batteries to use altars
+                },
                 rewards=AgentRewards(
                     inventory=InventoryRewards(
                         heart=1,
