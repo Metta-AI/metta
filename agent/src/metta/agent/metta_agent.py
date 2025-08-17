@@ -8,11 +8,13 @@ from omegaconf import DictConfig
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
+from tensordict import TensorDict
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.agent_interface import MettaAgentInterface
-from metta.agent.agent_config import AgentConfig, AgentOutput
 from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.rl.system_config import SystemConfig
+
 
 logger = logging.getLogger("metta_agent")
 
@@ -126,16 +128,14 @@ class MettaAgent(MettaAgentInterface):
 
         return policy
 
-    def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> AgentOutput:
+    def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass through the policy."""
         if self.policy is None:
             raise RuntimeError("No policy set during initialization.")
 
-        # Delegate to policy - it handles all cases including legacy
         policy_output = self.policy(td, state, action)  # type: ignore
 
-        # Wrap policy output in AgentOutput
-        return AgentOutput(td=policy_output, state=state, metadata=None)
+        return policy_output
 
     def reset_memory(self) -> None:
         """Reset memory - delegates to policy if it supports memory."""

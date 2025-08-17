@@ -2,7 +2,6 @@ from typing import Any, ClassVar, Optional, Union
 
 import gymnasium as gym
 import torch.nn as nn
-from omegaconf import DictConfig
 from pydantic import ConfigDict
 from tensordict import TensorDict
 
