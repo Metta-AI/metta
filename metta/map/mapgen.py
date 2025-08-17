@@ -6,7 +6,7 @@ from pydantic import Field, model_validator
 if TYPE_CHECKING:
     from metta.map import MapGenConfigUnion
 
-from metta.map.scene import ChildrenAction, SceneCfg, load_class, make_scene, scene_cfg_to_dict
+from metta.map.scene import ChildrenAction, SceneConfigOrFile, make_scene, resolve_scene_config
 from metta.map.scenes.copy_grid import CopyGrid
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.scenes.transplant_scene import TransplantScene
@@ -33,7 +33,7 @@ class MapGenConfig(MapBuilderConfig):
 
     # Root scene configuration.
     # In YAML configs, this is usually the dict with `type` and `params` keys, and possible children.
-    root: Optional[SceneCfg] = None
+    root: Optional[SceneConfigOrFile] = None
 
     # Inner grid size. Doesn't take outer border into account.
     # If `instances` is set, this is the size used for each instance.
@@ -120,7 +120,7 @@ class MapGen(MapBuilder):
         - `self.height` (either copied from the config, or derived from the instance map)
         - `self.instance_scene_factories` (a list of scene factories, one for each instance)
         """
-        self.instance_scene_factories: list[SceneCfg] = []
+        self.instance_scene_factories: list[SceneConfigOrFile] = []
 
         # Can be None, but we'll set these fields to their actual values after the loop.
         self.width = self.config.width
@@ -147,9 +147,8 @@ class MapGen(MapBuilder):
 
             if self.root:
                 if not self.width or not self.height:
-                    dict_cfg = scene_cfg_to_dict(self.root)
-                    root_cls = load_class(dict_cfg["type"])
-                    intrinsic_size = root_cls.intrinsic_size(dict_cfg.get("params", {}))
+                    root_config = resolve_scene_config(self.root)
+                    intrinsic_size = root_config.type.intrinsic_size(root_config.params)
                     if not intrinsic_size:
                         raise ValueError("width and height must be provided if the root scene has no intrinsic size")
                     self.height, self.width = intrinsic_size
@@ -243,7 +242,7 @@ class MapGen(MapBuilder):
 
         self.inner_area = Area(x=bw, y=bw, width=self.inner_width, height=self.inner_height, grid=inner_grid, tags=[])
 
-    def get_root_scene_cfg(self) -> SceneCfg:
+    def get_root_scene_cfg(self) -> SceneConfigOrFile:
         """
         Create the full root scene, which might contain multiple instances.
         """
