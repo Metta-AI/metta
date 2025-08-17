@@ -26,6 +26,8 @@ class PositionalEncoding(nn.Module):
     def __init__(self, d_model: int, max_len: int = 10000, dropout: float = 0.1):
         super().__init__()
         self.dropout = nn.Dropout(dropout)
+        # Scale factor to prevent positional encoding from overwhelming features
+        self.scale_factor = 0.1
 
         # Pre-compute positional encodings
         pe = torch.zeros(max_len, d_model)
@@ -34,6 +36,8 @@ class PositionalEncoding(nn.Module):
 
         pe[:, 0::2] = torch.sin(position * div_term)
         pe[:, 1::2] = torch.cos(position * div_term)
+        # Scale down positional encoding
+        pe = pe * self.scale_factor
         # Shape: (max_len, 1, d_model) for broadcasting
         self.register_buffer("pe", pe.unsqueeze(1))
 
@@ -53,20 +57,20 @@ class PositionalEncoding(nn.Module):
 class FusedGRUGating(nn.Module):
     """Fused GRU gating mechanism for efficient batch processing."""
 
-    def __init__(self, d_model: int, bg: float = 2.0):
+    def __init__(self, d_model: int, bg: float = 0.5):
         """Initialize GRU gating.
 
         Args:
             d_model: Model dimension
-            bg: Bias for update gate (higher = more identity-like at start)
+            bg: Bias for update gate (reduced for better gradient flow)
         """
         super().__init__()
         # Fused projection for all gates (more efficient)
         self.gate_proj = nn.Linear(2 * d_model, 3 * d_model, bias=False)
         self.bg = nn.Parameter(torch.full([d_model], bg))
 
-        # Initialize with orthogonal init for stability (matching AGaLiTe)
-        nn.init.orthogonal_(self.gate_proj.weight, gain=math.sqrt(2))
+        # Initialize with smaller gain for transformer stability
+        nn.init.orthogonal_(self.gate_proj.weight, gain=1.0)
 
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """Apply GRU gating with fused operations.
@@ -113,9 +117,9 @@ class MultiHeadSelfAttention(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.scale = 1.0 / math.sqrt(self.d_k)
 
-        # Initialize weights with orthogonal init (matching AGaLiTe)
-        nn.init.orthogonal_(self.qkv_proj.weight, gain=math.sqrt(2))
-        nn.init.orthogonal_(self.out_proj.weight, gain=math.sqrt(2))
+        # Initialize weights with smaller gain for transformers
+        nn.init.xavier_uniform_(self.qkv_proj.weight, gain=1.0)
+        nn.init.xavier_uniform_(self.out_proj.weight, gain=1.0)
         nn.init.constant_(self.out_proj.bias, 0)
 
     def forward(self, x: torch.Tensor, mask: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -200,16 +204,16 @@ class TransformerBlock(nn.Module):
             nn.Dropout(dropout),
         )
 
-        # Initialize feed-forward with orthogonal init
+        # Initialize feed-forward with smaller gain for transformers
         for module in self.feed_forward:
             if isinstance(module, nn.Linear):
-                nn.init.orthogonal_(module.weight, gain=math.sqrt(2))
+                nn.init.xavier_uniform_(module.weight, gain=1.0)
                 nn.init.constant_(module.bias, 0)
 
         # Gating mechanisms (instead of residual connections)
         if use_gating:
-            self.gate1 = FusedGRUGating(d_model, bg=2.0)
-            self.gate2 = FusedGRUGating(d_model, bg=2.0)
+            self.gate1 = FusedGRUGating(d_model, bg=0.5)  # Reduced bias
+            self.gate2 = FusedGRUGating(d_model, bg=0.5)  # Reduced bias
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Process batch of sequences from multiple environments/agents.
@@ -290,7 +294,7 @@ class FullContextTransformer(nn.Module):
         self.use_input_proj = True
         if self.use_input_proj:
             self.input_proj = nn.Linear(d_model, d_model)
-            nn.init.orthogonal_(self.input_proj.weight, gain=math.sqrt(2))
+            nn.init.xavier_uniform_(self.input_proj.weight, gain=1.0)
             nn.init.constant_(self.input_proj.bias, 0)
 
         # Transformer layers with gating
@@ -318,9 +322,9 @@ class FullContextTransformer(nn.Module):
         """Initialize gates to favor identity mapping at start of training.
 
         The GRU gates are already initialized with:
-        - Orthogonal weight init (gain=sqrt(2))
-        - Bias bg=2.0 for update gate to favor identity
-        This matches AGaLiTe's initialization strategy.
+        - Orthogonal weight init (gain=1.0) for stability
+        - Bias bg=0.5 for update gate to allow gradient flow
+        This provides better gradient flow for transformers.
         """
         # No additional modification needed - gates are properly initialized
         pass
