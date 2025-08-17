@@ -4,6 +4,7 @@ from metta.agent.pytorch.agalite_optimized import AGaLiTeOptimized
 from metta.agent.pytorch.example import Example
 from metta.agent.pytorch.fast import Fast
 from metta.agent.pytorch.full_context import FullContext
+from metta.agent.pytorch.improved_full_context import ImprovedFullContext
 from metta.agent.pytorch.latent_attn_med import LatentAttnMed
 from metta.agent.pytorch.latent_attn_small import LatentAttnSmall
 from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny
@@ -16,6 +17,7 @@ agent_classes = {
     "example": Example,
     "fast": Fast,
     "full_context": FullContext,
+    "improved_full_context": ImprovedFullContext,
     "latent_attn_small": LatentAttnSmall,
     "latent_attn_med": LatentAttnMed,
     "latent_attn_tiny": LatentAttnTiny,
