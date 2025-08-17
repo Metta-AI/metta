@@ -6,7 +6,7 @@ import pufferlib.vector
 from pufferlib.pufferlib import set_buffers
 from pydantic import validate_call
 
-from metta.cogworks.curriculum import Curriculum
+from metta.cogworks.curriculum import Curriculum, CurriculumEnv
 from metta.common.util.logging_helpers import init_logging
 from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -31,28 +31,15 @@ def make_env_func(
         # Running in a new process, so we need to reinitialize logging
         init_logging(run_dir=run_dir)
 
-    task = curriculum.get_task()
-    env_cfg = task.get_env_cfg()
-
-    # Create the environment instance
     env = MettaGridEnv(
-        env_cfg,
+        curriculum.get_task().get_env_cfg(),
         render_mode=render_mode,
         stats_writer=stats_writer,
         replay_writer=replay_writer,
         is_training=is_training,
     )
     set_buffers(env, buf)
-    env._current_task = task
-
-    def on_episode_done(obs, rew, term, trunc, info):
-        nonlocal task
-        task.complete(rew.mean())
-        task = curriculum.get_task()
-        env._current_task = task
-        env.set_env_config(task.get_env_cfg())
-
-    env.set_on_episode_done(on_episode_done)
+    env = CurriculumEnv(env, curriculum)
 
     return env
 
@@ -78,8 +65,6 @@ def make_vecenv(
         vectorizer_cls = pufferlib.vector.Serial
     elif vectorization == "multiprocessing":
         vectorizer_cls = pufferlib.vector.Multiprocessing
-    elif vectorization == "ray":
-        vectorizer_cls = pufferlib.vector.Ray
     else:
         raise ValueError("Invalid --vector (serial/multiprocessing/ray).")
 
@@ -106,7 +91,6 @@ def make_vecenv(
         num_envs=num_envs,
         num_workers=num_workers,
         batch_size=batch_size or num_envs,
-        **kwargs,
     )
 
     return vecenv
