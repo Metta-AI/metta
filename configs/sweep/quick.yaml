@@ -1,10 +1,12 @@
 protein:
-  num_random_samples: 5  # First 5 runs are Protein GP optimization (not random)
-  max_suggestion_cost: 3600  # Increased max cost for longer training (1 hour)
+  num_random_samples: 5 # First 5 runs are Protein GP optimization (not random)
+  max_suggestion_cost: 3600 # Increased max cost for longer training (1 hour)
   resample_frequency: 0
   global_search_scale: 1
   random_suggestions: 1024
   suggestions_per_pareto: 256
+  # acquisition_fn: naive  # Options: naive (default), ei, ucb
+  # ucb_beta: 2.0  # Only used when acquisition_fn is ucb
 
 metric: overview/reward
 goal: maximize
@@ -20,6 +22,6 @@ parameters:
         mean: 0.0005
         scale: 0.5
 
-    batch_size:      {distribution: uniform_pow2, min: 256,   max: 1024,  mean: 512,  scale: auto}
-    minibatch_size:  {distribution: uniform_pow2, min: 1,    max: 32,   mean: 8,   scale: auto}
-    bptt_horizon:    {distribution: uniform_pow2, min: 1,    max: 32,   mean: 8,   scale: auto}
+    batch_size: { distribution: uniform_pow2, min: 256, max: 1024, mean: 512, scale: auto }
+    minibatch_size: { distribution: uniform_pow2, min: 1, max: 32, mean: 8, scale: auto }
+    bptt_horizon: { distribution: uniform_pow2, min: 1, max: 32, mean: 8, scale: auto }
