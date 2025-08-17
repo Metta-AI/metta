@@ -47,8 +47,7 @@ class FastAGaLiTeLayer(nn.Module):
         # Pre-compute oscillatory frequencies
         self.register_buffer("omegas", torch.linspace(-math.pi, math.pi, r))
 
-        # Initialize weights with proper scaling for learning
-        # Use math.sqrt(2) as in the working version for better gradient flow
+        # Initialize weights - use exact values from working version
         nn.init.orthogonal_(self.fused_projection.weight, gain=math.sqrt(2))
         nn.init.constant_(self.fused_projection.bias, 0.0)
         nn.init.orthogonal_(self.project.weight, gain=1.0)
