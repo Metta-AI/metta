@@ -242,6 +242,7 @@ class GameConfig(Config):
     no_agent_interference: bool = Field(
         default=False, description="Enable agents to move through and not observe each other"
     )
+    resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
 
 
 class EnvConfig(Config):

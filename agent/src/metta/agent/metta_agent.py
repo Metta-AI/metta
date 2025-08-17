@@ -4,17 +4,15 @@ from typing import Any, Dict, Optional
 import gymnasium as gym
 import numpy as np
 import torch
-from omegaconf import DictConfig
+from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
-from tensordict import TensorDict
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.agent_interface import MettaAgentInterface
 from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.rl.system_config import SystemConfig
-
 
 logger = logging.getLogger("metta_agent")
 
@@ -160,6 +158,7 @@ class MettaAgent(MettaAgentInterface):
         is_training: bool = True,
     ):
         """Initialize the agent to the current environment."""
+
         # MettaAgent handles all initialization
         self.activate_actions(action_names, action_max_params, device)
         self.activate_observations(features, device)
@@ -261,12 +260,13 @@ class MettaAgent(MettaAgentInterface):
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Initialize action space for the agent."""
+
         self.device = device
         self.action_max_params = action_max_params
         self.action_names = action_names
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
-        # Precompute cumulative sums for faster conversion
+        # Precompute cumulative sums for faster conversion, Multi-Discrete
         self.cum_action_max_params = torch.cumsum(
             torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )
@@ -288,9 +288,8 @@ class MettaAgent(MettaAgentInterface):
 
         # Pass tensors to policy if needed
         if self.policy is not None:
-            for attr in ["action_index_tensor", "cum_action_max_params"]:
-                if hasattr(self.policy, attr):
-                    setattr(self.policy, attr, getattr(self, attr))
+            self.policy.action_index_tensor = self.action_index_tensor
+            self.policy.cum_action_max_params = self.cum_action_max_params
 
     @property
     def total_params(self):
@@ -307,10 +306,10 @@ class MettaAgent(MettaAgentInterface):
         """Calculate L2 initialization loss - delegates to policy."""
         if hasattr(self.policy, "l2_init_loss"):
             return self.policy.l2_init_loss()
-        return torch.tensor(0.0, dtype=torch.float32, device=self.device)
+        return torch.tensor(0.0, dtype=torch.float32)
 
     def clip_weights(self):
-        """Delegate weight clipping to the policy."""
+        """Clip weights to prevent large updates - delegates to policy."""
         if self.policy is not None and hasattr(self.policy, "clip_weights"):
             self.policy.clip_weights()
 
@@ -326,16 +325,21 @@ class MettaAgent(MettaAgentInterface):
         return []
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
-        """Convert (action_type, action_param) pairs to discrete indices - delegates to policy."""
+        """Convert (action_type, action_param) pairs to discrete indices."""
         if hasattr(self.policy, "_convert_action_to_logit_index"):
             return self.policy._convert_action_to_logit_index(flattened_action)
-        raise NotImplementedError("Policy does not implement _convert_action_to_logit_index")
+        # Default implementation using MettaAgent's action tensors
+        action_type_numbers = flattened_action[:, 0].long()
+        action_params = flattened_action[:, 1].long()
+        cumulative_sum = self.cum_action_max_params[action_type_numbers]
+        return cumulative_sum + action_params
 
     def _convert_logit_index_to_action(self, logit_indices: torch.Tensor) -> torch.Tensor:
-        """Convert discrete logit indices back to (action_type, action_param) pairs - delegates to policy."""
+        """Convert discrete logit indices back to (action_type, action_param) pairs."""
         if hasattr(self.policy, "_convert_logit_index_to_action"):
             return self.policy._convert_logit_index_to_action(logit_indices)
-        raise NotImplementedError("Policy does not implement _convert_logit_index_to_action")
+        # Default implementation using MettaAgent's action tensors
+        return self.action_index_tensor[logit_indices]
 
     def __setstate__(self, state):
         """Restore state from checkpoint."""

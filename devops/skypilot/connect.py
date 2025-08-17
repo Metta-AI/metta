@@ -4,11 +4,19 @@ import argparse
 import os
 import shlex
 import subprocess
+from pathlib import Path
 
 import sky.jobs
+import yaml
 
 from devops.skypilot.utils import get_jobs_controller_name
 from metta.common.util.text_styles import bold
+
+
+def get_regions_from_yaml(yaml_path: Path) -> list[str]:
+    content = yaml.safe_load(yaml_path.read_text())
+    any_of = content.get("resources", {}).get("any_of", [])
+    return sorted({entry["region"] for entry in any_of if "region" in entry})
 
 
 def main():
@@ -26,8 +34,7 @@ def main():
 
     print("Looking up EC2 instance...")
 
-    # must match sk_train.yaml
-    REGIONS = ["us-east-1", "us-west-2"]
+    REGIONS = get_regions_from_yaml(Path("devops/skypilot/config/sk_train.yaml"))
 
     instance = None
     for region in REGIONS:
