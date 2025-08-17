@@ -1,14 +1,14 @@
-from typing import Optional
+from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 import softmax.softmax as softmax
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.cogworks.curriculum.task_generator import ValueRange as vr
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
+from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 
 
@@ -24,20 +24,39 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     # make a set of training tasks for the arena
     arena_tasks = cc.tasks(arena_env)
 
-    arena_tasks.add_bucket("game.map_builder.root.params.agents", [1, 2, 3, 4, 6, 24])
-    arena_tasks.add_bucket("game.map_builder.width", [10, 20, 30, 40, 50])
-    arena_tasks.add_bucket("game.map_builder.height", [10, 20, 30, 40, 50])
+    # arena_tasks.add_bucket("game.map_builder.root.params.agents", [1, 2, 3, 4, 6])
+    # arena_tasks.add_bucket("game.map_builder.width", [10, 20, 30, 40])
+    # arena_tasks.add_bucket("game.map_builder.height", [10, 20, 30, 40])
+    # arena_tasks.add_bucket("game.map_builder.instance_border_width", [0, 6])
 
-    for item in arena_env.game.inventory_item_names:
+    for item in ["ore_red", "battery_red", "laser", "armor", "heart"]:
         arena_tasks.add_bucket(
-            f"game.agent.rewards.inventory.{item}", [0, vr.vr(0, 1.0)]
+            f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
         )
         arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
     arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
+
+    # sometimes add initial_items to the buildings
+    for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
+        arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
+
     return cc.curriculum(arena_tasks, num_tasks=4)
+
+
+def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
+    basic_env = env or make_env()
+    basic_env.game.actions.attack.consumed_resources["laser"] = 100
+
+    combat_env = basic_env.model_copy()
+    combat_env.game.actions.attack.consumed_resources["laser"] = 1
+
+    return [
+        SimulationConfig(name="arena/basic", env=basic_env),
+        SimulationConfig(name="arena/combat", env=basic_env),
+    ]
 
 
 def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
@@ -73,4 +92,16 @@ def play(env: Optional[EnvConfig] = None) -> PlayTool:
             name="arena",
         ),
         wandb=softmax.wandb_config(run="arena.play"),
+    )
+
+
+def evaluate(
+    policy_uri: str, simulations: Optional[Sequence[SimulationConfig]] = None
+) -> SimTool:
+    simulations = simulations or make_evals()
+    return SimTool(
+        simulations=simulations,
+        policy_uris=[policy_uri],
+        replay_dir="s3://softmax-public/replays/arena.eval",
+        wandb=softmax.wandb_config(run="arena.eval"),
     )

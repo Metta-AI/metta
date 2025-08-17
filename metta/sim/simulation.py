@@ -317,7 +317,7 @@ class Simulation:
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
         # ---------------- env.step ------------------------------- #
-        obs, _, dones, trunc, _ = self._vecenv.step(actions_np)
+        obs, rewards, dones, trunc, infos = self._vecenv.step(actions_np)
 
         # ---------------- episode FSM ---------------------------- #
         done_now = np.logical_or(
@@ -474,7 +474,7 @@ class Simulation:
                     attributes[attr_name] = attr_value
 
                 # Record the episode remotely
-                episode_tags = self._episode_tags if self._episode_tags else None
+                episode_tags = self._episode_tags or None
                 try:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
