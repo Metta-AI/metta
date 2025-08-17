@@ -25,7 +25,7 @@ class FastAGaLiTeLayer(nn.Module):
         r: int = 4,  # Reduced from 8
         reset_hidden_on_terminate: bool = True,
         dropout: float = 0.0,
-        eps: float = 1e-5,  # Increased for better stability
+        eps: float = 1e-6,  # Standard epsilon value
     ):
         super().__init__()
         self.d_model = d_model
@@ -47,13 +47,11 @@ class FastAGaLiTeLayer(nn.Module):
         # Pre-compute oscillatory frequencies
         self.register_buffer("omegas", torch.linspace(-math.pi, math.pi, r))
 
-        # Initialize with conservative values for stability
-        # Recurrent layers benefit from smaller initialization
-        # This helps prevent gradient explosions in the recurrent memory
-        init_std = 0.5  # Conservative gain for recurrent architecture
-        nn.init.orthogonal_(self.fused_projection.weight, gain=init_std)
+        # Initialize weights with proper scaling for learning
+        # Use math.sqrt(2) as in the working version for better gradient flow
+        nn.init.orthogonal_(self.fused_projection.weight, gain=math.sqrt(2))
         nn.init.constant_(self.fused_projection.bias, 0.0)
-        nn.init.orthogonal_(self.project.weight, gain=init_std)
+        nn.init.orthogonal_(self.project.weight, gain=1.0)
         nn.init.constant_(self.project.bias, 0.0)
 
     @torch._dynamo.disable  # Avoid graph breaks in recurrent computation
@@ -157,11 +155,11 @@ class FastAGaLiTeLayer(nn.Module):
             discount_gamma = 1 - gammas_expanded
             discount_beta = 1 - beta
 
-        # Discounted sums - use chunking for better memory efficiency
-        # Lower threshold for better parallelization
-        if B > 256:
-            # Optimal chunk size for GPU parallelization
-            chunk_size = 128
+        # Discounted sums (the sequential part)
+        # Optimize by processing in chunks if B is very large
+        if B > 1024:
+            # Split batch for better memory usage
+            chunk_size = 512
             final_keys_chunks = []
             final_values_chunks = []
             final_s_chunks = []
@@ -219,35 +217,19 @@ class FastAGaLiTeLayer(nn.Module):
         final_values_reshaped = final_values.reshape(T, B, self.r, self.head_num, self.head_dim)
         kv = (final_values_reshaped * attn_scores.unsqueeze(-1).unsqueeze(-1)).sum(dim=2)
 
-        # Normalization with improved numerical stability
+        # Normalization
         norm = (final_s * queries_expanded).sum(dim=-1, keepdim=True)
-        # Ensure norm is non-negative and bounded
-        norm = torch.clamp(torch.abs(norm), min=self.eps, max=1e6)
-        # Add regularization term to prevent division issues
-        denominator = 2 * self.r * norm + 1e-3  # Balanced epsilon for stability
-        attn_out = kv / denominator
-
-        # Clamp output to prevent extreme values from propagating
-        attn_out = torch.clamp(attn_out, min=-100, max=100)
+        attn_out = kv / (2 * self.r * norm + self.eps)
 
         # Output projection
         attn_out = attn_out.reshape(T, B, self.head_num * self.head_dim)
         attn_out = self.dropout(self.project(attn_out))
 
-        # Final stability check
-        if torch.isnan(attn_out).any():
-            # If NaN detected, return zeros to prevent propagation
-            attn_out = torch.zeros_like(attn_out)
-
-        # Update memory - completely detach from computation graph
-        # We need to create new tensors that have no connection to the computation graph
-        new_tick = (tick + T).detach()
-
-        # Extract the last timestep and ensure complete detachment
-        # Using .data creates a tensor that shares storage but has no grad connection
-        new_tilde_k = final_keys[-1].data.clone()
-        new_tilde_v = final_values[-1].data.clone()
-        new_s = final_s[-1].data.clone()
+        # Update memory - detach to prevent gradient accumulation
+        new_tick = tick + T
+        new_tilde_k = final_keys[-1].detach()
+        new_tilde_v = final_values[-1].detach()
+        new_s = final_s[-1].detach()
 
         return attn_out, (new_tilde_k, new_tilde_v, new_s, new_tick)
 
