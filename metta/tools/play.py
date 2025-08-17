@@ -18,10 +18,19 @@ class PlayTool(Tool):
     sim: SimulationConfig
     policy_uri: str | None = None
     selector_type: str = "latest"
-    # TODO #dehydration - these should be relative to system.data_dir
-    replay_dir: str = "./train_dir/replays"
-    stats_dir: str = "./train_dir/stats"
+    replay_dir: str | None = None
+    stats_dir: str | None = None
     open_browser_on_start: bool = True
+
+    @property
+    def effective_replay_dir(self) -> str:
+        """Get the replay directory, defaulting to system.data_dir/replays if not specified."""
+        return self.replay_dir if self.replay_dir is not None else f"{self.system.data_dir}/replays"
+
+    @property
+    def effective_stats_dir(self) -> str:
+        """Get the stats directory, defaulting to system.data_dir/stats if not specified."""
+        return self.stats_dir if self.stats_dir is not None else f"{self.system.data_dir}/stats"
 
     def invoke(self) -> None:
         ws_url = "%2Fws"
@@ -51,8 +60,8 @@ def create_simulation(cfg: PlayTool) -> Simulation:
         policy_store=policy_store,
         device=cfg.system.device,
         vectorization=cfg.system.vectorization,
-        stats_dir=cfg.stats_dir,
-        replay_dir=cfg.replay_dir,
+        stats_dir=cfg.effective_stats_dir,
+        replay_dir=cfg.effective_replay_dir,
         policy_uri=cfg.policy_uri,
         run_name="play_run",
     )
