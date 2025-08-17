@@ -17,7 +17,7 @@ class Ascii(Scene[AsciiParams]):
         # Delegate rendering to the inline ascii scene.
         return [
             ChildrenAction(
-                scene=InlineAscii.factory({"data": self.ascii_data}),
+                scene=InlineAscii.factory(InlineAscii.Params(data=self.ascii_data)),
                 where="full",
             ),
             *self.children_actions,
