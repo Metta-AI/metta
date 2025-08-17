@@ -187,14 +187,46 @@ class PyTorchAgentMixin:
         Returns:
             Updated TensorDict with sampled actions
         """
+        # Check for invalid logits before processing
+        if torch.isnan(logits_list).any() or torch.isinf(logits_list).any():
+            print(f"ERROR: Invalid logits detected!")
+            print(f"  Shape: {logits_list.shape}")
+            print(f"  NaN count: {torch.isnan(logits_list).sum().item()}")
+            print(f"  Inf count: {torch.isinf(logits_list).sum().item()}")
+            # Replace with zeros to prevent crash
+            logits_list = torch.nan_to_num(logits_list, nan=0.0, posinf=0.0, neginf=0.0)
+        
         log_probs = F.log_softmax(logits_list, dim=-1)
         action_probs = torch.exp(log_probs)
 
-        # Ensure valid probabilities for multinomial sampling
-        # Add small epsilon to prevent sampling issues with zero probabilities
-        if (action_probs < 0).any() or (action_probs.sum(dim=-1) == 0).any() or torch.isnan(action_probs).any():
+        # More robust probability validation
+        invalid_mask = (
+            torch.isnan(action_probs) | 
+            torch.isinf(action_probs) | 
+            (action_probs < 0) |
+            (action_probs.sum(dim=-1, keepdim=True) == 0)
+        )
+        
+        if invalid_mask.any():
+            print(f"WARNING: Invalid probabilities detected, fixing...")
+            print(f"  Shape: {action_probs.shape}")
+            print(f"  Invalid count: {invalid_mask.sum().item()}")
+            # Replace invalid rows with uniform distribution
+            num_actions = action_probs.shape[-1]
+            uniform_probs = torch.ones_like(action_probs) / num_actions
+            action_probs = torch.where(
+                invalid_mask.any(dim=-1, keepdim=True),
+                uniform_probs,
+                action_probs
+            )
+            # Ensure all values are valid
             action_probs = action_probs.clamp(min=1e-10)
-            action_probs = action_probs / action_probs.sum(dim=-1, keepdim=True)
+            action_probs = action_probs / action_probs.sum(dim=-1, keepdim=True).clamp(min=1e-10)
+
+        # Final safety check before multinomial
+        if not torch.isfinite(action_probs).all():
+            print(f"ERROR: Still have non-finite values after fixes!")
+            action_probs = torch.ones_like(action_probs) / action_probs.shape[-1]
 
         actions = torch.multinomial(action_probs, num_samples=1).view(-1)
 
