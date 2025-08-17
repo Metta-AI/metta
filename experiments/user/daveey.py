@@ -1,61 +1,23 @@
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 import metta.cogworks.curriculum as cc
+=======
+>>>>>>> 823b1bb0e (cp)
 import metta.mettagrid.config.envs as eb
-import softmax.softmax as softmax
-import yaml
-from metta.cogworks.curriculum.task_generator import ValueRange as vr
-from metta.map.mapgen import MapGenConfig
-from metta.map.terrain_from_numpy import TerrainFromNumpyConfig
+from experiments import arena
 from metta.mettagrid.map_builder import AsciiMapBuilderConfig
-from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.tools.play import PlayTool
-
-# from metta.tools.replay import ReplayTool
-from metta.tools.train import TrainTool
 
 ########################################################
-# Environments
-########################################################
-
 # Arena
-arena = eb.make_arena(num_agents=24)
-arena.game.actions.swap.enabled = False
+########################################################
 
 # Obstacles
-obstacles = eb.make_nav(num_agents=1)
-obstacles.game.map_builder = AsciiMapBuilderConfig.from_uri(
+obstacles_env = eb.make_navigation(num_agents=1)
+obstacles_env.game.map_builder = AsciiMapBuilderConfig.from_uri(
     "configs/env/mettagrid/maps/navigation/obstacles0.map",
 )
-obstacles.game.max_steps = 100
-
-# Varied Terrain
-varied_terrain = eb.make_nav(num_agents=4)
-varied_terrain.game.objects["altar"].cooldown = 1000
-
-# varied_terrain.game.map_builder = TerrainFromNumpyConfig(
-#         agents=1,
-#         objects={"altar": 10},
-#         dir="varied_terrain/dense_large",
-#     ).pack()
-
-varied_terrain.game.map_builder = MapGenConfig(
-    instances=4,
-    border_width=6,
-    instance_border_width=3,
-    # root="hallway",
-    instance_map=TerrainFromNumpyConfig(
-        agents=1,
-        objects={"altar": 10},
-        dir="varied_terrain/dense_large",
-    ),
-)
-
-########################################################
-# Tools
-########################################################
-
+obstacles_env.game.max_steps = 100
 
 # def tool_cfg_replay() -> ReplayTool:
 #     eval_env = obstacles.model_copy()
@@ -70,19 +32,17 @@ varied_terrain.game.map_builder = MapGenConfig(
 #     )
 
 
-def tool_cfg_play() -> PlayTool:
-    eval_env = arena.model_copy()
-    eval_env.game.max_steps = 100
-    return PlayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            name="arena",
-        ),
-        open_browser_on_start=True,
-        wandb=softmax.wandb_config(run="arena_replay"),
+def train():
+    env = arena.make_env()
+    env.game.max_steps = 100
+    cfg = arena.train(
+        run="local.daveey.1",
+        curriculum=arena.make_curriculum(env),
     )
+    return cfg
 
 
+<<<<<<< HEAD
 def tool_cfg_train(run: str = "daveey-arena") -> TrainTool:
     # make a set of training tasks for the arena
     arena_tasks = cc.tasks(arena)
@@ -120,3 +80,6 @@ def tool_cfg_train(run: str = "daveey-arena") -> TrainTool:
         policy_architecture=yaml.safe_load(open("configs/agent/fast.yaml")),
     )
 >>>>>>> 0dd0ae4fb (cp)
+=======
+play = arena.play
+>>>>>>> 823b1bb0e (cp)
