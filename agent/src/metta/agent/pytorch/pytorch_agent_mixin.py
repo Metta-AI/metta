@@ -190,20 +190,22 @@ class PyTorchAgentMixin:
         # Check for NaN/Inf in logits
         if torch.isnan(logits_list).any() or torch.isinf(logits_list).any():
             import sys
-            print(f"ERROR: Invalid logits detected in forward_inference", file=sys.stderr)
+
+            print("ERROR: Invalid logits detected in forward_inference", file=sys.stderr)
             print(f"  logits contains NaN: {torch.isnan(logits_list).any()}", file=sys.stderr)
             print(f"  logits contains Inf: {torch.isinf(logits_list).any()}", file=sys.stderr)
             print(f"  logits min: {logits_list.min()}, max: {logits_list.max()}", file=sys.stderr)
             # Replace invalid values to prevent crash
             logits_list = torch.nan_to_num(logits_list, nan=0.0, posinf=10.0, neginf=-10.0)
-        
+
         log_probs = F.log_softmax(logits_list, dim=-1)
         action_probs = torch.exp(log_probs)
-        
+
         # Check for invalid probabilities
         if torch.isnan(action_probs).any() or (action_probs < 0).any() or (action_probs.sum(dim=-1) == 0).any():
             import sys
-            print(f"ERROR: Invalid action probabilities", file=sys.stderr)
+
+            print("ERROR: Invalid action probabilities", file=sys.stderr)
             print(f"  action_probs contains NaN: {torch.isnan(action_probs).any()}", file=sys.stderr)
             print(f"  action_probs contains negative: {(action_probs < 0).any()}", file=sys.stderr)
             print(f"  action_probs has zero-sum rows: {(action_probs.sum(dim=-1) == 0).any()}", file=sys.stderr)
