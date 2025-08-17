@@ -3,19 +3,19 @@ from typing import Literal
 from pydantic import ConfigDict, Field
 
 from metta.common.util.config import Config
-from metta.map.scene import ChildrenAction, Scene, SceneCfg
+from metta.map.scene import ChildrenAction, Scene, SceneConfigOrFile
 from metta.map.types import AreaWhere
 
 Symmetry = Literal["horizontal", "vertical", "x4"]
 
 
 class MirrorParams(Config):
-    scene: SceneCfg = Field(exclude=True)
+    scene: SceneConfigOrFile
     symmetry: Symmetry = "horizontal"
 
 
 class InnerMirrorParams(Config):
-    scene: SceneCfg = Field(exclude=True)
+    scene: SceneConfigOrFile
 
 
 class Mirror(Scene[MirrorParams]):
@@ -110,6 +110,7 @@ class MirroredParams(Config):
     flip_y: bool = False
 
 
+# Helper scene, shouldn't be used directly. (Its params are not serializable.)
 class Mirrored(Scene[MirroredParams]):
     def render(self):
         original_grid = self.params.parent._original_mirror_area.grid
