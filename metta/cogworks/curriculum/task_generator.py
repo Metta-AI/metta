@@ -242,17 +242,13 @@ class BucketedTaskGenerator(TaskGenerator):
         """Generate task by calling child generator then applying bucket overrides."""
         # First, sample values from each bucket
         overrides = {}
-        label = ""
         for key, bucket_values in self._config.buckets.items():
             overrides[key] = self._get_bucket_value(bucket_values, rng)
-            label += f"{key.split('.')[-1]}={overrides[key]}|"
-
-        if self._config.label is not None:
-            label = self._config.label
 
         # Get task from the child generator
         env_config = self._child_generator.get_task(task_id)
-        env_config.label = label + env_config.label
+        if self._config.label is not None:
+            env_config.label += "|" + self._config.label
 
         # Apply the sampled bucket values as overrides
         return self._apply_overrides(env_config, overrides)

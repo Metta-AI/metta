@@ -15,6 +15,28 @@ RANK=${SKYPILOT_NODE_RANK:-0}
 export IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
 TOTAL_NODES=${SKYPILOT_NUM_NODES:-1}
 
+<<<<<<< HEAD:devops/skypilot/config/sk_train_run.sh
+=======
+DEBUG=${DEBUG:-0}
+
+EXIT_SUCCESS=0
+EXIT_FAILURE=1
+EXIT_NCCL_TEST_FAILURE=42
+
+echo "[CONFIG] Run Configuration:"
+echo "  - NODE_RANK: ${RANK}"
+echo "  - IS_MASTER: ${IS_MASTER}"
+echo "  - TOTAL_NODES: ${TOTAL_NODES}"
+echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
+echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
+echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
+echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
+echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
+echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
+echo "  - METTA_OVERRIDES: ${METTA_OVERRIDES:-'NOT SET'}"
+[ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
+
+>>>>>>> cfc2e169e (cp):devops/skypilot/config/skypilot_run.sh
 # Master-only: Collect SkyPilot latency
 if [[ "$IS_MASTER" == "true" ]]; then
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
@@ -224,11 +246,27 @@ terminate_process() {
 }
 
 run_cmd() {
-  echo "[INFO] Starting process $METTA_CMD (node rank: $RANK)"
+  echo "[INFO] Starting process (node rank: $RANK)"
 
   START_TIME=$(date +%s)
 
+  # Build the command with the new format
+  local cmd="./devops/run.sh ${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}"
+
+  # Add --args if METTA_ARGS is not empty (run= is now included in METTA_ARGS)
+  if [ -n "${METTA_ARGS:-}" ]; then
+    cmd="$cmd --args ${METTA_ARGS}"
+  fi
+
+  # Add --overrides if METTA_OVERRIDES is not empty
+  if [ -n "${METTA_OVERRIDES:-}" ]; then
+    cmd="$cmd --overrides ${METTA_OVERRIDES}"
+  fi
+
+  echo "[INFO] Running command: $cmd"
+
   # Start training in its own process group; tee output for postmortem
+<<<<<<< HEAD:devops/skypilot/config/sk_train_run.sh
   cmd=( ./devops/"${METTA_CMD:?missing METTA_CMD}".sh "run=${METTA_RUN_ID:?missing METTA_RUN_ID}" )
   if [ -n "${METTA_CMD_ARGS:-}" ]; then
     extra_args=( ${METTA_CMD_ARGS} )
@@ -236,6 +274,9 @@ run_cmd() {
   fi
   # Use process substitution so $! is the trainer (not tee)
   setsid "${cmd[@]}" > >(tee "$IPC_DIR/${METTA_CMD}_log.txt") 2> >(tee -a "$IPC_DIR/${METTA_CMD}_log.txt" >&2) &
+=======
+  setsid $cmd 2>&1 | tee "$IPC_DIR/run_log.txt" &
+>>>>>>> cfc2e169e (cp):devops/skypilot/config/skypilot_run.sh
   CMD_PID=$!
 
   sleep 1
@@ -245,7 +286,7 @@ run_cmd() {
   fi
 
   CMD_PGID=$(ps -o pgid= -p "$CMD_PID" 2>/dev/null | tr -d ' ')
-  echo "[INFO] Started $METTA_CMD process with PID: $CMD_PID, PGID: $CMD_PGID"
+  echo "[INFO] Started process with PID: $CMD_PID, PGID: $CMD_PGID"
 
   # Master-only: Start timeout monitor if MAX_RUNTIME_HOURS is set
   if [[ "$IS_MASTER" == "true" ]] && [[ -n "${MAX_RUNTIME_HOURS:-}" ]] && [[ "${MAX_RUNTIME_HOURS}" != "None" ]]; then
@@ -411,6 +452,7 @@ export -f terminate_monitors
 # Set up cleanup trap
 trap cleanup EXIT
 
+<<<<<<< HEAD:devops/skypilot/config/sk_train_run.sh
 # All nodes: Run GPU diagnostics and NCCL tests (first start only)
 TEST_NCCL="${TEST_NCCL:-false}"
 if [[ "$TEST_NCCL" == "false" ]]; then
@@ -425,6 +467,11 @@ else
   fi
   echo "[SUCCESS] NCCL tests passed"
 fi
+=======
+# All nodes: Run GPU diagnostics and NCCL tests
+# echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
+# uv run python ./devops/skypilot/test_nccl.py
+>>>>>>> cfc2e169e (cp):devops/skypilot/config/skypilot_run.sh
 
 # Run the command
 run_cmd

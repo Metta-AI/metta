@@ -22,6 +22,13 @@ class Config(BaseModel):
         inner_cfg: Config | dict[str, Any] = self
         traversed_path: list[str] = []
         for key_part in key_path[:-1]:
+            if isinstance(inner_cfg, dict):
+                if key_part not in inner_cfg:
+                    fail(f"key {key} not found")
+                inner_cfg = inner_cfg[key_part]
+                traversed_path.append(key_part)
+                continue
+
             if not hasattr(inner_cfg, key_part):
                 failed_path = ".".join(traversed_path + [key_part])
                 fail(f"key {failed_path} not found")
