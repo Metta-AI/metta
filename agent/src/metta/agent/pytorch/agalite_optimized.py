@@ -129,6 +129,14 @@ class AGaLiTeOptimizedPolicy(AGaLiTePolicy):
             dropout=dropout,
             use_fast_mode=True,
         )
+        
+        # Apply careful initialization to prevent gradient issues
+        for name, param in self.named_parameters():
+            if 'weight' in name and param.dim() >= 2:
+                # Use smaller initialization for AGaLiTeOptimized to prevent gradient explosion
+                torch.nn.init.orthogonal_(param, gain=0.5)
+            elif 'bias' in name:
+                torch.nn.init.constant_(param, 0.0)
     
     def initialize_memory(self, batch_size: int) -> Dict:
         """Initialize memory with custom eta/r values."""

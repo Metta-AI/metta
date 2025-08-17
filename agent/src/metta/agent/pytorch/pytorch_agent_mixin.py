@@ -211,7 +211,25 @@ class PyTorchAgentMixin:
             action_probs = action_probs + 1e-10
             action_probs = action_probs / action_probs.sum(dim=-1, keepdim=True)
 
-        actions = torch.multinomial(action_probs, num_samples=1).view(-1)
+        try:
+            actions = torch.multinomial(action_probs, num_samples=1).view(-1)
+        except RuntimeError as e:
+            import sys
+            print(f"ERROR in multinomial sampling: {e}", file=sys.stderr)
+            print(f"  action_probs shape: {action_probs.shape}", file=sys.stderr)
+            print(f"  action_probs device: {action_probs.device}", file=sys.stderr)
+            print(f"  action_probs min: {action_probs.min()}, max: {action_probs.max()}", file=sys.stderr)
+            print(f"  action_probs sum per row: {action_probs.sum(dim=-1)[:5]}", file=sys.stderr)
+            # Fallback to argmax if multinomial fails
+            actions = action_probs.argmax(dim=-1)
+        
+        # Check if actions are within valid range
+        if actions.max() >= log_probs.shape[-1]:
+            import sys
+            print(f"ERROR: Action index out of bounds", file=sys.stderr)
+            print(f"  actions max: {actions.max()}, log_probs shape: {log_probs.shape}", file=sys.stderr)
+            actions = actions.clamp(max=log_probs.shape[-1] - 1)
+        
         batch_indices = torch.arange(actions.shape[0], device=actions.device)
         selected_log_probs = log_probs[batch_indices, actions]
 
