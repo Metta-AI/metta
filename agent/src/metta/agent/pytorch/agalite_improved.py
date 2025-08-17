@@ -85,17 +85,20 @@ class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
                 dropout=dropout,
             )
         else:
-            policy = ImprovedPolicy(
+            # Use regular AGaLiTePolicy with adjusted parameters
+            # Fast mode will automatically cap eta=2, r=4 for stability
+            policy = AGaLiTePolicy(
                 env=env,
                 d_model=d_model,
                 d_head=d_head,
                 d_ffc=d_ffc,
                 n_heads=n_heads,
                 n_layers=n_layers,
-                eta=eta,
-                r=r,
+                eta=eta,  # Will be capped to 2 internally
+                r=r,  # Will be capped to 4 internally
                 reset_on_terminate=reset_on_terminate,
                 dropout=dropout,
+                use_fast_mode=True,  # Always use fast mode for performance
             )
 
         # Initialize with TransformerWrapper
@@ -171,7 +174,19 @@ class ImprovedPolicy(AGaLiTePolicy):
         reset_on_terminate: bool = True,
         dropout: float = 0.05,
     ):
-        # Initialize base AGaLiTePolicy
+        # For stability with fast mode, we need to cap eta and r
+        # FastAGaLiTeLayer is optimized for eta=2, r=4
+        # Using higher values can cause instability
+        actual_eta = min(eta, 2)  # Cap at 2 for fast mode stability
+        actual_r = min(r, 4)  # Cap at 4 for fast mode stability
+        
+        if eta != actual_eta or r != actual_r:
+            logger.warning(
+                f"AGaLiTeImproved: Capping eta from {eta} to {actual_eta}, "
+                f"r from {r} to {actual_r} for fast mode stability"
+            )
+        
+        # Initialize base AGaLiTePolicy with capped values
         super().__init__(
             env=env,
             d_model=d_model,
@@ -179,55 +194,18 @@ class ImprovedPolicy(AGaLiTePolicy):
             d_ffc=d_ffc,
             n_heads=n_heads,
             n_layers=n_layers,
-            eta=eta,
-            r=r,
+            eta=actual_eta,  # Use capped value
+            r=actual_r,  # Use capped value
             reset_on_terminate=reset_on_terminate,
             dropout=dropout,
             use_fast_mode=True,  # Always use FastAGaLiTeLayer for performance
         )
-
-        # Override the transformer with improved core
-        self.transformer = ImprovedCore(
-            n_layers=n_layers,
-            d_model=d_model,
-            d_head=d_head,
-            d_ffc=d_ffc,
-            n_heads=n_heads,
-            eta=eta,
-            r=r,
-            reset_on_terminate=reset_on_terminate,
-            dropout=dropout,
-        )
+        
+        # Store the actual values being used
+        self.eta = actual_eta
+        self.r = actual_r
 
 
-class ImprovedCore(AGaLiTeCore):
-    """Improved transformer core with optimizations."""
-
-    def __init__(
-        self,
-        n_layers: int,
-        d_model: int,
-        d_head: int,
-        d_ffc: int,
-        n_heads: int,
-        eta: int,
-        r: int,
-        reset_on_terminate: bool = True,
-        dropout: float = 0.05,
-    ):
-        # Initialize with FastAGaLiTeLayer only
-        super().__init__(
-            n_layers=n_layers,
-            d_model=d_model,
-            d_head=d_head,
-            d_ffc=d_ffc,
-            n_heads=n_heads,
-            eta=eta,
-            r=r,
-            reset_on_terminate=reset_on_terminate,
-            dropout=dropout,
-            use_fast_mode=True,  # Force fast mode
-        )
 
 
 class TokenNativePolicy(nn.Module):
