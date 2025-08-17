@@ -47,15 +47,16 @@ class FastAGaLiTeLayer(nn.Module):
         # Pre-compute oscillatory frequencies
         self.register_buffer("omegas", torch.linspace(-math.pi, math.pi, r))
 
-        # Initialize weights conservatively to prevent instability
-        # Smaller gains help prevent gradient explosion in recurrent networks
-        nn.init.xavier_uniform_(self.fused_projection.weight)
+        # Initialize weights with proper scaling for learning
+        # Use math.sqrt(2) as in the working version for better gradient flow
+        nn.init.orthogonal_(self.fused_projection.weight, gain=math.sqrt(2))
         nn.init.constant_(self.fused_projection.bias, 0.0)
-        nn.init.xavier_uniform_(self.project.weight)
+        nn.init.orthogonal_(self.project.weight, gain=1.0)
         nn.init.constant_(self.project.bias, 0.0)
 
+    @torch._dynamo.disable  # Avoid graph breaks in recurrent computation
     def forward(self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple) -> Tuple[torch.Tensor, Tuple]:
-        """Optimized forward pass for large batches."""
+        """Optimized forward pass with compiler directives."""
         T, B, _ = inputs.shape
         device = inputs.device
 
@@ -157,7 +158,9 @@ class FastAGaLiTeLayer(nn.Module):
         # Discounted sums - always use normal processing
         # (chunking code has bugs and is rarely used in practice)
         final_keys = discounted_sum(tilde_k_prev, keys_osc, discount_gamma.unsqueeze(2))
-        final_values = discounted_sum(tilde_v_prev, values_osc, discount_beta.unsqueeze(2).unsqueeze(3))
+        # For values, expand discount_beta to match values_osc shape
+        discount_beta_expanded = discount_beta.unsqueeze(2).expand(-1, -1, self.r, -1, -1)
+        final_values = discounted_sum(tilde_v_prev, values_osc, discount_beta_expanded)
         final_s = discounted_sum(s_prev, s, discount_gamma)
 
         # Attention computation (optimized)
@@ -172,23 +175,19 @@ class FastAGaLiTeLayer(nn.Module):
         final_values_reshaped = final_values.reshape(T, B, self.r, self.head_num, self.head_dim)
         kv = (final_values_reshaped * attn_scores.unsqueeze(-1).unsqueeze(-1)).sum(dim=2)
 
-        # Normalization with stability
+        # Normalization
         norm = (final_s * queries_expanded).sum(dim=-1, keepdim=True)
-        # Clamp norm to prevent division issues
-        norm = torch.clamp(norm, min=self.eps, max=1e6)
-        attn_out = kv / (2 * self.r * norm)
+        attn_out = kv / (2 * self.r * norm + self.eps)
 
-        # Output projection with value clamping for stability
+        # Output projection
         attn_out = attn_out.reshape(T, B, self.head_num * self.head_dim)
-        # Clamp before projection to prevent extreme values
-        attn_out = torch.clamp(attn_out, min=-10, max=10)
         attn_out = self.dropout(self.project(attn_out))
 
-        # Update memory - detach and clone to fully break gradient chain
+        # Update memory - detach to prevent gradient accumulation
         new_tick = tick + T
-        new_tilde_k = final_keys[-1].detach().clone()
-        new_tilde_v = final_values[-1].detach().clone()
-        new_s = final_s[-1].detach().clone()
+        new_tilde_k = final_keys[-1].detach()
+        new_tilde_v = final_values[-1].detach()
+        new_s = final_s[-1].detach()
 
         return attn_out, (new_tilde_k, new_tilde_v, new_s, new_tick)
 
