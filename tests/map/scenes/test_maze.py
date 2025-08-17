@@ -1,12 +1,13 @@
 import pytest
 
+from metta.map.random.int import IntUniformDistribution
 from metta.map.scenes.maze import Maze
 from tests.map.scenes.utils import assert_connected, render_scene
 
 
 @pytest.mark.parametrize("algorithm", ["kruskal", "dfs"])
 def test_basic(algorithm):
-    scene = render_scene(Maze, {"algorithm": algorithm, "room_size": 1, "wall_size": 1}, (9, 9))
+    scene = render_scene(Maze.factory(Maze.Params(algorithm=algorithm, room_size=1, wall_size=1)), (9, 9))
 
     assert_connected(scene.grid)
 
@@ -18,7 +19,14 @@ def test_basic(algorithm):
 @pytest.mark.parametrize("algorithm", ["kruskal", "dfs"])
 def test_uniform_distribution(algorithm):
     scene = render_scene(
-        Maze, {"algorithm": algorithm, "room_size": ("uniform", 1, 2), "wall_size": ("uniform", 1, 2)}, (15, 15)
+        Maze.factory(
+            Maze.Params(
+                algorithm=algorithm,
+                room_size=IntUniformDistribution(low=1, high=2),
+                wall_size=IntUniformDistribution(low=1, high=2),
+            )
+        ),
+        (15, 15),
     )
 
     assert_connected(scene.grid)
