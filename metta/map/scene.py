@@ -31,9 +31,6 @@ class SceneConfig(Config):
     children: list["ChildrenAction"] | None = None
     seed: int | None = None
 
-    def create(self, area: Area, rng: np.random.Generator) -> Scene:
-        return self.type(area=area, params=self.params, seed=self.seed or rng, children_actions=self.children)
-
     # Turn strings into classes, ensure subclass of Scene
     @field_validator("type", mode="before")
     @classmethod
@@ -58,6 +55,9 @@ class SceneConfig(Config):
     @field_serializer("params")
     def _serialize_params(self, params: Config, _info):
         return params.model_dump()
+
+    def create(self, area: Area, rng: np.random.Generator) -> Scene:
+        return self.type(area=area, params=self.params, seed=self.seed or rng, children_actions=self.children)
 
 
 # Scene configs can be either:
