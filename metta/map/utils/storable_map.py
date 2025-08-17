@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class FrontmatterDict(TypedDict):
     metadata: dict
     config: dict
-    scene_tree: dict | None = None
+    scene_tree: dict | None
 
 
 class StorableMapDict(TypedDict):
