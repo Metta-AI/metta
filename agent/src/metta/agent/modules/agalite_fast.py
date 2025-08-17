@@ -62,6 +62,18 @@ class FastAGaLiTeLayer(nn.Module):
         # Unpack memory
         tilde_k_prev, tilde_v_prev, s_prev, tick = memory
         
+        # Validate memory shapes
+        expected_k_shape = (B, self.r, self.head_num, self.eta * self.head_dim)
+        expected_v_shape = (B, self.r, self.head_num, self.head_dim)
+        expected_s_shape = (B, self.head_num, self.eta * self.head_dim)
+        
+        if tilde_k_prev.shape != expected_k_shape:
+            raise ValueError(f"Memory tilde_k_prev shape {tilde_k_prev.shape} doesn't match expected {expected_k_shape}")
+        if tilde_v_prev.shape != expected_v_shape:
+            raise ValueError(f"Memory tilde_v_prev shape {tilde_v_prev.shape} doesn't match expected {expected_v_shape}")
+        if s_prev.shape != expected_s_shape:
+            raise ValueError(f"Memory s_prev shape {s_prev.shape} doesn't match expected {expected_s_shape}")
+        
         # Single fused projection (more efficient)
         all_proj = self.fused_projection(inputs)
         
@@ -133,7 +145,10 @@ class FastAGaLiTeLayer(nn.Module):
         if self.reset_hidden_on_terminate:
             term_mask = (1 - terminations.float()).unsqueeze(2).unsqueeze(3)
             discount_gamma = (1 - gammas_expanded) * term_mask
-            discount_beta = (1 - beta) * term_mask.squeeze(3)
+            # For beta, we need term_mask to broadcast with (T, B, head_num, head_dim)
+            # beta has shape (T, B, head_num, head_dim)
+            term_mask_beta = (1 - terminations.float()).unsqueeze(2).unsqueeze(3)
+            discount_beta = (1 - beta) * term_mask_beta
         else:
             discount_gamma = 1 - gammas_expanded
             discount_beta = 1 - beta
@@ -152,21 +167,26 @@ class FastAGaLiTeLayer(nn.Module):
                 chunk_slice = slice(i, end_i)
                 
                 fk = discounted_sum(
-                    tilde_k_prev[:, chunk_slice] if tilde_k_prev.ndim > 1 else tilde_k_prev,
+                    tilde_k_prev[chunk_slice] if tilde_k_prev.ndim > 1 else tilde_k_prev,
                     keys_osc[:, chunk_slice],
                     discount_gamma[:, chunk_slice].unsqueeze(2)
                 )
                 final_keys_chunks.append(fk)
                 
+                # For values: tilde_v_prev is (B, r, head_num, head_dim)
+                # values_osc is (T, B, r, head_num, head_dim)
+                # discount_beta is (T, B, head_num, head_dim)
+                # We need to expand discount_beta to match values_osc shape
+                discount_beta_expanded = discount_beta[:, chunk_slice].unsqueeze(2).expand(-1, -1, self.r, -1, -1)
                 fv = discounted_sum(
-                    tilde_v_prev[:, chunk_slice] if tilde_v_prev.ndim > 1 else tilde_v_prev,
+                    tilde_v_prev[chunk_slice] if tilde_v_prev.ndim > 1 else tilde_v_prev,
                     values_osc[:, chunk_slice],
-                    discount_beta[:, chunk_slice].unsqueeze(2).unsqueeze(3)
+                    discount_beta_expanded
                 )
                 final_values_chunks.append(fv)
                 
                 fs = discounted_sum(
-                    s_prev[:, chunk_slice] if s_prev.ndim > 1 else s_prev,
+                    s_prev[chunk_slice] if s_prev.ndim > 1 else s_prev,
                     s[:, chunk_slice],
                     discount_gamma[:, chunk_slice]
                 )
@@ -178,7 +198,9 @@ class FastAGaLiTeLayer(nn.Module):
         else:
             # Normal processing
             final_keys = discounted_sum(tilde_k_prev, keys_osc, discount_gamma.unsqueeze(2))
-            final_values = discounted_sum(tilde_v_prev, values_osc, discount_beta.unsqueeze(2).unsqueeze(3))
+            # For values, expand discount_beta to match values_osc shape
+            discount_beta_expanded = discount_beta.unsqueeze(2).expand(-1, -1, self.r, -1, -1)
+            final_values = discounted_sum(tilde_v_prev, values_osc, discount_beta_expanded)
             final_s = discounted_sum(s_prev, s, discount_gamma)
         
         # Attention computation (optimized)
