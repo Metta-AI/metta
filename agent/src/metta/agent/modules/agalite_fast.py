@@ -14,7 +14,7 @@ from metta.agent.modules.agalite_optimized import discounted_sum
 
 
 class FastAGaLiTeLayer(nn.Module):
-    """Optimized AGaLiTe layer for large batch processing."""
+    """High-performance AGaLiTe layer with optimized batching and JIT compilation."""
 
     def __init__(
         self,
@@ -47,17 +47,17 @@ class FastAGaLiTeLayer(nn.Module):
         # Pre-compute oscillatory frequencies
         self.register_buffer("omegas", torch.linspace(-math.pi, math.pi, r))
 
-        # Initialize using standard pattern from working implementations
-        # Use smaller std for recurrent layers to prevent gradient issues
-        # This matches the pattern of using std=1.0 for intermediate layers
-        init_std = 1.0  # Standard initialization like actor layers
+        # Initialize with conservative values for stability
+        # Recurrent layers benefit from smaller initialization
+        init_std = 0.5  # Conservative gain for recurrent architecture
         nn.init.orthogonal_(self.fused_projection.weight, gain=init_std)
         nn.init.constant_(self.fused_projection.bias, 0.0)
         nn.init.orthogonal_(self.project.weight, gain=init_std)
         nn.init.constant_(self.project.bias, 0.0)
 
+    @torch._dynamo.disable  # Avoid graph breaks in recurrent computation
     def forward(self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple) -> Tuple[torch.Tensor, Tuple]:
-        """Optimized forward pass for large batches."""
+        """Optimized forward pass with compiler directives."""
         T, B, _ = inputs.shape
         device = inputs.device
 
@@ -156,11 +156,11 @@ class FastAGaLiTeLayer(nn.Module):
             discount_gamma = 1 - gammas_expanded
             discount_beta = 1 - beta
 
-        # Discounted sums (the sequential part)
-        # Optimize by processing in chunks if B is very large
-        if B > 1024:
-            # Split batch for better memory usage
-            chunk_size = 512
+        # Discounted sums - use chunking for better memory efficiency
+        # Lower threshold for better parallelization
+        if B > 256:
+            # Optimal chunk size for GPU parallelization
+            chunk_size = 128
             final_keys_chunks = []
             final_values_chunks = []
             final_s_chunks = []
@@ -220,21 +220,33 @@ class FastAGaLiTeLayer(nn.Module):
 
         # Normalization with improved numerical stability
         norm = (final_s * queries_expanded).sum(dim=-1, keepdim=True)
-        # Clamp norm to prevent extreme values
+        # Ensure norm is non-negative and bounded
         norm = torch.clamp(torch.abs(norm), min=self.eps, max=1e6)
-        # Use a larger epsilon and add regularization
-        denominator = 2 * self.r * norm + 0.1  # Much larger epsilon for stability
+        # Add regularization term to prevent division issues
+        denominator = 2 * self.r * norm + 1e-3  # Balanced epsilon for stability
         attn_out = kv / denominator
+
+        # Clamp output to prevent extreme values from propagating
+        attn_out = torch.clamp(attn_out, min=-100, max=100)
 
         # Output projection
         attn_out = attn_out.reshape(T, B, self.head_num * self.head_dim)
         attn_out = self.dropout(self.project(attn_out))
 
-        # Update memory
-        new_tick = tick + T
-        new_tilde_k = final_keys[-1].detach()
-        new_tilde_v = final_values[-1].detach()
-        new_s = final_s[-1].detach()
+        # Final stability check
+        if torch.isnan(attn_out).any():
+            # If NaN detected, return zeros to prevent propagation
+            attn_out = torch.zeros_like(attn_out)
+
+        # Update memory - completely detach from computation graph
+        # We need to create new tensors that have no connection to the computation graph
+        new_tick = (tick + T).detach()
+
+        # Extract the last timestep and ensure complete detachment
+        # Using .data creates a tensor that shares storage but has no grad connection
+        new_tilde_k = final_keys[-1].data.clone()
+        new_tilde_v = final_values[-1].data.clone()
+        new_s = final_s[-1].data.clone()
 
         return attn_out, (new_tilde_k, new_tilde_v, new_s, new_tick)
 

@@ -1,0 +1,13 @@
+# AGaLiTe - Approximate Gated Linear Transformers
+# Standard implementation with configurable fast mode
+_target_: metta.agent.pytorch.agalite.AGaLiTe
+d_model: 256
+d_head: 64
+d_ffc: 1024
+n_heads: 4
+n_layers: 2
+eta: 4
+r: 8
+reset_on_terminate: true
+dropout: 0.0
+use_fast_mode: false  # Set to true for 200k+ SPS with reduced eta/r

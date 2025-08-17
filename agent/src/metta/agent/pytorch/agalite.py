@@ -404,11 +404,11 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         d_ffc: int = 1024,
         n_heads: int = 4,
         n_layers: int = 2,  # Reduced from 4 for better GPU performance
-        eta: int = 4,
-        r: int = 8,
+        eta: int = 2,  # Fast mode default for stability
+        r: int = 4,  # Fast mode default for stability
         reset_on_terminate: bool = True,
         dropout: float = 0.0,
-        use_fast_mode: bool = False,
+        use_fast_mode: bool = True,  # Default to fast mode (stable)
         **kwargs,
     ):
         """Initialize AGaLiTe with mixin support.
@@ -451,13 +451,11 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
 
+    @torch._dynamo.disable  # Avoid graph breaks with recurrent state
     def forward(self, td: TensorDict, state: Optional[Dict] = None, action: Optional[torch.Tensor] = None):
-        """Forward pass compatible with MettaAgent expectations.
+        """Optimized forward pass with compiler directives.
 
-        Follows the Fast agent pattern for TensorDict handling:
-        - Reshape TD early if in training mode
-        - Keep it flat throughout processing
-        - Don't reshape back (caller handles that)
+        Uses Fast agent pattern for efficient TensorDict handling.
         """
         observations = td["env_obs"]
 

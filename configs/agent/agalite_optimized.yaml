@@ -1,0 +1,12 @@
+# AGaLiTe Optimized - Balanced performance variant
+# Uses FastAGaLiTeLayer with enhanced parameters for ~100k SPS
+_target_: metta.agent.pytorch.agalite_optimized.AGaLiTeOptimized
+d_model: 256
+d_head: 64
+d_ffc: 1024  # Not used in fast architecture
+n_heads: 4
+n_layers: 2  # Keep at 2 for reasonable speed
+eta: 3  # Higher than fast mode (2) but lower than full (4)
+r: 6    # Higher than fast mode (4) but lower than full (8)
+reset_on_terminate: true
+dropout: 0.05  # Small dropout for generalization
