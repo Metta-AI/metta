@@ -13,6 +13,8 @@ from tensordict import TensorDict
 from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
+from metta.agent.modules.encoders import ObsLatentAttn
+from metta.agent.modules.tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, ObsTokenPadStrip
 
 logger = logging.getLogger(__name__)
 
@@ -119,10 +121,25 @@ class AGaLiTeTurboPolicy(nn.Module):
         self.is_continuous = False
         self.hidden_size = d_model
 
-        # Efficient observation encoding
-        self.encoder = nn.Sequential(
-            nn.Linear(256, d_model),  # Simplified encoding
-            nn.ReLU(),
+        # Token-native observation encoding (like latent_attn)
+        from pufferlib.pytorch import layer_init as init_layer
+        import numpy as np
+        
+        # Token processing modules
+        self.obs_ = ObsTokenPadStrip(obs_shape=(200, 3))  # Pad/strip tokens
+        self.obs_norm = ObsAttrValNorm(feature_normalizations=[1.0] * 256)  # Normalize
+        self.obs_fourier = ObsAttrEmbedFourier(attr_embed_dim=10, num_freqs=4)  # Fourier features
+        
+        # Attention-based encoding to hidden dimension
+        self.obs_latent_query_attn = ObsLatentAttn(
+            out_dim=d_model,  # Output dimension matches model
+            _feat_dim=27,  # Input features after Fourier encoding
+            use_mask=True,
+            num_query_tokens=1,  # Single query for speed
+            query_token_dim=32,
+            num_heads=4,
+            num_layers=1,  # Single layer for turbo speed
+            qk_dim=32,
         )
 
         # AGaLiTe transformer
@@ -136,43 +153,53 @@ class AGaLiTeTurboPolicy(nn.Module):
             dropout=dropout,
         )
 
-        # Efficient output heads
-        self.critic = nn.Linear(d_model, 1)
-
-        # Get actual action space size
+        # Output heads (matching AGaLiTePolicy structure)
+        self.critic_1 = init_layer(nn.Linear(d_model, 1024), std=np.sqrt(2))
+        self.value_head = init_layer(nn.Linear(1024, 1), std=1.0)
+        self.actor_1 = init_layer(nn.Linear(d_model, 512), std=1.0)
+        self.action_embeddings = nn.Embedding(100, 16)
+        
+        # Initialize action embeddings
+        nn.init.orthogonal_(self.action_embeddings.weight)
+        with torch.no_grad():
+            max_abs_value = torch.max(torch.abs(self.action_embeddings.weight))
+            self.action_embeddings.weight.mul_(0.1 / max_abs_value)
+        
+        # Action heads
         if hasattr(self.action_space, "nvec"):
-            action_size = sum(self.action_space.nvec)
-        elif hasattr(self.action_space, "n"):
-            action_size = self.action_space.n
+            action_nvec = self.action_space.nvec
         else:
-            action_size = 100  # Fallback
+            action_nvec = [100]
+        
+        self.actor_heads = nn.ModuleList([
+            init_layer(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec
+        ])
+        
 
-        self.actor = nn.Linear(d_model, action_size)
-
-        # Initialize weights efficiently
-        for m in self.modules():
-            if isinstance(m, nn.Linear):
-                nn.init.orthogonal_(m.weight, gain=0.5)
-                if m.bias is not None:
-                    nn.init.constant_(m.bias, 0)
-
+    def network_forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Token-native observation processing."""
+        x, mask, B_TT = self.obs_(x)  # Pad/strip tokens
+        x = self.obs_norm(x)  # Normalize attributes
+        x = self.obs_fourier(x)  # Add Fourier features
+        x = self.obs_latent_query_attn(x, mask, B_TT)  # Attention encoding
+        return x
+    
     def encode_observations(self, observations: torch.Tensor, state: Optional[Dict] = None) -> torch.Tensor:
-        """Fast observation encoding."""
-        # Simplified encoding for speed
-        B = observations.shape[0]
-        if observations.dim() == 4:
-            observations = observations.reshape(B * observations.shape[1], -1)
-        else:
-            observations = observations.reshape(B, -1)
-
-        # Take first 256 features for speed
-        features = observations[..., :256].float()
-        return self.encoder(features)
+        """Encode token observations directly without CNN conversion."""
+        # Token observations are already in the right format
+        # Just pass through the network_forward
+        return self.network_forward(observations)
 
     def decode_actions(self, hidden: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Fast action decoding."""
-        value = self.critic(hidden)
-        logits = self.actor(hidden)
+        """Decode hidden representation to action logits and value."""
+        critic_features = torch.tanh(self.critic_1(hidden))
+        value = self.value_head(critic_features)
+
+        actor_features = self.actor_1(hidden)
+        action_embed = self.action_embeddings.weight.mean(dim=0).unsqueeze(0).expand(actor_features.shape[0], -1)
+        combined_features = torch.cat([actor_features, action_embed], dim=-1)
+        logits = torch.cat([head(combined_features) for head in self.actor_heads], dim=-1)
+
         return logits, value
 
     def initialize_memory(self, batch_size: int) -> Dict:
