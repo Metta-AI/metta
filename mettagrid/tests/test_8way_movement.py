@@ -349,28 +349,33 @@ def test_8way_movement_boundary_check():
 
 def test_orientation_changes_on_failed_8way_movement():
     """Test that orientation changes even when 8-way movement fails due to obstacles."""
-    env = TestEnvironmentBuilder.create_environment(
-        game_map=[
-            ["wall", "wall", "wall"],
-            ["wall", "agent.player", "wall"],
-            ["wall", "wall", "wall"],
-        ],
-        num_agents=1,
-        actions={
-            "move": {"enabled": False},
-            "rotate": {"enabled": True},  # Enable rotate to test orientation changes
-            "move_8way": {"enabled": True},
-        },
+    env_cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=1,
+            actions=ActionsConfig(
+                move=ActionConfig(enabled=False),
+                rotate=ActionConfig(enabled=True),  # Enable rotate to test orientation changes
+                move_8way=ActionConfig(enabled=True),
+            ),
+            map_builder=AsciiMapBuilderConfig(
+                map_data=[
+                    ["wall", "wall", "wall"],
+                    ["wall", "agent.player", "wall"],
+                    ["wall", "wall", "wall"],
+                ],
+            ),
+        )
     )
+    env = MettaGridCore(env_cfg)
     env.reset()
 
-    objects = env.grid_objects()
+    objects = env.grid_objects
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     # Check initial orientation
     assert objects[agent_id]["orientation"] == 0  # Up
 
-    action_names = env.action_names()
+    action_names = env.action_names
     move_8way_idx = action_names.index("move_8way")
 
     # Set initial orientation to Left
@@ -380,7 +385,7 @@ def test_orientation_changes_on_failed_8way_movement():
         actions[0] = [rotate_idx, 2]  # Face Left
         env.step(actions)
 
-        objects = env.grid_objects()
+        objects = env.grid_objects
         assert objects[agent_id]["orientation"] == 2  # Left
 
     # Try to move East into wall - should fail BUT change orientation
