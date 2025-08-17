@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import importlib
-from typing import Any, Callable, Generic, Optional, Type, TypeVar, Union, get_args, get_origin
+from typing import Any, Generic, Optional, Type, TypeVar, Union, get_args, get_origin
 
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
@@ -69,13 +69,8 @@ class SceneConfig(Config):
 SceneCfg = Union[
     # structured Pydantic config - main mode
     SceneConfig,
-    # legacy from yaml - a dict with `type`, `params` and optionally `children` keys
-    dict,
     # a string path to a scene config file (this is how we load reusable scene configs from `scenes/` directory)
     str,
-    # a function that takes a MapGrid and returns a Scene instance (useful for children actions produced in Python code)
-    # legacy style from Scene.factory
-    Callable[[Area, np.random.Generator], Any],
 ]
 
 
@@ -116,22 +111,13 @@ class Scene(Generic[ParamsT]):
         raise TypeError(f"{cls.__name__} must inherit from Scene[…], with a concrete Params class parameter")
 
     @classmethod
-    def validate_params(cls, params: ParamsT | DictConfig | dict | None) -> ParamsT:
-        if params is None:
-            return cls.Params()
-        if isinstance(params, DictConfig):
-            return cls.Params.model_validate(OmegaConf.to_container(params))
-        elif isinstance(params, dict):
-            return cls.Params.model_validate(params)
-        elif isinstance(params, cls.Params):
-            return params
-        else:
-            raise ValueError(f"Invalid params: {params}")
+    def validate_params(cls, params: Any) -> ParamsT:
+        return cls.Params.model_validate(params or {})
 
     def __init__(
         self,
         area: Area,
-        params: ParamsT | DictConfig | dict | None = None,
+        params: ParamsT | None = None,
         children_actions: Optional[list[ChildrenAction]] = None,
         seed: MaybeSeed = None,
     ):
