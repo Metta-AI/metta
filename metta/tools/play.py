@@ -2,8 +2,6 @@
 
 import logging
 
-from pydantic import Field
-
 import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
@@ -16,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class PlayTool(Tool):
-    wandb: WandbConfig = Field(default_factory=WandbConfigOff)
+    wandb: WandbConfig = WandbConfigOff()
     sim: SimulationConfig
     policy_uri: str | None = None
     selector_type: str = "latest"
