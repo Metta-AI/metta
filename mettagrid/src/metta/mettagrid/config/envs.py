@@ -1,5 +1,7 @@
+import metta.map.scenes.random
 from metta.map.mapgen import MapGenConfig
 from metta.mettagrid.config import building
+from metta.mettagrid.map_builder.map_builder import MapBuilderConfig
 from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
@@ -17,6 +19,7 @@ from metta.mettagrid.mettagrid_config import (
 def make_arena(
     num_agents: int,
     combat: bool = True,
+    map_builder: MapBuilderConfig | None = None,  # custom map builder; must match num_agents
 ) -> EnvConfig:
     objects = {
         "wall": building.wall,
@@ -48,6 +51,29 @@ def make_arena(
     if not combat:
         actions.attack.consumed_resources = {"laser": 100}
 
+    if map_builder is None:
+        map_builder = MapGenConfig(
+            num_agents=num_agents,
+            width=25,
+            height=25,
+            instances=num_agents // 6,
+            border_width=6,
+            instance_border_width=0,
+            root=metta.map.scenes.random.Random.factory(
+                params=metta.map.scenes.random.Random.Params(
+                    agents=6,
+                    objects={
+                        "wall": 20,
+                        "altar": 5,
+                        "mine_red": 10,
+                        "generator_red": 5,
+                        "lasery": 1,
+                        "armory": 1,
+                    },
+                ),
+            ),
+        )
+
     return EnvConfig(
         game=GameConfig(
             num_agents=num_agents,
@@ -71,28 +97,7 @@ def make_arena(
                     props=AgentConfig(),
                 ),
             },
-            map_builder=MapGenConfig(
-                num_agents=num_agents,
-                width=25,
-                height=25,
-                instances=num_agents // 6,
-                border_width=6,
-                instance_border_width=0,
-                root={
-                    "type": "metta.map.scenes.random.Random",
-                    "params": {
-                        "agents": 6,
-                        "objects": {
-                            "wall": 20,
-                            "altar": 5,
-                            "mine_red": 10,
-                            "generator_red": 5,
-                            "lasery": 1,
-                            "armory": 1,
-                        },
-                    },
-                },
-            ),
+            map_builder=map_builder,
         )
     )
 

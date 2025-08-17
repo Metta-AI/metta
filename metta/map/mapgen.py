@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 from metta.map.scene import ChildrenAction, SceneCfg, load_class, make_scene, scene_cfg_to_dict
 from metta.map.scenes.copy_grid import CopyGrid
-from metta.map.scenes.room_grid import RoomGrid, RoomGridParams
+from metta.map.scenes.room_grid import RoomGrid
 from metta.map.scenes.transplant_scene import TransplantScene
 from metta.mettagrid.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from metta.mettagrid.map_builder.utils import create_grid
@@ -160,10 +160,10 @@ class MapGen(MapBuilder):
                 instance_scene.render_with_children()
                 self.instance_scene_factories.append(
                     TransplantScene.factory(
-                        {
-                            "scene": instance_scene,
-                            "get_grid": lambda: self.grid,
-                        }
+                        params=TransplantScene.Params(
+                            scene=instance_scene,
+                            get_grid=lambda: self.grid,
+                        )
                     )
                 )
             else:
@@ -180,9 +180,7 @@ class MapGen(MapBuilder):
                 self.instance_scene_factories.append(
                     # TODO - if the instance_map class is MapGen, we want to transplant its scene tree too.
                     CopyGrid.factory(
-                        {
-                            "grid": instance_grid,
-                        }
+                        params=CopyGrid.Params(grid=instance_grid),
                     )
                 )
                 self.width = max(self.width or 0, instance_grid.shape[1])
@@ -292,7 +290,7 @@ class MapGen(MapBuilder):
             )
 
         return RoomGrid.factory(
-            RoomGridParams(
+            RoomGrid.Params(
                 rows=self.instance_rows,
                 columns=self.instance_cols,
                 border_width=self.config.instance_border_width,
