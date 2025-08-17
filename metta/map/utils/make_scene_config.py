@@ -1,43 +1,42 @@
 from typing import Optional
 
 from metta.map.mapgen import MapGenConfig
+from metta.map.scene import SceneConfig
+from metta.map.scenes.convchain import ConvChain
+from metta.map.scenes.wfc import WFC
 
 
 def with_boundaries(pattern: str):
     return "\n".join([line for line in pattern.split("\n")])
 
 
-def make_convchain_config_from_pattern(pattern: str) -> dict:
+def make_convchain_config_from_pattern(pattern: str) -> SceneConfig:
     pattern = with_boundaries(pattern)
-    config = {
-        "type": "metta.map.scenes.convchain.ConvChain",
-        "params": {
-            "pattern_size": 3,
-            "iterations": 10,
-            "temperature": 1,
-            "pattern": pattern,
-        },
-    }
-
-    return config
+    return ConvChain.factory(
+        ConvChain.Params(
+            pattern_size=3,
+            iterations=10,
+            temperature=1,
+            pattern=with_boundaries(pattern),
+        ),
+    )
 
 
-def make_wfc_config_from_pattern(pattern: str) -> Optional[dict]:
+def make_wfc_config_from_pattern(pattern: str) -> Optional[SceneConfig]:
     pattern = with_boundaries(pattern)
-    config = {
-        "type": "metta.map.scenes.wfc.WFC",
-        "params": {
-            "pattern_size": 3,
-            "pattern": pattern,
-        },
-    }
+    root_config = WFC.factory(
+        WFC.Params(
+            pattern_size=3,
+            pattern=pattern,
+        ),
+    )
 
     # Some WFC patterns are invalid, so we need to check that they are valid.
     # This is the slowest part of import, 2-20 seconds per map.
-    mapgen = MapGenConfig(width=100, height=100, root=config).create()
+    mapgen = MapGenConfig(width=100, height=100, root=root_config).create()
     try:
         mapgen.build()
     except Exception:
         return None
 
-    return config
+    return root_config

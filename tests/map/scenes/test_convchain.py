@@ -4,16 +4,17 @@ from tests.map.scenes.utils import render_scene
 
 def test_basic():
     scene = render_scene(
-        ConvChain,
-        dict(
-            pattern="""
-##..#
-#....
-#####
-""",
-            pattern_size=3,
-            iterations=10,
-            temperature=1,
+        ConvChain.factory(
+            ConvChain.Params(
+                pattern="""
+                    ##..#
+                    #....
+                    #####
+                """,
+                pattern_size=3,
+                iterations=10,
+                temperature=1,
+            )
         ),
         (20, 20),
     )
