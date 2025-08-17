@@ -278,13 +278,13 @@ class Scene(Generic[ParamsT]):
     @classmethod
     def factory(
         cls: Type[SceneT],
-        params: dict | Config,
+        params: ParamsT | None = None,
         children_actions: Optional[list[ChildrenAction]] = None,
         seed: int | None = None,
     ) -> SceneConfig:
         return SceneConfig(
             type=cls,
-            params=params,
+            params=params or cls.Params(),
             children=children_actions,
             seed=seed,
         )

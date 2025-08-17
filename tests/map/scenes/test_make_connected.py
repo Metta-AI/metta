@@ -12,7 +12,7 @@ def test_connect_room_grid():
             columns=3,
         ),
         shape=(20, 20),
-        children=[ChildrenAction(scene=MakeConnected.factory(params={}), where="full")],
+        children=[ChildrenAction(scene=MakeConnected.factory(), where="full")],
     )
 
     assert_connected(scene.grid)

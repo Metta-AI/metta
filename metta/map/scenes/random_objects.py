@@ -25,7 +25,7 @@ class RandomObjects(Scene[RandomObjectsParams]):
 
         return [
             ChildrenAction(
-                scene=Random.factory(params={"objects": objects}),
+                scene=Random.factory(Random.Params(objects=objects)),
                 where="full",
             ),
             *self.children_actions,

@@ -49,7 +49,7 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
             ChildrenAction(
                 where="full",
                 scene=RoomGrid.factory(
-                    params=dict(
+                    params=RoomGrid.Params(
                         rows=rows,
                         columns=columns,
                         border_width=6,
@@ -57,7 +57,7 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
                     children_actions=[
                         ChildrenAction(
                             scene=RoomGrid.factory(
-                                params=dict(
+                                params=RoomGrid.Params(
                                     border_width=0,
                                     layout=[
                                         [
@@ -74,29 +74,29 @@ class MultiLeftAndRight(Scene[MultiLeftAndRightParams]):
                                 children_actions=[
                                     ChildrenAction(
                                         scene=Random.factory(
-                                            params={
-                                                "agents": {
+                                            params=Random.Params(
+                                                agents={
                                                     agent_group: 1,
                                                 }
-                                            },
+                                            ),
                                             seed=agent_seed,
                                         ),
                                         where=AreaWhere(tags=["agents"]),
                                     ),
                                     ChildrenAction(
                                         scene=Random.factory(
-                                            params={
-                                                "objects": {"altar": left_altars},
-                                            },
+                                            params=Random.Params(
+                                                objects={"altar": left_altars},
+                                            ),
                                             seed=altar_seed,
                                         ),
                                         where=AreaWhere(tags=["maybe_altars_left"]),
                                     ),
                                     ChildrenAction(
                                         scene=Random.factory(
-                                            params={
-                                                "objects": {"altar": right_altars},
-                                            },
+                                            params=Random.Params(
+                                                objects={"altar": right_altars},
+                                            ),
                                             seed=altar_seed + 1,
                                         ),
                                         where=AreaWhere(tags=["maybe_altars_right"]),
