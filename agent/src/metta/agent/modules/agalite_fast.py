@@ -238,12 +238,15 @@ class FastAGaLiTeLayer(nn.Module):
             # If NaN detected, return zeros to prevent propagation
             attn_out = torch.zeros_like(attn_out)
 
-        # Update memory - use clone to avoid inplace operation issues
-        with torch.no_grad():
-            new_tick = tick.clone() + T
-            new_tilde_k = final_keys[-1].clone().detach()
-            new_tilde_v = final_values[-1].clone().detach()
-            new_s = final_s[-1].clone().detach()
+        # Update memory - completely detach from computation graph
+        # We need to create new tensors that have no connection to the computation graph
+        new_tick = (tick + T).detach()
+        
+        # Extract the last timestep and ensure complete detachment
+        # Using .data creates a tensor that shares storage but has no grad connection
+        new_tilde_k = final_keys[-1].data.clone()
+        new_tilde_v = final_values[-1].data.clone()
+        new_s = final_s[-1].data.clone()
 
         return attn_out, (new_tilde_k, new_tilde_v, new_s, new_tick)
 

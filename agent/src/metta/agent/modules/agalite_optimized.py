@@ -13,17 +13,21 @@ def jit_discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: to
     if T == 0:
         return x
 
-    # Pre-allocate output tensor for better memory efficiency
-    output = torch.empty_like(x)
-
+    # Build list of outputs to avoid inplace operations
+    outputs = []
+    
     # First step
-    output[0] = discounts[0] * start_state + x[0]
-
-    # Vectorized loop for better performance
+    prev = discounts[0] * start_state + x[0]
+    outputs.append(prev)
+    
+    # Accumulate without modifying existing tensors
     for t in range(1, T):
-        output[t] = discounts[t] * output[t - 1] + x[t]
-
-    return output
+        curr = discounts[t] * prev + x[t]
+        outputs.append(curr)
+        prev = curr
+    
+    # Stack all outputs
+    return torch.stack(outputs, dim=0)
 
 
 def discounted_sum(start_state: torch.Tensor, x: torch.Tensor, discounts: torch.Tensor) -> torch.Tensor:
