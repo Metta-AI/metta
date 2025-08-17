@@ -4,6 +4,7 @@ import pytest
 # Import MapGenConfig first from __init__ to avoid circular import
 from metta.map.mapgen import MapGenConfig
 from metta.map.scenes.inline_ascii import InlineAscii
+from metta.map.scenes.nop import Nop
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.scenes.transplant_scene import TransplantScene
 from tests.map.scenes.utils import assert_raw_grid
@@ -14,7 +15,7 @@ class TestMapGenSize:
         (width, height, border_width) = (10, 10, 2)
 
         mg = MapGenConfig(
-            root={"type": "metta.map.scenes.nop.Nop"},
+            root=Nop.factory(),
             width=width,
             height=height,
             border_width=border_width,
@@ -34,14 +35,14 @@ class TestMapGenSize:
 
     def test_dimensions_required(self):
         mg = MapGenConfig(
-            root={"type": "metta.map.scenes.nop.Nop"},
+            root=Nop.factory(),
         ).create()
         with pytest.raises(ValueError, match="width and height must be provided"):
             mg.build()
 
     def test_intrinsic_size(self):
         mg = MapGenConfig(
-            root={"type": "metta.map.scenes.inline_ascii.InlineAscii", "params": {"data": "@"}},
+            root=InlineAscii.factory(InlineAscii.Params(data="@")),
             border_width=2,
         ).create()
         level = mg.build()
@@ -50,7 +51,7 @@ class TestMapGenSize:
 
     def test_intrinsic_size_with_explicit_dimensions(self):
         mg = MapGenConfig(
-            root={"type": "metta.map.scenes.inline_ascii.InlineAscii", "params": {"data": "@"}},
+            root=InlineAscii.factory(InlineAscii.Params(data="@")),
             width=10,
             height=10,
             border_width=2,
@@ -71,7 +72,7 @@ class TestMapGenInstances:
     def test_instances(self, instances, instance_bw):
         width, height, border_width = 5, 3, 2
         mg = MapGenConfig(
-            root={"type": "metta.map.scenes.inline_ascii.InlineAscii", "params": {"data": "@"}},
+            root=InlineAscii.factory(InlineAscii.Params(data="@")),
             width=width,
             height=height,
             border_width=border_width,
@@ -91,15 +92,14 @@ class TestMapGenInstances:
 
     def test_num_agents(self):
         mg = MapGenConfig(
-            root={
-                "type": "metta.map.scenes.inline_ascii.InlineAscii",
-                "params": {
-                    "data": """
+            root=InlineAscii.factory(
+                InlineAscii.Params(
+                    data="""
                         .@.
                         .@.
                     """,
-                },
-            },
+                ),
+            ),
             # 10 agents, 2 per instance, so 5 instances
             num_agents=10,
             instance_border_width=1,
