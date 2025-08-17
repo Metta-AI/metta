@@ -12,6 +12,8 @@ import numpy as np
 
 from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.gym_env import MettaGridGymEnv
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
@@ -70,7 +72,26 @@ def test_gym_env():
     print("🏃 TESTING GYMNASIUM ENVIRONMENT")
     print("=" * 50)
 
-    env_cfg = make_arena(num_agents=1)
+    # Create environment with a simple map
+    env_cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=1,
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                noop=ActionConfig(),
+                rotate=ActionConfig(),
+            ),
+            map_builder=AsciiMapBuilderConfig(
+                map_data=[
+                    ["#", "#", "#", "#", "#"],
+                    ["#", ".", ".", ".", "#"],
+                    ["#", ".", "@", ".", "#"],
+                    ["#", ".", ".", ".", "#"],
+                    ["#", "#", "#", "#", "#"],
+                ],
+            ),
+        )
+    )
 
     env = MettaGridGymEnv(env_cfg, render_mode="human")
 
@@ -110,7 +131,27 @@ def test_pettingzoo_env():
     print("🐧 TESTING PETTINGZOO ENVIRONMENT")
     print("=" * 50)
 
-    env_cfg = make_arena(num_agents=3)
+    # Create environment with a simple map for 3 agents
+    env_cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=3,
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                noop=ActionConfig(),
+                rotate=ActionConfig(),
+            ),
+            map_builder=AsciiMapBuilderConfig(
+                map_data=[
+                    ["#", "#", "#", "#", "#", "#", "#"],
+                    ["#", ".", ".", ".", ".", ".", "#"],
+                    ["#", ".", "1", ".", "2", ".", "#"],
+                    ["#", ".", ".", "3", ".", ".", "#"],
+                    ["#", ".", ".", ".", ".", ".", "#"],
+                    ["#", "#", "#", "#", "#", "#", "#"],
+                ],
+            ),
+        )
+    )
 
     env = MettaGridPettingZooEnv(env_cfg, render_mode="human")
 

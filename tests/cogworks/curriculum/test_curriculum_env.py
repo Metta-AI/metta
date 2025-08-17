@@ -34,6 +34,8 @@ class TestCurriculumEnv:
             {},  # infos
         )
         mock_env.set_env_cfg = Mock()  # Add set_env_cfg method
+        mock_env.get_episode_rewards = Mock(return_value=np.array([1.0, 2.0]))  # Add get_episode_rewards method
+        mock_env.set_env_config = Mock()  # Add set_env_config method
         return mock_env
 
     def test_curriculum_env_creation(self):
@@ -87,6 +89,8 @@ class TestCurriculumEnv:
             np.array([False, False]),
             {},
         )
+        # Set up get_episode_rewards to return matching values
+        mock_env.get_episode_rewards.return_value = np.array([0.8, 0.9])
 
         curriculum = self.create_test_curriculum()
         wrapper = CurriculumEnv(mock_env, curriculum)
@@ -122,6 +126,8 @@ class TestCurriculumEnv:
             np.array([True, True]),  # Both truncated
             {},
         )
+        # Set up get_episode_rewards to return matching values
+        mock_env.get_episode_rewards.return_value = np.array([0.6, 0.4])
 
         curriculum = self.create_test_curriculum()
         wrapper = CurriculumEnv(mock_env, curriculum)
@@ -238,6 +244,8 @@ class TestCurriculumEnv:
                 np.array([False, False]),
                 {},
             )
+            # Set up get_episode_rewards to return matching values
+            mock_env.get_episode_rewards.return_value = np.array([0.5 + episode * 0.1, 0.6 + episode * 0.1])
 
             wrapper.step([1, 0])
 
@@ -270,6 +278,8 @@ class TestCurriculumEnv:
                 np.array([False] * len(rewards)),
                 {},
             )
+            # Set up get_episode_rewards to return matching values
+            mock_env.get_episode_rewards.return_value = rewards
 
             initial_task = wrapper._current_task
             wrapper.step([1, 0])
@@ -293,6 +303,8 @@ class TestCurriculumEnvEdgeCases:
             {},
         )
         mock_env.set_env_cfg = Mock()
+        mock_env.get_episode_rewards = Mock(return_value=np.array([]))
+        mock_env.set_env_config = Mock()
 
         task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
@@ -319,6 +331,8 @@ class TestCurriculumEnvEdgeCases:
             {},
         )
         mock_env.set_env_cfg = Mock()
+        mock_env.get_episode_rewards = Mock(return_value=np.array([0.8]))
+        mock_env.set_env_config = Mock()
 
         task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
         config = CurriculumConfig(task_generator=task_gen_config)
@@ -344,6 +358,8 @@ class TestCurriculumEnvEdgeCases:
             {},
         )
         mock_env.set_env_cfg = Mock()
+        mock_env.get_episode_rewards = Mock(return_value=np.array([0.7, 0.3]))
+        mock_env.set_env_config = Mock()
 
         task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
         config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=2)

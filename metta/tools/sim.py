@@ -13,6 +13,7 @@ import sys
 import uuid
 from datetime import datetime
 from pathlib import Path
+from typing import Sequence
 
 import torch
 
@@ -45,8 +46,8 @@ def _determine_run_name(policy_uri: str) -> str:
 
 class SimTool(Tool):
     # required params:
-    simulations: list[SimulationConfig]  # list of simulations to run
-    policy_uris: list[str]  # list of policy uris to evaluate
+    simulations: Sequence[SimulationConfig]  # list of simulations to run
+    policy_uris: Sequence[str]  # list of policy uris to evaluate
     replay_dir: str  # where to store replays
 
     wandb: WandbConfig = WandbConfigOff()
