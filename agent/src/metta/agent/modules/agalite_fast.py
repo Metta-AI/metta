@@ -218,11 +218,9 @@ class FastAGaLiTeLayer(nn.Module):
         final_values_reshaped = final_values.reshape(T, B, self.r, self.head_num, self.head_dim)
         kv = (final_values_reshaped * attn_scores.unsqueeze(-1).unsqueeze(-1)).sum(dim=2)
 
-        # Normalization with better numerical stability
+        # Normalization
         norm = (final_s * queries_expanded).sum(dim=-1, keepdim=True)
-        # Ensure norm is positive and add larger epsilon for stability
-        norm = torch.abs(norm) + 1e-5
-        attn_out = kv / (2 * self.r * norm)
+        attn_out = kv / (2 * self.r * norm + self.eps)
 
         # Output projection
         attn_out = attn_out.reshape(T, B, self.head_num * self.head_dim)
