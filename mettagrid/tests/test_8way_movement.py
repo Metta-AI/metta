@@ -18,12 +18,16 @@ def test_8way_movement_all_directions():
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
-            actions=ActionsConfig(move_8way=ActionConfig()),
+            actions=ActionsConfig(
+                move_8way=ActionConfig(),
+                rotate=ActionConfig(),
+                noop=ActionConfig(),
+            ),
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
-                    [".", ".", "agent.player", ".", "."],
+                    [".", ".", "@", ".", "."],
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
                 ],
@@ -86,14 +90,18 @@ def test_8way_movement_obstacles():
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
-            actions=ActionsConfig(move_8way=ActionConfig()),
+            actions=ActionsConfig(
+                move_8way=ActionConfig(),
+                rotate=ActionConfig(),
+                noop=ActionConfig(),
+            ),
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
-                    ["wall", "wall", "wall", "wall", "wall"],
-                    ["wall", ".", ".", ".", "wall"],
-                    ["wall", ".", "agent.player", ".", "wall"],
-                    ["wall", ".", ".", ".", "wall"],
-                    ["wall", "wall", "wall", "wall", "wall"],
+                    ["#", "#", "#", "#", "#"],
+                    ["#", ".", ".", ".", "#"],
+                    ["#", ".", "@", ".", "#"],
+                    ["#", ".", ".", ".", "#"],
+                    ["#", "#", "#", "#", "#"],
                 ],
             ),
         )
@@ -134,11 +142,15 @@ def test_orientation_changes_with_8way():
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
-            actions=ActionsConfig(move_8way=ActionConfig()),
+            actions=ActionsConfig(
+                move_8way=ActionConfig(),
+                rotate=ActionConfig(),
+                noop=ActionConfig(),
+            ),
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     [".", ".", ".", ".", "."],
-                    [".", "agent.player", ".", ".", "."],
+                    [".", "@", ".", ".", "."],
                     [".", ".", ".", ".", "."],
                 ],
             ),
@@ -194,11 +206,15 @@ def test_cardinal_movement_changes_orientation():
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
-            actions=ActionsConfig(move_cardinal=ActionConfig()),
+            actions=ActionsConfig(
+                move_cardinal=ActionConfig(),
+                rotate=ActionConfig(),
+                noop=ActionConfig(),
+            ),
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     [".", ".", ".", ".", "."],
-                    [".", "agent.player", ".", ".", "."],
+                    [".", "@", ".", ".", "."],
                     [".", ".", ".", ".", "."],
                 ],
             ),
@@ -238,12 +254,16 @@ def test_8way_movement_with_simple_environment():
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
-            actions=ActionsConfig(move_8way=ActionConfig()),
+            actions=ActionsConfig(
+                move_8way=ActionConfig(),
+                rotate=ActionConfig(),
+                noop=ActionConfig(),
+            ),
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
-                    [".", ".", "agent.player", ".", "."],
+                    [".", ".", "@", ".", "."],
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
                 ],
@@ -296,11 +316,15 @@ def test_8way_movement_boundary_check():
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
-            actions=ActionsConfig(move_8way=ActionConfig()),
+            actions=ActionsConfig(
+                move_8way=ActionConfig(),
+                rotate=ActionConfig(),
+                noop=ActionConfig(),
+            ),
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     [".", ".", "."],
-                    [".", "agent.player", "."],
+                    [".", "@", "."],
                     [".", ".", "."],
                 ],
             ),
@@ -359,9 +383,9 @@ def test_orientation_changes_on_failed_8way_movement():
             ),
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
-                    ["wall", "wall", "wall"],
-                    ["wall", "agent.player", "wall"],
-                    ["wall", "wall", "wall"],
+                    ["#", "#", "#"],
+                    ["#", "@", "#"],
+                    ["#", "#", "#"],
                 ],
             ),
         )

@@ -37,7 +37,7 @@ lt() {
     local repo_result=$?
 
     if [ $repo_result -eq 0 ]; then
-        ./devops/skypilot/launch.py "train" "$@"
+        ./devops/skypilot/launch.py "$@"
         local exit_code=$?
     else
         local exit_code=$repo_result

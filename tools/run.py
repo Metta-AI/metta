@@ -46,6 +46,7 @@ def main():
     parser.add_argument("make_tool_cfg_path", type=str, help="Path to the function to run")
     parser.add_argument("--args", nargs="*")
     parser.add_argument("--overrides", nargs="*", default=[])
+    parser.add_argument("--dry-run", action="store_true", default=False)
     args = parser.parse_args()
 
     init_logging()
@@ -80,17 +81,22 @@ def main():
         key, value = override.split("=")
         tool_cfg = tool_cfg.override(key, value)
 
-    logger.info(
-        f"Tool config produced by {args.make_tool_cfg_path}({', '.join(make_tool_args)}), "
-        + f"with overrides {', '.join(overrides)}:"
-        + "\n---------------------\n"
-        + str(tool_cfg.model_dump_json(indent=2))
-    )
+    # logger.info(
+    #     f"Tool config produced by {args.make_tool_cfg_path}({', '.join(make_tool_args)}), "
+    #     + f"with overrides {', '.join(overrides)}:"
+    #     + "\n---------------------\n"
+    #     + str(tool_cfg.model_dump_json(indent=2))
+    # )
 
     # Seed random number generators
     seed_everything(tool_cfg.system)
 
     # Run the tool from config
+    if args.dry_run:
+        print("Dry run: printing tool config")
+        print(tool_cfg.model_dump_json(indent=2))
+        sys.exit(0)
+
     result = tool_cfg.invoke()
 
     if result is not None:

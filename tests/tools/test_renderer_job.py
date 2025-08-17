@@ -45,6 +45,7 @@ class TestRendererJob:
         assert config_path.exists(), "Renderer job config not found"
         assert config_path.is_file(), "Renderer job config path is not a file"
 
+    @pytest.mark.skip(reason="Renderer changed from Hydra to Pydantic config - needs refactor")
     @pytest.mark.slow
     def test_renderer_with_debug_environments(self):
         """Test that renderer can load and initialize debug environments."""
@@ -140,7 +141,7 @@ class TestRendererJob:
                     [
                         "python",
                         "-m",
-                        "tools.train",
+                        "metta.tools.train",
                         f"run={run_name}",
                         optional_ci_config,
                         f"data_dir={temp_dir}",

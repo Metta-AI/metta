@@ -81,6 +81,8 @@ def make_obstacles0_env() -> EnvConfig:
 def make_obstacles1_env() -> EnvConfig:
     env = make_navigation(num_agents=1)
     env.game.max_steps = 300
+    # Make a copy of the altar config before modifying
+    env.game.objects["altar"] = env.game.objects["altar"].model_copy()
     env.game.objects["altar"].cooldown = 255
     env.game.map_builder = MapGenConfig(
         border_width=1,

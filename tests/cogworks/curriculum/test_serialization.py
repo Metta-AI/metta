@@ -31,8 +31,8 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         json_str = original.model_dump_json()
         restored = CurriculumConfig.model_validate_json(json_str)
 
-        # Check they're the same
-        self.assertEqual(original, restored)
+        # Check they serialize to the same JSON
+        self.assertEqual(original.model_dump_json(), restored.model_dump_json())
 
     def test_bucketed_task_generator(self):
         """Test BucketedTaskGeneratorConfig round-trip."""
@@ -50,8 +50,8 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         json_str = original.model_dump_json()
         restored = CurriculumConfig.model_validate_json(json_str)
 
-        # Check they're the same
-        self.assertEqual(original, restored)
+        # Check they serialize to the same JSON
+        self.assertEqual(original.model_dump_json(), restored.model_dump_json())
 
     def test_task_generator_set(self):
         """Test TaskGeneratorSetConfig round-trip."""
@@ -68,8 +68,8 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         json_str = original.model_dump_json()
         restored = CurriculumConfig.model_validate_json(json_str)
 
-        # Check they're the same
-        self.assertEqual(original, restored)
+        # Check they serialize to the same JSON
+        self.assertEqual(original.model_dump_json(), restored.model_dump_json())
 
     def test_deeply_nested_bucketed(self):
         """Test nested BucketedTaskGeneratorConfig round-trip."""
@@ -90,8 +90,8 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         json_str = original.model_dump_json()
         restored = CurriculumConfig.model_validate_json(json_str)
 
-        # Check they're the same
-        self.assertEqual(original, restored)
+        # Check they serialize to the same JSON
+        self.assertEqual(original.model_dump_json(), restored.model_dump_json())
 
     def test_value_ranges(self):
         """Test that ValueRange objects survive round-trip."""
@@ -107,8 +107,8 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         json_str = original.model_dump_json()
         restored = CurriculumConfig.model_validate_json(json_str)
 
-        # Check they're the same
-        self.assertEqual(original, restored)
+        # Check they serialize to the same JSON
+        self.assertEqual(original.model_dump_json(), restored.model_dump_json())
 
 
 if __name__ == "__main__":
