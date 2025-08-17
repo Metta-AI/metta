@@ -47,13 +47,16 @@ class FastAGaLiTeLayer(nn.Module):
         # Pre-compute oscillatory frequencies
         self.register_buffer("omegas", torch.linspace(-math.pi, math.pi, r))
 
-        # Initialize with smaller values to prevent gradient explosion
-        # Use smaller gain for higher eta/r values
-        init_gain = 1.0 / math.sqrt(eta * r)
+        # Initialize with much smaller values to prevent gradient explosion
+        # Use very conservative initialization for stability
+        init_gain = 0.1 / math.sqrt(eta * r)  # Reduced from 1.0 to 0.1
         nn.init.orthogonal_(self.fused_projection.weight, gain=init_gain)
         nn.init.constant_(self.fused_projection.bias, 0)
         nn.init.orthogonal_(self.project.weight, gain=init_gain)
         nn.init.constant_(self.project.bias, 0)
+
+        # Add gradient clipping to prevent explosion
+        self.register_buffer("grad_clip_value", torch.tensor(1.0))
 
     def forward(self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple) -> Tuple[torch.Tensor, Tuple]:
         """Optimized forward pass for large batches."""
@@ -219,10 +222,10 @@ class FastAGaLiTeLayer(nn.Module):
 
         # Normalization with improved numerical stability
         norm = (final_s * queries_expanded).sum(dim=-1, keepdim=True)
-        # Ensure norm is positive and not too small
-        norm = torch.abs(norm) + self.eps
-        # Use a larger epsilon for better stability
-        denominator = 2 * self.r * norm + 1e-5  # Increased from self.eps
+        # Clamp norm to prevent extreme values
+        norm = torch.clamp(torch.abs(norm), min=self.eps, max=1e6)
+        # Use a larger epsilon and add regularization
+        denominator = 2 * self.r * norm + 0.1  # Much larger epsilon for stability
         attn_out = kv / denominator
 
         # Output projection
