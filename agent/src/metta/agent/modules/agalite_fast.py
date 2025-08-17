@@ -47,8 +47,9 @@ class FastAGaLiTeLayer(nn.Module):
         # Pre-compute oscillatory frequencies
         self.register_buffer("omegas", torch.linspace(-math.pi, math.pi, r))
 
-        # Initialize weights - use exact values from working version
-        nn.init.orthogonal_(self.fused_projection.weight, gain=math.sqrt(2))
+        # Initialize weights with balanced scaling
+        # Use smaller gain to prevent initial instability
+        nn.init.orthogonal_(self.fused_projection.weight, gain=1.0)
         nn.init.constant_(self.fused_projection.bias, 0.0)
         nn.init.orthogonal_(self.project.weight, gain=1.0)
         nn.init.constant_(self.project.bias, 0.0)
@@ -216,13 +217,19 @@ class FastAGaLiTeLayer(nn.Module):
         final_values_reshaped = final_values.reshape(T, B, self.r, self.head_num, self.head_dim)
         kv = (final_values_reshaped * attn_scores.unsqueeze(-1).unsqueeze(-1)).sum(dim=2)
 
-        # Normalization
+        # Normalization with better numerical stability
         norm = (final_s * queries_expanded).sum(dim=-1, keepdim=True)
-        attn_out = kv / (2 * self.r * norm + self.eps)
+        # Ensure norm is positive and add larger epsilon for stability
+        norm = torch.abs(norm) + 1e-5
+        attn_out = kv / (2 * self.r * norm)
 
         # Output projection
         attn_out = attn_out.reshape(T, B, self.head_num * self.head_dim)
         attn_out = self.dropout(self.project(attn_out))
+
+        # Stability check: clamp output to prevent extreme values
+        # This prevents gradient explosion and NaN propagation
+        attn_out = torch.clamp(attn_out, min=-10.0, max=10.0)
 
         # Update memory - detach to prevent gradient accumulation
         new_tick = tick + T

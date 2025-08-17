@@ -187,6 +187,18 @@ class PyTorchAgentMixin:
         Returns:
             Updated TensorDict with sampled actions
         """
+        # Debug: Check logits before softmax
+        if torch.isnan(logits_list).any() or torch.isinf(logits_list).any():
+            print(f"WARNING: Invalid logits detected before softmax:")
+            print(f"  NaN count: {torch.isnan(logits_list).sum().item()}")
+            print(f"  Inf count: {torch.isinf(logits_list).sum().item()}")
+            print(f"  Logits shape: {logits_list.shape}")
+            print(f"  Logits min/max: {logits_list.min().item():.4f}/{logits_list.max().item():.4f}")
+            # Replace invalid values with zeros
+            logits_list = torch.where(
+                torch.isnan(logits_list) | torch.isinf(logits_list), torch.zeros_like(logits_list), logits_list
+            )
+
         log_probs = F.log_softmax(logits_list, dim=-1)
         action_probs = torch.exp(log_probs)
 
