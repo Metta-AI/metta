@@ -103,7 +103,6 @@ class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
 
-    @torch._dynamo.disable  # Avoid graph breaks with recurrent state
     def forward(self, td: TensorDict, state: Optional[Dict] = None, action: Optional[torch.Tensor] = None):
         """Forward pass with proper TensorDict handling.
 

@@ -451,9 +451,8 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
 
-    @torch._dynamo.disable  # Avoid graph breaks with recurrent state
     def forward(self, td: TensorDict, state: Optional[Dict] = None, action: Optional[torch.Tensor] = None):
-        """Optimized forward pass with compiler directives.
+        """Forward pass for AGaLiTe agent.
 
         Uses Fast agent pattern for efficient TensorDict handling.
         """
