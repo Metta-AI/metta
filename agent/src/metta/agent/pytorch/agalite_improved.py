@@ -137,6 +137,13 @@ class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
         if action is None:
             # Inference mode
             logits, values = self.forward_eval(observations, state)
+            
+            # Debug check for NaN/Inf in logits
+            if torch.isnan(logits).any() or torch.isinf(logits).any():
+                logger.warning(f"Invalid logits detected in AGaLiTe Improved: NaN={torch.isnan(logits).any()}, Inf={torch.isinf(logits).any()}")
+                # Clamp logits to prevent multinomial errors
+                logits = torch.clamp(logits, min=-10, max=10)
+            
             td = self.forward_inference(td, logits, values)
         else:
             # Training mode - use parent's forward for BPTT

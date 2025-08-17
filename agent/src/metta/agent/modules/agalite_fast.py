@@ -102,27 +102,24 @@ class FastAGaLiTeLayer(nn.Module):
         p2 = p1p2p3[..., 1, :]
         p3 = p1p2p3[..., 2, :]
 
-        # Optimized feature mapping using batched operations
-        # Flatten batch and head dimensions for efficiency
-        TB = T * B
-        keys_flat = F.relu(keys).reshape(TB * self.head_num, self.head_dim)
-        p1_flat = F.relu(p1).reshape(TB * self.head_num, self.eta)
-
-        # Use batched matrix multiply instead of einsum
-        keys_expanded = torch.bmm(keys_flat.unsqueeze(2), p1_flat.unsqueeze(1)).reshape(
+        # Feature mapping - simplified version
+        # Apply activations
+        keys_relu = F.relu(keys)
+        queries_relu = F.relu(queries)
+        gammas_sig = torch.sigmoid(gammas)
+        p1_relu = F.relu(p1)
+        p2_relu = F.relu(p2)
+        p3_sig = torch.sigmoid(p3)
+        
+        # Expand features using outer product (more readable than bmm)
+        # keys_expanded: (T, B, head_num, head_dim * eta)
+        keys_expanded = (keys_relu.unsqueeze(-1) * p1_relu.unsqueeze(-2)).reshape(
             T, B, self.head_num, self.head_dim * self.eta
         )
-
-        # Similar for queries and gammas
-        queries_flat = F.relu(queries).reshape(TB * self.head_num, self.head_dim)
-        p2_flat = F.relu(p2).reshape(TB * self.head_num, self.eta)
-        queries_expanded = torch.bmm(queries_flat.unsqueeze(2), p2_flat.unsqueeze(1)).reshape(
+        queries_expanded = (queries_relu.unsqueeze(-1) * p2_relu.unsqueeze(-2)).reshape(
             T, B, self.head_num, self.head_dim * self.eta
         )
-
-        gammas_flat = torch.sigmoid(gammas).reshape(TB * self.head_num, self.head_dim)
-        p3_flat = torch.sigmoid(p3).reshape(TB * self.head_num, self.eta)
-        gammas_expanded = torch.bmm(gammas_flat.unsqueeze(2), p3_flat.unsqueeze(1)).reshape(
+        gammas_expanded = (gammas_sig.unsqueeze(-1) * p3_sig.unsqueeze(-2)).reshape(
             T, B, self.head_num, self.head_dim * self.eta
         )
 
@@ -163,24 +160,31 @@ class FastAGaLiTeLayer(nn.Module):
         final_values = discounted_sum(tilde_v_prev, values_osc, discount_beta_expanded)
         final_s = discounted_sum(s_prev, s, discount_gamma)
 
-        # Attention computation (optimized)
-        # Use batched operations instead of einsum
+        # Attention computation - simplified and clearer
+        # Reshape for attention: keys (T, B, r, head_num * eta * head_dim)
         keys_for_attn = final_keys.reshape(T, B, self.r, -1)
-        queries_for_attn = queries_expanded.reshape(T, B, 1, -1)
+        # Queries (T, B, head_num * eta * head_dim) -> add r dimension
+        queries_for_attn = queries_expanded.reshape(T, B, -1)
+        
+        # Compute attention scores: dot product between keys and queries
+        # (T, B, r, d) * (T, B, d) -> (T, B, r)
+        attn_scores = torch.einsum('tbrd,tbd->tbr', keys_for_attn, queries_for_attn)
+        
+        # Apply attention to values (T, B, r, head_num, head_dim)
+        # Weight values by attention scores and sum over r dimension
+        weighted_values = final_values * attn_scores.unsqueeze(-1).unsqueeze(-1)
+        kv = weighted_values.sum(dim=2)  # (T, B, head_num, head_dim)
 
-        # Compute attention scores
-        attn_scores = (keys_for_attn * queries_for_attn).sum(dim=-1)  # (T, B, r)
-
-        # Apply attention to values
-        final_values_reshaped = final_values.reshape(T, B, self.r, self.head_num, self.head_dim)
-        kv = (final_values_reshaped * attn_scores.unsqueeze(-1).unsqueeze(-1)).sum(dim=2)
-
-        # Normalization
+        # Normalization with better numerical stability
         norm = (final_s * queries_expanded).sum(dim=-1, keepdim=True)
-        attn_out = kv / (2 * self.r * norm + self.eps)
+        # Ensure norm is always positive and not too small
+        norm = torch.clamp(torch.abs(norm), min=self.eps)
+        attn_out = kv / (2 * self.r * norm)
 
-        # Output projection
+        # Output projection with safety clamping
         attn_out = attn_out.reshape(T, B, self.head_num * self.head_dim)
+        # Prevent extreme values before projection
+        attn_out = torch.clamp(attn_out, min=-10, max=10)
         attn_out = self.dropout(self.project(attn_out))
 
         # Update memory - detach to prevent gradient accumulation
