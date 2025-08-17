@@ -362,7 +362,7 @@ def make_labyrinth_env() -> EnvConfig:
                 ),
                 # three altars in the center
                 ChildrenAction(
-                    where=AreaWhere(tags=["full"]),
+                    where="full",
                     scene=Layout.factory(
                         params=Layout.Params(
                             areas=[
