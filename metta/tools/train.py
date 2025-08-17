@@ -5,6 +5,7 @@ from logging import Logger
 from typing import Any, Optional
 
 import torch
+import yaml
 from omegaconf import OmegaConf
 
 from metta.agent.policy_store import PolicyStore
@@ -24,7 +25,7 @@ logger = logging.getLogger(__name__)
 class TrainTool(Tool):
     trainer: TrainerConfig = TrainerConfig()
     wandb: WandbConfig = WandbConfigOff()
-    policy_architecture: Any
+    policy_architecture: Optional[Any] = None
     run: str
     run_dir: Optional[str] = None
 
@@ -49,6 +50,9 @@ class TrainTool(Tool):
         # Set up checkpoint and replay directories
         if not self.trainer.checkpoint.checkpoint_dir:
             self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
+
+        if self.policy_architecture is None:
+            self.policy_architecture = yaml.safe_load(open("configs/agent/fast.yaml"))
 
     def invoke(self) -> int:
         assert self.run_dir is not None
