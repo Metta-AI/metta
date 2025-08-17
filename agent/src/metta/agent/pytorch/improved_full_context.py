@@ -108,12 +108,12 @@ class ImprovedPolicy(nn.Module):
         )
         logger.info("ImprovedFullContextTransformer created successfully")
         
-        # CRITICAL: Critic branch with proper initialization
-        self.critic_1 = init_layer(nn.Linear(hidden_size, 1024), std=np.sqrt(2))
-        self.value_head = init_layer(nn.Linear(1024, 1), std=1.0)
+        # CRITICAL: Critic branch with conservative initialization for transformers
+        self.critic_1 = init_layer(nn.Linear(hidden_size, 1024), std=1.0)  # Reduced from sqrt(2)
+        self.value_head = init_layer(nn.Linear(1024, 1), std=0.1)  # Small for value head
         
-        # CRITICAL: Actor branch
-        self.actor_1 = init_layer(nn.Linear(hidden_size, 512), std=1.0)
+        # CRITICAL: Actor branch with conservative initialization  
+        self.actor_1 = init_layer(nn.Linear(hidden_size, 512), std=0.5)  # Smaller for stability
         
         # CRITICAL: Action embeddings for bilinear decoding
         self.action_embeddings = nn.Embedding(100, 16)
