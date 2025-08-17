@@ -15,7 +15,6 @@ from datetime import datetime
 from pathlib import Path
 
 import torch
-from pydantic import Field
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicySelectorType, PolicyStore
@@ -50,7 +49,7 @@ class SimTool(Tool):
     policy_uris: list[str]  # list of policy uris to evaluate
     replay_dir: str  # where to store replays
 
-    wandb: WandbConfig = Field(default_factory=WandbConfigOff)
+    wandb: WandbConfig = WandbConfigOff()
 
     selector_type: PolicySelectorType = "top"
     stats_dir: str | None = None  # The (local) directory where stats should be stored

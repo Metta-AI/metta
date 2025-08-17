@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class AnalysisTool(Tool):
-    wandb: WandbConfig = Field(default_factory=WandbConfigOff)
+    wandb: WandbConfig = WandbConfigOff()
 
     analysis: AnalysisConfig
     policy_uri: str
