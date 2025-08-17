@@ -47,7 +47,7 @@ setup: |
   set -u
   bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/sk_setup.sh")
 
-run: /workspace/metta/devops/skypilot/config/sk_train_run.sh
+run: /workspace/metta/devops/skypilot/config/skypilot_run.sh
 
 envs:
   DEBUG: 1
@@ -56,8 +56,9 @@ envs:
   GITHUB_PAT: ""
 
   METTA_RUN_ID: ""
-  METTA_CMD: train
-  METTA_CMD_ARGS: ""
+  METTA_MODULE_PATH: ""
+  METTA_ARGS: ""
+  METTA_OVERRIDES: ""
   METTA_GIT_REF: main
   HEARTBEAT_TIMEOUT: 600
 

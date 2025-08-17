@@ -29,8 +29,9 @@ echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
 echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
 echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
-echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
-echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
+echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
+echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
+echo "  - METTA_OVERRIDES: ${METTA_OVERRIDES:-'NOT SET'}"
 [ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
 # Master-only: Collect SkyPilot latency
@@ -265,12 +266,27 @@ terminate_process() {
 }
 
 run_cmd() {
-  echo "[INFO] Starting process $METTA_CMD (node rank: $RANK)"
+  echo "[INFO] Starting process (node rank: $RANK)"
 
   START_TIME=$(date +%s)
 
+  # Build the command with the new format
+  local cmd="./devops/run.sh ${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}"
+
+  # Add --args if METTA_ARGS is not empty (run= is now included in METTA_ARGS)
+  if [ -n "${METTA_ARGS:-}" ]; then
+    cmd="$cmd --args ${METTA_ARGS}"
+  fi
+
+  # Add --overrides if METTA_OVERRIDES is not empty
+  if [ -n "${METTA_OVERRIDES:-}" ]; then
+    cmd="$cmd --overrides ${METTA_OVERRIDES}"
+  fi
+
+  echo "[INFO] Running command: $cmd"
+
   # Start training in its own process group; tee output for postmortem
-  setsid ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} 2>&1 | tee "$IPC_DIR/${METTA_CMD}_log.txt" &
+  setsid $cmd 2>&1 | tee "$IPC_DIR/run_log.txt" &
   CMD_PID=$!
 
   sleep 1
@@ -280,7 +296,7 @@ run_cmd() {
   fi
 
   CMD_PGID=$(ps -o pgid= -p "$CMD_PID" 2>/dev/null | tr -d ' ')
-  echo "[INFO] Started $METTA_CMD process with PID: $CMD_PID, PGID: $CMD_PGID"
+  echo "[INFO] Started process with PID: $CMD_PID, PGID: $CMD_PGID"
 
   # Master-only: Start timeout monitor if MAX_RUNTIME_HOURS is set
   if [[ "$IS_MASTER" == "true" ]] && [[ -n "${MAX_RUNTIME_HOURS:-}" ]] && [[ "${MAX_RUNTIME_HOURS}" != "None" ]]; then
@@ -478,8 +494,8 @@ export -f terminate_monitors
 trap cleanup EXIT
 
 # All nodes: Run GPU diagnostics and NCCL tests
-echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
-uv run python ./devops/skypilot/test_nccl.py
+# echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
+# uv run python ./devops/skypilot/test_nccl.py
 
 # Run the command
 run_cmd

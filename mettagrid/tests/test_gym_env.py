@@ -6,15 +6,34 @@ This module tests the MettaGridGymEnv with Gymnasium's standard environment inte
 
 import numpy as np
 
-from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.gym_env import MettaGridGymEnv
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig
 
 
 def test_single_agent_gym_env():
     """Test single-agent Gymnasium environment."""
-    # Create environment
-    cfg = make_arena(num_agents=1)
-    cfg.game.max_steps = 100
+    # Create environment with a simple map
+    cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=1,
+            max_steps=100,
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                noop=ActionConfig(),
+                rotate=ActionConfig(),
+            ),
+            map_builder=AsciiMapBuilderConfig(
+                map_data=[
+                    ["#", "#", "#", "#", "#"],
+                    ["#", ".", ".", ".", "#"],
+                    ["#", ".", "@", ".", "#"],
+                    ["#", ".", ".", ".", "#"],
+                    ["#", "#", "#", "#", "#"],
+                ],
+            ),
+        )
+    )
     env = MettaGridGymEnv(
         cfg,
         render_mode=None,
@@ -47,7 +66,26 @@ def test_single_agent_gym_env():
 
 def test_gym_env_episode_termination():
     """Test that environment terminates properly."""
-    cfg = make_arena(num_agents=1)
+    # Create environment with a simple map
+    cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=1,
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                noop=ActionConfig(),
+                rotate=ActionConfig(),
+            ),
+            map_builder=AsciiMapBuilderConfig(
+                map_data=[
+                    ["#", "#", "#", "#", "#"],
+                    ["#", ".", ".", ".", "#"],
+                    ["#", ".", "@", ".", "#"],
+                    ["#", ".", ".", ".", "#"],
+                    ["#", "#", "#", "#", "#"],
+                ],
+            ),
+        )
+    )
     cfg.game.max_steps = 100
     env = MettaGridGymEnv(
         cfg,
