@@ -10,7 +10,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.agent_interface import MettaAgentInterface
-from metta.agent.metta_agent_spec import AgentConfig, AgentOutput
+from metta.agent.agent_config import AgentConfig, AgentOutput
 from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.rl.system_config import SystemConfig
 
@@ -93,7 +93,7 @@ class MettaAgent(MettaAgentInterface):
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
 
-    def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
+    def _create_policy(self, agent_cfg: str, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
 
         # map agent_cfg.agent_type to the appropriate policy class
@@ -111,7 +111,7 @@ class MettaAgent(MettaAgentInterface):
             AgentClass = component_agent_classes[policy_name.split(".")[0]]
 
             # Create ComponentPolicy (YAML config)
-            from metta.agent.component_policies.config import ComponentPolicyConfig
+            from metta.agent.agent_config import ComponentPolicyConfig
 
             component_config = ComponentPolicyConfig(
                 obs_space=self.obs_space,

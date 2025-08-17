@@ -225,9 +225,11 @@ class CheckpointManager:
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
             # Use AgentConfig pattern for consistent agent creation
-            from metta.agent.metta_agent_spec import AgentConfig
+            from metta.agent.agent_config import AgentConfig
 
-            config = AgentConfig(env=metta_grid_env, system_cfg=system_cfg, agent_cfg=agent_cfg, policy=None)
+            # Convert DictConfig to string name for agent configuration
+            agent_cfg_name = str(agent_cfg) if agent_cfg else "default"
+            config = AgentConfig(env=metta_grid_env, system_cfg=system_cfg, agent_cfg=agent_cfg_name, policy=None)
             new_policy_record.policy = MettaAgent(config)
 
             # Only master saves the new policy to disk

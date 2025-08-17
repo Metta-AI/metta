@@ -6,7 +6,7 @@ import torch
 from tensordict import TensorDict
 from torch import nn
 
-from metta.agent.component_policies.config import ComponentPolicyConfig
+from metta.agent.agent_config import ComponentPolicyConfig
 from metta.agent.util.debug import assert_shape
 from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.agent.util.safe_get import safe_get_from_obs_space

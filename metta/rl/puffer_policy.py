@@ -67,11 +67,12 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[Di
     # Use AgentConfig pattern
     from omegaconf import DictConfig
 
-    from metta.agent.metta_agent_spec import AgentConfig
+    from metta.agent.agent_config import AgentConfig
 
     # Handle case where pytorch_cfg is None
-    agent_cfg = pytorch_cfg if pytorch_cfg is not None else DictConfig({})
+    # For puffer policy, we use the policy directly so agent_cfg is not used for policy selection
+    agent_cfg_name = "pytorch_policy"
 
-    config = AgentConfig(env=env, system_cfg=system_cfg, agent_cfg=agent_cfg, policy=policy)
+    config = AgentConfig(env=env, system_cfg=system_cfg, agent_cfg=agent_cfg_name, policy=policy)
 
     return MettaAgent(config)

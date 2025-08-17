@@ -101,9 +101,11 @@ def create_metta_agent():
     agent_cfg = DictConfig(config_dict)
 
     # Create the agent using AgentConfig pattern
-    from metta.agent.metta_agent_spec import AgentConfig
+    from metta.agent.agent_config import AgentConfig
 
-    config = AgentConfig(env=MinimalEnv(), system_cfg=system_cfg, agent_cfg=agent_cfg, policy=None)
+    # Use string agent config name for testing
+    agent_cfg_name = "test_component_policy"
+    config = AgentConfig(env=MinimalEnv(), system_cfg=system_cfg, agent_cfg=agent_cfg_name, policy=None)
     agent = MettaAgent(config)
 
     # Create test components that have clip_weights method for testing
