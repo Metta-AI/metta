@@ -6,15 +6,12 @@ This version aims to be more faithful to the AGaLiTe paper while maintaining sta
 import logging
 from typing import Dict, Optional, Tuple
 
-import numpy as np
 import torch
 import torch.nn as nn
-from pufferlib.pytorch import layer_init as init_layer
 from tensordict import TensorDict
 
-from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
-from metta.agent.pytorch.agalite import AGaLiTeCore, AGaLiTePolicy
+from metta.agent.pytorch.agalite import AGaLiTePolicy
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
 logger = logging.getLogger(__name__)
@@ -156,56 +153,6 @@ class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
             td = self.forward_training(td, action, logits, values_flat)
 
         return td
-
-
-class ImprovedPolicy(AGaLiTePolicy):
-    """Improved policy using optimized AGaLiTe layers."""
-
-    def __init__(
-        self,
-        env,
-        d_model: int = 256,
-        d_head: int = 64,
-        d_ffc: int = 1024,
-        n_heads: int = 4,
-        n_layers: int = 3,
-        eta: int = 3,
-        r: int = 6,
-        reset_on_terminate: bool = True,
-        dropout: float = 0.05,
-    ):
-        # For stability with fast mode, we need to cap eta and r
-        # FastAGaLiTeLayer is optimized for eta=2, r=4
-        # Using higher values can cause instability
-        actual_eta = min(eta, 2)  # Cap at 2 for fast mode stability
-        actual_r = min(r, 4)  # Cap at 4 for fast mode stability
-        
-        if eta != actual_eta or r != actual_r:
-            logger.warning(
-                f"AGaLiTeImproved: Capping eta from {eta} to {actual_eta}, "
-                f"r from {r} to {actual_r} for fast mode stability"
-            )
-        
-        # Initialize base AGaLiTePolicy with capped values
-        super().__init__(
-            env=env,
-            d_model=d_model,
-            d_head=d_head,
-            d_ffc=d_ffc,
-            n_heads=n_heads,
-            n_layers=n_layers,
-            eta=actual_eta,  # Use capped value
-            r=actual_r,  # Use capped value
-            reset_on_terminate=reset_on_terminate,
-            dropout=dropout,
-            use_fast_mode=True,  # Always use FastAGaLiTeLayer for performance
-        )
-        
-        # Store the actual values being used
-        self.eta = actual_eta
-        self.r = actual_r
-
-
 
 
 class TokenNativePolicy(nn.Module):
