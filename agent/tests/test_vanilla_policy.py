@@ -48,9 +48,12 @@ def test_metta_agent_with_vanilla_policy():
     system_cfg = SystemConfig(device="cpu")
     agent_cfg = DictConfig({"clip_range": 0})
 
-    # Create MettaAgent with vanilla policy
+    # Create MettaAgent with vanilla policy using AgentConfig pattern
+    from metta.agent.metta_agent_spec import AgentConfig
+
     vanilla_policy = VanillaTorchPolicy()
-    agent = MettaAgent(MinimalEnv(), system_cfg, agent_cfg, policy=vanilla_policy)
+    config = AgentConfig(env=MinimalEnv(), system_cfg=system_cfg, agent_cfg=agent_cfg, policy=vanilla_policy)
+    agent = MettaAgent(config)
 
     # Test that initialization works
     features = {
@@ -61,7 +64,7 @@ def test_metta_agent_with_vanilla_policy():
     action_max_params = [3, 1]
 
     # This should work without errors even though vanilla policy doesn't have these methods
-    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
+    agent.initialize_to_environment(features, action_names, action_max_params, torch.device("cpu"))
 
     # Verify that MettaAgent stored the features and actions
     assert agent.original_feature_mapping == {"health": 1, "energy": 2}
@@ -90,7 +93,7 @@ def test_metta_agent_with_vanilla_policy():
 
     # Re-initialize in eval mode
     agent.eval()
-    agent.initialize_to_environment(new_features, action_names, action_max_params, "cpu")
+    agent.initialize_to_environment(new_features, action_names, action_max_params, torch.device("cpu"))
 
     # Check that remapping was created (even though vanilla policy can't use it)
     assert agent.feature_id_remap[5] == 1  # health remapped
@@ -119,12 +122,16 @@ def test_metta_agent_fallback_methods():
     system_cfg = SystemConfig(device="cpu")
     agent_cfg = DictConfig({})
 
+    # Create agent using AgentConfig pattern
+    from metta.agent.metta_agent_spec import AgentConfig
+
     policy = MinimalPolicy()
-    agent = MettaAgent(MinimalEnv(), system_cfg, agent_cfg, policy=policy)
+    config = AgentConfig(env=MinimalEnv(), system_cfg=system_cfg, agent_cfg=agent_cfg, policy=policy)
+    agent = MettaAgent(config)
 
     # Test that all these methods work without errors
     features = {"test": {"id": 1, "type": "scalar"}}
-    agent.initialize_to_environment(features, ["action"], [1], "cpu")
+    agent.initialize_to_environment(features, ["action"], [1], torch.device("cpu"))
 
     # These should all work gracefully even though the policy doesn't have these methods
     agent.reset_memory()

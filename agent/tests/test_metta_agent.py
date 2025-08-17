@@ -100,13 +100,11 @@ def create_metta_agent():
     system_cfg = SystemConfig(device="cpu")
     agent_cfg = DictConfig(config_dict)
 
-    # Create the agent with the new signature
-    agent = MettaAgent(
-        env=MinimalEnv(),
-        system_cfg=system_cfg,
-        agent_cfg=agent_cfg,
-        policy=None,  # Will create ComponentPolicy internally
-    )
+    # Create the agent using AgentConfig pattern
+    from metta.agent.metta_agent_spec import AgentConfig
+
+    config = AgentConfig(env=MinimalEnv(), system_cfg=system_cfg, agent_cfg=agent_cfg, policy=None)
+    agent = MettaAgent(config)
 
     # Create test components that have clip_weights method for testing
     class ClippableComponent(torch.nn.Module):
