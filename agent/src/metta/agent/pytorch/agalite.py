@@ -342,6 +342,14 @@ class AGaLiTePolicy(nn.Module):
 
     def decode_actions(self, hidden: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Decode hidden representation to action logits and value."""
+        # Check hidden for NaN/Inf
+        if torch.isnan(hidden).any() or torch.isinf(hidden).any():
+            import sys
+            print(f"WARNING: Invalid hidden representation in decode_actions", file=sys.stderr)
+            print(f"  hidden contains NaN: {torch.isnan(hidden).any()}", file=sys.stderr)
+            print(f"  hidden contains Inf: {torch.isinf(hidden).any()}", file=sys.stderr)
+            hidden = torch.nan_to_num(hidden, nan=0.0, posinf=1.0, neginf=-1.0)
+        
         critic_features = torch.tanh(self.critic_1(hidden))
         value = self.value_head(critic_features)
 
@@ -351,6 +359,15 @@ class AGaLiTePolicy(nn.Module):
         combined_features = torch.cat([actor_features, action_embed], dim=-1)
 
         logits = torch.cat([head(combined_features) for head in self.actor_heads], dim=-1)
+        
+        # Check logits for validity
+        if torch.isnan(logits).any() or torch.isinf(logits).any():
+            import sys
+            print(f"WARNING: Invalid logits produced in decode_actions", file=sys.stderr)
+            print(f"  logits shape: {logits.shape}", file=sys.stderr)
+            print(f"  logits contains NaN: {torch.isnan(logits).any()}", file=sys.stderr)
+            print(f"  logits contains Inf: {torch.isinf(logits).any()}", file=sys.stderr)
+            logits = torch.nan_to_num(logits, nan=0.0, posinf=10.0, neginf=-10.0)
 
         return logits, value
 
