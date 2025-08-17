@@ -1,5 +1,5 @@
 from metta.map.scenes.inline_ascii import InlineAscii
-from metta.map.scenes.random_scene import RandomScene
+from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate
 from tests.map.scenes.utils import render_scene
 
 
@@ -10,12 +10,13 @@ def test_objects():
     # 1 / 2^30 chance of failure
     for _ in range(30):
         scene = render_scene(
-            RandomScene,
-            dict(
-                candidates=[
-                    {"scene": InlineAscii.factory(InlineAscii.Params(data="#")), "weight": 1},
-                    {"scene": InlineAscii.factory(InlineAscii.Params(data="_")), "weight": 1},
-                ]
+            RandomScene.factory(
+                RandomScene.Params(
+                    candidates=[
+                        RandomSceneCandidate(scene=InlineAscii.factory(InlineAscii.Params(data="#")), weight=1),
+                        RandomSceneCandidate(scene=InlineAscii.factory(InlineAscii.Params(data="_")), weight=1),
+                    ]
+                )
             ),
             (1, 1),
         )

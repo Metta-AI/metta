@@ -1,5 +1,6 @@
 from metta.common.util.config import Config
 from metta.map.mapgen import MapGen, MapGenConfig
+from metta.map.scenes.ascii import Ascii
 
 
 class MapGenAsciiParams(Config):
@@ -43,6 +44,8 @@ class MapGenAscii(MapGen):
         super().__init__(
             config=MapGenConfig(
                 border_width=ascii_params.border_width,
-                root={"type": "metta.map.scenes.ascii.Ascii", "params": {"uri": ascii_params.uri}},
+                root=Ascii.factory(
+                    Ascii.Params(uri=ascii_params.uri),
+                ),
             ),
         )
