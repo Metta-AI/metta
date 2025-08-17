@@ -126,6 +126,37 @@ def list_training_runs() -> List[Dict[str, Any]]:
     return runs
 
 
+def _combine_action_id_and_param(action_id_data: list, action_param_data: list) -> list:
+    """Combine action_id and action_param data from objects format into unified action format.
+
+    Args:
+        action_id_data: List of [step, action_id] entries
+        action_param_data: List of [step, param] entries
+
+    Returns:
+        List of [step, [action_id, args]] entries (matching grid_objects format)
+    """
+    if not action_id_data:
+        return []
+
+    # Create mapping from step to param
+    step_to_param = {step: param for step, param in action_param_data} if action_param_data else {}
+
+    # Combine into unified format
+    action_data = []
+    for step, action_id in action_id_data:
+        param = step_to_param.get(step)
+        if param is not None:
+            # Convert single param to args list format
+            args = [param] if not isinstance(param, list) else param
+            action_data.append([step, [action_id, args]])
+        else:
+            # No param for this step
+            action_data.append([step, [action_id, []]])
+
+    return action_data
+
+
 def _infer_actions_from_movement_and_success(
     location_data: list, action_success_data: list, action_names: list
 ) -> list:
@@ -177,22 +208,31 @@ def _infer_actions_from_movement_and_success(
             dc = current_pos[0] - prev_pos[0]  # col delta
             dr = current_pos[1] - prev_pos[1]  # row delta
 
-            # Map movement to action
+            # Map movement to action with directional arguments
             action_id = move_actions[0]  # default
+            direction_arg = 0  # default direction
 
             if dc == 0 and dr == -1:  # up
                 action_id = move_actions[0] if len(move_actions) > 0 else 0
+                direction_arg = 0  # up
             elif dc == 1 and dr == 0:  # right
                 action_id = move_actions[1] if len(move_actions) > 1 else 1
+                direction_arg = 1  # right
             elif dc == 0 and dr == 1:  # down
                 action_id = move_actions[2] if len(move_actions) > 2 else 2
+                direction_arg = 2  # down
             elif dc == -1 and dr == 0:  # left
                 action_id = move_actions[3] if len(move_actions) > 3 else 3
+                direction_arg = 3  # left
             elif dc == 0 and dr == 0:  # no movement - might be interact action
                 action_id = len(action_names) - 1 if len(action_names) > 4 else 0
+                direction_arg = None  # no direction for interact actions
 
-            # Add synthetic action entry
-            action_data.append([prev_step, [action_id, []]])
+            # Add synthetic action entry with directional arguments
+            if direction_arg is not None:
+                action_data.append([prev_step, [action_id, [direction_arg]]])
+            else:
+                action_data.append([prev_step, [action_id, []]])
 
         prev_pos = current_pos
         prev_step = step
@@ -207,6 +247,281 @@ def _infer_actions_from_movement_and_success(
         action_data.append([step, [action_id, []]])
 
     return sorted(action_data, key=lambda x: x[0])
+
+
+def _create_agent_action_timelines(
+    agent_objects: list, action_names: list, episode_length: int, max_steps: int = 50, item_names: list = None
+) -> Dict[str, Any]:
+    """Create detailed ASCII timeline visualization of agent actions with directions and items.
+
+    Format: Each step shows [ACTION:DIRECTION:ITEMS] e.g., M↑, R→, A↓, G+ore
+
+    Args:
+        agent_objects: List of agent objects with action data
+        action_names: List of action names for mapping
+        episode_length: Total episode length
+        max_steps: Maximum steps to show in timeline (default 50, reduced for readability)
+
+    Returns:
+        Dict containing timeline data and visualization
+    """
+
+    def _format_action_details(action_name: str, args: list, step: int, inventory_changes: dict) -> str:
+        """Format action with detailed information about direction, items, etc."""
+        action_name_lower = action_name.lower()
+
+        # Direction mappings for moves and rotates
+        direction_map = {
+            0: "↑",  # up
+            1: "→",  # right
+            2: "↓",  # down
+            3: "←",  # left
+        }
+
+        if "move" in action_name_lower:
+            if args and len(args) > 0:
+                direction = args[0] if isinstance(args[0], int) else 0
+                dir_char = direction_map.get(direction, "?")
+                return f"M{dir_char}"
+            return "M?"
+
+        elif "rotate" in action_name_lower:
+            if args and len(args) > 0:
+                # Rotation: 0=right, 1=left (or similar mapping)
+                rotation = args[0] if isinstance(args[0], int) else 0
+                if rotation == 0:
+                    return "R→"
+                else:
+                    return "R←"
+            return "R?"
+
+        elif "attack" in action_name_lower:
+            if args and len(args) > 0:
+                direction = args[0] if isinstance(args[0], int) else 0
+                dir_char = direction_map.get(direction, "?")
+                return f"A{dir_char}"
+            return "A?"
+
+        elif "get" in action_name_lower or "put" in action_name_lower:
+            action_prefix = "G" if "get" in action_name_lower else "P"
+
+            # Check for inventory changes at this step to show what items were actually gained/lost
+            step_changes = inventory_changes.get(step, {})
+            if step_changes:
+                # Find items that increased (for get) or decreased (for put)
+                relevant_changes = []
+                for item_name, change in step_changes.items():
+                    if "get" in action_name_lower and change > 0:
+                        relevant_changes.append(f"{item_name[:3]}")  # Short name
+                    elif "put" in action_name_lower and change < 0:
+                        relevant_changes.append(f"{item_name[:3]}")  # Short name
+
+                if relevant_changes:
+                    items_str = "/".join(relevant_changes)
+                    return f"{action_prefix}+{items_str}"
+
+            return action_prefix
+
+        elif "swap" in action_name_lower:
+            return "S"
+
+        elif "noop" in action_name_lower:
+            return "·"
+
+        elif "8way" in action_name_lower:
+            if args and len(args) > 0:
+                # 8-way movement with direction
+                direction = args[0] if isinstance(args[0], int) else 0
+                dir_chars = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"]
+                dir_char = dir_chars[direction % 8] if direction < 8 else "?"
+                return f"8{dir_char}"
+            return "8?"
+
+        # Default: use first letter of action name
+        return action_name[0].upper() if action_name else "?"
+
+    def _extract_inventory_changes(agent_obj: dict, item_names: list) -> dict:
+        """Extract inventory changes by step to show what items were gained/lost."""
+        inventory_changes = {}  # {step: {item_name: change_amount}}
+
+        # Handle grid_objects format with specific item fields
+        if any(key.startswith("inv:") for key in agent_obj.keys()):
+            # Process specific item tracking fields like inv:ore_red, inv:battery_red, inv:armor
+            for key, data in agent_obj.items():
+                if key.startswith("inv:") and isinstance(data, list):
+                    item_name = key[4:]  # Remove 'inv:' prefix
+
+                    # Track changes between consecutive entries
+                    prev_count = 0
+                    for step, count in data:
+                        if count != prev_count:
+                            change = count - prev_count
+                            if step not in inventory_changes:
+                                inventory_changes[step] = {}
+                            inventory_changes[step][item_name] = change
+                            prev_count = count
+
+        # Handle objects format with general inventory field
+        elif "inventory" in agent_obj and not any(key.startswith("inv:") for key in agent_obj.keys()):
+            inventory_data = agent_obj["inventory"]
+            if isinstance(inventory_data, list) and inventory_data:
+                prev_inventory = {}
+
+                for step, inventory in inventory_data:
+                    current_inventory = {}
+
+                    # Parse inventory format: [[item_id, count], ...]
+                    if isinstance(inventory, list):
+                        for item_entry in inventory:
+                            if isinstance(item_entry, list) and len(item_entry) >= 2:
+                                item_id, count = item_entry[0], item_entry[1]
+                                if item_id < len(item_names):
+                                    item_name = item_names[item_id]
+                                    current_inventory[item_name] = count
+
+                    # Calculate changes from previous step
+                    all_items = set(prev_inventory.keys()) | set(current_inventory.keys())
+                    for item_name in all_items:
+                        prev_count = prev_inventory.get(item_name, 0)
+                        current_count = current_inventory.get(item_name, 0)
+                        change = current_count - prev_count
+
+                        if change != 0:
+                            if step not in inventory_changes:
+                                inventory_changes[step] = {}
+                            inventory_changes[step][item_name] = change
+
+                    prev_inventory = current_inventory
+
+        # Handle grid_objects format with general inventory field
+        elif "inventory" in agent_obj:
+            inventory_data = agent_obj["inventory"]
+            if isinstance(inventory_data, list) and inventory_data:
+                prev_inventory = {}
+
+                for step, inventory in inventory_data:
+                    current_inventory = {}
+
+                    # Parse inventory format: {item_id: count}
+                    if isinstance(inventory, dict):
+                        for item_id_str, count in inventory.items():
+                            try:
+                                item_id = int(item_id_str)
+                                if item_id < len(item_names):
+                                    item_name = item_names[item_id]
+                                    current_inventory[item_name] = count
+                            except (ValueError, IndexError):
+                                continue
+
+                    # Calculate changes from previous step
+                    all_items = set(prev_inventory.keys()) | set(current_inventory.keys())
+                    for item_name in all_items:
+                        prev_count = prev_inventory.get(item_name, 0)
+                        current_count = current_inventory.get(item_name, 0)
+                        change = current_count - prev_count
+
+                        if change != 0:
+                            if step not in inventory_changes:
+                                inventory_changes[step] = {}
+                            inventory_changes[step][item_name] = change
+
+                    prev_inventory = current_inventory
+
+        return inventory_changes
+
+    timelines = {}
+    agent_count = 0
+
+    for agent_obj in agent_objects[:8]:  # Limit to 8 agents for readability
+        agent_id = agent_obj.get("agent_id", agent_count)
+        agent_name = f"agent_{agent_id}"
+        agent_count += 1
+
+        # Extract inventory changes for this agent
+        inventory_changes = _extract_inventory_changes(agent_obj, item_names or [])
+
+        # Get action data - handle both formats
+        if "action" in agent_obj:
+            # Grid_objects format: unified action field [[step, [action_id, args]], ...]
+            action_data = agent_obj["action"]
+        else:
+            # Objects format: separate action_id and action_param fields
+            action_data = _combine_action_id_and_param(
+                agent_obj.get("action_id", []),  # [[step, action_id], ...]
+                agent_obj.get("action_param", []),  # [[step, param], ...]
+            )
+
+        if not action_data:
+            continue
+
+        # Create detailed timeline entries
+        action_type_counts = {}
+
+        # Fill in actions with details
+        step_actions = {}
+        for step, action_info in action_data:
+            if step >= max_steps:
+                break
+
+            if isinstance(action_info, list) and len(action_info) >= 1:
+                action_id = action_info[0]
+                raw_args = action_info[1] if len(action_info) > 1 else []
+                # Ensure args is always a list for consistent handling
+                if isinstance(raw_args, list):
+                    action_args = raw_args
+                elif raw_args is not None:
+                    action_args = [raw_args]  # Convert single value to list
+                else:
+                    action_args = []
+
+                if action_id < len(action_names):
+                    action_name = action_names[action_id]
+                    formatted_action = _format_action_details(action_name, action_args, step, inventory_changes)
+                    step_actions[step] = formatted_action
+
+                    # Count action types (just the base action letter)
+                    base_action = formatted_action[0] if formatted_action else "?"
+                    action_type_counts[base_action] = action_type_counts.get(base_action, 0) + 1
+
+        # Create timeline string with single space between steps
+        timeline_parts = []
+        for step in range(min(max_steps, episode_length)):
+            if step in step_actions:
+                action_str = step_actions[step]
+                timeline_parts.append(action_str)
+            else:
+                timeline_parts.append("_")  # Just _ for no action step
+
+        timeline_str = " ".join(timeline_parts)  # Join with single spaces
+
+        timelines[agent_name] = {
+            "timeline": timeline_str,
+            "action_counts": action_type_counts,
+            "total_actions": len(step_actions),
+            "detailed_actions": step_actions,
+        }
+
+    # Create legend for the new format
+    legend = {
+        "M↑/↓/←/→": "Move in direction",
+        "R→/←": "Rotate right/left",
+        "A↑/↓/←/→": "Attack in direction",
+        "G+ore/bat": "Get ore/battery/heart/armor/laser",
+        "P+ore/bat": "Put ore/battery/heart/armor/laser",
+        "8↑/↗/→/↘": "8-way move in direction",
+        "S": "Swap",
+        "·": "No-op/idle",
+        "_": "No action",
+    }
+
+    return {
+        "timelines": timelines,
+        "action_legend": legend,
+        "action_names": action_names,
+        "max_steps_shown": max_steps,
+        "episode_length": episode_length,
+        "format": "detailed",
+    }
 
 
 def _analyze_training_run(run_dir: Path) -> Dict[str, Any] | None:
@@ -901,7 +1216,12 @@ def _analyze_objects_format(replay_data: Dict[str, Any], analysis: Dict[str, Any
             location_data = agent_obj.get("location", [])  # [[step, [col, row, layer]], ...]
             total_reward_data = agent_obj.get("total_reward", [])  # [[step, reward], ...]
             inventory_data = agent_obj.get("inventory", [])  # [[step, [[item_id, count], ...]], ...]
-            action_data = agent_obj.get("action", [])  # [[step, action_id], ...]
+
+            # Combine action_id and action_param into unified action data for objects format
+            action_data = _combine_action_id_and_param(
+                agent_obj.get("action_id", []),  # [[step, action_id], ...]
+                agent_obj.get("action_param", []),  # [[step, param], ...]
+            )
             action_success_data = agent_obj.get("action_success", [])  # [[step, success], ...]
 
             # Calculate episode length
@@ -1034,7 +1354,12 @@ def _analyze_objects_format(replay_data: Dict[str, Any], analysis: Dict[str, Any
             # Convert objects format to grid_objects format
             location_data = agent_obj.get("location", [])
             total_reward_data = agent_obj.get("total_reward", [])
-            action_data = agent_obj.get("action", [])
+
+            # Combine action_id and action_param for objects format
+            action_data = _combine_action_id_and_param(
+                agent_obj.get("action_id", []),  # [[step, action_id], ...]
+                agent_obj.get("action_param", []),  # [[step, param], ...]
+            )
             action_success_data = agent_obj.get("action_success", [])
 
             # If no action data (objects format), infer actions from movement and success
@@ -1062,6 +1387,12 @@ def _analyze_objects_format(replay_data: Dict[str, Any], analysis: Dict[str, Any
         # Use the full temporal progression with adapted data
         analysis["temporal_progression"] = _extract_temporal_progression(
             adapted_agent_objects, action_names, episode_length
+        )
+
+        # Create action timelines for visualization
+        item_names = replay_data.get("item_names", [])
+        analysis["action_timelines"] = _create_agent_action_timelines(
+            adapted_agent_objects, action_names, episode_length, max_steps=episode_length, item_names=item_names
         )
 
         return analysis
@@ -1458,6 +1789,12 @@ def _complete_grid_objects_analysis(
     analysis["environmental_context"] = _extract_environmental_context(replay_data)
     analysis["behavioral_sequences"] = _extract_behavioral_sequences(replay_data)
     analysis["temporal_progression"] = _extract_temporal_progression_grid_objects_format(agent_objects, episode_length)
+
+    # Create action timelines for visualization
+    item_names = replay_data.get("inventory_items", [])
+    analysis["action_timelines"] = _create_agent_action_timelines(
+        agent_objects, action_names, episode_length, max_steps=episode_length, item_names=item_names
+    )
 
     return analysis
 

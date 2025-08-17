@@ -196,12 +196,42 @@ Your analysis must focus on individual agent policy learning and environmental f
 - Scores > 1.0 = Advanced learning, optimal heart creation strategy
 - Score volatility = Exploration periods, strategy experimentation, or combat adaptation
 
+**Action Timeline Visualization**:
+You will be provided with detailed ASCII timeline visualizations showing each agent's actions 
+over time with directional and item information, similar to:
+```
+agent_0: M? · G M↑ R→ S P+ore G+bat A↓ · M←
+agent_1: · M→ A↑ G R← M? G+ore S M↓ G R→
+```
+
+**Timeline Legend**:
+- **M↑/↓/←/→** = Move in specific direction (up/down/left/right)
+- **M?** = Move action with unclear/variable direction
+- **R→/←** = Rotate right or left
+- **A↑/↓/←/→** = Attack in specific direction
+- **G+ore/bat/heart** = Get specific items (ore, batteries, hearts, armor, laser)
+- **P+ore/bat/heart** = Put specific items into objects
+- **8↑/↗/→/↘** = 8-way movement with diagonal directions
+- **S** = Swap positions with another agent
+- **·** = No-op/idle action
+- **_** = No action taken
+
+**Timeline Analysis Focus**:
+Use these detailed timelines to analyze:
+- **Movement patterns**: Directional preferences, exploration vs targeted movement
+- **Resource collection strategies**: What items agents prioritize (ore→battery→heart chains)
+- **Action sequence evolution**: How strategies change over time
+- **Coordination patterns**: Agent positioning and resource sharing
+- **Learning progression**: Transition from random exploration to purposeful action sequences
+- **Strategic behavior**: Combat timing, resource conversion patterns, territorial control
+
 **Provide research-quality insights focusing on:**
 - Individual agent learning mechanisms and policy optimization
 - Environmental factors that enabled or hindered learning
 - Reward shaping effectiveness in guiding behavior
 - Exploration vs exploitation balance in strategy development
 - Critical moments of learning breakthroughs and their causes
+- Action pattern analysis from the timeline visualizations
 
 This analysis will help RL researchers understand how individual agents learn optimal policies
 in complex multi-agent environments."""
@@ -468,12 +498,83 @@ in complex multi-agent environments."""
                 if total_agents > 6:
                     prompt_parts.append(f"\n[Showing first 6 of {total_agents} agents - truncated for response size]")
 
+        # Add action timeline visualization
+        action_timelines = analysis.get("action_timelines", {})
+        if action_timelines and "timelines" in action_timelines:
+            prompt_parts.extend(
+                [
+                    "",
+                    f"ACTION TIMELINES (first {action_timelines.get('max_steps_shown', 150)} steps):",
+                ]
+            )
+
+            # Add legend
+            legend = action_timelines.get("action_legend", {})
+            if legend:
+                legend_items = [f"{char}={name}" for char, name in legend.items()]
+                prompt_parts.append(f"Legend: {', '.join(legend_items)}")
+
+            # Add timelines for each agent
+            timelines_data = action_timelines.get("timelines", {})
+            for agent_name, timeline_info in list(timelines_data.items())[:12]:  # Limit to 12 agents
+                timeline_str = timeline_info.get("timeline", "")
+                action_counts = timeline_info.get("action_counts", {})
+                total_actions = timeline_info.get("total_actions", 0)
+
+                # Format action counts for display
+                count_str = ", ".join([f"{char}:{count}" for char, count in action_counts.items()])
+
+                prompt_parts.extend(
+                    [
+                        f"{agent_name}: {timeline_str}",
+                        f"  → {total_actions} actions total ({count_str})",
+                    ]
+                )
+
+            if len(timelines_data) > 12:
+                prompt_parts.append(
+                    f"\n[Showing first 12 of {len(timelines_data)} agents - truncated for response size]"
+                )
+
         if analysis.get("analysis_error"):
             prompt_parts.extend(
                 [
                     "",
                     f"NOTE: There was an error during data extraction: {analysis['analysis_error']}",
                     "Please provide analysis based on available data.",
+                ]
+            )
+
+        # Add explicit timeline analysis instructions if timelines are present
+        if action_timelines and "timelines" in action_timelines:
+            prompt_parts.extend(
+                [
+                    "",
+                    "MANDATORY TIMELINE ANALYSIS:",
+                    "You MUST directly analyze the ACTION TIMELINES visualization provided above. "
+                    "Your analysis MUST include:",
+                    "",
+                    "1. **QUOTE SPECIFIC ACTION SEQUENCES**: Reference exact timeline patterns "
+                    "like 'M? → G → S' or 'M↑ M↑ G+ore P+bat'",
+                    "2. **DIRECTIONAL MOVEMENT ANALYSIS**: Explicitly mention M↑/↓/←/→ patterns "
+                    "and directional preferences",
+                    "3. **RESOURCE OPERATION SEQUENCES**: Quote specific G+ore, G+bat, P+ore, "
+                    "P+bat patterns from the timelines",
+                    "4. **ACTION TRANSITION PATTERNS**: Show how action sequences evolve over time steps",
+                    "5. **COMPARATIVE TIMELINE ANALYSIS**: Compare timeline patterns between "
+                    "successful vs failed agents",
+                    "",
+                    "REQUIRED FORMAT: Your analysis must include a section titled "
+                    "'## Timeline Pattern Analysis' that contains:",
+                    "- Direct quotes of action sequences from the timeline data shown above",
+                    "- Example: 'Agent 0 timeline shows: ·    M?             ·         ·    M?             M?'",
+                    "- Example: 'Agent 1 demonstrates G G G G G G G G resource collection pattern'",
+                    "- Explicit reference to directional indicators (M↑/↓/←/→) when present",
+                    "- Specific mention of resource operations (G+ore, P+bat, etc.) from timeline text",
+                    "",
+                    "CRITICAL: You must copy and paste actual timeline segments as evidence for your claims.",
+                    "Do not paraphrase - quote the exact timeline patterns shown in the "
+                    "ACTION TIMELINES section above.",
                 ]
             )
 
@@ -489,7 +590,8 @@ in complex multi-agent environments."""
                 "5. WHAT exploration vs exploitation patterns led to success?",
                 "",
                 "ANALYSIS FORMAT: MAXIMUM 1500 WORDS. Prioritize key insights first. Be concise but research-quality.",
-                "Structure: Executive Summary → Key Agent Analysis → Learning Mechanisms → Environmental Factors",
+                "REQUIRED STRUCTURE: Executive Summary → Timeline Pattern Analysis → "
+                "Key Agent Analysis → Learning Mechanisms → Environmental Factors",
                 "Focus on the most significant learning patterns and representative agents "
                 "from the population shown above.",
             ]
