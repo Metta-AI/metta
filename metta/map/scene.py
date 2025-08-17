@@ -5,7 +5,7 @@ from typing import Any, Generic, Optional, Type, TypeVar, Union, get_args, get_o
 
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
-from pydantic import ValidationInfo, field_serializer, field_validator
+from pydantic import FieldSerializationInfo, ValidationInfo, field_serializer, field_validator
 
 from metta.common.util.config import Config
 from metta.map.config import scenes_root
@@ -53,8 +53,12 @@ class SceneConfig(Config):
         return scene_cls.validate_params(v)
 
     @field_serializer("params")
-    def _serialize_params(self, params: Config, _info):
-        return params.model_dump()
+    def _serialize_params(self, params: Config, _info: FieldSerializationInfo):
+        return params.model_dump(
+            exclude_unset=_info.exclude_unset,
+            exclude_defaults=_info.exclude_defaults,
+            # TODO - pass more? can we pass all flags?
+        )
 
     def create(self, area: Area, rng: np.random.Generator) -> Scene:
         return self.type(area=area, params=self.params, seed=self.seed or rng, children_actions=self.children)
