@@ -4,6 +4,7 @@ Uses FastAGaLiTeLayer architecture with enhanced parameters for better metrics.
 """
 
 import logging
+import math
 from typing import Dict, Tuple
 
 import torch
@@ -18,9 +19,9 @@ try:
     from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
 
     FAST_MODE_AVAILABLE = True
-except ImportError:
+except ImportError as e:
     FAST_MODE_AVAILABLE = False
-    raise ImportError("FastAGaLiTeLayer required for AGaLiTeOptimized")
+    raise ImportError("FastAGaLiTeLayer required for AGaLiTeOptimized") from e
 
 
 class AGaLiTeOptimizedCore(AGaLiTeCore):
@@ -57,7 +58,7 @@ class AGaLiTeOptimizedCore(AGaLiTeCore):
 
         # Build encoders with FastAGaLiTeLayer
         self.encoders = nn.ModuleList()
-        for layer in range(n_layers):
+        for _ in range(n_layers):
             encoder = FastAGaLiTeLayer(
                 d_model=d_model,
                 head_num=n_heads,
@@ -132,6 +133,16 @@ class AGaLiTeOptimizedPolicy(AGaLiTePolicy):
             dropout=dropout,
             use_fast_mode=True,
         )
+
+        # Apply very conservative initialization to prevent gradient issues
+        for name, param in self.named_parameters():
+            if "weight" in name and param.dim() >= 2:
+                # Use much smaller initialization to prevent gradient explosion
+                # Scale down based on eta and r values
+                gain = 0.1 / math.sqrt(eta * r)
+                torch.nn.init.orthogonal_(param, gain=gain)
+            elif "bias" in name:
+                torch.nn.init.constant_(param, 0.0)
 
     def initialize_memory(self, batch_size: int) -> Dict:
         """Initialize memory with custom eta/r values."""

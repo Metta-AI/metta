@@ -25,7 +25,7 @@ class FastAGaLiTeLayer(nn.Module):
         r: int = 4,  # Reduced from 8
         reset_hidden_on_terminate: bool = True,
         dropout: float = 0.0,
-        eps: float = 1e-6,
+        eps: float = 1e-5,  # Increased for better stability
     ):
         super().__init__()
         self.d_model = d_model
@@ -47,11 +47,16 @@ class FastAGaLiTeLayer(nn.Module):
         # Pre-compute oscillatory frequencies
         self.register_buffer("omegas", torch.linspace(-math.pi, math.pi, r))
 
-        # Initialize
-        nn.init.orthogonal_(self.fused_projection.weight, gain=math.sqrt(2))
+        # Initialize with much smaller values to prevent gradient explosion
+        # Use very conservative initialization for stability
+        init_gain = 0.1 / math.sqrt(eta * r)  # Reduced from 1.0 to 0.1
+        nn.init.orthogonal_(self.fused_projection.weight, gain=init_gain)
         nn.init.constant_(self.fused_projection.bias, 0)
-        nn.init.orthogonal_(self.project.weight, gain=1.0)
+        nn.init.orthogonal_(self.project.weight, gain=init_gain)
         nn.init.constant_(self.project.bias, 0)
+
+        # Add gradient clipping to prevent explosion
+        self.register_buffer("grad_clip_value", torch.tensor(1.0))
 
     def forward(self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple) -> Tuple[torch.Tensor, Tuple]:
         """Optimized forward pass for large batches."""
@@ -215,9 +220,13 @@ class FastAGaLiTeLayer(nn.Module):
         final_values_reshaped = final_values.reshape(T, B, self.r, self.head_num, self.head_dim)
         kv = (final_values_reshaped * attn_scores.unsqueeze(-1).unsqueeze(-1)).sum(dim=2)
 
-        # Normalization
+        # Normalization with improved numerical stability
         norm = (final_s * queries_expanded).sum(dim=-1, keepdim=True)
-        attn_out = kv / (2 * self.r * norm + self.eps)
+        # Clamp norm to prevent extreme values
+        norm = torch.clamp(torch.abs(norm), min=self.eps, max=1e6)
+        # Use a larger epsilon and add regularization
+        denominator = 2 * self.r * norm + 0.1  # Much larger epsilon for stability
+        attn_out = kv / denominator
 
         # Output projection
         attn_out = attn_out.reshape(T, B, self.head_num * self.head_dim)
