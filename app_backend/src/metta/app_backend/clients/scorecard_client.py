@@ -39,13 +39,22 @@ from metta.app_backend.routes.leaderboard_routes import (
 from metta.app_backend.routes.score_routes import PolicyScoresData, PolicyScoresRequest
 from metta.app_backend.routes.scorecard_routes import (
     EvalsRequest,
+    LeaderboardScorecardRequest,
     MetricsRequest,
     PoliciesResponse,
     PoliciesSearchRequest,
     ScorecardData,
     ScorecardRequest,
+    TrainingRunScorecardRequest,
 )
-from metta.app_backend.routes.sql_routes import AIQueryRequest, AIQueryResponse, SQLQueryRequest, SQLQueryResponse
+from metta.app_backend.routes.sql_routes import (
+    AIQueryRequest,
+    AIQueryResponse,
+    SQLQueryRequest,
+    SQLQueryResponse,
+    TableInfo,
+    TableSchema,
+)
 from metta.app_backend.routes.stats_routes import (
     EpisodeCreate,
     EpisodeResponse,
@@ -188,6 +197,14 @@ class ScorecardClient(BaseAppBackendClient):
         return await self._make_request(
             AIQueryResponse, "POST", "/sql/generate-query", json=payload.model_dump(mode="json")
         )
+
+    async def list_tables(self) -> list[TableInfo]:
+        """List all available tables in the database (excluding migrations)."""
+        return await self._make_request(ListModel[TableInfo], "GET", "/sql/tables")  # type: ignore
+
+    async def get_table_schema(self, table_name: str) -> TableSchema:
+        """Get the schema for a specific table."""
+        return await self._make_request(TableSchema, "GET", f"/sql/tables/{table_name}/schema")
 
     async def get_eval_names(self, training_run_ids: list[str], run_free_policy_ids: list[str]) -> list[str]:
         payload = EvalsRequest(
@@ -593,6 +610,46 @@ class ScorecardClient(BaseAppBackendClient):
             PolicyScoresData, "POST", "/scorecard/score", json=payload.model_dump(mode="json")
         )
 
+    async def generate_heatmap_scorecard(
+        self,
+        training_run_ids: list[str],
+        run_free_policy_ids: list[str],
+        eval_names: list[str],
+        metric: str,
+        training_run_policy_selector: Literal["best", "latest"] = "best",
+    ) -> ScorecardData:
+        """Generate heatmap scorecard data based on training run and policy selection."""
+        payload = ScorecardRequest(
+            training_run_ids=training_run_ids,
+            run_free_policy_ids=run_free_policy_ids,
+            eval_names=eval_names,
+            metric=metric,
+            training_run_policy_selector=training_run_policy_selector,
+        )
+        return await self._make_request(
+            ScorecardData, "POST", "/scorecard/heatmap", json=payload.model_dump(mode="json")
+        )
+
+    async def generate_training_run_scorecard(self, run_id: str, eval_names: list[str], metric: str) -> ScorecardData:
+        """Generate scorecard data for a specific training run showing ALL policies."""
+        payload = TrainingRunScorecardRequest(eval_names=eval_names, metric=metric)
+        return await self._make_request(
+            ScorecardData, "POST", f"/scorecard/training-run/{run_id}", json=payload.model_dump(mode="json")
+        )
+
+    async def generate_leaderboard_scorecard(
+        self, leaderboard_id: str, selector: Literal["latest", "best"] = "latest", num_policies: int = 10
+    ) -> ScorecardData:
+        """Generate scorecard data for a leaderboard."""
+        import uuid
+
+        payload = LeaderboardScorecardRequest(
+            leaderboard_id=uuid.UUID(leaderboard_id), selector=selector, num_policies=num_policies
+        )
+        return await self._make_request(
+            ScorecardData, "POST", "/scorecard/leaderboard", json=payload.model_dump(mode="json")
+        )
+
     # Stats Routes
     async def get_policy_ids(self, policy_names: list[str]) -> PolicyIdResponse:
         """Get policy IDs for given policy names."""
@@ -655,5 +712,12 @@ class ScorecardClient(BaseAppBackendClient):
         """Delete a machine token."""
         headers = {"X-Auth-Token": self._machine_token} if self._machine_token else {}
         response = await self._http_client.delete(f"/tokens/{token_id}", headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+    async def create_cli_token(self, callback: str) -> Dict[str, Any]:
+        """Create a machine token and redirect to callback URL with token parameter."""
+        headers = {"X-Auth-Token": self._machine_token} if self._machine_token else {}
+        response = await self._http_client.get(f"/tokens/cli?callback={callback}", headers=headers)
         response.raise_for_status()
         return response.json()

@@ -10,11 +10,31 @@ from typing import Any, Literal
 import boto3
 
 # from mcp.server import FastMCP
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 from pydantic.types import Json
 from wandb.apis.public.api import Api as WandbApi
 
 from metta.app_backend.clients.scorecard_client import ScorecardClient
+from metta.mcp_server.config_utils import (
+    get_available_config_types,
+    list_configs_for_type,
+)
+from metta.mcp_server.config_utils import (
+    get_config_schema as get_config_schema_func,
+)
+from metta.mcp_server.config_utils import (
+    validate_config as validate_config_func,
+)
+from metta.mcp_server.training_utils import (
+    generate_replay_summary_with_llm,
+    list_training_runs,
+)
+from metta.mcp_server.training_utils import (
+    get_checkpoint_info as get_checkpoint_info_func,
+)
+from metta.mcp_server.training_utils import (
+    get_training_status as get_training_status_func,
+)
 
 backend_url = os.environ.get("METTA_MCP_BACKEND_URL", "http://localhost:8000")
 if backend_url != "http://localhost:8000":
@@ -182,6 +202,37 @@ async def run_sql_query(sql: str, dev_mode: bool = False) -> dict[str, Any]:
     """
     async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
         result = await client.sql_query(sql)
+        return result.model_dump()
+
+
+@mcp.tool()
+async def list_sql_tables(dev_mode: bool = False) -> list[dict[str, Any]]:
+    """List all available tables in the database (excluding migrations).
+
+    Args:
+        dev_mode (bool): When True, use the default/local backend URL; otherwise use production.
+
+    Returns:
+        list[dict[str, Any]]: List of tables with metadata (name, column count, row count).
+    """
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.list_tables()
+        return [table.model_dump() for table in result]
+
+
+@mcp.tool()
+async def get_sql_table_schema(table_name: str, dev_mode: bool = False) -> dict[str, Any]:
+    """Get the schema for a specific table.
+
+    Args:
+        table_name (str): Name of the table to inspect.
+        dev_mode (bool): When True, use the default/local backend URL; otherwise use production.
+
+    Returns:
+        dict[str, Any]: Table schema with column details.
+    """
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.get_table_schema(table_name)
         return result.model_dump()
 
 
@@ -1005,6 +1056,22 @@ async def delete_token(token_id: str, dev_mode: bool = False) -> dict[str, str]:
         return result
 
 
+@mcp.tool()
+async def create_cli_token(callback: str, dev_mode: bool = False) -> dict[str, Any]:
+    """Create a machine token and redirect to callback URL with token parameter.
+
+    Args:
+        callback (str): Callback URL to redirect to with token parameter.
+        dev_mode (bool): When True, use the default/local backend URL; otherwise use production.
+
+    Returns:
+        dict[str, Any]: Token creation response with redirect information.
+    """
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.create_cli_token(callback)
+        return result
+
+
 # Score Routes
 @mcp.tool()
 async def get_policy_scores(
@@ -1049,6 +1116,237 @@ async def generate_policy_scorecard(
             policy_selector=training_run_policy_selector,
         )
         return result.model_dump()
+
+
+@mcp.tool()
+async def generate_heatmap_scorecard(
+    training_run_ids: list[str] | str,
+    run_free_policy_ids: list[str] | str,
+    eval_names: list[str] | str,
+    metric: str,
+    training_run_policy_selector: Literal["best", "latest"] = "latest",
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Generate heatmap scorecard data based on training run and policy selection."""
+    training_run_ids_list = _parse_str_or_list(training_run_ids)
+    run_free_policy_ids_list = _parse_str_or_list(run_free_policy_ids)
+    eval_names_list = _parse_str_or_list(eval_names)
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.generate_heatmap_scorecard(
+            training_run_ids=training_run_ids_list,
+            run_free_policy_ids=run_free_policy_ids_list,
+            eval_names=eval_names_list,
+            metric=metric,
+            training_run_policy_selector=training_run_policy_selector,
+        )
+        return result.model_dump()
+
+
+@mcp.tool()
+async def generate_training_run_scorecard(
+    run_id: str,
+    eval_names: list[str] | str,
+    metric: str,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Generate scorecard data for a specific training run showing ALL policies."""
+    eval_names_list = _parse_str_or_list(eval_names)
+
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.generate_training_run_scorecard(
+            run_id=run_id,
+            eval_names=eval_names_list,
+            metric=metric,
+        )
+        return result.model_dump()
+
+
+@mcp.tool()
+async def generate_leaderboard_scorecard(
+    leaderboard_id: str,
+    selector: Literal["latest", "best"] = "latest",
+    num_policies: int = 10,
+    dev_mode: bool = False,
+) -> dict[str, Any]:
+    """Generate scorecard data for a leaderboard."""
+    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+        result = await client.generate_leaderboard_scorecard(
+            leaderboard_id=leaderboard_id,
+            selector=selector,
+            num_policies=num_policies,
+        )
+        return result.model_dump()
+
+
+# Configuration Management Tools
+@mcp.tool()
+async def list_hydra_configs(config_type: str | None = None) -> dict[str, Any]:
+    """Browse available Hydra configurations.
+
+    Args:
+        config_type (str | None): Configuration type to list (agent, sim, trainer, user, wandb, sweep).
+                                 If None, returns all available config types.
+
+    Returns:
+        dict[str, Any]: Available configurations or config types.
+    """
+    try:
+        if config_type is None:
+            # Return all available config types
+            config_types = get_available_config_types()
+            return {
+                "config_types": config_types,
+                "total_types": len(config_types),
+            }
+        else:
+            # Return configs for specific type
+            configs = list_configs_for_type(config_type)
+            return {
+                "config_type": config_type,
+                "configs": configs,
+                "total_configs": len(configs),
+            }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "config_type": config_type,
+            "configs": [],
+        }
+
+
+@mcp.tool()
+async def validate_config(
+    config_path: str,
+    overrides: list[str] | str | None = None,
+) -> dict[str, Any]:
+    """Validate a Hydra configuration with optional overrides.
+
+    Args:
+        config_path (str): Path to configuration file (relative to configs/ or absolute).
+        overrides (list[str] | str | None): List of Hydra override strings (key=value, +key=value, ++key=value).
+
+    Returns:
+        dict[str, Any]: Validation result with config data or error information.
+    """
+    try:
+        # Parse overrides if provided as string
+        override_list = []
+        if overrides:
+            if isinstance(overrides, str):
+                override_list = [overrides]
+            else:
+                override_list = overrides
+
+        result = validate_config_func(config_path, override_list)
+        return result
+    except Exception as e:
+        return {
+            "valid": False,
+            "error": str(e),
+            "config": None,
+        }
+
+
+@mcp.tool()
+async def get_config_schema(config_type: str) -> dict[str, Any]:
+    """Get schema information for a configuration type.
+
+    Args:
+        config_type (str): Configuration type to analyze (agent, sim, trainer, etc.).
+
+    Returns:
+        dict[str, Any]: Schema information including field types and structure.
+    """
+    try:
+        return get_config_schema_func(config_type)
+    except Exception as e:
+        return {
+            "error": str(e),
+            "schema": None,
+        }
+
+
+# Training and Evaluation Management Tools
+@mcp.tool()
+async def list_training_runs_local() -> dict[str, Any]:
+    """List local training runs in train_dir with metadata.
+
+    Returns:
+        dict[str, Any]: List of training runs with their status, checkpoints, and metadata.
+    """
+    try:
+        runs = list_training_runs()
+        return {
+            "training_runs": runs,
+            "total_runs": len(runs),
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "training_runs": [],
+            "total_runs": 0,
+        }
+
+
+@mcp.tool()
+async def get_checkpoint_info(checkpoint_path: str) -> dict[str, Any]:
+    """Inspect checkpoint metadata without loading the full model.
+
+    Args:
+        checkpoint_path (str): Path to checkpoint file or directory. Supports policy URIs (file://).
+
+    Returns:
+        dict[str, Any]: Checkpoint information including file size, modification time, and model metadata.
+    """
+    try:
+        return get_checkpoint_info_func(checkpoint_path)
+    except Exception as e:
+        return {
+            "error": str(e),
+            "path": checkpoint_path,
+        }
+
+
+@mcp.tool()
+async def get_training_status(run_name: str) -> dict[str, Any]:
+    """Check if training is running/completed with detailed status information.
+
+    Args:
+        run_name (str): Name of the training run to check.
+
+    Returns:
+        dict[str, Any]: Detailed training status including process info, logs, and checkpoints.
+    """
+    try:
+        return get_training_status_func(run_name)
+    except Exception as e:
+        return {
+            "error": str(e),
+            "run_name": run_name,
+            "status": "error",
+        }
+
+
+@mcp.tool()
+async def generate_replay_summary(replay_path: str, ctx: Context) -> dict[str, Any]:
+    """Generate AI-powered summary of replay contents.
+
+    Args:
+        replay_path (str): Path to replay file (supports .json, .json.z compressed format).
+
+    Returns:
+        dict[str, Any]: Replay analysis with metrics and AI-generated summary.
+    """
+    try:
+        return await generate_replay_summary_with_llm(replay_path, ctx)
+    except Exception as e:
+        if ctx:
+            await ctx.error(f"Replay summary generation failed: {str(e)}")
+        return {
+            "error": str(e),
+            "path": replay_path,
+        }
 
 
 if __name__ == "__main__":
