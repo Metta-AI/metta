@@ -3,9 +3,8 @@ from __future__ import annotations
 import logging
 import random
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, ClassVar, Literal, Sequence, Union
+from typing import Annotated, Any, ClassVar, Literal, Optional, Sequence, Union
 
-from omegaconf import OmegaConf
 from pydantic import ConfigDict, Field, field_validator
 
 from metta.common.util.config import Config
@@ -23,6 +22,7 @@ class TaskGeneratorConfig(Config):
         validate_assignment=True,
         populate_by_name=True,
     )
+    label: Optional[str] = Field(default=None, description="Label for the task generator")
 
     overrides: dict[str, Any] = Field(
         default_factory=dict, description="Overrides to apply as dict with dot-separated keys"
@@ -74,22 +74,13 @@ class TaskGenerator(ABC):
         if not overrides:
             return env_config
 
-        # Convert to dict, apply overrides using OmegaConf
-        config_dict = OmegaConf.create(env_config.model_dump())
-
-        for key, value in overrides.items():
-            OmegaConf.update(config_dict, key, value, merge=True)
-
-        config_dict = OmegaConf.to_container(config_dict)
-
-        return EnvConfig.model_validate(config_dict)
+        env_config.update(overrides)
+        return env_config
 
 
 ################################################################################
 # SingleTaskGenerator
 ################################################################################
-
-
 class SingleTaskGeneratorConfig(TaskGeneratorConfig):
     """Configuration for SingleTaskGenerator."""
 
@@ -189,6 +180,9 @@ class ValueRange(Config):
         """Create a ValueRange from a range_min and range_max."""
         return cls(range_min=range_min, range_max=range_max)
 
+    def __str__(self) -> str:
+        return f"{self.range_min}-{self.range_max}"
+
 
 class BucketedTaskGeneratorConfig(TaskGeneratorConfig):
     """Configuration for BucketedTaskGenerator."""
@@ -198,7 +192,7 @@ class BucketedTaskGeneratorConfig(TaskGeneratorConfig):
         Union["SingleTaskGeneratorConfig", "TaskGeneratorSetConfig", "BucketedTaskGeneratorConfig"],
         Field(discriminator="type", description="Child task generator configuration"),
     ]
-    buckets: dict[str, list[int | float | str | ValueRange]] = Field(
+    buckets: dict[str, Sequence[int | float | str | ValueRange]] = Field(
         default_factory=dict, description="Buckets for sampling, keys are config paths"
     )
 
@@ -233,7 +227,7 @@ class BucketedTaskGenerator(TaskGenerator):
         assert config.buckets, "Buckets must be non-empty"
         self._child_generator = config.child_generator_config.create()
 
-    def _get_bucket_value(self, bucket_values: list[int | float | str | ValueRange], rng: random.Random) -> Any:
+    def _get_bucket_value(self, bucket_values: Sequence[int | float | str | ValueRange], rng: random.Random) -> Any:
         bucket_value = rng.choice(bucket_values)
 
         if isinstance(bucket_value, ValueRange):
@@ -248,11 +242,17 @@ class BucketedTaskGenerator(TaskGenerator):
         """Generate task by calling child generator then applying bucket overrides."""
         # First, sample values from each bucket
         overrides = {}
+        label = ""
         for key, bucket_values in self._config.buckets.items():
             overrides[key] = self._get_bucket_value(bucket_values, rng)
+            label += f"{key.split('.')[-1]}={overrides[key]}|"
+
+        if self._config.label is not None:
+            label = self._config.label
 
         # Get task from the child generator
         env_config = self._child_generator.get_task(task_id)
+        env_config.label = label + env_config.label
 
         # Apply the sampled bucket values as overrides
         return self._apply_overrides(env_config, overrides)

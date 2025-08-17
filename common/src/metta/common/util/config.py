@@ -1,90 +1,62 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, TypeVar, cast
+from typing import Any, NoReturn, Self, TypeVar
 
-import hydra
-from omegaconf import DictConfig, ListConfig, OmegaConf
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, TypeAdapter
 
 T = TypeVar("T")
 
 
 class Config(BaseModel):
-    """
-    Pydantic-backed config base.
-    - extra keys are ignored
-    - you can do `MyConfig(cfg_node)` where cfg_node is a DictConfig or dict
-    - .dictconfig() → OmegaConf.DictConfig
-    - .yaml() → YAML string
-    """
-
     model_config = ConfigDict(extra="forbid")
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        if len(args) == 1 and not kwargs and isinstance(args[0], (DictConfig, dict)):
-            super().__init__(**self.prepare_dict(args[0]))
-        else:
-            # normal BaseModel __init__(**kwargs)
-            super().__init__(*args, **kwargs)
+    def override(self, key: str, value: Any) -> Self:
+        """Override a value in the config."""
+        key_path = key.split(".")
 
-    def dictconfig(self) -> DictConfig:
-        """
-        Convert this model back to an OmegaConf DictConfig.
-        """
-        # Use model_dump() in Pydantic v2
-        return OmegaConf.create(self.model_dump())
+        def fail(error: str) -> NoReturn:
+            raise ValueError(
+                f"Override failed. Full config:\n {self.model_dump_json(indent=2)}\nOverride {key} failed: {error}"
+            )
 
-    def yaml(self) -> str:
-        """
-        Render this model as a YAML string.
-        """
-        return OmegaConf.to_yaml(self.dictconfig())
+        inner_cfg: Config | dict[str, Any] = self
+        traversed_path: list[str] = []
+        for key_part in key_path[:-1]:
+            if not hasattr(inner_cfg, key_part):
+                failed_path = ".".join(traversed_path + [key_part])
+                fail(f"key {failed_path} not found")
 
-    def prepare_dict(self, raw) -> Dict[str, Any]:
-        """Prepare a dictionary config from various input formats and validate keys."""
-        data = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else dict(raw)
-        # Ensure data is a proper dict with string keys
-        if isinstance(data, dict):
-            assert all(isinstance(k, str) for k in data.keys()), "All dictionary keys must be strings"
-            return cast(Dict[str, Any], data)
-        else:
-            raise TypeError("Data must be convertible to a dictionary")
+            next_inner_cfg = getattr(inner_cfg, key_part)
+            if not isinstance(next_inner_cfg, Config) and not isinstance(next_inner_cfg, dict):
+                failed_path = ".".join(traversed_path + [key_part])
+                fail(f"key {failed_path} is not a Config object")
 
+            inner_cfg = next_inner_cfg
+            traversed_path.append(key_part)
 
-def config_from_path(config_path: str, overrides: Optional[DictConfig | ListConfig] = None) -> DictConfig | ListConfig:
-    """
-    Load configuration from a path, with better error handling
+        if isinstance(inner_cfg, dict):
+            if key_path[-1] not in inner_cfg:
+                fail(f"key {key} not found")
+        elif isinstance(inner_cfg, Config):
+            if not hasattr(inner_cfg, key_path[-1]):
+                fail(f"key {key} not found")
 
-    Args:
-        config_path: Path to the configuration
-        overrides: Optional overrides to apply to the configuration
+        if isinstance(inner_cfg, dict):
+            inner_cfg[key_path[-1]] = value
+            return self
 
-    Returns:
-        The loaded configuration
+        cls = type(inner_cfg)
+        field = cls.model_fields.get(key_path[-1])
+        if field is None:
+            fail(f"key {key} is not a valid field")
 
-    Raises:
-        ValueError: If the config_path is None or if the configuration could not be loaded
-    """
-    if config_path is None:
-        raise ValueError("Config path cannot be None")
+        value = TypeAdapter(field.annotation).validate_python(value)
+        setattr(inner_cfg, key_path[-1], value)
 
-    cfg = hydra.compose(config_name=config_path)
+        return self
 
-    # when hydra loads a config, it "prefixes" the keys with the path of the config file.
-    # We don't want that prefix, so we remove it.
-    if config_path.startswith("/"):
-        config_path = config_path[1:]
-
-    for p in config_path.split("/")[:-1]:
-        cfg = cfg[p]
-
-    if overrides not in [None, {}]:
-        # Allow overrides that are not in the config.
-        OmegaConf.set_struct(cfg, False)
-        cfg = OmegaConf.merge(cfg, overrides)
-        OmegaConf.set_struct(cfg, True)
-    return cast(DictConfig, cfg)
-
-
-def copy_omegaconf_config(cfg: DictConfig | ListConfig) -> DictConfig | ListConfig:
-    return OmegaConf.create(OmegaConf.to_container(cfg, resolve=False))
+    def update(self, updates: dict[str, Any]) -> Self:
+        """Update a value in the config."""
+        for key, value in updates.items():
+            self.override(key, value)
+        return self

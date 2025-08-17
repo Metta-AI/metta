@@ -221,6 +221,7 @@ class GameConfig(Config):
 class EnvConfig(Config):
     """Environment configuration."""
 
+    label: str = Field(default="mettagrid")
     game: GameConfig = Field(default_factory=GameConfig)
     desync_episodes: bool = Field(default=True)
 
