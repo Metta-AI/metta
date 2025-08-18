@@ -1,7 +1,8 @@
 import logging
+import numbers
 import os
 from collections import defaultdict
-from typing import cast
+from typing import Any, Dict, cast
 
 import numpy as np
 import torch
@@ -27,7 +28,6 @@ from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
-from metta.rl.distributed_stats import aggregate_dual_policy_stats
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -76,6 +76,63 @@ torch.set_float32_matmul_precision("high")
 _rank = int(os.environ.get("RANK", 0))
 _local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
+
+
+def _aggregate_dual_policy_stats(stats: Dict[str, Any], device: torch.device) -> None:
+    """
+    Aggregate dual_policy/* statistics across all distributed nodes.
+
+    This function modifies stats in-place by aggregating values for all keys
+    starting with "dual_policy/". To ensure consistent collective calls across
+    ranks and that master observes keys produced on non-master ranks, we first
+    build a union of keys across all ranks and then aggregate each key.
+
+    Args:
+        stats: Dictionary of statistics to aggregate
+        device: Device to use for tensor operations
+    """
+    if not torch.distributed.is_initialized():
+        return
+
+    world_size = torch.distributed.get_world_size()
+    if world_size <= 1:
+        return
+
+    # Collect local dual_policy keys and build a global, deterministic union
+    local_keys = {k for k in stats.keys() if k.startswith("dual_policy/")}
+    gathered_key_sets = [None] * world_size  # type: ignore[var-annotated]
+    torch.distributed.all_gather_object(gathered_key_sets, local_keys)
+    union_keys = sorted(set().union(*gathered_key_sets))
+
+    if not union_keys:
+        logger.debug("No dual_policy stats found on any node to aggregate")
+        return
+
+    logger.debug(f"Aggregating {len(union_keys)} dual_policy stats across {world_size} nodes: {union_keys}")
+
+    for key in union_keys:
+        values = stats.get(key, [])
+
+        # Normalize to list
+        if not isinstance(values, list):
+            values = [values]
+
+        # Keep only numeric values (support Python and NumPy scalars)
+        numeric_vals = [v for v in values if isinstance(v, numbers.Number)]
+        local_sum = float(sum(numeric_vals)) if numeric_vals else 0.0
+        local_count = float(len(numeric_vals))
+
+        tensor = torch.tensor([local_sum, local_count], dtype=torch.float32, device=device)
+        torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
+
+        global_sum = tensor[0].item()
+        global_count = tensor[1].item()
+        stats[key] = (global_sum / global_count) if global_count > 0 else 0.0
+
+        logger.debug(
+            f"Aggregated {key}: global_sum={global_sum:.2f}, global_count={global_count:.0f}, "
+            f"global_avg={stats[key]:.4f}"
+        )
 
 
 def train(
@@ -127,11 +184,13 @@ def train(
         # Warn about extreme training_agents_pct values
         if trainer_cfg.dual_policy.training_agents_pct <= 0.1:
             logger.warning(
-                f"Very low training_agents_pct ({trainer_cfg.dual_policy.training_agents_pct}) - most agents will be NPCs"
+                f"Very low training_agents_pct ({trainer_cfg.dual_policy.training_agents_pct}) - "
+                f"most agents will be NPCs"
             )
         elif trainer_cfg.dual_policy.training_agents_pct >= 0.9:
             logger.warning(
-                f"Very high training_agents_pct ({trainer_cfg.dual_policy.training_agents_pct}) - few agents will be NPCs"
+                f"Very high training_agents_pct ({trainer_cfg.dual_policy.training_agents_pct}) - "
+                f"few agents will be NPCs"
             )
 
     # Create vectorized environment
@@ -464,7 +523,7 @@ def train(
 
             # Aggregate dual_policy stats across all distributed nodes
             if trainer_cfg.dual_policy.enabled and torch.distributed.is_initialized():
-                aggregate_dual_policy_stats(stats_tracker.rollout_stats, device)
+                _aggregate_dual_policy_stats(stats_tracker.rollout_stats, device)
 
             # ---- TRAINING PHASE ----
             with timer("_train"):

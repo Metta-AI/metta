@@ -67,6 +67,7 @@ class Experience:
         self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
         self.ep_indices = torch.arange(total_agents, device=self.device, dtype=torch.int32) % self.segments
         self.free_idx = total_agents % self.segments
+
         # Minibatch configuration
         self.minibatch_size: int = min(minibatch_size, max_minibatch_size)
         self.accumulate_minibatches = max(1, minibatch_size // max_minibatch_size)
