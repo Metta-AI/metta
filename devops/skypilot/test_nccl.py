@@ -343,6 +343,7 @@ def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> 
             if rank == i:
                 _print_box(display_title)
                 sys.stdout.flush()
+                time.sleep(0.01)
             dist.barrier()
     else:
         # Non-distributed or rank-agnostic printing
@@ -866,6 +867,9 @@ def main():
         if is_distributed:
             print(f"                    Nodes: {num_nodes}, GPUs/node: {num_gpus_per_node}, Total: {world_size}")
         print("═" * 75)
+
+    # delay to de-synchronize printing
+    time.sleep(0.02 * rank)
 
     # Collect system diagnostics
     logger.info("Collecting system diagnostics...")

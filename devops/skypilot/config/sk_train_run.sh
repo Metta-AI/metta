@@ -150,7 +150,7 @@ graceful_shutdown() {
   if [ -z "${TERMINATION_REASON:-}" ] && [ -f "$TERMINATION_REASON_FILE" ]; then
     TERMINATION_REASON="$(cat "$TERMINATION_REASON_FILE" || true)"
   fi
-  TERMINATION_REASON="${TERMINATION_REASON:-controlled_shutdown}"
+  TERMINATION_REASON="${TERMINATION_REASON:-graceful_shutdown}"
 
   # Kill the entire process tree gracefully
   if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
@@ -160,7 +160,7 @@ graceful_shutdown() {
     if [[ "$IS_MASTER" == "true" ]] && [ -n "${CLUSTER_STOP_FILE:-}" ]; then
       echo "graceful_shutdown" > "$CLUSTER_STOP_FILE"
       echo "[SHUTDOWN] Signaled all nodes to begin shutdown"
-      sleep 20  # Give workers time to receive the signal
+      sleep 10  # Give workers time to receive the signal
     fi
 
     echo "[DEBUG] Process tree before shutdown:"
@@ -429,6 +429,7 @@ cleanup() {
   # Set the final exit code for the script
   if [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]] ||
      [[ "${TERMINATION_REASON}" == "completed" ]] ||
+      [[ "${TERMINATION_REASON}" == "graceful_shutdown" ]] ||
      [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
     echo "[INFO] Will exit with code 0 to prevent SkyPilot restart"
     FINAL_EXIT_CODE=0

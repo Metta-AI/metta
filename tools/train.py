@@ -38,6 +38,9 @@ def handle_shutdown(signal_code, frame):
     """Handle SIGTERM/SIGINT by cleaning up and exiting."""
     logger.info(f"Received signal {signal_code}, shutting down...")
 
+    # Reduce torch distributed logging noise during shutdown
+    os.environ["TORCH_DISTRIBUTED_DEBUG"] = "OFF"
+
     # Clean up distributed training if initialized
     if torch.distributed.is_initialized():
         try:
