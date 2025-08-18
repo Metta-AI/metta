@@ -18,8 +18,8 @@
 import * as dotenv from "dotenv";
 
 // Load environment variables
-dotenv.config();
-dotenv.config({ path: ".env.local", override: true });
+dotenv.config({ quiet: true });
+dotenv.config({ path: ".env.local", override: true, quiet: true });
 
 // XML parsing library for arXiv RSS feed
 import { XMLParser } from "fast-xml-parser";

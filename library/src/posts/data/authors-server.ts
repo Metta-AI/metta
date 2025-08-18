@@ -42,32 +42,55 @@ export async function loadAuthors(): Promise<AuthorDTO[]> {
               link: true,
               createdAt: true,
               stars: true,
+              institutions: true,
             },
           },
         },
         orderBy: {
           paper: {
-            createdAt: 'desc',
+            createdAt: "desc",
           },
         },
         take: 5, // Get only the 5 most recent papers for performance
       },
     },
     orderBy: {
-      name: 'asc',
+      name: "asc",
     },
   });
 
-  const mappedAuthors = authors.map(author => {
-    const recentPapers = author.paperAuthors.map(pa => pa.paper);
-    
+  const mappedAuthors = authors.map((author) => {
+    const recentPapers = author.paperAuthors.map((pa) => pa.paper);
+
+    // If author doesn't have institution data, try to derive from their papers
+    let derivedInstitution = author.institution;
+    if (!derivedInstitution && recentPapers.length > 0) {
+      // Find the most common institution from their papers
+      const institutionCounts = new Map<string, number>();
+
+      recentPapers.forEach((paper) => {
+        if (paper.institutions && paper.institutions.length > 0) {
+          paper.institutions.forEach((inst) => {
+            institutionCounts.set(inst, (institutionCounts.get(inst) || 0) + 1);
+          });
+        }
+      });
+
+      if (institutionCounts.size > 0) {
+        // Use the most frequent institution
+        derivedInstitution = Array.from(institutionCounts.entries()).sort(
+          (a, b) => b[1] - a[1]
+        )[0][0];
+      }
+    }
+
     return {
       id: author.id,
       name: author.name,
       username: author.username,
       email: author.email,
       avatar: author.avatar,
-      institution: author.institution,
+      institution: derivedInstitution,
       department: author.department,
       title: author.title,
       expertise: author.expertise,
@@ -110,7 +133,7 @@ export async function loadAuthor(authorId: string): Promise<AuthorDTO | null> {
         },
         orderBy: {
           paper: {
-            createdAt: 'desc',
+            createdAt: "desc",
           },
         },
       },
@@ -121,7 +144,7 @@ export async function loadAuthor(authorId: string): Promise<AuthorDTO | null> {
     return null;
   }
 
-  const recentPapers = author.paperAuthors.map(pa => ({
+  const recentPapers = author.paperAuthors.map((pa) => ({
     id: pa.paper.id,
     title: pa.paper.title,
     link: pa.paper.link,
@@ -132,13 +155,39 @@ export async function loadAuthor(authorId: string): Promise<AuthorDTO | null> {
     tags: pa.paper.tags,
   }));
 
+  // If author doesn't have institution data, try to derive from their papers
+  let derivedInstitution = author.institution;
+  if (!derivedInstitution && recentPapers.length > 0) {
+    // Find the most common institution from their papers
+    const institutionCounts = new Map<string, number>();
+
+    recentPapers.forEach((paper) => {
+      if (paper.institutions && paper.institutions.length > 0) {
+        paper.institutions.forEach((inst) => {
+          institutionCounts.set(inst, (institutionCounts.get(inst) || 0) + 1);
+        });
+      }
+    });
+
+    if (institutionCounts.size > 0) {
+      // Use the most frequent institution
+      derivedInstitution = Array.from(institutionCounts.entries()).sort(
+        (a, b) => b[1] - a[1]
+      )[0][0];
+
+      console.log(
+        `📍 Derived institution for ${author.name}: ${derivedInstitution} (from ${institutionCounts.get(derivedInstitution)} papers)`
+      );
+    }
+  }
+
   return {
     id: author.id,
     name: author.name,
     username: author.username,
     email: author.email,
     avatar: author.avatar,
-    institution: author.institution,
+    institution: derivedInstitution,
     department: author.department,
     title: author.title,
     expertise: author.expertise,
@@ -155,4 +204,4 @@ export async function loadAuthor(authorId: string): Promise<AuthorDTO | null> {
     paperCount: author.paperAuthors.length,
     recentPapers,
   };
-} 
+}
