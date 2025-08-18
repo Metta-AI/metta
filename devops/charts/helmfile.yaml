@@ -7,6 +7,8 @@ repositories:
     url: https://kubernetes.github.io/ingress-nginx
   - name: metrics-server
     url: https://kubernetes-sigs.github.io/metrics-server/
+  - name: datadog
+    url: https://helm.datadoghq.com
 
 releases:
   ########## System configurations ##########
@@ -88,9 +90,11 @@ releases:
       - ./helm.values/prometheus-values.yaml
 
   - name: datadog
-    chart: ./datadog
-    version: 0.1.0
+    chart: datadog/datadog
+    version: 3.75.0
     namespace: monitoring
+    values:
+      - ./helm.values/datadog-values.yaml
 
   ########## Skypilot ##########
   - name: skypilot
