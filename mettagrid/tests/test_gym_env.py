@@ -8,7 +8,7 @@ import numpy as np
 
 from metta.mettagrid.gym_env import MettaGridGymEnv
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
-from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig, WallConfig
 
 
 def test_single_agent_gym_env():
@@ -23,6 +23,7 @@ def test_single_agent_gym_env():
                 noop=ActionConfig(),
                 rotate=ActionConfig(),
             ),
+            objects={"wall": WallConfig(type_id=1)},
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
@@ -75,6 +76,7 @@ def test_gym_env_episode_termination():
                 noop=ActionConfig(),
                 rotate=ActionConfig(),
             ),
+            objects={"wall": WallConfig(type_id=1)},
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
