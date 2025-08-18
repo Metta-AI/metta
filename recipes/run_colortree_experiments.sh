@@ -9,7 +9,7 @@ echo "Using seed: $SEED"
 echo ""
 
 # Run experiments
-for steps in 16 32 64; do
+for steps in 32 64 128; do
     for num_colors in 2 3 4 5; do
         # Determine curriculum name based on steps
         if [ "$steps" -eq 64 ]; then

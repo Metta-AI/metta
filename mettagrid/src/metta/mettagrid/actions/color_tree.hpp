@@ -96,15 +96,6 @@ public:
       _current_target_ptr_global = &_base_target_sequence;
     }
 
-    // Log configuration for debugging
-    printf("[ColorTree] Initialized: seq_len=%zu, reward=%.2f, mode=%s, per_pos=%.4f, trials=%zu\n",
-           _max_sequence_size,
-           _sequence_reward,
-           (_reward_mode == ColorTreeRewardMode::PRECISE   ? "precise"
-            : _reward_mode == ColorTreeRewardMode::PARTIAL ? "partial"
-                                                           : "dense"),
-           _per_position_reward,
-           _num_trials);
   }
 
   unsigned char max_arg() const override {
