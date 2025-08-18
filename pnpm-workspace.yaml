@@ -3,11 +3,17 @@ packages:
   - library
   - mettascope
   - observatory
+
 ignoredBuiltDependencies:
   - canvas
+
 onlyBuiltDependencies:
+  - '@biomejs/biome'
+  - '@prisma/client'
+  - '@prisma/engines'
   - '@tailwindcss/oxide'
   - es5-ext
   - esbuild
+  - prisma
   - sharp
   - unrs-resolver
