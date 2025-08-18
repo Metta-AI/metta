@@ -3,33 +3,40 @@ defaults:
   - _self_
 game:
   max_steps: 512
+  agent:
+    rewards:
+      inventory:
+        heart: 1
+        ore_red: 0.01
+        ore_blue: 0.02
+        ore_green: 0.03
   map_builder:
     root:
       params:
         objects:
           mine_green: 1
+          altar: 1
           generator_green: 1
-          generator_blue: 1
-          mine_blue: 1
+          lab: 1
           generator_red: 1
   objects:
     mine_green:
       output_resources:
         ore_red: 1
       cooldown: 20
-    generator_green:
+    altar:
       input_resources:
         ore_red: 1
       output_resources:
         ore_blue: 1
       cooldown: 20
-    generator_blue:
+    generator_green:
       input_resources:
         ore_blue: 1
       output_resources:
         ore_green: 1
       cooldown: 20
-    mine_blue:
+    lab:
       input_resources:
         ore_green: 1
       output_resources:
@@ -40,3 +47,6 @@ game:
         ore_red: 1
         ore_blue: 1
         ore_green: 1
+    initial_inventory:
+      input_resources:
+        ore_red: 1

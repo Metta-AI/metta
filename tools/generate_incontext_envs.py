@@ -60,6 +60,7 @@ DEFAULT_ENV_CFG = {
     ],
     "game": {
         "max_steps": 512,
+        "agent": {"rewards": {"inventory": {"heart": 1}}},
         "map_builder": {
             "root": {
                 "params": {
@@ -71,9 +72,16 @@ DEFAULT_ENV_CFG = {
     },
 }
 
+
 class InContextEnv:
     def __init__(
-        self, resource_types, converter_types, resource_chain, num_sinks: int, use_initial_inventory: bool = False
+        self,
+        resource_types,
+        converter_types,
+        resource_chain,
+        num_sinks: int,
+        use_initial_inventory: bool = False,
+        breadcrumb_reward: bool = True,
     ):
         """
         Generate a single environment config for in-context learning
@@ -89,6 +97,7 @@ class InContextEnv:
         self.converters = []
         self.sinks = []
         self.use_initial_inventory = use_initial_inventory
+        self.breadcrumb_reward = breadcrumb_reward
 
     def set_converter(self, input_resource, output_resource):
         """
@@ -154,17 +163,16 @@ class InContextEnv:
         if self.num_sinks > 0:
             for _ in range(self.num_sinks):
                 self.set_sink()
+
         # shorter episodes for shorter chains
-        if len(self.used_objects) <= 2:
-            self.env_cfg["game"]["max_steps"] = 128
-        elif len(self.used_objects) <= 4:
+        if len(self.used_objects) <= 4:
             self.env_cfg["game"]["max_steps"] = 256
         else:
             self.env_cfg["game"]["max_steps"] = 512
 
         # Initialize with first resource in the chain
         if self.use_initial_inventory:
-            self.env_cfg["game"]["objects"]["initial_inventory"] = {"input_resources": {self.resource_chain[1]: 1}}
+            self.env_cfg["game"]["objects"]["initial_inventory"] = {"input_resources": {resource_chain[1]: 1}}
 
         print(f"Total objects created: {len(self.used_objects)}")
         print(f"Objects: {self.used_objects}")
@@ -175,6 +183,10 @@ class InContextEnv:
         for obj in self.converters:
             self.env_cfg["game"]["objects"][obj]["cooldown"] = cooldown
 
+        if self.breadcrumb_reward:
+            for idx, resource in enumerate(resource_chain[1:-1]):
+                self.env_cfg["game"]["agent"]["rewards"]["inventory"][resource] = 0.01 * (idx + 1)
+
         return self.env_cfg
 
 
@@ -183,7 +195,8 @@ class InContextEnvGenerator:
     Generate all environment configs for in-context learning tasks, given
     a maximum chain length and maximum number of sinks across environments.
     """
-    def __init__(self, maximum_chain_length: int, maximum_num_sinks: int):
+
+    def __init__(self, maximum_chain_length: int, maximum_num_sinks: int, breadcrumb_reward: bool = True):
         self.maximum_chain_length = maximum_chain_length
         self.maximum_num_sinks = maximum_num_sinks
 
@@ -191,6 +204,7 @@ class InContextEnvGenerator:
         self.resource_types = RESOURCE_TYPES[: self.maximum_chain_length]
         # Use all available converter types - no need to limit
         self.converter_types = CONVERTER_TYPES
+        self.breadcrumb_reward = breadcrumb_reward
 
         all_resource_permutations = []
         for length in range(1, min(len(self.resource_types), self.maximum_chain_length) + 1):
@@ -203,12 +217,14 @@ class InContextEnvGenerator:
         for resource_chain in self.all_resource_permutations:
             chain_length = len(resource_chain)
             for num_sinks in range(self.maximum_num_sinks + 1):
-                env = InContextEnv(self.resource_types, self.converter_types, resource_chain, num_sinks)
+                env = InContextEnv(
+                    self.resource_types, self.converter_types, resource_chain, num_sinks, self.breadcrumb_reward
+                )
                 env_cfg = env.get_env_cfg()
 
                 yaml_file_dir = (
                     f"configs/env/mettagrid/operant_conditioning/in_context_learning/"
-                    f"chain_length_{chain_length+1}/{num_sinks}_sinks"
+                    f"chain_length_{chain_length + 1}/{num_sinks}_sinks"
                 )
 
                 os.makedirs(yaml_file_dir, exist_ok=True)

@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sim: all
+  - sim: navigation
   - _self_
 
 run: null # Auto-generated if not provided
@@ -9,7 +9,7 @@ policy_uri: ???
 
 sim_job:
   policy_uris:
-    - ${policy_uri}
+    - wandb://run/jacke.navigation.8way.seed3566.08-12
   simulation_suite: ${sim}
   stats_dir: ${run_dir}/stats
   stats_db_uri: ${run_dir}/stats.db
