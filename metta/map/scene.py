@@ -7,7 +7,7 @@ import numpy as np
 from omegaconf import DictConfig, OmegaConf
 from pydantic import FieldSerializationInfo, ValidationInfo, field_serializer, field_validator
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.map.config import scenes_root
 from metta.map.random.int import MaybeSeed
 from metta.map.types import Area, AreaQuery, MapGrid

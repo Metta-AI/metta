@@ -6,33 +6,24 @@ from metta.mettagrid.char_encoder import char_to_grid_object
 from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 
 
-class AsciiMapBuilderConfig(MapBuilderConfig):
-    """
-    Configuration for building a game map from an ASCII string.
-    """
-
-    type: Literal["ascii"] = "ascii"
-    map_data: list[list[str]]
-
-    def create(self) -> "AsciiMapBuilder":
-        """Create an AsciiMapBuilder from this configuration."""
-        return AsciiMapBuilder(self)
-
-    @classmethod
-    def from_uri(cls, uri: str) -> "AsciiMapBuilderConfig":
-        with open(uri, "r", encoding="utf-8") as f:
-            ascii_map = f.read()
-        lines = ascii_map.strip().splitlines()
-        return cls(map_data=[list(line) for line in lines])
-
-
 class AsciiMapBuilder(MapBuilder):
     """
     Builds a game map from an ASCII string.
     """
 
-    def __init__(self, config: AsciiMapBuilderConfig):
-        super().__init__(config=config)
+    class Config(MapBuilderConfig["AsciiMapBuilder"]):
+        type: Literal["ascii"] = "ascii"
+        map_data: list[list[str]]
+
+        @classmethod
+        def from_uri(cls, uri: str) -> "AsciiMapBuilder.Config":
+            with open(uri, "r", encoding="utf-8") as f:
+                ascii_map = f.read()
+            lines = ascii_map.strip().splitlines()
+            return cls(map_data=[list(line) for line in lines])
+
+    def __init__(self, config: Config):
+        self.config = config
 
         # Assert all lines are the same length
         if config.map_data:

@@ -8,12 +8,11 @@ import pytest
 from pydantic import ValidationError
 
 from metta.mettagrid.map_builder import (
-    AsciiMapBuilderConfig,
-    MapBuilderConfigUnion,
-    MazeKruskalMapBuilderConfig,
-    MazePrimMapBuilderConfig,
-    RandomMapBuilderConfig,
+    AnyMapBuilderConfig,
 )
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
+from metta.mettagrid.map_builder.maze import MazePrimMapBuilder
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 
 
 class TestPolymorphicSerialization:
@@ -21,7 +20,7 @@ class TestPolymorphicSerialization:
 
     def test_random_config_serialization(self):
         """Test serialization and deserialization of RandomMapBuilderConfig."""
-        config = RandomMapBuilderConfig(
+        config = RandomMapBuilder.Config(
             type="random",
             width=20,
             height=30,
@@ -45,7 +44,7 @@ class TestPolymorphicSerialization:
         assert "20" in json_str
 
         # Test deserialization
-        deserialized = RandomMapBuilderConfig.model_validate(serialized)
+        deserialized = RandomMapBuilder.Config.model_validate(serialized)
         assert deserialized.type == "random"
         assert deserialized.width == 20
         assert deserialized.height == 30
@@ -54,7 +53,7 @@ class TestPolymorphicSerialization:
 
     def test_maze_prim_config_serialization(self):
         """Test serialization and deserialization of MazePrimMapBuilderConfig."""
-        config = MazePrimMapBuilderConfig(
+        config = MazePrimMapBuilder.Config(
             type="maze_prim", width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), branching=0.2, seed=123
         )
 
@@ -94,7 +93,7 @@ class TestPolymorphicSerialization:
             temp_path = f.name
 
         try:
-            config = AsciiMapBuilderConfig.from_uri(temp_path)
+            config = AsciiMapBuilder.Config.from_uri(temp_path)
 
             # Test serialization
             serialized = config.model_dump()
@@ -102,7 +101,7 @@ class TestPolymorphicSerialization:
             assert serialized["map_data"] == [["#", "#", "#"], ["#", ".", "#"], ["#", "#", "#"]]
 
             # Test deserialization
-            deserialized = AsciiMapBuilderConfig.model_validate(serialized)
+            deserialized = AsciiMapBuilder.Config.model_validate(serialized)
             assert deserialized.type == "ascii"
             assert deserialized.map_data == [["#", "#", "#"], ["#", ".", "#"], ["#", "#", "#"]]
 
@@ -123,7 +122,7 @@ class TestPolymorphicSerialization:
             # Should not raise an exception
             config_type = config_dict["type"]
             if config_type == "random":
-                RandomMapBuilderConfig.model_validate(config_dict)
+                RandomMapBuilder.Config.model_validate(config_dict)
             elif config_type == "maze_prim":
                 MazePrimMapBuilderConfig.model_validate(config_dict)
             elif config_type == "maze_kruskal":
@@ -148,7 +147,7 @@ class TestPolymorphicSerialization:
 
         # Create a test model that uses the union
         class TestContainer(BaseModel):
-            config: MapBuilderConfigUnion
+            config: AnyMapBuilderConfig
 
         # Test valid configs for each type
         test_cases = [

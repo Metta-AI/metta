@@ -9,7 +9,7 @@ Usage:
 import logging
 import subprocess
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.util.file import local_copy
 from metta.util.metta_script import pydantic_metta_script

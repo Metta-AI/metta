@@ -2,7 +2,7 @@ from abc import abstractmethod
 
 from pydantic import Field
 
-from metta.common.util.config import Config
+from metta.common.config.config import Config
 from metta.rl.system_config import SystemConfig
 
 

@@ -1,13 +1,17 @@
 from __future__ import annotations
 
-from typing import Any, NoReturn, Self, TypeVar
+from typing import Any, NoReturn, Self
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
-T = TypeVar("T")
-
 
 class Config(BaseModel):
+    """
+    Common extension of Pydantic's BaseModel that:
+    - sets `extra="forbid"` by default
+    - adds `override` and `update` methods for overriding values based on `path.to.value` keys
+    """
+
     model_config = ConfigDict(extra="forbid")
 
     def override(self, key: str, value: Any) -> Self:
@@ -63,7 +67,7 @@ class Config(BaseModel):
         return self
 
     def update(self, updates: dict[str, Any]) -> Self:
-        """Update a value in the config."""
+        """Applies multiple overrides to the config."""
         for key, value in updates.items():
             self.override(key, value)
         return self

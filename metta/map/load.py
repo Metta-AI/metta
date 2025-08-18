@@ -7,14 +7,6 @@ from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuil
 from .types import Area
 
 
-class LoadConfig(MapBuilderConfig):
-    uri: str
-    extra_root: SceneConfigOrFile | None = None
-
-    def create(self) -> "Load":
-        return Load(self)
-
-
 # Note that this class can't be a scene, because the width and height come from the stored data.
 class Load(MapBuilder):
     """
@@ -23,8 +15,11 @@ class Load(MapBuilder):
     See also: `FromS3Dir` for picking a random map from a directory of pregenerated maps.
     """
 
-    def __init__(self, config: LoadConfig):
-        super().__init__(config=config)
+    class Config(MapBuilderConfig["Load"]):
+        uri: str
+        extra_root: SceneConfigOrFile | None = None
+
+    def __init__(self, config: Config):
         self.config = config
 
     def build(self):

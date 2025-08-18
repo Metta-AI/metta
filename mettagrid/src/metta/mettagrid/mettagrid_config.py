@@ -2,13 +2,14 @@ from typing import TYPE_CHECKING, Any, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.common.util.config import Config
-from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
-from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
+from metta.common.config import Config
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 
 if TYPE_CHECKING:
     from metta.cogworks.curriculum.curriculum import CurriculumConfig
     from metta.sim.simulation_config import SimulationConfig
+from metta.mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 
 # ===== Python Configuration Models =====
 
@@ -205,9 +206,8 @@ class GameConfig(Config):
     # and other parts of the template can read from there.
     params: Optional[Any] = None
 
-    # Map builder configuration - accepts any MapBuilder config including MapGenConfig
-    # We use Any here to avoid circular imports with MapGenConfig
-    map_builder: Any = RandomMapBuilderConfig(agents=24)
+    # Map builder configuration - accepts any MapBuilder config
+    map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)
 
     # Movement metrics configuration
     track_movement_metrics: bool = Field(
@@ -252,7 +252,7 @@ class EnvConfig(Config):
         )
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "EnvConfig":
-        self.game.map_builder = AsciiMapBuilderConfig(map_data=map_data)
+        self.game.map_builder = AsciiMapBuilder.Config(map_data=map_data)
         return self
 
     @staticmethod
@@ -260,7 +260,7 @@ class EnvConfig(Config):
         num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
     ) -> "EnvConfig":
         """Create an empty room environment configuration."""
-        map_builder = RandomMapBuilderConfig(agents=num_agents, width=width, height=height, border_width=border_width)
+        map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
             move_8way=ActionConfig(),
             rotate=ActionConfig(),
