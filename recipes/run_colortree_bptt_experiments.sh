@@ -45,9 +45,9 @@ build_command() {
 
     # Calculate learning rate with 1/sqrt(N) scaling
     # Using bc for floating point arithmetic
-    # LR = constant / sqrt(bptt), where constant is chosen so LR=BASE_LR at BPTT=64
-    # constant = BASE_LR * sqrt(64) = BASE_LR * 8
-    local lr=$(echo "scale=8; $BASE_LR * 8 / sqrt($bptt)" | bc)
+    # LR = constant / sqrt(bptt), where constant is chosen so LR=BASE_LR at BPTT=128
+    # constant = BASE_LR * sqrt(128) = BASE_LR * 11.3137085
+    local lr=$(echo "scale=8; $BASE_LR * sqrt(128) / sqrt($bptt)" | bc)
 
     if [ "$USE_USER_CONFIG" = "user" ]; then
         echo "python devops/skypilot/launch.py train user=jacke \
@@ -78,14 +78,14 @@ for bptt in 64 128 256; do
     run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
 
     # Calculate LR for display
-    lr=$(echo "scale=8; $BASE_LR * 8 / sqrt($bptt)" | bc)
+    lr=$(echo "scale=8; $BASE_LR * sqrt(128) / sqrt($bptt)" | bc)
 
     echo "Launching Test: 128 steps, BPTT=${bptt}, 1/sqrt(N) LR scaling"
     echo "  Run name: $run_name"
     echo "  Steps: ${steps}"
     echo "  Colors: ${NUM_COLORS}"
     echo "  BPTT Horizon: ${bptt}"
-    echo "  Learning Rate: ${lr} (${BASE_LR} * 8 / sqrt(${bptt}))"
+    echo "  Learning Rate: ${lr} (${BASE_LR} * sqrt(128) / sqrt(${bptt}))"
     echo "  Curriculum: ${curriculum}"
     echo "  Seed: ${SEED}"
 
@@ -141,7 +141,7 @@ eval $(build_command "$run_name" "$curriculum" "$bptt")
 echo "---"
 echo ""
 echo "=== All 5 experiments with 1/sqrt(N) LR scaling launched! ==="
-echo "Learning rates used (LR = constant / sqrt(BPTT)):"
-echo "  BPTT=64:  $(echo "scale=8; $BASE_LR * 8 / sqrt(64)" | bc) = ${BASE_LR}"
-echo "  BPTT=128: $(echo "scale=8; $BASE_LR * 8 / sqrt(128)" | bc)"
-echo "  BPTT=256: $(echo "scale=8; $BASE_LR * 8 / sqrt(256)" | bc)"
+echo "Learning rates used (normalized to BPTT=128):"
+echo "  BPTT=64:  $(echo "scale=8; $BASE_LR * sqrt(128) / sqrt(64)" | bc) (higher than baseline)"
+echo "  BPTT=128: $(echo "scale=8; $BASE_LR * sqrt(128) / sqrt(128)" | bc) = ${BASE_LR} (baseline)"
+echo "  BPTT=256: $(echo "scale=8; $BASE_LR * sqrt(128) / sqrt(256)" | bc) (lower than baseline)"
