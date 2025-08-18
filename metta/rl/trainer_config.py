@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, List, Literal, Optional
+from typing import Any, ClassVar, List, Literal
 
 from pydantic import ConfigDict, Field, model_validator
 
@@ -64,7 +64,7 @@ class EvaluationConfig(Config):
     # Interval at which to evaluate and generate replays: Type 2 arbitrary default
     evaluate_interval: int = Field(default=50, ge=0)  # 0 to disable
     evaluate_remote: bool = Field(default=True)
-    evaluate_local: bool = Field(default=True)
+    evaluate_local: bool = Field(default=False)
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
     num_training_tasks: int = Field(default=1)
@@ -195,7 +195,7 @@ class TrainerConfig(Config):
     checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig)
 
     # Simulation configuration
-    evaluation: Optional[EvaluationConfig] = Field(default=EvaluationConfig())
+    evaluation: EvaluationConfig | None = Field(default=EvaluationConfig())
 
     # Grad mean variance logging
     # Disabled by default: Expensive diagnostic for debugging training instability
