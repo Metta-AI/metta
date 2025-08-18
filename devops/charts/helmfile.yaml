@@ -87,6 +87,15 @@ releases:
     values:
       - ./helm.values/prometheus-values.yaml
 
+  - name: datadog
+    chart: ./datadog
+    version: 0.1.0
+    namespace: monitoring
+    hooks:
+      - events: ["presync"]
+        command: "kubectl"
+        args: ["create", "namespace", "monitoring", "--dry-run=client", "-o", "yaml", "|", "kubectl", "apply", "-f", "-"]
+
   ########## Skypilot ##########
   - name: skypilot
     chart: ./skypilot
