@@ -11,6 +11,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
 from metta.agent.agent_config import AgentConfig
+from metta.agent.agent_interface import MettaAgentInterface
 from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.rl.system_config import SystemConfig
 
@@ -55,7 +56,7 @@ class DistributedMettaAgent(DistributedDataParallel):
             return getattr(self.module, name)
 
 
-class MettaAgent(nn.Module):
+class MettaAgent(MettaAgentInterface):
     def __init__(
         self,
         config: AgentConfig,
