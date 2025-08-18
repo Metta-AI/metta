@@ -21,10 +21,17 @@ DATA_DIR="${DATA_DIR:-./train_dir}"
 JOB_METADATA_DIR="${DATA_DIR}/.job_metadata/${METTA_RUN_ID}"
 mkdir -p "$JOB_METADATA_DIR"
 
+
+# Create IPC directory for this job instance
+IPC_DIR="/tmp/metta_job_$$"
+mkdir -p "$IPC_DIR"
+
 # Files to track
 RESTART_COUNT_FILE="$JOB_METADATA_DIR/restart_count"
 ACCUMULATED_RUNTIME_FILE="$JOB_METADATA_DIR/accumulated_runtime"
 CLUSTER_STOP_FILE="$JOB_METADATA_DIR/cluster_stop"
+TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
+HEARTBEAT_FILE="${HEARTBEAT_FILE:-${WANDB_DIR:-./wandb}/heartbeat.txt}"
 
 # Initialize or update restart tracking
 if [ -f "$RESTART_COUNT_FILE" ]; then
@@ -39,7 +46,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     # Clear any stale cluster stop flag at the beginning of a fresh attempt
     : > "$CLUSTER_STOP_FILE" 2>/dev/null || true
 else
-    echo "[INFO] Skipping signal file updates on non-master node"
+    echo "[INFO] Skipping RESTART_COUNT_FILE and CLUSTER_STOP_FILE updates on non-master node"
 fi
 
 # Read accumulated runtime
@@ -48,7 +55,6 @@ if [ -f "$ACCUMULATED_RUNTIME_FILE" ]; then
 else
     ACCUMULATED_RUNTIME=0
 fi
-
 
 echo "[RESTART INFO] ========================"
 echo "  METTA_RUN_ID: ${METTA_RUN_ID}"
@@ -76,8 +82,13 @@ export NODE_INDEX="\${SKYPILOT_NODE_RANK}"
 # Job metadata exports
 export RESTART_COUNT="${RESTART_COUNT}"
 export ACCUMULATED_RUNTIME="${ACCUMULATED_RUNTIME}"
+
+# File path exports for monitors
 export ACCUMULATED_RUNTIME_FILE="${ACCUMULATED_RUNTIME_FILE}"
 export CLUSTER_STOP_FILE="${CLUSTER_STOP_FILE}"
+export TERMINATION_REASON_FILE="${TERMINATION_REASON_FILE}"
+export HEARTBEAT_FILE="${HEARTBEAT_FILE}"
+export IPC_DIR="${IPC_DIR}"
 
 # NCCL Configuration
 export NCCL_PORT_RANGE="\${NCCL_PORT_RANGE:-43000-43063}"
@@ -88,6 +99,7 @@ export TORCH_NCCL_ASYNC_ERROR_HANDLING="\${TORCH_NCCL_ASYNC_ERROR_HANDLING:-1}"
 export NCCL_DEBUG=WARN
 export NCCL_DEBUG_SUBSYS=""
 
+# NCCL Mode
 export NCCL_P2P_DISABLE="\${NCCL_P2P_DISABLE:-0}"
 export NCCL_SHM_DISABLE="\${NCCL_SHM_DISABLE:-0}"
 export NCCL_IB_DISABLE="\${NCCL_IB_DISABLE:-1}"

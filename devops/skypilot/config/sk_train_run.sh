@@ -59,6 +59,8 @@ if [[ -n "${MAX_RUNTIME_HOURS:-}" ]]; then
   fi
 fi
 
+
+
 # Print run configuration
 echo "[CONFIG] Run Configuration:"
 echo "  - NODE_RANK: ${RANK}"
@@ -77,17 +79,7 @@ echo "  - TEST_NCCL: ${TEST_NCCL:-false}"
 echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
 echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
 
-# Create a temp directory for IPC files
-export IPC_DIR="/tmp/metta_job_$$"
-mkdir -p "$IPC_DIR"
-
-export CMD_PID=""
-export CMD_PGID=""
 export WRAPPER_PID=$BASHPID
-
-export START_TIME=0
-export HEARTBEAT_FILE="${HEARTBEAT_FILE:-${WANDB_DIR:-.}/heartbeat.txt}"
-export TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
 
 if [[ "$IS_MASTER" == "true" ]]; then
   if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
@@ -132,8 +124,6 @@ shutdown() {
       sleep 3  # Give workers time to receive the signal
     fi
 
-    terminate_monitors
-
     # Send SIGTERM to the process group
     kill -TERM -"${CMD_PGID}" 2>/dev/null || true
 
@@ -168,42 +158,32 @@ shutdown() {
     echo "[SHUTDOWN] Master waiting for workers to disconnect..."
     sleep 7  # Give workers time to shut down cleanly
   fi
-
-  # Compute duration (best-effort)
-  if [ -n "${START_TIME:-}" ] && [ "${START_TIME}" -ne 0 ]; then
-    local end_time
-    end_time=$(date +%s)
-    local dur=$((end_time - START_TIME))
-    echo "[SUMMARY] Total runtime: ${dur} seconds ($((dur/60)) minutes)"
-  fi
 }
 trap shutdown INT TERM HUP
 
-terminate_monitors() {
-  if [[ -n "${HEARTBEAT_MONITOR_PID:-}" ]] && kill -0 "$HEARTBEAT_MONITOR_PID" 2>/dev/null; then
-    kill "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
-    wait "$HEARTBEAT_MONITOR_PID" 2>/dev/null || true
-    echo "[INFO] Terminated heartbeat monitor"
+start_monitors() {
+  if [[ -n "${HEARTBEAT_TIMEOUT:-}" ]]; then
+    bash ./devops/skypilot/config/monitors/heartbeat_monitor.sh &
+    echo "[INFO] Started heartbeat monitor"
   fi
-
-  if [[ -n "${TIMEOUT_MONITOR_PID:-}" ]] && kill -0 "$TIMEOUT_MONITOR_PID" 2>/dev/null; then
-    kill "$TIMEOUT_MONITOR_PID" 2>/dev/null || true
-    wait "$TIMEOUT_MONITOR_PID" 2>/dev/null || true
-    echo "[INFO] Terminated timeout monitor"
+  if [[ "$IS_MASTER" == "true" ]] && [[ -n "${MAX_RUNTIME_HOURS:-}" ]]; then
+    bash ./devops/skypilot/config/monitors/timeout_monitor.sh &
+    echo "[INFO] Started timeout monitor"
   fi
-
-  if [[ -n "${CLUSTER_STOP_MONITOR_PID:-}" ]] && kill -0 "$CLUSTER_STOP_MONITOR_PID" 2>/dev/null; then
-    kill "$CLUSTER_STOP_MONITOR_PID" 2>/dev/null || true
-    wait "$CLUSTER_STOP_MONITOR_PID" 2>/dev/null || true
-    echo "[INFO] Terminated cluster-stop monitor"
+  if [[ -n "${CLUSTER_STOP_FILE:-}" ]]; then
+    bash ./devops/skypilot/config/monitors/cluster_stop_monitor.sh &
+    echo "[INFO] Started cluster-stop monitor"
+  fi
+  if [[ "$IS_MASTER" == "true" ]] && [[ "${TEST_JOB_RESTART:-false}" == "true" ]]; then
+    bash ./devops/skypilot/config/monitors/test_job_restart_monitor.sh &
+    echo "[INFO] Started test job restart monitor"
   fi
 }
-
 
 run_cmd() {
   echo "[INFO] Starting process $METTA_CMD (node rank: $RANK)"
 
-  START_TIME=$(date +%s)
+  export START_TIME=$(date +%s)
 
   # Start training in its own process group; tee output for postmortem
   cmd=( ./devops/"${METTA_CMD:?missing METTA_CMD}".sh "run=${METTA_RUN_ID:?missing METTA_RUN_ID}" )
@@ -213,50 +193,23 @@ run_cmd() {
   fi
   # Use process substitution so $! is the trainer (not tee)
   setsid "${cmd[@]}" > >(tee "$IPC_DIR/${METTA_CMD}_log.txt") 2> >(tee -a "$IPC_DIR/${METTA_CMD}_log.txt" >&2) &
-  CMD_PID=$!
+  export CMD_PID=$!
 
   sleep 1
-  if ! kill -0 "$CMD_PID" 2>/dev/null; then
-    echo "[ERROR] Command process died immediately!"
-    return 1
-  fi
 
-  CMD_PGID=$(ps -o pgid= -p "$CMD_PID" 2>/dev/null | tr -d ' ')
+  export CMD_PGID=$(ps -o pgid= -p "$CMD_PID" 2>/dev/null | tr -d ' ')
   echo "[INFO] Started $METTA_CMD process with PID: $CMD_PID, PGID: $CMD_PGID"
 
-  # Master-only: Start timeout monitor if MAX_RUNTIME_HOURS is set
-  if [[ "$IS_MASTER" == "true" ]] && [[ -n "${MAX_RUNTIME_HOURS:-}" ]] && [[ "${MAX_RUNTIME_HOURS}" != "None" ]]; then
-    bash ./devops/skypilot/config/monitors/timeout_monitor.sh &
-    TIMEOUT_MONITOR_PID=$!
-    echo "[INFO] Started timeout monitor with PID: $TIMEOUT_MONITOR_PID"
-  fi
-
-  # Master-only: Start heartbeat monitor if HEARTBEAT_TIMEOUT is set
-  if [[ "$IS_MASTER" == "true" ]] && [[ "${HEARTBEAT_TIMEOUT:-0}" != "0" ]]; then
-    bash ./devops/skypilot/config/monitors/heartbeat_monitor.sh &
-    HEARTBEAT_MONITOR_PID=$!
-    echo "[INFO] Started heartbeat monitor with PID: $HEARTBEAT_MONITOR_PID"
-  fi
-
-  # Start a cluster-stop monitor that always runs
-  if [ -n "${CLUSTER_STOP_FILE:-}" ]; then
-    mkdir -p "$(dirname "$CLUSTER_STOP_FILE")" || true
-    bash ./devops/skypilot/config/monitors/cluster_stop_monitor.sh &
-    CLUSTER_STOP_MONITOR_PID=$!
-    echo "[INFO] Started cluster-stop monitor with PID: $CLUSTER_STOP_MONITOR_PID"
-  else
-    echo "[INFO] Cluster-stop monitor disabled (CLUSTER_STOP_FILE not set)"
-  fi
+  start_monitors
 
   # Wait for command to finish
   wait "$CMD_PID"
   CMD_EXIT=$?
 
-  terminate_monitors
-
   # Calculate total runtime
   local END_TIME=$(date +%s)
   local DURATION=$((END_TIME - START_TIME))
+
   echo "[SUMMARY] Total runtime: $DURATION seconds ($((DURATION / 60)) minutes)"
 
   return $CMD_EXIT
@@ -281,12 +234,6 @@ else
   else
     echo "[SUCCESS] NCCL tests passed"
   fi
-fi
-
-# Exit early if accumulated runtime exceeds max allowed
-if [[ "$max_seconds" -ge 0 && "$accumulated_runtime" -ge "$max_seconds" ]]; then
-  echo "[EXIT] Exceeded max runtime (${accumulated_runtime}s ≥ ${max_seconds}s). Exiting early."
-  exit 0
 fi
 
 # Run the command

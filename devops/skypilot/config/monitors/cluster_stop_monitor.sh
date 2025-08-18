@@ -11,7 +11,10 @@ CLUSTER_STOP_CHECK_INTERVAL=${CLUSTER_STOP_CHECK_INTERVAL:-15}
 
 echo "[INFO] Cluster-stop monitor started; checking every ${CLUSTER_STOP_CHECK_INTERVAL}s"
 
-while kill -0 "$CMD_PID" 2>/dev/null; do
+while true; do
+  sleep "$CLUSTER_STOP_CHECK_INTERVAL"
+  echo "[DEBUG] Checking for cluster stop..."
+
   if [ -s "$CLUSTER_STOP_FILE" ]; then
     reason="$(cat "$CLUSTER_STOP_FILE" 2>/dev/null || true)"
     echo "[INFO] Cluster stop flag detected (${reason:-no-reason}); requesting shutdown"
@@ -19,7 +22,7 @@ while kill -0 "$CMD_PID" 2>/dev/null; do
     kill -TERM "${WRAPPER_PID}" 2>/dev/null || true
     break
   fi
-  sleep "$CLUSTER_STOP_CHECK_INTERVAL"
+
 done
 
 echo "[INFO] Cluster-stop monitor exiting"

@@ -2,11 +2,11 @@
 set -euo pipefail
 
 # Required environment variables
-: "${CMD_PID:?Missing CMD_PID}"
 : "${WRAPPER_PID:?Missing WRAPPER_PID}"
 : "${HEARTBEAT_FILE:?Missing HEARTBEAT_FILE}"
 : "${HEARTBEAT_TIMEOUT:?Missing HEARTBEAT_TIMEOUT}"
 : "${TERMINATION_REASON_FILE:?Missing TERMINATION_REASON_FILE}"
+: "${CLUSTER_STOP_FILE:?Missing CLUSTER_STOP_FILE}"
 : "${START_TIME:?Missing START_TIME}"
 
 HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
@@ -17,7 +17,15 @@ echo "[INFO] Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
 LAST_HEARTBEAT_TIME=$(date +%s)
 HEARTBEAT_COUNT=0
 
-while kill -0 "$CMD_PID" 2>/dev/null; do
+while true; do
+  if [ -s "$CLUSTER_STOP_FILE" ]; then
+    echo "[INFO] Cluster stop detected, monitor exiting"
+    break
+  fi
+
+  sleep "$HEARTBEAT_CHECK_INTERVAL"
+  echo "[DEBUG] Checking for heartbeat..."
+
   CURRENT_TIME=$(date +%s)
 
   if [ -f "$HEARTBEAT_FILE" ]; then
@@ -50,7 +58,6 @@ while kill -0 "$CMD_PID" 2>/dev/null; do
     fi
   fi
 
-  sleep "$HEARTBEAT_CHECK_INTERVAL"
 done
 
 echo "[INFO] Heartbeat monitor exiting"
