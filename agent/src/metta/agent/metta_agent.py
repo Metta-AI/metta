@@ -61,7 +61,11 @@ class MettaAgent(nn.Module):
         config: AgentConfig,
     ):
         super().__init__()
-        self.config = config
+
+        logger.info(f"MettaAgent initialized with config: {config}")
+
+        # Do NOT store the full config on the instance to keep the agent picklable.
+        # The config may hold references (e.g., env) that include locks and cannot be pickled.
         self.cfg = config.agent_cfg
         self.device = config.system_cfg.device
 
@@ -79,10 +83,10 @@ class MettaAgent(nn.Module):
         self.feature_normalizations = config.env.feature_normalizations
 
         # Create policy if not provided
-        if config.policy is None:
-            policy = self._create_policy(config.agent_cfg, config.env, config.system_cfg)
-        else:
-            policy = config.policy
+        # if config.policy is None:
+        policy = self._create_policy(config.agent_cfg, config.env, config.system_cfg)
+        # else:
+        #     policy = config.policy
 
         self.policy = policy
         if self.policy is not None and hasattr(self.policy, "device"):
@@ -91,6 +95,13 @@ class MettaAgent(nn.Module):
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
+
+    def __getstate__(self):
+        """Return a picklable state by stripping any non-serializable fields."""
+        state = self.__dict__.copy()
+        # Ensure we never attempt to pickle the full config object
+        state.pop("config", None)
+        return state
 
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
