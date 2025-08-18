@@ -1,12 +1,12 @@
 """
 Improved transformer agent building on the stable baseline.
 
-This implementation carefully adds improvements to the working transformer:
+This implementation makes the transformer BIGGER and more powerful:
 1. Keeps all critical components from the working version (scatter encoding, bilinear decoding)
-2. Adds LayerNorm before final output for stability
-3. Uses slightly better initialization patterns without being too aggressive
-4. Adds gradient clipping support for training stability
-5. Improves positional encoding scaling
+2. Doubles most dimensions (hidden_size, n_heads, d_ff) for more capacity
+3. Increases number of layers for deeper processing
+4. Uses the stable base TransformerModule without modifications
+5. Larger action embeddings for richer action representations
 """
 
 import logging
@@ -34,19 +34,18 @@ class ImprovedPolicy(nn.Module):
     def __init__(
         self,
         env,
-        input_size: int = 128,
-        hidden_size: int = 128,
-        n_heads: int = 8,
-        n_layers: int = 6,
-        d_ff: int = 512,
-        max_seq_len: int = 256,
+        input_size: int = 256,  # BIGGER: Doubled from 128
+        hidden_size: int = 256,  # BIGGER: Doubled from 128
+        n_heads: int = 16,  # BIGGER: Doubled from 8
+        n_layers: int = 8,  # BIGGER: Increased from 6
+        d_ff: int = 1024,  # BIGGER: Doubled from 512
+        max_seq_len: int = 512,  # BIGGER: Doubled from 256
         dropout: float = 0.1,
         use_causal_mask: bool = True,
         use_gating: bool = True,
         # Improvements
         use_layer_norm: bool = True,  # Add layer norm before output
-        positional_scale: float = 0.2,  # Slightly larger than original 0.1
-        init_scale: float = 0.9,  # Slightly smaller init for stability
+        init_scale: float = 1.0,  # Keep standard initialization
     ):
         """Initialize the improved policy network.
 
@@ -99,19 +98,19 @@ class ImprovedPolicy(nn.Module):
 
         self.flatten = nn.Flatten()
 
-        # Linear layers with slightly reduced initialization
-        self.fc1 = init_layer(nn.Linear(self.flattened_size, 128), std=1.0)
-        self.encoded_obs = init_layer(nn.Linear(128, input_size), std=self.init_scale)
+        # Linear layers matching the bigger input_size
+        self.fc1 = init_layer(nn.Linear(self.flattened_size, 256), std=1.0)  # BIGGER: Match increased size
+        self.encoded_obs = init_layer(nn.Linear(256, input_size), std=self.init_scale)
 
         # IMPROVEMENT: Add optional layer norm after encoding
         if self.use_layer_norm:
             self.encoding_norm = nn.LayerNorm(input_size)
 
-        # Create improved transformer module
+        # Use the base TransformerModule directly - it's already well-optimized
         logger.info(
-            f"Creating ImprovedTransformerModule with hidden_size={hidden_size}, n_heads={n_heads}, n_layers={n_layers}"
+            f"Creating TransformerModule with hidden_size={hidden_size}, n_heads={n_heads}, n_layers={n_layers}"
         )
-        self._transformer = ImprovedTransformerModule(
+        self._transformer = TransformerModule(
             d_model=hidden_size,
             n_heads=n_heads,
             n_layers=n_layers,
@@ -120,24 +119,23 @@ class ImprovedPolicy(nn.Module):
             dropout=dropout,
             use_causal_mask=use_causal_mask,
             use_gating=use_gating,
-            positional_scale=positional_scale,
         )
-        logger.info("ImprovedTransformerModule created successfully")
+        logger.info("TransformerModule created successfully")
 
-        # Critic branch with conservative initialization
-        self.critic_1 = init_layer(nn.Linear(hidden_size, 1024), std=self.init_scale)
-        self.value_head = init_layer(nn.Linear(1024, 1), std=0.1)  # Keep small for value head
+        # BIGGER critic branch with more capacity
+        self.critic_1 = init_layer(nn.Linear(hidden_size, 2048), std=self.init_scale)  # BIGGER: Doubled
+        self.value_head = init_layer(nn.Linear(2048, 1), std=0.1)  # Keep small for value head
 
-        # Actor branch with conservative initialization
-        self.actor_1 = init_layer(nn.Linear(hidden_size, 512), std=0.5 * self.init_scale)
+        # BIGGER actor branch with more capacity
+        self.actor_1 = init_layer(nn.Linear(hidden_size, 1024), std=0.5 * self.init_scale)  # BIGGER: Doubled
 
         # Action embeddings - critical for good performance!
-        self.action_embeddings = nn.Embedding(100, 16)
+        self.action_embeddings = nn.Embedding(100, 32)  # BIGGER: Doubled embedding dimension
         self._initialize_action_embeddings()
 
         # Store for dynamic action head
-        self.action_embed_dim = 16
-        self.actor_hidden_dim = 512
+        self.action_embed_dim = 32  # BIGGER: Doubled embedding dimension
+        self.actor_hidden_dim = 1024  # BIGGER: Doubled to match actor_1
 
         # Bilinear layer matching working transformer
         self._init_bilinear_actor()
@@ -171,8 +169,8 @@ class ImprovedPolicy(nn.Module):
         )
         self.actor_bias = nn.Parameter(torch.Tensor(1).to(dtype=torch.float32))
 
-        # Kaiming initialization with slight reduction
-        bound = (1 / math.sqrt(self.actor_hidden_dim)) * self.init_scale if self.actor_hidden_dim > 0 else 0
+        # Kaiming initialization
+        bound = (1 / math.sqrt(self.actor_hidden_dim)) if self.actor_hidden_dim > 0 else 0
         nn.init.uniform_(self.actor_W, -bound, bound)
         nn.init.uniform_(self.actor_bias, -bound, bound)
 
@@ -308,67 +306,9 @@ class ImprovedPolicy(nn.Module):
         return {}
 
 
-class ImprovedTransformerModule(TransformerModule):
-    """Improved transformer module with careful enhancements.
-
-    Inherits from the working TransformerModule and adds minor improvements.
-    """
-
-    def __init__(
-        self,
-        d_model: int = 256,
-        n_heads: int = 8,
-        n_layers: int = 6,
-        d_ff: int = 1024,
-        max_seq_len: int = 256,
-        dropout: float = 0.1,
-        use_causal_mask: bool = True,
-        use_gating: bool = True,
-        positional_scale: float = 0.2,  # Slightly larger than default
-    ):
-        """Initialize improved transformer module."""
-        # Initialize base TransformerModule
-        super().__init__(
-            d_model=d_model,
-            n_heads=n_heads,
-            n_layers=n_layers,
-            d_ff=d_ff,
-            max_seq_len=max_seq_len,
-            dropout=dropout,
-            use_causal_mask=use_causal_mask,
-            use_gating=use_gating,
-        )
-
-        # IMPROVEMENT: Scale positional encoding slightly more
-        # This helps the model distinguish between different positions better
-        if hasattr(self, "positional_encoding") and hasattr(self.positional_encoding, "pe"):
-            with torch.no_grad():
-                if isinstance(self.positional_encoding.pe, nn.Parameter):
-                    self.positional_encoding.pe.data *= positional_scale / 0.1  # Adjust from default
-                else:
-                    # It's a buffer
-                    self.positional_encoding.pe *= positional_scale / 0.1
-
-        # IMPROVEMENT: Add output layer norm for stability
-        self.output_norm = nn.LayerNorm(d_model)
-
-        # IMPROVEMENT: Initialize output norm properly
-        nn.init.constant_(self.output_norm.weight, 1.0)
-        nn.init.constant_(self.output_norm.bias, 0.0)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass with output normalization."""
-        # Use parent's forward method
-        x = super().forward(x)
-
-        # IMPROVEMENT: Apply output normalization for stability
-        # Only apply to the final output, not intermediate
-        if x.dim() == 3:  # (T, B, D)
-            x = self.output_norm(x)
-        elif x.dim() == 2:  # (B, D)
-            x = self.output_norm(x)
-
-        return x
+# Removed ImprovedTransformerModule class - we'll use the base TransformerModule directly
+# The base module is already well-optimized and stable
+# Making the model "beefier" by increasing dimensions is a better approach
 
 
 class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
@@ -385,19 +325,18 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
         self,
         env,
         policy: Optional[nn.Module] = None,
-        input_size: int = 128,
-        hidden_size: int = 128,
-        n_heads: int = 8,
-        n_layers: int = 6,
-        d_ff: int = 512,
-        max_seq_len: int = 256,
+        input_size: int = 256,  # BIGGER: Doubled from 128
+        hidden_size: int = 256,  # BIGGER: Doubled from 128
+        n_heads: int = 16,  # BIGGER: Doubled from 8
+        n_layers: int = 8,  # BIGGER: Increased from 6
+        d_ff: int = 1024,  # BIGGER: Doubled from 512
+        max_seq_len: int = 512,  # BIGGER: Doubled from 256
         dropout: float = 0.1,
         use_causal_mask: bool = True,
         use_gating: bool = True,
         # Improvements
         use_layer_norm: bool = True,
-        positional_scale: float = 0.2,
-        init_scale: float = 0.9,
+        init_scale: float = 1.0,
         **kwargs,
     ):
         """Initialize the improved transformer agent."""
@@ -420,7 +359,6 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
                 use_causal_mask=use_causal_mask,
                 use_gating=use_gating,
                 use_layer_norm=use_layer_norm,
-                positional_scale=positional_scale,
                 init_scale=init_scale,
             )
             logger.info("ImprovedPolicy network created successfully")
