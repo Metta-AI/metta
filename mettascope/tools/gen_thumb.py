@@ -14,8 +14,8 @@ import traceback
 import zlib
 
 from metta.map.utils.thumbnail import (
-    generate_thumbnail_from_replay,
     generate_thumbnail_from_ascii,
+    generate_thumbnail_from_replay,
 )
 
 
@@ -54,41 +54,34 @@ def main():
             # Handle ASCII map files
             with open(args.file, "rb") as f:
                 ascii_data = f.read()
-            
+
             thumbnail_data = generate_thumbnail_from_ascii(
-                ascii_data, 
-                width=args.width, 
-                height=args.height, 
-                cell_size=args.size
+                ascii_data, width=args.width, height=args.height, cell_size=args.size
             )
         else:
             # Handle replay files
             with open(args.file, "rb") as f:
                 input_raw = f.read()
-            
+
             input_json = zlib.decompress(input_raw)
             replay_data = json.loads(input_json)
-            
+
             if args.debug:
                 print("Keys:", replay_data.keys())
                 if "grid_objects" in replay_data and replay_data["grid_objects"]:
                     print("Vals:", replay_data["grid_objects"][0].keys())
                 elif "objects" in replay_data and replay_data["objects"]:
                     print("Vals:", replay_data["objects"][0].keys())
-            
+
             thumbnail_data = generate_thumbnail_from_replay(
-                replay_data, 
-                width=args.width, 
-                height=args.height, 
-                cell_size=args.size,
-                step=args.step
+                replay_data, width=args.width, height=args.height, cell_size=args.size, step=args.step
             )
-        
+
         # Write the thumbnail to file
         with open(args.output, "wb") as f:
             f.write(thumbnail_data)
         print(f"Generated {args.output} of size {args.width}x{args.height} from {args.file} at step {args.step}")
-        
+
     except Exception as e:
         print(f"Error generating thumbnail: {e}", file=sys.stderr)
         if args.debug:
