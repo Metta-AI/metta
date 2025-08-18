@@ -287,11 +287,23 @@ def create_trainer_config(
         config_dict["zero_copy"] = False
 
     # Set default paths if not provided
-    if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):
-        config_dict["checkpoint"]["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
+    checkpoint_config = config_dict.setdefault("checkpoint", {})
+    if "checkpoint_dir" not in checkpoint_config:
+        checkpoint_config["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
 
-    if "replay_dir" not in config_dict.setdefault("simulation", {}):
-        config_dict["simulation"]["replay_dir"] = f"{cfg.run_dir}/replays/"
+    # If wandb_checkpoint_interval is None, default to checkpoint_interval
+    if checkpoint_config.get("wandb_checkpoint_interval") is None:
+        checkpoint_interval = checkpoint_config.get("checkpoint_interval", 60)
+        checkpoint_config["wandb_checkpoint_interval"] = checkpoint_interval
+
+    simulation_config = config_dict.setdefault("simulation", {})
+    if "replay_dir" not in simulation_config:
+        simulation_config["replay_dir"] = f"{cfg.run_dir}/replays/"
+
+    # If evaluate_interval is None, default to checkpoint_interval
+    if simulation_config.get("evaluate_interval") is None:
+        checkpoint_interval = checkpoint_config.get("checkpoint_interval", 60)
+        simulation_config["evaluate_interval"] = checkpoint_interval
 
     if "profile_dir" not in config_dict.setdefault("profiler", {}):
         config_dict["profiler"]["profile_dir"] = f"{cfg.run_dir}/torch_traces"
