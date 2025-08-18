@@ -5,7 +5,7 @@ import torch.nn as nn
 from tensordict import TensorDict
 from torch.nn import ModuleDict
 
-from metta.agent.component_policy import ComponentPolicy
+from metta.agent.component_policies.latent_attn_small import ComponentPolicy
 from metta.agent.metta_agent import MettaAgent
 
 
@@ -176,8 +176,12 @@ def test_new_checkpoint_format():
     agent = TempMettaAgent()
 
     # Create a mock ComponentPolicy
+    from metta.agent.agent_config import ComponentPolicyConfig
+
+    mock_config = ComponentPolicyConfig()
     policy = ComponentPolicy.__new__(ComponentPolicy)
     nn.Module.__init__(policy)
+    policy.config = mock_config
     policy.components = ModuleDict()
     policy.components_with_memory = []
 

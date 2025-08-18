@@ -49,8 +49,16 @@ def test_metta_agent_with_vanilla_policy():
     agent_cfg = DictConfig({"clip_range": 0})
 
     # Create MettaAgent with vanilla policy
+    from metta.agent.agent_config import AgentConfig
+
     vanilla_policy = VanillaTorchPolicy()
-    agent = MettaAgent(MinimalEnv(), system_cfg, agent_cfg, policy=vanilla_policy)
+    agent_config = AgentConfig(
+        env=MinimalEnv(),
+        system_cfg=system_cfg,
+        agent_cfg=agent_cfg,
+        policy=vanilla_policy,
+    )
+    agent = MettaAgent(agent_config)
 
     # Test that initialization works
     features = {
@@ -119,8 +127,16 @@ def test_metta_agent_fallback_methods():
     system_cfg = SystemConfig(device="cpu")
     agent_cfg = DictConfig({})
 
+    from metta.agent.agent_config import AgentConfig
+
     policy = MinimalPolicy()
-    agent = MettaAgent(MinimalEnv(), system_cfg, agent_cfg, policy=policy)
+    agent_config = AgentConfig(
+        env=MinimalEnv(),
+        system_cfg=system_cfg,
+        agent_cfg=agent_cfg,
+        policy=policy,
+    )
+    agent = MettaAgent(agent_config)
 
     # Test that all these methods work without errors
     features = {"test": {"id": 1, "type": "scalar"}}
