@@ -19,8 +19,8 @@ inputs:
     description: "Number of Nodes to request. If empty, uses SkyPilot task default."
     required: false
     default: ""
-  test_job_restart:
-    description: "Force the job to restart at 30% of timeout to test restart handling"
+  run_ci_tests:
+    description: "Runs NCCL and job restart tests"
     required: false
     default: "false"
   wandb_api_key:
@@ -108,8 +108,8 @@ runs:
           LAUNCH_ARGS+=( "--discord-webhook-url=${{ inputs.discord_webhook_url }}" )
         fi
 
-        if [[ "${{ inputs.test_job_restart }}" == "true" ]]; then
-          LAUNCH_ARGS+=( "--test-job-restart" )
+        if [[ "${{ inputs.run_ci_tests }}" == "true" ]]; then
+          LAUNCH_ARGS+=( "--run-ci-tests" )
         fi
 
         LAUNCH_ARGS+=(
