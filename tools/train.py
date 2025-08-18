@@ -4,6 +4,8 @@ import logging
 import multiprocessing
 import os
 import platform
+import signal
+import sys
 from logging import Logger
 
 import torch
@@ -30,6 +32,20 @@ from tools.sweep_config_utils import (
 from tools.utils import get_policy_store_from_cfg
 
 logger = logging.getLogger(__name__)
+
+
+def handle_shutdown(signal_code, frame):
+    """Handle SIGTERM/SIGINT by cleaning up and exiting."""
+    logger.info(f"Received signal {signal_code}, shutting down...")
+
+    # Clean up distributed training if initialized
+    if torch.distributed.is_initialized():
+        try:
+            torch.distributed.destroy_process_group()
+        except Exception as e:
+            logger.error(f"Error destroying process group: {e}")
+
+    sys.exit(0)
 
 
 # TODO: populate this more
@@ -185,6 +201,10 @@ def set_run_name_if_missing(cfg: DictConfig) -> None:
 @record
 def main(cfg: DictConfig) -> int:
     record_heartbeat()
+
+    # Set up signal handlers
+    signal.signal(signal.SIGTERM, handle_shutdown)
+    signal.signal(signal.SIGINT, handle_shutdown)
 
     logger.info(
         f"Training {cfg.run} on "
