@@ -13,7 +13,7 @@ import numpy as np
 from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.gym_env import MettaGridGymEnv
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
-from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig, WallConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig, GroupConfig, WallConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
@@ -142,12 +142,17 @@ def test_pettingzoo_env():
                 rotate=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=1)},
+            groups={
+                "team_1": GroupConfig(id=1),
+                "team_2": GroupConfig(id=2),
+                "team_3": GroupConfig(id=3),
+            },
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     ["#", "#", "#", "#", "#", "#", "#"],
                     ["#", ".", ".", ".", ".", ".", "#"],
-                    ["#", ".", "@", ".", "@", ".", "#"],
-                    ["#", ".", ".", "@", ".", ".", "#"],
+                    ["#", ".", "1", ".", "2", ".", "#"],
+                    ["#", ".", ".", "3", ".", ".", "#"],
                     ["#", ".", ".", ".", ".", ".", "#"],
                     ["#", "#", "#", "#", "#", "#", "#"],
                 ],
