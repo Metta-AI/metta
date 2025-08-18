@@ -91,10 +91,6 @@ releases:
     chart: ./datadog
     version: 0.1.0
     namespace: monitoring
-    hooks:
-      - events: ["presync"]
-        command: "kubectl"
-        args: ["create", "namespace", "monitoring", "--dry-run=client"]
 
   ########## Skypilot ##########
   - name: skypilot
