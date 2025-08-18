@@ -94,7 +94,7 @@ releases:
     hooks:
       - events: ["presync"]
         command: "kubectl"
-        args: ["create", "namespace", "monitoring", "--dry-run=client", "-o", "yaml", "|", "kubectl", "apply", "-f", "-"]
+        args: ["create", "namespace", "monitoring", "--dry-run=client"]
 
   ########## Skypilot ##########
   - name: skypilot
