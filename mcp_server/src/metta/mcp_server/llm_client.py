@@ -185,8 +185,8 @@ The agents are playing a multi-agent gridworld game with the following core mech
 
 **CRITICAL: ADAPT ANALYSIS BASED ON POLICY TRAINING STATUS**
 
-⚠️ **FUNDAMENTAL UNDERSTANDING**: The analysis approach depends on whether agents are trained 
-or untrained. Check the POLICY INFORMATION section in the user prompt to determine the 
+⚠️ **FUNDAMENTAL UNDERSTANDING**: The analysis approach depends on whether agents are trained
+or untrained. Check the POLICY INFORMATION section in the user prompt to determine the
 appropriate analysis framework.
 
 ### **ANALYSIS FRAMEWORK SELECTION**:
@@ -352,24 +352,43 @@ Focus on pre-trained agent strategic performance and tactical adaptation:
 5. WHAT competitive and cooperative patterns emerge between trained policies?
 
 ### ANALYSIS FORMAT: COMPREHENSIVE RESEARCH-QUALITY ANALYSIS (6000-10000 words recommended)
-**REQUIRED STRUCTURE**: Executive Summary → Timeline Pattern Analysis → Key Agent Analysis → 
+**REQUIRED STRUCTURE**: Executive Summary → Timeline Pattern Analysis → Key Agent Analysis →
 Strategic Execution Quality → Environmental Adaptation → Tactical Insights
 
 **DEPTH REQUIREMENTS**:
-- Provide detailed breakdowns of agent strategic performance with specific metrics
-- Include comprehensive numerical analysis and statistical correlations
-- Analyze strategic execution quality in depth with examples
-- Discuss environmental impact on tactical adaptation within this episode
-- Generate actionable insights for RL researchers about policy effectiveness
-- Use rich analytical language with detailed explanations and evidence
-- Identify and explain optimal execution moments and tactical failures
-- Provide comparative analysis between high and low performing agents
-- Include spatial strategy analysis and resource utilization patterns
-- Discuss tactical adaptation dynamics within the episode
+- **INTEGRATE STATISTICAL INSIGHTS**: Weave quantitative analysis throughout each section,
+  not as separate statistical sections
+- **ENVIRONMENTAL CONTEXT**: Reference resource availability, building states, and territorial
+  dynamics within every analysis section
+- Provide detailed breakdowns of agent strategic performance with specific metrics from behavioral analysis
+- Reference building efficiency data, resource scarcity indices, and spatial clustering when analyzing agent performance
+- Analyze strategic execution quality using combat interaction matrices and cooperation metrics
+- Discuss environmental resource constraints and their impact on tactical decisions within all sections
+- Use phase detection results to inform timeline analysis and strategic transition points
+- Generate actionable insights backed by statistical correlations and outlier detection
+- Include production efficiency data when discussing resource-gathering strategies
+- Reference bottleneck analysis when explaining agent cooperation and competition patterns
+- Integrate territorial analysis into movement and positioning discussions
+- Use resource flow matrices to explain supply-demand dynamics affecting agent behavior
 
 **ANALYSIS STYLE**: Emulate comprehensive academic research analysis with detailed insights,
 specific agent examples, numerical evidence, and thorough exploration of all strategic dynamics.
 Focus on ALL significant execution patterns and provide exhaustive coverage of the episode.
+
+**INTEGRATION Notes**:
+🔢 **Statistical Integration**: In major sections, maybe reference specific metrics like:
+   - Efficiency rankings and z-scores when discussing agent performance
+   - Resource scarcity indices when explaining strategic choices
+   - Correlation coefficients when describing behavioral patterns
+   - Production efficiency percentages when analyzing resource strategies
+   - Territorial clustering data when discussing positioning
+
+🌍 **Environmental Integration**: In analysis points, consider including environmental factors:
+   - Building availability and cooldown states affecting tactical decisions
+   - Resource distribution patterns influencing movement strategies
+   - Spatial clustering results explaining cooperation patterns
+   - Bottleneck locations driving competition dynamics
+   - Generator/converter efficiency creating strategic opportunities
 
 ### FORMATTING REQUIREMENTS:
 - Use emojis liberally throughout the analysis to enhance readability and engagement
@@ -382,14 +401,19 @@ Focus on ALL significant execution patterns and provide exhaustive coverage of t
 ### EXAMPLE FORMATTING STYLE (emulate this engagement and depth):
 🎯 EXECUTIVE SUMMARY
 🔍 sp.av.replay.probe.500 Analysis: Strategic Execution Assessment
-📊 Success Rate Paradox
+📊 Success Rate Paradox (Behavioral Correlation Analysis: r=-0.65)
 Counterintuitive Performance Correlation:
 📈 Higher Action Success Rates (25-35%) → Lower Final Scores
 💡 Critical Insight: High action success rates indicate conservative execution strategies...
+🏭 Environmental Context: 12 generators (83% ready), resource scarcity index 0.42 creating competitive pressure
 🏆 KEY AGENT ANALYSIS
 💎 Agent 16 (14.0 points) - Elite Strategic Executor
+   📍 Territorial control: 3 generator clusters, efficiency ranking #1 (z-score: +2.1)
+   🔥 Combat dominance: 5 successful raids (cooperation metric: 0.15)
 ⚡ Agent 6 (9.0 points) - Efficient Tactical Performer
-❌ Agents 8 & 19 (0.0 points) - Strategic Execution Failures"""
+   📈 Production efficiency: 87% conversion rate, bottleneck avoidance score: 0.91
+❌ Agents 8 & 19 (0.0 points) - Strategic Execution Failures
+   🎯 Outlier detection: movement entropy -1.8σ, resource acquisition 0.02x baseline"""
 
     def _extract_statistical_insights(self, replay_data: Dict[str, Any]) -> Dict[str, Any]:
         """Extract comprehensive statistical insights using the stats analysis system."""
@@ -1108,6 +1132,11 @@ Counterintuitive Performance Correlation:
                 "",
                 "Please analyze this replay data according to the analysis requirements and "
                 "formatting instructions provided in your system prompt.",
+                "",
+                "CRITICAL: Integrate the statistical insights and environmental context data provided above "
+                "THROUGHOUT your analysis sections - do NOT create separate statistical or environmental "
+                "sections. Reference specific metrics, building states, resource scarcity, and spatial "
+                "data within each major analysis section to support your strategic insights.",
             ]
         )
 
