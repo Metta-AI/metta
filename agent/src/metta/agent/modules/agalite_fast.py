@@ -52,11 +52,10 @@ class FastAGaLiTeLayer(nn.Module):
         nn.init.orthogonal_(self.project.weight, gain=1.0)
         nn.init.constant_(self.project.bias, 0)
     
-    @torch._dynamo.disable  # Avoid graph breaks in recurrent computation
     def forward(
         self, inputs: torch.Tensor, terminations: torch.Tensor, memory: Tuple
     ) -> Tuple[torch.Tensor, Tuple]:
-        """Optimized forward pass with compiler directives."""
+        """Optimized forward pass for large batches."""
         T, B, _ = inputs.shape
         device = inputs.device
         
@@ -141,13 +140,50 @@ class FastAGaLiTeLayer(nn.Module):
             discount_gamma = 1 - gammas_expanded
             discount_beta = 1 - beta
         
-        # Discounted sums - always use normal processing
-        # (chunking code had bugs with dimension mismatches)
-        final_keys = discounted_sum(tilde_k_prev, keys_osc, discount_gamma.unsqueeze(2))
-        # For values, need to expand discount_beta correctly
-        discount_beta_expanded = discount_beta.unsqueeze(2).expand(-1, -1, self.r, -1, -1)
-        final_values = discounted_sum(tilde_v_prev, values_osc, discount_beta_expanded)
-        final_s = discounted_sum(s_prev, s, discount_gamma)
+        # Discounted sums (the sequential part)
+        # Disable chunking due to dimension issues - always use normal processing
+        if False:  # B > 1024:
+            # Split batch for better memory usage
+            chunk_size = 512
+            final_keys_chunks = []
+            final_values_chunks = []
+            final_s_chunks = []
+            
+            for i in range(0, B, chunk_size):
+                end_i = min(i + chunk_size, B)
+                chunk_slice = slice(i, end_i)
+                
+                fk = discounted_sum(
+                    tilde_k_prev[:, chunk_slice] if tilde_k_prev.ndim > 1 else tilde_k_prev,
+                    keys_osc[:, chunk_slice],
+                    discount_gamma[:, chunk_slice].unsqueeze(2)
+                )
+                final_keys_chunks.append(fk)
+                
+                fv = discounted_sum(
+                    tilde_v_prev[:, chunk_slice] if tilde_v_prev.ndim > 1 else tilde_v_prev,
+                    values_osc[:, chunk_slice],
+                    discount_beta[:, chunk_slice].unsqueeze(2).unsqueeze(3)
+                )
+                final_values_chunks.append(fv)
+                
+                fs = discounted_sum(
+                    s_prev[:, chunk_slice] if s_prev.ndim > 1 else s_prev,
+                    s[:, chunk_slice],
+                    discount_gamma[:, chunk_slice]
+                )
+                final_s_chunks.append(fs)
+            
+            final_keys = torch.cat(final_keys_chunks, dim=1)
+            final_values = torch.cat(final_values_chunks, dim=1)
+            final_s = torch.cat(final_s_chunks, dim=1)
+        else:
+            # Normal processing
+            final_keys = discounted_sum(tilde_k_prev, keys_osc, discount_gamma.unsqueeze(2))
+            # For values, expand discount_beta to match values_osc shape
+            discount_beta_expanded = discount_beta.unsqueeze(2).expand(-1, -1, self.r, -1, -1)
+            final_values = discounted_sum(tilde_v_prev, values_osc, discount_beta_expanded)
+            final_s = discounted_sum(s_prev, s, discount_gamma)
         
         # Attention computation (optimized)
         # Use batched operations instead of einsum
@@ -161,16 +197,12 @@ class FastAGaLiTeLayer(nn.Module):
         final_values_reshaped = final_values.reshape(T, B, self.r, self.head_num, self.head_dim)
         kv = (final_values_reshaped * attn_scores.unsqueeze(-1).unsqueeze(-1)).sum(dim=2)
         
-        # Normalization with stability fix
+        # Normalization
         norm = (final_s * queries_expanded).sum(dim=-1, keepdim=True)
-        # Clamp norm to prevent division issues (this was the fix that worked)
-        norm = torch.clamp(norm.abs(), min=self.eps)
-        attn_out = kv / (2 * self.r * norm)
+        attn_out = kv / (2 * self.r * norm + self.eps)
         
-        # Output projection with safety clamp
+        # Output projection
         attn_out = attn_out.reshape(T, B, self.head_num * self.head_dim)
-        # Prevent extreme values that could cause NaN/Inf in downstream operations
-        attn_out = torch.clamp(attn_out, min=-10, max=10)
         attn_out = self.dropout(self.project(attn_out))
         
         # Update memory
