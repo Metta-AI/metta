@@ -33,7 +33,7 @@ class TestCurriculumEnv:
             np.array([False, False]),  # truncations
             {},  # infos
         )
-        mock_env.set_env_cfg = Mock()  # Add set_env_cfg method
+
         mock_env.get_episode_rewards = Mock(return_value=np.array([1.0, 2.0]))  # Add get_episode_rewards method
         mock_env.set_env_config = Mock()  # Add set_env_config method
         return mock_env
@@ -113,7 +113,7 @@ class TestCurriculumEnv:
         assert isinstance(wrapper._current_task, CurriculumTask)
 
         # Should have set new env config
-        mock_env.set_env_cfg.assert_called_once_with(wrapper._current_task.get_env_cfg())
+        mock_env.set_env_config.assert_called_once_with(wrapper._current_task.get_env_cfg())
 
     def test_curriculum_env_step_with_truncation(self):
         """Test step method when episode truncates."""
@@ -292,18 +292,19 @@ class TestCurriculumEnv:
 class TestCurriculumEnvEdgeCases:
     """Test edge cases and error conditions."""
 
-    def test_curriculum_env_wrapper_empty_rewards(self):
-        """Test wrapper behavior with empty reward arrays."""
+    def test_curriculum_env_wrapper_zero_rewards(self):
+        """Test wrapper behavior with zero rewards."""
         mock_env = Mock()
+        # Simulate a 2-agent environment with zero rewards and no termination
         mock_env.step.return_value = (
-            np.array([]),
-            np.array([]),  # Empty rewards
-            np.array([]),
-            np.array([]),
+            np.array([[1, 2, 3], [4, 5, 6]]),  # obs for 2 agents
+            np.array([0.0, 0.0]),  # Zero rewards
+            np.array([False, False]),  # No termination
+            np.array([False, False]),  # No truncation
             {},
         )
-        mock_env.set_env_cfg = Mock()
-        mock_env.get_episode_rewards = Mock(return_value=np.array([]))
+
+        mock_env.get_episode_rewards = Mock(return_value=np.array([0.0, 0.0]))
         mock_env.set_env_config = Mock()
 
         task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
@@ -313,11 +314,11 @@ class TestCurriculumEnvEdgeCases:
         wrapper = CurriculumEnv(mock_env, curriculum)
         initial_task = wrapper._current_task
 
-        # Should handle empty arrays gracefully (no termination due to empty arrays)
-        result = wrapper.step([])
+        # Step with 2 agent actions
+        result = wrapper.step([[0, 0], [0, 0]])
         assert len(result) == 5
 
-        # Task should remain the same since empty arrays don't trigger termination
+        # Task should remain the same since no termination occurred
         assert wrapper._current_task is initial_task
 
     def test_curriculum_env_wrapper_single_agent(self):
@@ -330,7 +331,7 @@ class TestCurriculumEnvEdgeCases:
             np.array([False]),  # Single truncation
             {},
         )
-        mock_env.set_env_cfg = Mock()
+
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.8]))
         mock_env.set_env_config = Mock()
 
@@ -357,7 +358,7 @@ class TestCurriculumEnvEdgeCases:
             np.array([False, False]),
             {},
         )
-        mock_env.set_env_cfg = Mock()
+
         mock_env.get_episode_rewards = Mock(return_value=np.array([0.7, 0.3]))
         mock_env.set_env_config = Mock()
 

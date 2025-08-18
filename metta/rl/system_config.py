@@ -29,12 +29,18 @@ def guess_vectorization() -> Literal["serial", "multiprocessing"]:
     return "multiprocessing"
 
 
+def guess_data_dir() -> str:
+    if os.environ.get("DATA_DIR"):
+        return os.environ["DATA_DIR"]  # type: ignore
+    return "./train_dir"
+
+
 class SystemConfig(Config):
     vectorization: Literal["serial", "multiprocessing"] = Field(default_factory=guess_vectorization)
     seed: int = Field(default_factory=lambda: np.random.randint(0, 1000000))
     torch_deterministic: bool = Field(default=True)
     device: str = Field(default_factory=guess_device)
-    data_dir: str = Field(default="./train_dir")
+    data_dir: str = Field(default_factory=guess_data_dir)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
