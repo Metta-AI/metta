@@ -7,3 +7,35 @@ name: autocurricula
 simulations:
   autocurricula/big_agent_box_playing_grid:
       env: env/mettagrid/autocurricula/evals/big_agent_box_playing_grid
+  autocurricula/boxout:
+    env: env/mettagrid/autocurricula/evals/boxout
+  autocurricula/choose_wisely:
+    env: env/mettagrid/autocurricula/evals/choose_wisely
+  autocurricula/corners:
+    env: env/mettagrid/autocurricula/evals/corners
+  autocurricula/hall_of_mirrors:
+    env: env/mettagrid/autocurricula/evals/hall_of_mirrors
+  autocurricula/journey_home:
+    env: env/mettagrid/autocurricula/evals/journey_home
+  autocurricula/little_landmark_hard:
+    env: env/mettagrid/autocurricula/evals/little_landmark_hard
+  autocurricula/lobster_legs_cues:
+    env: env/mettagrid/autocurricula/evals/lobster_legs_cues
+  autocurricula/lobster_legs:
+    env: env/mettagrid/autocurricula/evals/lobster_legs
+  autocurricula/memory_swirls_hard:
+    env: env/mettagrid/autocurricula/evals/memory_swirls_hard
+  autocurricula/memory_swirls:
+    env: env/mettagrid/autocurricula/evals/memory_swirls
+  autocurricula/passing_things:
+    env: env/mettagrid/autocurricula/evals/passing_things
+  autocurricula/rooms:
+    env: env/mettagrid/autocurricula/evals/rooms
+  autocurricula/spacey_memory:
+    env: env/mettagrid/autocurricula/evals/spacey_memory
+  autocurricula/tease:
+    env: env/mettagrid/autocurricula/evals/tease
+  autocurricula/venture_out:
+    env: env/mettagrid/autocurricula/evals/venture_out
+  autocurricula/you_shall_not_pass:
+    env: env/mettagrid/autocurricula/evals/you_shall_not_pass
