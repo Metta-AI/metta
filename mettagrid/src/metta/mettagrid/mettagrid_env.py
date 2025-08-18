@@ -16,7 +16,6 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple, cast
 
 import numpy as np
 import torch
-from gymnasium import spaces
 from omegaconf import OmegaConf
 from pydantic import validate_call
 from typing_extensions import override
@@ -103,20 +102,65 @@ class MettaGridEnv(MettaGridPufferBase):
         """Generate unique episode ID."""
         return str(uuid.uuid4())
 
-    def _reset_trial(self) -> None:
-        """Reset the environment for a new trial within the same episode."""
-        # Get new task from curriculum (for new trial)
+    def _get_game_config_for_new_task(self) -> Dict[str, Any]:
+        """Fetch a new task from the curriculum, sync level and labels, and return game config dict."""
         self._task = self._curriculum.get_task()
         task_cfg = self._task.env_cfg()
         game_config_dict = cast(Dict[str, Any], OmegaConf.to_container(task_cfg.game))
         assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
-
         # Sync level with task config
         self._level = task_cfg.game.map_builder.build()
         self._map_labels = self._level.labels
+        return game_config_dict
 
-        # Create new C++ environment for new trial
-        self._c_env_instance = self._create_c_env(game_config_dict, self._current_seed)
+    def _bind_shared_buffers(self) -> None:
+        """Bind shared buffers to the C++ environment if available (required for performance)."""
+        if hasattr(self, "observations") and self._c_env_instance:
+            self._c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
+
+    def _create_and_bind_c_env(self, game_config_dict: Dict[str, Any], seed: Optional[int]) -> MettaGridCpp:
+        """Create a C++ env and immediately bind shared buffers."""
+        self._c_env_instance = self._create_c_env(game_config_dict, seed)
+        self._bind_shared_buffers()
+        return self._c_env_instance
+
+    def _resolve_dual_policy_groups(self, ensure_each: bool) -> list[list[int]]:
+        """Resolve or synthesize dual-policy agent groups.
+
+        If grid-provided groups are missing or incomplete, generate NPC-first and trained-second groups.
+        When ensure_each is True, guarantee at least one agent in each group (if possible).
+        """
+        # Prefer groups from grid objects
+        agent_groups = self._get_agent_groups()
+        if agent_groups and len(agent_groups) >= 2:
+            self._dual_policy_agent_groups = agent_groups
+            return agent_groups
+
+        # Fall back to cached or synthesized groups
+        if hasattr(self, "_dual_policy_agent_groups") and self._dual_policy_agent_groups:
+            return self._dual_policy_agent_groups
+
+        if self._c_env_instance is None:
+            return []
+
+        num_agents = self._c_env_instance.num_agents
+        num_trained = int(round(num_agents * self._dual_policy_training_agents_pct))
+        if ensure_each:
+            num_trained = max(1, min(num_agents - 1, num_trained))
+        else:
+            num_trained = max(0, min(num_agents, num_trained))
+
+        trained_ids = list(range(num_trained))
+        npc_ids = list(range(num_trained, num_agents))
+        agent_groups = [npc_ids, trained_ids]
+        self._dual_policy_agent_groups = agent_groups
+        return agent_groups
+
+    def _reset_trial(self) -> None:
+        """Reset the environment for a new trial within the same episode."""
+        # Get new task and create new C++ environment for new trial
+        game_config_dict = self._get_game_config_for_new_task()
+        self._create_and_bind_c_env(game_config_dict, self._current_seed)
 
         # Reset counters for new trial
         self._steps = 0
@@ -124,11 +168,6 @@ class MettaGridEnv(MettaGridPufferBase):
         # Set up new trial tracking
         self._trial_id = self._make_episode_id()
         self._reset_at = datetime.datetime.now()
-
-        # CRITICAL: Set buffers once after C++ env creation, before any operations
-        # This establishes shared memory for high-performance training (400k+ SPS)
-        if hasattr(self, "observations") and self._c_env_instance:
-            self._c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
         # Start replay recording for new trial if enabled
         if self._replay_writer and self._trial_id:
@@ -153,24 +192,12 @@ class MettaGridEnv(MettaGridPufferBase):
         """
         self.timer.stop("thread_idle")
 
-        # Get new task from curriculum
-        self._task = self._curriculum.get_task()
-        task_cfg = self._task.env_cfg()
-        game_config_dict = cast(Dict[str, Any], OmegaConf.to_container(task_cfg.game))
-        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
-
-        # Sync level with task config
-        self._level = task_cfg.game.map_builder.build()
-        self._map_labels = self._level.labels
+        # Get new task and synced level
+        game_config_dict = self._get_game_config_for_new_task()
 
         # Recreate C++ environment for new task (after first reset)
         if self._resets > 0:
-            self._c_env_instance = self._create_c_env(game_config_dict, seed)
-
-            # CRITICAL: Set buffers once after C++ env recreation
-            # This establishes shared memory for high-performance training (400k+ SPS)
-            if hasattr(self, "observations") and self._c_env_instance:
-                self._c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
+            self._create_and_bind_c_env(game_config_dict, seed)
 
         # Reset counters
         self._steps = 0
@@ -191,12 +218,7 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # Create initial C++ environment if this is the first reset
         if self._resets == 1:
-            self._c_env_instance = self._create_c_env(game_config_dict, seed)
-
-            # CRITICAL: Set buffers once after C++ env creation, before any operations
-            # This establishes shared memory for high-performance training (400k+ SPS)
-            if hasattr(self, "observations") and self._c_env_instance:
-                self._c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
+            self._create_and_bind_c_env(game_config_dict, seed)
 
         # Get initial observations from core environment
         if self._c_env_instance is None:
@@ -205,16 +227,12 @@ class MettaGridEnv(MettaGridPufferBase):
 
         # If dual-policy is enabled and no core groups are defined, synthesize groups per-env
         if self._dual_policy_enabled and not self._get_agent_groups():
-            num_agents = self._c_env_instance.num_agents
-            num_trained = int(round(num_agents * self._dual_policy_training_agents_pct))
-            num_trained = max(0, min(num_agents, num_trained))
-            trained_ids = list(range(num_trained))
-            npc_ids = list(range(num_trained, num_agents))
-            # First group is NPC in logging; keep consistency with logging block
-            self._dual_policy_agent_groups = [npc_ids, trained_ids]
-            logger.debug(
-                f"Dual policy groups set in reset: NPC={len(npc_ids)} agents, Trained={len(trained_ids)} agents"
-            )
+            agent_groups = self._resolve_dual_policy_groups(ensure_each=False)
+            if len(agent_groups) >= 2:
+                npc_ids, trained_ids = agent_groups[0], agent_groups[1]
+                logger.debug(
+                    f"Dual policy groups set in reset: NPC={len(npc_ids)} agents, Trained={len(trained_ids)} agents"
+                )
 
         self.timer.start("thread_idle")
         return observations, info
@@ -225,22 +243,8 @@ class MettaGridEnv(MettaGridPufferBase):
         if not self._dual_policy_enabled or self._c_env_instance is None:
             return stats
 
-        # Get agent groups - try multiple sources
-        agent_groups = self._get_agent_groups()
-
-        # If no groups from grid objects, use or generate agent groups
-        if not agent_groups or len(agent_groups) < 2:
-            if hasattr(self, "_dual_policy_agent_groups") and self._dual_policy_agent_groups:
-                agent_groups = self._dual_policy_agent_groups
-            else:
-                # Auto-generate groups for subprocess environments
-                num_agents = self._c_env_instance.num_agents
-                num_trained = int(round(num_agents * self._dual_policy_training_agents_pct))
-                num_trained = max(1, min(num_agents - 1, num_trained))  # Ensure at least 1 of each
-                trained_ids = list(range(num_trained))
-                npc_ids = list(range(num_trained, num_agents))
-                agent_groups = [npc_ids, trained_ids]  # NPC first, trained second
-                self._dual_policy_agent_groups = agent_groups
+        # Resolve or synthesize agent groups
+        agent_groups = self._resolve_dual_policy_groups(ensure_each=True)
 
         if len(agent_groups) >= 2:
             npc_group = agent_groups[0]
@@ -255,7 +259,7 @@ class MettaGridEnv(MettaGridPufferBase):
                     step_rewards = step_rewards / max(1, self._steps)
             except Exception as e:
                 # If we can't get rewards, just return empty stats
-                print(f"[MettaGridEnv] Warning: Could not get rewards for dual policy stats: {e}")
+                logger.warning(f"[MettaGridEnv] Could not get rewards for dual policy stats: {e}")
                 return stats
 
             if step_rewards is not None and len(step_rewards) > 0:
@@ -383,23 +387,8 @@ class MettaGridEnv(MettaGridPufferBase):
             infos["agent"][n] = v / self._c_env_instance.num_agents
 
         # Add dual-policy specific logging if enabled
-        if hasattr(self, "_dual_policy_enabled") and self._dual_policy_enabled:
-            # Get agent groups - try multiple sources
-            agent_groups = self._get_agent_groups()
-
-            # If no groups from grid objects, use or generate agent groups
-            if not agent_groups or len(agent_groups) < 2:
-                if hasattr(self, "_dual_policy_agent_groups") and self._dual_policy_agent_groups:
-                    agent_groups = self._dual_policy_agent_groups
-                else:
-                    # Auto-generate groups for subprocess environments
-                    num_agents = self._c_env_instance.num_agents
-                    num_trained = int(round(num_agents * self._dual_policy_training_agents_pct))
-                    num_trained = max(1, min(num_agents - 1, num_trained))  # Ensure at least 1 of each
-                    trained_ids = list(range(num_trained))
-                    npc_ids = list(range(num_trained, num_agents))
-                    agent_groups = [npc_ids, trained_ids]  # NPC first, trained second
-                    self._dual_policy_agent_groups = agent_groups
+        if self._dual_policy_enabled:
+            agent_groups = self._resolve_dual_policy_groups(ensure_each=True)
 
             if len(agent_groups) >= 2:
                 npc_group = agent_groups[0]  # First group is NPC
@@ -566,144 +555,9 @@ class MettaGridEnv(MettaGridPufferBase):
             "frac/thread_idle": thread_idle_time / wall_time,
         }
 
-    # PufferLib compatibility properties for training
-    @property
-    def single_observation_space(self) -> spaces.Box:
-        """
-        Return the observation space for a single agent.
-        Returns:
-            Box: A Box space with shape depending on whether observation tokens are used.
-                If using tokens: (num_agents, num_observation_tokens, 3)
-                Otherwise: (obs_height, obs_width, num_grid_features)
-        """
-        return self._observation_space
+    # PufferLib compatibility properties provided by base class (no overrides here)
 
-    @property
-    def single_action_space(self) -> spaces.MultiDiscrete:
-        """
-        Return the action space for a single agent.
-        Returns:
-            MultiDiscrete: A MultiDiscrete space with shape (num_actions, max_action_arg + 1)
-        """
-        return self._action_space
-
-    # obs_width and obs_height correspond to the view window size, and should indicate the grid from which
-    # tokens are being computed.
-    @property
-    def obs_width(self):
-        return self.c_env.obs_width
-
-    @property
-    def obs_height(self):
-        return self.c_env.obs_height
-
-    @property
-    def action_names(self) -> list[str]:
-        return self.c_env.action_names()
-
-    @property
-    def num_agents(self) -> int:
-        return self.c_env.num_agents
-
-    def render(self) -> str | None:
-        # Use the configured renderer if available
-        if self._renderer is not None and hasattr(self._renderer, "render"):
-            return self._renderer.render(self.c_env.current_step, self.c_env.grid_objects())
-
-        return None
-
-    @property
-    @override
-    def done(self):
-        return self._should_reset
-
-    @property
-    def feature_normalizations(self) -> dict[int, float]:
-        # Extract normalizations from feature_spec
-        feature_spec = self.c_env.feature_spec()
-        normalizations = {}
-        for _feature_name, feature_info in feature_spec.items():
-            if "normalization" in feature_info:
-                feature_id = feature_info.get("id", 0)
-                normalizations[feature_id] = feature_info["normalization"]
-        return normalizations
-
-    def get_observation_features(self) -> dict[str, dict]:
-        """
-        Build the features dictionary for initialize_to_environment.
-
-        Returns:
-            Dictionary mapping feature names to their properties
-        """
-        # Get feature spec from C++ environment
-        feature_spec = self.c_env.feature_spec()
-
-        features = {}
-        for feature_name, feature_info in feature_spec.items():
-            feature_dict = {"id": feature_info["id"]}
-
-            # Add normalization if present
-            if "normalization" in feature_info:
-                feature_dict["normalization"] = feature_info["normalization"]
-
-            features[feature_name] = feature_dict
-
-        return features
-
-    @property
-    @override
-    def render_mode(self):
-        return self._render_mode
-
-    @property
-    def map_width(self) -> int:
-        return self.c_env.map_width
-
-    @property
-    def map_height(self) -> int:
-        return self.c_env.map_height
-
-    @property
-    def grid_objects(self) -> dict[int, dict[str, Any]]:
-        """
-        Get information about all grid objects that are present in our map.
-
-        It is important to keep in mind the difference between grid_objects, which are things
-        like "walls" or "agents", and grid_features which is the encoded representation of all possible
-        observations of grid_objects that is provided to the policy.
-
-        Returns:
-            A dictionary mapping object IDs to their properties.
-        """
-        return self.c_env.grid_objects()
-
-    @property
-    def max_action_args(self) -> list[int]:
-        """
-        Get the maximum argument variant for each action type.
-        Returns:
-            List of integers representing max parameters for each action type
-        """
-        action_args_array = self.c_env.max_action_args()
-        return [int(x) for x in action_args_array]
-
-    @property
-    def action_success(self) -> list[bool]:
-        action_success_array = self.c_env.action_success()
-        return [bool(x) for x in action_success_array]
-
-    @property
-    def object_type_names(self) -> list[str]:
-        return self.c_env.object_type_names()
-
-    @property
-    def inventory_item_names(self) -> list[str]:
-        return self.c_env.inventory_item_names()
-
-    @property
-    def initial_grid_hash(self) -> int:
-        """Returns the hash of the initial grid configuration."""
-        return self.c_env.initial_grid_hash
+    # Use base class properties for observation/action spaces, dimensions, names, and feature metadata
 
     def _get_agent_groups(self) -> list[list[int]]:
         """Get agent groups for dual-policy logging.
@@ -761,6 +615,4 @@ class MettaGridEnv(MettaGridPufferBase):
                     hearts.append(0)
             return np.array(hearts)
 
-    def emulated(self) -> bool:
-        """Native envs do not use emulation (PufferLib compatibility)."""
-        return False
+    # Base class already defines `emulated` property
