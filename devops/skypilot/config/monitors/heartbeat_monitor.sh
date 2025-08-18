@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Required environment variables
+: "${CMD_PID:?Missing CMD_PID}"
+: "${WRAPPER_PID:?Missing WRAPPER_PID}"
+: "${HEARTBEAT_FILE:?Missing HEARTBEAT_FILE}"
+: "${HEARTBEAT_TIMEOUT:?Missing HEARTBEAT_TIMEOUT}"
+: "${HEARTBEAT_CHECK_INTERVAL:?Missing HEARTBEAT_CHECK_INTERVAL}"
+: "${TERMINATION_REASON_FILE:?Missing TERMINATION_REASON_FILE}"
+: "${START_TIME:?Missing START_TIME}"
+
+echo "[INFO] Heartbeat monitor started - timeout: ${HEARTBEAT_TIMEOUT}s, file: ${HEARTBEAT_FILE}"
+echo "[INFO] Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
+
+LAST_HEARTBEAT_TIME=$(date +%s)
+HEARTBEAT_COUNT=0
+
+while kill -0 "$CMD_PID" 2>/dev/null; do
+  CURRENT_TIME=$(date +%s)
+
+  if [ -f "$HEARTBEAT_FILE" ]; then
+    CURRENT_MTIME=$(stat -c %Y "$HEARTBEAT_FILE" 2>/dev/null || stat -f %m "$HEARTBEAT_FILE" 2>/dev/null || echo 0)
+
+    if [ "$CURRENT_MTIME" -gt "$LAST_HEARTBEAT_TIME" ]; then
+      HEARTBEAT_COUNT=$((HEARTBEAT_COUNT + 1))
+      LAST_HEARTBEAT_TIME=$CURRENT_MTIME
+
+      # Print status occasionally
+      if [ $((HEARTBEAT_COUNT % 10)) -eq 0 ]; then
+        echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
+      fi
+    fi
+
+    # Check if timeout exceeded
+    if [ $((CURRENT_TIME - LAST_HEARTBEAT_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
+      echo "[ERROR] Heartbeat timeout! No heartbeat for $HEARTBEAT_TIMEOUT seconds"
+      echo "heartbeat_timeout" > "$TERMINATION_REASON_FILE"
+      kill -TERM "${WRAPPER_PID}" 2>/dev/null || true
+      break
+    fi
+  else
+    # If the heartbeat file never appeared, enforce timeout from start
+    if [ $((CURRENT_TIME - START_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
+      echo "[ERROR] Heartbeat timeout! Heartbeat file never appeared in $HEARTBEAT_TIMEOUT seconds"
+      echo "heartbeat_timeout" > "$TERMINATION_REASON_FILE"
+      kill -TERM "${WRAPPER_PID}" 2>/dev/null || true
+      break
+    fi
+  fi
+
+  sleep "$HEARTBEAT_CHECK_INTERVAL"
+done
+
+echo "[INFO] Heartbeat monitor exiting"

@@ -52,6 +52,13 @@ class AsyncStatsClient(BaseAppBackendClient):
             TrainingRunResponse, "POST", "/stats/training-runs", json=data.model_dump(mode="json")
         )
 
+    async def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        headers = remove_none_values({"X-Auth-Token": self._machine_token})
+        response = await self._http_client.request(
+            "PATCH", f"/stats/training-runs/{run_id}/status", headers=headers, json={"status": status}
+        )
+        response.raise_for_status()
+
     async def create_epoch(
         self,
         run_id: uuid.UUID,
@@ -177,6 +184,13 @@ class StatsClient:
         return self._make_sync_request(
             TrainingRunResponse, "POST", "/stats/training-runs", json=data.model_dump(mode="json")
         )
+
+    def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        headers = remove_none_values({"X-Auth-Token": self._machine_token})
+        response = self._http_client.request(
+            "PATCH", f"/stats/training-runs/{run_id}/status", headers=headers, json={"status": status}
+        )
+        response.raise_for_status()
 
     def create_epoch(
         self,
