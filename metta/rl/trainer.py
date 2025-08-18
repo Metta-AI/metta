@@ -280,9 +280,9 @@ def train(
         device=device,
     )
     policy_store = get_policy_store_from_cfg(train_job_config, wandb_run)
-    policy_store.agent_factory = lambda: get_policy_record(
+    policy_store.agent_factory = lambda path: get_policy_record(
         policy_store,
-        initial_policy_path,
+        path,
         False,
         initializer,
         metta_grid_env,

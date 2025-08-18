@@ -42,7 +42,7 @@ class PolicyLoader:
         wandb_project: str | None = None,
         pytorch_cfg: DictConfig | None = None,
         policy_cache_size: int = 10,
-        agent_factory: Callable[[], PolicyRecord] | None = None,
+        agent_factory: Callable[[str], PolicyRecord] | None = None,
     ) -> None:
         self._device = device or "cpu"
         self._data_dir = data_dir or "./train_dir"
@@ -276,7 +276,7 @@ class PolicyLoader:
         if self.agent_factory is None:
             raise ValueError("agent_factory must be set to load safetensors files")
 
-        pr = self.agent_factory()
+        pr = self.agent_factory(path)
         policy_metadata_yaml_helper.restore_agent(pr.policy, self.checkpoint_name(path), Path(self.base_path(path)))
 
         if self._cached_prs:
