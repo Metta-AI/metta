@@ -537,3 +537,77 @@ def test_configurable_reward_target_ranges():
         task1 = generator.get_task(42)
         task2 = generator.get_task(42)
         assert task1.reward_target == task2.reward_target
+
+
+def test_curriculum_env_info_merging():
+    """Test that CurriculumEnv merges task_scaled_performance into existing infos without overwriting other keys."""
+    import copy
+
+    # Create a mock environment
+    mock_env = Mock()
+    # Existing infos with other keys and a pre-existing task_scaled_performance dict
+    existing_infos = {"episode": {"r": 5.0}, "task_scaled_performance": {99: 0.9}}
+    mock_env.step.return_value = (
+        np.array([[1.0, 2.0, 3.0]]),  # observations
+        np.array([5.0]),  # rewards
+        np.array([True]),  # terminals
+        np.array([False]),  # truncations
+        copy.deepcopy(existing_infos),
+    )
+
+    # Create a mock curriculum that returns a task with toggle enabled
+    mock_curriculum = Mock()
+    mock_task = Mock()
+    mock_task._task_id = 42
+    mock_task.get_env_cfg.return_value = EnvConfig(enable_task_perf_target=True, reward_target=10.0)
+    mock_curriculum.get_task.return_value = mock_task
+
+    # Create CurriculumEnv
+    curriculum_env = CurriculumEnv(mock_env, mock_curriculum)
+
+    # Take a step
+    observations, rewards, terminals, truncations, infos = curriculum_env.step([0])
+
+    # Check that both the old and new task_scaled_performance entries exist
+    assert "task_scaled_performance" in infos
+    assert 99 in infos["task_scaled_performance"]
+    assert 42 in infos["task_scaled_performance"]
+    assert infos["task_scaled_performance"][42] == 0.5  # 5.0 / 10.0 = 0.5
+    assert infos["task_scaled_performance"][99] == 0.9
+    # Other keys should be preserved
+    assert "episode" in infos and infos["episode"]["r"] == 5.0
+
+
+def test_curriculum_env_float_precision():
+    """Test float precision edge cases for task_scaled_performance calculation."""
+    mock_env = Mock()
+    # Use rewards and targets that are very close, and very small/large
+    test_cases = [
+        (np.array([1e-8]), 1e-8, 1.0),
+        (np.array([1e-8]), 2e-8, 0.5),
+        (np.array([1e8]), 1e8, 1.0),
+        (np.array([1e8]), 2e8, 0.5),
+        (np.array([0.9999999]), 1.0, 0.9999999),
+        (np.array([1.0000001]), 1.0, 1.0),  # Should cap at 1.0
+    ]
+    for reward_arr, target, expected in test_cases:
+        mock_env.step.return_value = (
+            np.array([[0.0]]),  # obs
+            reward_arr,
+            np.array([True]),  # terminals
+            np.array([False]),  # truncations
+            {},
+        )
+        mock_env.set_env_cfg = Mock()
+        mock_curriculum = Mock()
+        mock_task = Mock()
+        mock_task._task_id = 42
+        mock_task.get_env_cfg.return_value = EnvConfig(enable_task_perf_target=True, reward_target=target)
+        mock_curriculum.get_task.return_value = mock_task
+        curriculum_env = CurriculumEnv(mock_env, mock_curriculum)
+        observations, rewards, terminals, truncations, infos = curriculum_env.step([0])
+        assert "task_scaled_performance" in infos
+        actual = infos["task_scaled_performance"][42]
+        assert abs(actual - expected) < 1e-6, (
+            f"Expected {expected}, got {actual} for reward={reward_arr[0]}, target={target}"
+        )
