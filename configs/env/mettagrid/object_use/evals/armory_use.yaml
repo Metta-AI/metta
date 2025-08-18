@@ -7,8 +7,9 @@ game:
   max_steps: 100
   agent:
     rewards:
-      armor: 1
-      ore_red: 0
+      inventory:
+        armor: 1
+        ore_red: 0
   objects:
     mine_red:
       initial_resource_count: 3

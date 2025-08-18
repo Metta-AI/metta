@@ -7,7 +7,8 @@ game:
   max_steps: 45
   agent:
     rewards:
-      heart: 0.333
+      inventory:
+        heart: 0.333
   map_builder:
     _target_: metta.map.mapgen.MapGen
 
@@ -15,8 +16,8 @@ game:
     instances: 2
     instance_border_width: 1
 
-    root:
-      type: metta.map.scenes.ascii.Ascii
+    instance_map:
+      type: metta.map.mapgen_ascii.MapGenAscii
       params:
         uri: "configs/env/mettagrid/maps/memory_training/easy.map"
 

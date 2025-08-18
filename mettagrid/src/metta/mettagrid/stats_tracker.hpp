@@ -53,13 +53,22 @@ private:
   // Test class needs access for testing
   friend class StatsTrackerTest;
 
-public:
-  inline static const std::string NO_ENV_INVENTORY_ITEM_NAME = "[unknown -- stats tracker not initialized]";
+  // Use a static function to avoid global destructor
+  static const std::string& get_no_env_inventory_item_name() {
+    static const std::string name = "[unknown -- stats tracker not initialized]";
+    return name;
+  }
 
-  StatsTracker() : _env(nullptr) {}
+public:
+  StatsTracker()
+      : _stats(), _first_seen_at(), _last_seen_at(), _min_value(), _max_value(), _update_count(), _env(nullptr) {}
 
   void set_environment(MettaGrid* env) {
     _env = env;
+  }
+
+  MettaGrid* get_env() const {
+    return _env;
   }
 
   const std::string& inventory_item_name(InventoryItem item) const;
@@ -81,6 +90,10 @@ public:
     track_bounds(key, value);
   }
 
+  float get(const std::string& key) {
+    return _stats[key];
+  }
+
   // Calculate rate (updates per step)
   float rate(const std::string& key) const {
     if (!_env) return 0.0f;
@@ -89,7 +102,7 @@ public:
     if (it == _update_count.end()) return 0.0f;
 
     unsigned int steps = get_current_step();
-    return (steps > 0) ? static_cast<float>(it->second) / steps : 0.0f;
+    return (steps > 0) ? static_cast<float>(it->second) / static_cast<float>(steps) : 0.0f;
   }
 
   // Convert to map for Python API (all values as floats)
@@ -101,39 +114,39 @@ public:
       result[key] = value;
     }
 
-    // Add timing metadata and calculated stats
-    for (const auto& [key, step] : _first_seen_at) {
-      result[key + ".first_step"] = static_cast<float>(step);
-    }
+    // // Add timing metadata and calculated stats
+    // for (const auto& [key, step] : _first_seen_at) {
+    //   result[key + ".first_step"] = static_cast<float>(step);
+    // }
 
-    for (const auto& [key, step] : _last_seen_at) {
-      result[key + ".last_step"] = static_cast<float>(step);
-    }
+    // for (const auto& [key, step] : _last_seen_at) {
+    //   result[key + ".last_step"] = static_cast<float>(step);
+    // }
 
-    for (const auto& [key, count] : _update_count) {
-      result[key + ".updates"] = static_cast<float>(count);
-      result[key + ".rate"] = rate(key);
-      result[key + ".avg"] = result[key] / count;
+    // for (const auto& [key, count] : _update_count) {
+    //   result[key + ".updates"] = static_cast<float>(count);
+    //   result[key + ".rate"] = rate(key);
+    //   result[key + ".avg"] = result[key] / count;
 
-      // Also calculate activity rate if there's a time span
-      auto first_it = _first_seen_at.find(key);
-      auto last_it = _last_seen_at.find(key);
-      if (first_it != _first_seen_at.end() && last_it != _last_seen_at.end()) {
-        int duration = last_it->second - first_it->second;
-        if (duration > 0 && count > 1) {
-          result[key + ".activity_rate"] = static_cast<float>(count - 1) / static_cast<float>(duration);
-        }
-      }
-    }
+    //   // Also calculate activity rate if there's a time span
+    //   auto first_it = _first_seen_at.find(key);
+    //   auto last_it = _last_seen_at.find(key);
+    //   if (first_it != _first_seen_at.end() && last_it != _last_seen_at.end()) {
+    //     int duration = static_cast<int>(last_it->second) - static_cast<int>(first_it->second);
+    //     if (duration > 0 && count > 1) {
+    //       result[key + ".activity_rate"] = static_cast<float>(count - 1) / static_cast<float>(duration);
+    //     }
+    //   }
+    // }
 
-    // Add min/max values
-    for (const auto& [key, min_val] : _min_value) {
-      result[key + ".min"] = min_val;
-    }
+    // // Add min/max values
+    // for (const auto& [key, min_val] : _min_value) {
+    //   result[key + ".min"] = min_val;
+    // }
 
-    for (const auto& [key, max_val] : _max_value) {
-      result[key + ".max"] = max_val;
-    }
+    // for (const auto& [key, max_val] : _max_value) {
+    //   result[key + ".max"] = max_val;
+    // }
 
     return result;
   }

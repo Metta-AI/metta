@@ -22,8 +22,6 @@ class MultiTaskCurriculum(Curriculum):
                 )
         self._completion_moving_avg_window = completion_moving_avg_window
         self._completed_tasks = []
-        for task_id in self._curricula:
-            logger.info(f"Curriculum Task: {task_id}")
 
     def complete_task(self, id: str, score: float):
         if len(self._completed_tasks) > self._completion_moving_avg_window:

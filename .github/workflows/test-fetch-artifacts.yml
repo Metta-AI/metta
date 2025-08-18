@@ -1,11 +1,11 @@
-name: 'Test Fetch Artifacts'
+name: "Test Fetch Artifacts"
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - '.github/actions/fetch-artifacts/**'
-      - '.github/workflows/test-fetch-artifacts.yml'
+      - ".github/actions/fetch-artifacts/**"
+      - ".github/workflows/test-fetch-artifacts.yml"
 
 jobs:
   test-fetch-artifacts:
@@ -18,10 +18,10 @@ jobs:
       - name: Fetch newsletter artifacts
         uses: ./.github/actions/fetch-artifacts
         with:
-          workflow-name: 'generate-newsletter.yml'
-          artifact-name-pattern: 'newsletter-*'
-          num-artifacts: '2'
-          output-directory: 'newsletter-artifacts'
+          workflow-name: "generate-newsletter.yml"
+          artifact-name-pattern: "newsletter-*"
+          num-artifacts: "2"
+          output-directory: "newsletter-artifacts"
 
       - name: List downloaded artifacts
         run: |

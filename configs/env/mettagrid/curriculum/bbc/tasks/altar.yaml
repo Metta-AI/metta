@@ -2,23 +2,9 @@
 
 _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 
-env_cfg_template: /env/mettagrid/arena/combat
+env_cfg_template_path: /env/mettagrid/arena/combat
 
 buckets:
-  game.agent.rewards.heart: { values: [1] }
-
-  game.objects.altar.input_resources.ore_red: { values: [0, 1, 2] }
-  game.objects.altar.input_resources.battery_red: { values: [0, 1, 2] }
-
-  # game.objects.lasery.input_resources.ore_red: { values: [0, 1, 2] }
-  # game.objects.lasery.input_resources.battery_red: { values: [0, 1, 2] }
-
-  # game.objects.armory.input_resources.ore_red: { values: [0, 1, 2] }
-  # game.objects.armory.input_resources.battery_red: { values: [0, 1, 2] }
-
-  # game.map_builder.width: { values: [5, 10, 25] }
-  # game.map_builder.height: { values: [5, 10, 25] }
-
-  # game.agent.rewards.ore_red: { values: [0, 1] }
-  # game.agent.rewards.laser: { values: [0, 1] }
-  # game.agent.rewards.armor: { values: [0, 1] }
+  game.agent.rewards.inventory.heart: [1]
+  game.objects.altar.input_resources.ore_red: [0, 1, 2]
+  game.objects.altar.input_resources.battery_red: [0, 1, 2]

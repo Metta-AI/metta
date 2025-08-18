@@ -6,5 +6,5 @@ name: sweep_eval
 
 simulations:
   simple:
-    env: env/mettagrid/curriculum/basic_easy_shaped
+    env: env/mettagrid/arena/basic_easy_shaped
 # selector_type: "latest"

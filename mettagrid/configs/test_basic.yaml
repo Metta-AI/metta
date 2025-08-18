@@ -1,7 +1,3 @@
-_target_: mettagrid.mettagrid_env.MettaGridEnv
-
-sampling: 0
-
 game:
   num_observation_tokens: 100
 
@@ -47,7 +43,8 @@ game:
       heart: 255
     freeze_duration: 10
     rewards:
-      heart: 1
+      inventory:
+        heart: 1
 
   objects:
     altar:

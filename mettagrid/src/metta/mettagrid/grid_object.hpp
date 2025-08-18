@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "objects/constants.hpp"
 #include "types.hpp"
 
 using Layer = ObservationType;
@@ -13,16 +14,16 @@ using TypeId = ObservationType;
 using ObservationCoord = ObservationType;
 
 struct PartialObservationToken {
-  ObservationType feature_id;
-  ObservationType value;
+  ObservationType feature_id = EmptyTokenByte;
+  ObservationType value = EmptyTokenByte;
 };
 
 // These may make more sense in observation_encoder.hpp, but we need to include that
 // header in a lot of places, and it's nice to have these types defined in one place.
 struct alignas(1) ObservationToken {
-  ObservationType location;
-  ObservationType feature_id;
-  ObservationType value;
+  ObservationType location = EmptyTokenByte;
+  ObservationType feature_id = EmptyTokenByte;
+  ObservationType value = EmptyTokenByte;
 };
 
 // The alignas should make sure of this, but let's be explicit.
@@ -41,13 +42,10 @@ public:
   inline GridLocation(GridCoord r, GridCoord c, Layer layer) : r(r), c(c), layer(layer) {}
   inline GridLocation(GridCoord r, GridCoord c) : r(r), c(c), layer(0) {}
   inline GridLocation() : r(0), c(0), layer(0) {}
-};
 
-enum Orientation {
-  Up = 0,
-  Down = 1,
-  Left = 2,
-  Right = 3
+  inline bool operator==(const GridLocation& other) const {
+    return r == other.r && c == other.c && layer == other.layer;
+  }
 };
 
 struct GridObjectConfig {
@@ -61,9 +59,9 @@ struct GridObjectConfig {
 
 class GridObject {
 public:
-  GridObjectId id;
-  GridLocation location;
-  TypeId type_id;
+  GridObjectId id{};
+  GridLocation location{};
+  TypeId type_id{};
   std::string type_name;
 
   virtual ~GridObject() = default;

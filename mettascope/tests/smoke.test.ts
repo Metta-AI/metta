@@ -1,4 +1,4 @@
-import { test, expect, Page } from '@playwright/test'
+import { type Page, test } from '@playwright/test'
 
 const host = 'http://localhost:8000'
 
@@ -33,11 +33,11 @@ function trackPageErrors(page: Page): ErrorCollections {
 }
 
 function expectNoErrors(errors: ErrorCollections) {
-  if (errors.consoleErrors.length > 0) {
-    throw new Error(`Console errors detected:\n${errors.consoleErrors.join('\n')}`)
-  }
   if (errors.networkErrors.length > 0) {
     throw new Error(`Network errors detected:\n${errors.networkErrors.join('\n')}`)
+  }
+  if (errors.consoleErrors.length > 0) {
+    throw new Error(`Console errors detected:\n${errors.consoleErrors.join('\n')}`)
   }
 }
 
@@ -70,7 +70,7 @@ test('load a replay and play it', async ({ page }) => {
   await page.waitForFunction(
     () => {
       const state = (window as any).state
-      return state && state.isPlaying == true
+      return state && state.isPlaying === true
     },
     { timeout: 10000 }
   )

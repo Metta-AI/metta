@@ -1,0 +1,24 @@
+[project]
+name = "experiments"
+version = "0.1.0"
+description = "Metta experiments and notebooks"
+readme = "README.md"
+requires-python = "==3.11.7"
+dependencies = [
+    "jupytext>=1.17.2",
+    "moutils>=0.3.12",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+extend-exclude = ["*.ipynb"]
+
+[tool.setuptools]
+package-dir = { "" = "." } # keep current flat layout
+
+[tool.setuptools.packages.find]
+include = ["marimo*"]    # ship marimo
+exclude = ["notebooks*"] # ignore notebooks folder

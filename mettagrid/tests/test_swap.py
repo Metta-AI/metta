@@ -1,9 +1,9 @@
 import numpy as np
 import pytest
 
-from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.level_builder import map_grid_dtype
+from metta.mettagrid.mettagrid_c import MettaGrid, dtype_actions
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from metta.mettagrid.mettagrid_env import dtype_actions
 
 
 def test_swap():
@@ -14,7 +14,7 @@ def test_swap():
     #   W A B    W=wall, A=agent, B=block (swappable)
     #   W W W
     game_map = np.array(
-        [["wall", "wall", "wall"], ["wall", "agent.red", "block"], ["wall", "wall", "wall"]], dtype="<U50"
+        [["wall", "wall", "wall"], ["wall", "agent.red", "block"], ["wall", "wall", "wall"]], dtype=map_grid_dtype
     )
 
     game_config = {
@@ -153,7 +153,7 @@ def test_swap_frozen_agent_preserves_layers():
             ["wall", "empty", "empty", "agent.blue", "wall"],
             ["wall", "wall", "wall", "wall", "wall"],
         ],
-        dtype="<U50",
+        dtype=map_grid_dtype,
     )
 
     game_config = {
@@ -257,7 +257,7 @@ def test_swap_frozen_agent_preserves_layers():
 
     # Verify agent 1 is frozen
     objects = env.grid_objects()
-    agent1_frozen = objects[agent1["id"]].get("frozen", 0)
+    agent1_frozen = objects[agent1["id"]].get("freeze_remaining", 0)
     print(f"  Agent 1 frozen for {agent1_frozen - 1} more steps")
     assert agent1_frozen > 0
 
@@ -278,7 +278,7 @@ def test_swap_frozen_agent_preserves_layers():
 
     # Verify agent 1 is still frozen
     objects = env.grid_objects()
-    agent1_frozen = objects[agent1["id"]].get("frozen", 0)
+    agent1_frozen = objects[agent1["id"]].get("freeze_remaining", 0)
     print(f"  Agent 1 frozen for {agent1_frozen - 1} more steps")
     assert agent1_frozen > 0
 

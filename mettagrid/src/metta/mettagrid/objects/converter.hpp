@@ -12,6 +12,9 @@
 #include "constants.hpp"
 #include "has_inventory.hpp"
 
+// Forward declaration
+class MettaGrid;
+
 // #MettagridConfig
 struct ConverterConfig : public GridObjectConfig {
   ConverterConfig(TypeId type_id,
@@ -19,29 +22,38 @@ struct ConverterConfig : public GridObjectConfig {
                   const std::map<InventoryItem, InventoryQuantity>& input_resources,
                   const std::map<InventoryItem, InventoryQuantity>& output_resources,
                   short max_output,
+                  short max_conversions,
                   unsigned short conversion_ticks,
                   unsigned short cooldown,
                   InventoryQuantity initial_resource_count,
                   ObservationType color,
-                  bool show_recipe_inputs = false)
+                  bool recipe_details_obs)
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
         output_resources(output_resources),
         max_output(max_output),
+        max_conversions(max_conversions),
         conversion_ticks(conversion_ticks),
         cooldown(cooldown),
         initial_resource_count(initial_resource_count),
         color(color),
-        show_recipe_inputs(show_recipe_inputs) {}
+        recipe_details_obs(recipe_details_obs),
+        // These are always 0 when this is created, since we want a single constructor, and these
+        // shouldn't be provided by Python.
+        input_recipe_offset(0),
+        output_recipe_offset(0) {}
 
   std::map<InventoryItem, InventoryQuantity> input_resources;
   std::map<InventoryItem, InventoryQuantity> output_resources;
   short max_output;
+  short max_conversions;
   unsigned short conversion_ticks;
   unsigned short cooldown;
   InventoryQuantity initial_resource_count;
   ObservationType color;
-  bool show_recipe_inputs;
+  bool recipe_details_obs;
+  ObservationType input_recipe_offset;
+  ObservationType output_recipe_offset;
 };
 
 class Converter : public HasInventory {
@@ -56,6 +68,11 @@ private:
     // is zero, we probably haven't been added to the grid yet.
     assert(this->id != 0);
     if (this->converting || this->cooling_down) {
+      return;
+    }
+    // Check if the converter has reached max conversions
+    if (this->max_conversions >= 0 && this->conversions_completed >= this->max_conversions) {
+      stats.incr("conversions.permanent_stop");
       return;
     }
     // Check if the converter is already at max output.
@@ -91,7 +108,7 @@ private:
       if (this->inventory[item] == 0) {
         this->inventory.erase(item);
       }
-      stats.add(stats.inventory_item_name(item) + ".consumed", amount);
+      stats.add(stats.inventory_item_name(item) + ".consumed", static_cast<float>(amount));
     }
     // All the previous returns were "we don't start converting".
     // This one is us starting to convert.
@@ -108,26 +125,35 @@ public:
   // is to make Mines (etc) have a maximum output.
   // -1 means no limit
   short max_output;
+  short max_conversions;
   unsigned short conversion_ticks;  // Time to produce output
   unsigned short cooldown;          // Time to wait after producing before starting again
   bool converting;                  // Currently in production phase
   bool cooling_down;                // Currently in cooldown phase
   unsigned char color;
-  bool show_recipe_inputs;
+  bool recipe_details_obs;
   EventManager* event_manager;
   StatsTracker stats;
+  ObservationType input_recipe_offset;
+  ObservationType output_recipe_offset;
+  unsigned short conversions_completed;
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : input_resources(cfg.input_resources),
         output_resources(cfg.output_resources),
         max_output(cfg.max_output),
+        max_conversions(cfg.max_conversions),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
+        converting(false),
+        cooling_down(false),
         color(cfg.color),
-        show_recipe_inputs(cfg.show_recipe_inputs) {
+        recipe_details_obs(cfg.recipe_details_obs),
+        event_manager(nullptr),
+        input_recipe_offset(cfg.input_recipe_offset),
+        output_recipe_offset(cfg.output_recipe_offset),
+        conversions_completed(0) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
-    this->converting = false;
-    this->cooling_down = false;
 
     // Initialize inventory with initial_resource_count for all output types
     for (const auto& [item, _] : this->output_resources) {
@@ -135,19 +161,25 @@ public:
     }
   }
 
-  void set_event_manager(EventManager* event_manager) {
-    this->event_manager = event_manager;
+  void set_event_manager(EventManager* event_manager_ptr) {
+    this->event_manager = event_manager_ptr;
     this->maybe_start_converting();
   }
 
   void finish_converting() {
     this->converting = false;
+    // Increment the stat unconditionally
     stats.incr("conversions.completed");
+
+    // Only increment the counter when tracking conversion limits
+    if (this->max_conversions >= 0) {
+      this->conversions_completed++;
+    }
 
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
       HasInventory::update_inventory(item, static_cast<InventoryDelta>(amount));
-      stats.add(stats.inventory_item_name(item) + ".produced", amount);
+      stats.add(stats.inventory_item_name(item) + ".produced", static_cast<float>(amount));
     }
 
     if (this->cooldown > 0) {
@@ -158,10 +190,6 @@ public:
     } else if (this->cooldown == 0) {
       // No cooldown, try to start converting again immediately
       this->maybe_start_converting();
-    } else if (this->cooldown < 0) {
-      // Negative cooldown means never convert again
-      this->cooling_down = true;
-      stats.incr("conversions.permanent_stop");
     }
   }
 
@@ -184,13 +212,14 @@ public:
     return delta;
   }
 
-  vector<PartialObservationToken> obs_features() const override {
-    vector<PartialObservationToken> features;
+  std::vector<PartialObservationToken> obs_features() const override {
+    std::vector<PartialObservationToken> features;
 
     // Calculate the capacity needed
-    size_t capacity = 5 + this->inventory.size();
-    if (this->show_recipe_inputs) {
-      capacity += this->input_resources.size();
+    // We push 3 fixed features + inventory items + (optionally) recipe inputs and outputs
+    size_t capacity = 3 + this->inventory.size();
+    if (this->recipe_details_obs) {
+      capacity += this->input_resources.size() + this->output_resources.size();
     }
     features.reserve(capacity);
 
@@ -199,7 +228,7 @@ public:
     features.push_back({ObservationFeature::ConvertingOrCoolingDown,
                         static_cast<ObservationType>(this->converting || this->cooling_down)});
 
-    // Add current inventory
+    // Add current inventory (inv:resource)
     for (const auto& [item, amount] : this->inventory) {
       // inventory should only contain non-zero amounts
       assert(amount > 0);
@@ -207,11 +236,22 @@ public:
           {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
     }
 
-    // Add recipe inputs if configured to do so
-    if (this->show_recipe_inputs) {
+    // Add recipe details if configured to do so
+    if (this->recipe_details_obs) {
+      // Add recipe inputs (input:resource) - only non-zero values
       for (const auto& [item, amount] : this->input_resources) {
-        features.push_back(
-            {static_cast<ObservationType>(item + InventoryFeatureOffset), static_cast<ObservationType>(amount)});
+        if (amount > 0) {
+          features.push_back(
+              {static_cast<ObservationType>(input_recipe_offset + item), static_cast<ObservationType>(amount)});
+        }
+      }
+
+      // Add recipe outputs (output:resource) - only non-zero values
+      for (const auto& [item, amount] : this->output_resources) {
+        if (amount > 0) {
+          features.push_back(
+              {static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
+        }
       }
     }
 

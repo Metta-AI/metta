@@ -4,12 +4,14 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
+from tools.sweep_config_utils import (
+    load_train_job_config_with_overrides,
+    save_train_job_override_config,
+)
+
 
 def test_load_train_job_config_with_overrides():
     """Test loading train job config with overrides from file."""
-    # Import here to avoid circular imports
-    from tools.sweep_config_utils import load_train_job_config_with_overrides
-
     with tempfile.TemporaryDirectory() as tmpdir:
         # Create a base config without trainer to avoid validation
         base_cfg = OmegaConf.create(
@@ -39,8 +41,6 @@ def test_load_train_job_config_with_overrides():
 
 def test_load_train_job_config_with_overrides_no_file():
     """Test that config is unchanged when no override file exists."""
-    from tools.sweep_config_utils import load_train_job_config_with_overrides
-
     with tempfile.TemporaryDirectory() as tmpdir:
         base_cfg = OmegaConf.create(
             {
@@ -60,8 +60,6 @@ def test_load_train_job_config_with_overrides_no_file():
 
 def test_save_train_job_override_config():
     """Test saving train job override config."""
-    from tools.sweep_config_utils import save_train_job_override_config
-
     with tempfile.TemporaryDirectory() as tmpdir:
         # Create configs
         cfg = OmegaConf.create(

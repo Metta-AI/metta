@@ -77,7 +77,7 @@ class AutoLayout(Scene[AutoParams]):
         weights /= weights.sum()
         layout = self.rng.choice(["grid", "bsp"], p=weights)
 
-        def children_for_tag(tag: str) -> list[ChildrenAction]:
+        def children_actions_for_tag(tag: str) -> list[ChildrenAction]:
             return [
                 ChildrenAction(
                     scene=AutoSymmetry.factory(self.params),
@@ -101,7 +101,7 @@ class AutoLayout(Scene[AutoParams]):
                             "columns": columns,
                             "border_width": 0,  # randomize? probably not very useful
                         },
-                        children=children_for_tag("room"),
+                        children_actions=children_actions_for_tag("room"),
                     ),
                     where="full",
                 ),
@@ -113,7 +113,7 @@ class AutoLayout(Scene[AutoParams]):
                 ChildrenAction(
                     scene=BSPLayout.factory(
                         {"area_count": area_count},
-                        children=children_for_tag("zone"),
+                        children_actions=children_actions_for_tag("zone"),
                     ),
                     where="full",
                 ),

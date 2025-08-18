@@ -1,8 +1,8 @@
 _target_: metta.map.mapgen.MapGen
 
 border_width: 1
-width: ${sampling:10,40,17}
-height: ${sampling:10,40,17}
+width: 17
+height: 17
 
 instances: 4
 instance_border_width: 5

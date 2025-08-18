@@ -15,12 +15,13 @@ class Ascii(Scene[AsciiParams]):
             self.ascii_data = f.read()
 
     def get_children(self):
+        # Delegate rendering to the inline ascii scene.
         return [
             ChildrenAction(
                 scene=InlineAscii.factory({"data": self.ascii_data}),
                 where="full",
             ),
-            *self.children,
+            *self.children_actions,
         ]
 
     def render(self):

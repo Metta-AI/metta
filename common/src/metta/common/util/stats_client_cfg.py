@@ -2,10 +2,10 @@ from logging import Logger
 from pathlib import Path
 
 import yaml
-from httpx import Client
 from omegaconf import DictConfig, ListConfig
 
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
+from metta.common.util.constants import PROD_STATS_SERVER_URI
 
 
 def get_machine_token(stats_server_uri: str | None = None) -> str | None:
@@ -28,7 +28,7 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
             return None
     elif stats_server_uri is None or stats_server_uri in (
         "https://observatory.softmax-research.net/api",
-        "https://api.observatory.softmax-research.net",
+        PROD_STATS_SERVER_URI,
     ):
         # Fall back to legacy token file, which is assumed to contain production
         # server tokens if it exists
@@ -47,18 +47,22 @@ def get_machine_token(stats_server_uri: str | None = None) -> str | None:
     return token
 
 
-def get_stats_client(cfg: DictConfig | ListConfig, logger: Logger) -> StatsClient | None:
-    if isinstance(cfg, DictConfig):
-        stats_server_uri: str | None = cfg.get("stats_server_uri", None)
-        machine_token = get_machine_token(stats_server_uri)
+def get_stats_client_direct(stats_server_uri: str | None, logger: Logger) -> StatsClient | None:
+    if stats_server_uri is None:
+        logger.warning("No stats server URI provided, running without stats collection")
+        return None
 
-        if stats_server_uri is not None and machine_token is not None:
-            logger.info(f"Using stats client at {stats_server_uri}")
-            http_client = Client(base_url=stats_server_uri)
-            return StatsClient(http_client=http_client, machine_token=machine_token)
-        else:
-            if stats_server_uri is None:
-                logger.warning("No stats server URI provided, running without stats collection")
-            if machine_token is None:
-                logger.warning("No machine token provided, running without stats collection")
-    return None
+    machine_token = get_machine_token(stats_server_uri)
+    if machine_token is None:
+        logger.warning("No machine token provided, running without stats collection")
+        return None
+
+    logger.info(f"Using stats client at {stats_server_uri}")
+    return StatsClient(backend_url=stats_server_uri, machine_token=machine_token)
+
+
+def get_stats_client(cfg: DictConfig | ListConfig, logger: Logger) -> StatsClient | None:
+    if not isinstance(cfg, DictConfig):
+        return None
+    stats_server_uri = cfg.get("stats_server_uri", None)
+    return get_stats_client_direct(stats_server_uri, logger)

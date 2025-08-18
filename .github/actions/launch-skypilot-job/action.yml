@@ -15,39 +15,48 @@ inputs:
     description: "Number of GPUs to request. If empty, uses SkyPilot task default."
     required: false
     default: ""
-  git_ref_override: # Allow overriding the git ref for specific cases, normally determined automatically
-    description: "Specific git ref (commit/branch/tag) to use. If empty, uses current HEAD."
+  num_nodes:
+    description: "Number of Nodes to request. If empty, uses SkyPilot task default."
     required: false
     default: ""
+  run_ci_tests:
+    description: "Runs NCCL and job restart tests"
+    required: false
+    default: "false"
   wandb_api_key:
     description: "Weights & Biases API Key"
     required: true
   skypilot_api_url:
     description: "SkyPilot API URL"
+    default: "https://skypilot-api.softmax-research.net"
+  skypilot_service_account_token:
+    description: "SkyPilot service account token"
     required: true
   observatory_token:
     description: "Observatory API token"
     required: true
+  commit_sha:
+    description: "Git commit SHA for status reporting"
+    required: true
+  github_pat:
+    description: "GitHub PAT for status reporting"
+    required: false
+    default: ""
+  discord_webhook_url:
+    description: "Discord webhook URL for status reporting"
+    required: false
+    default: ""
+
+outputs:
+  launch_output:
+    description: "The output from the SkyPilot launch command"
+    value: ${{ steps.launch.outputs.launch_output }}
 
 runs:
   using: "composite"
   steps:
     - name: Setup uv
       uses: ./.github/actions/setup-uv
-
-    - name: Determine Git Ref
-      id: determine_git_ref
-      shell: bash
-      run: |
-        if [ -n "${{ inputs.git_ref_override }}" ]; then
-          echo "Using provided git_ref_override: ${{ inputs.git_ref_override }}"
-          GIT_REF_TO_USE="${{ inputs.git_ref_override }}"
-        else
-          echo "Determining current git ref..."
-          GIT_REF_TO_USE=$(git rev-parse HEAD)
-        fi
-        echo "GIT_REF_TO_USE=$GIT_REF_TO_USE" >> $GITHUB_OUTPUT
-        echo "Using Git Ref: $GIT_REF_TO_USE"
 
     - name: Set up Weights & Biases credentials
       shell: bash
@@ -69,13 +78,10 @@ runs:
     - name: Configure SkyPilot API server
       shell: bash
       run: |
-        mkdir -p $HOME/.sky
-        echo "api_server:" > $HOME/.sky/config.yaml
-        echo "  endpoint: ${{ inputs.skypilot_api_url }}" >> $HOME/.sky/config.yaml
-      env:
-        SKYPILOT_API_URL: ${{ inputs.skypilot_api_url }}
+        sky api login -e ${{ inputs.skypilot_api_url }} --token ${{ inputs.skypilot_service_account_token }}
 
     - name: Launch SkyPilot training job
+      id: launch
       shell: bash
       run: |
         set -x # Enable command printing for debugging
@@ -90,13 +96,41 @@ runs:
           LAUNCH_ARGS+=( "--gpus=${{ inputs.num_gpus }}" )
         fi
 
+        if [ -n "${{ inputs.num_nodes }}" ]; then
+          LAUNCH_ARGS+=( "--nodes=${{ inputs.num_nodes }}" )
+        fi
+
+        if [ -n "${{ inputs.github_pat }}" ]; then
+          LAUNCH_ARGS+=( "--github-pat=${{ inputs.github_pat }}" )
+        fi
+
+        if [ -n "${{ inputs.discord_webhook_url }}" ]; then
+          LAUNCH_ARGS+=( "--discord-webhook-url=${{ inputs.discord_webhook_url }}" )
+        fi
+
+        if [[ "${{ inputs.run_ci_tests }}" == "true" ]]; then
+          LAUNCH_ARGS+=( "--run-ci-tests" )
+        fi
+
         LAUNCH_ARGS+=(
-          "--git-ref=${{ steps.determine_git_ref.outputs.GIT_REF_TO_USE }}"
+          "--git-ref=${{ inputs.commit_sha }}"
           "train"
           "run=${{ inputs.run_name }}"
           "trainer.curriculum=${{ inputs.trainer_env }}"
         )
 
-        ./devops/skypilot/launch.py "${LAUNCH_ARGS[@]}"
+        # Capture the output
+        LAUNCH_OUTPUT=$(./devops/skypilot/launch.py "${LAUNCH_ARGS[@]}" 2>&1)
+        echo "$LAUNCH_OUTPUT"
+
+        # Save to file for fallback
+        echo "$LAUNCH_OUTPUT" > /tmp/skypilot_launch_output.txt
+
+        # Set as GitHub Actions output
+        {
+          echo 'launch_output<<EOF'
+          echo "$LAUNCH_OUTPUT"
+          echo 'EOF'
+        } >> $GITHUB_OUTPUT
 
         set +x # Disable command printing

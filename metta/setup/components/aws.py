@@ -1,7 +1,5 @@
-import json
-from pathlib import Path
-
 from metta.setup.components.base import SetupModule
+from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
 from metta.setup.utils import info
 
@@ -25,14 +23,19 @@ class AWSSetup(SetupModule):
         return any(self.config.is_component_enabled(dep) for dep in ["aws", "skypilot"])
 
     def check_installed(self) -> bool:
-        aws_config = Path.home() / ".aws" / "config"
-        if not aws_config.exists():
+        try:
+            import boto3  # noqa: F401
+
+            return True
+        except ImportError:
             return False
 
-        return True
-
     def install(self) -> None:
-        if self.config.user_type.is_softmax:
+        if self.config.user_type == UserType.SOFTMAX_DOCKER:
+            info("AWS access for this profile should be provided via IAM roles or environment variables.")
+            info("Skipping AWS profile setup.")
+            return
+        if self.config.user_type == UserType.SOFTMAX:
             info("""
                 Your AWS access should have been provisioned.
                 If you don't have access, contact your team lead.
@@ -44,17 +47,11 @@ class AWSSetup(SetupModule):
             info("Please configure your AWS credentials using `aws configure` or `aws configure sso`")
 
     def check_connected_as(self) -> str | None:
-        if not self.check_installed():
-            return None
         try:
-            result = self.run_command(["aws", "sts", "get-caller-identity"], check=False)
-        except FileNotFoundError:
-            return None
+            import boto3
 
-        if result.returncode == 0:
-            try:
-                res = json.loads(result.stdout)
-                return res["Account"]
-            except Exception:
-                pass
-        return None
+            sts = boto3.client("sts")
+            response = sts.get_caller_identity()
+            return response["Account"]
+        except Exception:
+            return None

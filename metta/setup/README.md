@@ -27,19 +27,25 @@ Components can store and retrieve their own configuration settings. This allows 
 
 ```python
 class MyComponentSetup(SetupModule):
+    install_once: bool = False
+
+    def dependencies(self) -> list[str]:
+        """Define components that should be installed before this one"""
+        return ['aws']
+
     def get_configuration_options(self) -> dict[str, tuple[Any, str]]:
         """Define available configuration options."""
         return {
             "install_mode": ("standard", "Installation mode"),
             "verbose": (False, "Enable verbose output"),
         }
-    
+
     def configure(self) -> None:
         """Interactive configuration for this component."""
         # Implement interactive configuration logic
         mode = prompt_choice(...)
         self.set_setting("install_mode", mode)
-    
+
     def install(self):
         # Get settings with defaults - only non-default values are stored
         mode = self.get_setting("install_mode", "standard")
@@ -50,6 +56,8 @@ Key principles:
 - Only non-default values are written to disk
 - Settings are automatically namespaced under `module_settings.<component_name>`
 - Installation (`metta install`) should never prompt for configuration
+- Components can depend on other components being installed first. This should be specified in the `dependencies` class var
+- `install_once` should be used for components for which if `check_installed` is True, `metta install` only calls the component's `install` if `--force` is provided
 
 ### For Users
 

@@ -1,6 +1,5 @@
 # Metta AI
 
-
 <p align="center">
   <a href="https://codecov.io/gh/Metta-AI/metta">
     <img src="https://codecov.io/gh/Metta-AI/metta/graph/badge.svg?token=SX28I8PS3E" alt="codecov">
@@ -14,8 +13,10 @@
   <a href="LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License">
   </a>
+  <a href="https://deepwiki.com/Metta-AI/metta">
+    <img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki">
+  </a>
 </p>
-
 
 A reinforcement learning codebase focusing on the emergence of cooperation and alignment in multi-agent AI systems.
 
@@ -171,20 +172,27 @@ metta configure    # Reconfigure for a different profile
 The repository contains command-line tools in the `tools/` directory. Most of these tools use [Hydra](https://hydra.cc/)
 for configuration management, which allows flexible parameter overrides and composition.
 
+#### Hydra Configuration Patterns
+
+- Use `+` prefix to add new config groups: `+user=your-custom-config-name`
+- Use `++` prefix to force override: `++trainer.device=cpu`
+- Config composition order matters - later overrides take precedence
+
+Common patterns:
 - **Override parameters**: `param=value` sets configuration values directly
 - **Compose configs**: `+group=option` loads additional configuration files from `configs/group/option.yaml`
 - **Use config groups**: Load user-specific settings with `+user=<name>` from `configs/user/<name>.yaml`
 
+
 ### Training a Model
 
 ```bash
-./tools/train.py run=my_experiment +hardware=macbook wandb=off +user=<name>
+./tools/train.py run=my_experiment wandb=off +user=<name>
 ```
 
 Parameters:
 
 - `run=my_experiment` - Names your experiment and controls where checkpoints are saved under `train_dir/<run>`
-- `+hardware=macbook` - Loads hardware-specific settings from `configs/hardware/macbook.yaml`
 - `wandb=off` - Disables Weights & Biases logging
 - `+user=<name>` - Loads your personal settings from `configs/user/<name>.yaml`
 
@@ -207,7 +215,7 @@ To use WandB with your personal account:
 Now you can run training with your personal WandB config:
 
 ```
-./tools/train.py run=local.yourname.123 +hardware=macbook wandb=user
+./tools/train.py run=local.yourname.123 wandb=user
 ```
 
 ## Visualizing a Model
@@ -233,7 +241,6 @@ Arguments:
   - For local files, supply the path: `./train_dir/<run_name>/checkpoints/<checkpoint_name>.pt`. These checkpoint files
     are created during training
   - For wandb artifacts, prefix with `wandb://`
-- `+hardware=<config>` - Hardware configuration (see [Training a Model](#training-a-model))
 
 ### Run the terminal simulation
 
@@ -267,11 +274,39 @@ To add your policy to the existing navigation evals DB:
 This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db`
 artifact on WandB.
 
-Then, to see the results in the heatmap along with the other policies in the database, you can run:
+Then, to see the results in the scorecard along with the other policies in the database, you can run:
 
 ```
 ./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
 ```
+
+
+### Specifying your agent architecture
+
+#### Configuring a MettaAgent
+
+This repo implements a `MettaAgent` policy class. The underlying network is parameterized by config files in `configs/agent` (with `configs/agent/fast.yaml` used by default). See `configs/agent/reference_design.yaml` for an explanation of the config structure, and [this wiki section](https://deepwiki.com/Metta-AI/metta/6-agent-architecture) for further documentation.
+
+To use `MettaAgent` with a non-default architecture config:
+  - (Optional): Create your own configuration file, e.g. `configs/agent/my_agent.yaml`.
+  - Run with the configuration file of your choice:
+    ```bash
+    ./tools/train.py agent=my_agent
+    ```
+
+#### Defining your own PyTorch agent
+
+We support agent architectures without using the MettaAgent system:
+  - Implement your agent class under `metta/agent/src/metta/agent/pytorch/my_agent.py`. See `metta/agent/src/metta/agent/pytorch/fast.py` for an example.
+  - Register it in `metta/agent/src/metta/agent/pytorch/agent_mapper.py` by adding an entry to `agent_classes` with a key name (e.g., `"my_agent"`).
+  - Select it at runtime using the `py_agent` flag (this overrides the `agent` YAML group):
+    ```bash
+    ./tools/train.py py_agent=my_agent
+    # (Optional) a .py suffix also works: py_agent=my_agent.py
+    ```
+
+Further updates to support bringing your own agent are coming soon.
+
 
 ## Development Setup
 

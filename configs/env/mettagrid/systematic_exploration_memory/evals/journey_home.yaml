@@ -1,9 +1,9 @@
 defaults:
   - /env/mettagrid/systematic_exploration_memory/evals/defaults@
+  - _self_
 
 game:
   num_agents: 1
   max_steps: 110
   map_builder:
     uri: "configs/env/mettagrid/maps/systematic_exploration_memory/journey_home.map"
-

@@ -8,7 +8,7 @@ import os
 import shutil
 from pathlib import Path
 
-from metta.common.util.colorama import bold, cyan, green, magenta, red, yellow
+from metta.common.util.text_styles import bold, cyan, green, magenta, red, yellow
 
 
 def is_dir_empty_or_pycache_only(dir_path):
@@ -46,6 +46,10 @@ def clean_directory(root_path, dry_run=True):
         if ".git" in dir_path.parts:
             continue
 
+        # Skip build cache directories
+        if any(part in [".turbo", ".vite-temp", "node_modules"] for part in dir_path.parts):
+            continue
+
         if is_dir_empty_or_pycache_only(dirpath):
             if dry_run:
                 print(f"{yellow('Would remove:')} {cyan(dirpath)}")
@@ -64,6 +68,7 @@ def main():
     parser = argparse.ArgumentParser(description="Clean empty directories and directories containing only __pycache__")
     parser.add_argument("path", nargs="?", default=".", help="Path to the repository (default: current directory)")
     parser.add_argument("--dry-run", action="store_true", help="Show what would be removed without actually removing")
+    parser.add_argument("--verbose", action="store_true", help="Show more information")
 
     args = parser.parse_args()
 
@@ -77,8 +82,9 @@ def main():
         print(red(f"Error: Path '{root_path}' is not a directory"))
         return 1
 
-    print(bold(f"Scanning directory: {cyan(root_path)}"))
-    print(magenta("=" * 50))
+    if args.verbose:
+        print(bold(f"Scanning directory: {cyan(root_path)}"))
+        print(magenta("=" * 50))
 
     # Default is to remove, use --dry-run to preview
     dry_run = args.dry_run
@@ -89,16 +95,18 @@ def main():
 
     removed = clean_directory(root_path, dry_run=dry_run)
 
-    print(magenta("=" * 50))
+    if args.verbose:
+        print(magenta("=" * 50))
     if not dry_run:
         if removed:
             print(bold(green(f"Total directories removed: {len(removed)}")))
-        else:
+        elif args.verbose:
             print(yellow("No directories to remove"))
     else:
         if removed:
             print(yellow("Dry run complete. Run without --dry-run to remove these directories."))
         else:
+            # Dry run should print even if not verbose
             print(green("No directories to remove"))
 
     return 0

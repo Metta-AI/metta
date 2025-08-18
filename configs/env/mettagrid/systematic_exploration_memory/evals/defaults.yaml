@@ -9,7 +9,8 @@ game:
   max_steps: ???
   agent:
     rewards:
-      heart: 0.333
+      inventory:
+        heart: 0.333
 
   objects:
     altar:

@@ -1,4 +1,3 @@
-# metta/sim/simulation.py
 """
 Vectorized simulation runner.
 
@@ -16,25 +15,31 @@ import time
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict
 
 import numpy as np
 import torch
 from einops import rearrange
 from omegaconf import OmegaConf
+from tensordict import TensorDict
 
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
-from metta.api import PreBuiltConfigCurriculum
-from metta.app_backend.stats_client import StatsClient
-from metta.mettagrid.curriculum.sampling import SamplingCurriculum
-from metta.mettagrid.mettagrid_env import MettaGridEnv, dtype_actions
+from metta.app_backend.clients.stats_client import StatsClient
+from metta.mettagrid import MettaGridEnv, dtype_actions
+from metta.mettagrid.curriculum.core import Curriculum, SingleTrialTask, Task
+from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.rl.policy_management import initialize_policy_for_environment
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
+from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
+from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
+
+# Prefix for synthetic evaluation framework simulations (not real environment evaluations)
+SYNTHETIC_EVAL_PREFIX = "eval/"
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +48,26 @@ class SimulationCompatibilityError(Exception):
     """Raised when there's a compatibility issue that prevents simulation from running."""
 
     pass
+
+
+class PreBuiltConfigCurriculum(Curriculum):
+    """A curriculum that uses a pre-built config instead of loading from Hydra.
+    This allows us to bypass Hydra entirely when running evaluation or replay
+    generation without having Hydra initialized.
+    """
+
+    def __init__(self, env_name: str, pre_built_config: Any):
+        self._env_name = env_name
+        self._cfg_template = pre_built_config
+
+    def get_task(self) -> Task:
+        """Return a task with the pre-built config."""
+        return SingleTrialTask(f"prebuilt({self._env_name})", self, self._cfg_template)
+
+    def get_task_probs(self) -> Dict[str, float]:
+        """Return the current task probability for logging purposes."""
+        task_name = f"prebuilt({self._env_name})"
+        return {task_name: 1.0}
 
 
 class Simulation:
@@ -65,21 +90,18 @@ class Simulation:
         stats_epoch_id: uuid.UUID | None = None,
         wandb_policy_name: str | None = None,
         eval_task_id: uuid.UUID | None = None,
+        episode_tags: list[str] | None = None,
     ):
         self._name = name
         self._sim_suite_name = sim_suite_name
         self._config = config
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
-
+        self._episode_tags = episode_tags
         self._wandb_policy_name: str | None = None
         self._wandb_uri: str | None = None
         if wandb_policy_name is not None:
-            # wandb_policy_name is a qualified name like 'entity/project/artifact:version'
-            # we store the uris as 'wandb://project/artifact:version', so need to strip 'entity'
-            arr = wandb_policy_name.split("/")
-            self._wandb_policy_name = arr[2]
-            self._wandb_uri = "wandb://" + arr[1] + "/" + arr[2]
+            self._wandb_policy_name, self._wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
 
         # ---------------- env config ----------------------------------- #
         logger.info(f"config.env {config.env}")
@@ -131,8 +153,7 @@ class Simulation:
                 pre_built_config = OmegaConf.merge(pre_built_config, env_overrides)
             curriculum = PreBuiltConfigCurriculum(config.env, pre_built_config)
         else:
-            # Use the standard SamplingCurriculum that loads from Hydra
-            curriculum = SamplingCurriculum(config.env, env_overrides)
+            curriculum = curriculum_from_config_path(config.env, env_overrides)
 
         env_cfg = curriculum.get_task().env_cfg()
         self._vecenv = make_vecenv(
@@ -160,55 +181,22 @@ class Simulation:
         metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
         assert isinstance(metta_grid_env, MettaGridEnv)
 
-        # Let every policy know the active action-set of this env.
-        action_names = metta_grid_env.action_names
-        max_args = metta_grid_env.max_action_args
-
-        policy = self._policy_pr.policy
-
-        # Restore original_feature_mapping from metadata if available
-        if (
-            hasattr(policy, "restore_original_feature_mapping")
-            and "original_feature_mapping" in self._policy_pr.metadata
-        ):
-            policy.restore_original_feature_mapping(self._policy_pr.metadata["original_feature_mapping"])
-
-        # Ensure policy has required interface
-        if hasattr(policy, "initialize_to_environment"):
-            # New interface: pass features and actions
-            features = metta_grid_env.get_observation_features()
-            # Simulations are generally used for evaluation, not training
-            policy.initialize_to_environment(features, action_names, max_args, self._device)
-        elif hasattr(policy, "activate_actions"):
-            # Old interface: just pass actions
-            policy.activate_actions(action_names, max_args, self._device)
-        else:
-            raise AttributeError(
-                f"Policy is missing required method 'activate_actions' or 'initialize_to_environment'. "
-                f"Expected a MettaAgent-like object but got {type(policy).__name__}"
-            )
+        # Initialize policy to environment
+        initialize_policy_for_environment(
+            policy_record=self._policy_pr,
+            metta_grid_env=metta_grid_env,
+            device=self._device,
+            restore_feature_mapping=True,
+        )
 
         if self._npc_pr is not None:
-            npc_policy = self._npc_pr.policy
-
-            # Restore original_feature_mapping for NPC policy as well
-            if (
-                hasattr(npc_policy, "restore_original_feature_mapping")
-                and "original_feature_mapping" in self._npc_pr.metadata
-            ):
-                npc_policy.restore_original_feature_mapping(self._npc_pr.metadata["original_feature_mapping"])
-
-            if hasattr(npc_policy, "initialize_to_environment"):
-                features = metta_grid_env.get_observation_features()
-                # NPC policies are used during evaluation
-                npc_policy.initialize_to_environment(features, action_names, max_args, self._device)
-            elif hasattr(npc_policy, "activate_actions"):
-                npc_policy.activate_actions(action_names, max_args, self._device)
-            else:
-                raise AttributeError(
-                    f"NPC policy is missing required method 'activate_actions' or 'initialize_to_environment'. "
-                    f"Expected a MettaAgent-like object but got {type(npc_policy).__name__}"
-                )
+            # Initialize NPC policy to environment
+            initialize_policy_for_environment(
+                policy_record=self._npc_pr,
+                metta_grid_env=metta_grid_env,
+                device=self._device,
+                restore_feature_mapping=True,
+            )
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -239,8 +227,6 @@ class Simulation:
         logger.info("Stats dir: %s", self._stats_dir)
         # ---------------- reset ------------------------------- #
         self._obs, _ = self._vecenv.reset()
-        self._policy_state = PolicyState()
-        self._npc_state = PolicyState()
         self._env_done_flags = [False] * self._num_envs
 
         self._t0 = time.time()
@@ -290,14 +276,18 @@ class Simulation:
             obs_t = torch.as_tensor(self._obs, device=self._device)
             # Candidate-policy agents
             my_obs = obs_t[self._policy_idxs]
+            td = TensorDict({"env_obs": my_obs}, batch_size=my_obs.shape[0])
             policy = self._policy_pr.policy
-            policy_actions, _, _, _, _ = policy(my_obs, self._policy_state)
+            policy(td)
+            policy_actions = td["actions"]
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
                 npc_obs = obs_t[self._npc_idxs]
+                td = TensorDict({"env_obs": npc_obs}, batch_size=npc_obs.shape[0])
                 npc_policy = self._npc_pr.policy
                 try:
-                    npc_actions, _, _, _, _ = npc_policy(npc_obs, self._npc_state)
+                    npc_policy(td)
+                    npc_actions = td["actions"]
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
                     raise SimulationCompatibilityError(
@@ -344,11 +334,49 @@ class Simulation:
             elif not done_now[e] and self._env_done_flags[e]:
                 self._env_done_flags[e] = False
 
+    def _maybe_generate_thumbnail(self) -> str | None:
+        """Generate thumbnail if this is the first run for this eval_name.
+
+        Returns:
+            Thumbnail URL if generated successfully, None otherwise
+        """
+        try:
+            # Skip synthetic evaluation framework simulations
+            if self._name.startswith(SYNTHETIC_EVAL_PREFIX):
+                logger.debug(f"Skipping thumbnail generation for synthetic simulation: {self._name}")
+                return None
+
+            # Get any replay data from this simulation
+            if not self._replay_writer.episodes:
+                logger.warning(f"No replay data available for thumbnail generation: {self._name}")
+                return None
+
+            # Use first available episode replay and get its ID
+            episode_id = next(iter(self._replay_writer.episodes.keys()))
+            episode_replay = self._replay_writer.episodes[episode_id]
+            replay_data = episode_replay.get_replay_data()
+
+            # Attempt to generate and upload thumbnail using episode ID (like replay files)
+            success, thumbnail_url = maybe_generate_and_upload_thumbnail(replay_data, episode_id)
+            if success:
+                logger.info(f"Generated thumbnail for episode_id: {episode_id}")
+                return thumbnail_url
+            else:
+                logger.debug(f"Thumbnail generation failed for episode_id: {episode_id}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Thumbnail generation failed for {self._name}: {e}")
+            return None
+
     def end_simulation(self) -> SimulationResults:
         # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
         db = self._from_shards_and_context()
-        self._write_remote_stats(db)
+
+        # Generate thumbnail before writing to database so we can include the URL
+        thumbnail_url = self._maybe_generate_thumbnail()
+        self._write_remote_stats(db, thumbnail_url=thumbnail_url)
 
         logger.info(
             "Sim '%s' finished: %d episodes in %.1fs",
@@ -363,6 +391,10 @@ class Simulation:
         Run the simulation; returns the merged `StatsDB`.
         """
         self.start_simulation()
+
+        self._policy_pr.policy.reset_memory()
+        if self._npc_pr is not None:
+            self._npc_pr.policy.reset_memory()
 
         while (self._episode_counters < self._min_episodes).any() and (time.time() - self._t0) < self._max_time_s:
             actions_np = self.generate_actions()
@@ -390,32 +422,22 @@ class Simulation:
         )
         return db
 
-    def get_policy_ids(self, stats_client: StatsClient, policies: List[Tuple[str, str]]) -> Dict[str, uuid.UUID]:
-        policy_names = [policy[0] for policy in policies]
-        policy_ids_response = stats_client.get_policy_ids(policy_names)
-        policy_ids = policy_ids_response.policy_ids
-
-        for policy in policies:
-            if policy[0] not in policy_ids:
-                policy_response = stats_client.create_policy(policy[0], None, policy[1], epoch_id=self._stats_epoch_id)
-                policy_ids[policy[0]] = policy_response.id
-        return policy_ids
-
     def _get_policy_name(self) -> str:
         return self._wandb_policy_name if self._wandb_policy_name is not None else self._policy_pr.run_name
 
     def _get_policy_uri(self) -> str:
         return self._wandb_uri if self._wandb_uri is not None else self._policy_pr.uri
 
-    def _write_remote_stats(self, stats_db: SimulationStatsDB) -> None:
+    def _write_remote_stats(self, stats_db: SimulationStatsDB, thumbnail_url: str | None = None) -> None:
         """Write stats to the remote stats database."""
         if self._stats_client is not None:
             policy_name = self._get_policy_name()
             policy_uri = self._get_policy_uri()
-            policies = [(policy_name, policy_uri)]
+            policy_details: list[tuple[str, str, str | None]] = [(policy_name, policy_uri, None)]
             if self._npc_pr is not None:
-                policies.append((self._npc_pr.run_name, self._npc_pr.uri))
-            policy_ids = self.get_policy_ids(self._stats_client, policies)
+                policy_details.append((self._npc_pr.run_name, self._npc_pr.uri, None))
+
+            policy_ids = get_or_create_policy_ids(self._stats_client, policy_details, self._stats_epoch_id)
 
             agent_map: Dict[int, uuid.UUID] = {}
             for idx in self._policy_idxs:
@@ -433,6 +455,7 @@ class Simulation:
 
                 # Get agent metrics for this episode
                 agent_metrics_df = stats_db.query(f"SELECT * FROM agent_metrics WHERE episode_id = '{episode_id}'")
+                # agent_id -> metric_name -> metric_value
                 agent_metrics: Dict[int, Dict[str, float]] = {}
 
                 for _, metric_row in agent_metrics_df.iterrows():
@@ -454,6 +477,7 @@ class Simulation:
                     attributes[attr_name] = attr_value
 
                 # Record the episode remotely
+                episode_tags = self._episode_tags if self._episode_tags else None
                 try:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
@@ -465,6 +489,8 @@ class Simulation:
                         replay_url=episode_row.get("replay_url"),
                         attributes=attributes,
                         eval_task_id=self._eval_task_id,
+                        tags=episode_tags,
+                        thumbnail_url=thumbnail_url,
                     )
                 except Exception as e:
                     logger.error(f"Failed to record episode {episode_id} remotely: {e}")
@@ -490,10 +516,6 @@ class Simulation:
         if len(self._vecenv.envs) != 1:
             raise ValueError("Attempting to get single env, but simulation has multiple envs")
         return self._vecenv.envs[0]
-
-    def get_policy_state(self):
-        """Get the policy state."""
-        return self._policy_state
 
 
 @dataclass

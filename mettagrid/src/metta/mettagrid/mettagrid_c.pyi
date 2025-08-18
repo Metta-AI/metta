@@ -6,6 +6,15 @@ import numpy as np
 # Type alias for clarity
 StatsDict: TypeAlias = dict[str, float]
 
+# Data types exported from C++
+dtype_observations: np.dtype
+dtype_terminals: np.dtype
+dtype_truncations: np.dtype
+dtype_rewards: np.dtype
+dtype_actions: np.dtype
+dtype_masks: np.dtype
+dtype_success: np.dtype
+
 class EpisodeStats(TypedDict):
     game: StatsDict
     agent: list[StatsDict]
@@ -54,6 +63,12 @@ class WallConfig(GridObjectConfig):
     type_name: str
     swappable: bool
 
+class BoxConfig(GridObjectConfig):
+    def __init__(self, type_id: int, type_name: str, resources_to_create: dict[int, int]): ...
+    type_id: int
+    type_name: str
+    resources_to_create: dict[int, int]
+
 class AgentConfig(GridObjectConfig):
     type_id: int
     type_name: str
@@ -65,31 +80,19 @@ class AgentConfig(GridObjectConfig):
     resource_rewards: dict[int, float]
     resource_reward_max: dict[int, float]
     group_reward_pct: float
+    initial_inventory: dict[int, int]
 
 class ConverterConfig(GridObjectConfig):
-    def __init__(
-        self,
-        type_id: int,
-        type_name: str,
-        input_resources: dict[int, int],
-        output_resources: dict[int, int],
-        max_output: int,
-        conversion_ticks: int,
-        cooldown: int,
-        initial_resource_count: int = 0,
-        color: int = 0,
-        show_recipe_inputs: bool = False,
-    ): ...
     type_id: int
     type_name: str
     input_resources: dict[int, int]
     output_resources: dict[int, int]
     max_output: int
+    max_conversions: int
     conversion_ticks: int
     cooldown: int
     initial_resource_count: int
     color: int
-    show_recipe_inputs: bool
 
 class ActionConfig:
     enabled: bool
@@ -102,7 +105,33 @@ class AttackActionConfig(ActionConfig):
 class ChangeGlyphActionConfig(ActionConfig):
     number_of_glyphs: int
 
+class GlobalObsConfig:
+    def __init__(
+        self,
+        episode_completion_pct: bool = True,
+        last_action: bool = True,
+        last_reward: bool = True,
+        resource_rewards: bool = False,
+    ): ...
+    episode_completion_pct: bool
+    last_action: bool
+    last_reward: bool
+    resource_rewards: bool
+
 class GameConfig:
+    def __init__(
+        self,
+        num_agents: int,
+        max_steps: int,
+        episode_truncates: bool,
+        obs_width: int,
+        obs_height: int,
+        inventory_item_names: list[str],
+        num_observation_tokens: int,
+        global_obs: GlobalObsConfig,
+        actions: dict[str, ActionConfig],
+        objects: dict[str, GridObjectConfig],
+    ): ...
     num_agents: int
     max_steps: int
     episode_truncates: bool
@@ -110,6 +139,7 @@ class GameConfig:
     obs_height: int
     inventory_item_names: list[str]
     num_observation_tokens: int
+    global_obs: GlobalObsConfig
 
 class MettaGrid:
     obs_width: int
@@ -137,5 +167,4 @@ class MettaGrid:
     def max_action_args(self) -> list[int]: ...
     def object_type_names(self) -> list[str]: ...
     def inventory_item_names(self) -> list[str]: ...
-    def get_agent_groups(self) -> np.ndarray: ...
-    def feature_normalizations(self) -> dict[int, float]: ...
+    def feature_spec(self) -> dict[str, dict[str, float | int]]: ...

@@ -12,10 +12,11 @@ game:
       cooldown: 255
   agent:
     rewards:
-      battery_red: 1
-      ore_red: 0
-      ore_blue: 0
-      ore_green: 0
+      inventory:
+        battery_red: 1
+        ore_red: 0
+        ore_blue: 0
+        ore_green: 0
   map_builder:
     root:
       params:

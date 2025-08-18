@@ -18,6 +18,8 @@ dependencies = [
   "psycopg[binary,pool]>=3.2.9",
   "pydantic>=2.11.5",
   "pytest-asyncio>=1.0.0",
+  "httpx>=0.28.1",
+  "metta-common",
 ]
 
 [dependency-groups]
@@ -41,6 +43,10 @@ include = ["metta.app_backend"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 
 [tool.coverage.run]
 source = ["metta.app_backend"]
+
+[tool.uv.sources]
+metta-common = { workspace = true }

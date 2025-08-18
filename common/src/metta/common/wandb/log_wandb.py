@@ -10,11 +10,14 @@ Simple utility to log debug values to wandb for testing.
 Can be used standalone or imported into other scripts.
 """
 
+import argparse
 import json
 import os
 import sys
 from datetime import datetime
 from typing import Any
+
+from metta.common.util.constants import METTA_WANDB_PROJECT
 
 
 def log_wandb(key: str, value: Any, step: int = 0, also_summary: bool = True) -> bool:
@@ -43,7 +46,7 @@ def log_wandb(key: str, value: Any, step: int = 0, also_summary: bool = True) ->
     if run is None:
         # Try to resume the run based on METTA_RUN_ID
         run_id = os.environ.get("METTA_RUN_ID")
-        project = os.environ.get("WANDB_PROJECT", "metta")
+        project = os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT)
 
         if not run_id:
             print(f"[log_wandb] No active wandb run and no METTA_RUN_ID, skipping: {key}={value}")
@@ -129,8 +132,6 @@ def log_debug_info():
 
 def main():
     """Main function for standalone usage."""
-    import argparse
-
     parser = argparse.ArgumentParser(description="Log debug values to wandb")
     parser.add_argument("key", nargs="?", default="debug/test", help="Key to log")
     parser.add_argument("value", nargs="?", default=42, help="Value to log")

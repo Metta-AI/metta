@@ -1,8 +1,6 @@
 # This is a modified `sample.yaml` config with sampling removed, for benchmark_env_perf.py script.
 report_stats_interval: 100
 
-sampling: 0
-
 game:
   num_agents: 24
   num_observation_tokens: 100
@@ -55,16 +53,17 @@ game:
     freeze_duration: 10
 
     rewards:
-      ore_red: 0.005
-      ore_blue: 0.005
-      ore_green: 0.005
-      battery_red: 0.01
-      battery_blue: 0.01
-      battery_green: 0.01
-      battery_red_max: 5
-      battery_blue_max: 5
-      battery_green_max: 5
-      heart: 1
+      inventory:
+        ore_red: 0.005
+        ore_blue: 0.005
+        ore_green: 0.005
+        battery_red: 0.01
+        battery_blue: 0.01
+        battery_green: 0.01
+        battery_red_max: 5
+        battery_blue_max: 5
+        battery_green_max: 5
+        heart: 1
 
   groups:
     agent:

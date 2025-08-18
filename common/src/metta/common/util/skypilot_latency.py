@@ -24,6 +24,8 @@ import re
 import sys
 from typing import Final
 
+from metta.common.util.constants import METTA_WANDB_PROJECT
+
 _EPOCH: Final = datetime.timezone.utc
 _FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"
 
@@ -67,7 +69,7 @@ def main():
     # First, try to log to wandb that this script ran (regardless of latency calculation)
     if run_id:
         api_key = os.environ.get("WANDB_API_KEY")
-        project = os.environ.get("WANDB_PROJECT", "metta")
+        project = os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT)
 
         # If no API key but netrc exists, wandb will use that
         if api_key or os.path.exists(os.path.expanduser("~/.netrc")):

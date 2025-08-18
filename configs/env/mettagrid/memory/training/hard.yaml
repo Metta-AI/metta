@@ -7,7 +7,8 @@ game:
   max_steps: 70
   agent:
     rewards:
-      heart: 0.333
+      inventory:
+        heart: 0.333
   map_builder:
     _target_: metta.map.mapgen.MapGen
 

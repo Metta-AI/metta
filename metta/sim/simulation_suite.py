@@ -6,7 +6,7 @@ import torch
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -72,6 +72,7 @@ class SimulationSuite:
                     stats_epoch_id=self._stats_epoch_id,
                     wandb_policy_name=self._wandb_policy_name,
                     eval_task_id=self._eval_task_id,
+                    episode_tags=self._config.episode_tags,
                 )
                 logger.info("=== Simulation '%s' ===", name)
                 sim_result = sim.simulate()

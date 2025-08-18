@@ -30,7 +30,7 @@ protected:
   const ObservationType _number_of_glyphs;
 
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    actor->glyph = arg;
+    actor->glyph = static_cast<ObservationType>(arg);  // ActionArg is int32 for puffer compatibility
     return true;
   }
 };

@@ -1,0 +1,19 @@
+Checks: >-
+  -*,
+  clang-analyzer-*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-branch-clone,
+  cppcoreguidelines-pro-type-member-init,
+  misc-definitions-in-headers,
+  performance-*,
+  -performance-enum-size
+
+HeaderFilterRegex: '.*\/(mettagrid|src)\/.*\.(h|hpp)$'
+ExcludeHeaderFilterRegex: '.*(pybind11|numpy|Python).*'
+
+WarningsAsErrors: ''
+
+CheckOptions:
+  - key: bugprone-assert-side-effect.AssertMacros
+    value: 'assert'

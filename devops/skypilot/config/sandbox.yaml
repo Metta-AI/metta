@@ -5,51 +5,56 @@ resources:
   cpus: 8+
   image_id: docker:metta:latest
 
-file_mounts:
-  # Wandb Credentials
-  ~/.netrc: ~/.netrc
-  ~/.metta: ~/.metta
+config:
+  docker:
+    run_options:
+      - --cap-add=IPC_LOCK
+      - --ulimit memlock=-1:-1
+      - --ipc=host
+      - --userns=host
 
+file_mounts:
   /mnt/s3/softmax-public:
     source: s3://softmax-public
     mode: MOUNT_CACHED
-
   /mnt/s3/train_dir:
-    name: softmax-train-dir
-    store: s3
+    source: s3://softmax-train-dir
     mode: MOUNT_CACHED
 
 setup: |
-  cd /workspace/metta
-  git fetch
-  git checkout $METTA_GIT_REF
-
-  uv sync
-
-  mkdir -p $WANDB_DIR
-
-  echo 'cd /workspace/metta' >> ~/.bashrc
-  echo '. .venv/bin/activate' >> ~/.bashrc
-  echo '. devops/setup.env' >> ~/.bashrc
-
-  # Export GPU-related environment variables (evaluated when user logs in)
-  echo 'export NUM_GPUS=${SKYPILOT_NUM_GPUS_PER_NODE}' >> ~/.bashrc
-  echo 'export NUM_NODES=${SKYPILOT_NUM_NODES}' >> ~/.bashrc
-  echo 'export MASTER_ADDR=$(echo "${SKYPILOT_NODE_IPS}" | head -n1)' >> ~/.bashrc
-  echo 'export MASTER_PORT=8008' >> ~/.bashrc
-  echo 'export NODE_INDEX=${SKYPILOT_NODE_RANK}' >> ~/.bashrc
-  echo 'export NCCL_SHM_DISABLE=1' >> ~/.bashrc
-
-  echo "Sandbox is ready"
+  set -u
+  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/sk_setup.sh")
 
 run: |
+  set -e
+  cd /workspace/metta
+
+  # Note that the docker image may start with its own venv - switch to metta venv
+  if [ -n "$VIRTUAL_ENV" ]; then
+      deactivate 2>/dev/null || true
+  fi
+  . .venv/bin/activate
+
+  echo "[SETUP] Setting up Python environment..."
+  uv sync
+
+  bash ./devops/skypilot/config/configure_environment.sh
+
+  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+  source "$METTA_ENV_FILE"
+
+  echo "Starting bash shell..."
   exec bash
 
 envs:
-  METTA_GIT_REF: main
-  WANDB_DIR: ./wandb
+  GITHUB_REPOSITORY: Metta-AI/metta
 
   # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
   SKYPILOT_DOCKER_USERNAME: ""
   SKYPILOT_DOCKER_PASSWORD: ""
   SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+
+secrets:
+  # configured by launch script based on local credentials
+  WANDB_PASSWORD: ""
+  OBSERVATORY_TOKEN: ""

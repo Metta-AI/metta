@@ -4,16 +4,13 @@ Tests for the resolver module
 
 import datetime
 import re
-from typing import Any, Dict, Union, cast
 from unittest.mock import Mock
 
-import numpy as np
 import pytest
 from omegaconf import OmegaConf
 
 from metta.common.util.resolvers import (
     oc_add,
-    oc_choose,
     oc_clamp,
     oc_date_format,
     oc_divide,
@@ -27,10 +24,8 @@ from metta.common.util.resolvers import (
     oc_make_integer,
     oc_multiply,
     oc_scale,
-    oc_scaled_range,
     oc_subtract,
     oc_to_odd_min3,
-    oc_uniform,
     register_resolvers,
 )
 
@@ -50,19 +45,6 @@ def omega_conf_with_resolvers():
     )
 
 
-@pytest.fixture
-def omega_conf_with_sampling():
-    """Fixture providing an OmegaConf with sampling parameter"""
-    register_resolvers()
-    return OmegaConf.create(
-        {
-            "sampling": 0,  # Deterministic mode
-            "param1": "${sampling:1,100,50}",
-            "param2": "${sampling:1,100,25}",
-        }
-    )
-
-
 class TestBasicResolvers:
     """Tests for basic resolver functionality"""
 
@@ -78,37 +60,6 @@ class TestBasicResolvers:
     def test_if_resolver(self, condition, true_value, false_value, expected):
         """Test the if resolver with various inputs"""
         assert oc_if(condition, true_value, false_value) == expected
-
-    def test_uniform_resolver(self):
-        """Test the uniform resolver generates values within range"""
-        # Set seed for reproducibility
-        np.random.seed(42)
-
-        # Test multiple ranges
-        ranges = [(10, 20), (0, 1), (-10, 10)]
-        for min_val, max_val in ranges:
-            for _ in range(20):  # Run multiple times to ensure range is respected
-                val = oc_uniform(min_val, max_val)
-                assert min_val <= val <= max_val
-
-    def test_choose_resolver(self):
-        """Test the choose resolver picks from provided options"""
-        # Set seed for reproducibility
-        np.random.seed(42)
-
-        test_cases = [
-            [1, 2, 3],
-            ["apple", "banana", "cherry"],
-            [True, False],
-        ]
-
-        for choices in test_cases:
-            # Run multiple times to ensure it's working
-            results = [oc_choose(*choices) for _ in range(30)]
-            # Check that we get all possible choices
-            assert all(r in choices for r in results)
-            # Check that we get some variety (this could theoretically fail but is very unlikely)
-            assert len(set(results)) > 1
 
     @pytest.mark.parametrize(
         "a,b,expected",
@@ -352,74 +303,6 @@ class TestAdvancedResolvers:
         assert sigmoid_value == pytest.approx(0.5, abs=0.01)
 
 
-class TestScaledRange:
-    """Tests for the sampling (scaled range) resolver"""
-
-    @pytest.mark.parametrize(
-        "min_val,max_val,center,expected",
-        [
-            (1, 100, 50, 50),  # Integer center
-            (1.0, 100.0, 50.5, 50.5),  # Float center
-            (-10, 10, 0, 0),  # Zero center
-        ],
-    )
-    def test_deterministic_mode(self, min_val, max_val, center, expected):
-        """When sampling is 0, should return exactly the center value"""
-        root = cast(Dict[str, Union[int, float]], {"sampling": 0.0})
-        assert oc_scaled_range(min_val, max_val, center, _root_=root) == expected
-
-    def test_full_range(self):
-        """When sampling is 1, should use the full range"""
-        np.random.seed(42)  # For reproducibility
-        root = cast(Dict[str, Union[int, float]], {"sampling": 1.0})
-
-        # Test integer ranges
-        int_ranges = [(1, 100, 50), (-50, 50, 0), (1, 10, 5)]
-        for min_val, max_val, center in int_ranges:
-            values = [oc_scaled_range(min_val, max_val, center, _root_=root) for _ in range(30)]
-            # Should be integers due to center being an integer
-            assert all(isinstance(v, int) for v in values)
-            # Should be within the full range
-            assert all(min_val <= v <= max_val for v in values)
-            # Should have some variety
-            assert len(set(values)) > 1
-
-        # Test float ranges
-        float_ranges = [(1.0, 100.0, 50.5), (-10.0, 10.0, 0.5)]
-        for min_val, max_val, center in float_ranges:
-            values = [oc_scaled_range(min_val, max_val, center, _root_=root) for _ in range(30)]
-            # Should be floats due to center being a float
-            assert all(isinstance(v, float) for v in values)
-            # Should be within the full range
-            assert all(min_val <= v <= max_val for v in values)
-            # Should have some variety
-            assert len(set(values)) > 1
-
-    @pytest.mark.parametrize(
-        "sampling,min_val,max_val,center,expected_min,expected_max",
-        [
-            (0.5, 1, 100, 50, 25, 75),  # 50% range around center 50
-            (0.25, 0, 100, 50, 37, 63),  # 25% range around center 50
-            (0.75, -100, 100, 0, -75, 75),  # 75% range around center 0
-        ],
-    )
-    def test_partial_range(self, sampling, min_val, max_val, center, expected_min, expected_max):
-        """When sampling is between 0 and 1, should use partial range"""
-        np.random.seed(42)  # For reproducibility
-        root = {"sampling": sampling}
-
-        values = [oc_scaled_range(min_val, max_val, center, _root_=root) for _ in range(100)]
-        assert all(expected_min <= v <= expected_max for v in values)
-
-    def test_sampling_validation(self):
-        """Should raise an assertion error if sampling > 1"""
-        invalid_values = [1.1, 2.0, 100]
-        for invalid_value in invalid_values:
-            root = {"sampling": invalid_value}
-            with pytest.raises(AssertionError):
-                oc_scaled_range(1, 100, 50, _root_=root)
-
-
 class TestConfigIntegration:
     """Tests for resolvers integrated with OmegaConf"""
 
@@ -435,67 +318,9 @@ class TestConfigIntegration:
             "eq_result": True,
         }
 
-    def test_sampling_resolver_deterministic(self, omega_conf_with_sampling):
-        """Test the sampling resolver in deterministic mode"""
-        # Explicitly resolve all interpolations
-        OmegaConf.resolve(omega_conf_with_sampling)
-
-        # In deterministic mode, should get exact center values
-        assert OmegaConf.to_container(omega_conf_with_sampling) == {
-            "sampling": 0,
-            "param1": 50,
-            "param2": 25,
-        }
-
-    def test_sampling_resolver_random(self, omega_conf_with_sampling):
-        """Test the sampling resolver in random mode"""
-        # Change to random mode and set seed
-        np.random.seed(42)
-
-        # Update sampling and re-create the interpolated fields
-        omega_conf_with_sampling.sampling = 1.0
-        omega_conf_with_sampling.param1 = "${sampling:1,100,50}"
-        omega_conf_with_sampling.param2 = "${sampling:1,100,25}"
-
-        # Debug prints
-        print(f"On entry - {omega_conf_with_sampling}")
-        print(f"after overwrite - {omega_conf_with_sampling}")
-
-        # Resolve and check
-        OmegaConf.resolve(omega_conf_with_sampling)
-        print(f"after resolve - {omega_conf_with_sampling}")
-
-        resolved = OmegaConf.to_container(omega_conf_with_sampling)
-
-        # Make sure resolved is not None
-        assert resolved is not None, "OmegaConf.to_container returned None"
-
-        # Type hinting to help the type checker
-        from typing import Dict, cast
-
-        resolved_dict = cast(Dict[str, Any], resolved)
-        print(f"resolved_dict - {resolved_dict}")
-
-        # Values should now be randomized, but within range
-        param1 = resolved_dict.get("param1")
-        param2 = resolved_dict.get("param2")
-
-        # Check that the parameters exist
-        assert param1 is not None, "param1 not found in resolved config"
-        assert param2 is not None, "param2 not found in resolved config"
-
-        # Now perform the range checks with explicit type conversion
-        assert 1 <= float(param1) <= 100
-        assert 1 <= float(param2) <= 100
-
-        # Different from center values
-        assert float(param1) != 50.0 or float(param2) != 25.0
-
 
 def test_date_format_resolver():
     """Test the date_format resolver with various formats"""
-    import datetime
-
     from metta.common.util.resolvers import oc_date_format
 
     # Get the current date for verification

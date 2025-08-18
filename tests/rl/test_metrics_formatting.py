@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.rl.functions import (
+from metta.rl.stats import (
     build_wandb_stats,
     process_training_stats,
 )
@@ -38,6 +38,8 @@ class TestMetricsFormattingMain:
             },
         )
 
+        hyperparameters = {"learning_rate": 0.001}
+
         result = build_wandb_stats(
             processed_stats,
             timing_info,
@@ -46,6 +48,7 @@ class TestMetricsFormattingMain:
             system_stats,
             memory_stats,
             parameters,
+            hyperparameters,
             evals,
             agent_step=10000,
             epoch=100,
@@ -69,6 +72,9 @@ class TestMetricsFormattingMain:
         # Check parameters
         assert result["parameters/learning_rate"] == 0.001
         assert result["parameters/batch_size"] == 32
+
+        # Check hyperparameters
+        assert result["hyperparameters/learning_rate"] == 0.001
 
         # Check evaluation scores
         assert result["eval_navigation/score"] == 0.8
