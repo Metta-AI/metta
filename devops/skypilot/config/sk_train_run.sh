@@ -33,10 +33,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     echo "[RUN] Collecting instance cost..."
     METTA_HOURLY_COST="$(uv run python common/src/metta/common/util/cost_monitor.py 2>/dev/null | tail -1 || true)"
     if [ -n "${METTA_HOURLY_COST:-}" ]; then
-      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
-      # CRITICAL FIX: Actually persist the cost
-      echo "export METTA_HOURLY_COST=\"$METTA_HOURLY_COST\"" >> "$METTA_ENV_FILE"
-      export METTA_HOURLY_COST
+      echo "[RUN] METTA_HOURLY_COST set to $METTA_HOURLY_COST in $METTA_ENV_FILE by python."
     else
       echo "[RUN] Cost monitor script failed to run or returned no value."
     fi
@@ -63,8 +60,8 @@ echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
 echo "  - RESTART_COUNT: ${RESTART_COUNT}"
 echo "  - ACCUMULATED_RUNTIME: ${ACCUMULATED_RUNTIME}s ($((ACCUMULATED_RUNTIME / 60))m)"
-echo "  - TEST_JOB_RESTART: ${TEST_JOB_RESTART:-0}"
-echo "  - RUN_NCCL_TEST: ${RUN_NCCL_TEST:-false}"
+echo "  - TEST_JOB_RESTART: ${TEST_JOB_RESTART:-false}" # used in timeout_monitor
+echo "  - TEST_NCCL: ${TEST_NCCL:-false}"
 echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
 echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
 
@@ -87,7 +84,7 @@ export CLUSTER_STOP_CHECK_INTERVAL=${CLUSTER_STOP_CHECK_INTERVAL:-15}
 # Flag to prevent multiple shutdowns
 export SHUTDOWN_IN_PROGRESS=0
 
-# CRITICAL FIX: Record the wrapper's PID so monitors can signal it
+# Record the wrapper's PID so monitors can signal it
 export WRAPPER_PID=$BASHPID
 
 if [[ "$IS_MASTER" == "true" ]]; then
@@ -221,7 +218,7 @@ terminate_process() {
 
   # Only send signal if not already shutting down
   if [ $SHUTDOWN_IN_PROGRESS -eq 0 ]; then
-    # CRITICAL FIX: Signal the wrapper (parent shell), not this subshell
+    # Signal the wrapper (parent shell), not this subshell
     kill -TERM "${WRAPPER_PID}" 2>/dev/null || true
   fi
 }
@@ -415,14 +412,18 @@ export -f terminate_monitors
 trap cleanup EXIT
 
 # All nodes: Run GPU diagnostics and NCCL tests (first start only)
-RUN_NCCL_TEST="${RUN_NCCL_TEST:-false}"
-if [[ "$RUN_NCCL_TEST" == "false" ]]; then
-  echo "[SKIP] Skipping NCCL test (RUN_NCCL_TEST=false)"
+TEST_NCCL="${TEST_NCCL:-false}"
+if [[ "$TEST_NCCL" == "false" ]]; then
+  echo "[SKIP] Skipping NCCL test (TEST_NCCL=false)"
 elif [ "${RESTART_COUNT:-0}" -ne 0 ]; then
   echo "[SKIP] Skipping NCCL test on restart (RESTART_COUNT=${RESTART_COUNT})"
 else
   echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
-  uv run python ./devops/skypilot/test_nccl.py || echo "[WARN] NCCL tests failed but continuing anyway"
+  if ! uv run python ./devops/skypilot/test_nccl.py; then
+    echo "[ERROR] NCCL tests failed - exiting with code $EXIT_NCCL_TEST_FAILURE"
+    exit $EXIT_NCCL_TEST_FAILURE
+  fi
+  echo "[SUCCESS] NCCL tests passed"
 fi
 
 # Run the command
