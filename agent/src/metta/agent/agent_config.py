@@ -26,6 +26,7 @@ class ComponentPolicyConfig(Config):
     obs_height: Optional[int] = None
     action_space: Optional[gym.spaces.Space] = None
     feature_normalizations: Optional[dict[int, float]] = None
+    clip_range: Optional[float] = 0.1  # What should be the default value?
     device: Optional[str] = None
 
     model_config: ClassVar[ConfigDict] = ConfigDict(

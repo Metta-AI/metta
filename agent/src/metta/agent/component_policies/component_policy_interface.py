@@ -27,7 +27,7 @@ class ComponentPolicyInterface(nn.Module, ABC):
         super().__init__()
 
         self.config = config
-        self.clip_range = 0
+        self.clip_range = config.clip_range
 
         # Device setup
         self.device = (
