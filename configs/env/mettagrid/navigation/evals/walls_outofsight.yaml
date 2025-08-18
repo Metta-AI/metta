@@ -15,5 +15,5 @@ game:
       params:
         mean_distance: 15
         objects:
-          altar: 3
+          box: 3
           wall: 12

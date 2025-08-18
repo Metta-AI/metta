@@ -15,5 +15,5 @@ game:
     uri: "configs/env/mettagrid/maps/navigation/obstacles1.map"
 
   objects:
-    altar:
-      cooldown: 255
+    box:
+      type_id: 12
