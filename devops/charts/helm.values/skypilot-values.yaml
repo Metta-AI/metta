@@ -4,6 +4,26 @@ apiService:
       bucket: s3://skypilot-jobs/
     api_server:
       requests_retention_hours: 3
+    kubernetes:
+      # Pod configuration for worker pods created by Skypilot
+      pod_config:
+        metadata:
+          labels:
+            managed-by: skypilot
+        spec:
+          containers:
+          - env:
+            # Datadog environment variables for worker pods
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_TRACE_ENABLED
+              value: "true"
+            - name: DD_ENV
+              value: "production"
+            - name: DD_SERVICE
+              value: "skypilot-worker"
   resources:
     requests:
       cpu: "8"
@@ -13,6 +33,20 @@ apiService:
       memory: "16Gi"
   metrics:
     enabled: true
+  # Datadog environment variables for the API server
+  extraEnvs:
+    - name: DD_AGENT_HOST
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+    - name: DD_TRACE_ENABLED
+      value: "true"
+    - name: DD_ENV
+      value: "production"
+    - name: DD_SERVICE
+      value: "skypilot-api"
+    - name: DD_VERSION
+      value: "latest"
 awsCredentials:
   enabled: true
 ingress:
