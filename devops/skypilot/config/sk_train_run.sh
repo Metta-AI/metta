@@ -50,6 +50,21 @@ EXIT_SUCCESS=0
 EXIT_FAILURE=1
 EXIT_NCCL_TEST_FAILURE=42
 
+
+# Compute derived runtime values
+max_seconds=-1 # no max runtime
+remaining_at_start=-1
+force_restart_seconds=-1
+if [[ -n "${MAX_RUNTIME_HOURS:-}" ]]; then
+  max_seconds=$(awk "BEGIN {print int(${MAX_RUNTIME_HOURS} * 3600)}")
+  accumulated_runtime=${ACCUMULATED_RUNTIME:-0}
+  remaining_at_start=$((max_seconds - accumulated_runtime))
+  if [[ ${RESTART_COUNT:-0} -eq 0 ]]; then
+    force_restart_seconds=$(awk "BEGIN {print int(${remaining_at_start} * 0.3)}")
+  fi
+fi
+
+# Print run configuration
 echo "[CONFIG] Run Configuration:"
 echo "  - NODE_RANK: ${RANK}"
 echo "  - IS_MASTER: ${IS_MASTER}"
@@ -58,12 +73,15 @@ echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
 echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
 echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
 echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
+echo "  - ACCUMULATED_RUNTIME: ${ACCUMULATED_RUNTIME:-'NOT SET'}"
+[[ ${remaining_at_start} -gt 0 ]] && echo "     ↳ remaining runtime seconds: ${remaining_at_start}"
 echo "  - RESTART_COUNT: ${RESTART_COUNT}"
-echo "  - ACCUMULATED_RUNTIME: ${ACCUMULATED_RUNTIME}s ($((ACCUMULATED_RUNTIME / 60))m)"
 echo "  - TEST_JOB_RESTART: ${TEST_JOB_RESTART:-false}" # used in timeout_monitor
+[[ ${force_restart_seconds} -gt 0 ]] && echo "     ↳ job restart test delay: ${force_restart_seconds}"
 echo "  - TEST_NCCL: ${TEST_NCCL:-false}"
 echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
 echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
+
 
 # Create a temp directory for IPC files
 export IPC_DIR="/tmp/metta_job_$$"
@@ -138,23 +156,9 @@ graceful_shutdown() {
   if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
       echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
 
-      # First try SIGINT (Ctrl+C) to allow graceful shutdown
-      echo "[SHUTDOWN] Sending SIGINT to process group..."
-      kill -INT -"${CMD_PGID}" 2>/dev/null || true
-
-      # Give it 30 seconds to handle SIGINT gracefully
-      local count=0
-      while kill -0 "$CMD_PID" 2>/dev/null && [ $count -lt 30 ]; do
-        if [ $((count % 5)) -eq 0 ]; then
-          echo "[SHUTDOWN] Waiting for graceful shutdown... ($count/30 seconds)"
-        fi
-        sleep 1
-        ((count++))
-      done
-
-      # If still alive, escalate to SIGTERM
+      # start with SIGTERM
       if kill -0 "$CMD_PID" 2>/dev/null; then
-        echo "[SHUTDOWN] Process didn't respond to SIGINT, sending SIGTERM..."
+        echo "[SHUTDOWN] Sending SIGTERM to process group..."
         kill -TERM -"${CMD_PGID}" 2>/dev/null || true
 
         # Give another 15 seconds for SIGTERM
@@ -171,8 +175,13 @@ graceful_shutdown() {
         kill -KILL -"${CMD_PGID}" 2>/dev/null || true
       fi
 
-      # Wait for the main process to die
-      wait "${CMD_PID}" 2>/dev/null || true
+      if kill -0 "$CMD_PID" 2>/dev/null; then
+        echo "[SHUTDOWN] Waiting for process $CMD_PID to exit..."
+        wait "$CMD_PID" 2>/dev/null || true
+      else
+        echo "[SHUTDOWN] Process $CMD_PID already exited, skipping wait"
+      fi
+
       echo "[SHUTDOWN] Process terminated"
   fi
 
