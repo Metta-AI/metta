@@ -45,7 +45,7 @@ file_mounts:
 
 setup: |
   set -u
-  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/sk_setup.sh")
+  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
 
 run: /workspace/metta/devops/skypilot/config/sk_train_run.sh
 

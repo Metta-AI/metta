@@ -18,4 +18,4 @@ else
 fi
 
 echo "[RUN] Setting GitHub status: ${GITHUB_STATUS_STATE} - ${GITHUB_STATUS_DESCRIPTION}"
-uv run devops/skypilot/set_github_status.py || echo "[WARN] GitHub status update failed; continuing"
+uv run devops/skypilot/config/notifications/set_github_status.py || echo "[WARN] GitHub status update failed; continuing"

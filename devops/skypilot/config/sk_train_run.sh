@@ -43,13 +43,12 @@ if [[ "$IS_MASTER" == "true" ]]; then
 fi
 
 # Setup environment (all nodes)
-bash ./devops/skypilot/config/configure_environment.sh
+bash ./devops/skypilot/config/lifecycle/configure_environment.sh
 source "$METTA_ENV_FILE"
 
-EXIT_SUCCESS=0
-EXIT_FAILURE=1
-EXIT_NCCL_TEST_FAILURE=42
-
+export EXIT_SUCCESS=0
+export EXIT_FAILURE=1
+export EXIT_NCCL_TEST_FAILURE=42
 
 # Compute derived runtime values
 max_seconds=-1 # no max runtime
@@ -133,24 +132,19 @@ if [[ "$IS_MASTER" == "true" ]]; then
   bash ./devops/skypilot/config/notifications/set_github_status.sh
 fi
 
-graceful_shutdown() {
-  # Prevent multiple simultaneous shutdowns
-  if [ $SHUTDOWN_IN_PROGRESS -eq 1 ]; then
-    echo "[SHUTDOWN] Shutdown already in progress, ignoring signal"
-    return
-  fi
-  SHUTDOWN_IN_PROGRESS=1
-
-  echo "[SHUTDOWN] Caught INT/TERM/HUP; initiating graceful shutdown..."
-
+shutdown() {
   # Disable the trap to prevent re-entry
   trap '' INT TERM HUP
 
-  # If a monitor set a reason, keep it; otherwise set a generic one
+  echo "[SHUTDOWN] Caught INT/TERM/HUP; initiating graceful shutdown..."
+
   if [ -z "${TERMINATION_REASON:-}" ] && [ -f "$TERMINATION_REASON_FILE" ]; then
     TERMINATION_REASON="$(cat "$TERMINATION_REASON_FILE" || true)"
+    if [ -z "$TERMINATION_REASON" ]; then
+      echo "[ERROR] no TERMINATION_REASON was found"
+      exit 99
+    fi
   fi
-  TERMINATION_REASON="${TERMINATION_REASON:-graceful_shutdown}"
 
   # Kill the entire process tree gracefully
   if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
@@ -211,26 +205,13 @@ graceful_shutdown() {
     echo "[SUMMARY] Total runtime: ${dur} seconds ($((dur/60)) minutes)"
   fi
 
-  # For distributed jobs, workers wait briefly for master cleanup
-  if [[ "$TOTAL_NODES" -gt 1 ]] && [[ "$IS_MASTER" != "true" ]]; then
-    echo "[SHUTDOWN] Worker waiting for master to complete cleanup..."
-    sleep 5
-  fi
-
-  # Report success on controlled shutdown
-  CMD_EXIT=0
-  FINAL_EXIT_CODE=0
-  echo "[INFO] Termination reason: ${TERMINATION_REASON}"
-  echo "[INFO] Exiting wrapper with code 0 (controlled shutdown)"
-
   export CMD_EXIT
-  maybe_set_github_status
-
-  exit $EXIT_SUCCESS
+  export FINAL_EXIT_CODE
+  export TERMINATION_REASON
 }
 
 # Trap signals on the parent (the process SkyPilot watches)
-trap graceful_shutdown INT TERM HUP
+trap shutdown INT TERM HUP
 
 terminate_monitors() {
   if [[ -n "${HEARTBEAT_MONITOR_PID:-}" ]] && kill -0 "$HEARTBEAT_MONITOR_PID" 2>/dev/null; then
@@ -334,129 +315,18 @@ run_cmd() {
   return $CMD_EXIT
 }
 
-
-cleanup() {
-  # Only run cleanup once
-  if [ "${CLEANUP_DONE:-}" = "true" ]; then
-    return
-  fi
-  export CLEANUP_DONE=true
-
-  # Capture the actual exit code that triggered the trap
-  local actual_exit_code=$?
-
-  # If CMD_EXIT wasn't set (meaning we failed before run_cmd), use the actual exit code
-  if [ -z "${CMD_PID:-}" ]; then
-    CMD_EXIT=$actual_exit_code
-  fi
-
-  # Read termination reason from file if it exists
-  if [ -f "$TERMINATION_REASON_FILE" ]; then
-    TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE")
-    echo "[INFO] Termination reason from monitor: $TERMINATION_REASON"
-  fi
-
-  # Master-only: Handle notifications and status updates
-  if [[ "$IS_MASTER" == "true" ]]; then
-    # Check termination reason and set appropriate status
-    if [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
-      echo "[ERROR] Job terminated due to heartbeat timeout"
-      export GITHUB_STATUS_STATE="failure"
-      export GITHUB_STATUS_DESCRIPTION="Job failed - no heartbeat for ${HEARTBEAT_TIMEOUT} seconds"
-      bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
-        "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
-
-    elif [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]]; then
-      echo "[INFO] Job terminated due to max runtime limit"
-      export GITHUB_STATUS_STATE="success"
-      export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
-      # bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
-      #   "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
-      # Map to success
-      CMD_EXIT=0
-
-    elif [[ "${TERMINATION_REASON}" == "force_restart_test" ]]; then
-      echo "[INFO] Job restarting for test purposes"
-      export GITHUB_STATUS_STATE="pending"
-      export GITHUB_STATUS_DESCRIPTION="Forced a restart test in run #${RESTART_COUNT}"
-      # bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
-      #   "🔄" "SkyPilot Job Restarting (Test)" "${GITHUB_STATUS_DESCRIPTION}"
-      # Set exit code to trigger restart
-      CMD_EXIT=1
-      FINAL_EXIT_CODE=1
-
-    elif [[ $CMD_EXIT -eq $EXIT_SUCCESS ]]; then
-      echo "[SUCCESS] Job completed successfully"
-      export GITHUB_STATUS_STATE="success"
-      export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
-      export TERMINATION_REASON="completed"
-      # bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
-      #   "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
-
-    elif [[ $CMD_EXIT -eq $EXIT_NCCL_TEST_FAILURE ]]; then
-      echo "[ERROR] Job failed during NCCL tests"
-      export GITHUB_STATUS_STATE="error"  # Changed from "failure" - this is infrastructure issue
-      export GITHUB_STATUS_DESCRIPTION="NCCL tests failed - GPU communication issue"
-      export TERMINATION_REASON="nccl_test_failure"
-      bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
-        "⚠️" "SkyPilot Job NCCL Config Error" "${GITHUB_STATUS_DESCRIPTION}"
-
-    else
-      echo "[ERROR] Job failed with exit code $CMD_EXIT"
-      export GITHUB_STATUS_STATE="failure"
-      export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
-      export TERMINATION_REASON="exit_code_${CMD_EXIT}"
-      bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
-        "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
-    fi
-
-    # Final GitHub status update
-    export CMD_EXIT
-    bash ./devops/skypilot/config/notifications/set_github_status.sh
-  fi
-
-  # Final summary (all nodes)
-  echo "[SUMMARY] ===== Job Summary ====="
-  echo "[SUMMARY] Node Rank: ${RANK}"
-  echo "[SUMMARY] Metta Run ID: ${METTA_RUN_ID}"
-  echo "[SUMMARY] Skypilot Task ID: ${SKYPILOT_TASK_ID}"
-  echo "[SUMMARY] Exit code: ${CMD_EXIT}"
-  echo "[SUMMARY] Termination reason: ${TERMINATION_REASON:-unknown}"
-  echo "[SUMMARY] ======================"
-
-  echo "[RUN] Job complete with exit code: $CMD_EXIT (reason: ${TERMINATION_REASON:-unknown})"
-
-  # Set the final exit code for the script
-  if [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]] ||
-     [[ "${TERMINATION_REASON}" == "completed" ]] ||
-      [[ "${TERMINATION_REASON}" == "graceful_shutdown" ]] ||
-     [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
-    echo "[INFO] Will exit with code 0 to prevent SkyPilot restart"
-    FINAL_EXIT_CODE=0
-  else
-    echo "[INFO] Will exit with actual exit code: $CMD_EXIT"
-    FINAL_EXIT_CODE=$CMD_EXIT
-  fi
-
-  # Worker nodes: brief delay to let master finish cleanup
-  if [[ "$IS_MASTER" != "true" ]]; then
-    echo "[INFO] Worker node waiting briefly for master cleanup..."
-    sleep 3
-  fi
-
-  # Override the process exit code from within the EXIT trap.
-  # Note: calling `exit` inside an EXIT trap does not recurse the trap.
-  exit "${FINAL_EXIT_CODE:-${CMD_EXIT:-1}}"
-}
-
 # Export variables needed by cleanup
 export TIMEOUT_MONITOR_PID=""
 export HEARTBEAT_MONITOR_PID=""
 export CLUSTER_STOP_MONITOR_PID=""
 export CMD_EXIT=1  # Default exit code
 export FINAL_EXIT_CODE=1 # Default to failure
+export RANK
+export METTA_RUN_ID
+export SKYPILOT_TASK_ID
 
 # Set up cleanup trap
+source ./devops/skypilot/config/monitors/cleanup_handler.sh
 trap cleanup EXIT
 
 # All nodes: Run GPU diagnostics and NCCL tests (first start only)
@@ -467,7 +337,7 @@ elif [ "${RESTART_COUNT:-0}" -ne 0 ]; then
   echo "[SKIP] Skipping NCCL test on restarted job (RESTART_COUNT=${RESTART_COUNT})"
 else
   echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
-  if ! uv run python ./devops/skypilot/test_nccl.py; then
+  if ! uv run python ./devops/skypilot/preflight/test_nccl.py; then
     echo "[ERROR] NCCL tests failed - exiting with code $EXIT_NCCL_TEST_FAILURE"
     terminate_process "$CMD_PID" "nccl_test_failure"
   fi
