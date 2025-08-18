@@ -3,7 +3,6 @@
 import gymnasium as gym
 import numpy as np
 import torch
-from omegaconf import DictConfig
 from tensordict import TensorDict
 
 from metta.agent.metta_agent import MettaAgent
@@ -46,11 +45,19 @@ def test_metta_agent_with_vanilla_policy():
 
     # Create configs
     system_cfg = SystemConfig(device="cpu")
-    agent_cfg = DictConfig({"clip_range": 0})
+    # Use a simple string value that matches the Literal type
+    agent_cfg = "vanilla.py"
 
     # Create MettaAgent with vanilla policy
+    from metta.agent.agent_config import AgentConfig
+
     vanilla_policy = VanillaTorchPolicy()
-    agent = MettaAgent(MinimalEnv(), system_cfg, agent_cfg, policy=vanilla_policy)
+    agent_config = AgentConfig(
+        env=MinimalEnv(),
+        agent=agent_cfg,
+        policy=vanilla_policy,
+    )
+    agent = MettaAgent(agent_config, system_cfg)
 
     # Test that initialization works
     features = {
@@ -117,10 +124,18 @@ def test_metta_agent_fallback_methods():
             self.feature_normalizations = {}
 
     system_cfg = SystemConfig(device="cpu")
-    agent_cfg = DictConfig({})
+    # Use a simple string value that matches the Literal type
+    agent_cfg = "vanilla.py"
+
+    from metta.agent.agent_config import AgentConfig
 
     policy = MinimalPolicy()
-    agent = MettaAgent(MinimalEnv(), system_cfg, agent_cfg, policy=policy)
+    agent_config = AgentConfig(
+        env=MinimalEnv(),
+        agent=agent_cfg,
+        policy=policy,
+    )
+    agent = MettaAgent(agent_config, system_cfg)
 
     # Test that all these methods work without errors
     features = {"test": {"id": 1, "type": "scalar"}}

@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import gymnasium as gym
 import numpy as np
@@ -10,6 +10,8 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
+from metta.agent.agent_config import AgentConfig
+from metta.agent.agent_interface import MettaAgentInterface
 from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.rl.system_config import SystemConfig
 
@@ -54,34 +56,41 @@ class DistributedMettaAgent(DistributedDataParallel):
             return getattr(self.module, name)
 
 
-class MettaAgent(nn.Module):
+class MettaAgent(MettaAgentInterface):
     def __init__(
         self,
-        env,
+        config: AgentConfig,
         system_cfg: SystemConfig,
-        agent_cfg: DictConfig,
-        policy: Optional[nn.Module] = None,
     ):
         super().__init__()
-        self.cfg = agent_cfg
+
+        logger.info(f"MettaAgent initialized with config: {config}")
+
+        # Do NOT store the full config on the instance to keep the agent picklable.
+        # The config may hold references (e.g., env) that include locks and cannot be pickled.
+        self.cfg = config.agent
         self.device = system_cfg.device
+
+        logger.info(f"Device: {self.device}")
 
         # Create observation space
         self.obs_space = gym.spaces.Dict(
             {
-                "grid_obs": env.single_observation_space,
+                "grid_obs": config.env.single_observation_space,
                 "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(0,), dtype=np.int32),
             }
         )
 
-        self.obs_width = env.obs_width
-        self.obs_height = env.obs_height
-        self.action_space = env.single_action_space
-        self.feature_normalizations = env.feature_normalizations
+        self.obs_width = config.env.obs_width
+        self.obs_height = config.env.obs_height
+        self.action_space = config.env.single_action_space
+        self.feature_normalizations = config.env.feature_normalizations
 
         # Create policy if not provided
-        if policy is None:
-            policy = self._create_policy(agent_cfg, env, system_cfg)
+        if config.policy is None:
+            policy = self._create_policy(config.agent, config.env, system_cfg)
+        else:
+            policy = config.policy
 
         self.policy = policy
         if self.policy is not None and hasattr(self.policy, "device"):
@@ -91,7 +100,14 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
 
-    def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
+    def __getstate__(self):
+        """Return a picklable state by stripping any non-serializable fields."""
+        state = self.__dict__.copy()
+        # Ensure we never attempt to pickle the full config object
+        state.pop("config", None)
+        return state
+
+    def _create_policy(self, agent_cfg: Union[str, DictConfig], env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
 
         # map agent_cfg.agent_type to the appropriate policy class
@@ -108,8 +124,10 @@ class MettaAgent(nn.Module):
 
             AgentClass = component_agent_classes[policy_name.split(".")[0]]
 
-            # Create ComponentPolicy (YAML config)
-            policy = AgentClass(
+            # Create ComponentPolicyConfig
+            from metta.agent.agent_config import ComponentPolicyConfig
+
+            policy_config = ComponentPolicyConfig(
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
                 obs_height=self.obs_height,
@@ -117,6 +135,9 @@ class MettaAgent(nn.Module):
                 feature_normalizations=self.feature_normalizations,
                 device=system_cfg.device,
             )
+
+            # Create ComponentPolicy (YAML config)
+            policy = AgentClass(config=policy_config)
             logger.info(f"Using ComponentPolicy: {policy_name}")
 
         return policy
@@ -346,7 +367,7 @@ class MettaAgent(nn.Module):
             logger.info("Detected old checkpoint format - converting to new ComponentPolicy structure")
 
             # Extract the components and related attributes that belong in ComponentPolicy
-            from metta.agent.component_policy import ComponentPolicy
+            from metta.agent.component_policies.latent_attn_small import ComponentPolicy
 
             # First, break any circular references in the old state
             if "policy" in state and state.get("policy") is state:

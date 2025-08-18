@@ -52,10 +52,14 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[Di
         logger.warning(f"Failed to load checkpoint from {path}: {e}")
 
     env = _init_env()
-    policy = instantiate(pytorch_cfg, env=env, policy=None)
+    if pytorch_cfg is not None:
+        policy = instantiate(pytorch_cfg, env=env, policy=None)
+    else:
+        policy = None
 
     try:
-        policy.load_state_dict(weights)
+        if policy is not None:
+            policy.load_state_dict(weights)
     except Exception as e:
         logger.warning(f"Failed to load weights into policy: {e}")
         logger.warning("Proceeding with new policy.")
@@ -64,4 +68,11 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[Di
 
     system_cfg = SystemConfig(device=device)
 
-    return MettaAgent(env, system_cfg, pytorch_cfg, policy=policy)
+    from metta.agent.agent_config import AgentConfig
+
+    agent_config = AgentConfig(
+        env=env,
+        agent=agent_cfg,
+        policy=policy,
+    )
+    return MettaAgent(agent_config, system_cfg)
