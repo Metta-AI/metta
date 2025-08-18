@@ -2,7 +2,8 @@
 
 # ColorTree BPTT Horizon Experiments
 # Tests different BPTT horizons for various step configurations
-u# Note: Uses existing curriculum files and can optionally use user config
+# NOTE: This experiment uses a modified curriculum that switches sequences every 2 episodes.
+# Note: Uses existing curriculum files and can optionally use user config
 
 # Generate random seed if not provided
 SEED=${1:-$RANDOM}

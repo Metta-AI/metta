@@ -53,6 +53,7 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
     ):
         super().__init__(tasks, env_overrides)
         self._last_selected_sequence: list[int] | None = None
+        self._active_sequence: list[int] | None = None
         self._episode_count = 0  # Initialize here instead of in get_task
         # Create a unique RNG with a random seed for this curriculum instance
         self._rng = random.Random(int.from_bytes(os.urandom(8), "big"))
@@ -145,14 +146,20 @@ class ColorTreeRandomFromSetCurriculum(RandomCurriculum):
             self._call_counter += 1
             call_id = self._call_counter
 
-            # Use proper random selection without modulo bias
-            # randrange is better than randint + modulo for avoiding bias
-            sequence_index = self._rng.randrange(len(self.sequence_pool))
-            selected_sequence = self.sequence_pool[sequence_index]
-            self._last_selected_sequence = selected_sequence
-
             # Track episode count
             self._episode_count += 1
+
+            # Switch sequence every 2 episodes for testing
+            if self._active_sequence is None or (self._episode_count - 1) % 2 == 0:
+                # Use proper random selection without modulo bias
+                sequence_index = self._rng.randrange(len(self.sequence_pool))
+                selected_sequence = self.sequence_pool[sequence_index]
+                self._active_sequence = selected_sequence
+            else:
+                # Reuse the active sequence for the second episode
+                selected_sequence = self._active_sequence
+
+            self._last_selected_sequence = selected_sequence
 
             # Track sequences for current epoch
             self._current_epoch_sequences.append(tuple(selected_sequence))
