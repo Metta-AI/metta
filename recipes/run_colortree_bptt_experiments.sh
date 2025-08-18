@@ -2,13 +2,14 @@
 
 # ColorTree BPTT Horizon Experiments with sqrt(N) Learning Rate Scaling
 # Tests different BPTT horizons with learning rate scaled by 1/sqrt(bptt_horizon)
-# This sqrt(N) scaling approach maintains stable learning across different sequence lengths
+# Normalized to BPTT=128 (which worked with standard LR=0.0008)
+# This tests if sqrt(N) scaling can rescue BPTT=64 and maintain performance for BPTT=256
 # Note: Uses existing curriculum files and can optionally use user config
 
 # Generate random seed if not provided
 SEED=${1:-$RANDOM}
 USE_USER_CONFIG=${2:-"no"}  # Pass "user" as second arg to include user config
-echo "=== ColorTree BPTT sqrt(N) Learning Rate Scaling Experiments ==="
+echo "=== ColorTree BPTT sqrt(N) LR Scaling (Normalized to BPTT=128) ==="
 echo "Using seed: $SEED"
 if [ "$USE_USER_CONFIG" = "user" ]; then
     echo "Including user config: user/jacke"
@@ -75,7 +76,7 @@ for bptt in 64 128 256; do
     steps=128
     # Using the actual existing curriculum file
     curriculum="colortree_easy_${steps}step_${NUM_COLORS}colors"
-    run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
+    run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_norm128_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
 
     # Calculate LR for display
     lr=$(echo "scale=8; $BASE_LR * sqrt(128) / sqrt($bptt)" | bc)
@@ -99,7 +100,7 @@ steps=64
 bptt=128
 # For 64 steps, the curriculum file is just "colortree_easy_2colors"
 curriculum="colortree_easy_${NUM_COLORS}colors"
-run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
+run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_norm128_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
 
 # Calculate LR for display
 lr=$(echo "scale=8; $BASE_LR * 8 / sqrt($bptt)" | bc)
@@ -122,7 +123,7 @@ steps=32
 bptt=64
 # Using the actual existing curriculum file
 curriculum="colortree_easy_${steps}step_${NUM_COLORS}colors"
-run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
+run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_norm128_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
 
 # Calculate LR for display
 lr=$(echo "scale=8; $BASE_LR * 8 / sqrt($bptt)" | bc)
