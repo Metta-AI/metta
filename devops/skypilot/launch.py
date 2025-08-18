@@ -2,6 +2,7 @@
 import argparse
 import copy
 import json
+import logging
 import subprocess
 import sys
 
@@ -20,6 +21,8 @@ from metta.common.util.fs import cd_repo_root
 from metta.common.util.git import get_current_commit, validate_git_ref
 from metta.common.util.text_styles import red
 
+logger = logging.getLogger("launch.py")
+
 
 def _validate_run_tool(module_path: str, run_id: str, filtered_args: list, overrides: list) -> None:
     """Validate that run.py can successfully create a tool config with the given arguments."""
@@ -34,17 +37,25 @@ def _validate_run_tool(module_path: str, run_id: str, filtered_args: list, overr
     if overrides:
         run_cmd.extend(["--overrides"] + overrides)
 
+    output = ""
+    success = False
     try:
         # Run the validation command
-        subprocess.check_call(run_cmd)
+        output = subprocess.check_output(run_cmd, text=True)
+        success = True
         print("[VALIDATION] ✅ Configuration validation successful")
     except AssertionError as e:
         print(red("[VALIDATION] ❌ Configuration validation failed"))
         print(red(f"[VALIDATION] {str(e)}"))
-        sys.exit(1)
     except FileNotFoundError as e:
         print(red("[VALIDATION] ❌ Could not find run.py or uv command"))
         print(red(f"[VALIDATION] {str(e)}"))
+
+    with open("/tmp/run_cmd.txt", "w") as f:
+        f.write(output)
+        logger.info("[VALIDATION] Output saved to /tmp/run_cmd.txt")
+
+    if not success:
         sys.exit(1)
 
 

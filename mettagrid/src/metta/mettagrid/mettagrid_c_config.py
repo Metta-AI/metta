@@ -36,11 +36,7 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                 if isinstance(value, dict):
                     agent_group_props[key].update(value)
                 else:
-<<<<<<< HEAD
-                        agent_group_props[key] = value
-=======
                     agent_group_props[key] = value
->>>>>>> cfc2e169e (cp)
 
         # Extract inventory rewards - handle both old and new format for backward compatibility
         inventory_rewards = {}

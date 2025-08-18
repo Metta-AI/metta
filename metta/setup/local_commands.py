@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.constants import METTA_WANDB_PROJECT
 from metta.common.util.fs import get_repo_root
 from metta.setup.utils import error, info
@@ -154,7 +155,6 @@ class LocalCommands:
         import wandb
 
         from metta.agent.policy_store import PolicyStore
-        from metta.common.util.stats_client_cfg import get_stats_client
         from metta.common.wandb.wandb_runs import find_training_runs
         from metta.sim.utils import get_or_create_policy_ids
 
@@ -194,7 +194,7 @@ class LocalCommands:
             return
 
         print(f"\nConnecting to stats database at {args.stats_db_uri}...")
-        stats_client = get_stats_client(args.stats_db_uri)
+        stats_client = StatsClient.create(args.stats_db_uri)
         if not stats_client:
             print("No stats client")
             return
