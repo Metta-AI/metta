@@ -147,7 +147,8 @@ def main():
         GITHUB_PAT=args.github_pat,
         MAX_RUNTIME_HOURS=args.max_runtime_hours,
         DISCORD_WEBHOOK_URL=args.discord_webhook_url,
-        TEST_JOB_RESTART="1" if args.test_job_restart else "0",
+        TEST_JOB_RESTART="true" if args.test_job_restart else "false",
+        TEST_NCCL="true" if args.test_job_restart else "false",
     )
 
     env_updates = {k: v for k, v in env_updates.items() if v is not None}
