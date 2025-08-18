@@ -289,7 +289,13 @@ run_cmd() {
   START_TIME=$(date +%s)
 
   # Start training in its own process group; tee output for postmortem
-  setsid ./devops/"${METTA_CMD:?missing METTA_CMD}".sh run="${METTA_RUN_ID:?missing METTA_RUN_ID}" ${METTA_CMD_ARGS:-} 2>&1 | tee "$IPC_DIR/${METTA_CMD}_log.txt" &
+  cmd=( ./devops/"${METTA_CMD:?missing METTA_CMD}".sh "run=${METTA_RUN_ID:?missing METTA_RUN_ID}" )
+  if [ -n "${METTA_CMD_ARGS:-}" ]; then
+    extra_args=( ${METTA_CMD_ARGS} )
+    cmd+=("${extra_args[@]}")
+  fi
+  # Use process substitution so $! is the trainer (not tee)
+  setsid "${cmd[@]}" > >(tee "$IPC_DIR/${METTA_CMD}_log.txt") 2> >(tee -a "$IPC_DIR/${METTA_CMD}_log.txt" >&2) &
   CMD_PID=$!
 
   sleep 1
@@ -399,6 +405,7 @@ run_cmd() {
 
   # Start a cluster-stop monitor that always runs, regardless of heartbeat settings
   if [ -n "${CLUSTER_STOP_FILE:-}" ]; then
+    mkdir -p "$(dirname "$CLUSTER_STOP_FILE")" || true
     (
       exec 2>&1
       echo "[INFO] Cluster-stop monitor started; checking every ${CLUSTER_STOP_CHECK_INTERVAL}s"
@@ -411,7 +418,7 @@ run_cmd() {
         fi
         sleep "$CLUSTER_STOP_CHECK_INTERVAL"
       done
-      echo "[INFO] Cluster-stop monitor exiting]"
+      echo "[INFO] Cluster-stop monitor exiting"
     ) &
     CLUSTER_STOP_MONITOR_PID=$!
     echo "[INFO] Started cluster-stop monitor with PID: $CLUSTER_STOP_MONITOR_PID"
@@ -534,6 +541,10 @@ cleanup() {
     echo "[INFO] Worker node waiting briefly for master cleanup..."
     sleep 3
   fi
+
+  # Override the process exit code from within the EXIT trap.
+  # Note: calling `exit` inside an EXIT trap does not recurse the trap.
+  exit "${FINAL_EXIT_CODE:-${CMD_EXIT:-1}}"
 }
 
 # Export variables needed by cleanup
