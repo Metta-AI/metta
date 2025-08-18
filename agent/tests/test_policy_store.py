@@ -37,9 +37,7 @@ def test_policy_save_load_without_pydantic():
     try:
         print(temp_path)
         # Create a policy record
-        pr = policy_store.create_empty_policy_record(
-            name=os.path.basename(temp_path), checkpoint_dir=os.path.dirname(temp_path)
-        )
+        pr = policy_store.create_empty_policy_record(temp_path)
         pr.metadata = metadata
         pr.policy = policy
 
@@ -154,7 +152,7 @@ def test_policy_record_backwards_compatibility():
         pr._policy_store = policy_store
         pr.run_name = "test_policy"
         pr.uri = "file:///tmp/test.pt"
-        pr._cached_policy = None
+        pr.invalidate_cached_policy()
 
         # Set metadata using the old attribute name
         old_metadata = {
@@ -190,7 +188,7 @@ def test_policy_record_backwards_compatibility():
     pr_no_metadata._policy_store = policy_store
     pr_no_metadata.run_name = "test_policy"
     pr_no_metadata.uri = "file:///tmp/test.pt"
-    pr_no_metadata._cached_policy = None
+    pr_no_metadata.invalidate_cached_policy()
 
     # This should raise AttributeError
     try:

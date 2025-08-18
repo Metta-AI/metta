@@ -1,7 +1,6 @@
 import logging
 import os
 from collections import defaultdict
-from typing import cast
 
 import numpy as np
 import torch
@@ -10,7 +9,6 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 from torchrl.data import Composite
 
-from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
@@ -34,10 +32,7 @@ from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
-from metta.rl.policy_management import (
-    initialize_policy_for_environment,
-    wrap_agent_distributed,
-)
+from metta.rl.policy_initializer import PolicyInitializer
 from metta.rl.rollout import get_observation, send_observation
 from metta.rl.stats import (
     StatsTracker,
@@ -60,6 +55,7 @@ from metta.rl.wandb import (
 )
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
+from tools.utils import get_policy_store_from_cfg
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
@@ -77,71 +73,59 @@ _local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
 
 
-class PolicyInitializer:
-    def __init__(
-        self,
-        checkpoint_manager: CheckpointManager,
-        agent_cfg: DictConfig,
-        env_cfg: EnvConfig,
-        trainer_cfg: TrainerConfig,
-        checkpoint: TrainerCheckpoint | None,
-        metta_grid_env: MettaGridEnv,
-        device: torch.device,
-    ):
-        self.checkpoint_manager = checkpoint_manager
-        self.agent_cfg = agent_cfg
-        self.env_cfg = env_cfg
-        self.trainer_cfg = trainer_cfg
-        self.checkpoint = checkpoint
-        self.metta_grid_env = metta_grid_env
-        self.device = device
+def get_initial_policy_path(
+    trainer_cfg: TrainerConfig,
+    checkpoint: TrainerCheckpoint | None,
+    distributed_config,
+) -> tuple[str, bool]:
+    """
+    Compute the policy path based on priority order.
 
-    def get_blank_policy(self):
-        pr, __, _ = self.get_initial_policy()
-        return pr
+    Priority: checkpoint > initial_policy > default_path (if exists)
 
-    def get_initial_policy(self):
-        import torch
+    Returns:
+        The selected policy path, or None if no policy should be loaded
+    """
+    checkpoint_cfg = trainer_cfg.checkpoint
 
-        # Load or initialize policy
-        initial_policy_record = latest_saved_policy_record = self.checkpoint_manager.load_or_create_policy(
-            agent_cfg=self.agent_cfg,
-            env_cfg=self.env_cfg,
-            trainer_cfg=self.trainer_cfg,
-            checkpoint=self.checkpoint,
-            metta_grid_env=self.metta_grid_env,
+    # Calculate default path for fallback
+    default_model_name = PolicyStore.make_model_name(0, checkpoint_cfg.model_suffix())
+    default_path = os.path.join(checkpoint_cfg.checkpoint_dir, default_model_name)
+
+    if distributed_config.is_master:
+        policy_path: str | None = (
+            (checkpoint and checkpoint.policy_path)
+            or (trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri)
+            or (default_path if os.path.exists(default_path) else None)
+        )
+    else:
+        policy_path = None
+
+    # Synchronize policy_path across all ranks if using distributed training
+    if torch.distributed.is_initialized():
+        from metta.agent.util.distribution_utils import get_from_master
+
+        policy_path = get_from_master(policy_path)
+        logger.info(f"Rank {distributed_config.rank}: Synchronized policy_path = {policy_path}")
+    elif not distributed_config.is_master:
+        # Non-master rank without distributed training should not happen
+        raise RuntimeError(
+            f"Non-master rank {distributed_config.rank} found without torch.distributed initialized. "
+            "This likely indicates a configuration error in distributed training setup."
         )
 
-        # Barrier before compile step
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+    policy_exists = True
+    if not policy_path:
+        checkpoint_cfg = trainer_cfg.checkpoint
+        default_model_name = PolicyStore.make_model_name(0, checkpoint_cfg.model_suffix())
+        policy_path = PolicyStore.make_model_path(checkpoint_cfg.checkpoint_dir, default_model_name)
+        policy_exists = False
 
-        policy: PolicyAgent = latest_saved_policy_record.policy
-
-        # Optional compile step
-        if self.trainer_cfg.compile:
-            logger.info("Compiling policy")
-            policy = cast(PolicyAgent, torch.compile(policy, mode=self.trainer_cfg.compile_mode))
-
-        # Wrap in DDP if distributed
-        if torch.distributed.is_initialized():
-            logger.info(f"Initializing DistributedDataParallel on device {self.device}")
-            torch.distributed.barrier()
-            policy = wrap_agent_distributed(policy, self.device)
-            torch.distributed.barrier()
-
-        # Initialize policy for environment after wrapping
-        initialize_policy_for_environment(
-            policy_record=latest_saved_policy_record,
-            metta_grid_env=self.metta_grid_env,
-            device=self.device,
-            restore_feature_mapping=True,
-        )
-
-        return initial_policy_record, latest_saved_policy_record, policy
+    return policy_path, policy_exists
 
 
 def train(
+    train_job_config: DictConfig,
     run_dir: str,
     run: str,
     system_cfg: SystemConfig,
@@ -149,7 +133,6 @@ def train(
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,
-    policy_store: PolicyStore,
     sim_suite_config: SimulationSuiteConfig,
     stats_client: StatsClient | None,
 ) -> None:
@@ -164,13 +147,13 @@ def train(
             logger.info(f"Recent checkpoints: {', '.join(files)}")
 
     # Set up distributed
-    is_master, world_size, rank = setup_distributed_vars()
+    distributed_config = setup_distributed_vars()
 
     # Create timer, Losses, profiler, curriculum
     timer = Stopwatch(logger)
     timer.start()
     losses = Losses()
-    torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, run_dir)
+    torch_profiler = TorchProfiler(distributed_config.is_master, trainer_cfg.profiler, wandb_run, run_dir)
     curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
 
     # Calculate batch sizes
@@ -193,21 +176,36 @@ def train(
         is_training=True,
     )
 
-    vecenv.async_reset(system_cfg.seed + rank)
+    vecenv.async_reset(system_cfg.seed + distributed_config.rank)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
+    # Todo: encapsulate the construction of policy_store. check that agent_factory gets where it needs to go.
+    # Todo: refactor of PolicyStore
+    # Todo: go through code and check what else needs cleaned up
+    initializer = PolicyInitializer(
+        agent_cfg=agent_cfg,
+        system_cfg=system_cfg,
+        trainer_cfg=trainer_cfg,
+        metta_grid_env=metta_grid_env,
+        distributed_config=distributed_config,
+        device=device,
+    )
+    policy_store = get_policy_store_from_cfg(train_job_config.run, wandb_run)
+    policy_store.agent_factory = lambda: initializer.get_blank_policy(policy_store, initial_policy_path)
+
     # Create checkpoint manager
     checkpoint_manager = CheckpointManager(
         policy_store=policy_store,
         checkpoint_config=trainer_cfg.checkpoint,
         device=device,
-        is_master=is_master,
-        rank=rank,
+        is_master=distributed_config.is_master,
+        rank=distributed_config.rank,
         run_name=run,
+        initializer=initializer,
     )
 
     # Load checkpoint if it exists
@@ -220,20 +218,16 @@ def train(
         if checkpoint.stopwatch_state is not None:
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-    # Load or initialize policy via TrainerInitializer
-    initializer = PolicyInitializer(
-        checkpoint_manager=checkpoint_manager,
-        agent_cfg=agent_cfg,
-        system_cfg=system_cfg,
+    initial_policy_path, policy_exists = get_initial_policy_path(
         trainer_cfg=trainer_cfg,
         checkpoint=checkpoint,
-        metta_grid_env=metta_grid_env,
-        device=device,
+        distributed_config=distributed_config,
     )
 
     # warning - spaghetti code
-    policy_store.agent_factory = initializer.get_blank_policy
-    initial_policy_record, latest_saved_policy_record, policy = initializer.get_initial_policy()
+    policy_record, policy = initializer.get_initial_policy(policy_store, initial_policy_path, not policy_exists)
+    policy_record_uri = policy_record.uri
+    latest_saved_policy_record = policy_record
 
     # Create kickstarter
     kickstarter = Kickstarter(
@@ -291,7 +285,7 @@ def train(
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
     # Set up monitoring (master only)
-    if is_master:
+    if distributed_config.is_master:
         logger.info("Starting training")
         memory_monitor, system_monitor = setup_monitoring(
             policy=policy,
@@ -302,7 +296,7 @@ def train(
         memory_monitor, system_monitor = None, None
 
     # Set up wandb metrics (master only)
-    if wandb_run and is_master:
+    if wandb_run and distributed_config.is_master:
         setup_wandb_metrics(wandb_run)
         log_model_parameters(policy, wandb_run)
 
@@ -327,7 +321,7 @@ def train(
         except Exception as e:
             logger.warning(f"Failed to create training run: {e}", exc_info=True)
 
-    if is_master:
+    if distributed_config.is_master:
         logger.info(f"Training on {device}")
     wandb_policy_name: str | None = None
 
@@ -382,7 +376,7 @@ def train(
                     if info:
                         raw_infos.extend(info)
 
-                agent_step += total_steps * world_size
+                agent_step += total_steps * distributed_config.world_size
             accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
             # ---- TRAINING PHASE ----
@@ -485,7 +479,7 @@ def train(
         if torch.distributed.is_initialized():
             torch.distributed.barrier()
 
-        if not is_master:
+        if not distributed_config.is_master:
             # Only master needs to do bookkeeping
             continue
 
@@ -534,7 +528,7 @@ def train(
             agent_step=agent_step,
             eval_scores=eval_scores,
             timer=timer,
-            initial_policy_record=initial_policy_record,
+            initial_policy_uri=policy_record_uri,
             optimizer=optimizer,
             run_dir=run_dir,
             kickstarter=kickstarter,
@@ -631,7 +625,7 @@ def train(
 
     vecenv.close()
 
-    if not is_master:
+    if not distributed_config.is_master:
         return
 
     logger.info("Training complete!")
@@ -646,7 +640,7 @@ def train(
         agent_step=agent_step,
         eval_scores=eval_scores,
         timer=timer,
-        initial_policy_record=initial_policy_record,
+        initial_policy_uri=policy_record_uri,
         optimizer=optimizer,
         run_dir=run_dir,
         kickstarter=kickstarter,

@@ -58,6 +58,11 @@ class CheckpointConfig(Config):
     # Checkpoint file type: Controls the format of saved checkpoint files
     checkpoint_file_type: CheckpointFileType = Field(default="pt")
 
+    def model_suffix(self) -> str:
+        if self.checkpoint_file_type == "safetensors":
+            return ".safetensors"
+        return ".pt"
+
     @model_validator(mode="after")
     def validate_fields(self) -> "CheckpointConfig":
         assert self.checkpoint_dir, "checkpoint_dir must be set"

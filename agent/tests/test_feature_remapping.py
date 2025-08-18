@@ -327,7 +327,7 @@ def test_end_to_end_initialize_to_environment_workflow():
             uri=f"file://{save_path}",
             metadata=metadata,
         )
-        pr._cached_policy = policy
+        pr.cached_policy = policy
 
         # Save using torch.save (mimicking what PolicyStore.save does)
         pr._policy_store = None  # Remove circular reference

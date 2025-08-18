@@ -4,7 +4,7 @@ This is separated from PolicyStore to enable cleaner packaging of saved policies
 """
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 import torch
 
@@ -12,7 +12,7 @@ from metta.agent.policy_metadata import PolicyMetadata
 
 if TYPE_CHECKING:
     from metta.agent.metta_agent import PolicyAgent
-    from metta.agent.policy_store import PolicyStore
+    from metta.agent.policy_store import PolicyLoader
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +20,20 @@ logger = logging.getLogger(__name__)
 class PolicyRecord:
     """A record containing a policy and its metadata."""
 
-    def __init__(self, policy_store: "PolicyStore", run_name: str, uri: str | None, metadata: PolicyMetadata):
-        self._policy_store = policy_store
+    def __init__(
+        self,
+        policy_loader: Optional["PolicyLoader"],
+        run_name: str,
+        uri: str | None,
+        metadata: PolicyMetadata | dict[str, Any],
+        policy: "PolicyAgent | None" = None,
+    ):
+        self._policy_loader = policy_loader
         self.run_name = run_name  # Human-readable identifier (e.g., from wandb). Can include version
         self.uri: str | None = uri
         # Use the setter to ensure proper type
         self.metadata = metadata
-        self._cached_policy_value: "PolicyAgent | None" = None
+        self._cached_policy_value: "PolicyAgent | None" = policy
 
     def extract_wandb_run_info(self) -> tuple[str, str, str, str | None]:
         if self.uri is None or not self.uri.startswith("wandb://"):
@@ -80,7 +87,7 @@ class PolicyRecord:
         return self._metadata
 
     @metadata.setter
-    def metadata(self, value) -> None:
+    def metadata(self, value: PolicyMetadata | dict[str, Any]) -> None:
         """Set metadata, ensuring it's a PolicyMetadata instance."""
         if isinstance(value, PolicyMetadata):
             self._metadata = value
@@ -91,15 +98,19 @@ class PolicyRecord:
             raise TypeError(f"metadata must be PolicyMetadata or dict, got {type(value).__name__}")
 
     @property
-    def _cached_policy(self) -> "PolicyAgent | None":
+    def cached_policy(self) -> "PolicyAgent | None":
         """Get the cached policy."""
         return self._cached_policy_value
 
-    @_cached_policy.setter
-    def _cached_policy(self, value: "PolicyAgent | None") -> None:
+    @cached_policy.setter
+    def cached_policy(self, value: "PolicyAgent | None") -> None:
         """Set the cached policy."""
         print(f"Setting cached policy to {value}")
         self._cached_policy_value = value
+
+    def invalidate_cached_policy(self) -> None:
+        """Invalidate the cached policy by setting it to None."""
+        self.cached_policy = None
 
     @property
     def file_path(self) -> str:
@@ -115,23 +126,24 @@ class PolicyRecord:
     @property
     def policy(self) -> "PolicyAgent":
         """Load and return the policy, using cache if available."""
-        if self._cached_policy is None:
-            if self._policy_store is None:
-                # Standalone loading is not supported
-                raise ValueError(
-                    "Cannot load policy without a PolicyStore. "
-                    "PolicyRecord must be created through PolicyStore for loading functionality."
-                )
-            else:
+        if self.cached_policy is None:
+            if self._policy_loader is not None:
+                # Use PolicyLoader if available
                 if self.uri is None:
                     raise ValueError("Cannot load policy without a valid URI.")
-                pr = self._policy_store.load_from_uri(self.uri)
-                if pr._cached_policy is None:
+                pr = self._policy_loader.load_from_uri(self.uri)
+                if pr.cached_policy is None:
                     raise ValueError(f"Policy loaded from {self.uri} has no cached policy!")
                 # access _cached_policy directly to avoid recursion
-                self._cached_policy = pr._cached_policy
+                self.cached_policy = pr.cached_policy
+            else:
+                # No loader available
+                raise ValueError(
+                    "Cannot load policy without a PolicyLoader. "
+                    "PolicyRecord must be created with a loader for loading functionality."
+                )
 
-        return self._cached_policy
+        return self.cached_policy
 
     @policy.setter
     def policy(self, policy: "PolicyAgent") -> None:
@@ -143,7 +155,7 @@ class PolicyRecord:
         Raises:
             TypeError: If policy is not a nn.Module.
         """
-        self._cached_policy = policy
+        self.cached_policy = policy
         logger.info(f"Policy overwritten for {self.run_name}")
 
     def num_params(self) -> int:
@@ -167,7 +179,7 @@ class PolicyRecord:
 
         # Load policy if not already loaded
         policy = None
-        if self._cached_policy is None:
+        if self.cached_policy is None:
             try:
                 print(f"Loading policy for {self.run_name} in repr")
                 policy = self.policy
@@ -175,7 +187,7 @@ class PolicyRecord:
                 lines.append(f"Error loading policy: {str(e)}")
                 return "\n".join(lines)
         else:
-            policy = self._cached_policy
+            policy = self.cached_policy
 
         # Add total parameter count
         total_params = sum(p.numel() for p in policy.parameters())

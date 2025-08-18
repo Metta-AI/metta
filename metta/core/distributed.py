@@ -6,14 +6,16 @@ from typing import Tuple
 
 import torch
 
+from metta.core.distributed_config import DistributedConfig
+
 logger = logging.getLogger(__name__)
 
 
-def setup_distributed_vars() -> Tuple[bool, int, int]:
+def setup_distributed_vars() -> DistributedConfig:
     """Set up distributed training variables.
 
     Returns:
-        Tuple of (_master, _world_size, _rank)
+        DistributedConfig with master, world_size, and rank information
     """
     if torch.distributed.is_initialized():
         _world_size = torch.distributed.get_world_size()
@@ -24,10 +26,10 @@ def setup_distributed_vars() -> Tuple[bool, int, int]:
         _world_size = 1
         _rank = 0
 
-    return _master, _world_size, _rank
+    return DistributedConfig(world_size=_world_size, rank=_rank, is_master=_master)
 
 
-def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.device, bool, int, int]:
+def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.device, DistributedConfig]:
     """Set up device and initialize distributed training if needed.
 
     This function handles:
@@ -40,7 +42,7 @@ def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.devic
         base_device: Base device type ("cuda" or "cpu")
 
     Returns:
-        Tuple of (device, is_master, world_size, rank)
+        Tuple of (device, distributed_config)
     """
     # Check CUDA availability
     if base_device.startswith("cuda") and not torch.cuda.is_available():
@@ -74,9 +76,9 @@ def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.devic
         logger.info(f"Single device training on {device}")
 
     # Get distributed vars using the shared function
-    is_master, world_size, rank = setup_distributed_vars()
+    distributed_config = setup_distributed_vars()
 
-    return device, is_master, world_size, rank
+    return device, distributed_config
 
 
 def cleanup_distributed() -> None:

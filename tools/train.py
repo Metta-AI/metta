@@ -27,7 +27,6 @@ from tools.sweep_config_utils import (
     load_train_job_config_with_overrides,
     validate_train_job_config,
 )
-from tools.utils import get_policy_store_from_cfg
 
 logger = logging.getLogger(__name__)
 
@@ -110,10 +109,9 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
-    policy_store = get_policy_store_from_cfg(cfg, wandb_run)
-
     # Use the functional train interface directly
     train(
+        train_job_config=cfg,
         run=cfg.run,
         run_dir=cfg.run_dir,
         system_cfg=system_cfg,
@@ -121,7 +119,6 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
         device=torch.device(system_cfg.device),
         trainer_cfg=create_trainer_config(cfg),
         wandb_run=wandb_run,
-        policy_store=policy_store,
         sim_suite_config=train_job.evals,
         stats_client=stats_client,
     )
@@ -177,7 +174,8 @@ def main(cfg: DictConfig) -> int:
 
     apply_mac_overrides(cfg)
     # Use shared distributed setup function
-    device, is_master, world_size, rank = setup_device_and_distributed(cfg.device)
+    device, distributed_config = setup_device_and_distributed(cfg.device)
+    is_master = distributed_config.is_master
 
     # Update cfg.device to include the local rank if distributed
     cfg.device = str(device)
