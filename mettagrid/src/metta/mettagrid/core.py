@@ -8,6 +8,7 @@ without any training-specific features or framework dependencies.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -42,12 +43,15 @@ class MettaGridCore:
         Args:
             level: Level to use for the environment
             game_config_dict: Game configuration dictionary
-            render_mode: Rendering mode (None, "human", "miniscope")
+            render_mode: Rendering mode (None, "human", "miniscope", "raylib")
             **kwargs: Additional arguments passed to subclasses
         """
+        if render_mode == "auto":
+            render_mode = "raylib"
         self._render_mode = render_mode
         self._level = level
         self._renderer = None
+        self._renderer_native = False
         self._map_labels: List[str] = level.labels
         self._current_seed: int = 0
 
@@ -73,7 +77,7 @@ class MettaGridCore:
         """Initialize renderer class based on render mode."""
         self._renderer = None
         self._renderer_class = None
-
+        self._renderer_native = False
         if self._render_mode == "human":
             from metta.mettagrid.renderer.nethack import NethackRenderer
 
@@ -82,6 +86,21 @@ class MettaGridCore:
             from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
 
             self._renderer_class = MiniscopeRenderer
+        elif self._render_mode == "raylib":
+            # Only initialize raylib renderer if not in CI/Docker environment
+            is_ci_environment = bool(
+                os.environ.get("CI") or os.environ.get("GITHUB_ACTIONS") or os.path.exists("/.dockerenv")
+            )
+            if not is_ci_environment:
+                try:
+                    from metta.mettagrid.mettagrid_c import Hermes
+
+                    self._renderer_class = Hermes
+                    self._renderer_native = True
+                except ImportError:
+                    logger.warning("Raylib renderer requested but raylib not available")
+            else:
+                logger.info("Raylib renderer disabled in CI/Docker environment")
 
     def _create_c_env(self, game_config_dict: Dict[str, Any], seed: Optional[int] = None) -> MettaGridCpp:
         """
@@ -125,7 +144,13 @@ class MettaGridCore:
             and hasattr(self, "_renderer_class")
             and self._renderer_class is not None
         ):
-            self._renderer = self._renderer_class(c_env.object_type_names())
+            if self._renderer_native:
+                self._renderer = self._renderer_class()
+            else:
+                self._renderer = self._renderer_class(c_env.object_type_names())
+
+        if self._renderer_native:
+            self._renderer.update(c_env)
 
         return c_env
 
@@ -176,10 +201,14 @@ class MettaGridCore:
 
     def render(self) -> Optional[str]:
         """Render the environment."""
-        if self._renderer is None or self._c_env_instance is None:
-            return None
+        if self._c_env_instance is not None:
+            if self._renderer_native:
+                if not self._renderer.render():
+                    self._renderer = None
+            elif self._renderer is not None:
+                return self._renderer.render(self._c_env_instance.current_step, self._c_env_instance.grid_objects())
 
-        return self._renderer.render(self._c_env_instance.current_step, self._c_env_instance.grid_objects())
+        return None
 
     def close(self) -> None:
         """Close the environment."""

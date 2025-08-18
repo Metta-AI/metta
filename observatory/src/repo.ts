@@ -1,6 +1,7 @@
 export type ScorecardCell = {
   evalName: string
   replayUrl: string | null
+  thumbnailUrl: string | null
   value: number
 }
 
@@ -181,6 +182,7 @@ export type TrainingRunPolicy = {
 export type PolicyScorecardCell = {
   evalName: string
   replayUrl: string | null
+  thumbnailUrl: string | null
   value: number
 }
 
