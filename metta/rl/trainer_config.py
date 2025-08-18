@@ -64,7 +64,7 @@ class EvaluationConfig(Config):
     # Interval at which to evaluate and generate replays: Type 2 arbitrary default
     evaluate_interval: int = Field(default=50, ge=0)  # 0 to disable
     evaluate_remote: bool = Field(default=True)
-    evaluate_local: bool = Field(default=False)
+    evaluate_local: bool = Field(default=True)
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
     num_training_tasks: int = Field(default=1)
