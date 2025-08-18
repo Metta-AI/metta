@@ -30,7 +30,6 @@ import { initializeTooltips } from './tooltips.js'
 import { drawTrace, invalidateTrace } from './traces.js'
 import { Vec2f } from './vector_math.js'
 import { drawMap, focusFullMap } from './worldmap.js'
-import { Heatmap } from './heatmap.js'
 
 // Expose state to window for testing purposes (e.g., Playwright tests)
 if (typeof window !== 'undefined') {
@@ -980,13 +979,13 @@ toggleOpacity(html.fogOfWarToggle, state.showFogOfWar)
 onEvent('click', '#heatmap-toggle', () => {
   state.showHeatmap = !state.showHeatmap
   localStorage.setItem('showHeatmap', state.showHeatmap.toString())
-  // toggleOpacity(html.heatmapToggle, state.showHeatmap)
+  toggleOpacity(html.heatmapToggle, state.showHeatmap)
   requestFrame()
 })
 if (localStorage.hasOwnProperty('showHeatmap')) {
   state.showHeatmap = localStorage.getItem('showHeatmap') === 'true'
 }
-// toggleOpacity(html.heatmapToggle, state.showHeatmap)
+toggleOpacity(html.heatmapToggle, state.showHeatmap)
 
 onEvent('click', '#minimap-toggle', () => {
   state.showMiniMap = !state.showMiniMap
@@ -1085,6 +1084,13 @@ onEvent('click', '#action-buttons .close', () => {
   localStorage.setItem('showActionButtons', state.showActionButtons.toString())
   toggleOpacity(html.controlsToggle, state.showActionButtons)
   requestFrame()
+})
+
+onEvent('click', '#modal', () => {
+  // make error modal dismissable.
+  if (html.modal.classList.contains('error')) {
+    Common.closeModal()
+  }
 })
 
 initHighDpiMode()

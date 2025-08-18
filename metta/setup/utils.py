@@ -74,7 +74,7 @@ def spinner(message: str = "Loading..."):
 
 
 def prompt_choice(prompt: str, choices: list[tuple[T, str]], default: T | None = None, current: T | None = None) -> T:
-    """Prompt user to select from a list of choices.
+    """Prompt user to select from a list of choices with arrow key support.
 
     Args:
         prompt: The prompt message
@@ -85,7 +85,57 @@ def prompt_choice(prompt: str, choices: list[tuple[T, str]], default: T | None =
     Returns:
         The selected value
     """
-    print(f"\n{prompt}")
+    try:
+        from simple_term_menu import TerminalMenu
+
+        # Extract descriptions for menu display
+        menu_entries = [f"{i + 1}. {desc}" for i, (_, desc) in enumerate(choices)]
+
+        # Find initial selection
+        cursor_index = 0
+        if current is not None:
+            for i, (value, _) in enumerate(choices):
+                if value == current:
+                    cursor_index = i
+                    break
+        elif default is not None:
+            for i, (value, _) in enumerate(choices):
+                if value == default:
+                    cursor_index = i
+                    break
+
+        # Display header
+        header(prompt)
+
+        # Create menu
+        terminal_menu = TerminalMenu(
+            menu_entries,
+            cursor_index=cursor_index,
+            menu_cursor="▶ ",
+            menu_cursor_style=("fg_cyan",),
+            menu_highlight_style=("fg_cyan",),
+            cycle_cursor=True,
+            clear_screen=False,
+        )
+
+        menu_entry_index = terminal_menu.show()
+
+        if menu_entry_index is None:
+            # User cancelled
+            raise KeyboardInterrupt()
+
+        return choices[menu_entry_index][0]  # type: ignore
+
+    except ImportError:
+        # Fallback to simple prompt
+        return _simple_prompt_choice(prompt, choices, default, current)
+
+
+def _simple_prompt_choice(
+    prompt: str, choices: list[tuple[T, str]], default: T | None = None, current: T | None = None
+) -> T:
+    """Simple numbered choice prompt without arrow keys."""
+    header(prompt)
     for i, (value, desc) in enumerate(choices):
         markers = []
         if current is not None and value == current:

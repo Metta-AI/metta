@@ -10,6 +10,7 @@
 #include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
 #include "constants.hpp"
+#include "objects/box.hpp"
 #include "types.hpp"
 
 // #MettagridConfig
@@ -83,6 +84,7 @@ public:
   GridLocation prev_location;
   std::string prev_action_name;
   unsigned int steps_without_motion;
+  Box* box;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
@@ -104,7 +106,8 @@ public:
         reward(nullptr),
         prev_location(r, c, GridLayer::AgentLayer),
         prev_action_name(""),
-        steps_without_motion(0) {
+        steps_without_motion(0),
+        box(nullptr) {
     populate_initial_inventory(config.initial_inventory);
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }

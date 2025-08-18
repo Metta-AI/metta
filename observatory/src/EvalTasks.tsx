@@ -2,6 +2,115 @@ import React, { useState, useEffect } from 'react'
 import { Repo, EvalTask } from './repo'
 import { METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO } from './constants'
 
+interface TypeaheadInputProps {
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  suggestions: string[]
+  maxSuggestions?: number
+  filterType?: 'prefix' | 'substring'
+}
+
+function TypeaheadInput({ 
+  value, 
+  onChange, 
+  placeholder, 
+  suggestions, 
+  maxSuggestions = 10,
+  filterType = 'substring' 
+}: TypeaheadInputProps) {
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
+
+  const handleInputChange = (inputValue: string) => {
+    onChange(inputValue)
+    if (inputValue.trim()) {
+      const filtered = suggestions.filter((suggestion) => {
+        const lowerSuggestion = suggestion.toLowerCase()
+        const lowerInput = inputValue.toLowerCase()
+        return filterType === 'prefix' 
+          ? lowerSuggestion.startsWith(lowerInput)
+          : lowerSuggestion.includes(lowerInput)
+      })
+      setFilteredSuggestions(filtered.slice(0, maxSuggestions))
+      setShowSuggestions(filtered.length > 0)
+    } else {
+      setShowSuggestions(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => handleInputChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: '100%',
+          padding: '10px 12px',
+          borderRadius: '6px',
+          border: '1px solid #d1d5db',
+          fontSize: '14px',
+          backgroundColor: '#fff',
+          transition: 'border-color 0.2s',
+          outline: 'none',
+        }}
+        onFocus={(e) => {
+          e.target.style.borderColor = '#007bff'
+          if (value.trim() && filteredSuggestions.length > 0) {
+            setShowSuggestions(true)
+          }
+        }}
+        onBlur={(e) => {
+          e.target.style.borderColor = '#d1d5db'
+          // Delay to allow clicking on suggestions
+          setTimeout(() => setShowSuggestions(false), 200)
+        }}
+      />
+      {showSuggestions && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            marginTop: '4px',
+            backgroundColor: 'white',
+            border: '1px solid #d1d5db',
+            borderRadius: '6px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            maxHeight: '200px',
+            overflowY: 'auto',
+            zIndex: 1000,
+          }}
+        >
+          {filteredSuggestions.map((suggestion) => (
+            <div
+              key={suggestion}
+              onClick={() => {
+                onChange(suggestion)
+                setShowSuggestions(false)
+              }}
+              style={{
+                padding: '8px 12px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                borderBottom: '1px solid #f0f0f0',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8f9fa')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'white')}
+            >
+              {suggestion}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 type SortField =
   | 'policy_name'
   | 'sim_suite'
@@ -30,8 +139,6 @@ export function EvalTasks({ repo }: Props) {
   const [completedSortField, setCompletedSortField] = useState<SortField>('created_at')
   const [completedSortDirection, setCompletedSortDirection] = useState<SortDirection>('desc')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
-  const [showPolicySuggestions, setShowPolicySuggestions] = useState(false)
-  const [filteredPolicies, setFilteredPolicies] = useState<string[]>([])
 
   // Set up auto-refresh for tasks
   useEffect(() => {
@@ -62,18 +169,15 @@ export function EvalTasks({ repo }: Props) {
     return Array.from(policySet).sort()
   }
 
-  // Handle policy input change with typeahead
-  const handlePolicyInputChange = (value: string) => {
-    setPolicyIdInput(value)
-    if (value.trim()) {
-      const recentPolicies = getRecentPolicies()
-      const filtered = recentPolicies.filter((policy) => policy.toLowerCase().includes(value.toLowerCase()))
-      setFilteredPolicies(filtered.slice(0, 10)) // Limit to 10 suggestions
-      setShowPolicySuggestions(filtered.length > 0)
-    } else {
-      setShowPolicySuggestions(false)
-    }
+  // Get unique sim suite values from recent tasks for autocomplete
+  const getRecentSimSuites = (): string[] => {
+    const simSuiteSet = new Set<string>()
+    tasks.forEach((task) => {
+      if (task.sim_suite) simSuiteSet.add(task.sim_suite)
+    })
+    return Array.from(simSuiteSet).sort()
   }
+
 
   const handleCreateTask = async () => {
     if (!policyIdInput.trim()) {
@@ -116,7 +220,6 @@ export function EvalTasks({ repo }: Props) {
       // Clear form
       setPolicyIdInput('')
       setGitHash('')
-      setShowPolicySuggestions(false)
 
       // Refresh tasks
       await loadTasks()
@@ -438,74 +541,14 @@ export function EvalTasks({ repo }: Props) {
             >
               Policy Name or ID
             </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type="text"
-                value={policyIdInput}
-                onChange={(e) => handlePolicyInputChange(e.target.value)}
-                placeholder="Enter policy name or ID"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #d1d5db',
-                  fontSize: '14px',
-                  backgroundColor: '#fff',
-                  transition: 'border-color 0.2s',
-                  outline: 'none',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#007bff'
-                  if (policyIdInput.trim() && filteredPolicies.length > 0) {
-                    setShowPolicySuggestions(true)
-                  }
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#d1d5db'
-                  // Delay to allow clicking on suggestions
-                  setTimeout(() => setShowPolicySuggestions(false), 200)
-                }}
-              />
-              {showPolicySuggestions && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    marginTop: '4px',
-                    backgroundColor: 'white',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    zIndex: 1000,
-                  }}
-                >
-                  {filteredPolicies.map((policy) => (
-                    <div
-                      key={policy}
-                      onClick={() => {
-                        setPolicyIdInput(policy)
-                        setShowPolicySuggestions(false)
-                      }}
-                      style={{
-                        padding: '8px 12px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        borderBottom: '1px solid #f0f0f0',
-                        transition: 'background-color 0.2s',
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8f9fa')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'white')}
-                    >
-                      {policy}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <TypeaheadInput
+              value={policyIdInput}
+              onChange={setPolicyIdInput}
+              placeholder="Enter policy name or ID"
+              suggestions={getRecentPolicies()}
+              maxSuggestions={10}
+              filterType="substring"
+            />
           </div>
 
           <div style={{ flex: '1 1 250px' }}>
@@ -552,25 +595,14 @@ export function EvalTasks({ repo }: Props) {
             >
               Suite
             </label>
-            <select
+            <TypeaheadInput
               value={simSuite}
-              onChange={(e) => setSimSuite(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                border: '1px solid #d1d5db',
-                fontSize: '14px',
-                backgroundColor: '#fff',
-                transition: 'border-color 0.2s',
-                outline: 'none',
-              }}
-              onFocus={(e) => (e.target.style.borderColor = '#007bff')}
-              onBlur={(e) => (e.target.style.borderColor = '#d1d5db')}
-            >
-              <option value="all">All</option>
-              <option value="arena">Arena</option>
-            </select>
+              onChange={setSimSuite}
+              placeholder="Enter sim suite"
+              suggestions={getRecentSimSuites()}
+              maxSuggestions={5}
+              filterType="prefix"
+            />
           </div>
 
           <button

@@ -10,8 +10,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import torch
+from tensordict import TensorDict
 
-from metta.agent.policy_state import PolicyState
 from metta.rl.kickstarter import Kickstarter, KickstartTeacherConfig
 
 
@@ -111,13 +111,10 @@ class TestKickstarter:
         # Create test tensors
         student_normalized_logits = torch.randn(2, 5)
         student_value = torch.randn(2, 1)
-        observation = torch.randn(2, 10)
-        teacher_lstm_state = []
+        observation = TensorDict({"obs": torch.randn(2, 10)}, batch_size=[2])
 
         # Call the loss method
-        ks_action_loss, ks_value_loss = kickstarter.loss(
-            500, student_normalized_logits, student_value, observation, teacher_lstm_state
-        )
+        ks_action_loss, ks_value_loss = kickstarter.loss(500, student_normalized_logits, student_value, observation)
 
         # Both losses should be zero tensors
         assert torch.all(ks_action_loss == 0.0)
@@ -134,13 +131,10 @@ class TestKickstarter:
         # Create test tensors
         student_normalized_logits = torch.randn(2, 5)
         student_value = torch.randn(2, 1)
-        observation = torch.randn(2, 10)
-        teacher_lstm_state = []
+        observation = TensorDict({"obs": torch.randn(2, 10)}, batch_size=[2])
 
         # Call the loss method with agent_step > kickstart_steps
-        ks_action_loss, ks_value_loss = kickstarter.loss(
-            1500, student_normalized_logits, student_value, observation, teacher_lstm_state
-        )
+        ks_action_loss, ks_value_loss = kickstarter.loss(1500, student_normalized_logits, student_value, observation)
 
         # Both losses should be zero tensors
         assert torch.all(ks_action_loss == 0.0)
@@ -166,8 +160,7 @@ class TestKickstarter:
         # Create test tensors
         student_normalized_logits = torch.randn(2, 5)
         student_value = torch.randn(2, 1)
-        observation = torch.randn(2, 10)
-        teacher_lstm_state = []
+        observation = TensorDict({"obs": torch.randn(2, 10)}, batch_size=[2])
 
         # Mock the _forward method to return predictable values
         teacher_value = torch.ones(2, 1)
@@ -179,7 +172,7 @@ class TestKickstarter:
 
         # Call the loss method
         ks_action_loss, ks_value_loss = kickstarter.loss(
-            agent_step, student_normalized_logits, student_value, observation, teacher_lstm_state
+            agent_step, student_normalized_logits, student_value, observation
         )
 
         # Check that anneal_factor was updated
@@ -188,13 +181,11 @@ class TestKickstarter:
         assert kickstarter.anneal_factor == pytest.approx(expected_anneal_factor)
 
         # Verify that _forward was called with the right arguments
-        # We can't directly compare PolicyState objects, so just check that _forward was called once
         assert mock_forward.call_count == 1
-        # Check that the first two arguments match what we expect
         args, _ = mock_forward.call_args
         assert args[0] == mock_teacher
-        assert torch.all(args[1] == observation)
-        # We can't directly compare the PolicyState object, so we skip checking the third argument
+        assert isinstance(args[1], TensorDict)
+        assert "obs" in args[1].keys()
 
     def test_forward_method(self, mock_config, mock_policy_store, mock_metta_grid_env):
         """Test the _forward method."""
@@ -204,17 +195,17 @@ class TestKickstarter:
 
         # Create a mock teacher
         mock_teacher = MagicMock()
-        mock_teacher.return_value = (None, None, None, torch.ones(2, 1), torch.zeros(2, 5))
+        td = TensorDict({"value": torch.ones(2, 1), "full_log_probs": torch.zeros(2, 5)}, batch_size=[2])
+        mock_teacher.return_value = td
 
         # Create test tensors
-        observation = torch.randn(2, 10)
-        teacher_lstm_state = PolicyState()
+        observation = TensorDict({"obs": torch.randn(2, 10)}, batch_size=[2])
 
         # Call the _forward method
-        value, norm_logits = kickstarter._forward(mock_teacher, observation, teacher_lstm_state)
+        value, norm_logits = kickstarter._forward(mock_teacher, observation)
 
         # Check that the teacher was called with the right arguments
-        mock_teacher.assert_called_once_with(observation, teacher_lstm_state)
+        mock_teacher.assert_called_once_with(observation)
 
         # Check that the method returns the expected values
         assert torch.all(value == torch.ones(2, 1))

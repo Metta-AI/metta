@@ -1,13 +1,21 @@
-from typing import List
-
 import torch
+from tensordict import TensorDict
 from torch import Tensor, nn
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_state import PolicyState
 from metta.agent.policy_store import PolicyStore
 from metta.mettagrid import MettaGridEnv
 from metta.rl.kickstarter_config import KickstartConfig, KickstartTeacherConfig
+
+
+class KickstartTeacher:
+    def __init__(self, policy: nn.Module, action_loss_coef: float, value_loss_coef: float):
+        self.policy = policy
+        self.action_loss_coef = action_loss_coef
+        self.value_loss_coef = value_loss_coef
+
+    def __call__(self, td: TensorDict) -> TensorDict:
+        return self.policy(td)
 
 
 class Kickstarter:
@@ -64,7 +72,7 @@ class Kickstarter:
         self._load_policies()
 
     def _load_policies(self) -> None:
-        self.teachers: list[nn.Module] = []
+        self.teachers: list[KickstartTeacher] = []
         for teacher_cfg in self.teacher_cfgs or []:
             policy_record = self.policy_store.policy_record(teacher_cfg.teacher_uri)
             policy: PolicyAgent = policy_record.policy
@@ -78,15 +86,19 @@ class Kickstarter:
                 policy.initialize_to_environment(
                     features, self.metta_grid_env.action_names, self.metta_grid_env.max_action_args, self.device
                 )
-            self.teachers.append(policy)
+            teacher = KickstartTeacher(
+                policy=policy,
+                action_loss_coef=teacher_cfg.action_loss_coef,
+                value_loss_coef=teacher_cfg.value_loss_coef,
+            )
+            self.teachers.append(teacher)
 
     def loss(
         self,
         agent_step: int,
         student_normalized_logits: Tensor,
         student_value: Tensor,
-        o: Tensor,  # Observation tensor
-        teacher_lstm_state: List[PolicyState],
+        td: TensorDict,  # Observation tensor
     ) -> tuple[Tensor, Tensor]:
         ks_value_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
         ks_action_loss = torch.tensor(0.0, device=self.device, dtype=torch.float32)
@@ -99,11 +111,8 @@ class Kickstarter:
             progress = (agent_step - self.ramp_down_start_step) / self.anneal_duration
             self.anneal_factor = 1.0 - progress
 
-        if len(teacher_lstm_state) == 0:
-            teacher_lstm_state = [PolicyState() for _ in range(len(self.teachers))]
-
-        for i, teacher in enumerate(self.teachers):
-            teacher_value, teacher_normalized_logits = self._forward(teacher, o, teacher_lstm_state[i])
+        for _, teacher in enumerate(self.teachers):
+            teacher_value, teacher_normalized_logits = self._forward(teacher, td)
             ks_action_loss -= (teacher_normalized_logits.exp() * student_normalized_logits).sum(dim=-1).mean()
             ks_action_loss *= teacher.action_loss_coef * self.anneal_factor
 
@@ -113,6 +122,6 @@ class Kickstarter:
 
         return ks_action_loss, ks_value_loss
 
-    def _forward(self, teacher, o, teacher_lstm_state: PolicyState):
-        _, _, _, value, norm_logits = teacher(o, teacher_lstm_state)
-        return value, norm_logits
+    def _forward(self, teacher, td):
+        td = teacher(td)
+        return td["value"], td["full_log_probs"]

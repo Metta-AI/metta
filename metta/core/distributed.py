@@ -57,6 +57,11 @@ def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.devic
             if not torch.distributed.is_initialized():
                 torch.distributed.init_process_group(backend="nccl")
                 logger.info(f"Initialized NCCL distributed training on {device}")
+
+            # Set the device for the current process
+            # this prevents problems with collective operations that happen before the policy is wrapped
+            logger.info(f"Setting device to {device}")
+            torch.cuda.set_device(device)
         else:
             # CPU distributed training
             device = torch.device(base_device)

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from metta.setup.config import SetupConfig
     from metta.setup.local_commands import LocalCommands
     from metta.setup.symlink_setup import PathSetup
+    from metta.setup.tools.book import BookCommands
 
 
 @dataclass
@@ -77,15 +78,46 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
         pass_unknown_args=True,
         add_help=False,  # codeclip handles its own --help
     ),
-    "test": CommandConfig(
-        help="Run Python unit tests",
-        subprocess_cmd=["pytest"],
+    "book": CommandConfig(
+        help="Interactive marimo notebook commands",
+        handler="cmd_book",
+        needs_config=True,
+        pass_unknown_args=True,
+        add_help=False,  # Let BookCommands handle its own help
+    ),
+    "pytest": CommandConfig(
+        help="Run pytest with passed arguments",
+        subprocess_cmd=[
+            "uv",
+            "run",
+            "pytest",
+            "--benchmark-disable",
+            "-n",
+            "auto",
+        ],
         pass_unknown_args=True,
     ),
-    "test-changed": CommandConfig(
-        help="Run Python unit tests affected by changes",
-        subprocess_cmd=["pytest", "--testmon"],
-        pass_unknown_args=True,
+    "test": CommandConfig(
+        help="Run all Python unit tests",
+        subprocess_cmd=[
+            "uv",
+            "run",
+            "pytest",
+            "tests",
+            "mettascope/tests",
+            "agent/tests",
+            "app_backend/tests",
+            "common/tests",
+            "mettagrid/tests",
+            "--benchmark-disable",
+            "-n",
+            "auto",
+        ],
+    ),
+    "ci": CommandConfig(
+        help="Run all Python unit tests and all Mettagrid C++ tests",
+        handler="cmd_ci",
+        needs_config=True,  # Needs repo_root
     ),
     "tool": CommandConfig(
         help="Run a tool from the tools/ directory",
@@ -165,6 +197,7 @@ class MettaCLI:
         self._config: Optional[SetupConfig] = None
         self._path_setup: Optional[PathSetup] = None
         self._local_commands: Optional[LocalCommands] = None
+        self._book_commands: Optional[BookCommands] = None
         self._components_initialized = False
 
     def _init_all(self):
@@ -209,6 +242,14 @@ class MettaCLI:
 
             self._local_commands = LocalCommands()
         return self._local_commands
+
+    @property
+    def book_commands(self):
+        if self._book_commands is None:
+            from metta.setup.tools.book import BookCommands
+
+            self._book_commands = BookCommands()
+        return self._book_commands
 
     def setup_wizard(self) -> None:
         from metta.setup.config import UserType
@@ -466,6 +507,9 @@ class MettaCLI:
     def cmd_local(self, args, unknown_args=None) -> None:
         self.local_commands.main(unknown_args)
 
+    def cmd_book(self, args, unknown_args=None) -> None:
+        self.book_commands.main(unknown_args)
+
     def cmd_lint(self, args, unknown_args=None) -> None:
         files = []
         if args.staged:
@@ -503,6 +547,57 @@ class MettaCLI:
                 subprocess.run(cmd, cwd=self.repo_root, check=True)
             except subprocess.CalledProcessError as e:
                 sys.exit(e.returncode)
+
+    def cmd_ci(self, args, unknown_args=None) -> None:
+        """Run all Python and C++ tests for CI."""
+        from metta.setup.utils import error, info, success
+
+        # First run Python tests
+        info("Running Python tests...")
+        python_test_cmd = [
+            "uv",
+            "run",
+            "pytest",
+            "tests",
+            "mettascope/tests",
+            "agent/tests",
+            "app_backend/tests",
+            "common/tests",
+            "mettagrid/tests",
+            "--benchmark-disable",
+            "-n",
+            "auto",
+        ]
+
+        try:
+            subprocess.run(python_test_cmd, cwd=self.repo_root, check=True)
+            success("Python tests passed!")
+        except subprocess.CalledProcessError as e:
+            error("Python tests failed!")
+            sys.exit(e.returncode)
+
+        # Then run C++ tests
+        info("\nBuilding and running C++ tests...")
+        mettagrid_dir = self.repo_root / "mettagrid"
+
+        # Configure with cmake preset
+        try:
+            subprocess.run(["cmake", "--preset", "benchmark"], cwd=mettagrid_dir, check=True)
+
+            # Build
+            subprocess.run(["cmake", "--build", "build-release"], cwd=mettagrid_dir, check=True)
+
+            # Run tests
+            build_dir = mettagrid_dir / "build-release"
+            subprocess.run(["ctest", "-L", "benchmark", "--output-on-failure"], cwd=build_dir, check=True)
+
+            success("C++ tests passed!")
+
+        except subprocess.CalledProcessError as e:
+            error("C++ tests failed!")
+            sys.exit(e.returncode)
+
+        success("\nAll CI tests passed!")
 
     def cmd_tool(self, args, unknown_args=None) -> None:
         tool_path = self.repo_root / "tools" / f"{args.tool_name}.py"
@@ -705,14 +800,16 @@ Examples:
 
   metta run githooks pre-commit        # Run component-specific commands
 
-  metta test ...                       # Run python unit tests
-  metta test-changed ...               # Run python unit tests affected by changes
+  metta test ...                       # Run all python unit tests
+  metta pytest [args]                  # An alias "uv run pytest --benchmark-disable -n auto [args]"
+  metta ci ...                         # Run all python unit tests and mettagrid c++ tests
 
   metta tool train run=test            # Run train.py tool with arguments
   metta tool sim policy_uri=...        # Run sim.py tool with arguments
   metta clip -e py metta               # Copy Python files to clipboard
 
   metta local ...                      # Commands for local development
+  metta book                           # Interactive marimo notebook commands
             """,
         )
 

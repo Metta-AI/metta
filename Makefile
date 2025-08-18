@@ -1,36 +1,63 @@
-.PHONY: help all dev test clean install pytest
+.PHONY: help install test pytest bench clean dev all
 
-
-# Default target when just running 'make'
+# Default target - show help
 help:
-	@echo "Available targets:"
-	@echo " dev - Prepare the dev environment"
-	@echo " test - Run all unit tests with coverage"
-	@echo " pytest - Run all unit tests"
-	@echo " all - Run dev and test"
-	@echo " clean - Remove cmake build artifacts and temporary files"
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@echo "  install     Install package and dependencies"
+	@echo "  reinstall   Re-install package and dependencies"
+	@echo "  test        Run tests with coverage"
+	@echo "  pytest      Run tests quickly (no coverage, parallel)"
+	@echo "  clean       Remove build artifacts"
+	@echo "  dev         Set up development environment"
+	@echo "  all         Run dev and test"
 
-
-# Clean cmake build artifacts
-clean:
-	@echo "(Metta) Running clean command..."
-	uv run  --active metta clean
-
-# Dev all project dependencies and external components
-dev:
-	@echo "Running full devops/setup_dev.sh installation script..."
-	@bash devops/setup_dev.sh
-
-test:
-	@echo "Running python tests with coverage"
-	uv run  --active metta test --cov=metta --cov-report=term-missing --durations=10
+reinstall:
+	uv sync --reinstall
 
 install:
-	@echo "Installing package in editable mode..."
-	uv sync --inexact --active
+	uv sync
 
+# Run tests with coverage and benchmarks
+test: install
+	uv run pytest \
+		tests \
+		mettascope/tests \
+		agent/tests \
+		app_backend/tests \
+		common/tests \
+		mettagrid/tests \
+		--cov=metta \
+		--cov-report=term-missing \
+		--durations=10 \
+		-n 0
+
+# Quick test run without coverage
 pytest: install
-	@echo "Running Python tests..."
-	uv run  --active metta test
+	uv run pytest \
+		tests \
+		mettascope/tests \
+		agent/tests \
+		app_backend/tests \
+		common/tests \
+		mettagrid/tests \
+		--benchmark-disable -n auto
 
+# Clean build artifacts
+clean:
+	rm -rf build/
+	rm -rf dist/
+	rm -rf *.egg-info
+	rm -rf .pytest_cache/
+	rm -rf .coverage
+	rm -rf htmlcov/
+	find . -type d -name __pycache__ -exec rm -rf {} +
+	find . -type f -name "*.pyc" -delete
+
+# Full development setup
+dev:
+	@bash devops/setup_dev.sh
+
+# Run everything
 all: dev test

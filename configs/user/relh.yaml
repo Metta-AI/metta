@@ -4,7 +4,7 @@ defaults:
   - _self_
 
 pytorch:
- _target_: metta.agent.external.latent_attn_med.Recurrent
+ _target_: metta.agent.pytorch.latent_attn_med.Recurrent
  hidden_size: 512
  cnn_channels: 128
 
