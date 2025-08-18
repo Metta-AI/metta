@@ -4,11 +4,10 @@ import logging
 import random
 import string
 
-from metta.common.util.tool import Tool
+from metta.common.config import Tool
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
 from metta.mettagrid.mettagrid_config import EnvConfig
-from tools.run import apply_overrides
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +46,9 @@ class GenTool(Tool):
         if not isinstance(env_config, EnvConfig):
             raise ValueError(f"Env config must be an instance of EnvConfig, got {type(env_config)}")
 
-        env_config = apply_overrides(env_config, self.env_overrides)
+        for override in self.env_overrides:
+            key, value = override.split("=")
+            env_config = env_config.override(key, value)
 
         logger.info(f"Env config:\n{env_config.model_dump_json(indent=2)}")
 

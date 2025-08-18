@@ -1,8 +1,8 @@
 import metta.map.scenes.random
-from metta.map.mapgen import MapGenConfig
+from metta.map.mapgen import MapGen
 from metta.mettagrid.config import building
 from metta.mettagrid.map_builder.map_builder import MapBuilderConfig
-from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
@@ -52,7 +52,7 @@ def make_arena(
         actions.attack.consumed_resources = {"laser": 100}
 
     if map_builder is None:
-        map_builder = MapGenConfig(
+        map_builder = MapGen.Config(
             num_agents=num_agents,
             width=25,
             height=25,
@@ -130,7 +130,7 @@ def make_navigation(num_agents: int) -> EnvConfig:
                     ),
                 ),
             ),
-            map_builder=RandomMapBuilderConfig(
+            map_builder=RandomMapBuilder.Config(
                 agents=num_agents,
                 width=25,
                 height=25,

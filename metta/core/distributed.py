@@ -5,7 +5,7 @@ import os
 
 import torch
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 
 logger = logging.getLogger(__name__)
 

@@ -52,17 +52,6 @@ def download_from_s3(s3_path: str, save_path: str):
         raise e
 
 
-class TerrainFromNumpyConfig(MapBuilderConfig):
-    type: Literal["terrain_from_numpy"] = "terrain_from_numpy"
-    objects: dict[str, int] = Field(default_factory=dict)
-    agents: int | dict[str, int] = Field(default=0, ge=0)
-    dir: str
-    file: Optional[str] = None
-
-    def create(self) -> "TerrainFromNumpy":
-        return TerrainFromNumpy(self)
-
-
 class TerrainFromNumpy(MapBuilder):
     """
     This class is used to load a terrain environment from numpy arrays on s3.
@@ -70,8 +59,14 @@ class TerrainFromNumpy(MapBuilder):
     It's not a MapGen scene, because we don't know the grid size until we load the file.
     """
 
-    def __init__(self, config: TerrainFromNumpyConfig):
-        super().__init__(config)
+    class Config(MapBuilderConfig["TerrainFromNumpy"]):
+        type: Literal["terrain_from_numpy"] = "terrain_from_numpy"
+        objects: dict[str, int] = Field(default_factory=dict)
+        agents: int | dict[str, int] = Field(default=0, ge=0)
+        dir: str
+        file: Optional[str] = None
+
+    def __init__(self, config: Config):
         self.config = config
 
     def get_valid_positions(self, level):
