@@ -143,7 +143,9 @@ def write_file(path: str, local_file: str, *, content_type: str = "application/o
     # ---------- Google Drive ---------- #
     if path.startswith("gdrive://") or path.startswith("https://drive.google.com/"):
         file_id = _gdrive_write_file(path, local_file, content_type)
-        logger.info("Uploaded %s → %s (ID: %s, size %d B)", local_file, http_url(path), file_id, os.path.getsize(local_file))
+        logger.info(
+            "Uploaded %s → %s (ID: %s, size %d B)", local_file, http_url(path), file_id, os.path.getsize(local_file)
+        )
         return
 
     # ---------- local -------- #
@@ -394,16 +396,16 @@ def upload_file_to_wandb(uri, local_file: str, name: str) -> None:
         logger.error(f"Failed to upload file to wandb: {e}")
         raise
 
+
 # --------------------------------------------------------------------------- #
 #  GDrive URI handling                                                            #
 # --------------------------------------------------------------------------- #
 
 
-
 @dataclass(frozen=True, slots=True)
 class GDriveURI:
     kind: Literal["file", "folder"]
-    id: str             # file ID or folder ID
+    id: str  # file ID or folder ID
     name: Optional[str] = None  # required for folder uploads
 
     @classmethod
@@ -443,6 +445,7 @@ class GDriveURI:
 
 _GDRIVE_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
 
+
 def _load_gdrive_credentials() -> Credentials:
     token = Path(GOOGLE_DRIVE_TOKEN_FILE).expanduser()
     creds = Credentials.from_authorized_user_file(str(token), _GDRIVE_SCOPES) if token.exists() else None
@@ -473,16 +476,23 @@ def _gdrive_exists(uri_str: str) -> bool:
             svc.files().get(fileId=uri.id, fields="id", supportsAllDrives=True).execute()
             return True
         name = (uri.name or "").replace("'", "\\'")
-        resp = svc.files().list(
-            q=f"'{uri.id}' in parents and name = '{name}' and trashed = false",
-            fields="files(id)", pageSize=1,
-            includeItemsFromAllDrives=True, supportsAllDrives=True,
-        ).execute()
+        resp = (
+            svc.files()
+            .list(
+                q=f"'{uri.id}' in parents and name = '{name}' and trashed = false",
+                fields="files(id)",
+                pageSize=1,
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+            )
+            .execute()
+        )
         return bool(resp.get("files"))
     except HttpError as e:
         if getattr(getattr(e, "resp", None), "status", None) in (403, 404):
             return False
         raise
+
 
 def _gdrive_write_file(uri_str: str, local_file: str, content_type: str) -> str:
     """Upload a local file to Google Drive and return the file-ID.
@@ -497,18 +507,14 @@ def _gdrive_write_file(uri_str: str, local_file: str, content_type: str) -> str:
     media = MediaFileUpload(local_file, mimetype=content_type, resumable=False)
 
     try:
-        if uri.kind == "file":                                   # update by ID
-            return svc.files().update(
-                fileId=uri.id, media_body=media,
-                supportsAllDrives=True, fields="id"
-            ).execute()["id"]
+        if uri.kind == "file":  # update by ID
+            return (
+                svc.files().update(fileId=uri.id, media_body=media, supportsAllDrives=True, fields="id").execute()["id"]
+            )
 
         # ───── kind == "folder" ─────
         meta = {"name": uri.name, "parents": [uri.id]}
-        fileId = svc.files().create(
-            body=meta, media_body=media,
-            supportsAllDrives=True, fields="id"
-        ).execute()["id"]
+        fileId = svc.files().create(body=meta, media_body=media, supportsAllDrives=True, fields="id").execute()["id"]
 
         # best-effort public permission; ignore failures
         try:
@@ -534,23 +540,19 @@ def _gdrive_write_data(uri_str: str, data: bytes, content_type: str) -> str:
     • gdrive://file/<ID>         → update that file
     • gdrive://folder/<ID>/<fn>  → create (or overwrite-by-name) inside folder
     """
-    uri   = GDriveURI.parse(uri_str)
-    svc   = _gdrive_service()
+    uri = GDriveURI.parse(uri_str)
+    svc = _gdrive_service()
     media = MediaIoBaseUpload(io.BytesIO(data), mimetype=content_type, resumable=False)
 
     try:
-        if uri.kind == "file":                                   # update by ID
-            return svc.files().update(
-                fileId=uri.id, media_body=media,
-                supportsAllDrives=True, fields="id"
-            ).execute()["id"]
+        if uri.kind == "file":  # update by ID
+            return (
+                svc.files().update(fileId=uri.id, media_body=media, supportsAllDrives=True, fields="id").execute()["id"]
+            )
 
         # ───── kind == "folder" ─────
-        meta   = {"name": uri.name, "parents": [uri.id]}
-        fileId = svc.files().create(
-            body=meta, media_body=media,
-            supportsAllDrives=True, fields="id"
-        ).execute()["id"]
+        meta = {"name": uri.name, "parents": [uri.id]}
+        fileId = svc.files().create(body=meta, media_body=media, supportsAllDrives=True, fields="id").execute()["id"]
 
         # best-effort public permission; ignore failures
         try:

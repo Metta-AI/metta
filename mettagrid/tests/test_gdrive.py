@@ -20,7 +20,9 @@ def test_gdrive_write_read_file():
 def test_gdrive_write_read_folder():
     """Test write/read for gdrive://folder/ID/filename pattern"""
     test_data = b"hello folder"
-    folder_id = "1PdW-fbbHlCnleFIdMD0S7Tohy0VLsuV3"  # This is Justin's mettatest ID. Replace with relevant ID if needed.
+    folder_id = (
+        "1PdW-fbbHlCnleFIdMD0S7Tohy0VLsuV3"  # This is Justin's mettatest ID. Replace with relevant ID if needed.
+    )
 
     write_data(f"gdrive://folder/{folder_id}/test.txt", test_data)
     result = read(f"gdrive://folder/{folder_id}/test.txt")

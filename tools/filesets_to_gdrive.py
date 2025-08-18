@@ -6,10 +6,12 @@ import sys
 from pathlib import Path
 
 # Add paths for imports
-sys.path.extend([
-    str(Path(__file__).parent.parent / "manybot" / "codebot" / "codeclip"),
-    str(Path(__file__).parent.parent / "mettagrid" / "src")
-])
+sys.path.extend(
+    [
+        str(Path(__file__).parent.parent / "manybot" / "codebot" / "codeclip"),
+        str(Path(__file__).parent.parent / "mettagrid" / "src"),
+    ]
+)
 
 from codeclip.file import get_context
 from metta.mettagrid.util.file import write_data
@@ -23,8 +25,9 @@ FILESETS = {
     "mettascope": ["mettascope/**/*"],
     "agent": ["agent/**/*"],
     "common": ["common/**/*"],
-    "utilities": ["common/**", "library/**", "tools/**", "scripts/**"]
+    "utilities": ["common/**", "library/**", "tools/**", "scripts/**"],
 }
+
 
 def main():
     parser = argparse.ArgumentParser(description="Upload filesets to Google Drive")
@@ -53,13 +56,14 @@ def main():
         context, token_info = get_context(paths=files, raw=False)
 
         # Print token information to stderr
-        total_tokens = token_info.get('total_tokens', 0)
-        total_files = token_info.get('total_files', 0)
+        total_tokens = token_info.get("total_tokens", 0)
+        total_files = token_info.get("total_files", 0)
         print(f"Processing {name}: {total_files} files, {total_tokens:,} tokens", file=sys.stderr)
 
         gdrive_path = f"gdrive://folder/{args.folder}/{name}.txt"
         write_data(gdrive_path, context, content_type="text/plain")
         print(f"Uploaded {name}: {len(files)} files")
+
 
 if __name__ == "__main__":
     main()
