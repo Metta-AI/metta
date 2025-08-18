@@ -74,7 +74,6 @@ sweep_job_overrides:
     simulation:
       evaluate_remote: false
       evaluate_local: true
-      evaluate_interval: 25 # No evaluation during training for speed
       replay_dir: "" # No replays for sweeps
 
 cmd: sweep
