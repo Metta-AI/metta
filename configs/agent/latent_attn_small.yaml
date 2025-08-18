@@ -6,7 +6,6 @@ observations:
 
 clip_range: 0 # set to 0 to disable clipping
 analyze_weights_interval: 300
-l2_init_weight_update_interval: 0
 
 components:
   #necessary layers: _core_, _action_embeds_, _action_, _value_
@@ -14,8 +13,7 @@ components:
 
   _obs_:
     _target_: metta.agent.lib.obs_tokenizers.ObsTokenPadStrip
-    sources:
-      null
+    sources: null
 
   obs_normalizer:
     _target_: metta.agent.lib.obs_tokenizers.ObsAttrValNorm
@@ -54,9 +52,9 @@ components:
   _core_:
     _target_: metta.agent.lib.lstm.LSTM
     sources:
-      - name: obs_latent_self_attn
-    output_size: 128
+      - name: encoded_obs
     nn_params:
+      hidden_size: 128
       num_layers: 2
 
   critic_1:
@@ -85,8 +83,7 @@ components:
 
   _action_embeds_:
     _target_: metta.agent.lib.action.ActionEmbedding
-    sources:
-      null
+    sources: null
     nn_params:
       num_embeddings: 100
       embedding_dim: 16

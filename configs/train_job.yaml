@@ -7,6 +7,8 @@ defaults:
   - _self_
 
 seed: 1
+py_agent: null
+
 
 train_job:
   map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
@@ -14,5 +16,14 @@ train_job:
 
 trainer:
   curriculum: /env/mettagrid/arena/basic_easy_shaped
+
+# If we detect you are on a mac, we update configs related to batch size and checkpoint frequency
+# you can opt out of those by setting this to true
+bypass_mac_overrides: false
+
+# If you want your runs to be automatically named, set this to a pattern.
+# You can use alphanumeric characters, ., _, -, and {user}, {now}, {curriculum} in the pattern.
+# If you don't want your runs to be automatically named, set this to null
+run_name_pattern: "{user}.{curriculum}.{now}"
 
 cmd: train

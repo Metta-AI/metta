@@ -1,8 +1,0 @@
-defaults:
-  - /env/mettagrid/multiagent/experiments/varied_terrain@
-  - _self_
-
-game:
-  map_builder:
-    room:
-      style: maze

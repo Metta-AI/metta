@@ -41,6 +41,7 @@ def get_memory_usage():
     return process.memory_info().rss / (1024 * 1024)  # Convert to MB
 
 
+@pytest.mark.slow
 def test_mettagrid_env_no_memory_leaks(cfg):
     """
     Test that the MettaGridEnv can be reset multiple times without memory leaks.

@@ -1,6 +1,0 @@
-_target_: metta.mettagrid.curriculum.random.RandomCurriculum
-
-tasks:
-  /env/mettagrid/curriculum/navigation/learning_progress: 1
-  /env/mettagrid/curriculum/navsequence/navsequence_all: 1
-  /env/mettagrid/curriculum/navsequence/backchain_seq: 1

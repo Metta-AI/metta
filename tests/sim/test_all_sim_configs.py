@@ -30,6 +30,7 @@ def get_all_sim_configs() -> list[str]:
     return sorted(sim_configs)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("sim_config", get_all_sim_configs())
 def test_all_sim_configs_valid(sim_config: str):
     config_dir = get_repo_root() / "configs"

@@ -1,4 +1,3 @@
-# Inherit from base progressive configuration
 defaults:
   - random
   - _self_

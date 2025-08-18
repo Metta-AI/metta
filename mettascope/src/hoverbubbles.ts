@@ -17,15 +17,15 @@
 import * as Common from './common.js'
 import { state, ui } from './common.js'
 import { find, findIn, onEvent, removeChildren } from './htmlutils.js'
-import { getAttr, getObjectConfig } from './replay.js'
 import { Vec2f } from './vector_math.js'
+import { Entity } from './replay.js'
 
 /** An info bubble. */
 export class HoverBubble {
-  public object: any
+  public object: Entity
   public div: HTMLElement
 
-  constructor(object: any) {
+  constructor(object: Entity) {
     this.object = object
     this.div = document.createElement('div')
   }
@@ -67,7 +67,7 @@ hoverBubble.addEventListener('pointerdown', (e: PointerEvent) => {
   // Show the actions buttons (memory, etc.) if the object is an agent
   // and if the websocket is connected.
   const actions = findIn(bubble.div, '.actions')
-  if (state.ws != null && bubble.object.hasOwnProperty('agent_id')) {
+  if (state.ws != null && bubble.object.isAgent) {
     actions.classList.remove('hidden')
   } else {
     actions.classList.add('hidden')
@@ -90,7 +90,7 @@ hoverBubble.addEventListener('pointerdown', (e: PointerEvent) => {
 })
 
 /** Updates the hover bubble's visibility, position, and DOM tree. */
-export function updateHoverBubble(object: any) {
+export function updateHoverBubble(object: Entity) {
   if (object !== null && object !== undefined) {
     // Is there a popup open for this object?
     // Then don't show a new one.
@@ -100,7 +100,7 @@ export function updateHoverBubble(object: any) {
       }
     }
 
-    const typeName = state.replay.object_types[getAttr(object, 'type')]
+    const typeName = state.replay.typeNames[object.typeId]
     if (typeName === 'wall') {
       // Don't show hover bubble for walls.
       hoverBubble.classList.add('hidden')
@@ -112,8 +112,9 @@ export function updateHoverBubble(object: any) {
 
     const bubbleRect = hoverBubble.getBoundingClientRect()
 
-    const x = getAttr(object, 'c') * Common.TILE_SIZE
-    const y = getAttr(object, 'r') * Common.TILE_SIZE
+    const location = object.location.get()
+    const x = location[0] * Common.TILE_SIZE
+    const y = location[1] * Common.TILE_SIZE
 
     const uiPoint = ui.mapPanel.transformInner(new Vec2f(x, y - Common.TILE_SIZE / 2))
 
@@ -133,41 +134,42 @@ export function hideHoverBubble() {
 }
 
 /** Updates the DOM tree of the info bubble. */
-function updateDom(htmlBubble: HTMLElement, object: any) {
+function updateDom(htmlBubble: HTMLElement, object: Entity) {
   // Update the readout.
-  htmlBubble.setAttribute('data-object-id', getAttr(object, 'id'))
-  htmlBubble.setAttribute('data-agent-id', getAttr(object, 'agent_id'))
+  htmlBubble.setAttribute('data-object-id', object.id.toString())
+  htmlBubble.setAttribute('data-agent-id', object.agentId.toString())
 
   const params = findIn(htmlBubble, '.params')
   removeChildren(params)
+
+  function addParam(name: string, value: string) {
+    const param = paramTemplate.cloneNode(true) as HTMLElement
+    param.querySelector('.name')!.textContent = name
+    param.querySelector('.value')!.textContent = value
+    params.appendChild(param)
+  }
+
+  // Add various parameters.
+  addParam('ID', object.id.toString())
+  const typeName = state.replay.typeNames[object.typeId]
+  addParam('Type', typeName)
+  if (object.isAgent) {
+    addParam('Agent ID', object.agentId.toString())
+    addParam('Current Reward', object.currentReward.get().toString())
+  }
+
+  // Populate the inventory area.
   const inventory = findIn(htmlBubble, '.inventory')
   removeChildren(inventory)
-  for (const key in object) {
-    let value = getAttr(object, key)
-    if ((key.startsWith('inv:') || key.startsWith('agent:inv:')) && value > 0) {
+  for (const inventoryPair of object.inventory.get()) {
+    const inventoryId = inventoryPair[0]
+    const resourceAmount = inventoryPair[1]
+    if (resourceAmount > 0) {
+      const resourceName = state.replay.itemNames[inventoryId]
       const item = itemTemplate.cloneNode(true) as HTMLElement
-      item.querySelector('.amount')!.textContent = value
-      const resource = key.replace('inv:', '').replace('agent:', '')
-      item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
+      item.querySelector('.amount')!.textContent = resourceAmount.toString()
+      item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resourceName}.png`)
       inventory.appendChild(item)
-    } else {
-      if (key === 'type') {
-        value = state.replay.object_types[value]
-      } else if (key === 'agent:color' && value >= 0 && value < Common.COLORS.size) {
-        const colorNames = Array.from(Common.COLORS.keys())
-        value = colorNames[value]
-      } else if (['group', 'total_reward', 'agent_id'].includes(key)) {
-        // If the value is a float and not an integer, round it to three decimal places.
-        if (typeof value === 'number' && !Number.isInteger(value)) {
-          value = value.toFixed(3)
-        }
-      } else {
-        continue
-      }
-      const param = paramTemplate.cloneNode(true) as HTMLElement
-      param.querySelector('.name')!.textContent = key
-      param.querySelector('.value')!.textContent = value
-      params.appendChild(param)
     }
   }
 
@@ -175,63 +177,41 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
   const recipe = findIn(htmlBubble, '.recipe')
   removeChildren(recipe)
   const recipeArea = findIn(htmlBubble, '.recipe-area')
-  const objectConfig = getObjectConfig(object)
-  let displayedResources = 0
-  if (objectConfig != null) {
-    recipeArea.classList.remove('hidden')
 
-    // If config has input_resources or output_resources use that,
-    // otherwise use input_{resource} and output_{resource}.
-    if (objectConfig.hasOwnProperty('input_resources') || objectConfig.hasOwnProperty('output_resources')) {
-      // input_resources is a object like {heart: 1, blueprint: 1}
-      for (const resource in objectConfig.input_resources) {
+  let displayedResources = 0
+
+  const inputResources = object.inputResources
+  const outputResources = object.outputResources
+
+  if (inputResources.length > 0 || outputResources.length > 0) {
+    // Add the input resources.
+    for (const resourcePair of inputResources) {
+      const resourceId = resourcePair[0]
+      const resourceAmount = resourcePair[1]
+      const resourceName = state.replay.itemNames[resourceId]
+      const item = itemTemplate.cloneNode(true) as HTMLElement
+      item.querySelector('.amount')!.textContent = resourceAmount.toString()
+      item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resourceName}.png`)
+      recipe.appendChild(item)
+      displayedResources++
+    }
+    // Add the arrow between the input and output.
+    recipe.appendChild(recipeArrow.cloneNode(true))
+    // Add the output resources.
+    if (outputResources.length > 0) {
+      for (const resourcePair of outputResources) {
+        const resourceId = resourcePair[0]
+        const resourceAmount = resourcePair[1]
+        const resourceName = state.replay.itemNames[resourceId]
         const item = itemTemplate.cloneNode(true) as HTMLElement
-        item.querySelector('.amount')!.textContent = objectConfig.input_resources[resource]
-        item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
+        item.querySelector('.amount')!.textContent = resourceAmount.toString()
+        item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resourceName}.png`)
         recipe.appendChild(item)
         displayedResources++
       }
-      // Add the arrow.
-      recipe.appendChild(recipeArrow.cloneNode(true))
-      // Add the output.
-      if (objectConfig.hasOwnProperty('output_resources')) {
-        for (const resource in objectConfig.output_resources) {
-          const item = itemTemplate.cloneNode(true) as HTMLElement
-          item.querySelector('.amount')!.textContent = objectConfig.output_resources[resource]
-          item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
-          recipe.appendChild(item)
-          displayedResources++
-        }
-      }
-    } else {
-      // Configs have input_{resource} and output_{resource}.
-      for (const key in objectConfig) {
-        if (key.startsWith('input_')) {
-          const resource = key.replace('input_', '')
-          const amount = objectConfig[key]
-          const item = itemTemplate.cloneNode(true) as HTMLElement
-          item.querySelector('.amount')!.textContent = amount
-          item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
-          recipe.appendChild(item)
-          displayedResources++
-        }
-      }
-      // Add the arrow.
-      recipe.appendChild(recipeArrow.cloneNode(true))
-      // Add the output.
-      for (const key in objectConfig) {
-        if (key.startsWith('output_')) {
-          const resource = key.replace('output_', '')
-          const amount = objectConfig[key]
-          const item = itemTemplate.cloneNode(true) as HTMLElement
-          item.querySelector('.amount')!.textContent = amount
-          item.querySelector('.icon')?.setAttribute('src', `data/atlas/resources/${resource}.png`)
-          recipe.appendChild(item)
-          displayedResources++
-        }
-      }
     }
   }
+
   if (displayedResources > 0) {
     recipeArea.classList.remove('hidden')
   } else {
@@ -243,14 +223,14 @@ function updateDom(htmlBubble: HTMLElement, object: any) {
 export function updateReadout() {
   let readout = ''
   readout += `Step: ${state.step}\n`
-  readout += `Map size: ${state.replay.map_size[0]}x${state.replay.map_size[1]}\n`
-  readout += `Num agents: ${state.replay.num_agents}\n`
-  readout += `Max steps: ${state.replay.max_steps}\n`
+  readout += `Map size: ${state.replay.mapSize[0]}x${state.replay.mapSize[1]}\n`
+  readout += `Num agents: ${state.replay.numAgents}\n`
+  readout += `Max steps: ${state.replay.maxSteps}\n`
 
   const objectTypeCounts = new Map<string, number>()
-  for (const gridObject of state.replay.grid_objects) {
-    const type = getAttr(gridObject, 'type')
-    const typeName = state.replay.object_types[type]
+  for (const gridObject of state.replay.objects) {
+    const typeId = gridObject.typeId
+    const typeName = state.replay.typeNames[typeId]
     objectTypeCounts.set(typeName, (objectTypeCounts.get(typeName) || 0) + 1)
   }
   for (const [key, value] of objectTypeCounts.entries()) {

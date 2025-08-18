@@ -5,7 +5,6 @@ _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 env_cfg_template_path: /env/mettagrid/arena/combat
 
 buckets:
-  game.agent.rewards.inventory.heart: { values: [1] }
-
-  game.objects.altar.input_resources.ore_red: { values: [0, 1, 2] }
-  game.objects.altar.input_resources.battery_red: { values: [0, 1, 2] }
+  game.agent.rewards.inventory.heart: [1]
+  game.objects.altar.input_resources.ore_red: [0, 1, 2]
+  game.objects.altar.input_resources.battery_red: [0, 1, 2]
