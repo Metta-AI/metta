@@ -326,7 +326,7 @@ export METTA_RUN_ID
 export SKYPILOT_TASK_ID
 
 # Set up cleanup trap
-source ./devops/skypilot/config/monitors/cleanup_handler.sh
+source ./devops/skypilot/config/lifecycle/cleanup_handler.sh
 trap cleanup EXIT
 
 # All nodes: Run GPU diagnostics and NCCL tests (first start only)
