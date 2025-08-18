@@ -41,6 +41,7 @@ game:
     - blueprint
 
   # Show recipe inputs in observations for all converters
+  resource_loss_prob: 0.0
   recipe_details_obs: false
 
   actions:
@@ -52,6 +53,8 @@ game:
       enabled: true
     put_items:
       enabled: true
+    place_box:
+      enabled: false
     get_items:
       enabled: true
     attack:

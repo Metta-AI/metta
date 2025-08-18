@@ -8,6 +8,9 @@ import { SQLQuery } from './SQLQuery'
 import { TrainingRuns } from './TrainingRuns'
 import { TrainingRunDetail } from './TrainingRunDetail'
 import { EvalTasks } from './EvalTasks'
+import { Leaderboards } from './Leaderboards'
+import { LeaderboardConfig } from './LeaderboardConfig'
+import { LeaderboardView } from './LeaderboardView'
 import { config } from './config'
 
 // CSS for navigation
@@ -205,6 +208,12 @@ function App() {
               >
                 Evaluate Policies
               </Link>
+              <Link
+                to="/leaderboards"
+                className={`nav-tab ${location.pathname.startsWith('/leaderboard') ? 'active' : ''}`}
+              >
+                Leaderboards
+              </Link>
               <Link to="/saved" className={`nav-tab ${location.pathname === '/saved' ? 'active' : ''}`}>
                 Saved Dashboards
               </Link>
@@ -224,6 +233,10 @@ function App() {
             <Route path="/training-runs" element={<TrainingRuns repo={state.repo} />} />
             <Route path="/training-run/:runId" element={<TrainingRunDetail repo={state.repo} />} />
             <Route path="/eval-tasks" element={<EvalTasks repo={state.repo} />} />
+            <Route path="/leaderboards" element={<Leaderboards repo={state.repo} currentUser={state.currentUser} />} />
+            <Route path="/leaderboards/create" element={<LeaderboardConfig repo={state.repo} />} />
+            <Route path="/leaderboards/:leaderboardId/edit" element={<LeaderboardConfig repo={state.repo} />} />
+            <Route path="/leaderboards/:leaderboardId" element={<LeaderboardView repo={state.repo} />} />
             <Route path="/saved" element={<SavedDashboards repo={state.repo} currentUser={state.currentUser} />} />
             <Route path="/tokens" element={<TokenManager repo={state.repo} />} />
             <Route path="/sql-query" element={<SQLQuery repo={state.repo} />} />

@@ -19,6 +19,10 @@ inputs:
     description: "Number of Nodes to request. If empty, uses SkyPilot task default."
     required: false
     default: ""
+  run_ci_tests:
+    description: "Runs NCCL and job restart tests"
+    required: false
+    default: "false"
   wandb_api_key:
     description: "Weights & Biases API Key"
     required: true
@@ -36,6 +40,10 @@ inputs:
     required: true
   github_pat:
     description: "GitHub PAT for status reporting"
+    required: false
+    default: ""
+  discord_webhook_url:
+    description: "Discord webhook URL for status reporting"
     required: false
     default: ""
 
@@ -94,6 +102,14 @@ runs:
 
         if [ -n "${{ inputs.github_pat }}" ]; then
           LAUNCH_ARGS+=( "--github-pat=${{ inputs.github_pat }}" )
+        fi
+
+        if [ -n "${{ inputs.discord_webhook_url }}" ]; then
+          LAUNCH_ARGS+=( "--discord-webhook-url=${{ inputs.discord_webhook_url }}" )
+        fi
+
+        if [[ "${{ inputs.run_ci_tests }}" == "true" ]]; then
+          LAUNCH_ARGS+=( "--run-ci-tests" )
         fi
 
         LAUNCH_ARGS+=(

@@ -1,5 +1,3 @@
-# Deals with full and partial replays.
-
 import json
 import logging
 import time

@@ -25,11 +25,12 @@ arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
 
 curriculum_cfg = cc.curriculum(arena_tasks, num_tasks=4)
 
-print(curriculum_cfg.model_dump(mode="python"))
+print(curriculum_cfg.model_dump_json(indent=2))
+print(curriculum_cfg.task_generator_config.model_dump_json(indent=2))
 curriculum = curriculum_cfg.make()
 
-print("Generating 10 tasks")
-for _ in range(10):
-    task = curriculum.get_task()
-    print("================ TASK ==================")
-    print(task._task_id, task.get_env_cfg().game.agent.rewards.inventory)
+# print("Generating 10 tasks")
+# for _ in range(10):
+#     task = curriculum.get_task()
+#     print("================ TASK ==================")
+#     print(task._task_id, json.dumps(task.get_env_cfg().model_dump(), indent=2))

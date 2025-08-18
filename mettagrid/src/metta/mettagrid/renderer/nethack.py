@@ -63,40 +63,39 @@ class NethackRenderer:
 
         self._bounds_set = True
 
-    def render(self, step: int, grid_objects: dict[int, dict]) -> str:
+    def _build_buffer(self, grid_objects: dict[int, dict]) -> str:
+        """Construct ASCII map buffer without printing."""
         if not self._bounds_set:
             self._compute_bounds(grid_objects)
-
-        # Initialize grid with NetHack-style empty spaces (dots)
+        # Initialize empty map
         grid = [["." for _ in range(self._width)] for _ in range(self._height)]
-
         for obj in grid_objects.values():
             r = obj["r"] - self._min_row
             c = obj["c"] - self._min_col
             if 0 <= r < self._height and 0 <= c < self._width:
-                symbol = self._symbol_for(obj)
-                grid[r][c] = symbol
-
+                grid[r][c] = self._symbol_for(obj)
         lines = ["".join(row) for row in grid]
+        return "\n".join(lines)
 
-        # Create current buffer
-        current_buffer = "\n".join(lines)
+    def render(self, step: int, grid_objects: dict[int, dict]) -> str:
+        """Render the environment buffer and print to screen."""
+        buf = self._build_buffer(grid_objects)
 
-        # Validate alignment (all lines should have same length)
+        lines = buf.split("\n")
         line_lengths = [len(line) for line in lines]
         if len(set(line_lengths)) > 1:
-            # This should not happen if we're not using emojis
-            print(f"Warning: Inconsistent line lengths detected: {line_lengths}", flush=True)
+            print(
+                f"Warning: Inconsistent line lengths detected: {line_lengths}",
+                flush=True,
+            )
 
-        # Build the complete frame in memory first to eliminate flashing
-        if self._last_buffer is None or current_buffer != self._last_buffer:
-            # Build entire frame as single string with clear screen for atomic update
-            frame_buffer = "\033[2J\033[H" + current_buffer
-
-            # Write entire frame at once - atomic screen update
+        if self._last_buffer is None or buf != self._last_buffer:
+            frame_buffer = "\033[2J\033[H" + buf
             print(frame_buffer, end="", flush=True)
+            self._last_buffer = buf
 
-            # Update last buffer
-            self._last_buffer = current_buffer
+        return buf
 
-        return current_buffer
+    def get_buffer(self, grid_objects: dict[int, dict]) -> str:
+        """Return ASCII map buffer without side effects."""
+        return self._build_buffer(grid_objects)

@@ -13,6 +13,11 @@ wall:
   type_id: 1
   swappable: false
 
+# box:
+#   type_id: 12
+#   resources_to_create:
+#     battery_blue: 1
+
 block:
   type_id: 14
   swappable: true
