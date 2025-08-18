@@ -9,6 +9,7 @@ for distributed PyTorch training environments.
 """
 
 import datetime
+import io
 import logging
 import os
 import subprocess
@@ -158,7 +159,9 @@ def test_nccl_benchmarks() -> bool:
 
         # Store results for later use
         if rank == 0:
-            print_benchmark_results(results)
+            # Changed: Get string output instead of printing
+            benchmark_output = format_benchmark_results(results)
+            print(benchmark_output)
 
         return True
 
@@ -273,39 +276,46 @@ def measure_allreduce_bandwidth(
     return results if rank == 0 else []
 
 
-def print_benchmark_results(results: dict[str, Any]) -> None:
-    """Pretty print benchmark results."""
-    print()
-    print_box_header("NCCL BANDWIDTH BENCHMARKS", include_rank=False)
+def format_benchmark_results(results: dict[str, Any]) -> str:
+    """Format benchmark results as a string instead of printing directly."""
+    output = io.StringIO()
+
+    output.write("\n")
+    output.write(format_box_header("NCCL BANDWIDTH BENCHMARKS", include_rank=False))
 
     # P2P bandwidth
     if "p2p_bandwidth" in results:
         p2p = results["p2p_bandwidth"]
-        print(f"\n  📊 P2P BANDWIDTH (Rank {p2p['src_rank']} → Rank {p2p['dst_rank']}):")
-        print(f"    Message Size : {p2p['message_size_mb']} MB")
-        print(f"    Bandwidth    : {p2p['bandwidth_gbps']:.2f} GB/s")
-        print(f"    Time         : {p2p['time_ms']:.2f} ms")
+        output.write(f"\n  📊 P2P BANDWIDTH (Rank {p2p['src_rank']} → Rank {p2p['dst_rank']}):\n")
+        output.write(f"    Message Size : {p2p['message_size_mb']} MB\n")
+        output.write(f"    Bandwidth    : {p2p['bandwidth_gbps']:.2f} GB/s\n")
+        output.write(f"    Time         : {p2p['time_ms']:.2f} ms\n")
 
     # Allreduce bandwidth
     if "allreduce_bandwidth" in results:
-        print("\n  📊 ALLREDUCE BANDWIDTH:")
-        print(f"    {'Size (MB)':<12} {'Time (ms)':<12} {'Bandwidth (GB/s)':<15}")
-        print(f"    {'-' * 12} {'-' * 12} {'-' * 15}")
+        output.write("\n  📊 ALLREDUCE BANDWIDTH:\n")
+        output.write(f"    {'Size (MB)':<12} {'Time (ms)':<12} {'Bandwidth (GB/s)':<15}\n")
+        output.write(f"    {'-' * 12} {'-' * 12} {'-' * 15}\n")
 
         for r in results["allreduce_bandwidth"]:
-            print(f"    {r['size_mb']:<12} {r['time_ms']:<12.2f} {r['bandwidth_gbps']:<15.2f}")
+            output.write(f"    {r['size_mb']:<12} {r['time_ms']:<12.2f} {r['bandwidth_gbps']:<15.2f}\n")
 
         # Report peak
         best_result = max(results["allreduce_bandwidth"], key=lambda x: x["bandwidth_gbps"])
-        print(f"\n  🚀 Peak Allreduce: {best_result['bandwidth_gbps']:.2f} GB/s at {best_result['size_mb']}MB")
+        output.write(f"\n  🚀 Peak Allreduce: {best_result['bandwidth_gbps']:.2f} GB/s at {best_result['size_mb']}MB\n")
+
+    return output.getvalue()
 
 
-def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> None:
-    """Print a formatted box header with centered title.
+def print_benchmark_results(results: dict[str, Any]) -> None:
+    """Pretty print benchmark results - kept for backward compatibility."""
+    print(format_benchmark_results(results))
 
-    When include_rank is True and in a distributed environment, this function
-    ensures ranks print in order to avoid garbled output.
-    """
+
+def format_box_header(title: str, width: int = 75, include_rank: bool = True) -> str:
+    """Format a box header as a string instead of printing directly."""
+    output = io.StringIO()
+
     # Prepare the title with rank info if requested
     display_title = title
     if include_rank and "RANK" in os.environ:
@@ -314,22 +324,29 @@ def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> 
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
         display_title = f"{title} (Rank {rank}, Node {node_rank}, GPU {local_rank})"
 
-    # Helper to actually print the box
-    def _print_box(title_to_print: str):
-        # Ensure title fits with padding
-        max_title_width = width - 4  # Account for borders and spacing
-        if len(title_to_print) > max_title_width:
-            title_to_print = title_to_print[: max_title_width - 3] + "..."
+    # Ensure title fits with padding
+    max_title_width = width - 4  # Account for borders and spacing
+    if len(display_title) > max_title_width:
+        display_title = display_title[: max_title_width - 3] + "..."
 
-        # Calculate padding for centering
-        padding = width - len(title_to_print)
-        left_pad = padding // 2
-        right_pad = padding - left_pad
+    # Calculate padding for centering
+    padding = width - len(display_title)
+    left_pad = padding // 2
+    right_pad = padding - left_pad
 
-        print(f"╔{'═' * width}╗")
-        print(f"║{' ' * left_pad}{title_to_print}{' ' * right_pad}║")
-        print(f"╚{'═' * width}╝")
+    output.write(f"╔{'═' * width}╗\n")
+    output.write(f"║{' ' * left_pad}{display_title}{' ' * right_pad}║\n")
+    output.write(f"╚{'═' * width}╝\n")
 
+    return output.getvalue()
+
+
+def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> None:
+    """Print a formatted box header with centered title.
+
+    When include_rank is True and in a distributed environment, this function
+    ensures ranks print in order to avoid garbled output.
+    """
     # Check if we're in a distributed environment with rank info
     is_distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ and int(os.environ.get("WORLD_SIZE", 1)) > 1
 
@@ -341,13 +358,13 @@ def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> 
         # Print in rank order
         for i in range(world_size):
             if rank == i:
-                _print_box(display_title)
+                print(format_box_header(title, width, include_rank), end="")
                 sys.stdout.flush()
                 time.sleep(0.01)
             dist.barrier()
     else:
         # Non-distributed or rank-agnostic printing
-        _print_box(display_title)
+        print(format_box_header(title, width, include_rank), end="")
 
 
 def run_command(cmd: list[str], check: bool = False) -> tuple[int, str, str]:
@@ -501,56 +518,58 @@ def get_system_diagnostics() -> dict[str, Any]:
     return diagnostics
 
 
-def print_system_diagnostics(diagnostics: dict[str, Any]) -> None:
-    """Print system diagnostics in a clean format."""
+def format_system_diagnostics(diagnostics: dict[str, Any]) -> str:
+    """Format system diagnostics as a string instead of printing directly."""
+    output = io.StringIO()
+
     # Cluster configuration
-    print_box_header("CLUSTER CONFIGURATION")
+    output.write(format_box_header("CLUSTER CONFIGURATION"))
     for k, v in diagnostics["cluster"].items():
-        print(f"  {k:<15} : {v}")
+        output.write(f"  {k:<15} : {v}\n")
 
     # System diagnostics
-    print()
-    print_box_header("SYSTEM DIAGNOSTICS")
+    output.write("\n")
+    output.write(format_box_header("SYSTEM DIAGNOSTICS"))
     for k, v in diagnostics["system"].items():
         if k in ["ROUTE_TO_MASTER", "NETWORK_INTERFACE"]:
             # Truncate long lines
             v_str = str(v)
             if len(v_str) > 50:
                 v_str = v_str[:47] + "..."
-            print(f"  {k:<15} : {v_str}")
+            output.write(f"  {k:<15} : {v_str}\n")
         else:
-            print(f"  {k:<15} : {v}")
+            output.write(f"  {k:<15} : {v}\n")
 
     # SHM info
-    print()
-    print_box_header("SHARED MEMORY (SHM) INFO")
-    print(f"  Mount      : {diagnostics['system'].get('SHM_MOUNT', 'N/A')}")
-    print(f"  Usage      : {diagnostics['system'].get('SHM_DF', 'N/A')}")
-    print(f"  Permissions: {diagnostics['shm'].get('permissions', 'N/A')}")
+    output.write("\n")
+    output.write(format_box_header("SHARED MEMORY (SHM) INFO"))
+    output.write(f"  Mount      : {diagnostics['system'].get('SHM_MOUNT', 'N/A')}\n")
+    output.write(f"  Usage      : {diagnostics['system'].get('SHM_DF', 'N/A')}\n")
+    output.write(f"  Permissions: {diagnostics['shm'].get('permissions', 'N/A')}\n")
     if diagnostics["shm"].get("ipcs"):
-        print("  IPC Status :")
+        output.write("  IPC Status :\n")
         for i, line in enumerate(diagnostics["shm"]["ipcs"].split("\n")[:5]):
             if i == 0:
-                print(f"    {line}")  # Header
+                output.write(f"    {line}\n")  # Header
             else:
-                print(f"    {line[:70]}...")  # Truncate long lines
+                output.write(f"    {line[:70]}...\n")  # Truncate long lines
 
     # NCCL environment
-    print()
-    print_box_header("NCCL ENVIRONMENT")
+    output.write("\n")
+    output.write(format_box_header("NCCL ENVIRONMENT"))
     nccl_vars = sorted([(k, v) for k, v in diagnostics["nccl_env"].items() if k.startswith("NCCL_")])
     other_vars = sorted([(k, v) for k, v in diagnostics["nccl_env"].items() if not k.startswith("NCCL_")])
 
     for k, v in nccl_vars:
-        print(f"  {k:<25} : {v}")
+        output.write(f"  {k:<25} : {v}\n")
     if other_vars:
-        print("  ---")
+        output.write("  ---\n")
         for k, v in other_vars:
-            print(f"  {k:<25} : {v}")
+            output.write(f"  {k:<25} : {v}\n")
 
     # NCCL Configuration Summary
-    print()
-    print_box_header("NCCL CONFIGURATION SUMMARY")
+    output.write("\n")
+    output.write(format_box_header("NCCL CONFIGURATION SUMMARY"))
 
     # Extract values
     master_addr = diagnostics["cluster"]["MASTER_ADDR"]
@@ -567,49 +586,65 @@ def print_system_diagnostics(diagnostics: dict[str, Any]) -> None:
     nccl_max_nchannels = os.environ.get("NCCL_MAX_NCHANNELS", "8")
 
     # Print in a clean table format
-    print(f"  Rendezvous Endpoint    : {master_addr}:{master_port}")
-    print(f"  Network Interface      : {nccl_socket_ifname}")
-    print(f"  Socket Family          : {nccl_socket_family}")
-    print(f"  Port Range             : {nccl_port_range}")
+    output.write(f"  Rendezvous Endpoint    : {master_addr}:{master_port}\n")
+    output.write(f"  Network Interface      : {nccl_socket_ifname}\n")
+    output.write(f"  Socket Family          : {nccl_socket_family}\n")
+    output.write(f"  Port Range             : {nccl_port_range}\n")
 
     debug_str = nccl_debug
     if nccl_debug_subsys:
         debug_str += f" (subsys: {nccl_debug_subsys})"
-    print(f"  Debug Level            : {debug_str}")
+    output.write(f"  Debug Level            : {debug_str}\n")
 
-    print(f"  Channels (min-max)     : {nccl_min_nchannels}-{nccl_max_nchannels}")
-    print("\n  Communication Modes:")
-    print(f"    • P2P (GPU Direct)   : {'✓ Enabled' if not nccl_p2p_disable else '✗ Disabled'}")
-    print(f"    • Shared Memory      : {'✓ Enabled' if not nccl_shm_disable else '✗ Disabled'}")
-    print(f"    • InfiniBand/EFA     : {'✓ Enabled' if not nccl_ib_disable else '✗ Disabled'}")
+    output.write(f"  Channels (min-max)     : {nccl_min_nchannels}-{nccl_max_nchannels}\n")
+    output.write("\n  Communication Modes:\n")
+    output.write(f"    • P2P (GPU Direct)   : {'✓ Enabled' if not nccl_p2p_disable else '✗ Disabled'}\n")
+    output.write(f"    • Shared Memory      : {'✓ Enabled' if not nccl_shm_disable else '✗ Disabled'}\n")
+    output.write(f"    • InfiniBand/EFA     : {'✓ Enabled' if not nccl_ib_disable else '✗ Disabled'}\n")
+
+    return output.getvalue()
 
 
-def print_diagnostics(diagnostics: dict[str, Any]) -> None:
-    """Pretty print GPU diagnostics information."""
-    print()
-    print_box_header("GPU DIAGNOSTICS")
+def print_system_diagnostics(diagnostics: dict[str, Any]) -> None:
+    """Print system diagnostics in a clean format - kept for backward compatibility."""
+    print(format_system_diagnostics(diagnostics))
+
+
+def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
+    """Format GPU diagnostics as a string instead of printing directly."""
+    output = io.StringIO()
+
+    output.write("\n")
+    output.write(format_box_header("GPU DIAGNOSTICS"))
 
     # Basic info in a clean table
-    print(f"  PyTorch Version        : {diagnostics['torch_version']}")
-    print(f"  PyTorch CUDA Available : {diagnostics['pytorch_cuda_available']}")
-    print(f"  PyTorch CUDA Version   : {diagnostics['pytorch_cuda_version']}")
-    print(f"  CUDA Version           : {diagnostics['cuda_version']}")
-    print(f"  NCCL Version           : {diagnostics['nccl_version']}")
-    print(f"  CUDA_VISIBLE_DEVICES   : {diagnostics['cuda_visible_devices']}")
-    print(f"  GPU Count              : {diagnostics['gpu_count']}")
+    output.write(f"  PyTorch Version        : {diagnostics['torch_version']}\n")
+    output.write(f"  PyTorch CUDA Available : {diagnostics['pytorch_cuda_available']}\n")
+    output.write(f"  PyTorch CUDA Version   : {diagnostics['pytorch_cuda_version']}\n")
+    output.write(f"  CUDA Version           : {diagnostics['cuda_version']}\n")
+    output.write(f"  NCCL Version           : {diagnostics['nccl_version']}\n")
+    output.write(f"  CUDA_VISIBLE_DEVICES   : {diagnostics['cuda_visible_devices']}\n")
+    output.write(f"  GPU Count              : {diagnostics['gpu_count']}\n")
 
     if diagnostics["errors"]:
-        print("\n  ⚠️  Errors encountered:")
+        output.write("\n  ⚠️  Errors encountered:\n")
         for error in diagnostics["errors"]:
-            print(f"    • {error}")
+            output.write(f"    • {error}\n")
 
     # nvidia-smi output (if available)
     if diagnostics["nvidia_smi"]:
-        print("\n  NVIDIA-SMI Output:")
-        print("  " + "-" * 70)
+        output.write("\n  NVIDIA-SMI Output:\n")
+        output.write("  " + "-" * 70 + "\n")
         for line in diagnostics["nvidia_smi"].strip().split("\n"):
-            print(f"  {line}")
-        print("  " + "-" * 70)
+            output.write(f"  {line}\n")
+        output.write("  " + "-" * 70 + "\n")
+
+    return output.getvalue()
+
+
+def print_diagnostics(diagnostics: dict[str, Any]) -> None:
+    """Pretty print GPU diagnostics information - kept for backward compatibility."""
+    print(format_gpu_diagnostics(diagnostics))
 
 
 def _detect_iface_to(master_addr: str) -> str | None:
