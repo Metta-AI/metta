@@ -334,18 +334,22 @@ class Simulation:
             elif not done_now[e] and self._env_done_flags[e]:
                 self._env_done_flags[e] = False
 
-    def _maybe_generate_thumbnail(self) -> None:
-        """Generate thumbnail if this is the first run for this eval_name."""
+    def _maybe_generate_thumbnail(self) -> str | None:
+        """Generate thumbnail if this is the first run for this eval_name.
+
+        Returns:
+            Thumbnail URL if generated successfully, None otherwise
+        """
         try:
             # Skip synthetic evaluation framework simulations
             if self._name.startswith(SYNTHETIC_EVAL_PREFIX):
                 logger.debug(f"Skipping thumbnail generation for synthetic simulation: {self._name}")
-                return
+                return None
 
             # Get any replay data from this simulation
             if not self._replay_writer.episodes:
                 logger.warning(f"No replay data available for thumbnail generation: {self._name}")
-                return
+                return None
 
             # Use first available episode replay
             episode_replay = next(iter(self._replay_writer.episodes.values()))
@@ -358,23 +362,26 @@ class Simulation:
             eval_name = environment_name
 
             # Attempt to generate and upload thumbnail
-            success = maybe_generate_and_upload_thumbnail(replay_data, eval_name)
+            success, thumbnail_url = maybe_generate_and_upload_thumbnail(replay_data, eval_name)
             if success:
                 logger.info(f"Generated thumbnail for eval_name: {eval_name}")
+                return thumbnail_url
             else:
                 logger.debug(f"Thumbnail generation skipped for eval_name: {eval_name}")
+                return None
 
         except Exception as e:
             logger.error(f"Thumbnail generation failed for {self._name}: {e}")
+            return None
 
     def end_simulation(self) -> SimulationResults:
         # ---------------- teardown & DB merge ------------------------ #
         self._vecenv.close()
         db = self._from_shards_and_context()
-        self._write_remote_stats(db)
 
-        # Generate thumbnail if this is the first run for this eval_name
-        self._maybe_generate_thumbnail()
+        # Generate thumbnail before writing to database so we can include the URL
+        thumbnail_url = self._maybe_generate_thumbnail()
+        self._write_remote_stats(db, thumbnail_url=thumbnail_url)
 
         logger.info(
             "Sim '%s' finished: %d episodes in %.1fs",
@@ -426,7 +433,7 @@ class Simulation:
     def _get_policy_uri(self) -> str:
         return self._wandb_uri if self._wandb_uri is not None else self._policy_pr.uri
 
-    def _write_remote_stats(self, stats_db: SimulationStatsDB) -> None:
+    def _write_remote_stats(self, stats_db: SimulationStatsDB, thumbnail_url: str | None = None) -> None:
         """Write stats to the remote stats database."""
         if self._stats_client is not None:
             policy_name = self._get_policy_name()
@@ -488,6 +495,7 @@ class Simulation:
                         attributes=attributes,
                         eval_task_id=self._eval_task_id,
                         tags=episode_tags,
+                        thumbnail_url=thumbnail_url,
                     )
                 except Exception as e:
                     logger.error(f"Failed to record episode {episode_id} remotely: {e}")

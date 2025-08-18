@@ -214,6 +214,7 @@ export function Dashboard({ repo }: DashboardProps) {
   const selectedCellData = selectedCell ? scorecardData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
   const selectedEval = selectedCellData?.evalName ?? null
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null
+  const selectedThumbnailUrl = selectedCellData?.thumbnailUrl ?? null
 
   // Dashboard state management functions
   const getDashboardState = () => {
@@ -497,6 +498,7 @@ export function Dashboard({ repo }: DashboardProps) {
               selectedEval={selectedEval}
               isViewLocked={isViewLocked}
               selectedReplayUrl={selectedReplayUrl}
+              selectedThumbnailUrl={selectedThumbnailUrl}
               onToggleLock={toggleLock}
               onReplayClick={handleReplayClick}
             />

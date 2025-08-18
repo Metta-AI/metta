@@ -81,11 +81,11 @@ def should_generate_thumbnail(eval_name: str) -> bool:
 
     except Exception as e:
         logger.warning(f"Error checking thumbnail existence for {eval_name}: {e}")
-        # On error, assume it exists to avoid duplicate generation
-        return False
+        # On error, assume it doesn't exist and proceed with generation
+        return True
 
 
-def upload_thumbnail_to_s3(thumbnail_data: bytes, eval_name: str) -> bool:
+def upload_thumbnail_to_s3(thumbnail_data: bytes, eval_name: str) -> tuple[bool, str | None]:
     """
     Upload thumbnail data to S3 using project's file utilities.
 
@@ -94,7 +94,7 @@ def upload_thumbnail_to_s3(thumbnail_data: bytes, eval_name: str) -> bool:
         eval_name: Evaluation name for S3 key generation
 
     Returns:
-        True if upload succeeded, False otherwise
+        Tuple of (success: bool, s3_uri: str | None)
     """
     try:
         s3_uri = eval_name_to_s3_uri(eval_name)
@@ -102,15 +102,17 @@ def upload_thumbnail_to_s3(thumbnail_data: bytes, eval_name: str) -> bool:
         # Use project's standard file utilities for S3 upload
         file_utils.write_data(s3_uri, thumbnail_data, content_type="image/png")
 
-        logger.info(f"Uploaded thumbnail for {eval_name} to {s3_uri}")
-        return True
+        # Convert S3 URI to HTTP URL for database storage
+        http_thumbnail_url = file_utils.http_url(s3_uri)
+        logger.info(f"Uploaded thumbnail for {eval_name} to {s3_uri}, HTTP URL: {http_thumbnail_url}")
+        return True, http_thumbnail_url
 
     except Exception as e:
         logger.error(f"Failed to upload thumbnail for {eval_name}: {e}")
-        return False
+        return False, None
 
 
-def maybe_generate_and_upload_thumbnail(replay_data: dict, eval_name: str) -> bool:
+def maybe_generate_and_upload_thumbnail(replay_data: dict, eval_name: str) -> tuple[bool, str | None]:
     """
     Main automation entry point: generate and upload thumbnail if needed.
 
@@ -123,10 +125,10 @@ def maybe_generate_and_upload_thumbnail(replay_data: dict, eval_name: str) -> bo
         eval_name: Evaluation name from simulation
 
     Returns:
-        True if thumbnail was generated and uploaded successfully, False otherwise
+        Tuple of (success: bool, thumbnail_url: str | None)
     """
     if not should_generate_thumbnail(eval_name):
-        return False
+        return False, None
 
     try:
         # Generate thumbnail using core library
@@ -134,15 +136,15 @@ def maybe_generate_and_upload_thumbnail(replay_data: dict, eval_name: str) -> bo
         thumbnail_data = generate_thumbnail_from_replay(replay_data)
 
         # Upload using project file utilities
-        success = upload_thumbnail_to_s3(thumbnail_data, eval_name)
+        success, thumbnail_url = upload_thumbnail_to_s3(thumbnail_data, eval_name)
 
         if success:
             logger.info(f"Successfully generated and uploaded thumbnail for {eval_name}")
         else:
             logger.error(f"Thumbnail generation succeeded but upload failed for {eval_name}")
 
-        return success
+        return success, thumbnail_url
 
     except Exception as e:
         logger.error(f"Thumbnail generation failed for {eval_name}: {e}")
-        return False
+        return False, None
