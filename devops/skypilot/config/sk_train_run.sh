@@ -421,7 +421,7 @@ else
   echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
   if ! uv run python ./devops/skypilot/test_nccl.py; then
     echo "[ERROR] NCCL tests failed - exiting with code $EXIT_NCCL_TEST_FAILURE"
-    exit $EXIT_NCCL_TEST_FAILURE
+    terminate_process "$CMD_PID" "nccl_test_failure"
   fi
   echo "[SUCCESS] NCCL tests passed"
 fi
