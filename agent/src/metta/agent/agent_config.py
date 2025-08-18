@@ -10,7 +10,7 @@ from metta.mettagrid import MettaGridEnv
 
 class AgentConfig(Config):
     env: MettaGridEnv
-    agent_cfg: Literal[
+    agent: Literal[
         "fast",
         "latent_attn_med",
         "latent_attn_small",

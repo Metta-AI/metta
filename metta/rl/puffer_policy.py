@@ -70,12 +70,9 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[Di
 
     from metta.agent.agent_config import AgentConfig
 
-    # Create a default agent_cfg if pytorch_cfg is None
-    agent_cfg = pytorch_cfg if pytorch_cfg is not None else DictConfig({})
-
     agent_config = AgentConfig(
         env=env,
-        agent_cfg=agent_cfg,
+        agent=agent_cfg,
         policy=policy,
     )
     return MettaAgent(agent_config, system_cfg)

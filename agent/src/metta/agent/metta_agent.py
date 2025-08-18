@@ -68,7 +68,7 @@ class MettaAgent(MettaAgentInterface):
 
         # Do NOT store the full config on the instance to keep the agent picklable.
         # The config may hold references (e.g., env) that include locks and cannot be pickled.
-        self.cfg = config.agent_cfg
+        self.cfg = config.agent
         self.device = system_cfg.device
 
         logger.info(f"Device: {self.device}")
@@ -88,7 +88,7 @@ class MettaAgent(MettaAgentInterface):
 
         # Create policy if not provided
         if config.policy is None:
-            policy = self._create_policy(config.agent_cfg, config.env, system_cfg)
+            policy = self._create_policy(config.agent, config.env, system_cfg)
         else:
             policy = config.policy
 

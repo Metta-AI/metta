@@ -166,7 +166,7 @@ class CheckpointManager:
 
     def load_or_create_policy(
         self,
-        agent_cfg: str,
+        agent: str,
         system_cfg: SystemConfig,
         trainer_cfg: TrainerConfig,
         checkpoint: TrainerCheckpoint | None,
@@ -227,7 +227,7 @@ class CheckpointManager:
 
             agent_config = AgentConfig(
                 env=metta_grid_env,
-                agent_cfg=agent_cfg,
+                agent=agent,
             )
             new_policy_record.policy = MettaAgent(agent_config, system_cfg)
 

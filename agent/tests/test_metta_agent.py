@@ -2,7 +2,6 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
-from omegaconf import DictConfig
 from tensordict import TensorDict
 
 # Import the actual class
@@ -98,14 +97,15 @@ def create_metta_agent():
 
     # Create system config
     system_cfg = SystemConfig(device="cpu")
-    agent_cfg = DictConfig(config_dict)
+    # Use a simple string value that matches the Literal type
+    agent_cfg = "latent_attn_small"
 
     # Create the agent with the new signature
     from metta.agent.agent_config import AgentConfig
 
     agent_config = AgentConfig(
         env=MinimalEnv(),
-        agent_cfg=agent_cfg,
+        agent=agent_cfg,
         policy=None,  # Will create ComponentPolicy internally
     )
     agent = MettaAgent(agent_config, system_cfg)
