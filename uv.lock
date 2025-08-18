@@ -797,6 +797,17 @@ wheels = [
 ]
 
 [[package]]
+name = "dotenv"
+version = "0.9.9"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dotenv" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b2/b7/545d2c10c1fc15e48653c91efde329a790f2eecfbbf2bd16003b5db2bab0/dotenv-0.9.9-py2.py3-none-any.whl", hash = "sha256:29cf74a087b31dafdb5a446b6d7e11cbce8ed2741540e2339c69fbef92c94ce9", size = 1892, upload-time = "2025-02-19T22:15:01.647Z" },
+]
+
+[[package]]
 name = "duckdb"
 version = "1.3.2"
 source = { registry = "https://pypi.org/simple" }
@@ -2538,10 +2549,12 @@ version = "0.1.0"
 source = { editable = "mcp_server" }
 dependencies = [
     { name = "boto3" },
+    { name = "dotenv" },
     { name = "fastmcp" },
     { name = "mcp" },
     { name = "modelcontextprotocol" },
     { name = "pathlib" },
+    { name = "pytest" },
     { name = "typing" },
     { name = "wandb" },
 ]
@@ -2549,10 +2562,12 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.34.0" },
+    { name = "dotenv", specifier = ">=0.9.9" },
     { name = "fastmcp", specifier = ">=2.11.3" },
     { name = "mcp", specifier = ">=1.13.0" },
     { name = "modelcontextprotocol", specifier = ">=0.1.0" },
     { name = "pathlib", specifier = ">=1.0.1" },
+    { name = "pytest", specifier = ">=8.4.1" },
     { name = "typing", specifier = ">=3.7.4.3" },
     { name = "wandb", specifier = ">=0.17.0" },
 ]

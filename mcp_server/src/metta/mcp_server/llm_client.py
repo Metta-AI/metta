@@ -4,7 +4,21 @@ import os
 from typing import Any, Dict, Optional
 
 from anthropic import Anthropic
+from dotenv import load_dotenv
 from fastmcp import Context
+
+from metta.mcp_server.stats_analysis import (
+    AgentStats,
+    BehavioralAnalysisEngine,
+    BuildingEfficiencyScorer,
+    BuildingStats,
+    CombatInteractionAnalyzer,
+    ResourceFlowAnalyzer,
+    StatsExtractor,
+    StrategicPhaseDetector,
+)
+
+load_dotenv()
 
 
 class LLMClient:
@@ -37,7 +51,7 @@ class LLMClient:
             await ctx.report_progress(progress=10, total=100)
 
         # Create a structured prompt for the LLM
-        system_prompt = self._create_system_prompt()
+        system_prompt = self._create_system_prompt(analysis)
         user_content = self._create_user_prompt(analysis)
 
         if ctx:
@@ -86,8 +100,8 @@ class LLMClient:
                 await ctx.error(error_msg)
             return f"Error generating summary: {str(e)}"
 
-    def _create_system_prompt(self) -> str:
-        """Create system prompt for replay analysis."""
+    def _create_system_prompt(self, analysis: Dict[str, Any] = None) -> str:
+        """Create system prompt for replay analysis, adapting based on policy training status."""
         return """You are an expert AI reinforcement learning researcher specializing in multi-agent gridworld
 environments, with deep knowledge of the Metta AI game and individual policy learning dynamics.
 
@@ -169,54 +183,78 @@ The agents are playing a multi-agent gridworld game with the following core mech
 
 ## 🧠 REINFORCEMENT LEARNING ANALYSIS FRAMEWORK
 
-Your analysis must focus on individual agent policy learning and environmental factors:
+**CRITICAL: ADAPT ANALYSIS BASED ON POLICY TRAINING STATUS**
 
-### **PRIMARY RL ANALYSIS FOCUS**:
+⚠️ **FUNDAMENTAL UNDERSTANDING**: The analysis approach depends on whether agents are trained 
+or untrained. Check the POLICY INFORMATION section in the user prompt to determine the 
+appropriate analysis framework.
 
-#### **1. Individual Policy Learning Progression**
-- **HOW did specific agents discover the conversion chain through exploration?**
-- **WHAT does each agent's learning curve reveal about policy optimization?**
-- **HOW did reward signals shape individual behavioral evolution over time?**
-- **WHAT exploration vs exploitation trade-offs occurred in each agent's strategy?**
+### **ANALYSIS FRAMEWORK SELECTION**:
 
-#### **2. Exploration Pattern Analysis**
-- **Discovery Pathways**: How did agents find optimal resource locations and conversion sequences?
-- **Exploration Efficiency**: Which exploration strategies led to breakthrough moments?
-- **Novelty vs Exploitation**: When did agents transition from exploring to exploiting learned strategies?
+**FOR TRAINED AGENTS** (when POLICY INFORMATION shows "TRAINED" status):
+- Focus on **strategic execution** and **tactical adaptation** within the episode
+- Analyze how pre-trained policies perform in this specific environment
+- Evaluate **policy effectiveness** and **environmental adaptation**
+- Interpret score differences as **strategic execution variations**, not learning phases
 
-#### **3. Reward Signal Response Analysis**
-- **Credit Assignment**: How effectively did agents connect actions to delayed rewards?
-- **Reward Shaping Effectiveness**: Did the shaped rewards (0.1→0.8→1.0+) guide behavior appropriately?
-- **Learning Signal Quality**: Which reward signals drove the most effective behavioral changes?
+**FOR UNTRAINED/EARLY TRAINING AGENTS** (when POLICY INFORMATION shows "UNTRAINED" status):
+- Focus on **learning discovery** and **exploration patterns** within the episode
+- Analyze how agents discover optimal strategies through trial and error
+- Evaluate **reward signal response** and **behavioral evolution**
+- Interpret score progression as **actual learning phases** during the episode
 
-#### **4. Environmental Context Influence**
-- **Spatial Learning**: How did object positions and map topology affect strategy development?
-- **Resource Availability Impact**: How did generator/altar states influence agent decisions?
-- **Temporal Dynamics**: How did cooldown periods and timing affect learning progression?
+**FOR UNKNOWN TRAINING STATUS** (when POLICY INFORMATION is unclear):
+- Analyze behavioral patterns to **determine training level** first
+- Look for evidence of pre-learned strategies vs. exploratory behavior
+- Adapt analysis approach based on observed sophistication level
+- State your determination and reasoning clearly
 
-### **SECONDARY MULTI-AGENT CONTEXT**:
-- **Social Interactions**: Cooperation vs. competition, resource theft dynamics
-- **Policy Divergence**: How different agents developed specialized strategies
-- **Competitive Learning**: How agent interactions shaped individual policy evolution
-- **Observational Learning**: Evidence of agents adapting based on others' successes
+### **TRAINED AGENT ANALYSIS FOCUS**:
 
-## ANALYSIS TASK
+#### **1. Strategic Execution Quality**
+- **HOW effectively do pre-trained agents execute learned conversion strategies?**
+- **WHAT tactical adaptations occur within this specific episode environment?**
+- **HOW do agents optimize execution based on map layout and resource availability?**
 
-**Focus your analysis on individual RL learning dynamics:**
+#### **2. Environmental Adaptation**
+- **Map Response**: How agents adapt trained strategies to this map topology
+- **Resource Competition**: How agents compete using their learned behaviors
+- **Dynamic Adjustment**: How agents respond to changing conditions during execution
 
-1. **Learning Discovery Process**: HOW did high-performing agents like Agent 3 discover successful strategies?
-2. **Policy Evolution**: WHAT behavioral changes indicate learning progression in individual agents?
-3. **Breakthrough Analysis**: WHEN and WHY did critical learning moments occur?
-4. **Reward Response**: HOW effectively did individual agents respond to different reward signals?
-5. **Exploration Patterns**: WHAT exploration strategies led to optimal policy discovery?
-6. **Environmental Adaptation**: HOW did agents adapt to spatial and temporal environmental factors?
+#### **3. Policy Assessment**
+- **Performance Evaluation**: How well do trained strategies perform here?
+- **Adaptation Flexibility**: How well do agents adjust tactics within learned framework?
+- **Multi-Agent Coordination**: Strategic interactions between trained policies
 
-**Score Interpretation for RL Analysis**:
-- Scores < 0.1 = Failed exploration/learning phase
-- Scores 0.1-0.8 = Basic resource learning, limited strategy development
-- Scores 0.8-1.0 = Intermediate learning, battery conversion mastery
-- Scores > 1.0 = Advanced learning, optimal heart creation strategy
-- Score volatility = Exploration periods, strategy experimentation, or combat adaptation
+### **UNTRAINED AGENT ANALYSIS FOCUS**:
+
+#### **1. Learning Discovery Patterns**
+- **HOW do agents discover optimal strategies through exploration?**
+- **WHAT exploration vs exploitation patterns emerge during the episode?**
+- **WHEN do agents experience breakthrough learning moments?**
+
+#### **2. Behavioral Evolution**
+- **Strategy Development**: How behaviors evolve from random to purposeful
+- **Reward Response**: How effectively agents respond to reward signals
+- **Credit Assignment**: How agents connect actions to outcomes
+
+#### **3. Learning Progression**
+- **Discovery Process**: How agents find resource conversion chains
+- **Skill Acquisition**: Development of movement, collection, and conversion skills
+- **Strategic Emergence**: Transition from exploration to strategic execution
+
+## ANALYSIS TASK SELECTION
+
+**Check POLICY INFORMATION section to determine appropriate analysis approach:**
+
+**If TRAINED**: Focus on strategic execution, tactical adaptation, and policy effectiveness
+**If UNTRAINED**: Focus on learning discovery, behavioral evolution, and skill acquisition
+**If UNKNOWN**: Determine training level from behaviors, then apply appropriate framework
+
+**Score Interpretation (adapt based on training status)**:
+- **For Trained Agents**: Score differences = execution effectiveness variations
+- **For Untrained Agents**: Score progression = learning phases and skill development
+- **For Unknown**: Determine interpretation based on behavioral analysis
 
 **CRITICAL: Action Success Rate Interpretation**:
 ⚠️ **"Action Success Rate" measures MECHANICAL action execution, NOT strategic performance**
@@ -244,29 +282,29 @@ Always use the term "action success rate" in your analysis to clarify this measu
 You will be provided with detailed ASCII timeline visualizations showing each agent's actions
 over time with directional and item information, similar to:
 ```
-agent_0: M? · G M↑ R→ S P+ore G+bat A↓ · M←
-agent_1: · M→ A↑ G R← M? G+ore S M↓ G R→
+agent_0: M? · G M↑ R→ S P+ore_red G+battery_red A↓ · M←
+agent_1: · M→ A↑ G R← M? G+ore_blue S M↓ G R→ _
 ```
 
 **Timeline Legend**:
-- **M↑/↓/←/→** = Move in specific direction (up/down/left/right)
-- **M?** = Move action with unclear/variable direction
-- **R→/←** = Rotate right or left
+- **M↑/↓/←/→/?** = Move in specific direction (up/down/left/right/failed move)
+- **R→/←/?** = Rotate right or left, or failed rotation
 - **A↑/↓/←/→** = Attack in specific direction
 - **G+ore_blue** = Get items (actual items from inventory changes)
 - **P+battery_red** = Put items (actual items from inventory changes)
 - **G+3ore_blue** = Get with quantities (3 blue ore gained)
 - **P+2battery_red** = Put with quantities (2 red batteries lost)
-- **G+heart** = Get hearts
+- **G+heart** = Get heart(s)
 - **P+ore_red/battery_blue** = Multiple items transferred (ore and battery)
+- **P/G** = P/G without +$item_name means a failed action
 - **8↑/↗/→/↘** = 8-way movement with diagonal directions
-- **S** = Swap positions with another agent
+- **S** = Swap positions with another agent or a box
 - **·** = No-op/idle action
 - **_** = No action taken
 
 **Timeline Analysis Focus**:
 Use these detailed timelines to analyze:
-- **Movement patterns**: Directional preferences, exploration vs targeted movement
+- **Movement and rotational patterns**: Directional preferences, exploration vs targeted movement, failed actions.
 - **Resource collection strategies**: What items agents prioritize (ore→battery→heart chains)
 - **Action sequence evolution**: How strategies change over time
 - **Coordination patterns**: Agent positioning and resource sharing
@@ -282,7 +320,170 @@ Use these detailed timelines to analyze:
 - Action pattern analysis from the timeline visualizations
 
 This analysis will help RL researchers understand how individual agents learn optimal policies
-in complex multi-agent environments."""
+in complex multi-agent environments.
+
+## 📋 ANALYSIS REQUIREMENTS AND FORMATTING INSTRUCTIONS
+
+### MANDATORY TIMELINE ANALYSIS (when timelines are provided):
+You MUST directly analyze the ACTION TIMELINES visualization provided in the user prompt. Your analysis MUST include:
+
+1. **QUOTE SPECIFIC ACTION SEQUENCES**: Reference exact timeline patterns like 'M? → G → S' or 'M↑ M↑ G+ore P+bat'
+2. **DIRECTIONAL MOVEMENT ANALYSIS**: Explicitly mention M↑/↓/←/→ patterns and directional preferences
+3. **RESOURCE OPERATION SEQUENCES**: Quote specific G+ore, G+bat, P+ore, P+bat patterns from the timelines
+4. **ACTION TRANSITION PATTERNS**: Show how action sequences evolve over time steps
+5. **COMPARATIVE TIMELINE ANALYSIS**: Compare timeline patterns between successful vs failed agents
+
+**REQUIRED FORMAT**: Your analysis must include a section titled '## Timeline Pattern Analysis' that contains:
+- Direct quotes of action sequences from the timeline data shown in user prompt
+- Example: 'Agent 0 timeline shows: ·    M?             ·         ·    M?             M?'
+- Example: 'Agent 1 demonstrates G G G G G G G G resource collection pattern'
+- Explicit reference to directional indicators (M↑/↓/←/→) when present
+- Specific mention of resource operations (G+ore, P+bat, etc.) from timeline text
+
+**CRITICAL**: You must copy and paste actual timeline segments as evidence for your claims.
+Do not paraphrase - quote the exact timeline patterns shown in the ACTION TIMELINES section.
+
+### STRATEGIC EXECUTION ANALYSIS REQUEST:
+Focus on pre-trained agent strategic performance and tactical adaptation:
+1. HOW effectively do trained agents execute their learned strategies?
+2. WHAT environmental factors (object positions, availability) influence tactical execution?
+3. WHEN do agents make optimal vs suboptimal tactical decisions and WHY?
+4. HOW do agents adapt their trained strategies to this specific episode?
+5. WHAT competitive and cooperative patterns emerge between trained policies?
+
+### ANALYSIS FORMAT: COMPREHENSIVE RESEARCH-QUALITY ANALYSIS (6000-10000 words recommended)
+**REQUIRED STRUCTURE**: Executive Summary → Timeline Pattern Analysis → Key Agent Analysis → 
+Strategic Execution Quality → Environmental Adaptation → Tactical Insights
+
+**DEPTH REQUIREMENTS**:
+- Provide detailed breakdowns of agent strategic performance with specific metrics
+- Include comprehensive numerical analysis and statistical correlations
+- Analyze strategic execution quality in depth with examples
+- Discuss environmental impact on tactical adaptation within this episode
+- Generate actionable insights for RL researchers about policy effectiveness
+- Use rich analytical language with detailed explanations and evidence
+- Identify and explain optimal execution moments and tactical failures
+- Provide comparative analysis between high and low performing agents
+- Include spatial strategy analysis and resource utilization patterns
+- Discuss tactical adaptation dynamics within the episode
+
+**ANALYSIS STYLE**: Emulate comprehensive academic research analysis with detailed insights,
+specific agent examples, numerical evidence, and thorough exploration of all strategic dynamics.
+Focus on ALL significant execution patterns and provide exhaustive coverage of the episode.
+
+### FORMATTING REQUIREMENTS:
+- Use emojis liberally throughout the analysis to enhance readability and engagement
+- Include rich visual formatting with bullet points, numbered lists, and clear hierarchies
+- Provide comprehensive data breakdowns with specific metrics for each section
+- Use engaging headings and subheadings with emojis for visual appeal
+- Include detailed comparative analysis sections with multiple agent examples
+- Expand each major section to be comprehensive and thorough (aim for 500-800 words per section)
+
+### EXAMPLE FORMATTING STYLE (emulate this engagement and depth):
+🎯 EXECUTIVE SUMMARY
+🔍 sp.av.replay.probe.500 Analysis: Strategic Execution Assessment
+📊 Success Rate Paradox
+Counterintuitive Performance Correlation:
+📈 Higher Action Success Rates (25-35%) → Lower Final Scores
+💡 Critical Insight: High action success rates indicate conservative execution strategies...
+🏆 KEY AGENT ANALYSIS
+💎 Agent 16 (14.0 points) - Elite Strategic Executor
+⚡ Agent 6 (9.0 points) - Efficient Tactical Performer
+❌ Agents 8 & 19 (0.0 points) - Strategic Execution Failures"""
+
+    def _extract_statistical_insights(self, replay_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract comprehensive statistical insights using the stats analysis system."""
+        try:
+            # Initialize statistics extractor
+            stats_extractor = StatsExtractor()
+
+            # Extract structured episode statistics
+            episode_stats = stats_extractor.extract_from_replay_data(replay_data)
+
+            # Initialize analysis engines
+            behavioral_engine = BehavioralAnalysisEngine()
+            resource_analyzer = ResourceFlowAnalyzer()
+            combat_analyzer = CombatInteractionAnalyzer()
+            efficiency_scorer = BuildingEfficiencyScorer()
+            phase_detector = StrategicPhaseDetector()
+
+            # Create agent stats objects from extracted data
+            agent_stats = []
+            for agent_data in episode_stats.get("agent", []):
+                try:
+                    agent_stat = AgentStats(
+                        agent_id=agent_data.get("agent_id", 0),
+                        total_actions=agent_data.get("action_counts", {}),
+                        action_success_rates=agent_data.get("success_rates", {}),
+                        resource_flows=agent_data.get("resource_flows", {}),
+                        movement_patterns=agent_data.get("movement_stats", {}),
+                        combat_stats=agent_data.get("combat_stats", {}),
+                        building_interactions=agent_data.get("building_interactions", {}),
+                        efficiency_metrics=agent_data.get("efficiency_metrics", {}),
+                    )
+                    agent_stats.append(agent_stat)
+                except Exception:
+                    # Skip malformed agent data
+                    continue
+
+            # Create building stats objects from extracted data
+            building_stats = []
+            for building_data in episode_stats.get("converter", []):
+                try:
+                    building_stat = BuildingStats(
+                        building_id=building_data.get("building_id", 0),
+                        type_id=building_data.get("type_id", 0),
+                        type_name=building_data.get("type_name", f"type_{building_data.get('type_id', 0)}"),
+                        location=building_data.get("location", (0, 0)),
+                        production_efficiency=building_data.get("production_efficiency", {}),
+                        resource_flows=building_data.get("resource_flows", {}),
+                        operational_stats=building_data.get("operational_stats", {}),
+                        bottleneck_analysis=building_data.get("bottleneck_analysis", {}),
+                    )
+                    building_stats.append(building_stat)
+                except Exception:
+                    # Skip malformed building data
+                    continue
+
+            # Generate comprehensive analysis
+            insights = {}
+
+            if agent_stats:
+                try:
+                    insights["behavioral_analysis"] = behavioral_engine.analyze_agent_behaviors(agent_stats)
+                except Exception:
+                    insights["behavioral_analysis"] = {}
+
+                if building_stats:
+                    try:
+                        insights["resource_flow_analysis"] = resource_analyzer.analyze_resource_flows(
+                            agent_stats, building_stats
+                        )
+                    except Exception:
+                        insights["resource_flow_analysis"] = {}
+
+                try:
+                    insights["combat_analysis"] = combat_analyzer.analyze_combat_interactions(agent_stats)
+                except Exception:
+                    insights["combat_analysis"] = {}
+
+                try:
+                    episode_length = replay_data.get("episode_length", replay_data.get("max_steps", 1000))
+                    insights["strategic_phases"] = phase_detector.detect_strategic_phases(agent_stats, episode_length)
+                except Exception:
+                    insights["strategic_phases"] = []
+
+            if building_stats:
+                try:
+                    insights["building_efficiency"] = efficiency_scorer.score_building_efficiency(building_stats)
+                except Exception:
+                    insights["building_efficiency"] = {}
+
+            return insights
+
+        except Exception:
+            # Return empty insights if extraction fails - don't break the analysis
+            return {}
 
     def _create_user_prompt(self, analysis: Dict[str, Any]) -> str:
         """Create user prompt with replay analysis data."""
@@ -291,6 +492,7 @@ in complex multi-agent environments."""
         final_scores = analysis.get("final_scores", {})
         environment_info = analysis.get("environment_info", {})
         key_events = analysis.get("key_events", [])
+        policy_training_info = analysis.get("policy_training_info", {})
 
         prompt_parts = [
             "Analyze this Metta AI gridworld gameplay replay:",
@@ -301,6 +503,42 @@ in complex multi-agent environments."""
             f"- Map: {environment_info.get('map_size', 'unknown')} gridworld with resource conversion mechanics",
             f"- Format: {environment_info.get('format', 'unknown')} replay data",
         ]
+
+        # Add policy training information
+        if policy_training_info:
+            is_trained = policy_training_info.get("is_trained")
+            confidence = policy_training_info.get("training_confidence", "unknown")
+            policy_source = policy_training_info.get("policy_source", "unknown")
+            version_info = policy_training_info.get("version_info")
+            reasoning = policy_training_info.get("reasoning", "")
+
+            prompt_parts.extend(
+                [
+                    "",
+                    "POLICY INFORMATION:",
+                    f"- Policy Source: {policy_source}",
+                ]
+            )
+
+            if version_info:
+                prompt_parts.append(f"- Version/Checkpoint: {version_info}")
+
+            if is_trained is not None:
+                training_status = "TRAINED" if is_trained else "UNTRAINED/EARLY TRAINING"
+                prompt_parts.append(f"- Training Status: {training_status} (confidence: {confidence})")
+                prompt_parts.append(f"- Reasoning: {reasoning}")
+            else:
+                prompt_parts.append(f"- Training Status: UNKNOWN (confidence: {confidence})")
+                prompt_parts.append(f"- Reasoning: {reasoning}")
+        else:
+            prompt_parts.extend(
+                [
+                    "",
+                    "POLICY INFORMATION:",
+                    "- Policy Source: Not provided",
+                    "- Training Status: UNKNOWN - analyze behaviors to determine if agents exhibit learned strategies",
+                ]
+            )
 
         # Add ASCII map rendering if available
         ascii_map = environment_info.get("ascii_map")
@@ -339,10 +577,12 @@ in complex multi-agent environments."""
                     distance_val = 0.0
                     action_success_rate_val = 0.0
 
-                strategy = behavior.get("strategic_behavior", "unknown")
+                # Get strategic behavior
+                strategic_behavior = behavior.get("strategic_behavior", "unknown")
+
                 prompt_parts.append(
                     f"- {agent}: {score_val:.3f} points, {distance_val:.1f} units moved, "
-                    f"{action_success_rate_val * 100:.1f}% action success, {strategy} strategy"
+                    f"{action_success_rate_val * 100:.2f}% action success, {strategic_behavior} strategy"
                 )
 
         if key_events:
@@ -374,33 +614,176 @@ in complex multi-agent environments."""
                 generators = resource_objects.get("generators", [])
                 altars = resource_objects.get("altars", [])
                 converters = resource_objects.get("converters", [])
+                other_resources = resource_objects.get("other_resources", [])
 
-                prompt_parts.append(
-                    f"- Resource Objects: {len(generators)} generators, {len(altars)} altars, "
-                    f"{len(converters)} converters"
-                )
+                # Break down all resource types separately for clear counting
+                mine_types = {}
+                generator_types = {}
+                converter_types = {}
+                other_types = {}
 
-                if generators:
-                    try:
-                        avg_gen_hp = sum(float(g.get("hp", 0)) for g in generators) / len(generators)
-                    except (ValueError, TypeError):
-                        avg_gen_hp = 0.0
-                    prompt_parts.append(
-                        f"- Generator availability: "
-                        f"{len([g for g in generators if g.get('cooldown_ready', False)])} ready, "
-                        f"avg HP: {avg_gen_hp:.1f}"
-                    )
+                for gen in generators:
+                    type_name = gen.get("type_name", "unknown")
+                    if "mine" in type_name:
+                        if type_name not in mine_types:
+                            mine_types[type_name] = 0
+                        mine_types[type_name] += 1
+                    else:
+                        if type_name not in generator_types:
+                            generator_types[type_name] = 0
+                        generator_types[type_name] += 1
 
+                for conv in converters:
+                    type_name = conv.get("type_name", "unknown")
+                    if type_name not in converter_types:
+                        converter_types[type_name] = 0
+                    converter_types[type_name] += 1
+
+                for other in other_resources:
+                    type_name = other.get("type_name", "unknown")
+                    if type_name not in other_types:
+                        other_types[type_name] = 0
+                    other_types[type_name] += 1
+
+                # Format the resource objects line with type breakdown
+                # Fix pluralization for irregular words
+                def get_plural(name, count):
+                    if name == "factory":
+                        return f"{count} factories"
+                    elif name == "armory":
+                        return f"{count} armories"
+                    elif name == "lasery":
+                        return f"{count} laseries"
+                    else:
+                        return f"{count} {name}s"
+
+                # Build detailed breakdown listing each type individually
+                resource_parts = []
+
+                # List each mine type individually
+                if mine_types:
+                    for name, count in sorted(mine_types.items()):
+                        resource_parts.append(get_plural(name, count))
+
+                # List each generator type individually
+                if generator_types:
+                    for name, count in sorted(generator_types.items()):
+                        resource_parts.append(get_plural(name, count))
+
+                # Handle altars (may include temples)
+                altar_type_counts = {}
+                for altar in altars:
+                    type_name = altar.get("type_name", "altar")
+                    altar_type_counts[type_name] = altar_type_counts.get(type_name, 0) + 1
+
+                for name, count in sorted(altar_type_counts.items()):
+                    resource_parts.append(get_plural(name, count))
+
+                # List each converter type individually (factories, labs, etc.)
+                if converter_types:
+                    for name, count in sorted(converter_types.items()):
+                        resource_parts.append(get_plural(name, count))
+
+                # List each other resource type individually (armories, laseries, etc.)
+                if other_types:
+                    for name, count in sorted(other_types.items()):
+                        resource_parts.append(get_plural(name, count))
+
+                if resource_parts:
+                    prompt_parts.append(f"- Resource Objects: {', '.join(resource_parts)}")
+
+                # Individual availability stats for each mine type
+                if mine_types:
+                    prompt_parts.append("")
+                    prompt_parts.append("MINE AVAILABILITY:")
+                    for mine_type in sorted(mine_types.keys()):
+                        mine_objects_of_type = [g for g in generators if g.get("type_name") == mine_type]
+                        if mine_objects_of_type:
+                            try:
+                                avg_hp = sum(float(m.get("hp", 0)) for m in mine_objects_of_type) / len(
+                                    mine_objects_of_type
+                                )
+                            except (ValueError, TypeError):
+                                avg_hp = 0.0
+                            ready_count = len([m for m in mine_objects_of_type if m.get("cooldown_ready", False)])
+                            prompt_parts.append(
+                                f"- {mine_type}: {ready_count}/{len(mine_objects_of_type)} ready, avg HP: {avg_hp:.1f}"
+                            )
+
+                # Individual availability stats for each generator type
+                if generator_types:
+                    if not mine_types:  # Add header if mines section wasn't shown
+                        prompt_parts.append("")
+                    prompt_parts.append("GENERATOR AVAILABILITY:")
+                    for gen_type in sorted(generator_types.keys()):
+                        gen_objects_of_type = [g for g in generators if g.get("type_name") == gen_type]
+                        if gen_objects_of_type:
+                            try:
+                                avg_hp = sum(float(g.get("hp", 0)) for g in gen_objects_of_type) / len(
+                                    gen_objects_of_type
+                                )
+                            except (ValueError, TypeError):
+                                avg_hp = 0.0
+                            ready_count = len([g for g in gen_objects_of_type if g.get("cooldown_ready", False)])
+                            prompt_parts.append(
+                                f"- {gen_type}: {ready_count}/{len(gen_objects_of_type)} ready, avg HP: {avg_hp:.1f}"
+                            )
+
+                # Individual availability stats for altars/temples
                 if altars:
-                    try:
-                        avg_altar_hp = sum(float(a.get("hp", 0)) for a in altars) / len(altars)
-                    except (ValueError, TypeError):
-                        avg_altar_hp = 0.0
-                    prompt_parts.append(
-                        f"- Altar availability: "
-                        f"{len([a for a in altars if a.get('cooldown_ready', False)])} ready, "
-                        f"avg HP: {avg_altar_hp:.1f}"
-                    )
+                    prompt_parts.append("")
+                    prompt_parts.append("ALTAR/TEMPLE AVAILABILITY:")
+                    for altar_type in sorted(altar_type_counts.keys()):
+                        altar_objects_of_type = [a for a in altars if a.get("type_name") == altar_type]
+                        if altar_objects_of_type:
+                            try:
+                                avg_hp = sum(float(a.get("hp", 0)) for a in altar_objects_of_type) / len(
+                                    altar_objects_of_type
+                                )
+                            except (ValueError, TypeError):
+                                avg_hp = 0.0
+                            ready_count = len([a for a in altar_objects_of_type if a.get("cooldown_ready", False)])
+                            prompt_parts.append(
+                                f"- {altar_type}: {ready_count}/{len(altar_objects_of_type)} ready, "
+                                f"avg HP: {avg_hp:.1f}"
+                            )
+
+                # Individual availability stats for converters (factories, labs, etc.)
+                if converter_types:
+                    prompt_parts.append("")
+                    prompt_parts.append("CONVERTER AVAILABILITY:")
+                    for conv_type in sorted(converter_types.keys()):
+                        conv_objects_of_type = [c for c in converters if c.get("type_name") == conv_type]
+                        if conv_objects_of_type:
+                            try:
+                                avg_hp = sum(float(c.get("hp", 0)) for c in conv_objects_of_type) / len(
+                                    conv_objects_of_type
+                                )
+                            except (ValueError, TypeError):
+                                avg_hp = 0.0
+                            ready_count = len([c for c in conv_objects_of_type if c.get("cooldown_ready", False)])
+                            prompt_parts.append(
+                                f"- {conv_type}: {ready_count}/{len(conv_objects_of_type)} ready, avg HP: {avg_hp:.1f}"
+                            )
+
+                # Individual availability stats for other resources (armories, laseries, etc.)
+                if other_types:
+                    prompt_parts.append("")
+                    prompt_parts.append("OTHER RESOURCE AVAILABILITY:")
+                    for other_type in sorted(other_types.keys()):
+                        other_objects_of_type = [o for o in other_resources if o.get("type_name") == other_type]
+                        if other_objects_of_type:
+                            try:
+                                avg_hp = sum(float(o.get("hp", 0)) for o in other_objects_of_type) / len(
+                                    other_objects_of_type
+                                )
+                            except (ValueError, TypeError):
+                                avg_hp = 0.0
+                            ready_count = len([o for o in other_objects_of_type if o.get("cooldown_ready", False)])
+                            prompt_parts.append(
+                                f"- {other_type}: {ready_count}/{len(other_objects_of_type)} ready, "
+                                f"avg HP: {avg_hp:.1f}"
+                            )
 
             # Territorial analysis
             if territorial_zones:
@@ -503,14 +886,10 @@ in complex multi-agent environments."""
                     progression = agent_progression[agent_name]
                     prompt_parts.append(f"\n{agent_name.upper()} PROGRESSION:")
 
-                    # Show first 3 and last 2 checkpoints to keep output manageable
-                    checkpoints_to_show = progression[:3] + progression[-2:] if len(progression) > 5 else progression
+                    # Show all checkpoints - no truncation
+                    checkpoints_to_show = progression
 
-                    for i, checkpoint_data in enumerate(checkpoints_to_show):
-                        # Add "..." between first 3 and last 2 if we skipped some
-                        if i == 3 and len(progression) > 5:
-                            prompt_parts.append("    ...")
-
+                    for checkpoint_data in checkpoints_to_show:
                         # Safely extract and convert all numeric values
                         try:
                             step = int(checkpoint_data.get("step", 0))
@@ -536,9 +915,9 @@ in complex multi-agent environments."""
                             pos_r, pos_c = 0, 0
 
                         prompt_parts.append(
-                            f"  Step {step:3d}: {score:5.3f}pts, {distance:5.1f}units, "
-                            f"{action_success_rate * 100:4.1f}% action success, pos({pos_r:2d},{pos_c:2d}), "
-                            f"{action_count:3d} actions, {behavior} ({recent_action})"
+                            f"  Step {step:4d}: {score:5.0f}pts, {distance:5.0f}units, "
+                            f"{action_success_rate * 100:4.2f}% action success, pos({pos_r:3d},{pos_c:3d}), "
+                            f"{action_count:4d} actions, {behavior} ({recent_action})"
                         )
 
                 # Add summary if we truncated agents or checkpoints
@@ -584,88 +963,151 @@ in complex multi-agent environments."""
                 ]
             )
 
-        # Add explicit timeline analysis instructions if timelines are present
-        if action_timelines and "timelines" in action_timelines:
+        # Add statistical insights from the stats analysis system
+        statistical_insights = analysis.get("statistical_insights", {})
+        if statistical_insights:
             prompt_parts.extend(
                 [
                     "",
-                    "MANDATORY TIMELINE ANALYSIS:",
-                    "You MUST directly analyze the ACTION TIMELINES visualization provided above. "
-                    "Your analysis MUST include:",
-                    "",
-                    "1. **QUOTE SPECIFIC ACTION SEQUENCES**: Reference exact timeline patterns "
-                    "like 'M? → G → S' or 'M↑ M↑ G+ore P+bat'",
-                    "2. **DIRECTIONAL MOVEMENT ANALYSIS**: Explicitly mention M↑/↓/←/→ patterns "
-                    "and directional preferences",
-                    "3. **RESOURCE OPERATION SEQUENCES**: Quote specific G+ore, G+bat, P+ore, "
-                    "P+bat patterns from the timelines",
-                    "4. **ACTION TRANSITION PATTERNS**: Show how action sequences evolve over time steps",
-                    "5. **COMPARATIVE TIMELINE ANALYSIS**: Compare timeline patterns between "
-                    "successful vs failed agents",
-                    "",
-                    "REQUIRED FORMAT: Your analysis must include a section titled "
-                    "'## Timeline Pattern Analysis' that contains:",
-                    "- Direct quotes of action sequences from the timeline data shown above",
-                    "- Example: 'Agent 0 timeline shows: ·    M?             ·         ·    M?             M?'",
-                    "- Example: 'Agent 1 demonstrates G G G G G G G G resource collection pattern'",
-                    "- Explicit reference to directional indicators (M↑/↓/←/→) when present",
-                    "- Specific mention of resource operations (G+ore, P+bat, etc.) from timeline text",
-                    "",
-                    "CRITICAL: You must copy and paste actual timeline segments as evidence for your claims.",
-                    "Do not paraphrase - quote the exact timeline patterns shown in the "
-                    "ACTION TIMELINES section above.",
+                    "STATISTICAL INSIGHTS:",
                 ]
             )
 
+            # Behavioral analysis insights
+            behavioral_analysis = statistical_insights.get("behavioral_analysis", {})
+            if behavioral_analysis:
+                # Agent efficiency rankings with actual data
+                efficiency_rankings = behavioral_analysis.get("efficiency_rankings", [])
+                if efficiency_rankings:
+                    # Show top 5 and bottom 5 performers
+                    prompt_parts.append("- Agent Efficiency Rankings:")
+                    for i, agent in enumerate(efficiency_rankings):
+                        prompt_parts.append(
+                            f"  #{i + 1}: Agent {agent.get('agent_id', 'unknown')} - "
+                            f"efficiency {agent.get('efficiency_score', 0):.3f}"
+                        )
+
+                # Behavioral clusters with actual agent assignments
+                behavioral_clusters = behavioral_analysis.get("behavioral_clusters", {})
+                if behavioral_clusters:
+                    prompt_parts.append("- Behavioral Clusters:")
+                    for cluster_type, agent_list in behavioral_clusters.items():
+                        if agent_list:
+                            prompt_parts.append(f"  {cluster_type}: {len(agent_list)} agents ({agent_list})")
+
+                # Strategy identification with agent mappings
+                strategy_identification = behavioral_analysis.get("strategy_identification", {})
+                if strategy_identification:
+                    strategies_count = {}
+                    for _, strategy in strategy_identification.items():
+                        strategies_count[strategy] = strategies_count.get(strategy, 0) + 1
+
+                    prompt_parts.append("- Agent Strategy Distribution:")
+                    for strategy, count in sorted(strategies_count.items()):
+                        prompt_parts.append(f"  {strategy}: {count} agents")
+
+                # Performance correlations with actual values
+                performance_correlations = behavioral_analysis.get("performance_correlations", {})
+                if performance_correlations:
+                    prompt_parts.append("- Performance Correlations:")
+                    for metric_pair, correlation in performance_correlations.items():
+                        prompt_parts.append(f"  {metric_pair}: {correlation:.3f}")
+
+                # Outlier detection with details
+                outliers = behavioral_analysis.get("outlier_detection", [])
+                if outliers:
+                    prompt_parts.append("- Behavioral Outliers:")
+                    for outlier in outliers[:5]:  # Show first 5 outliers
+                        agent_id = outlier.get("agent_id", "unknown")
+                        reason = outlier.get("outlier_reason", "unusual behavior")
+                        prompt_parts.append(f"  Agent {agent_id}: {reason}")
+
+            # Resource flow analysis with detailed data
+            resource_flow = statistical_insights.get("resource_flow_analysis", {})
+            if resource_flow:
+                # Resource scarcity analysis with actual values
+                scarcity_analysis = resource_flow.get("resource_scarcity_analysis", {})
+                if scarcity_analysis:
+                    prompt_parts.append("- Resource Scarcity Analysis:")
+                    for resource, scarcity_level in scarcity_analysis.items():
+                        if isinstance(scarcity_level, (int, float)):
+                            status = (
+                                "abundant" if scarcity_level > 0.7 else "moderate" if scarcity_level > 0.3 else "scarce"
+                            )
+                            prompt_parts.append(f"  {resource}: {scarcity_level:.3f} ({status})")
+
+                # Production efficiency with building details
+                production_efficiency = resource_flow.get("production_efficiency", {})
+                if production_efficiency:
+                    prompt_parts.append("- Production Efficiency:")
+                    for building, efficiency in production_efficiency.items():
+                        if isinstance(efficiency, (int, float)):
+                            prompt_parts.append(f"  {building}: {int(efficiency)}")
+
+                # Bottleneck identification with specifics
+                bottlenecks = resource_flow.get("bottleneck_identification", [])
+                if bottlenecks:
+                    prompt_parts.append("- Resource Bottlenecks:")
+                    for bottleneck in bottlenecks[:5]:  # Show first 5 bottlenecks
+                        location = bottleneck.get("location", "unknown")
+                        resource = bottleneck.get("resource", "unknown")
+                        severity = bottleneck.get("severity", 0)
+                        prompt_parts.append(f"  {resource} at {location}: severity {severity:.2f}")
+
+            # Combat analysis with detailed rankings
+            combat_analysis = statistical_insights.get("combat_analysis", {})
+            if combat_analysis:
+                # Aggression rankings with actual scores
+                aggression_rankings = combat_analysis.get("aggression_rankings", [])
+                if aggression_rankings:
+                    prompt_parts.append("- Combat Aggression Rankings:")
+                    for i, agent_data in enumerate(aggression_rankings[:5]):
+                        agent_id = agent_data.get("agent_id", "unknown")
+                        score = agent_data.get("aggression_score", 0)
+                        prompt_parts.append(f"  #{i + 1}: Agent {agent_id} - aggression {score:.3f}")
+
+                # Cooperation metrics with details
+                cooperation_metrics = combat_analysis.get("cooperation_metrics", {})
+                if cooperation_metrics:
+                    prompt_parts.append("- Cooperation Metrics:")
+                    for metric, value in cooperation_metrics.items():
+                        if isinstance(value, (int, float)):
+                            prompt_parts.append(f"  {metric}: {value:.3f}")
+
+            # Strategic phases with detailed timeline
+            strategic_phases = statistical_insights.get("strategic_phases", [])
+            if strategic_phases:
+                prompt_parts.append("- Strategic Phase Timeline:")
+                for phase in strategic_phases:
+                    phase_num = phase.get("phase_number", 0)
+                    start_step = phase.get("start_step", 0)
+                    end_step = phase.get("end_step", 0)
+                    strategy = phase.get("dominant_strategy", "unknown")
+                    prompt_parts.append(f"  Phase {phase_num} (steps {start_step}-{end_step}): {strategy} strategy")
+
+            # Building efficiency with detailed scores
+            building_efficiency = statistical_insights.get("building_efficiency", {})
+            if building_efficiency:
+                individual_scores = building_efficiency.get("individual_scores", {})
+                if individual_scores:
+                    prompt_parts.append("- Building Efficiency Analysis:")
+                    for building_id, score in individual_scores.items():
+                        if isinstance(score, (int, float)):
+                            prompt_parts.append(f"  Building {building_id}: efficiency {score:.3f}")
+
+                # Optimization recommendations
+                recommendations = building_efficiency.get("optimization_recommendations", [])
+                if recommendations:
+                    prompt_parts.append("- Building Optimization Recommendations:")
+                    for rec in recommendations[:3]:  # Show first 3 recommendations
+                        prompt_parts.append(f"  • {rec}")
+
+        # Add a simple request for analysis (detailed instructions are now in system prompt)
         prompt_parts.extend(
             [
                 "",
-                "REINFORCEMENT LEARNING ANALYSIS REQUEST:",
-                "Focus on individual agent policy learning and environmental factors:",
-                "1. HOW did successful agents discover optimal strategies through exploration?",
-                "2. WHAT environmental factors (object positions, availability) influenced learning?",
-                "3. WHEN did critical learning breakthroughs occur and WHY?",
-                "4. HOW effective were reward signals in guiding behavioral evolution?",
-                "5. WHAT exploration vs exploitation patterns led to success?",
-                "",
-                "ANALYSIS FORMAT: COMPREHENSIVE RESEARCH-QUALITY ANALYSIS (6000-10000 words recommended).",
-                "REQUIRED STRUCTURE: Executive Summary → Timeline Pattern Analysis → "
-                "Key Agent Analysis → Learning Mechanisms → Environmental Factors → Critical Learning Insights",
-                "DEPTH REQUIREMENTS:",
-                "- Provide detailed breakdowns of agent performance patterns with specific metrics",
-                "- Include comprehensive numerical analysis and statistical correlations",
-                "- Analyze multiple learning mechanisms in depth with examples",
-                "- Discuss environmental impact on individual agent learning trajectories",
-                "- Generate actionable insights for RL researchers with concrete recommendations",
-                "- Use rich analytical language with detailed explanations and evidence",
-                "- Identify and explain breakthrough moments and failure modes",
-                "- Provide comparative analysis between high and low performing agents",
-                "- Include spatial learning analysis and resource utilization patterns",
-                "- Discuss policy evolution dynamics and convergence patterns",
-                "",
-                "ANALYSIS STYLE: Emulate comprehensive academic research analysis with detailed insights,",
-                "specific agent examples, numerical evidence, and thorough exploration of all learning dynamics.",
-                "Focus on ALL significant learning patterns and provide exhaustive coverage of the episode.",
-                "",
-                "FORMATTING REQUIREMENTS:",
-                "- Use emojis liberally throughout the analysis to enhance readability and engagement",
-                "- Include rich visual formatting with bullet points, numbered lists, and clear hierarchies",
-                "- Provide comprehensive data breakdowns with specific metrics for each section",
-                "- Use engaging headings and subheadings with emojis for visual appeal",
-                "- Include detailed comparative analysis sections with multiple agent examples",
-                "- Expand each major section to be comprehensive and thorough (aim for 500-800 words per section)",
-                "",
-                "EXAMPLE FORMATTING STYLE (emulate this engagement and depth):",
-                "🎯 EXECUTIVE SUMMARY",
-                "🔍 sp.av.replay.probe.500 Analysis: Exploration Efficiency Optimization",
-                "📊 Success Rate Paradox",
-                "Counterintuitive Performance Correlation:",
-                "📈 Higher Action Success Rates (25-35%) → Lower Final Scores",
-                "💡 Critical Insight: High action success rates indicate local optima trapping...",
-                "🏆 KEY AGENT ANALYSIS",
-                "💎 Agent 16 (14.0 points) - Master Learner",
-                "⚡ Agent 6 (9.0 points) - Efficiency Expert",
-                "❌ Agents 8 & 19 (0.0 points) - Learning Failures",
+                "Please analyze this replay data according to the analysis requirements and "
+                "formatting instructions provided in your system prompt.",
             ]
         )
 

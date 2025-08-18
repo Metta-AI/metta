@@ -7,23 +7,32 @@ from typing import Any, Dict, List
 
 from omegaconf import OmegaConf
 
+from metta.common.util.fs import get_repo_root
+
 
 def get_config_root() -> Path:
     """Get the root directory for configurations."""
-    # Assume we're running from the metta project root
-    current_dir = Path.cwd()
-    config_dir = current_dir / "configs"
-    if config_dir.exists():
-        return config_dir
+    try:
+        # First try: Use the robust repo root detection from common utils
+        repo_root = get_repo_root()
+        config_dir = repo_root / "configs"
+        if config_dir.exists():
+            return config_dir
+        raise FileNotFoundError(f"Configs directory not found at {config_dir}")
+    except SystemExit:
+        # Fallback: If no git repo found, try relative to this file
+        # This handles cases where MCP server is run outside a git repository
+        this_file = Path(__file__)
+        repo_root = this_file.parent.parent.parent.parent.parent  # Go up 5 levels to project root
+        config_dir = repo_root / "configs"
+        if config_dir.exists():
+            return config_dir
 
-    # Try finding it relative to this file
-    this_file = Path(__file__)
-    project_root = this_file.parent.parent.parent.parent.parent.parent
-    config_dir = project_root / "configs"
-    if config_dir.exists():
-        return config_dir
-
-    raise FileNotFoundError("Could not find configs directory")
+        raise FileNotFoundError(
+            "Could not find configs directory. "
+            "Please run the MCP server from within the metta git repository, "
+            "or ensure the repository structure is intact."
+        ) from None
 
 
 def get_available_config_types() -> List[str]:

@@ -18,6 +18,19 @@ import torch
 from fastmcp import Context
 from omegaconf import OmegaConf
 
+# Enhanced analysis modules
+from .stats_analysis import (
+    AgentStats,
+    BehavioralAnalysisEngine,
+    BuildingEfficiencyScorer,
+    BuildingStats,
+    CombatInteractionAnalyzer,
+    ResourceFlowAnalyzer,
+    StatsExtractor,
+    StrategicPhaseDetector,
+)
+from .wandb_integration import TrainingProgressionAnalyzer, WandBMetricsCollector
+
 # Simple ASCII rendering without complex dependencies
 ASCII_RENDERING_AVAILABLE = True
 
@@ -894,8 +907,16 @@ def get_training_status(run_name: str) -> Dict[str, Any]:
         return {"error": str(e), "run_name": run_name}
 
 
-async def generate_replay_summary_with_llm(replay_path: str, ctx: Optional[Context] = None) -> Dict[str, Any]:
-    """Generate a summary of replay contents using LLM analysis."""
+async def generate_replay_summary_with_llm(
+    replay_path: str, policy_uri: Optional[str] = None, ctx: Optional[Context] = None
+) -> Dict[str, Any]:
+    """Generate a summary of replay contents using LLM analysis.
+
+    Args:
+        replay_path: Path to the replay file
+        policy_uri: URI of the policy used (helps determine if agents are trained vs untrained)
+        ctx: Optional context for progress reporting
+    """
     try:
         if ctx:
             await ctx.info(f"Starting replay analysis for: {replay_path}")
@@ -956,7 +977,7 @@ async def generate_replay_summary_with_llm(replay_path: str, ctx: Optional[Conte
                 await ctx.report_progress(progress=10, total=100)
 
             # Extract key metrics and events
-            analysis = _analyze_replay_data(replay_data)
+            analysis = _analyze_replay_data(replay_data, policy_uri)
 
             # Check for parsing errors - return early without calling LLM
             if "error" in analysis:
@@ -1149,8 +1170,98 @@ def _load_replay_file(path) -> Dict[str, Any]:
         return {"error": f"Failed to load replay file: {str(e)}"}
 
 
-def _analyze_replay_data(replay_data: Dict[str, Any]) -> Dict[str, Any]:
+def _extract_policy_training_info(policy_uri: Optional[str]) -> Dict[str, Any]:
+    """Extract training information from policy URI to determine if agents are trained or untrained.
+
+    Args:
+        policy_uri: Policy URI like "file://./checkpoints", "wandb://run/my-run:v42", etc.
+
+    Returns:
+        Dict with policy training information including:
+        - is_trained: bool indicating if agents are likely trained
+        - training_confidence: str indicating confidence level ("high", "medium", "low", "unknown")
+        - policy_source: str describing the policy source
+        - version_info: any version/step information extracted
+        - reasoning: str explaining the determination
+    """
+    if not policy_uri:
+        return {
+            "is_trained": None,
+            "training_confidence": "unknown",
+            "policy_source": "unknown",
+            "version_info": None,
+            "reasoning": "No policy URI provided",
+        }
+
+    policy_info = {
+        "is_trained": None,
+        "training_confidence": "unknown",
+        "policy_source": policy_uri,
+        "version_info": None,
+        "reasoning": "",
+    }
+
+    try:
+        # WandB URIs with version numbers indicate trained policies
+        if "wandb://" in policy_uri:
+            policy_info["policy_source"] = "wandb_artifact"
+
+            # Extract version from URI (e.g., "wandb://run/my-run:v42")
+            if ":" in policy_uri:
+                version_part = policy_uri.split(":")[-1]
+                policy_info["version_info"] = version_part
+
+                # Parse version number if it starts with 'v'
+                if version_part.startswith("v") and version_part[1:].isdigit():
+                    version_num = int(version_part[1:])
+                    if version_num > 5:  # Arbitrary threshold for "trained"
+                        policy_info["is_trained"] = True
+                        policy_info["training_confidence"] = "high"
+                        policy_info["reasoning"] = f"WandB artifact with high version number ({version_part})"
+                    else:
+                        policy_info["is_trained"] = False
+                        policy_info["training_confidence"] = "medium"
+                        policy_info["reasoning"] = (
+                            f"WandB artifact with low version number ({version_part}), likely early training"
+                        )
+                else:
+                    policy_info["is_trained"] = True  # Default assumption for versioned WandB artifacts
+                    policy_info["training_confidence"] = "medium"
+                    policy_info["reasoning"] = f"WandB artifact with version ({version_part})"
+            else:
+                # No version info, assume trained
+                policy_info["is_trained"] = True
+                policy_info["training_confidence"] = "low"
+                policy_info["reasoning"] = "WandB artifact without explicit version"
+
+        # File URIs - check path for indicators
+        elif "file://" in policy_uri or policy_uri.startswith("./") or "/" in policy_uri:
+            policy_info["policy_source"] = "local_file"
+
+            # Look for checkpoint directories or trained model indicators
+            if any(word in policy_uri.lower() for word in ["checkpoint", "trained", "model", "policy"]):
+                policy_info["is_trained"] = True
+                policy_info["training_confidence"] = "medium"
+                policy_info["reasoning"] = "Local checkpoint/model file path"
+            else:
+                policy_info["is_trained"] = None
+                policy_info["training_confidence"] = "low"
+                policy_info["reasoning"] = "Local file path without clear training indicators"
+
+        else:
+            policy_info["reasoning"] = f"Unrecognized policy URI format: {policy_uri}"
+
+    except Exception as e:
+        policy_info["reasoning"] = f"Error parsing policy URI: {str(e)}"
+
+    return policy_info
+
+
+def _analyze_replay_data(replay_data: Dict[str, Any], policy_uri: Optional[str] = None) -> Dict[str, Any]:
     """Analyze mettagrid replay data to extract rich behavioral and strategic insights."""
+    # Extract policy training information
+    policy_training_info = _extract_policy_training_info(policy_uri)
+
     analysis = {
         "episode_length": 0,
         "agents": [],
@@ -1163,6 +1274,7 @@ def _analyze_replay_data(replay_data: Dict[str, Any]) -> Dict[str, Any]:
         "interaction_events": [],
         "strategic_phases": [],
         "temporal_progression": {},
+        "policy_training_info": policy_training_info,  # Include policy training status
     }
 
     try:
@@ -1214,11 +1326,21 @@ def _analyze_replay_data(replay_data: Dict[str, Any]) -> Dict[str, Any]:
                 return {"error": "No agent objects with temporal data found in grid_objects"}
 
             # Use grid_objects format analysis
-            return _analyze_grid_objects_format(replay_data, analysis)
+            analysis = _analyze_grid_objects_format(replay_data, analysis)
+            # Ensure policy training info is preserved
+            analysis["policy_training_info"] = policy_training_info
+            # Add statistical insights
+            analysis["statistical_insights"] = _extract_statistical_insights(replay_data)
+            return analysis
 
         elif "objects" in replay_data:
             # Objects format (newer)
-            return _analyze_objects_format(replay_data, analysis)
+            analysis = _analyze_objects_format(replay_data, analysis)
+            # Ensure policy training info is preserved
+            analysis["policy_training_info"] = policy_training_info
+            # Add statistical insights
+            analysis["statistical_insights"] = _extract_statistical_insights(replay_data)
+            return analysis
 
         else:
             return {"error": "No objects or grid_objects found in replay data"}
@@ -1548,7 +1670,7 @@ def _extract_behavioral_sequences_objects_format(replay_data: Dict[str, Any]) ->
 
 
 def _extract_temporal_progression_objects_format(agent_objects: list, episode_length: int) -> Dict[str, Any]:
-    """Extract temporal progression for objects format."""
+    """Extract temporal progression for objects format using real replay data."""
     progression = {"checkpoints": [], "agent_progression": {}, "summary": {"interval": 100}}
 
     # Create checkpoints every 100 steps
@@ -1560,31 +1682,28 @@ def _extract_temporal_progression_objects_format(agent_objects: list, episode_le
         agent_id = agent_obj.get("agent_id", 0)
         agent_name = f"agent_{agent_id}"
 
+        # Extract temporal data
         location_data = agent_obj.get("location", [])
         total_reward_data = agent_obj.get("total_reward", [])
+        action_id_data = agent_obj.get("action_id", [])
+        action_success_data = agent_obj.get("action_success", [])
 
         agent_progression = []
 
         for checkpoint in progression["checkpoints"]:
-            # Find closest data points to checkpoint
+            # Find real location at checkpoint
             location_at_checkpoint = [0, 0]
-            reward_at_checkpoint = 0.0
-
-            # Find location closest to checkpoint (scan backwards from checkpoint)
             for step, pos in location_data:
                 if step <= checkpoint:
                     location_at_checkpoint = pos[:2] if len(pos) >= 2 else [0, 0]
-                else:
-                    break
 
-            # Find reward closest to checkpoint (scan backwards from checkpoint)
+            # Find real reward at checkpoint
+            reward_at_checkpoint = 0.0
             for step, reward in total_reward_data:
                 if step <= checkpoint:
-                    reward_at_checkpoint = float(reward)  # Ensure it's a float
-                else:
-                    break
+                    reward_at_checkpoint = float(reward)
 
-            # Calculate distance traveled up to this checkpoint
+            # Calculate real distance traveled up to checkpoint
             distance_traveled = 0.0
             prev_pos = None
             for step, pos in location_data:
@@ -1595,26 +1714,84 @@ def _extract_temporal_progression_objects_format(agent_objects: list, episode_le
                     distance_traveled += abs(curr_pos[0] - prev_pos[0]) + abs(curr_pos[1] - prev_pos[1])
                 prev_pos = curr_pos
 
-            # Strategic behavior based on reward
-            if reward_at_checkpoint >= 1.0:
-                strategic_behavior = "resource_optimizer"
-            elif reward_at_checkpoint >= 0.1:
-                strategic_behavior = "basic_collector"
+            # Count real actions up to checkpoint (exclusive for step 0, inclusive for others)
+            action_count = 0
+            for step, _ in action_id_data:
+                if checkpoint == 0:
+                    # At step 0, no actions should have happened yet
+                    if step < checkpoint:
+                        action_count += 1
+                else:
+                    # For other checkpoints, include actions up to and including the checkpoint
+                    if step <= checkpoint:
+                        action_count += 1
+
+            # Calculate real action success rate at checkpoint
+            successful_actions = 0
+            total_checkpoint_actions = 0
+            for step, success in action_success_data:
+                if checkpoint == 0:
+                    if step < checkpoint:
+                        total_checkpoint_actions += 1
+                        if success:
+                            successful_actions += 1
+                else:
+                    if step <= checkpoint:
+                        total_checkpoint_actions += 1
+                        if success:
+                            successful_actions += 1
+
+            action_success_rate = (
+                (successful_actions / total_checkpoint_actions) if total_checkpoint_actions > 0 else 0.0
+            )
+
+            # Find most recent dominant action at checkpoint
+            action_counts = {}
+            for step, action_id in action_id_data:
+                if checkpoint == 0:
+                    if step < checkpoint:
+                        action_counts[action_id] = action_counts.get(action_id, 0) + 1
+                else:
+                    if step <= checkpoint:
+                        action_counts[action_id] = action_counts.get(action_id, 0) + 1
+
+            # Handle step 0 case - no actions or strategy yet
+            if checkpoint == 0:
+                dominant_action = "none"
+                strategic_behavior = "no_actions_yet"
             else:
-                strategic_behavior = "defensive/observational"
+                if action_counts:
+                    dominant_action_type = max(action_counts.items(), key=lambda x: x[1])[0]
+                    # Map action type to name if available
+                    action_names = ["attack", "get_items", "move", "noop", "put_items", "rotate", "swap"]
+                    dominant_action = (
+                        action_names[dominant_action_type]
+                        if dominant_action_type < len(action_names)
+                        else f"action_{dominant_action_type}"
+                    )
+                else:
+                    dominant_action = "noop"
+
+                # Strategic behavior based on real reward and actions
+                if reward_at_checkpoint >= 1.0:
+                    strategic_behavior = "resource_optimizer"
+                elif reward_at_checkpoint >= 0.1:
+                    strategic_behavior = "basic_collector"
+                elif "get_items" == dominant_action or "put_items" == dominant_action:
+                    strategic_behavior = "exploratory"
+                else:
+                    strategic_behavior = "defensive/observational"
 
             agent_progression.append(
                 {
                     "step": checkpoint,
                     "score": reward_at_checkpoint,
                     "distance_traveled": distance_traveled,
-                    "action_success_rate": (
-                        min(0.8, 0.1 + reward_at_checkpoint * 0.1) if reward_at_checkpoint > 0 else 0.1
-                    ),
-                    "action_count": checkpoint,  # Approximate action count as step count
+                    "action_success_rate": action_success_rate,
+                    "action_count": action_count,
                     "strategic_behavior": strategic_behavior,
                     "current_position": location_at_checkpoint,
-                    "recent_dominant_action": "move",  # Most common action in gridworld
+                    "recent_dominant_action": dominant_action,
                 }
             )
 
@@ -1642,11 +1819,21 @@ def _render_ascii_map(replay_data: Dict[str, Any]) -> Optional[str]:
         if "grid_objects" in replay_data:
             # Grid_objects format (original)
             grid_objects = replay_data.get("grid_objects", [])
+            type_names = replay_data.get("object_types", [])  # Get type names array
+
             for obj in grid_objects:
-                obj_type = obj.get("type_name", "unknown")
-                if obj_type != "agent":  # Skip agents
-                    r, c = obj.get("r", 0), obj.get("c", 0)
-                    static_objects.append((r, c, obj_type))
+                type_id = obj.get("type", 0)  # Use 'type' field, not 'type_name'
+                if type_id != 0 and isinstance(type_id, int):  # Skip agents (type=0)
+                    # Get type name from type_names array
+                    obj_type = type_names[type_id] if 0 <= type_id < len(type_names) else f"type_{type_id}"
+
+                    # Safely extract position - ensure they are integers, not lists
+                    r_val = obj.get("r", 0)
+                    c_val = obj.get("c", 0)
+
+                    # Skip if position values are lists (temporal data)
+                    if isinstance(r_val, int) and isinstance(c_val, int):
+                        static_objects.append((r_val, c_val, obj_type))
 
         elif "objects" in replay_data:
             # Objects format (newer)
@@ -1655,9 +1842,12 @@ def _render_ascii_map(replay_data: Dict[str, Any]) -> Optional[str]:
 
             for obj in objects:
                 type_id = obj.get("type_id", -1)
-                if (
-                    isinstance(type_id, int) and 0 <= type_id < len(type_names) and type_id != 0
-                ):  # Skip agents (type_id=0)
+
+                # Ensure type_id is an integer before comparison
+                if not isinstance(type_id, int):
+                    continue
+
+                if 0 <= type_id < len(type_names) and type_id != 0:  # Skip agents (type_id=0)
                     obj_type = type_names[type_id]
                     location = obj.get("location", [0, 0, 0])
 
@@ -1684,7 +1874,7 @@ def _render_ascii_map(replay_data: Dict[str, Any]) -> Optional[str]:
 
 
 def _extract_temporal_progression_grid_objects_format(agent_objects: list, episode_length: int) -> Dict[str, Any]:
-    """Extract temporal progression for grid_objects format."""
+    """Extract temporal progression for grid_objects format using real replay data."""
     progression = {"checkpoints": [], "agent_progression": {}, "summary": {"interval": 100}}
 
     # Create checkpoints every 100 steps
@@ -1696,10 +1886,15 @@ def _extract_temporal_progression_grid_objects_format(agent_objects: list, episo
         agent_id = agent_obj.get("agent_id", 0)
         agent_name = f"agent_{agent_id}"
 
-        # Extract reward data
+        # Extract temporal data
+        r_data = agent_obj.get("r", [])
+        c_data = agent_obj.get("c", [])
         total_reward_data = agent_obj.get("total_reward", 0.0)
-        reward_timeline = []
+        action_data = agent_obj.get("action", [])
+        action_success_data = agent_obj.get("action_success", [])
 
+        # Handle reward timeline
+        reward_timeline = []
         if isinstance(total_reward_data, list) and total_reward_data:
             reward_timeline = total_reward_data
         elif isinstance(total_reward_data, (int, float)):
@@ -1709,34 +1904,117 @@ def _extract_temporal_progression_grid_objects_format(agent_objects: list, episo
         agent_progression = []
 
         for checkpoint in progression["checkpoints"]:
-            # Find reward at this checkpoint
+            # Find real position at checkpoint
+            position_r = 0
+            position_c = 0
+
+            for step, r_val in r_data:
+                if step <= checkpoint:
+                    position_r = int(r_val)
+
+            for step, c_val in c_data:
+                if step <= checkpoint:
+                    position_c = int(c_val)
+
+            # Find real reward at checkpoint
             reward_at_checkpoint = 0.0
             for step, reward in reward_timeline:
                 if step <= checkpoint:
                     reward_at_checkpoint = float(reward)
-                else:
-                    break
 
-            # Strategic behavior based on reward
-            if reward_at_checkpoint >= 1.0:
-                strategic_behavior = "resource_optimizer"
-            elif reward_at_checkpoint >= 0.1:
-                strategic_behavior = "basic_collector"
+            # Calculate real distance traveled up to checkpoint
+            # Each entry in r_data and c_data represents a 1-unit move
+            distance_traveled = 0.0
+
+            # Count total moves (coordinate changes) up to checkpoint
+            for step, _ in r_data:
+                if step <= checkpoint and step > 0:  # Don't count initial position
+                    distance_traveled += 1
+
+            for step, _ in c_data:
+                if step <= checkpoint and step > 0:  # Don't count initial position
+                    distance_traveled += 1
+
+            # Count real actions up to checkpoint (exclusive for step 0, inclusive for others)
+            action_count = 0
+            for step, _ in action_data:
+                if checkpoint == 0:
+                    # At step 0, no actions should have happened yet
+                    if step < checkpoint:
+                        action_count += 1
+                else:
+                    # For other checkpoints, include actions up to and including the checkpoint
+                    if step <= checkpoint:
+                        action_count += 1
+
+            # Calculate real action success rate at checkpoint
+            successful_actions = 0
+            total_checkpoint_actions = 0
+            for step, success in action_success_data:
+                if checkpoint == 0:
+                    if step < checkpoint:
+                        total_checkpoint_actions += 1
+                        if success:
+                            successful_actions += 1
+                else:
+                    if step <= checkpoint:
+                        total_checkpoint_actions += 1
+                        if success:
+                            successful_actions += 1
+
+            action_success_rate = (
+                (successful_actions / total_checkpoint_actions) if total_checkpoint_actions > 0 else 0.0
+            )
+
+            # Find most recent dominant action at checkpoint
+            action_counts = {}
+            for step, action_data_entry in action_data:
+                if checkpoint == 0:
+                    if step < checkpoint:
+                        action_type = action_data_entry[0]
+                        action_counts[action_type] = action_counts.get(action_type, 0) + 1
+                else:
+                    if step <= checkpoint:
+                        action_type = action_data_entry[0]
+                        action_counts[action_type] = action_counts.get(action_type, 0) + 1
+
+            # Handle step 0 case - no actions or strategy yet
+            if checkpoint == 0:
+                dominant_action = "none"
+                strategic_behavior = "no_actions_yet"
             else:
-                strategic_behavior = "defensive/observational"
+                if action_counts:
+                    dominant_action_type = max(action_counts.items(), key=lambda x: x[1])[0]
+                    # Map action type to name if available
+                    action_names = ["attack", "get_items", "move", "noop", "put_items", "rotate", "swap"]
+                    dominant_action = (
+                        action_names[dominant_action_type]
+                        if dominant_action_type < len(action_names)
+                        else f"action_{dominant_action_type}"
+                    )
+                else:
+                    dominant_action = "noop"
+
+                # Strategic behavior based on real reward and actions
+                if reward_at_checkpoint >= 1.0:
+                    strategic_behavior = "resource_optimizer"
+                elif reward_at_checkpoint >= 0.1:
+                    strategic_behavior = "basic_collector"
+                elif "get_items" == dominant_action or "put_items" == dominant_action:
+                    strategic_behavior = "exploratory"
+                else:
+                    strategic_behavior = "defensive/observational"
 
             agent_progression.append(
                 {
                     "step": checkpoint,
                     "score": reward_at_checkpoint,
-                    "distance_traveled": checkpoint * 0.5,  # Estimate distance
-                    "action_success_rate": (
-                        min(0.8, 0.1 + reward_at_checkpoint * 0.1) if reward_at_checkpoint > 0 else 0.1
-                    ),
-                    "action_count": checkpoint,  # Approximate action count
+                    "distance_traveled": distance_traveled,
+                    "action_success_rate": action_success_rate,
+                    "action_count": action_count,
                     "strategic_behavior": strategic_behavior,
-                    "current_position": [agent_obj.get("r", 0), agent_obj.get("c", 0)],  # Final position
-                    "recent_dominant_action": "rotate",  # Most common based on earlier output
+                    "current_position": [position_r, position_c],
+                    "recent_dominant_action": dominant_action,
                 }
             )
 
@@ -2039,6 +2317,7 @@ def _extract_generator_altar_states(objects: list, object_types: list) -> Dict[s
             "position": position,
             "hp": current_hp,
             "type_id": obj_type,
+            "type_name": type_name,
             "cooldown_ready": is_available,
         }
 
@@ -3125,3 +3404,362 @@ def _calculate_checkpoint_stats(
         "recent_dominant_action": recent_dominant_action,
         "action_distribution": action_counts,
     }
+
+
+def analyze_replay_with_enhanced_stats(
+    replay_path: str, run_name: Optional[str] = None, mcp_client=None
+) -> Dict[str, Any]:
+    """
+    Analyze replay with enhanced game statistics and WandB training context.
+
+    This function provides comprehensive analysis including:
+    - Rich game statistics from mettagrid's StatsTracker system
+    - WandB training context around replay timestamp
+    - Behavioral analysis with statistical methods
+    - Resource flow and building efficiency analysis
+    - Combat interaction matrices
+    - Strategic phase detection
+
+    Args:
+        replay_path: Path to the replay file
+        run_name: Optional WandB run name for training context
+        mcp_client: MCP client for WandB API access
+
+    Returns:
+        Complete enhanced analysis including game stats and training context
+
+    Raises:
+        ValueError: If replay data or required statistics are unavailable
+        FileNotFoundError: If replay file doesn't exist
+    """
+    # Load and validate replay data
+    replay_data = _load_replay_file(replay_path)
+    if not replay_data or "error" in replay_data:
+        raise ValueError(f"Failed to load replay file: {replay_data.get('error', 'Unknown error')}")
+
+    # Start with basic analysis
+    basic_analysis = _analyze_replay_data(replay_data)
+    if "error" in basic_analysis:
+        raise ValueError(f"Basic analysis failed: {basic_analysis['error']}")
+
+    # Initialize enhanced analysis components
+    stats_extractor = StatsExtractor()
+    behavioral_engine = BehavioralAnalysisEngine()
+    resource_analyzer = ResourceFlowAnalyzer()
+    combat_analyzer = CombatInteractionAnalyzer()
+    building_scorer = BuildingEfficiencyScorer()
+    phase_detector = StrategicPhaseDetector()
+
+    enhanced_analysis = {
+        "basic_analysis": basic_analysis,
+        "game_statistics": None,
+        "behavioral_analysis": None,
+        "resource_flow_analysis": None,
+        "combat_analysis": None,
+        "building_efficiency": None,
+        "strategic_phases": None,
+        "wandb_training_context": None,
+        "training_progression_analysis": None,
+    }
+
+    try:
+        # Extract game statistics
+        episode_stats = stats_extractor.extract_from_replay_data(replay_data)
+
+        # Parse agent and building statistics
+        agent_stats = _parse_agent_statistics(episode_stats["agent"])
+        building_stats = _parse_building_statistics(episode_stats["converter"])
+
+        # Store game statistics
+        enhanced_analysis["game_statistics"] = {
+            "episode_stats": episode_stats,
+            "agent_stats_parsed": len(agent_stats),
+            "building_stats_parsed": len(building_stats),
+        }
+
+        # Behavioral analysis
+        behavioral_analysis = behavioral_engine.analyze_agent_behaviors(agent_stats)
+        enhanced_analysis["behavioral_analysis"] = behavioral_analysis
+
+        # Resource flow analysis
+        resource_flow_analysis = resource_analyzer.analyze_resource_flows(agent_stats, building_stats)
+        enhanced_analysis["resource_flow_analysis"] = resource_flow_analysis
+
+        # Combat interaction analysis
+        combat_analysis = combat_analyzer.analyze_combat_interactions(agent_stats)
+        enhanced_analysis["combat_analysis"] = combat_analysis
+
+        # Building efficiency analysis
+        building_efficiency = building_scorer.score_building_efficiency(building_stats)
+        enhanced_analysis["building_efficiency"] = building_efficiency
+
+        # Strategic phase detection
+        episode_length = basic_analysis.get("episode_length", 1000)
+        strategic_phases = phase_detector.detect_strategic_phases(agent_stats, episode_length)
+        enhanced_analysis["strategic_phases"] = strategic_phases
+
+        # WandB training context (if run_name provided and mcp_client available)
+        if run_name and mcp_client:
+            try:
+                wandb_collector = WandBMetricsCollector(mcp_client)
+                # Estimate replay timestamp (use 80% of episode length)
+                replay_timestamp_step = int(episode_length * 0.8)
+
+                wandb_context = wandb_collector.collect_training_context(run_name, replay_timestamp_step)
+                enhanced_analysis["wandb_training_context"] = wandb_context
+
+                # Training progression analysis
+                progression_analyzer = TrainingProgressionAnalyzer()
+                training_analysis = progression_analyzer.analyze_training_progression(
+                    wandb_context, behavioral_analysis
+                )
+                enhanced_analysis["training_progression_analysis"] = training_analysis
+
+            except Exception as e:
+                # Log WandB analysis failure but continue with game stats analysis
+                enhanced_analysis["wandb_error"] = f"WandB analysis failed: {str(e)}"
+
+    except Exception as e:
+        raise ValueError(f"Enhanced analysis failed: {str(e)}") from e
+
+    return enhanced_analysis
+
+
+def _parse_agent_statistics(agent_stats_raw: List[Dict[str, Any]]) -> List[AgentStats]:
+    """Parse raw agent statistics into structured AgentStats objects"""
+    parsed_stats = []
+
+    for i, agent_data in enumerate(agent_stats_raw):
+        # Extract and categorize statistics
+        total_actions = {}
+        action_success_rates = {}
+        resource_flows = {}
+        movement_patterns = {}
+        combat_stats = {}
+        building_interactions = {}
+        efficiency_metrics = {}
+
+        # Parse each statistic based on naming patterns
+        for stat_name, value in agent_data.items():
+            if stat_name.startswith("action."):
+                if stat_name.endswith(".success"):
+                    action_name = stat_name.replace("action.", "").replace(".success", "")
+                    action_success_rates[action_name] = value
+                elif stat_name.endswith(".failed"):
+                    action_name = stat_name.replace("action.", "").replace(".failed", "")
+                    total_actions[action_name] = total_actions.get(action_name, 0) + value
+
+            elif ".gained" in stat_name or ".lost" in stat_name:
+                item_name = stat_name.replace(".gained", "").replace(".lost", "")
+                if item_name not in resource_flows:
+                    resource_flows[item_name] = {"gained": 0, "lost": 0}
+
+                if ".gained" in stat_name:
+                    resource_flows[item_name]["gained"] = value
+                else:
+                    resource_flows[item_name]["lost"] = value
+
+            elif stat_name.startswith("movement."):
+                movement_patterns[stat_name] = value
+
+            elif any(combat_term in stat_name for combat_term in ["hit.", "steals.", "friendly_fire"]):
+                combat_stats[stat_name] = value
+
+            elif any(building_term in stat_name for building_term in ["put", "get", "box."]):
+                building_interactions[stat_name] = value
+
+            elif stat_name in ["total_reward", "action_count", "resource_transactions"]:
+                efficiency_metrics[stat_name] = value
+
+        # Calculate overall efficiency metrics
+        total_gained = sum(flows.get("gained", 0) for flows in resource_flows.values())
+        total_lost = sum(flows.get("lost", 0) for flows in resource_flows.values())
+        efficiency_metrics["overall_efficiency"] = total_gained / max(total_lost, 1)
+        efficiency_metrics["cooperation_score"] = 1.0 - combat_stats.get("friendly_fire", 0) / max(
+            sum(combat_stats.values()), 1
+        )
+        efficiency_metrics["competition_score"] = sum(v for k, v in combat_stats.items() if "hit." in k) / max(
+            sum(total_actions.values()), 1
+        )
+
+        agent_stats = AgentStats(
+            agent_id=i,
+            total_actions=total_actions,
+            action_success_rates=action_success_rates,
+            resource_flows=resource_flows,
+            movement_patterns=movement_patterns,
+            combat_stats=combat_stats,
+            building_interactions=building_interactions,
+            efficiency_metrics=efficiency_metrics,
+        )
+
+        parsed_stats.append(agent_stats)
+
+    return parsed_stats
+
+
+def _parse_building_statistics(building_stats_raw: List[Dict[str, Any]]) -> List[BuildingStats]:
+    """Parse raw building statistics into structured BuildingStats objects"""
+    parsed_stats = []
+
+    for i, building_data in enumerate(building_stats_raw):
+        # Extract building metadata
+        building_id = i
+        type_id = building_data.get("type_id", 0)
+        type_name = building_data.get("type_name", f"type_{type_id}")
+        location = (int(building_data.get("location.r", 0)), int(building_data.get("location.c", 0)))
+
+        # Parse statistics
+        production_efficiency = {}
+        resource_flows = {}
+        operational_stats = {}
+        bottleneck_analysis = {}
+
+        for stat_name, value in building_data.items():
+            if stat_name.startswith("conversions."):
+                production_efficiency[stat_name] = value
+
+            elif ".produced" in stat_name or ".consumed" in stat_name:
+                item_name = stat_name.replace(".produced", "").replace(".consumed", "")
+                if item_name not in resource_flows:
+                    resource_flows[item_name] = {"produced": 0, "consumed": 0}
+
+                if ".produced" in stat_name:
+                    resource_flows[item_name]["produced"] = value
+                else:
+                    resource_flows[item_name]["consumed"] = value
+
+            elif stat_name.startswith("blocked."):
+                bottleneck_analysis[stat_name] = value
+
+            elif stat_name.startswith("cooldown."):
+                operational_stats[stat_name] = value
+
+            else:
+                operational_stats[stat_name] = value
+
+        building_stats = BuildingStats(
+            building_id=building_id,
+            type_id=type_id,
+            type_name=type_name,
+            location=location,
+            production_efficiency=production_efficiency,
+            resource_flows=resource_flows,
+            operational_stats=operational_stats,
+            bottleneck_analysis=bottleneck_analysis,
+        )
+
+        parsed_stats.append(building_stats)
+
+    return parsed_stats
+
+
+def _extract_statistical_insights(replay_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract comprehensive statistical insights using the stats analysis system."""
+    try:
+        # Import stats analysis components locally to avoid circular imports
+        from metta.mcp_server.stats_analysis import (
+            AgentStats,
+            BehavioralAnalysisEngine,
+            BuildingEfficiencyScorer,
+            BuildingStats,
+            CombatInteractionAnalyzer,
+            ResourceFlowAnalyzer,
+            StatsExtractor,
+            StrategicPhaseDetector,
+        )
+
+        # Initialize statistics extractor
+        stats_extractor = StatsExtractor()
+
+        # Extract structured episode statistics
+        episode_stats = stats_extractor.extract_from_replay_data(replay_data)
+
+        # Initialize analysis engines
+        behavioral_engine = BehavioralAnalysisEngine()
+        resource_analyzer = ResourceFlowAnalyzer()
+        combat_analyzer = CombatInteractionAnalyzer()
+        efficiency_scorer = BuildingEfficiencyScorer()
+        phase_detector = StrategicPhaseDetector()
+
+        # Create agent stats objects from extracted data
+        agent_stats = []
+        for agent_data in episode_stats.get("agent", []):
+            try:
+                agent_stat = AgentStats(
+                    agent_id=agent_data.get("agent_id", 0),
+                    total_actions=agent_data.get("action_counts", {}),
+                    action_success_rates=agent_data.get("success_rates", {}),
+                    resource_flows=agent_data.get("resource_transactions", {}),  # Fixed field mapping
+                    movement_patterns=agent_data.get("movement_stats", {}),
+                    combat_stats=agent_data.get("interaction_stats", {}),  # Fixed field mapping
+                    building_interactions=agent_data.get("building_interactions", {}),
+                    efficiency_metrics={
+                        "overall_efficiency": agent_data.get("total_reward", 0.0)
+                    },  # Calculate from reward
+                )
+                agent_stats.append(agent_stat)
+            except Exception:
+                # Skip malformed agent data
+                continue
+
+        # Create building stats objects from extracted data
+        building_stats = []
+        for building_data in episode_stats.get("converter", []):
+            try:
+                building_stat = BuildingStats(
+                    building_id=building_data.get("building_id", 0),
+                    type_id=building_data.get("type_id", 0),
+                    type_name=building_data.get("type_name", f"type_{building_data.get('type_id', 0)}"),
+                    location=building_data.get("location", (0, 0)),
+                    production_efficiency=building_data.get("production_stats", {}),  # Fixed field mapping
+                    resource_flows=building_data.get("resource_flows", {}),
+                    operational_stats=building_data.get("operational_stats", {}),
+                    bottleneck_analysis={
+                        "bottleneck_score": building_data.get("bottleneck_score", 0.0)
+                    },  # Fixed field mapping
+                )
+                building_stats.append(building_stat)
+            except Exception:
+                # Skip malformed building data
+                continue
+
+        # Generate comprehensive analysis
+        insights = {}
+
+        if agent_stats:
+            try:
+                insights["behavioral_analysis"] = behavioral_engine.analyze_agent_behaviors(agent_stats)
+            except Exception:
+                insights["behavioral_analysis"] = {}
+
+            if building_stats:
+                try:
+                    insights["resource_flow_analysis"] = resource_analyzer.analyze_resource_flows(
+                        agent_stats, building_stats
+                    )
+                except Exception:
+                    insights["resource_flow_analysis"] = {}
+
+            try:
+                insights["combat_analysis"] = combat_analyzer.analyze_combat_interactions(agent_stats)
+            except Exception:
+                insights["combat_analysis"] = {}
+
+            try:
+                episode_length = replay_data.get("episode_length", replay_data.get("max_steps", 1000))
+                insights["strategic_phases"] = phase_detector.detect_strategic_phases(agent_stats, episode_length)
+            except Exception:
+                insights["strategic_phases"] = []
+
+        if building_stats:
+            try:
+                insights["building_efficiency"] = efficiency_scorer.score_building_efficiency(building_stats)
+            except Exception:
+                insights["building_efficiency"] = {}
+
+        return insights
+
+    except Exception:
+        # Return empty insights if extraction fails - don't break the analysis
+        return {}

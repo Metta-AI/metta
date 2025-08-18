@@ -12,6 +12,8 @@ dependencies = [
     "pathlib>=1.0.1",
     "fastmcp>=2.11.3",
     "modelcontextprotocol>=0.1.0",
+    "pytest>=8.4.1",
+    "dotenv>=0.9.9",
 ]
 
 [build-system]

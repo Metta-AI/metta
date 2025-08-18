@@ -4,19 +4,25 @@
 import sys
 from pathlib import Path
 
-# Add the src directory to Python path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+from dotenv import load_dotenv
 
 from metta.mcp_server.llm_client import LLMClient
 from metta.mcp_server.training_utils import _analyze_replay_data, _load_replay_file
 
+load_dotenv()
+
+# Add the src directory to Python path
+sys.path.insert(0, str(Path(__file__).parent / "src"))
+
 
 def main():
-    if len(sys.argv) != 2:
-        print("Usage: python analyze_replay_prompt.py <replay_file.json>")
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        print("Usage: python analyze_replay_prompt.py <replay_file.json> [policy_uri]")
+        print("Example: python analyze_replay_prompt.py replay.json wandb://run/trained-model:v42")
         sys.exit(1)
 
     replay_file = Path(sys.argv[1])
+    policy_uri = sys.argv[2] if len(sys.argv) == 3 else None
 
     if not replay_file.exists():
         print(f"Error: File {replay_file} does not exist")
@@ -25,7 +31,7 @@ def main():
     try:
         # Load and analyze the replay file
         replay_data = _load_replay_file(replay_file)
-        analysis = _analyze_replay_data(replay_data)
+        analysis = _analyze_replay_data(replay_data, policy_uri)
 
         # Create LLM client and generate the user prompt
         client = LLMClient()
