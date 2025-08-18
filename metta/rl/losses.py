@@ -11,6 +11,7 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 from metta.agent.metta_agent import PolicyAgent
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.experience import Experience
+from metta.rl.ppo import compute_ppo_losses
 from metta.rl.trainer_config import TrainerConfig
 
 logger = logging.getLogger(__name__)
@@ -123,31 +124,70 @@ def process_minibatch_update(
     adv = normalize_advantage_distributed(adv, trainer_cfg.ppo.norm_adv)
     adv = prio_weights * adv
 
-    from metta.rl.ppo import compute_ppo_losses
+    # If dual-policy is enabled, slice to get only student agent data
+    if trainer_cfg.dual_policy.enabled and not torch.all(is_student):
+        # Find indices of student agents (assuming contiguous arrangement)
+        student_indices = torch.nonzero(is_student.flatten()).squeeze(-1)
 
-    # Apply student mask to key tensors (zero out NPC contributions)
-    masked_new_logprob = new_logprob * is_student
-    masked_entropy = entropy * is_student
-    masked_adv = adv * is_student
-    masked_importance_ratio = importance_sampling_ratio * is_student + (1 - is_student)  # NPCs get ratio of 1
+        # Slice all relevant tensors to get only student data
+        student_new_logprob = new_logprob.flatten()[student_indices]
+        student_entropy = entropy.flatten()[student_indices]
+        student_adv = adv.flatten()[student_indices]
+        student_old_logprob = old_act_log_prob.flatten()[student_indices]
+        student_importance_ratio = importance_sampling_ratio.flatten()[student_indices]
+        student_values = newvalue.flatten()[student_indices]
 
-    # Compute losses (with masked values for NPCs)
-    pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(
-        minibatch,
-        masked_new_logprob,
-        masked_entropy,
-        newvalue,
-        masked_importance_ratio,
-        masked_adv,
-        trainer_cfg,
-    )
+        # Create student-only minibatch for loss computation
+        student_minibatch = minibatch.clone()
+        student_minibatch["act_log_prob"] = student_old_logprob
+        student_minibatch["values"] = minibatch["values"].flatten()[student_indices]
+        student_minibatch["returns"] = minibatch["returns"].flatten()[student_indices]
 
-    # Kickstarter losses
+        # Compute losses with only student data
+        pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(
+            student_minibatch,
+            student_new_logprob,
+            student_entropy,
+            student_values,
+            student_importance_ratio,
+            student_adv,
+            trainer_cfg,
+        )
+
+        # Set up metrics tensors for tracking
+        metric_importance_ratio = student_importance_ratio
+        metric_new_logprob = student_new_logprob
+        # For kickstarter, only use student agent data
+        student_full_logprobs = full_logprobs.flatten()[student_indices]
+        student_env_obs = (
+            policy_td["env_obs"][student_indices] if policy_td["env_obs"].ndim > 1 else policy_td["env_obs"]
+        )
+        ks_newvalue = student_values
+    else:
+        # Standard PPO losses when no NPCs or all agents are students
+        pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(
+            minibatch,
+            new_logprob,
+            entropy,
+            newvalue,
+            importance_sampling_ratio,
+            adv,
+            trainer_cfg,
+        )
+
+        # Use all data for metrics when no NPCs
+        metric_importance_ratio = importance_sampling_ratio
+        metric_new_logprob = new_logprob
+        student_full_logprobs = full_logprobs
+        student_env_obs = policy_td["env_obs"]
+        ks_newvalue = newvalue
+
+    # Kickstarter losses (using student-only data when dual-policy is enabled)
     ks_action_loss, ks_value_loss = kickstarter.loss(
         agent_step,
-        full_logprobs,
-        newvalue,
-        policy_td["env_obs"],
+        student_full_logprobs,
+        ks_newvalue,
+        student_env_obs,
     )
 
     # L2 init loss
@@ -172,7 +212,7 @@ def process_minibatch_update(
     )
     experience.update(indices, update_td)
 
-    # Update loss tracking
+    # Update loss tracking (using appropriate metrics tensors)
     losses.policy_loss_sum += pg_loss.item()
     losses.value_loss_sum += v_loss.item()
     losses.entropy_sum += entropy_loss.item()
@@ -181,8 +221,8 @@ def process_minibatch_update(
     losses.l2_init_loss_sum += l2_init_loss.item() if torch.is_tensor(l2_init_loss) else l2_init_loss
     losses.ks_action_loss_sum += ks_action_loss.item()
     losses.ks_value_loss_sum += ks_value_loss.item()
-    losses.importance_sum += importance_sampling_ratio.mean().item()
+    losses.importance_sum += metric_importance_ratio.mean().item()
     losses.minibatches_processed += 1
-    losses.current_logprobs_sum += new_logprob.mean().item()
+    losses.current_logprobs_sum += metric_new_logprob.mean().item()
 
     return loss
