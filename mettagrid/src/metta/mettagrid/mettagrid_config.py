@@ -3,11 +3,12 @@ from typing import TYPE_CHECKING, Any, Literal, Optional
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.util.config import Config
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 
 if TYPE_CHECKING:
     from metta.cogworks.curriculum.curriculum import CurriculumConfig
     from metta.sim.simulation_config import SimulationConfig
-from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
 
 # ===== Python Configuration Models =====
 
@@ -250,8 +251,14 @@ class EnvConfig(Config):
             env=self,
         )
 
+    def with_ascii_map(self, map_data: list[list[str]]) -> "EnvConfig":
+        self.game.map_builder = AsciiMapBuilderConfig(map_data=map_data)
+        return self
+
     @staticmethod
-    def EmptyRoom(num_agents: int, width: int = 10, height: int = 10, border_width: int = 1) -> "EnvConfig":
+    def EmptyRoom(
+        num_agents: int, width: int = 10, height: int = 10, border_width: int = 1, with_walls: bool = False
+    ) -> "EnvConfig":
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilderConfig(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
@@ -259,7 +266,7 @@ class EnvConfig(Config):
             rotate=ActionConfig(),
         )
         objects = {}
-        if border_width > 0:
+        if border_width > 0 or with_walls:
             objects["wall"] = WallConfig(type_id=1, swappable=False)
         return EnvConfig(
             game=GameConfig(map_builder=map_builder, actions=actions, num_agents=num_agents, objects=objects)
