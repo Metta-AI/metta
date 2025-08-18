@@ -11,7 +11,7 @@ fi
 . .venv/bin/activate
 
 # Determine node role using SkyPilot environment variables
-RANK=${SKYPILOT_NODE_RANK:-0}
+export RANK=${SKYPILOT_NODE_RANK:-0}
 export IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
 TOTAL_NODES=${SKYPILOT_NUM_NODES:-1}
 
@@ -81,28 +81,18 @@ echo "  - TEST_NCCL: ${TEST_NCCL:-false}"
 echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
 echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
 
-
 # Create a temp directory for IPC files
 export IPC_DIR="/tmp/metta_job_$$"
 mkdir -p "$IPC_DIR"
-export TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
+
 export CMD_PID=""
 export CMD_PGID=""
-export START_TIME=0
-
-export HEARTBEAT_FILE="${HEARTBEAT_FILE:-${WANDB_DIR:-.}/heartbeat.txt}"
-export TERMINATION_REASON=""
-
-# Configurable intervals
-export TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-60}
-export HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
-export CLUSTER_STOP_CHECK_INTERVAL=${CLUSTER_STOP_CHECK_INTERVAL:-15}
-
-# Flag to prevent multiple shutdowns
-export SHUTDOWN_IN_PROGRESS=0
-
-# Record the wrapper's PID so monitors can signal it
 export WRAPPER_PID=$BASHPID
+
+export START_TIME=0
+export HEARTBEAT_FILE="${HEARTBEAT_FILE:-${WANDB_DIR:-.}/heartbeat.txt}"
+export TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
+export TERMINATION_REASON="unknown"
 
 if [[ "$IS_MASTER" == "true" ]]; then
   if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
@@ -116,6 +106,11 @@ if [[ "$IS_MASTER" == "true" ]]; then
   if [ -n "${GITHUB_PAT:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ] && [ -n "${METTA_GIT_REF:-}" ]; then
     export ENABLE_GITHUB_STATUS=true
     echo "[RUN] GitHub status reporting is enabled"
+
+    # Set initial GitHub status
+    export GITHUB_STATUS_STATE=pending
+    export GITHUB_STATUS_DESCRIPTION="Queued on SkyPilot…"
+    bash ./devops/skypilot/config/notifications/set_github_status.sh
   else
     export ENABLE_GITHUB_STATUS=false
     echo "[RUN] GitHub status reporting is disabled (missing required credentials)"
@@ -123,13 +118,6 @@ if [[ "$IS_MASTER" == "true" ]]; then
 else
   export ENABLE_DISCORD=false
   export ENABLE_GITHUB_STATUS=false
-fi
-
-# Master-only: Initial GitHub status
-if [[ "$IS_MASTER" == "true" ]]; then
-  export GITHUB_STATUS_STATE=pending
-  export GITHUB_STATUS_DESCRIPTION="Queued on SkyPilot…"
-  bash ./devops/skypilot/config/notifications/set_github_status.sh
 fi
 
 shutdown() {
@@ -140,10 +128,6 @@ shutdown() {
 
   if [ -z "${TERMINATION_REASON:-}" ] && [ -f "$TERMINATION_REASON_FILE" ]; then
     TERMINATION_REASON="$(cat "$TERMINATION_REASON_FILE" || true)"
-    if [ -z "$TERMINATION_REASON" ]; then
-      echo "[ERROR] no TERMINATION_REASON was found"
-      exit 99
-    fi
   fi
 
   # Kill the entire process tree gracefully
@@ -151,7 +135,7 @@ shutdown() {
     echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
 
     # First, signal all worker nodes to start shutdown
-    if [[ "$IS_MASTER" == "true" ]] && [ -n "${CLUSTER_STOP_FILE:-}" ]; then
+    if [[ "$IS_MASTER" == "true" ]]; then
       echo "$TERMINATION_REASON" > "$CLUSTER_STOP_FILE"
       echo "[SHUTDOWN] Signaled all nodes to begin shutdown"
       sleep 10  # Give workers time to receive the signal
@@ -204,13 +188,7 @@ shutdown() {
     local dur=$((end_time - START_TIME))
     echo "[SUMMARY] Total runtime: ${dur} seconds ($((dur/60)) minutes)"
   fi
-
-  export CMD_EXIT
-  export FINAL_EXIT_CODE
-  export TERMINATION_REASON
 }
-
-# Trap signals on the parent (the process SkyPilot watches)
 trap shutdown INT TERM HUP
 
 terminate_monitors() {
@@ -233,25 +211,6 @@ terminate_monitors() {
   fi
 }
 
-terminate_process() {
-  local pid=$1
-  local reason=$2
-
-  echo "[INFO] Requesting graceful shutdown (reason: $reason)"
-  echo "$reason" > "$TERMINATION_REASON_FILE"
-  TERMINATION_REASON="$reason"
-
-  # Master broadcasts the stop to all nodes via shared flag
-  if [[ "$IS_MASTER" == "true" ]] && [ -n "${CLUSTER_STOP_FILE:-}" ]; then
-    echo "$reason" > "$CLUSTER_STOP_FILE"
-  fi
-
-  # Only send signal if not already shutting down
-  if [ $SHUTDOWN_IN_PROGRESS -eq 0 ]; then
-    # Signal the wrapper (parent shell), not this subshell
-    kill -TERM "${WRAPPER_PID}" 2>/dev/null || true
-  fi
-}
 
 run_cmd() {
   echo "[INFO] Starting process $METTA_CMD (node rank: $RANK)"
@@ -315,16 +274,6 @@ run_cmd() {
   return $CMD_EXIT
 }
 
-# Export variables needed by cleanup
-export TIMEOUT_MONITOR_PID=""
-export HEARTBEAT_MONITOR_PID=""
-export CLUSTER_STOP_MONITOR_PID=""
-export CMD_EXIT=1  # Default exit code
-export FINAL_EXIT_CODE=1 # Default to failure
-export RANK
-export METTA_RUN_ID
-export SKYPILOT_TASK_ID
-
 # Set up cleanup trap
 source ./devops/skypilot/config/lifecycle/cleanup_handler.sh
 trap cleanup EXIT
@@ -337,11 +286,14 @@ elif [ "${RESTART_COUNT:-0}" -ne 0 ]; then
   echo "[SKIP] Skipping NCCL test on restarted job (RESTART_COUNT=${RESTART_COUNT})"
 else
   echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
-  if ! uv run python ./devops/skypilot/preflight/test_nccl.py; then
-    echo "[ERROR] NCCL tests failed - exiting with code $EXIT_NCCL_TEST_FAILURE"
-    terminate_process "$CMD_PID" "nccl_test_failure"
+  if ! uv run python ./devops/skypilot/config/preflight/test_nccl.py; then
+    echo "[ERROR] NCCL tests failed!"
+    TERMINATION_REASON="nccl_test_failure"
+    echo "$TERMINATION_REASON" > "$TERMINATION_REASON_FILE"
+    exit $EXIT_NCCL_TEST_FAILURE
+  else
+    echo "[SUCCESS] NCCL tests passed"
   fi
-  echo "[SUCCESS] NCCL tests passed"
 fi
 
 # Exit early if accumulated runtime exceeds max allowed
@@ -353,10 +305,12 @@ fi
 # Run the command
 run_cmd
 CMD_EXIT=$?
-
-if [[ "$IS_MASTER" == "true" ]] && [ -z "${TERMINATION_REASON:-}" ] && [ -n "${CLUSTER_STOP_FILE:-}" ]; then
+if [[ "$IS_MASTER" == "true" ]]; then
+  if [[ $CMD_EXIT -eq 0 ]]; then
+    TERMINATION_REASON="completed"
+    echo "$TERMINATION_REASON" > "$TERMINATION_REASON_FILE"
+  fi
   echo "completed" > "$CLUSTER_STOP_FILE"
 fi
 
-# Exit with the appropriate code (cleanup will run automatically)
-exit ${FINAL_EXIT_CODE:-$CMD_EXIT}
+exit $CMD_EXIT
