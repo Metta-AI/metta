@@ -9,7 +9,7 @@ import numpy as np
 
 from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
-from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig, WallConfig
 
 
 class TestNewEnvironmentHierarchy:
@@ -38,6 +38,7 @@ class TestNewEnvironmentHierarchy:
                     noop=ActionConfig(),
                     rotate=ActionConfig(),
                 ),
+                objects={"wall": WallConfig(type_id=1)},
                 map_builder=AsciiMapBuilderConfig(
                     map_data=[
                         ["#", "#", "#", "#", "#"],
@@ -66,6 +67,7 @@ class TestNewEnvironmentHierarchy:
                     noop=ActionConfig(),
                     rotate=ActionConfig(),
                 ),
+                objects={"wall": WallConfig(type_id=1)},
                 map_builder=AsciiMapBuilderConfig(
                     map_data=[
                         ["#", "#", "#", "#", "#"],
@@ -108,12 +110,13 @@ class TestNewEnvironmentHierarchy:
                     noop=ActionConfig(),
                     rotate=ActionConfig(),
                 ),
+                objects={"wall": WallConfig(type_id=1)},
                 map_builder=AsciiMapBuilderConfig(
                     map_data=[
                         ["#", "#", "#", "#", "#", "#", "#"],
                         ["#", ".", ".", ".", ".", ".", "#"],
-                        ["#", ".", "1", ".", "2", ".", "#"],
-                        ["#", ".", ".", "3", ".", ".", "#"],
+                        ["#", ".", "@", ".", "@", ".", "#"],
+                        ["#", ".", ".", "@", ".", ".", "#"],
                         ["#", ".", ".", ".", ".", ".", "#"],
                         ["#", "#", "#", "#", "#", "#", "#"],
                     ],
@@ -138,12 +141,13 @@ class TestNewEnvironmentHierarchy:
                     noop=ActionConfig(),
                     rotate=ActionConfig(),
                 ),
+                objects={"wall": WallConfig(type_id=1)},
                 map_builder=AsciiMapBuilderConfig(
                     map_data=[
                         ["#", "#", "#", "#", "#", "#", "#"],
                         ["#", ".", ".", ".", ".", ".", "#"],
-                        ["#", ".", "1", ".", "2", ".", "#"],
-                        ["#", ".", ".", "3", ".", ".", "#"],
+                        ["#", ".", "@", ".", "@", ".", "#"],
+                        ["#", ".", ".", "@", ".", ".", "#"],
                         ["#", ".", ".", ".", ".", ".", "#"],
                         ["#", "#", "#", "#", "#", "#", "#"],
                     ],
