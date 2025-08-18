@@ -11,6 +11,9 @@ from metta.tools.play import PlayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 
+# TODO(dehydration): make sure this trains as well as main on arena
+# it's possible the maps are now different
+
 
 def make_env(num_agents: int = 24) -> EnvConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
@@ -33,7 +36,8 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
         arena_tasks.add_bucket(
             f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
         )
-        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
+        if item != "heart":
+            arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
