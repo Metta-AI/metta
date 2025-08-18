@@ -22,12 +22,12 @@ parameters:
   trainer:
     # CRITICAL PARAMETERS (Keep these - highest impact)
 
-    total_timesteps:
-      distribution: int_uniform
-      min: 800000000 # 800M - just before first plateau jump at 900M
-      max: 6000000000 # 6B - extended range for finding optimal convergence
-      mean: 1500000000 # 1.5B - balanced starting point
-      scale: auto
+    # total_timesteps:
+    #   distribution: int_uniform
+    #   min: 800000000 # 800M - just before first plateau jump at 900M
+    #   max: 6000000000 # 6B - extended range for finding optimal convergence
+    #   mean: 1500000000 # 1.5B - balanced starting point
+    #   scale: auto
 
     optimizer:
       learning_rate:
@@ -37,12 +37,12 @@ parameters:
         mean: 3e-4
         scale: auto
 
-    batch_size:
-      distribution: uniform_pow2
-      min: 262144 # 2^18
-      max: 2097152 # 2^21
-      mean: 524288 # 2^19
-      scale: auto
+    # batch_size:
+    #   distribution: uniform_pow2
+    #   min: 262144 # 2^18
+    #   max: 2097152 # 2^21
+    #   mean: 524288 # 2^19
+    #   scale: auto
 
     # HIGH IMPACT PPO PARAMETERS
 
