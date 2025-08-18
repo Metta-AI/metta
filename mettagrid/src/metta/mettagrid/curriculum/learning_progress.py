@@ -85,7 +85,7 @@ class BidirectionalLearningProgress:
         self,
         search_space: int | Discrete,
         ema_timescale: float = 0.001,
-        progress_smoothing: float = 0.05,
+        progress_smoothing: float = 0.1,
         num_active_tasks: int = 16,
         rand_task_rate: float = 0.25,
         sample_threshold: int = 10,
