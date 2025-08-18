@@ -9,7 +9,7 @@ from pettingzoo.test import parallel_api_test
 
 from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
-from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig, WallConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig, GroupConfig, WallConfig
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
 
@@ -19,17 +19,17 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
         map_data = [
             ["#", "#", "#", "#", "#", "#", "#"],
             ["#", ".", ".", ".", ".", ".", "#"],
-            ["#", ".", "@", ".", "@", ".", "#"],
-            ["#", ".", ".", "@", ".", ".", "#"],
+            ["#", ".", "1", ".", "2", ".", "#"],
+            ["#", ".", ".", "3", ".", ".", "#"],
             ["#", ".", ".", ".", ".", ".", "#"],
             ["#", "#", "#", "#", "#", "#", "#"],
         ]
     elif num_agents == 5:
         map_data = [
             ["#", "#", "#", "#", "#", "#", "#", "#"],
-            ["#", ".", "@", ".", ".", "@", ".", "#"],
+            ["#", ".", "1", ".", ".", "2", ".", "#"],
             ["#", ".", ".", ".", ".", ".", ".", "#"],
-            ["#", ".", "@", ".", ".", "@", ".", "#"],
+            ["#", ".", "3", ".", ".", "4", ".", "#"],
             ["#", ".", ".", ".", ".", ".", ".", "#"],
             ["#", ".", ".", ".", "@", ".", ".", "#"],
             ["#", ".", ".", ".", ".", ".", ".", "#"],
@@ -38,6 +38,19 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
     else:
         # Default to num_agents=6 which works with make_arena
         return make_arena(num_agents=num_agents)
+
+    # Create groups for team agents
+    groups = {}
+    if num_agents >= 1:
+        groups["team_1"] = GroupConfig(id=1)
+    if num_agents >= 2:
+        groups["team_2"] = GroupConfig(id=2)
+    if num_agents >= 3:
+        groups["team_3"] = GroupConfig(id=3)
+    if num_agents >= 4:
+        groups["team_4"] = GroupConfig(id=4)
+    if num_agents >= 5:
+        groups["agent"] = GroupConfig(id=0)  # Default group for @ agents
 
     cfg = EnvConfig(
         game=GameConfig(
@@ -49,6 +62,7 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
                 rotate=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=1)},
+            groups=groups,
             map_builder=AsciiMapBuilderConfig(map_data=map_data),
         )
     )
