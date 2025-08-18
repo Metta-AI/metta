@@ -45,7 +45,9 @@ def copy_to_clipboard(content: str) -> None:
 @click.option(
     "-f", "--flamegraph", is_flag=True, help="Generate a flame graph HTML visualization of token distribution"
 )
-@click.option("-d", "--diff", is_flag=True, help="Append git diff vs origin/main to the output as a single virtual file")
+@click.option(
+    "-d", "--diff", is_flag=True, help="Append git diff vs origin/main to the output as a single virtual file"
+)
 def cli(
     paths: Tuple[str, ...],
     stdout: bool,
@@ -91,10 +93,7 @@ def cli(
         if profile or flamegraph:
             # This calls get_context internally and builds the full profile
             profile_report, profile_data = profile_code_context(
-                paths=path_list,
-                extensions=normalized_extensions,
-                include_git_diff=diff,
-                readmes_only=readmes
+                paths=path_list, extensions=normalized_extensions, include_git_diff=diff, readmes_only=readmes
             )
             # Extract the content from the profile data
             output_content = profile_data.get("context", "")
@@ -105,7 +104,7 @@ def cli(
                 extensions=normalized_extensions,
                 include_git_diff=diff,
                 diff_base="origin/main",
-                readmes_only=readmes
+                readmes_only=readmes,
             )
             profile_data = token_info
 

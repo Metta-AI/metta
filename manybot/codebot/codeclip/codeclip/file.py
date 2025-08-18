@@ -510,7 +510,11 @@ def _format_document(doc: Document) -> str:
 
 
 def get_context(
-    paths: Optional[List[Union[str, Path]]], extensions: Optional[Tuple[str, ...]] = None, include_git_diff: bool = False, diff_base: str = "origin/main", readmes_only: bool = False,
+    paths: Optional[List[Union[str, Path]]],
+    extensions: Optional[Tuple[str, ...]] = None,
+    include_git_diff: bool = False,
+    diff_base: str = "origin/main",
+    readmes_only: bool = False,
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Load and format context from specified paths, with basic token counting.

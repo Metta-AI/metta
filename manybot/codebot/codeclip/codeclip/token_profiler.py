@@ -225,7 +225,10 @@ def extract_files_from_context(context: str) -> Dict[str, str]:
 
 
 def profile_code_context(
-    paths: List[Union[str, Path]], extensions: Optional[Tuple[str, ...]] = None, include_git_diff: bool = False, readmes_only: bool = False
+    paths: List[Union[str, Path]],
+    extensions: Optional[Tuple[str, ...]] = None,
+    include_git_diff: bool = False,
+    readmes_only: bool = False,
 ) -> Tuple[str, Dict]:
     """
     Profile token distribution for the given paths.
@@ -245,7 +248,7 @@ def profile_code_context(
         extensions=extensions,
         include_git_diff=include_git_diff,
         diff_base="origin/main",
-        readmes_only=readmes_only
+        readmes_only=readmes_only,
     )
 
     # Use documents from token_info
