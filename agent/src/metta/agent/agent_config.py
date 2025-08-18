@@ -1,8 +1,7 @@
-from typing import ClassVar, Optional, Union
+from typing import ClassVar, Literal, Optional, Union
 
 import gymnasium as gym
 import torch.nn as nn
-from omegaconf import DictConfig
 from pydantic import ConfigDict
 
 from metta.common.util.config import Config
@@ -11,7 +10,17 @@ from metta.mettagrid import MettaGridEnv
 
 class AgentConfig(Config):
     env: MettaGridEnv
-    agent_cfg: Union[str, DictConfig]
+    agent_cfg: Literal[
+        "fast",
+        "latent_attn_med",
+        "latent_attn_small",
+        "latent_attn_tiny",
+        "fast.py",
+        "latent_attn_med.py",
+        "latent_attn_small.py",
+        "latent_attn_tiny.py",
+        "vanilla.py",
+    ]
     policy: Optional[nn.Module] = None
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
