@@ -5,39 +5,25 @@ resources:
   cpus: 8+
   image_id: docker:metta:latest
 
+config:
+  docker:
+    run_options:
+      - --cap-add=IPC_LOCK
+      - --ulimit memlock=-1:-1
+      - --ipc=host
+      - --userns=host
+
 file_mounts:
   /mnt/s3/softmax-public:
     source: s3://softmax-public
     mode: MOUNT_CACHED
-
   /mnt/s3/train_dir:
     source: s3://softmax-train-dir
     mode: MOUNT_CACHED
 
 setup: |
-  set -e
-  cd /workspace/metta
-
-  git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
-  git checkout "$METTA_GIT_REF"
-  echo "[SETUP] Checked out: $(git rev-parse HEAD)"
-
-  # Python environment setup
-  echo "[SETUP] Setting up Python environment..."
-  uv sync
-
-  # Create required directories
-  mkdir -p $WANDB_DIR
-
-  # Note that different sets of skypilot environment variables are available in "run" vs "setup"
-  # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
-
-  echo "[SETUP] Creating job secrets..."
-  ./devops/skypilot/create_job_secrets.py \
-    --wandb-password "$WANDB_PASSWORD" \
-    --observatory-token "$OBSERVATORY_TOKEN"
-
-  echo "[SETUP] Sandbox is ready"
+  set -u
+  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/sk_setup.sh")
 
 run: |
   set -e
@@ -49,25 +35,19 @@ run: |
   fi
   . .venv/bin/activate
 
-  # set up GPU-related environment variables
-  export NUM_GPUS=${SKYPILOT_NUM_GPUS_PER_NODE}
-  export NUM_NODES=${SKYPILOT_NUM_NODES}
-  export MASTER_ADDR=$(echo "${SKYPILOT_NODE_IPS}" | head -n1)
-  export MASTER_PORT=8008
-  export NODE_INDEX=${SKYPILOT_NODE_RANK}
-  export NCCL_SHM_DISABLE=1
+  echo "[SETUP] Setting up Python environment..."
+  uv sync
 
-  echo "[RUN] Creating job secrets..."
-  ./devops/skypilot/create_job_secrets.py \
-    --wandb-password "$WANDB_PASSWORD" \
-    --observatory-token "$OBSERVATORY_TOKEN"
+  bash ./devops/skypilot/config/configure_environment.sh
+
+  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+  source "$METTA_ENV_FILE"
 
   echo "Starting bash shell..."
   exec bash
 
 envs:
-  METTA_GIT_REF: main
-  WANDB_DIR: ./wandb
+  GITHUB_REPOSITORY: Metta-AI/metta
 
   # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
   SKYPILOT_DOCKER_USERNAME: ""

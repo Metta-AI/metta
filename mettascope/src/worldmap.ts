@@ -452,6 +452,7 @@ function drawTrajectory() {
       const location1 = state.selectedGridObject.location.get(i)
       const cx1 = location1[0]
       const cy1 = location1[1]
+
       if (cx0 !== cx1 || cy0 !== cy1) {
         const a = 1 - Math.abs(i - state.step) / 200
         if (a > 0) {
@@ -475,19 +476,43 @@ function drawTrajectory() {
             }
           }
 
-          if (cx1 > cx0) {
-            // East
-            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, 0)
-          } else if (cx1 < cx0) {
-            // West
-            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, Math.PI)
-          } else if (cy1 > cy0) {
-            // South
-            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, -Math.PI / 2)
-          } else if (cy1 < cy0) {
-            // North
-            ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, 1, Math.PI / 2)
+          // Calculate movement direction and rotation for both cardinal and diagonal movements.
+          const dx = cx1 - cx0
+          const dy = cy1 - cy0
+          let rotation = 0
+          let scale: number | [number, number] = 1
+
+          if (dx > 0 && dy === 0) {
+            // Movement is due east.
+            rotation = 0
+          } else if (dx < 0 && dy === 0) {
+            // Movement is due west.
+            rotation = Math.PI
+          } else if (dx === 0 && dy > 0) {
+            // Movement is due south.
+            rotation = -Math.PI / 2
+          } else if (dx === 0 && dy < 0) {
+            // Movement is due north.
+            rotation = Math.PI / 2
+          } else if (dx > 0 && dy > 0) {
+            // Movement is southeast diagonal.
+            rotation = -Math.PI / 4
+            scale = [Math.sqrt(2), 1]
+          } else if (dx > 0 && dy < 0) {
+            // Movement is northeast diagonal.
+            rotation = Math.PI / 4
+            scale = [Math.sqrt(2), 1]
+          } else if (dx < 0 && dy > 0) {
+            // Movement is southwest diagonal.
+            rotation = (-3 * Math.PI) / 4
+            scale = [Math.sqrt(2), 1]
+          } else if (dx < 0 && dy < 0) {
+            // Movement is northwest diagonal.
+            rotation = (3 * Math.PI) / 4
+            scale = [Math.sqrt(2), 1]
           }
+
+          ctx.drawSprite(image, cx0 * Common.TILE_SIZE, cy0 * Common.TILE_SIZE + 60, color, scale, rotation)
         }
       }
     }
@@ -519,7 +544,13 @@ function drawThoughtBubbles() {
         continue
       }
       const actionName = state.replay.actionNames[actionId]
-      if (actionName === 'noop' || actionName === 'rotate' || actionName === 'move') {
+      if (
+        actionName === 'noop' ||
+        actionName === 'rotate' ||
+        actionName === 'move' ||
+        actionName === 'move_cardinal' ||
+        actionName === 'move_8way'
+      ) {
         continue
       }
       keyAction = [actionId, actionParam]

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Plot from 'react-plotly.js'
 import { ScorecardData } from './repo'
 import { METTA_WANDB_ENTITY, METTA_WANDB_PROJECT } from './constants'
+import { getShortName, groupEvalNamesByCategory, reconstructEvalName, OVERALL_EVAL_NAME } from './utils/evalNameUtils'
 
 interface ScorecardProps {
   data: ScorecardData
@@ -56,10 +57,6 @@ const SUITE_TABS_CSS = `
 }
 `
 
-const getShortName = (evalName: string) => {
-  if (evalName === 'Overall') return evalName
-  return evalName.split('/').pop() || evalName
-}
 
 const wandb_url = (policyName: string) => {
   const entity = METTA_WANDB_ENTITY
@@ -86,31 +83,36 @@ export function Scorecard({
   // Convert to scorecard format
   const policies = Object.keys(data.cells)
 
-  // In the new system, eval names are already properly formatted (e.g. "navigation/maze1")
-  // Group them by category for better organization
-  const evalsByCategory = new Map<string, string[]>()
-  data.evalNames.forEach((evalName) => {
-    const [category] = evalName.split('/')
-    if (!evalsByCategory.has(category)) {
-      evalsByCategory.set(category, [])
-    }
-    evalsByCategory.get(category)!.push(evalName)
-  })
+  // Group eval names by category for better organization
+  const evalsByCategory = groupEvalNamesByCategory(data.evalNames)
 
   // Build x-labels: overall, then grouped by category
-  const xLabels = ['overall']
+  const xLabels = [OVERALL_EVAL_NAME]
   const shortNameToEvalName = new Map<string, string>()
-  shortNameToEvalName.set('overall', 'overall')
+  shortNameToEvalName.set(OVERALL_EVAL_NAME, OVERALL_EVAL_NAME)
 
-  // Sort categories alphabetically, then envs within each category
-  const sortedCategories = Array.from(evalsByCategory.keys()).sort()
-  sortedCategories.forEach((category) => {
-    const envs = evalsByCategory.get(category)!.sort()
-    envs.forEach((evalName) => {
-      const shortName = getShortName(evalName) // Just the environment name
-      xLabels.push(shortName)
-      shortNameToEvalName.set(shortName, evalName)
-    })
+  // Helper to iterate over categories and environments safely
+  const forEachCategoryEnv = (fn: (category: string, envName: string, fullEvalName: string) => void) => {
+    const sortedCategories = Array.from(evalsByCategory.keys()).sort()
+    for (const category of sortedCategories) {
+      const envNames = evalsByCategory.get(category)
+      if (!envNames) {
+        throw new Error(`No environment names found for category: ${category}`)
+      }
+      
+      const sortedEnvNames = envNames.sort()
+      for (const envName of sortedEnvNames) {
+        const fullEvalName = reconstructEvalName(category, envName)
+        fn(category, envName, fullEvalName)
+      }
+    }
+  }
+
+  // Build x-labels and mapping
+  forEachCategoryEnv((category, envName, fullEvalName) => {
+    const shortName = getShortName(fullEvalName)
+    xLabels.push(shortName)
+    shortNameToEvalName.set(shortName, fullEvalName)
   })
 
   // Sort policies by average score (best at bottom for better visibility)
@@ -122,12 +124,9 @@ export function Scorecard({
     const row = [data.policyAverageScores[policy]] // Overall score first
 
     // Add scores for each evaluation in order
-    sortedCategories.forEach((category) => {
-      const envs = evalsByCategory.get(category)!.sort()
-      envs.forEach((evalName) => {
-        const cell = data.cells[policy]?.[evalName]
-        row.push(cell ? cell.value : 0)
-      })
+    forEachCategoryEnv((_, __, fullEvalName) => {
+      const cell = data.cells[policy]?.[fullEvalName]
+      row.push(cell ? cell.value : 0)
     })
 
     return row
@@ -143,10 +142,13 @@ export function Scorecard({
     const shortName = event.points[0].x
     const policyUri = event.points[0].y
 
-    const evalName = shortNameToEvalName.get(shortName)!
+    const evalName = shortNameToEvalName.get(shortName)
+    if (!evalName) {
+      throw new Error(`No eval name found for short name: ${shortName}`)
+    }
 
     setLastHoveredCell({ policyUri, evalName })
-    if (!(shortName === 'overall')) {
+    if (!(shortName === OVERALL_EVAL_NAME)) {
       setSelectedCell({ policyUri, evalName })
     }
   }
