@@ -10,6 +10,7 @@ import styles from './Dashboard.module.css'
 import { MapViewer } from './MapViewer'
 import { SaveDashboardModal } from './SaveDashboardModal'
 import { METTASCOPE_REPLAY_URL } from './constants'
+import { filterValidEvalNames, filterValidIds } from './utils/validationUtils'
 
 interface DashboardProps {
   repo: Repo
@@ -213,6 +214,7 @@ export function Dashboard({ repo }: DashboardProps) {
   const selectedCellData = selectedCell ? scorecardData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
   const selectedEval = selectedCellData?.evalName ?? null
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null
+  const selectedThumbnailUrl = selectedCellData?.thumbnailUrl ?? null
 
   // Dashboard state management functions
   const getDashboardState = () => {
@@ -243,18 +245,43 @@ export function Dashboard({ repo }: DashboardProps) {
   }
 
   const restoreDashboardState = async (state: DashboardState) => {
+    // Restore basic state
     setSelectedTrainingRunIds(state.selectedTrainingRunIds || [])
     setSelectedRunFreePolicyIds(state.selectedRunFreePolicyIds || [])
-    setSelectedEvalNames(new Set(state.selectedEvalNames || []))
     setTrainingRunPolicySelector(state.trainingRunPolicySelector || 'latest')
     setSelectedMetric(state.selectedMetric || '')
 
-    await generateScorecard(
-      state.selectedTrainingRunIds,
-      state.selectedRunFreePolicyIds,
-      new Set(state.selectedEvalNames),
-      state.selectedMetric
-    )
+    // Validate eval names against currently available ones
+    try {
+      const availableEvalNames = await repo.getEvalNames({
+        training_run_ids: state.selectedTrainingRunIds || [],
+        run_free_policy_ids: state.selectedRunFreePolicyIds || []
+      })
+      
+      const { valid, invalid } = filterValidEvalNames(
+        state.selectedEvalNames || [], 
+        availableEvalNames
+      )
+      
+      if (invalid.length > 0) {
+        console.warn('Dashboard restore: Removed unavailable eval names:', invalid)
+      }
+      
+      // Only restore valid eval names
+      setSelectedEvalNames(new Set(valid))
+      
+      // Generate scorecard with validated data
+      await generateScorecard(
+        state.selectedTrainingRunIds,
+        state.selectedRunFreePolicyIds,
+        new Set(valid),
+        state.selectedMetric
+      )
+    } catch (error) {
+      console.error('Failed to validate eval names during dashboard restore:', error)
+      // Fallback: don't restore eval names, let user reselect
+      setSelectedEvalNames(new Set())
+    }
   }
 
   const handleCreateDashboard = async (dashboardData: SavedDashboardCreate) => {
@@ -471,6 +498,7 @@ export function Dashboard({ repo }: DashboardProps) {
               selectedEval={selectedEval}
               isViewLocked={isViewLocked}
               selectedReplayUrl={selectedReplayUrl}
+              selectedThumbnailUrl={selectedThumbnailUrl}
               onToggleLock={toggleLock}
               onReplayClick={handleReplayClick}
             />
