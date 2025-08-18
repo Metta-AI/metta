@@ -50,6 +50,8 @@ setup: |
 run: /workspace/metta/devops/skypilot/config/sk_train_run.sh
 
 envs:
+  TEST_NCCL: "false"
+
   GITHUB_REPOSITORY: Metta-AI/metta
   GITHUB_PAT: ""
 
