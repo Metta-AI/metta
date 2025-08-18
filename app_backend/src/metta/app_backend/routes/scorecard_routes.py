@@ -94,6 +94,7 @@ class ScorecardCell(BaseModel):
 
     evalName: str
     replayUrl: Optional[str]
+    thumbnailUrl: Optional[str]
     value: float
 
 
@@ -125,6 +126,7 @@ class PolicyEvaluationResult:
     eval_category: str
     env_name: str
     replay_url: Optional[str]
+    thumbnail_url: Optional[str]
     total_score: float
     num_agents: int
     episode_id: int
@@ -190,6 +192,7 @@ POLICY_SCORECARD_DATA_QUERY = """
         we.eval_category,
         we.env_name,
         ANY_VALUE(we.replay_url) as replay_url,
+        ANY_VALUE(we.thumbnail_url) as thumbnail_url,
         SUM(eam.value) as total_score,
         COUNT(eam.*) as num_agents,
         MAX(we.internal_id) as episode_id,
@@ -428,7 +431,10 @@ def build_policy_scorecard(
         for eval_name in eval_names:
             eval = data_map.get((policy_name, eval_name))
             cells[policy_name][eval_name] = ScorecardCell(
-                evalName=eval_name, replayUrl=eval.replay_url if eval else None, value=eval.value if eval else 0.0
+                evalName=eval_name,
+                replayUrl=eval.replay_url if eval else None,
+                thumbnailUrl=eval.thumbnail_url if eval else None,
+                value=eval.value if eval else 0.0,
             )
 
     # Calculate averages
