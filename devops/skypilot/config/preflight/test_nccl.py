@@ -637,32 +637,13 @@ def print_diagnostics(diagnostics: dict[str, Any]) -> None:
     print(format_gpu_diagnostics(diagnostics))
 
 
-def _detect_iface_to(master_addr: str) -> str | None:
-    """Return the iface name that routes to master_addr, or None if not found."""
-    if not master_addr:
-        return None
-    try:
-        # Example output: "… dev ens5 src 172.31.33.153 uid 0"
-        out = subprocess.check_output(
-            [
-                "bash",
-                "-lc",
-                f"ip route get {master_addr} | awk '{{for(i=1;i<=NF;i++) if($i==\"dev\"){{print $(i+1); exit}}}}'",
-            ],
-            text=True,
-        ).strip()
-        return out or None
-    except Exception as e:
-        logger.warning(f"Could not detect iface to {master_addr}: {e}")
-        return None
-
-
 def setup_nccl_debug_env(master_addr: str | None = None) -> None:
     """Set minimal NCCL settings for test runs."""
     if not master_addr:
         master_addr = os.environ.get("MASTER_ADDR")
 
-    # Always ensure async error handling
+    os.environ["NCCL_DEBUG"] = "VERSION"
+    os.environ["NCCL_DEBUG_SUBSYS"] = "INIT,IPC"
     os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"
 
     # Log current NCCL settings
