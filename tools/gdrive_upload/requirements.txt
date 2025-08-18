@@ -1,0 +1,10 @@
+# Google Drive API
+google-api-python-client>=2.0.0
+google-auth-httplib2>=0.1.0
+google-auth-oauthlib>=0.7.0
+
+# Configuration parsing
+PyYAML>=6.0
+
+# Optional: Better logging and CLI
+colorlog>=6.0.0
