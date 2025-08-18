@@ -256,7 +256,7 @@ function fixReplay() {
   // Create action image mappings for faster access.
   state.replay.actionImages = []
   for (const actionName of state.replay.actionNames) {
-    let imagePath = `trace/${actionName}.png`
+    const imagePath = `trace/${actionName}.png`
 
     if (ctx.hasImage(imagePath)) {
       state.replay.actionImages.push(imagePath)
