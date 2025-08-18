@@ -99,6 +99,11 @@ def main():
     parser.add_argument(
         "--discord-webhook-url", type=str, default=None, help="Discord webhook URL for status update channel"
     )
+    parser.add_argument(
+        "--run-ci-tests",
+        action="store_true",
+        help="Run NCCL and job restart tests",
+    )
 
     (args, cmd_args) = parser.parse_known_args(filtered_args)
 
@@ -142,6 +147,8 @@ def main():
         GITHUB_PAT=args.github_pat,
         MAX_RUNTIME_HOURS=args.max_runtime_hours,
         DISCORD_WEBHOOK_URL=args.discord_webhook_url,
+        TEST_JOB_RESTART="true" if args.run_ci_tests else "false",
+        TEST_NCCL="true" if args.run_ci_tests else "false",
     )
 
     env_updates = {k: v for k, v in env_updates.items() if v is not None}
