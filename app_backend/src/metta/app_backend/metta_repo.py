@@ -1280,6 +1280,26 @@ class MettaRepo:
 
         return updated
 
+    async def count_tasks(self, where_clause: str) -> int:
+        async with self.connect() as con:
+            result = await con.execute(
+                f"SELECT COUNT(*) FROM eval_tasks WHERE {where_clause}",  # type: ignore
+            )
+            res = await result.fetchone()
+            if res is None:
+                raise RuntimeError(f"Failed to count tasks with where clause {where_clause}")
+            return res[0]
+
+    async def get_avg_runtime(self, where_clause: str) -> float | None:
+        async with self.connect() as con:
+            result = await con.execute(
+                f"SELECT EXTRACT(EPOCH FROM AVG(updated_at - assigned_at)) FROM eval_tasks WHERE {where_clause}",  # type: ignore
+            )
+            res = await result.fetchone()
+            if res is None:
+                raise RuntimeError(f"Failed to get average runtime with where clause {where_clause}")
+            return res[0]
+
     async def add_episode_tags(self, episode_ids: list[uuid.UUID], tag: str) -> int:
         """Add a tag to multiple episodes by UUID. Returns number of episodes tagged."""
         if not episode_ids:
