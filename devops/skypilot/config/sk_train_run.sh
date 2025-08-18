@@ -152,86 +152,42 @@ graceful_shutdown() {
   fi
   TERMINATION_REASON="${TERMINATION_REASON:-controlled_shutdown}"
 
-  # Kill the entire process tree gracefully
-  if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
-      echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
-
-      echo "[DEBUG] Process tree before shutdown:"
-      ps -ejH | grep "$CMD_PGID" || true
-
-      # For distributed training, we need coordinated shutdown
-      if [[ "$TOTAL_NODES" -gt 1 ]]; then
-        echo "[SHUTDOWN] Multi-node job detected, using coordinated shutdown"
-
-        # Master node coordinates the shutdown
-        if [[ "$IS_MASTER" == "true" ]]; then
-          # Signal all workers to prepare for shutdown
-          echo "preparing_shutdown" > "${CLUSTER_STOP_FILE:-/tmp/cluster_stop}"
-
-          # Give workers time to see the signal
-          sleep 2
-
-          # Now send SIGTERM to the process group
-          echo "[SHUTDOWN] Master sending SIGTERM to process group..."
-          kill -TERM -"${CMD_PGID}" 2>/dev/null || true
-
-        else
-          # Worker node: wait for master's signal or timeout
-          echo "[SHUTDOWN] Worker waiting for coordinated shutdown signal..."
-          local wait_count=0
-          while [ $wait_count -lt 10 ]; do
-            if [ -f "${CLUSTER_STOP_FILE:-/tmp/cluster_stop}" ]; then
-              local stop_reason=$(cat "${CLUSTER_STOP_FILE:-/tmp/cluster_stop}" 2>/dev/null || echo "")
-              if [[ "$stop_reason" == "preparing_shutdown" ]]; then
-                echo "[SHUTDOWN] Worker received shutdown signal from master"
-                break
-              fi
-            fi
-            sleep 1
-            ((wait_count++))
-          done
-
-          # Send SIGTERM to local processes
-          echo "[SHUTDOWN] Worker sending SIGTERM to process group..."
-          kill -TERM -"${CMD_PGID}" 2>/dev/null || true
-        fi
-
-        # Extended grace period for distributed cleanup
-        count=0
-        while kill -0 "$CMD_PID" 2>/dev/null && [ $count -lt 30 ]; do
-          sleep 1
-          ((count++))
-        done
-
-      else
-        # Single node: standard shutdown
-        echo "[SHUTDOWN] Single-node job, using standard shutdown"
-        kill -TERM -"${CMD_PGID}" 2>/dev/null || true
-
-        # Standard grace period
-        count=0
-        while kill -0 "$CMD_PID" 2>/dev/null && [ $count -lt 15 ]; do
-          sleep 1
-          ((count++))
-        done
-      fi
-
-      # If STILL alive, use SIGKILL as last resort
-      if kill -0 "$CMD_PID" 2>/dev/null; then
-        echo "[SHUTDOWN] Process didn't terminate gracefully, using SIGKILL"
-        kill -KILL -"${CMD_PGID}" 2>/dev/null || true
-      fi
-
-      if kill -0 "$CMD_PID" 2>/dev/null; then
-        echo "[SHUTDOWN] Waiting for process $CMD_PID to exit..."
-        wait "$CMD_PID" 2>/dev/null || true
-      else
-        echo "[SHUTDOWN] Process $CMD_PID already exited, skipping wait"
-      fi
-
-      echo "[SHUTDOWN] Process terminated"
+  if [[ "$IS_MASTER" == "true" ]]; then
+    sleep 30 # Allow workers to shut down before master tears down TCPStore
   fi
 
+  # Kill the entire process tree gracefully
+  if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
+    echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
+
+    echo "[DEBUG] Process tree before shutdown:"
+    ps -ejH | grep "$CMD_PGID" || true
+
+    # send SIGTERM
+    kill -TERM -"${CMD_PGID}" 2>/dev/null || true
+    count=0
+    while kill -0 "$CMD_PID" 2>/dev/null && [ $count -lt 15 ]; do
+      sleep 1
+      ((count++))
+    done
+
+    # If STILL alive, use SIGKILL
+    if kill -0 "$CMD_PID" 2>/dev/null; then
+      echo "[SHUTDOWN] Process didn't terminate gracefully, using SIGKILL"
+      kill -KILL -"${CMD_PGID}" 2>/dev/null || true
+    fi
+
+    if kill -0 "$CMD_PID" 2>/dev/null; then
+      echo "[SHUTDOWN] Waiting for process $CMD_PID to exit..."
+      wait "$CMD_PID" 2>/dev/null || true
+    else
+      echo "[SHUTDOWN] Process $CMD_PID already exited, skipping wait"
+    fi
+
+    echo "[SHUTDOWN] Process terminated"
+  fi
+
+  sleep 1
   terminate_monitors
 
   # Compute duration (best-effort)
@@ -502,6 +458,12 @@ else
     terminate_process "$CMD_PID" "nccl_test_failure"
   fi
   echo "[SUCCESS] NCCL tests passed"
+fi
+
+# Exit early if accumulated runtime exceeds max allowed
+if [[ "$max_seconds" -ge 0 && "$accumulated_runtime" -ge "$max_seconds" ]]; then
+  echo "[EXIT] Exceeded max runtime (${accumulated_runtime}s ≥ ${max_seconds}s). Exiting early."
+  exit 0
 fi
 
 # Run the command
