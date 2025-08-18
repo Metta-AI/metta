@@ -547,6 +547,63 @@ MIGRATIONS = [
                 SELECT * FROM my_run_free_policies;""",
         ],
     ),
+    SqlMigration(
+        version=24,
+        description="Convert training_runs.status from TEXT to ENUM",
+        sql_statements=[
+            # Step 1: Create the ENUM type
+            """CREATE TYPE training_run_status AS ENUM ('running', 'completed', 'failed')""",
+            # Step 2: Add new column with ENUM type and default
+            """ALTER TABLE training_runs ADD COLUMN status_new training_run_status DEFAULT 'running'""",
+            # Step 3: Migrate existing data (all should be 'running' currently, but handle edge cases)
+            """UPDATE training_runs SET status_new =
+                CASE
+                    WHEN LOWER(status) = 'running' THEN 'running'::training_run_status
+                    WHEN LOWER(status) = 'completed' THEN 'completed'::training_run_status
+                    WHEN LOWER(status) = 'failed' THEN 'failed'::training_run_status
+                    ELSE 'running'::training_run_status
+                END""",
+            # Step 4: Make the new column NOT NULL
+            """ALTER TABLE training_runs ALTER COLUMN status_new SET NOT NULL""",
+            # Step 5: Drop the view that depends on the status column
+            """DROP VIEW wide_episodes""",
+            # Step 6: Drop old column and rename new one
+            """ALTER TABLE training_runs DROP COLUMN status""",
+            """ALTER TABLE training_runs RENAME COLUMN status_new TO status""",
+            # Step 7: Recreate the view with the new ENUM column
+            """CREATE VIEW wide_episodes AS
+            SELECT
+                e.id,
+                e.internal_id,
+                e.created_at,
+                e.primary_policy_id,
+                e.stats_epoch,
+                e.replay_url,
+                e.eval_name,
+                e.simulation_suite,
+                e.eval_category,
+                e.env_name,
+                e.attributes,
+                e.eval_task_id,
+                p.name as policy_name,
+                p.description as policy_description,
+                p.url as policy_url,
+                ep.start_training_epoch as epoch_start_training_epoch,
+                ep.end_training_epoch as epoch_end_training_epoch,
+                tr.id as training_run_id,
+                tr.name as training_run_name,
+                tr.user_id as training_run_user_id,
+                tr.status as training_run_status,
+                tr.url as training_run_url,
+                tr.description as training_run_description,
+                tr.tags as training_run_tags
+            FROM episodes e
+            LEFT JOIN policies p ON e.primary_policy_id = p.id
+            LEFT JOIN epochs ep ON p.epoch_id = ep.id
+            LEFT JOIN training_runs tr ON ep.run_id = tr.id
+            """,
+        ],
+    ),
 ]
 
 logger = logging.getLogger(name="metta_repo")
@@ -655,6 +712,19 @@ class MettaRepo:
                 if row is None:
                     raise RuntimeError("Failed to find existing training run")
             return row[0]
+
+    async def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                UPDATE training_runs 
+                SET status = %s, finished_at = CASE WHEN %s != 'running' THEN CURRENT_TIMESTAMP ELSE finished_at END
+                WHERE id = %s
+                """,
+                (status, status, run_id),
+            )
+            if result.rowcount == 0:
+                raise ValueError(f"Training run with ID {run_id} not found")
 
     async def create_epoch(
         self,
