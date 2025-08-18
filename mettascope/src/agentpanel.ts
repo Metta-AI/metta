@@ -73,6 +73,7 @@ const typeahead = find('#new-column-input') as HTMLInputElement
 let columns = [
   new ColumnDefinition('agentId', false),
   new ColumnDefinition('totalReward', false),
+  new ColumnDefinition('valueEstimate', false),
   new ColumnDefinition('totalReward', true),
 ]
 let mainSort: ColumnDefinition = columns[1]
@@ -316,6 +317,7 @@ export function updateAvailableColumns() {
     'currentReward',
     'orientation',
     'isFrozen',
+    'valueEstimate',
   ]
   for (const name of availableColumnNames) {
     availableColumns.push(new ColumnDefinition(name, false))

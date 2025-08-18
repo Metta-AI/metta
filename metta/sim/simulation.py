@@ -276,6 +276,7 @@ class Simulation:
             policy = self._policy_pr.policy
             policy(td)
             policy_actions = td["actions"]
+            value_estimates = td.get("values")
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
                 npc_obs = obs_t[self._npc_idxs]
@@ -312,6 +313,8 @@ class Simulation:
             actions = rearrange(actions, "envs agents act -> (envs agents) act")
 
         actions_np = actions.cpu().numpy().astype(dtype_actions)
+        if value_estimates is not None:
+            self._vecenv.call("set_value_estimates", value_estimates.cpu().numpy())
         return actions_np
 
     def step_simulation(self, actions_np: np.ndarray) -> None:

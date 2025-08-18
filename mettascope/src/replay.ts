@@ -112,6 +112,7 @@ export class Entity {
   actionSuccess: Sequence<boolean> = new Sequence(false)
   currentReward: Sequence<number> = new Sequence(0)
   totalReward: Sequence<number> = new Sequence(0)
+  valueEstimate: Sequence<number> = new Sequence(0)
   isFrozen: Sequence<boolean> = new Sequence(false)
   frozenProgress: Sequence<number> = new Sequence(0)
   frozenTime: number = 0
@@ -551,6 +552,7 @@ function loadReplayJson(url: string, replayJson: any) {
       object.actionSuccess.expand(gridObject.action_success, replayData.max_steps, false)
       object.currentReward.expand(gridObject.current_reward, replayData.max_steps, 0)
       object.totalReward.expand(gridObject.total_reward, replayData.max_steps, 0)
+      object.valueEstimate.expand(gridObject.value_estimate, replayData.max_steps, 0)
       object.frozenProgress.expand(gridObject.frozen_progress, replayData.max_steps, 0)
       object.frozenTime = gridObject.frozen_time
       object.visionSize = Common.DEFAULT_VISION_SIZE // TODO Fix this

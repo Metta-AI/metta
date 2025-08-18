@@ -73,6 +73,7 @@ class MettaGridEnv(MettaGridPufferBase):
         self._resets = 0
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
+        self.value_estimates: np.ndarray | None = None
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
         self._is_training = is_training
@@ -222,7 +223,7 @@ class MettaGridEnv(MettaGridPufferBase):
         # Record step for replay (use shared PufferEnv buffers)
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
-                self._replay_writer.log_step(self._trial_id, actions, self.rewards)
+                self._replay_writer.log_step(self._trial_id, actions, self.rewards, self.value_estimates)
 
         # Check for episode completion (use shared PufferEnv buffers)
         infos = {}
@@ -240,6 +241,9 @@ class MettaGridEnv(MettaGridPufferBase):
 
         self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
+
+    def set_value_estimates(self, value_estimates: np.ndarray):
+        self.value_estimates = value_estimates
 
     def _create_c_env(self, game_config_dict: Dict[str, Any], seed: Optional[int] = None) -> MettaGridCpp:
         """

@@ -27,8 +27,10 @@ class ReplayWriter:
     def start_episode(self, episode_id: str, env: MettaGridCore):
         self.episodes[episode_id] = EpisodeReplay(env)
 
-    def log_step(self, episode_id: str, actions: np.ndarray, rewards: np.ndarray):
-        self.episodes[episode_id].log_step(actions, rewards)
+    def log_step(
+        self, episode_id: str, actions: np.ndarray, rewards: np.ndarray, value_estimates: np.ndarray | None = None
+    ):
+        self.episodes[episode_id].log_step(actions, rewards, value_estimates)
 
     def write_replay(self, episode_id: str) -> str | None:
         """Write the replay to the replay directory and return the URL."""
@@ -64,14 +66,14 @@ class EpisodeReplay:
             "objects": self.objects,
         }
 
-    def log_step(self, actions: np.ndarray, rewards: np.ndarray):
+    def log_step(self, actions: np.ndarray, rewards: np.ndarray, value_estimates: np.ndarray | None = None):
         self.total_rewards += rewards
         for i, grid_object in enumerate(self.env.grid_objects.values()):
             if len(self.objects) <= i:
                 self.objects.append({})
 
             update_object = format_grid_object(
-                grid_object, actions, self.env.action_success, rewards, self.total_rewards
+                grid_object, actions, self.env.action_success, rewards, self.total_rewards, value_estimates
             )
 
             self._seq_key_merge(self.objects[i], self.step, update_object)

@@ -158,6 +158,7 @@ Agent specific keys:
 - `frozen_progress` - A countdown from `frozen_time` to 0 that indicates how many steps are left to unfreeze the agent.
 - `frozen_time` - Usually a constant. How many steps does it take to unfreeze the agent.
 - `group_id` - The id of the group the object belongs to.
+- `value_estimate` - The agent's estimate of the state value at the current step.
 
 Object specific keys:
 

@@ -34,6 +34,7 @@ def format_agent_properties(
     env_action_success: Union[np.ndarray, list],
     rewards: np.ndarray,
     total_rewards: np.ndarray,
+    value_estimates: np.ndarray | None = None,
 ) -> None:
     """Add agent-specific properties to the update object."""
     agent_id = grid_object["agent_id"]
@@ -48,6 +49,8 @@ def format_agent_properties(
     update_object["is_frozen"] = grid_object.get("is_frozen", False)
     update_object["freeze_duration"] = grid_object.get("freeze_duration", 0)
     update_object["group_id"] = grid_object["group_id"]
+    if value_estimates is not None:
+        update_object["value_estimate"] = value_estimates[agent_id].item()
 
 
 def format_converter_properties(grid_object: dict, update_object: dict) -> None:
@@ -69,6 +72,7 @@ def format_grid_object(
     env_action_success: Union[np.ndarray, list],
     rewards: np.ndarray,
     total_rewards: np.ndarray,
+    value_estimates: np.ndarray | None = None,
 ) -> dict:
     """Format a grid object with validation for both replay recording and play streaming."""
     # Validate basic object properties
@@ -95,7 +99,9 @@ def format_grid_object(
         )
 
         update_object["is_agent"] = True
-        format_agent_properties(grid_object, update_object, actions, env_action_success, rewards, total_rewards)
+        format_agent_properties(
+            grid_object, update_object, actions, env_action_success, rewards, total_rewards, value_estimates
+        )
 
     elif "input_resources" in grid_object:
         format_converter_properties(grid_object, update_object)
