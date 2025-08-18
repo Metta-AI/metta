@@ -7,21 +7,19 @@ interface SearchInputProps {
   disabled?: boolean
 }
 
-export const SearchInput: React.FC<SearchInputProps> = React.memo(({
-  searchText,
-  onSearchChange,
-  disabled = false
-}) => {
-  return (
-    <div className={styles.searchContainer}>
-      <input
-        type="text"
-        placeholder="Search by training run name, policy name, user, or date..."
-        value={searchText}
-        onChange={(e) => onSearchChange(e.target.value)}
-        className={styles.searchBox}
-        disabled={disabled}
-      />
-    </div>
-  )
-})
+export const SearchInput: React.FC<SearchInputProps> = React.memo(
+  ({ searchText, onSearchChange, disabled = false }) => {
+    return (
+      <div className={styles.searchContainer}>
+        <input
+          type="text"
+          placeholder="Search by training run name, policy name, user, or date..."
+          value={searchText}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className={styles.searchBox}
+          disabled={disabled}
+        />
+      </div>
+    )
+  }
+)

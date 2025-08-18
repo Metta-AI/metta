@@ -20,3 +20,5 @@ device: cuda
 vectorization: multiprocessing
 
 stats_server_uri: https://api.observatory.softmax-research.net
+
+bypass_mac_overrides: false

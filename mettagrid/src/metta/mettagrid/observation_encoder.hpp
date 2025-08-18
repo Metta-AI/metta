@@ -30,8 +30,10 @@ public:
 
     if (this->recipe_details_obs) {
       // Define offsets based on actual inventory item count
-      const ObservationType input_recipe_offset = InventoryFeatureOffset + static_cast<ObservationType>(inventory_item_count);
-      const ObservationType output_recipe_offset = input_recipe_offset + static_cast<ObservationType>(inventory_item_count);
+      const ObservationType input_recipe_offset =
+          InventoryFeatureOffset + static_cast<ObservationType>(inventory_item_count);
+      const ObservationType output_recipe_offset =
+          input_recipe_offset + static_cast<ObservationType>(inventory_item_count);
 
       // Add input recipe features
       for (size_t i = 0; i < inventory_item_names.size(); i++) {
@@ -67,11 +69,11 @@ public:
     return append_tokens_if_room_available(tokens, obj->obs_features(), location);
   }
 
-  const std::map<ObservationType, float> feature_normalizations() const {
+  const std::map<ObservationType, float>& feature_normalizations() const {
     return _feature_normalizations;
   }
 
-  const std::map<ObservationType, std::string> feature_names() const {
+  const std::map<ObservationType, std::string>& feature_names() const {
     return _feature_names;
   }
 

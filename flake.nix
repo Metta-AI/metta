@@ -2,7 +2,7 @@
   description = "Metta development environment";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
     nixpkgs-python.url = "github:cachix/nixpkgs-python";
   };
 
@@ -33,6 +33,7 @@
           uv
           cmake
           stdenv.cc.cc.lib
+          pnpm
           nodejs_22
           typescript
         ];
@@ -62,9 +63,9 @@
           echo "# Python version: $(python --version)"
           echo "# uv version: $(uv --version)"
           echo "# -------------------------------------------"
-          echo "# ./tools/train.py run=my_experiment +hardware=macbook wandb=off"
-          echo "# ./tools/sim.py run=my_experiment +hardware=macbook wandb=off"
-          echo "# ./tools/play.py run=my_experiment +hardware=macbook wandb=off"
+          echo "# ./tools/train.py run=my_experiment wandb=off"
+          echo "# ./tools/sim.py run=my_experiment wandb=off"
+          echo "# ./tools/play.py run=my_experiment wandb=off"
           echo "# -------------------------------------------"
         '';
       };

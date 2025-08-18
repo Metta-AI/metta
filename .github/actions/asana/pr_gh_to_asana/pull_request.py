@@ -1,4 +1,3 @@
-import json
 import re
 
 import requests
@@ -83,9 +82,10 @@ class PullRequest:
                 "type": "review",
                 "timestamp": r["submitted_at"],
                 "user": r["user"]["login"],
-                "text": ": " + r["body"],
-                "action": r["state"].lower(),
+                "text": r["body"],
+                "action": r["state"],
                 "id": r["id"],
+                "html_url": r["html_url"],
             }
             for r in self.retrieved_reviews
             if r.get("state") in ["APPROVED", "CHANGES_REQUESTED"]
@@ -118,10 +118,7 @@ class PullRequest:
     def last_event(self):
         return self.events[-1] if self.events else None
 
-    # probably want to remove some of this as it's now being written to the VCR cassette
     def print_debug_info(self):
-        print("Pull request JSON:")
-        print(json.dumps(self.data, indent=2))
         print(f"assignees: {self.assignees}")
         print(f"author: {self.author}")
         print(f"reviewers: {self.reviewers}")

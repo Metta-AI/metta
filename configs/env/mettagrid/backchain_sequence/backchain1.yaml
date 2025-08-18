@@ -1,0 +1,25 @@
+defaults:
+  - /env/mettagrid/backchain_sequence/defaults@
+  - _self_
+
+game:
+  agent:
+    default_resource_limit: 1
+    rewards:
+      inventory:
+        heart: 1.0
+    initial_inventory:
+      battery_red: 1
+  map_builder:
+    root:
+      params:
+        objects:
+          altar: 1
+  objects:
+    altar:
+      cooldown: 255
+      initial_resource_count: 0
+      input_resources:
+        battery_red: 1
+      output_resources:
+        heart: 1

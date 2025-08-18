@@ -25,7 +25,7 @@ sys.path.insert(0, str(common_path))
 from metta.common.util.text_styles import bold, cyan, green, magenta, red, use_colors, yellow  # noqa: E402
 
 # Configuration
-BUILD_DIR = Path("build-coverage")
+BUILD_DIR = Path("build-debug")
 COVERAGE_FILE = "coverage.info"
 
 
@@ -76,7 +76,7 @@ def setup_and_build() -> bool:
         shutil.rmtree(BUILD_DIR)
 
     # Run cmake with coverage preset
-    result = run_command(["cmake", "--preset", "coverage"], check=False)
+    result = run_command(["cmake", "--preset", "debug"], check=False)
     if result.returncode != 0:
         print(red("✗ Failed to configure project"))
         return False

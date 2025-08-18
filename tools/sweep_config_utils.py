@@ -25,9 +25,7 @@ def save_train_job_override_config(
     return save_path
 
 
-def merge_train_job_config_overrides(
-    base_cfg: DictConfig | ListConfig, overrides: DictConfig | ListConfig | dict[str, Any]
-) -> DictConfig | ListConfig:
+def merge_train_job_config_overrides(base_cfg: DictConfig, overrides: DictConfig | dict[str, Any]) -> DictConfig:
     """Merge two train job configs. Note: the overrides take precedence over the base config.
 
     Args:
@@ -40,12 +38,12 @@ def merge_train_job_config_overrides(
     cfg_copy = copy_omegaconf_config(base_cfg)
 
     OmegaConf.set_struct(cfg_copy, False)
-    merged_cfg: DictConfig | ListConfig = OmegaConf.merge(cfg_copy, overrides)
+    merged_cfg: DictConfig = OmegaConf.merge(cfg_copy, overrides)  # type: ignore[assignment]
     OmegaConf.set_struct(merged_cfg, True)
     return merged_cfg
 
 
-def validate_train_job_config(cfg: DictConfig | ListConfig) -> DictConfig | ListConfig:
+def validate_train_job_config(cfg: DictConfig) -> DictConfig:
     """Validate a train job config.
 
     Args:
@@ -61,7 +59,7 @@ def validate_train_job_config(cfg: DictConfig | ListConfig) -> DictConfig | List
     return cfg
 
 
-def load_train_job_config_with_overrides(cfg: DictConfig | ListConfig) -> DictConfig | ListConfig:
+def load_train_job_config_with_overrides(cfg: DictConfig) -> DictConfig:
     """
     Load a train job config with overrides.
     Overrides are expected to be in the run_dir as `train_config_overrides.yaml`.
@@ -74,7 +72,7 @@ def load_train_job_config_with_overrides(cfg: DictConfig | ListConfig) -> DictCo
     """
     overrides_path = os.path.join(cfg.run_dir, "train_config_overrides.yaml")
     if os.path.exists(overrides_path):
-        override_cfg = OmegaConf.load(overrides_path)
+        override_cfg: DictConfig = OmegaConf.load(overrides_path)  # type: ignore[assignment]
 
         # Since sweep_job mimics train_job.yaml, just merge them directly
         cfg = merge_train_job_config_overrides(cfg, override_cfg)

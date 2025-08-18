@@ -1,5 +1,4 @@
 import torch.nn as nn
-from omegaconf import OmegaConf
 from typing_extensions import override
 
 from metta.agent.policy_metadata import PolicyMetadata
@@ -10,7 +9,7 @@ from .mock_agent import MockAgent
 from .mock_policy import MockPolicy
 
 MockPolicyMetadata = PolicyMetadata()
-MockPolicyStore = PolicyStore(cfg=OmegaConf.create({"device": "cpu"}), wandb_run=None)
+MockPolicyStore = PolicyStore()
 
 
 class MockPolicyRecord(PolicyRecord):

@@ -2,7 +2,7 @@ defaults:
   - common
   - wandb: metta_research
   - agent: fast
-  - sim: sweep_eval
+  - sim: navigation
   - trainer: trainer
   - sweep: full
   - _self_
@@ -10,21 +10,23 @@ defaults:
 cmd: sweep
 sweep_name: ???  # Will be set via command line override
 
+# Backend URL for centralized run assignment in Observatory
+sweep_server_uri: https://api.observatory.softmax-research.net
+
 trainer:
-  total_timesteps: 5_000_000   # 5M timesteps for proper RL training (was 50k - too short!)
-  curriculum: /env/mettagrid/arena/basic_easy_shaped
+  curriculum: /env/mettagrid/curriculum/navigation/bucketed
   simulation:
     evaluate_interval: 0  # No evaluation during training for speed
     replay_dir: "" # No replays for sweeps
 
-sim:
-  name: sweep_eval  # Required field
-  num_episodes: 5
-  max_time_s: 240
-  env_overrides: {}
-  simulations:
-    simple:
-      env: /env/mettagrid/arena/basic_easy_shaped
+# sim:
+#   name: sweep_eval  # Required field
+#   num_episodes: 5
+#   max_time_s: 240
+#   env_overrides: {}
+#   simulations:
+#     simple:
+#       env: /env/mettagrid/arena/basic_easy_shaped
 
 wandb:
   group: ${sweep_name}
@@ -36,9 +38,9 @@ sweep_job:
   wandb: ${wandb}
   run: ???  # Will be set via command line override
   runs_dir: "${sweep_dir}/runs"
-  seed: null  # Will be randomly generated for each run if not specified
   stats_server_uri: null # No logging to observatory for sweeps
 
 # TODO: Remove and update references.
 sweep_dir: "${.data_dir}/sweep/${.sweep_name}"
 runs_dir: "${.sweep_dir}/runs"
+
