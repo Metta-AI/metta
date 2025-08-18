@@ -11,7 +11,8 @@ game:
     rewards:
       inventory:
         heart: 1.0
-  resource_loss_prob: 0.3
+  resource_loss_probs:
+    battery_blue: 0.3
   actions:
     attack:
       enabled: false

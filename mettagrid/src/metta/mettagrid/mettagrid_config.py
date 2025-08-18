@@ -216,7 +216,10 @@ class GameConfig(Config):
     no_agent_interference: bool = Field(
         default=False, description="Enable agents to move through and not observe each other"
     )
-    resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
+    # Per-resource loss probabilities; keys are resource names from inventory_item_names
+    resource_loss_probs: dict[str, float] = Field(
+        default_factory=dict, description="Per-resource loss probability per step"
+    )
 
 
 class EnvConfig(Config):

@@ -212,8 +212,12 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
     # Add no_agent_interference flag
     game_cpp_params["no_agent_interference"] = game_config.no_agent_interference
 
-    # Add resource_loss_prob
-    game_cpp_params["resource_loss_prob"] = game_config.resource_loss_prob
+    # Convert resource_loss_probs: name -> id mapping
+    resource_loss_probs_by_id: dict[int, float] = {}
+    for name, prob in (game_config.resource_loss_probs or {}).items():
+        if name in resource_name_to_id:
+            resource_loss_probs_by_id[resource_name_to_id[name]] = float(prob)
+    game_cpp_params["resource_loss_probs"] = resource_loss_probs_by_id
 
     return CppGameConfig(**game_cpp_params)
 
