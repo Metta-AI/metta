@@ -13,7 +13,6 @@ echo "[INFO] Cluster-stop monitor started; checking every ${CLUSTER_STOP_CHECK_I
 
 while true; do
   sleep "$CLUSTER_STOP_CHECK_INTERVAL"
-  echo "[DEBUG] Checking for cluster stop..."
 
   if [ -s "$CLUSTER_STOP_FILE" ]; then
     reason="$(cat "$CLUSTER_STOP_FILE" 2>/dev/null || true)"

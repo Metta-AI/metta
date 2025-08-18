@@ -44,7 +44,6 @@ while true; do
   fi
 
   sleep "$RESTART_CHECK_INTERVAL"
-  echo "[DEBUG] Checking for job restart..."
 
   elapsed=$(($(date +%s) - START_TIME))
   total_runtime=$((ACCUMULATED_RUNTIME + elapsed))

@@ -24,7 +24,6 @@ while true; do
   fi
 
   sleep "$HEARTBEAT_CHECK_INTERVAL"
-  echo "[DEBUG] Checking for heartbeat..."
 
   CURRENT_TIME=$(date +%s)
 

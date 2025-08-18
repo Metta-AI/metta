@@ -35,7 +35,6 @@ while true; do
   fi
 
   sleep "$TIMEOUT_CHECK_INTERVAL"
-  echo "[DEBUG] Checking for timeout..."
 
   elapsed=$(($(date +%s) - START_TIME))
   total_runtime=$((ACCUMULATED_RUNTIME + elapsed))
