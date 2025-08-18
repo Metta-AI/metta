@@ -18,7 +18,7 @@ import time
 from omegaconf import DictConfig, OmegaConf
 
 from metta.cogworks.sweep.sweep_config import SweepConfig
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.common.util.lock import run_once
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB

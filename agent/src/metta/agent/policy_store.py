@@ -24,7 +24,7 @@ from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.common.wandb.wandb_context import WandbConfig, WandbRun
 from metta.rl.puffer_policy import load_pytorch_policy
 from metta.sim.utils import get_pr_scores_from_stats_server

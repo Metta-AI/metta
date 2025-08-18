@@ -8,7 +8,7 @@ import wandb.errors
 import wandb.sdk.wandb_run
 from omegaconf import OmegaConf
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 
 logger = logging.getLogger(__name__)
 

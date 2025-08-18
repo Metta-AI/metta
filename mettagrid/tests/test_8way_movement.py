@@ -3,7 +3,7 @@
 import numpy as np
 
 from metta.mettagrid.core import MettaGridCore
-from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilder, AsciiMapBuilderConfig
 from metta.mettagrid.mettagrid_c import dtype_actions
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
@@ -97,7 +97,7 @@ def test_8way_movement_obstacles():
                 noop=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
                     ["#", ".", ".", ".", "#"],

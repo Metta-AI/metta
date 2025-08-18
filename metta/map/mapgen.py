@@ -1,10 +1,12 @@
-from typing import TYPE_CHECKING, Literal, Optional
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 from pydantic import Field, model_validator
 
+from metta.mettagrid.map_builder.map_builder import AnyMapBuilderConfig
+
 if TYPE_CHECKING:
-    from metta.map import MapGenConfigUnion
+    pass
 
 from metta.map.scene import ChildrenAction, SceneConfigOrFile, make_scene, resolve_scene_config
 from metta.map.scenes.copy_grid import CopyGrid
@@ -16,98 +18,88 @@ from metta.mettagrid.map_builder.utils import create_grid
 from .types import Area, AreaWhere
 
 
-class MapGenConfig(MapBuilderConfig):
-    type: Literal["mapgen"] = "mapgen"
-
-    ########## Global parameters ##########
-
-    # Default border_width value guarantees that agents don't see beyond the outer walls.
-    # This value usually shouldn't be changed.
-    border_width: int = Field(default=5, ge=0)
-
-    # Random seed. If not set, a random seed will be generated.
-    # Seeds for root scene and all its children will be derived from this seed, unless they set their own seeds.
-    seed: int | None = Field(default=None, ge=0)
-
-    ########## Single instance parameters ##########
-
-    # Root scene configuration.
-    # In YAML configs, this is usually the dict with `type` and `params` keys, and possible children.
-    root: Optional[SceneConfigOrFile] = None
-
-    # Inner grid size. Doesn't take outer border into account.
-    # If `instances` is set, this is the size used for each instance.
-    # The map must have either `width`, `height` and `root` set, or `instance_map`.
-    width: Optional[int] = Field(default=None, ge=0)
-    height: Optional[int] = Field(default=None, ge=0)
-
-    # Alternative to `root`: Root map configuration.
-    # Either this or `root` must be set.
-    # The difference is that `root` doesn't have an intrinsic size, so you need to set `width` and `height` explicitly.
-    # `instance_map` must point to a `MapBuilder` configuration, with the class name specified in `type`, and params
-    # specified in `params` dict.
-    instance_map: Optional["MapGenConfigUnion"] = Field(default=None)
-
-    ########## Multiple instances parameters ##########
-
-    # MapGen can place multiple instances of the root scene on the grid. This is useful for additional parallelization.
-    # By default, the map will be generated as a single root scene instance, with the given width and height.
-    #
-    # There are two ways to get multiple root scene instances:
-    # 1. Set `instances` explicitly to the number of instances that you need.
-    # 2. Set `num_agents` and allow MapGen to compute the number of instances based on it.
-    #
-    # In either case, if the number of instances is larger than 1, MapGen will organize them in a grid separated by
-    # borders, and make the overall grid as square as possible.
-
-    # Number of root scene instances to generate. If set, the map will be generated as a grid of instances, separated by
-    # the given `instance_border_width`.
-    instances: Optional[int] = Field(default=None, ge=1)
-
-    # Number of agents to generate. If set, MapGen will automatically compute the number of instances based on how many
-    # agents there are in the root scene.
-    num_agents: Optional[int] = Field(default=None, ge=0)
-
-    # Inner border width between instances. This value usually shouldn't be changed.
-    instance_border_width: int = Field(default=5, ge=0)
-
-    @model_validator(mode="after")
-    def validate_required_fields(self) -> "MapGenConfig":
-        """Validate that either (root, width, height) are all set, or instance_map is set."""
-        has_basic_config = self.root is not None
-        has_instance_map = self.instance_map is not None and self.width is None and self.height is None
-
-        # XOR-ing the two booleans to check if exactly one of them is True
-        if has_basic_config == has_instance_map:
-            raise ValueError("Either (root, width, height) must all be set, or instance_map must be set")
-
-        return self
-
-    def create(self) -> "MapGen":
-        """Create a MapGen builder from this configuration."""
-        return MapGen(self)
-
-    @classmethod
-    def with_ascii(cls, ascii_map: str, **kwargs) -> "MapGenConfig":
-        """Create a MapGenConfig with an ASCII map file as the instance_map.
-
-        Args:
-            ascii_map: Path to ASCII map file
-            **kwargs: Additional MapGenConfig parameters (e.g., border_width)
-
-        Returns:
-            New MapGenConfig instance
-        """
-        from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
-
-        kwargs["instance_map"] = AsciiMapBuilderConfig.from_uri(ascii_map)
-        return cls(**kwargs)
-
-
 # Root map generator, based on scenes.
 class MapGen(MapBuilder):
-    def __init__(self, config: MapGenConfig):
-        super().__init__(config)
+    class Config(MapBuilderConfig["MapGen"]):
+        ########## Global parameters ##########
+
+        # Default border_width value guarantees that agents don't see beyond the outer walls.
+        # This value usually shouldn't be changed.
+        border_width: int = Field(default=5, ge=0)
+
+        # Random seed. If not set, a random seed will be generated.
+        # Seeds for root scene and all its children will be derived from this seed, unless they set their own seeds.
+        seed: int | None = Field(default=None, ge=0)
+
+        ########## Single instance parameters ##########
+
+        # Root scene configuration.
+        # In YAML configs, this is usually the dict with `type` and `params` keys, and possible children.
+        root: Optional[SceneConfigOrFile] = None
+
+        # Inner grid size. Doesn't take outer border into account.
+        # If `instances` is set, this is the size used for each instance.
+        # The map must have either `width`, `height` and `root` set, or `instance_map`.
+        width: Optional[int] = Field(default=None, ge=0)
+        height: Optional[int] = Field(default=None, ge=0)
+
+        # Alternative to `root`: Root map configuration.
+        # Either this or `root` must be set.
+        # The difference is that `root` doesn't have an intrinsic size, so you need to set `width` and `height` explicitly.
+        # `instance_map` must point to a `MapBuilder` configuration, with the class name specified in `type`, and params
+        # specified in `params` dict.
+        instance_map: Optional[AnyMapBuilderConfig] = Field(default=None)
+
+        ########## Multiple instances parameters ##########
+
+        # MapGen can place multiple instances of the root scene on the grid. This is useful for additional parallelization.
+        # By default, the map will be generated as a single root scene instance, with the given width and height.
+        #
+        # There are two ways to get multiple root scene instances:
+        # 1. Set `instances` explicitly to the number of instances that you need.
+        # 2. Set `num_agents` and allow MapGen to compute the number of instances based on it.
+        #
+        # In either case, if the number of instances is larger than 1, MapGen will organize them in a grid separated by
+        # borders, and make the overall grid as square as possible.
+
+        # Number of root scene instances to generate. If set, the map will be generated as a grid of instances, separated by
+        # the given `instance_border_width`.
+        instances: Optional[int] = Field(default=None, ge=1)
+
+        # Number of agents to generate. If set, MapGen will automatically compute the number of instances based on how many
+        # agents there are in the root scene.
+        num_agents: Optional[int] = Field(default=None, ge=0)
+
+        # Inner border width between instances. This value usually shouldn't be changed.
+        instance_border_width: int = Field(default=5, ge=0)
+
+        @model_validator(mode="after")
+        def validate_required_fields(self) -> "MapGen.Config":
+            """Validate that either (root, width, height) are all set, or instance_map is set."""
+            has_basic_config = self.root is not None
+            has_instance_map = self.instance_map is not None and self.width is None and self.height is None
+
+            # XOR-ing the two booleans to check if exactly one of them is True
+            if has_basic_config == has_instance_map:
+                raise ValueError("Either (root, width, height) must all be set, or instance_map must be set")
+
+            return self
+
+        @classmethod
+        def with_ascii(cls, ascii_map: str, **kwargs) -> "MapGen.Config":
+            """Create a MapGenConfig with an ASCII map file as the instance_map.
+            Args:
+                ascii_map: Path to ASCII map file
+                **kwargs: Additional MapGenConfig parameters (e.g., border_width)
+            Returns:
+                New MapGenConfig instance
+            """
+            from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+
+            kwargs["instance_map"] = AsciiMapBuilderConfig.from_uri(ascii_map)
+            return cls(**kwargs)
+
+    def __init__(self, config: Config):
         self.config = config
 
         self.root = self.config.root

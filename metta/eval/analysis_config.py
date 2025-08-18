@@ -1,5 +1,5 @@
 from metta.agent.policy_store import PolicySelectorConfig
-from metta.common.util.config import Config
+from metta.common.config import Config
 
 
 class AnalysisConfig(Config):

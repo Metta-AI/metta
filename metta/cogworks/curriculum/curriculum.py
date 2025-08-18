@@ -7,7 +7,7 @@ from typing import Annotated, ClassVar, Union
 
 from pydantic import ConfigDict, Field, field_validator
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 from .task_generator import (

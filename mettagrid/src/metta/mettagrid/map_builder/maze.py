@@ -1,5 +1,5 @@
 import random
-from typing import Literal, Optional
+from typing import Optional
 
 from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from metta.mettagrid.map_builder.utils import create_grid, set_position
@@ -18,29 +18,16 @@ class MazeConfigMapBuilderConfig(MapBuilderConfig):
     seed: Optional[int] = None
 
 
-class MazePrimMapBuilderConfig(MazeConfigMapBuilderConfig):
-    type: Literal["maze_prim"] = "maze_prim"
-
-    def create(self) -> "MazePrimMapBuilder":
-        """Create a MazePrim from this configuration."""
-        return MazePrimMapBuilder(self)
-
-
-class MazeKruskalMapBuilderConfig(MazeConfigMapBuilderConfig):
-    type: Literal["maze_kruskal"] = "maze_kruskal"
-
-    def create(self) -> "MazeKruskalMapBuilder":
-        """Create a MazeKruskal from this configuration."""
-        return MazeKruskalMapBuilder(self)
-
-
 class MazePrimMapBuilder(MapBuilder):
+    class Config(MazeConfigMapBuilderConfig):
+        pass
+
     EMPTY, WALL = "empty", "wall"
     START, END = "agent.agent", "altar"
     DIRECTIONS = [(2, 0), (-2, 0), (0, 2), (0, -2)]
 
-    def __init__(self, config: MazePrimMapBuilderConfig):
-        super().__init__(config=config)
+    def __init__(self, config: Config):
+        self.config = config
         self._rng = random.Random(config.seed)
         self._width = config.width if config.width % 2 == 1 else config.width - 1
         self._height = config.height if config.height % 2 == 1 else config.height - 1
@@ -80,11 +67,14 @@ class MazePrimMapBuilder(MapBuilder):
 
 # Maze generation using Randomized Kruskal's algorithm
 class MazeKruskalMapBuilder(MapBuilder):
+    class Config(MazeConfigMapBuilderConfig):
+        pass
+
     EMPTY, WALL = "empty", "wall"
     START, END = "agent.agent", "altar"
 
-    def __init__(self, config: MazeKruskalMapBuilderConfig):
-        super().__init__(config=config)
+    def __init__(self, config: MazeConfigMapBuilderConfig):
+        self.config = config
         self._rng = random.Random(config.seed)
         self._width = config.width if config.width % 2 == 1 else config.width - 1
         self._height = config.height if config.height % 2 == 1 else config.height - 1

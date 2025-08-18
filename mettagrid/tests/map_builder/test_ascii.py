@@ -36,8 +36,8 @@ class TestAsciiMapBuilder:
             temp_file = f.name
 
         try:
-            config = AsciiMapBuilderConfig.from_uri(temp_file)
-            builder = AsciiMapBuilder(config)
+            config = AsciiMapBuilder.Config.from_uri(temp_file)
+            builder = config.create()
             game_map = builder.build()
 
             assert isinstance(game_map, GameMap)

@@ -1,35 +1,27 @@
-from typing import Dict, Literal, Optional
+from typing import Optional
 
 import numpy as np
-from pydantic import Field
 
 from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 from metta.mettagrid.map_builder.utils import draw_border
 
 
-class RandomMapBuilderConfig(MapBuilderConfig):
-    """
-    Configuration for building a random map.
-    """
-
-    type: Literal["random"] = "random"
-    seed: Optional[int] = None
-
-    width: int = 10
-    height: int = 10
-    objects: Dict[str, int] = Field(default_factory=dict)
-    agents: int | Dict[str, int] = 0
-    border_width: int = 0
-    border_object: str = "wall"
-
-    def create(self) -> "RandomMapBuilder":
-        """Create a RandomMapBuilder from this configuration."""
-        return RandomMapBuilder(self)
-
-
 class RandomMapBuilder(MapBuilder):
-    def __init__(self, config: RandomMapBuilderConfig):
-        super().__init__(config=config)
+    class Config(MapBuilderConfig["RandomMapBuilder"]):
+        """
+        Configuration for building a random map.
+        """
+
+        seed: Optional[int] = None
+
+        width: int = 10
+        height: int = 10
+        objects: dict[str, int] = {}
+        agents: int | dict[str, int] = 0
+        border_width: int = 0
+        border_object: str = "wall"
+
+    def __init__(self, config: Config):
         self._config = config
         self._rng = np.random.default_rng(self._config.seed)
 
