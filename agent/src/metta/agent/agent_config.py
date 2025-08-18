@@ -6,7 +6,7 @@ from omegaconf import DictConfig
 from pydantic import ConfigDict
 
 from metta.common.util.config import Config
-from metta.env.metta_grid_env import MettaGridEnv
+from metta.mettagrid import MettaGridEnv
 from metta.rl.system_config import SystemConfig
 
 
