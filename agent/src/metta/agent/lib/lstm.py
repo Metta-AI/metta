@@ -10,7 +10,7 @@ from metta.agent.lib.metta_layer import LayerBase
 
 @torch.jit.script
 def lstm_forward_with_reset(
-    net: nn.Module,
+    net,
     hidden: torch.Tensor,
     h_0: torch.Tensor,
     c_0: torch.Tensor,
