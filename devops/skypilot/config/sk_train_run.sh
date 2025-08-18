@@ -450,7 +450,7 @@ TEST_NCCL="${TEST_NCCL:-false}"
 if [[ "$TEST_NCCL" == "false" ]]; then
   echo "[SKIP] Skipping NCCL test (TEST_NCCL=false)"
 elif [ "${RESTART_COUNT:-0}" -ne 0 ]; then
-  echo "[SKIP] Skipping NCCL test on restart (RESTART_COUNT=${RESTART_COUNT})"
+  echo "[SKIP] Skipping NCCL test on restarted job (RESTART_COUNT=${RESTART_COUNT})"
 else
   echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
   if ! uv run python ./devops/skypilot/test_nccl.py; then
