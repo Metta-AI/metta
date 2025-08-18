@@ -106,9 +106,7 @@ valid_trainer_config = {
         "checkpoint_interval": 60,
         "wandb_checkpoint_interval": 300,
     },
-    "simulation": {
-        "evaluate_interval": 300,
-    },
+    "simulation": {},
 }
 
 
@@ -178,6 +176,8 @@ class TestTypedConfigs:
         assert trainer_config.optimizer.beta2 == 0.999
         assert trainer_config.optimizer.eps == 1e-12
         assert trainer_config.optimizer.weight_decay == 0
+        # evaluate_interval defaults to max(checkpoint_interval, wandb_checkpoint_interval) = max(60, 300) = 300
+        assert trainer_config.simulation.evaluate_interval == 300
 
     def test_trainer_config_to_dictconfig_conversion(self):
         """Test that TrainerConfig fields can be converted back to DictConfig without issues.

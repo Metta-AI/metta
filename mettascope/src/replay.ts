@@ -469,7 +469,14 @@ function convertReplayV1ToV2(replayData: any) {
 
     if (gridObject.agent_id != null) {
       object.agent_id = gridObject.agent_id
-      object.is_frozen = Boolean(gridObject['agent:frozen'])
+
+      const frozen = gridObject['agent:frozen']
+      if (frozen && Array.isArray(frozen)) {
+        object.is_frozen = frozen.map((pair: any) => [pair[0], Boolean(pair[1])])
+      } else {
+        object.is_frozen = Boolean(frozen)
+      }
+
       object.color = gridObject['agent:color']
       object.action_success = gridObject['action_success']
       object.group_id = gridObject['agent:group']
