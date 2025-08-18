@@ -28,45 +28,56 @@ logger = logging.getLogger("codeclip.cli")
 
 
 def copy_to_clipboard(content: str) -> None:
-    """Copy content to clipboard on macOS."""
+    """Copy content to clipboard using pyperclip (cross-platform)."""
     try:
-        process = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
-        process.communicate(content.encode("utf-8"))
-    except FileNotFoundError:
-        click.echo("pbcopy not found - clipboard integration skipped", err=True)
+        import pyperclip  # type: ignore
+
+        pyperclip.copy(content)
+    except ImportError:
+        click.echo("pyperclip not available - clipboard integration skipped", err=True)
 
 
 @click.command(context_settings={"help_option_names": ["-h", "--help"]})
 @click.argument("paths", nargs=-1, type=str)
 @click.option("-s", "--stdout", is_flag=True, help="Output to stdout instead of clipboard")
-@click.option("-r", "--raw", is_flag=True, help="Output in raw format instead of XML")
+@click.option("-r", "--readmes", is_flag=True, help="Only include README.md files, including ancestor READMEs")
 @click.option("-e", "--extension", multiple=True, help="File extensions to include (e.g. -e py -e js or -e .py -e .js)")
 @click.option("-p", "--profile", is_flag=True, help="Show detailed token distribution analysis to stderr")
 @click.option(
     "-f", "--flamegraph", is_flag=True, help="Generate a flame graph HTML visualization of token distribution"
 )
-@click.option("-d", "--dry", is_flag=True, help="Dry run - no output to stdout or clipboard")
+@click.option(
+    "-d", "--diff", is_flag=True, help="Append git diff vs origin/main to the output as a single virtual file"
+)
 def cli(
     paths: Tuple[str, ...],
     stdout: bool,
-    raw: bool,
+    readmes: bool,
     extension: Tuple[str, ...],
     profile: bool,
     flamegraph: bool,
-    dry: bool,
+    diff: bool,
 ) -> None:
     """
     Provide codebase context to LLMs with smart defaults.
     - PATHS can be space-separated. Example: metta/rl tests/rl
     """
     # If no paths provided and no flags, show help
-    if not paths and not any([profile, flamegraph, extension]):
+    if not paths and not any([profile, flamegraph, extension, diff, readmes]):
         ctx = click.get_current_context()
         click.echo(ctx.get_help())
         ctx.exit()
 
-    # Use provided paths or default to current directory
-    path_list = list(paths) if paths else ["."]
+    # Use provided paths or default behavior
+    # For diff mode with no paths, use empty list to get only diff
+    # For readmes mode with no paths, use current directory
+    # For normal mode with no paths, use current directory
+    if diff and not paths and not readmes:
+        path_list = []
+    elif readmes and not paths:
+        path_list = ["."]
+    else:
+        path_list = list(paths) if paths else ["."]
     logger.debug(f"Paths: {path_list}")
 
     # Normalize extensions to ensure they have a dot prefix
@@ -82,12 +93,20 @@ def cli(
         # If we need profile or flamegraph, use profile_code_context which includes get_context
         if profile or flamegraph:
             # This calls get_context internally and builds the full profile
-            profile_report, profile_data = profile_code_context(path_list, raw, normalized_extensions)
+            profile_report, profile_data = profile_code_context(
+                paths=path_list, extensions=normalized_extensions, include_git_diff=diff, readmes_only=readmes
+            )
             # Extract the content from the profile data
             output_content = profile_data.get("context", "")
         else:
             # Just get content and basic token info
-            output_content, token_info = get_context(paths=path_list, raw=raw, extensions=normalized_extensions)
+            output_content, token_info = get_context(
+                paths=path_list,
+                extensions=normalized_extensions,
+                include_git_diff=diff,
+                diff_base="origin/main",
+                readmes_only=readmes,
+            )
             profile_data = token_info
 
         # Generate flamegraph if requested
@@ -124,18 +143,15 @@ def cli(
         return
 
     # Output content to stdout or clipboard (unless dry run)
-    if dry:
-        # Dry run - no output at all
-        pass
-    elif stdout:
+    if stdout:
         # Output to stdout
         click.echo(output_content)
     else:
         # Default behavior: copy to clipboard
         copy_to_clipboard(output_content)
 
-    # Show summary when copying to clipboard or in dry run (unless no files found)
-    if (not stdout or dry) and profile_data:
+    # Show summary when copying to clipboard (unless no files found)
+    if not stdout and profile_data:
         total_tokens = profile_data["total_tokens"]
         total_files = profile_data["total_files"]
 
@@ -144,7 +160,7 @@ def cli(
             return
 
         # Build summary message
-        action = "Would copy" if dry else "Copied"
+        action = "Copied"
         summary_parts = [f"{action} ~{total_tokens:,} tokens from {total_files} files"]
 
         # Build summary showing requested paths + auto-included READMEs
