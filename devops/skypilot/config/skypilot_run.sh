@@ -15,8 +15,6 @@ RANK=${SKYPILOT_NODE_RANK:-0}
 export IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
 TOTAL_NODES=${SKYPILOT_NUM_NODES:-1}
 
-<<<<<<< HEAD:devops/skypilot/config/sk_train_run.sh
-=======
 DEBUG=${DEBUG:-0}
 
 EXIT_SUCCESS=0
@@ -36,7 +34,6 @@ echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
 echo "  - METTA_OVERRIDES: ${METTA_OVERRIDES:-'NOT SET'}"
 [ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
 
->>>>>>> cfc2e169e (cp):devops/skypilot/config/skypilot_run.sh
 # Master-only: Collect SkyPilot latency
 if [[ "$IS_MASTER" == "true" ]]; then
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
@@ -266,17 +263,7 @@ run_cmd() {
   echo "[INFO] Running command: $cmd"
 
   # Start training in its own process group; tee output for postmortem
-<<<<<<< HEAD:devops/skypilot/config/sk_train_run.sh
-  cmd=( ./devops/"${METTA_CMD:?missing METTA_CMD}".sh "run=${METTA_RUN_ID:?missing METTA_RUN_ID}" )
-  if [ -n "${METTA_CMD_ARGS:-}" ]; then
-    extra_args=( ${METTA_CMD_ARGS} )
-    cmd+=("${extra_args[@]}")
-  fi
-  # Use process substitution so $! is the trainer (not tee)
-  setsid "${cmd[@]}" > >(tee "$IPC_DIR/${METTA_CMD}_log.txt") 2> >(tee -a "$IPC_DIR/${METTA_CMD}_log.txt" >&2) &
-=======
-  setsid $cmd 2>&1 | tee "$IPC_DIR/run_log.txt" &
->>>>>>> cfc2e169e (cp):devops/skypilot/config/skypilot_run.sh
+  setsid $cmd > >(tee "$IPC_DIR/run_log.txt") 2> >(tee -a "$IPC_DIR/run_log.txt" >&2) &
   CMD_PID=$!
 
   sleep 1
@@ -452,26 +439,10 @@ export -f terminate_monitors
 # Set up cleanup trap
 trap cleanup EXIT
 
-<<<<<<< HEAD:devops/skypilot/config/sk_train_run.sh
-# All nodes: Run GPU diagnostics and NCCL tests (first start only)
-TEST_NCCL="${TEST_NCCL:-false}"
-if [[ "$TEST_NCCL" == "false" ]]; then
-  echo "[SKIP] Skipping NCCL test (TEST_NCCL=false)"
-elif [ "${RESTART_COUNT:-0}" -ne 0 ]; then
-  echo "[SKIP] Skipping NCCL test on restart (RESTART_COUNT=${RESTART_COUNT})"
-else
-  echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
-  if ! uv run python ./devops/skypilot/test_nccl.py; then
-    echo "[ERROR] NCCL tests failed - exiting with code $EXIT_NCCL_TEST_FAILURE"
-    terminate_process "$CMD_PID" "nccl_test_failure"
-  fi
-  echo "[SUCCESS] NCCL tests passed"
-fi
-=======
 # All nodes: Run GPU diagnostics and NCCL tests
 # echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
 # uv run python ./devops/skypilot/test_nccl.py
->>>>>>> cfc2e169e (cp):devops/skypilot/config/skypilot_run.sh
+# devops/skypilot/config/skypilot_run.sh
 
 # Run the command
 run_cmd
