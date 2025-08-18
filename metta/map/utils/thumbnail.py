@@ -273,11 +273,7 @@ def gen_thumb(scene, size, output):
 
 def gen_frame(image, output):
     """
-    Faithfully extracted from gen_thumb.py.
-    TODO: This has a scaling bug - the scaling logic is confusing and could be improved.
-    The variable name 's' is unclear and the conditional logic could be simplified to:
-    scale = min(output.width/image.width, output.height/image.height)
-    Then center the scaled image properly with cleaner transform setup.
+    Scale and center the map image within the output frame, removing excessive margins.
     """
     path = pixie.Path()
     path.rect(0, 0, output.width, output.height)
@@ -286,18 +282,14 @@ def gen_frame(image, output):
     paint.color = colors["$frame"]
     output.fill_path(path, paint)
 
-    s = 1
-    if image.width > output.width or image.height > output.height:
-        if (image.width - output.width) > (image.height - output.height):
-            s = output.width / image.width
-        else:
-            s = output.height / image.height
+    # Calculate scale to fit image within output bounds
+    scale = min(output.width / image.width, output.height / image.height)
 
     transform = pixie.Matrix3()
-    transform.values[0] = s
-    transform.values[4] = s
-    transform.values[6] = (output.width - image.width * s) / 2
-    transform.values[7] = (output.height - image.width * s) / 2
+    transform.values[0] = scale
+    transform.values[4] = scale
+    transform.values[6] = (output.width - image.width * scale) / 2
+    transform.values[7] = (output.height - image.height * scale) / 2
     output.draw(image, transform)
 
 
