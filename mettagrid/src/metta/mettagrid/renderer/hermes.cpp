@@ -1176,6 +1176,7 @@ static void Hermes_Setup(Hermes& ctx) {
         ctx.config.show_grid = true;
         ctx.config.show_resources = true;
         ctx.config.show_attack_mode = true;
+        ctx.config.show_visual_ranges = true;
         ctx.config.camera.zoom = 0.25f;
     }
     Hermes_SetupCamera(ctx);
