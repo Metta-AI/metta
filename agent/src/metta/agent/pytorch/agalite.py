@@ -17,21 +17,8 @@ from metta.agent.modules.agalite_layers import AttentionAGaLiTeLayer, RecurrentL
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
-# Import fast implementation for large batch processing
-try:
-    from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
-
-    FAST_MODE_AVAILABLE = True
-except ImportError:
-    FAST_MODE_AVAILABLE = False
-
-# Install parallel discounted_sum for GPU performance
-try:
-    from metta.agent.modules.agalite_parallel import install_parallel_discounted_sum
-
-    install_parallel_discounted_sum()
-except ImportError:
-    pass  # Fall back to sequential version
+# Import fast implementation - required for AGaLiTe
+from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
 
 logger = logging.getLogger(__name__)
 
@@ -68,19 +55,17 @@ class AGaLiTeCore(nn.Module):
         self.use_fast_mode = use_fast_mode
 
         # Fast mode uses reduced parameters for efficiency
-        if use_fast_mode and FAST_MODE_AVAILABLE:
+        if use_fast_mode:
             self.eta = min(eta, 2)  # Cap at 2 for fast mode
             self.r = min(r, 4)  # Cap at 4 for fast mode
             logger.info(f"Using FastAGaLiTeLayer with eta={self.eta}, r={self.r}")
         else:
             self.eta = eta
             self.r = r
-            if use_fast_mode and not FAST_MODE_AVAILABLE:
-                logger.warning("Fast mode requested but FastAGaLiTeLayer not available, using standard mode")
 
         self.encoders = nn.ModuleList()
         for layer in range(n_layers):
-            if use_fast_mode and FAST_MODE_AVAILABLE:
+            if use_fast_mode:
                 # Use fast implementation
                 encoder = FastAGaLiTeLayer(
                     d_model=d_model,
@@ -116,7 +101,7 @@ class AGaLiTeCore(nn.Module):
 
         for layer_idx, encoder in enumerate(self.encoders):
             layer_key = f"layer_{layer_idx + 1}"
-            if self.use_fast_mode and FAST_MODE_AVAILABLE:
+            if self.use_fast_mode:
                 # Fast mode: encoder is FastAGaLiTeLayer, add residual connection
                 residual = u_i
                 attn_out, memory_updated = encoder(u_i, terminations, memory[layer_key])
@@ -142,7 +127,7 @@ class AGaLiTeCore(nn.Module):
         """Initialize memory for all layers."""
         memory_dict = {}
         for layer in range(1, n_layers + 1):
-            if use_fast_mode and FAST_MODE_AVAILABLE:
+            if use_fast_mode:
                 # Fast mode uses reduced parameters
                 actual_eta = min(eta, 2)
                 actual_r = min(r, 4)
@@ -187,7 +172,7 @@ class AGaLiTePolicy(nn.Module):
         self.use_fast_mode = use_fast_mode
 
         # Adjust parameters for fast mode
-        if use_fast_mode and FAST_MODE_AVAILABLE:
+        if use_fast_mode:
             self.eta = min(eta, 2)
             self.r = min(r, 4)
         else:
