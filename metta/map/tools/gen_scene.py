@@ -3,8 +3,8 @@ import logging
 
 from omegaconf import OmegaConf
 
-from metta.common.util.tool import Tool
-from metta.map.mapgen import MapGenConfig
+from metta.common.config import Tool
+from metta.map.mapgen import MapGen
 from metta.map.scene import SceneConfig
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
@@ -27,7 +27,7 @@ class GenSceneTool(Tool):
 
         scene_cfg = SceneConfig.model_validate(scene_omega_cfg)
 
-        mapgen_cfg = MapGenConfig(
+        mapgen_cfg = MapGen.Config(
             width=self.width,
             height=self.height,
             root=scene_cfg,

@@ -3,6 +3,7 @@ import random
 import numpy as np
 import pytest
 
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.actions import generate_valid_random_actions
@@ -32,6 +33,7 @@ def environment(num_agents: int):
 
     # Override the number of agents in the configuration
     cfg.game.num_agents = num_agents
+    assert isinstance(cfg.game.map_builder, RandomMapBuilder.Config)
     cfg.game.map_builder.agents = num_agents  # RandomMapBuilderConfig uses agents field
     cfg.game.max_steps = 0  # env lasts forever
 

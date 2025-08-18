@@ -4,8 +4,8 @@ import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import ValueRange as vr
-from metta.map.mapgen import MapGenConfig
-from metta.map.terrain_from_numpy import TerrainFromNumpyConfig
+from metta.map.mapgen import MapGen
+from metta.map.terrain_from_numpy import TerrainFromNumpy
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -18,11 +18,11 @@ from experiments.evals.navigation import make_navigation_eval_suite
 def make_env(num_agents: int = 4) -> EnvConfig:
     nav = eb.make_navigation(num_agents=num_agents)
 
-    nav.game.map_builder = MapGenConfig(
+    nav.game.map_builder = MapGen.Config(
         instances=num_agents,
         border_width=6,
         instance_border_width=3,
-        instance_map=TerrainFromNumpyConfig(
+        instance_map=TerrainFromNumpy.Config(
             agents=1,
             objects={"altar": 10},
             dir="varied_terrain/dense_large",

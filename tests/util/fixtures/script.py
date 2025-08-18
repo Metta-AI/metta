@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run
 import logging
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.util.metta_script import pydantic_metta_script
 
 
