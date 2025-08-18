@@ -84,10 +84,10 @@ class MettaAgent(MettaAgentInterface):
         self.feature_normalizations = config.env.feature_normalizations
 
         # Create policy if not provided
-        # if config.policy is None:
-        policy = self._create_policy(config.agent_cfg, config.env, config.system_cfg)
-        # else:
-        #     policy = config.policy
+        if config.policy is None:
+            policy = self._create_policy(config.agent_cfg, config.env, config.system_cfg)
+        else:
+            policy = config.policy
 
         self.policy = policy
         if self.policy is not None and hasattr(self.policy, "device"):
