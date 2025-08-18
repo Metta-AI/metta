@@ -7,20 +7,6 @@ name: autocurricula
 simulations:
   autocurricula/big_agent_box_playing_grid:
       env: env/mettagrid/autocurricula/evals/big_agent_box_playing_grid
-  navigation/emptyspace_withinsight:
-    env: env/mettagrid/navigation/evals/emptyspace_withinsight
-  navigation/emptyspace_outofsight:
-    env: env/mettagrid/navigation/evals/emptyspace_outofsight
-  navigation/emptyspace_sparse:
-    env: env/mettagrid/navigation/evals/emptyspace_sparse
-  navigation/emptyspace_sparse_medium:
-    env: env/mettagrid/navigation/evals/emptyspace_sparse_medium
-  navigation/walls_withinsight:
-    env: env/mettagrid/navigation/evals/walls_withinsight
-  navigation/walls_outofsight:
-    env: env/mettagrid/navigation/evals/walls_outofsight
-  navigation/walls_sparse:
-    env: env/mettagrid/navigation/evals/walls_sparse
   navigation/cylinder:
     env: env/mettagrid/navigation/evals/cylinder
   navigation/obstacles0:
@@ -33,10 +19,6 @@ simulations:
     env: env/mettagrid/navigation/evals/obstacles3
   navigation/corridors:
     env: env/mettagrid/navigation/evals/corridors
-  navigation/labyrinth:
-    env: env/mettagrid/navigation/evals/labyrinth
-  navigation/radialmaze:
-    env: env/mettagrid/navigation/evals/radialmaze
   navigation/cylinder_easy:
     env: env/mettagrid/navigation/evals/cylinder_easy
   navigation/honeypot:
