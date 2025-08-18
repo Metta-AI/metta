@@ -50,7 +50,7 @@ class LLMClient:
 
             with self.client.messages.stream(
                 model="claude-sonnet-4-20250514",
-                max_tokens=4000,
+                max_tokens=8000,
                 temperature=0.2,
                 system=system_prompt,
                 messages=[{"role": "user", "content": [{"type": "text", "text": user_content}]}],
@@ -115,6 +115,28 @@ The agents are playing a multi-agent gridworld game with the following core mech
 - **Armory**: Creates armor for defense (0.5 reward per unit)
 - **Lasery**: Creates laser weapons from ore + batteries (0.5 reward per unit)
 - **Factory/Lab/Temple**: Additional crafting stations
+
+### 🏭 BUILDING RECIPES
+
+**Resource Generation**:
+- **Mine Red**: No input → 1 red ore (cooldown: 50 ticks)
+- **Mine Blue**: No input → 1 blue ore (cooldown: 50 ticks)
+- **Mine Green**: No input → 1 green ore (cooldown: 50 ticks)
+
+**Basic Conversion**:
+- **Generator Red**: 1 red ore → 1 red battery (cooldown: 25 ticks)
+- **Generator Blue**: 1 blue ore → 1 blue battery (cooldown: 25 ticks)
+- **Generator Green**: 1 green ore → 1 green battery (cooldown: 25 ticks)
+- **Altar**: 3 red batteries → 1 heart (cooldown: 10 ticks)
+
+**Combat Equipment**:
+- **Armory**: 3 red ore → 1 armor (cooldown: 10 ticks)
+- **Lasery**: 1 red ore + 2 red batteries → 1 laser (cooldown: 10 ticks)
+
+**Advanced Crafting**:
+- **Lab**: 3 red ore + 3 red batteries → 1 blueprint (cooldown: 5 ticks)
+- **Factory**: 1 blueprint + 5 red ore + 5 red batteries → 5 armor + 5 lasers (cooldown: 5 ticks)
+- **Temple**: 1 heart + 1 blueprint → 5 hearts (cooldown: 5 ticks)
 
 **Agent Capabilities**:
 - **Energy Management**: All actions cost energy (critical constraint)
@@ -196,8 +218,30 @@ Your analysis must focus on individual agent policy learning and environmental f
 - Scores > 1.0 = Advanced learning, optimal heart creation strategy
 - Score volatility = Exploration periods, strategy experimentation, or combat adaptation
 
+**CRITICAL: Action Success Rate Interpretation**:
+⚠️ **"Action Success Rate" measures MECHANICAL action execution, NOT strategic performance**
+
+- **High Action Success Rate (25-35%) = LOW STRATEGIC PERFORMANCE**
+  - Indicates agents performing simple, reliable actions (moving in open space, basic ore collection)
+  - Safe actions that execute without errors but yield minimal rewards
+  - Suggests agents are trapped in local optima, avoiding complex strategies
+
+- **Low Action Success Rate (10-25%) = HIGH STRATEGIC PERFORMANCE**
+  - Indicates agents attempting complex, risky strategies (using converters, competing for resources)
+  - Many actions fail mechanically (objects on cooldown, insufficient resources, competition)
+  - But successful actions yield exponentially higher rewards (heart creation, resource conversion)
+
+**Action Success Rate Paradox**: Higher action success rates often correlate with LOWER final scores because:
+- Simple actions (move, take ore) have high mechanical success but low reward
+- Complex actions (resource conversion chains) have low mechanical success but high reward
+- Strategic agents accept mechanical failures to pursue optimal reward strategies
+
+**Analysis Guideline**: When you see high action success rates with low scores, interpret this as
+agents being stuck in safe, suboptimal behavioral patterns rather than "successful" performance.
+Always use the term "action success rate" in your analysis to clarify this measures mechanical execution.
+
 **Action Timeline Visualization**:
-You will be provided with detailed ASCII timeline visualizations showing each agent's actions 
+You will be provided with detailed ASCII timeline visualizations showing each agent's actions
 over time with directional and item information, similar to:
 ```
 agent_0: M? · G M↑ R→ S P+ore G+bat A↓ · M←
@@ -209,8 +253,12 @@ agent_1: · M→ A↑ G R← M? G+ore S M↓ G R→
 - **M?** = Move action with unclear/variable direction
 - **R→/←** = Rotate right or left
 - **A↑/↓/←/→** = Attack in specific direction
-- **G+ore/bat/heart** = Get specific items (ore, batteries, hearts, armor, laser)
-- **P+ore/bat/heart** = Put specific items into objects
+- **G+ore_blue** = Get items (actual items from inventory changes)
+- **P+battery_red** = Put items (actual items from inventory changes)
+- **G+3ore_blue** = Get with quantities (3 blue ore gained)
+- **P+2battery_red** = Put with quantities (2 red batteries lost)
+- **G+heart** = Get hearts
+- **P+ore_red/battery_blue** = Multiple items transferred (ore and battery)
 - **8↑/↗/→/↘** = 8-way movement with diagonal directions
 - **S** = Swap positions with another agent
 - **·** = No-op/idle action
@@ -285,16 +333,16 @@ in complex multi-agent environments."""
                 try:
                     score_val = float(score) if not isinstance(score, list) else 0.0
                     distance_val = float(behavior.get("distance_traveled", 0))
-                    success_rate_val = float(behavior.get("success_rate", 0))
+                    action_success_rate_val = float(behavior.get("action_success_rate", 0))
                 except (ValueError, TypeError):
                     score_val = 0.0
                     distance_val = 0.0
-                    success_rate_val = 0.0
+                    action_success_rate_val = 0.0
 
                 strategy = behavior.get("strategic_behavior", "unknown")
                 prompt_parts.append(
                     f"- {agent}: {score_val:.3f} points, {distance_val:.1f} units moved, "
-                    f"{success_rate_val * 100:.1f}% success, {strategy} strategy"
+                    f"{action_success_rate_val * 100:.1f}% action success, {strategy} strategy"
                 )
 
         if key_events:
@@ -468,10 +516,10 @@ in complex multi-agent environments."""
                             step = int(checkpoint_data.get("step", 0))
                             score = float(checkpoint_data.get("score", 0))
                             distance = float(checkpoint_data.get("distance_traveled", 0))
-                            success_rate = float(checkpoint_data.get("success_rate", 0))
+                            action_success_rate = float(checkpoint_data.get("action_success_rate", 0))
                             action_count = int(checkpoint_data.get("action_count", 0))
                         except (ValueError, TypeError):
-                            step, score, distance, success_rate, action_count = 0, 0.0, 0.0, 0.0, 0
+                            step, score, distance, action_success_rate, action_count = 0, 0.0, 0.0, 0.0, 0
 
                         behavior = checkpoint_data.get("strategic_behavior", "unknown")
                         position = checkpoint_data.get("current_position", [0, 0])
@@ -489,7 +537,7 @@ in complex multi-agent environments."""
 
                         prompt_parts.append(
                             f"  Step {step:3d}: {score:5.3f}pts, {distance:5.1f}units, "
-                            f"{success_rate * 100:4.1f}% success, pos({pos_r:2d},{pos_c:2d}), "
+                            f"{action_success_rate * 100:4.1f}% action success, pos({pos_r:2d},{pos_c:2d}), "
                             f"{action_count:3d} actions, {behavior} ({recent_action})"
                         )
 
@@ -508,15 +556,11 @@ in complex multi-agent environments."""
                 ]
             )
 
-            # Add legend
-            legend = action_timelines.get("action_legend", {})
-            if legend:
-                legend_items = [f"{char}={name}" for char, name in legend.items()]
-                prompt_parts.append(f"Legend: {', '.join(legend_items)}")
+            # Legend is provided in system prompt, not user prompt
 
             # Add timelines for each agent
             timelines_data = action_timelines.get("timelines", {})
-            for agent_name, timeline_info in list(timelines_data.items())[:12]:  # Limit to 12 agents
+            for agent_name, timeline_info in list(timelines_data.items()):  # Show all agent timelines
                 timeline_str = timeline_info.get("timeline", "")
                 action_counts = timeline_info.get("action_counts", {})
                 total_actions = timeline_info.get("total_actions", 0)
@@ -529,11 +573,6 @@ in complex multi-agent environments."""
                         f"{agent_name}: {timeline_str}",
                         f"  → {total_actions} actions total ({count_str})",
                     ]
-                )
-
-            if len(timelines_data) > 12:
-                prompt_parts.append(
-                    f"\n[Showing first 12 of {len(timelines_data)} agents - truncated for response size]"
                 )
 
         if analysis.get("analysis_error"):
@@ -589,11 +628,44 @@ in complex multi-agent environments."""
                 "4. HOW effective were reward signals in guiding behavioral evolution?",
                 "5. WHAT exploration vs exploitation patterns led to success?",
                 "",
-                "ANALYSIS FORMAT: MAXIMUM 1500 WORDS. Prioritize key insights first. Be concise but research-quality.",
+                "ANALYSIS FORMAT: COMPREHENSIVE RESEARCH-QUALITY ANALYSIS (6000-10000 words recommended).",
                 "REQUIRED STRUCTURE: Executive Summary → Timeline Pattern Analysis → "
-                "Key Agent Analysis → Learning Mechanisms → Environmental Factors",
-                "Focus on the most significant learning patterns and representative agents "
-                "from the population shown above.",
+                "Key Agent Analysis → Learning Mechanisms → Environmental Factors → Critical Learning Insights",
+                "DEPTH REQUIREMENTS:",
+                "- Provide detailed breakdowns of agent performance patterns with specific metrics",
+                "- Include comprehensive numerical analysis and statistical correlations",
+                "- Analyze multiple learning mechanisms in depth with examples",
+                "- Discuss environmental impact on individual agent learning trajectories",
+                "- Generate actionable insights for RL researchers with concrete recommendations",
+                "- Use rich analytical language with detailed explanations and evidence",
+                "- Identify and explain breakthrough moments and failure modes",
+                "- Provide comparative analysis between high and low performing agents",
+                "- Include spatial learning analysis and resource utilization patterns",
+                "- Discuss policy evolution dynamics and convergence patterns",
+                "",
+                "ANALYSIS STYLE: Emulate comprehensive academic research analysis with detailed insights,",
+                "specific agent examples, numerical evidence, and thorough exploration of all learning dynamics.",
+                "Focus on ALL significant learning patterns and provide exhaustive coverage of the episode.",
+                "",
+                "FORMATTING REQUIREMENTS:",
+                "- Use emojis liberally throughout the analysis to enhance readability and engagement",
+                "- Include rich visual formatting with bullet points, numbered lists, and clear hierarchies",
+                "- Provide comprehensive data breakdowns with specific metrics for each section",
+                "- Use engaging headings and subheadings with emojis for visual appeal",
+                "- Include detailed comparative analysis sections with multiple agent examples",
+                "- Expand each major section to be comprehensive and thorough (aim for 500-800 words per section)",
+                "",
+                "EXAMPLE FORMATTING STYLE (emulate this engagement and depth):",
+                "🎯 EXECUTIVE SUMMARY",
+                "🔍 sp.av.replay.probe.500 Analysis: Exploration Efficiency Optimization",
+                "📊 Success Rate Paradox",
+                "Counterintuitive Performance Correlation:",
+                "📈 Higher Action Success Rates (25-35%) → Lower Final Scores",
+                "💡 Critical Insight: High action success rates indicate local optima trapping...",
+                "🏆 KEY AGENT ANALYSIS",
+                "💎 Agent 16 (14.0 points) - Master Learner",
+                "⚡ Agent 6 (9.0 points) - Efficiency Expert",
+                "❌ Agents 8 & 19 (0.0 points) - Learning Failures",
             ]
         )
 

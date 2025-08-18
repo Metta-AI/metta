@@ -266,6 +266,49 @@ def _create_agent_action_timelines(
         Dict containing timeline data and visualization
     """
 
+    def _get_building_for_item(item_name: str) -> str:
+        """Map item names to their corresponding building types."""
+        # Map items to the buildings that produce/store them
+        item_to_building = {
+            # Standard config names → building names
+            "ore_red": "mine_red",
+            "ore_blue": "mine_blue",
+            "ore_green": "mine_green",
+            "battery_red": "generator_red",
+            "battery_blue": "generator_blue",
+            "battery_green": "generator_green",
+            "heart": "altar",
+            "armor": "armory",
+            "laser": "lasery",
+            "blueprint": "lab",
+            # Replay format names (these ARE the building names)
+            "mine_red": "mine_red",
+            "mine_blue": "mine_blue",
+            "mine_green": "mine_green",
+            "generator_red": "generator_red",
+            "generator_blue": "generator_blue",
+            "generator_green": "generator_green",
+            "altar": "altar",
+        }
+        return item_to_building.get(item_name, item_name)
+
+    def _get_item_for_building(building_name: str) -> str:
+        """Map building names to the items they produce/store."""
+        building_to_item = {
+            # Building names → actual inventory items
+            "mine_red": "ore_red",
+            "mine_blue": "ore_blue",
+            "mine_green": "ore_green",
+            "generator_red": "battery_red",
+            "generator_blue": "battery_blue",
+            "generator_green": "battery_green",
+            "altar": "heart",
+            "armory": "armor",
+            "lasery": "laser",
+            "lab": "blueprint",
+        }
+        return building_to_item.get(building_name, building_name)
+
     def _format_action_details(action_name: str, args: list, step: int, inventory_changes: dict) -> str:
         """Format action with detailed information about direction, items, etc."""
         action_name_lower = action_name.lower()
@@ -311,10 +354,20 @@ def _create_agent_action_timelines(
                 # Find items that increased (for get) or decreased (for put)
                 relevant_changes = []
                 for item_name, change in step_changes.items():
+                    # Use the actual item names from the data, not inferred mappings
                     if "get" in action_name_lower and change > 0:
-                        relevant_changes.append(f"{item_name[:3]}")  # Short name
+                        # Format: actual_item or quantity+actual_item
+                        if change > 1:
+                            relevant_changes.append(f"{change}{item_name}")
+                        else:
+                            relevant_changes.append(item_name)
                     elif "put" in action_name_lower and change < 0:
-                        relevant_changes.append(f"{item_name[:3]}")  # Short name
+                        # Format: actual_item or quantity+actual_item (use abs for display)
+                        abs_change = abs(change)
+                        if abs_change > 1:
+                            relevant_changes.append(f"{abs_change}{item_name}")
+                        else:
+                            relevant_changes.append(item_name)
 
                 if relevant_changes:
                     items_str = "/".join(relevant_changes)
@@ -361,71 +414,122 @@ def _create_agent_action_timelines(
                             inventory_changes[step][item_name] = change
                             prev_count = count
 
-        # Handle objects format with general inventory field
+        # Handle formats with general inventory field (check which specific format)
         elif "inventory" in agent_obj and not any(key.startswith("inv:") for key in agent_obj.keys()):
             inventory_data = agent_obj["inventory"]
             if isinstance(inventory_data, list) and inventory_data:
-                prev_inventory = {}
+                # Check if this is objects format by examining the inventory structure
+                # Objects format: [[step, [[item_id, count], ...]], ...] - inventory is list of lists
+                # Grid_objects format: [[step, {item_id_str: count}], ...] - inventory is dict
+                sample_inventory = inventory_data[0][1] if len(inventory_data[0]) > 1 else None
 
-                for step, inventory in inventory_data:
-                    current_inventory = {}
+                if isinstance(sample_inventory, list):  # Objects format
+                    prev_inventory = {}
 
-                    # Parse inventory format: [[item_id, count], ...]
-                    if isinstance(inventory, list):
-                        for item_entry in inventory:
-                            if isinstance(item_entry, list) and len(item_entry) >= 2:
-                                item_id, count = item_entry[0], item_entry[1]
-                                if item_id < len(item_names):
-                                    item_name = item_names[item_id]
-                                    current_inventory[item_name] = count
+                    for step, inventory in inventory_data:
+                        current_inventory = {}
 
-                    # Calculate changes from previous step
-                    all_items = set(prev_inventory.keys()) | set(current_inventory.keys())
-                    for item_name in all_items:
-                        prev_count = prev_inventory.get(item_name, 0)
-                        current_count = current_inventory.get(item_name, 0)
-                        change = current_count - prev_count
+                        # Parse objects format: [[item_id, count], ...]
+                        if isinstance(inventory, list):
+                            for item_entry in inventory:
+                                if isinstance(item_entry, list) and len(item_entry) >= 2:
+                                    item_id, count = item_entry[0], item_entry[1]
+                                    if item_id < len(item_names):
+                                        item_name = item_names[item_id]
+                                        # Only allow legitimate inventory items (not agents, walls, etc.)
+                                        # Note: Different replay formats use different item names
+                                        valid_inventory_items = {
+                                            # Standard config names
+                                            "ore_red",
+                                            "ore_blue",
+                                            "ore_green",
+                                            "battery_red",
+                                            "battery_blue",
+                                            "battery_green",
+                                            "heart",
+                                            "armor",
+                                            "laser",
+                                            "blueprint",
+                                            # Replay format names (mine_* = ore, generator_* = battery, altar = heart)
+                                            "mine_red",
+                                            "mine_blue",
+                                            "mine_green",
+                                            "generator_red",
+                                            "generator_blue",
+                                            "generator_green",
+                                            "altar",
+                                        }
+                                        if item_name in valid_inventory_items:
+                                            current_inventory[item_name] = count
 
-                        if change != 0:
-                            if step not in inventory_changes:
-                                inventory_changes[step] = {}
-                            inventory_changes[step][item_name] = change
+                        # Calculate changes from previous step
+                        all_items = set(prev_inventory.keys()) | set(current_inventory.keys())
+                        for item_name in all_items:
+                            prev_count = prev_inventory.get(item_name, 0)
+                            current_count = current_inventory.get(item_name, 0)
+                            change = current_count - prev_count
 
-                    prev_inventory = current_inventory
+                            if change != 0:
+                                if step not in inventory_changes:
+                                    inventory_changes[step] = {}
+                                inventory_changes[step][item_name] = change
 
-        # Handle grid_objects format with general inventory field
-        elif "inventory" in agent_obj:
-            inventory_data = agent_obj["inventory"]
-            if isinstance(inventory_data, list) and inventory_data:
-                prev_inventory = {}
+                        prev_inventory = current_inventory
 
-                for step, inventory in inventory_data:
-                    current_inventory = {}
+                else:  # Grid_objects format (sample_inventory is dict)
+                    prev_inventory = {}
 
-                    # Parse inventory format: {item_id: count}
-                    if isinstance(inventory, dict):
-                        for item_id_str, count in inventory.items():
-                            try:
-                                item_id = int(item_id_str)
-                                if item_id < len(item_names):
-                                    item_name = item_names[item_id]
-                                    current_inventory[item_name] = count
-                            except (ValueError, IndexError):
-                                continue
+                    for step, inventory in inventory_data:
+                        current_inventory = {}
 
-                    # Calculate changes from previous step
-                    all_items = set(prev_inventory.keys()) | set(current_inventory.keys())
-                    for item_name in all_items:
-                        prev_count = prev_inventory.get(item_name, 0)
-                        current_count = current_inventory.get(item_name, 0)
-                        change = current_count - prev_count
+                        # Parse grid_objects format: {item_id_str: count}
+                        if isinstance(inventory, dict):
+                            for item_id_str, count in inventory.items():
+                                try:
+                                    item_id = int(item_id_str)
+                                    if item_id < len(item_names):
+                                        item_name = item_names[item_id]
+                                        # Only allow legitimate inventory items (not agents, walls, etc.)
+                                        # Note: Different replay formats use different item names
+                                        valid_inventory_items = {
+                                            # Standard config names
+                                            "ore_red",
+                                            "ore_blue",
+                                            "ore_green",
+                                            "battery_red",
+                                            "battery_blue",
+                                            "battery_green",
+                                            "heart",
+                                            "armor",
+                                            "laser",
+                                            "blueprint",
+                                            # Replay format names (mine_* = ore, generator_* = battery, altar = heart)
+                                            "mine_red",
+                                            "mine_blue",
+                                            "mine_green",
+                                            "generator_red",
+                                            "generator_blue",
+                                            "generator_green",
+                                            "altar",
+                                        }
+                                        if item_name in valid_inventory_items:
+                                            current_inventory[item_name] = count
+                                except (ValueError, IndexError):
+                                    continue
 
-                        if change != 0:
-                            if step not in inventory_changes:
-                                inventory_changes[step] = {}
-                            inventory_changes[step][item_name] = change
+                        # Calculate changes from previous step
+                        all_items = set(prev_inventory.keys()) | set(current_inventory.keys())
+                        for item_name in all_items:
+                            prev_count = prev_inventory.get(item_name, 0)
+                            current_inventory_count = current_inventory.get(item_name, 0)
+                            change = current_inventory_count - prev_count
 
-                    prev_inventory = current_inventory
+                            if change != 0:
+                                if step not in inventory_changes:
+                                    inventory_changes[step] = {}
+                                inventory_changes[step][item_name] = change
+
+                        prev_inventory = current_inventory
 
         return inventory_changes
 
@@ -501,22 +605,8 @@ def _create_agent_action_timelines(
             "detailed_actions": step_actions,
         }
 
-    # Create legend for the new format
-    legend = {
-        "M↑/↓/←/→": "Move in direction",
-        "R→/←": "Rotate right/left",
-        "A↑/↓/←/→": "Attack in direction",
-        "G+ore/bat": "Get ore/battery/heart/armor/laser",
-        "P+ore/bat": "Put ore/battery/heart/armor/laser",
-        "8↑/↗/→/↘": "8-way move in direction",
-        "S": "Swap",
-        "·": "No-op/idle",
-        "_": "No action",
-    }
-
     return {
         "timelines": timelines,
-        "action_legend": legend,
         "action_names": action_names,
         "max_steps_shown": max_steps,
         "episode_length": episode_length,
@@ -1300,7 +1390,7 @@ def _analyze_objects_format(replay_data: Dict[str, Any], analysis: Dict[str, Any
                     if success_dict.get(step_num, False):
                         successful_actions += 1
 
-            success_rate = successful_actions / max(total_attempted, 1) if total_attempted > 0 else 0.0
+            action_success_rate = successful_actions / max(total_attempted, 1) if total_attempted > 0 else 0.0
 
             # Determine strategic behavior based on action patterns and performance
             if action_counts:
@@ -1326,7 +1416,7 @@ def _analyze_objects_format(replay_data: Dict[str, Any], analysis: Dict[str, Any
             analysis["final_scores"][agent_name] = final_score
             analysis["agent_behaviors"][agent_name] = {
                 "distance_traveled": round(total_distance, 1),
-                "success_rate": round(success_rate, 3),
+                "action_success_rate": round(action_success_rate, 3),
                 "strategic_behavior": strategic_behavior,
                 "inventory_events": len(inventory_data),
                 "final_reward": final_score,
@@ -1381,6 +1471,7 @@ def _analyze_objects_format(replay_data: Dict[str, Any], analysis: Dict[str, Any
                 "action": action_data,  # Now includes inferred actions if needed
                 "action_success": action_success_data,  # Already in correct format
                 "total_reward": total_reward_data,  # Already in correct format
+                "inventory": agent_obj.get("inventory", []),  # Preserve inventory for timeline analysis
             }
             adapted_agent_objects.append(adapted_agent)
 
@@ -1390,6 +1481,7 @@ def _analyze_objects_format(replay_data: Dict[str, Any], analysis: Dict[str, Any
         )
 
         # Create action timelines for visualization
+        # For objects format, inventory indices reference item_names for actual items
         item_names = replay_data.get("item_names", [])
         analysis["action_timelines"] = _create_agent_action_timelines(
             adapted_agent_objects, action_names, episode_length, max_steps=episode_length, item_names=item_names
@@ -1516,7 +1608,9 @@ def _extract_temporal_progression_objects_format(agent_objects: list, episode_le
                     "step": checkpoint,
                     "score": reward_at_checkpoint,
                     "distance_traveled": distance_traveled,
-                    "success_rate": min(0.8, 0.1 + reward_at_checkpoint * 0.1) if reward_at_checkpoint > 0 else 0.1,
+                    "action_success_rate": (
+                        min(0.8, 0.1 + reward_at_checkpoint * 0.1) if reward_at_checkpoint > 0 else 0.1
+                    ),
                     "action_count": checkpoint,  # Approximate action count as step count
                     "strategic_behavior": strategic_behavior,
                     "current_position": location_at_checkpoint,
@@ -1636,7 +1730,9 @@ def _extract_temporal_progression_grid_objects_format(agent_objects: list, episo
                     "step": checkpoint,
                     "score": reward_at_checkpoint,
                     "distance_traveled": checkpoint * 0.5,  # Estimate distance
-                    "success_rate": min(0.8, 0.1 + reward_at_checkpoint * 0.1) if reward_at_checkpoint > 0 else 0.1,
+                    "action_success_rate": (
+                        min(0.8, 0.1 + reward_at_checkpoint * 0.1) if reward_at_checkpoint > 0 else 0.1
+                    ),
                     "action_count": checkpoint,  # Approximate action count
                     "strategic_behavior": strategic_behavior,
                     "current_position": [agent_obj.get("r", 0), agent_obj.get("c", 0)],  # Final position
@@ -1748,7 +1844,7 @@ def _complete_grid_objects_analysis(
                 if success_dict.get(step_num, False):
                     successful_actions += 1
 
-        success_rate = successful_actions / max(total_attempted, 1) if total_attempted > 0 else 0.0
+        action_success_rate = successful_actions / max(total_attempted, 1) if total_attempted > 0 else 0.0
 
         # Determine strategic behavior based on action patterns and performance
         if action_counts:
@@ -1774,7 +1870,7 @@ def _complete_grid_objects_analysis(
 
         agent_behaviors[agent_name] = {
             "distance_traveled": round(total_distance, 1),
-            "success_rate": round(success_rate, 3),
+            "action_success_rate": round(action_success_rate, 3),
             "strategic_behavior": strategic_behavior,
             "total_actions": total_attempted,
             "action_distribution": action_counts,
@@ -2338,15 +2434,15 @@ def _extract_action_sequences(agent_obj: Dict[str, Any], action_names: list) -> 
 
             # Track action patterns
             if action_name not in action_patterns:
-                action_patterns[action_name] = {"count": 0, "success_rate": 0, "first_use": step_num}
+                action_patterns[action_name] = {"count": 0, "action_success_rate": 0, "first_use": step_num}
             action_patterns[action_name]["count"] += 1
             if success:
-                action_patterns[action_name]["success_rate"] += 1
+                action_patterns[action_name]["action_success_rate"] += 1
 
-    # Calculate final success rates
+    # Calculate final action success rates
     for pattern in action_patterns.values():
         if pattern["count"] > 0:
-            pattern["success_rate"] = pattern["success_rate"] / pattern["count"]
+            pattern["action_success_rate"] = pattern["action_success_rate"] / pattern["count"]
 
     return {
         "sequence": action_sequence,
@@ -2594,7 +2690,7 @@ def _track_strategy_evolution(action_sequences: Dict[str, Any], breakthroughs: l
 
         dominant_action = max(action_counts, key=action_counts.get)
         action_diversity = len(action_counts)
-        success_rate = successful_actions / len(period_actions) if period_actions else 0
+        action_success_rate = successful_actions / len(period_actions) if period_actions else 0
 
         # Classify strategy type
         strategy_type = _classify_strategy_type(action_counts, dominant_action)
@@ -2605,7 +2701,7 @@ def _track_strategy_evolution(action_sequences: Dict[str, Any], breakthroughs: l
             "duration": period_end - period_start,
             "dominant_action": dominant_action,
             "action_diversity": action_diversity,
-            "success_rate": success_rate,
+            "action_success_rate": action_success_rate,
             "strategy_type": strategy_type,
             "action_distribution": action_counts,
         }
@@ -2958,7 +3054,7 @@ def _calculate_checkpoint_stats(
 
             prev_r, prev_c = new_r, new_c
 
-    # Calculate success rate up to checkpoint
+    # Calculate action success rate up to checkpoint
     successful_actions = 0
     total_actions = len(actions_up_to_checkpoint)
 
@@ -2978,7 +3074,7 @@ def _calculate_checkpoint_stats(
         if success_dict.get(step_num, False):
             successful_actions += 1
 
-    success_rate = successful_actions / max(total_actions, 1)
+    action_success_rate = successful_actions / max(total_actions, 1)
 
     # Determine current strategic behavior
     strategic_behavior = "unknown"
@@ -3022,7 +3118,7 @@ def _calculate_checkpoint_stats(
     return {
         "score": round(current_score, 3),
         "distance_traveled": round(distance_traveled, 2),
-        "success_rate": round(success_rate, 3),
+        "action_success_rate": round(action_success_rate, 3),
         "strategic_behavior": strategic_behavior,
         "current_position": [current_r, current_c],
         "action_count": total_actions,
