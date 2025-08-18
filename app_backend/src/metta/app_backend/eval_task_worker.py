@@ -16,7 +16,10 @@ import subprocess
 import tempfile
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import datetime
+
+import boto3
 
 from devops.observatory_login import CLIAuthenticator
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
@@ -28,9 +31,16 @@ from metta.app_backend.routes.eval_task_routes import (
 )
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
-from metta.common.util.constants import SOFTMAX_S3_BASE
+from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git import METTA_API_REPO_URL
 from metta.common.util.logging_helpers import init_logging
+
+
+@dataclass
+class TaskResult:
+    status_code: int
+    stdout: str
+    stderr: str
 
 
 class AbstractTaskExecutor(ABC):
@@ -69,6 +79,23 @@ class SimTaskExecutor(AbstractTaskExecutor):
             raise RuntimeError(f"{error_msg}: {result.stderr}")
 
         return result
+
+    def _upload_logs_to_s3(self, job_id: str, process: subprocess.CompletedProcess) -> None:
+        self._logger.info(f"Uploading logs to S3: {job_id}")
+        s3_client = boto3.client("s3")
+        s3_client.put_object(
+            Bucket=SOFTMAX_S3_BUCKET,
+            Key=f"jobs/{job_id}/stdout.txt",
+            Body=process.stdout,
+            ContentType="text/plain",
+        )
+
+        s3_client.put_object(
+            Bucket=SOFTMAX_S3_BUCKET,
+            Key=f"jobs/{job_id}/stderr.txt",
+            Body=process.stderr,
+            ContentType="text/plain",
+        )
 
     @trace("worker.setup_checkout")
     def _setup_versioned_checkout(self, git_hash: str) -> None:
@@ -159,6 +186,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
                 cmd,
                 "sim.py failed with exit code",
             )
+
+            self._upload_logs_to_s3(str(task.id), result)
 
             self._logger.info(f"Simulation completed successfully: {result.stdout}")
 
