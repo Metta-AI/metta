@@ -134,28 +134,46 @@ graceful_shutdown() {
   fi
   TERMINATION_REASON="${TERMINATION_REASON:-controlled_shutdown}"
 
-  # Kill the entire process tree forcefully
+  # Kill the entire process tree gracefully
   if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
-    echo "[SHUTDOWN] Killing training process tree (PGID: ${CMD_PGID})"
+      echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
 
-    # First try SIGTERM to the process group
-    kill -TERM -"${CMD_PGID}" 2>/dev/null || true
+      # First try SIGINT (Ctrl+C) to allow graceful shutdown
+      echo "[SHUTDOWN] Sending SIGINT to process group..."
+      kill -INT -"${CMD_PGID}" 2>/dev/null || true
 
-    # Give it 5 seconds to clean up
-    local count=0
-    while kill -0 "$CMD_PID" 2>/dev/null && [ $count -lt 5 ]; do
-      sleep 1
-      ((count++))
-    done
+      # Give it 30 seconds to handle SIGINT gracefully
+      local count=0
+      while kill -0 "$CMD_PID" 2>/dev/null && [ $count -lt 30 ]; do
+        if [ $((count % 5)) -eq 0 ]; then
+          echo "[SHUTDOWN] Waiting for graceful shutdown... ($count/30 seconds)"
+        fi
+        sleep 1
+        ((count++))
+      done
 
-    # If still alive, use SIGKILL
-    if kill -0 "$CMD_PID" 2>/dev/null; then
-      echo "[SHUTDOWN] Process didn't terminate, using SIGKILL"
-      kill -KILL -"${CMD_PGID}" 2>/dev/null || true
-    fi
+      # If still alive, escalate to SIGTERM
+      if kill -0 "$CMD_PID" 2>/dev/null; then
+        echo "[SHUTDOWN] Process didn't respond to SIGINT, sending SIGTERM..."
+        kill -TERM -"${CMD_PGID}" 2>/dev/null || true
 
-    # Wait for the main process to die
-    wait "${CMD_PID}" 2>/dev/null || true
+        # Give another 15 seconds for SIGTERM
+        count=0
+        while kill -0 "$CMD_PID" 2>/dev/null && [ $count -lt 15 ]; do
+          sleep 1
+          ((count++))
+        done
+      fi
+
+      # If STILL alive, use SIGKILL as last resort
+      if kill -0 "$CMD_PID" 2>/dev/null; then
+        echo "[SHUTDOWN] Process didn't terminate gracefully, using SIGKILL"
+        kill -KILL -"${CMD_PGID}" 2>/dev/null || true
+      fi
+
+      # Wait for the main process to die
+      wait "${CMD_PID}" 2>/dev/null || true
+      echo "[SHUTDOWN] Process terminated"
   fi
 
   terminate_monitors
