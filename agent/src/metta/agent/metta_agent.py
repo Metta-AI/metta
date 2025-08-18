@@ -95,10 +95,25 @@ class MettaAgent(nn.Module):
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
         if agent_cfg.get("agent_type") in agent_classes:
-            # Create PyTorch policy
+            # Create PyTorch policy with configuration parameters
             AgentClass = agent_classes[agent_cfg.agent_type]
-            policy = AgentClass(env=env)
-            logger.info(f"Using PyTorch Policy: {policy} (type: {agent_cfg.agent_type})")
+
+            # Extract configuration parameters that PyTorch policies need
+            # All PyTorch agents must use the mixin which handles these
+            policy_kwargs = {
+                "env": env,
+                "clip_range": agent_cfg.get("clip_range", 0),
+                "analyze_weights_interval": agent_cfg.get("analyze_weights_interval", 300),
+            }
+
+            # Add any additional config parameters that might be in agent_cfg
+            # This allows policies to accept custom parameters
+            for key, value in agent_cfg.items():
+                if key not in ["agent_type", "clip_range", "analyze_weights_interval", "_target_"]:
+                    policy_kwargs[key] = value
+
+            # All PyTorch agents must accept these parameters via the mixin
+            policy = AgentClass(**policy_kwargs)
         else:
             # Create ComponentPolicy (YAML config)
             policy = ComponentPolicy(
@@ -110,7 +125,6 @@ class MettaAgent(nn.Module):
                 device=system_cfg.device,
                 cfg=agent_cfg,
             )
-            logger.info(f"Using ComponentPolicy: {type(policy).__name__}")
 
         return policy
 
@@ -145,6 +159,7 @@ class MettaAgent(nn.Module):
         is_training: bool = True,
     ):
         """Initialize the agent to the current environment."""
+
         # MettaAgent handles all initialization
         self.activate_actions(action_names, action_max_params, device)
         self.activate_observations(features, device)
@@ -246,12 +261,13 @@ class MettaAgent(nn.Module):
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Initialize action space for the agent."""
+
         self.device = device
         self.action_max_params = action_max_params
         self.action_names = action_names
         self.active_actions = list(zip(action_names, action_max_params, strict=False))
 
-        # Precompute cumulative sums for faster conversion
+        # Precompute cumulative sums for faster conversion, Multi-Discrete
         self.cum_action_max_params = torch.cumsum(
             torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )
@@ -291,17 +307,12 @@ class MettaAgent(nn.Module):
         """Calculate L2 initialization loss - delegates to policy."""
         if hasattr(self.policy, "l2_init_loss"):
             return self.policy.l2_init_loss()
-        return torch.tensor(0.0, dtype=torch.float32, device=self.device)
+        return torch.tensor(0.0, dtype=torch.float32)
 
     def clip_weights(self):
-        """Clip weights to prevent large updates."""
+        """Clip weights to prevent large updates - delegates to policy."""
         if self.policy is not None and hasattr(self.policy, "clip_weights"):
-            # Use policy's custom implementation if available
             self.policy.clip_weights()
-        elif self.policy is not None:
-            # Default implementation: clamp all parameters to [-1, 1]
-            for p in self.policy.parameters():
-                p.data.clamp_(-1, 1)
 
     def update_l2_init_weight_copy(self):
         """Update L2 initialization weight copies - delegates to policy."""

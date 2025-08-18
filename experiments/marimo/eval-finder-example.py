@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.14.16"
+__generated_with = "0.14.17"
 app = marimo.App(width="full")
 
 
@@ -63,8 +63,10 @@ def _():
     from metta.app_backend.clients.scorecard_client import ScorecardClient
 
     # Comment one of these out, uncomment the other.
-    # client = ScorecardClient()  # production: https://api.observatory.softmax-research.net
-    client = ScorecardClient(backend_url="http://localhost:8000")  # development
+    client = (
+        ScorecardClient()
+    )  # production: https://api.observatory.softmax-research.net
+    # client = ScorecardClient(backend_url="http://localhost:8000")  # development
 
     print("🎯 Eval Finder Widget imported successfully!")
     return (
@@ -213,18 +215,21 @@ def _(mo):
 
 
 @app.cell
+def _():
+    return
+
+
+@app.cell
 def _(
     EvalFinderWidget,
     client,
-    create_demo_eval_finder_widget,
     fetch_eval_data_for_policies,
     mo,
     policy_selector,
     training_run_policies,
 ):
-    # Make a widget and wrap it
+    # Create the widget once (not dependent on policy selection)
     eval_finder = EvalFinderWidget()
-    mo_eval_finder = mo.ui.anywidget(eval_finder)
 
     try:
         # Determine which are training runs vs standalone policies
@@ -251,7 +256,7 @@ def _(
             client=client,
         )
 
-        # Set the data on the raw widget
+        # Update the existing widget with new data
         eval_finder.set_eval_data(
             evaluations=eval_data["evaluations"],
             # categories=eval_data["categories"], # you can leave this unset to fetch all categories
@@ -259,21 +264,29 @@ def _(
 
         print(f"📊 Loaded {len(eval_data['evaluations'])} evaluations")
 
+        data_status = f"✅ Loaded {len(eval_data['evaluations'])} evaluations for {len(policy_selector.value)} selected policies"
+
     except Exception as e:
         print(f"⚠️ Could not fetch live data: {e}")
-        print("Using demo data instead...")
-        # Fallback to demo data if backend not available
-        eval_finder = create_demo_eval_finder_widget()
-        mo_eval_finder = mo.ui.anywidget(eval_finder)
+        print("No eval data will be loaded.")
+        data_status = f"❌ Failed to load eval data: {e}"
 
+    mo_eval_finder = mo.ui.anywidget(eval_finder)
     mo_eval_finder
-    return eval_finder, mo_eval_finder
+    return data_status, eval_finder, mo_eval_finder
+
+
+@app.cell
+def _(data_status, mo):
+    # Show the data loading status
+    mo.md(f"### Data Status\n{data_status}")
+    return
 
 
 @app.cell
 def _(mo, mo_eval_finder):
-    # The wrapped widget's value is a dict of all traits, so we need to extract selected_evals
-    selection = mo_eval_finder.value["selected_evals"]
+    # Access selected_evals from the widget's value (now properly synced with anywidget/react)
+    selection = mo_eval_finder.value.get("selected_evals", [])
 
     def _():
         # Show different content based on selection
@@ -325,55 +338,50 @@ def _(mo):
     return
 
 
-@app.cell
-async def _(
-    client,
-    mo_eval_finder,
-    policy_selector,
-    run_free_policies,
-    training_run_policies,
-):
-    from experiments.notebooks.utils.scorecard_widget.scorecard_widget.util import (
-        fetch_real_scorecard_data,
-    )
+app._unparsable_cell(
+    r"""
+        from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import ScorecardWidget
 
     # Get the selected policy IDs from the selector
     selected_policy_ids = policy_selector.value
 
     # Find the names of the selected policies
     all_policies = training_run_policies + run_free_policies
-    selected_policy_names = [
-        policy.name for policy in all_policies if policy.id in selected_policy_ids
-    ]
+    selected_policy_names = [policy.name for policy in all_policies if policy.id in selected_policy_ids]
 
-    # Extract selected_evals from the widget's value dict
-    selected_evals = mo_eval_finder.value["selected_evals"]
+    # Access selected_evals from the widget's value (now properly synced with anywidget/react)
+    selected_evals = mo_eval_finder.selected_evals
 
-    print(f"🔍 Selected policy IDs: {selected_policy_ids}")
-    print(f"🔍 Selected policy names: {selected_policy_names}")
-    print(f"🔍 Selected evaluations: {selected_evals}")
+    print(f\"🔍 Selected policy IDs: {selected_policy_ids}\")
+    print(f\"🔍 Selected policy names: {selected_policy_names}\")
+    print(f\"🔍 Selected evaluations: {selected_evals}\")
 
-    scorecard_widget = None
-    if selected_evals:  # Check the actual list, not the state object
-        try:
-            # Generate scorecard using the selected evaluations and policies
-            scorecard_widget = await fetch_real_scorecard_data(
-                client=client,
-                restrict_to_policy_names=selected_policy_names,  # Only selected policies!
-                restrict_to_metrics=["reward"],  # Focus on reward metric
-                restrict_to_eval_names=selected_evals,  # Use selected evals from widget
-                policy_selector="best",
-                max_policies=10,
-            )
 
-            print("📊 Generated scorecard")
-        except Exception as e:
-            print(f"⚠️ Could not generate scorecard: {e}")
-    else:
-        print("No evaluations selected - select some evaluations first")
+    async def _():
+        if selected_evals:  # Check the actual list, not the state object
+            try:
+                # Generate scorecard using the selected evaluations and policies
+                scorecard_widget = ScorecardWidget(client=client)
+                await scorecard_widget.fetch_real_scorecard_data(
+                    restrict_to_policy_names=selected_policy_names,  # Only selected policies!
+                    restrict_to_metrics=[\"reward\"],  # Focus on reward metric
+                    restrict_to_eval_names=selected_evals,  # Use selected evals from widget
+                    policy_selector=\"best\",
+                    max_policies=10,
+                )
+                return scorecard_widget
 
-    scorecard_widget
-    return
+            except Exception as e:
+                return mo.md(f\"## Couldn't generate scorecard: {e}\")
+
+        else:
+            return mo.md(f\"## No evaluations selected - select some evaluations first\")
+
+
+    await _()
+    """,
+    name="_",
+)
 
 
 @app.cell

@@ -707,6 +707,16 @@ wheels = [
 name = "experiments"
 version = "0.1.0"
 source = { editable = "experiments" }
+dependencies = [
+    { name = "jupytext" },
+    { name = "moutils" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jupytext", specifier = ">=1.17.2" },
+    { name = "moutils", specifier = ">=0.3.12" },
+]
 
 [[package]]
 name = "farama-notifications"
@@ -1386,6 +1396,22 @@ wheels = [
 ]
 
 [[package]]
+name = "jupytext"
+version = "1.17.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown-it-py" },
+    { name = "mdit-py-plugins" },
+    { name = "nbformat" },
+    { name = "packaging" },
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/30/ce/0bd5290ca4978777154e2683413dca761781aacf57f7dc0146f5210df8b1/jupytext-1.17.2.tar.gz", hash = "sha256:772d92898ac1f2ded69106f897b34af48ce4a85c985fa043a378ff5a65455f02", size = 3748577, upload-time = "2025-06-01T21:31:48.231Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ed/f1/82ea8e783433707cafd9790099a2d19f113c22f32a31c8bb5abdc7a61dbb/jupytext-1.17.2-py3-none-any.whl", hash = "sha256:4f85dc43bb6a24b75491c5c434001ad5ef563932f68f15dd3e1c8ce12a4a426b", size = 164401, upload-time = "2025-06-01T21:31:46.319Z" },
+]
+
+[[package]]
 name = "kiwisolver"
 version = "1.4.9"
 source = { registry = "https://pypi.org/simple" }
@@ -1569,6 +1595,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/99/5b/a36a337438a14116b16480db471ad061c36c3694df7c2084a0da7ba538b7/matplotlib_inline-0.1.7.tar.gz", hash = "sha256:8423b23ec666be3d16e16b60bdd8ac4e86e840ebd1dd11a30b9f117f2fa0ab90", size = 8159, upload-time = "2024-04-15T13:44:44.803Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8f/8e/9ad090d3553c280a8060fbf6e24dc1c0c29704ee7d1c372f0c174aa59285/matplotlib_inline-0.1.7-py3-none-any.whl", hash = "sha256:df192d39a4ff8f21b1895d72e6a13f5fcc5099f00fa84384e0ea28c2cc0653ca", size = 9899, upload-time = "2024-04-15T13:44:43.265Z" },
+]
+
+[[package]]
+name = "mdit-py-plugins"
+version = "0.4.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown-it-py" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/19/03/a2ecab526543b152300717cf232bb4bb8605b6edb946c845016fa9c9c9fd/mdit_py_plugins-0.4.2.tar.gz", hash = "sha256:5f2cd1fdb606ddf152d37ec30e46101a60512bc0e5fa1a7002c36647b09e26b5", size = 43542, upload-time = "2024-09-09T20:27:49.564Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a7/f7/7782a043553ee469c1ff49cfa1cdace2d6bf99a1f333cf38676b3ddf30da/mdit_py_plugins-0.4.2-py3-none-any.whl", hash = "sha256:0c673c3f889399a33b95e88d2f0d111b4447bdfea7f237dab2d488f459835636", size = 55316, upload-time = "2024-09-09T20:27:48.397Z" },
 ]
 
 [[package]]
@@ -1920,6 +1958,20 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c4/79/bda47f7dd7c3c55770478d6d02c9960c430b0cf1773b72366ff89126ea31/mistune-3.1.3.tar.gz", hash = "sha256:a7035c21782b2becb6be62f8f25d3df81ccb4d6fa477a6525b15af06539f02a0", size = 94347, upload-time = "2025-03-19T14:27:24.955Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/01/4d/23c4e4f09da849e127e9f123241946c23c1e30f45a88366879e064211815/mistune-3.1.3-py3-none-any.whl", hash = "sha256:1a32314113cff28aa6432e99e522677c8587fd83e3d51c29b82a52409c842bd9", size = 53410, upload-time = "2025-03-19T14:27:23.451Z" },
+]
+
+[[package]]
+name = "moutils"
+version = "0.3.12"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anywidget" },
+    { name = "marimo" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b3/36/4435c811526bdc505085a9b7257ba3921e4cf18f416e3bc4976a215e47c4/moutils-0.3.12.tar.gz", hash = "sha256:6380fe05349ebafe016be70d1c8569dc349b23212790963c81e5bffa336ca162", size = 108578, upload-time = "2025-07-16T13:33:20.631Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3d/bc/01e1a05e8ade9e030b5916ce62c275f7f75c0be9ce2dd79a97d988e95de6/moutils-0.3.12-py2.py3-none-any.whl", hash = "sha256:184d0e4427f7c9dd217c06490b1294762926595b1db291735359a3cb43dda79f", size = 44042, upload-time = "2025-07-16T13:33:19.57Z" },
 ]
 
 [[package]]

@@ -223,7 +223,9 @@ export function Leaderboards({ repo }: LeaderboardsProps) {
     navigate(`/leaderboards/${leaderboard.id}`)
   }
 
-  // Edit functionality removed - leaderboards can no longer be edited
+  const handleEditLeaderboard = (leaderboard: Leaderboard) => {
+    navigate(`/leaderboards/${leaderboard.id}/edit`)
+  }
 
   if (loading) {
     return (
@@ -283,6 +285,9 @@ export function Leaderboards({ repo }: LeaderboardsProps) {
                 <div className="leaderboard-actions">
                   <button className="btn btn-primary" onClick={() => handleViewLeaderboard(leaderboard)}>
                     View
+                  </button>
+                  <button className="btn btn-secondary" onClick={() => handleEditLeaderboard(leaderboard)}>
+                    Edit
                   </button>
                   <button className="btn btn-danger" onClick={() => handleDelete(leaderboard.id)}>
                     Delete
