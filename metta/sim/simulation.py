@@ -351,23 +351,18 @@ class Simulation:
                 logger.warning(f"No replay data available for thumbnail generation: {self._name}")
                 return None
 
-            # Use first available episode replay
-            episode_replay = next(iter(self._replay_writer.episodes.values()))
+            # Use first available episode replay and get its ID
+            episode_id = next(iter(self._replay_writer.episodes.keys()))
+            episode_replay = self._replay_writer.episodes[episode_id]
             replay_data = episode_replay.get_replay_data()
 
-            # Extract environment name from path for thumbnail ID
-            environment_name = self._env_name.split("/")[-1]  # e.g., "emptyspace_withinsight"
-
-            # Use environment name only as thumbnail ID (thumbnails represent static environment layout)
-            eval_name = environment_name
-
-            # Attempt to generate and upload thumbnail
-            success, thumbnail_url = maybe_generate_and_upload_thumbnail(replay_data, eval_name)
+            # Attempt to generate and upload thumbnail using episode ID (like replay files)
+            success, thumbnail_url = maybe_generate_and_upload_thumbnail(replay_data, episode_id)
             if success:
-                logger.info(f"Generated thumbnail for eval_name: {eval_name}")
+                logger.info(f"Generated thumbnail for episode_id: {episode_id}")
                 return thumbnail_url
             else:
-                logger.debug(f"Thumbnail generation skipped for eval_name: {eval_name}")
+                logger.debug(f"Thumbnail generation failed for episode_id: {episode_id}")
                 return None
 
         except Exception as e:
