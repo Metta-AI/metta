@@ -158,7 +158,7 @@ graceful_shutdown() {
 
     # First, signal all worker nodes to start shutdown
     if [[ "$IS_MASTER" == "true" ]] && [ -n "${CLUSTER_STOP_FILE:-}" ]; then
-      echo "graceful_shutdown" > "$CLUSTER_STOP_FILE"
+      echo "$TERMINATION_REASON" > "$CLUSTER_STOP_FILE"
       echo "[SHUTDOWN] Signaled all nodes to begin shutdown"
       sleep 10  # Give workers time to receive the signal
     fi
