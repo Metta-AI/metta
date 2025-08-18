@@ -9,7 +9,10 @@ from heavyball import ForeachMuon
 from omegaconf import DictConfig, OmegaConf
 from torchrl.data import Composite
 
+from metta.agent.metta_agent import PolicyAgent
+from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.agent.util.distribution_utils import get_from_master
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
@@ -31,6 +34,11 @@ from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
     compute_gradient_stats,
+)
+from metta.rl.policy_initializer import PolicyInitializer
+from metta.rl.policy_management import (
+    validate_policy_environment_match,
+    wrap_agent_distributed,
 )
 from metta.rl.rollout import get_observation, send_observation
 from metta.rl.stats import (
@@ -54,7 +62,7 @@ from metta.rl.wandb import (
 )
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
-from tools.utils import get_policy_initializer_from_cfg, get_policy_store_from_cfg
+from tools.utils import get_policy_store_from_cfg
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
@@ -102,8 +110,6 @@ def get_initial_policy_path(
 
     # Synchronize policy_path across all ranks if using distributed training
     if torch.distributed.is_initialized():
-        from metta.agent.util.distribution_utils import get_from_master
-
         policy_path = get_from_master(policy_path)
         logger.info(f"Rank {distributed_config.rank}: Synchronized policy_path = {policy_path}")
     elif not distributed_config.is_master:
@@ -121,6 +127,88 @@ def get_initial_policy_path(
         policy_exists = False
 
     return policy_path, policy_exists
+
+
+def get_initial_policy(
+    policy_store: PolicyStore,
+    policy_path: str,
+    create_new_policy: bool,
+    initializer,
+    metta_grid_env: MettaGridEnv,
+    device: torch.device,
+    trainer_cfg: TrainerConfig,
+    distributed_config,
+) -> tuple[PolicyRecord, PolicyAgent]:
+    """Get initial policy for training with distributed sync, compilation, and DDP wrapping."""
+    # Now all ranks have the same policy_path and can load/create consistently
+    policy_record: PolicyRecord | None = None
+    if not create_new_policy:
+        logger.info(f"Rank {distributed_config.rank}: Loading policy from {policy_path}")
+        policy_record = policy_store.policy_record(policy_path)
+    else:
+        logger.info(f"Rank {distributed_config.rank}: No existing policy found, creating new one")
+        policy_record = initializer.get_blank_policy(policy_store, policy_path)
+
+    if policy_record is None:
+        raise RuntimeError("Failed to create or load policy record")
+
+    return initialize_policy_for_training(
+        policy_record, initializer, metta_grid_env, device, trainer_cfg, distributed_config
+    )
+
+
+def initialize_policy_for_training(
+    policy_record: PolicyRecord,
+    initializer,
+    metta_grid_env: MettaGridEnv,
+    device: torch.device,
+    trainer_cfg: TrainerConfig,
+    distributed_config,
+) -> tuple[PolicyRecord, PolicyAgent]:
+    """Initialize a policy record for training with distributed sync, compilation, and DDP wrapping."""
+    # Synchronize policy metadata from master using NCCL broadcast of objects.
+    # This avoids file I/O on non-master ranks while ensuring consistent metadata.
+    if torch.distributed.is_initialized():
+        try:
+            if policy_record is None:
+                raise RuntimeError("PolicyRecord was not initialized")
+            synced_metadata = get_from_master(policy_record.metadata if distributed_config.is_master else None)
+            if synced_metadata is not None:
+                policy_record.metadata = synced_metadata
+        except Exception as e:
+            logger.warning(f"Rank {distributed_config.rank}: Failed to sync policy metadata from master: {e}")
+
+    if policy_record is None:
+        raise RuntimeError("Failed to initialize policy record")
+
+    validate_policy_environment_match(policy_record.policy, metta_grid_env)
+
+    # Barrier before compile step
+    if torch.distributed.is_initialized():
+        torch.distributed.barrier()
+
+    policy: PolicyAgent = policy_record.policy
+
+    # Optional compile step
+    if trainer_cfg.compile:
+        logger.info("Compiling policy")
+        policy = torch.compile(policy, mode=trainer_cfg.compile_mode)  # type: ignore[assignment]
+
+    # Wrap in DDP if distributed
+    if torch.distributed.is_initialized():
+        logger.info(f"Initializing DistributedDataParallel on device {device}")
+        torch.distributed.barrier()
+        policy = wrap_agent_distributed(policy, device)
+        torch.distributed.barrier()
+
+    # Initialize policy for environment after wrapping
+    initializer.initialize_policy_for_environment(
+        policy_record=policy_record,
+        is_master=distributed_config.is_master,
+        restore_feature_mapping=True,
+    )
+
+    return policy_record, policy
 
 
 def train(
@@ -184,16 +272,24 @@ def train(
 
     # ?? encapsulate the construction of policy_store. check that agent_factory gets where it needs to go.
     # ?? go through code and check what else needs cleaned up
-    initializer = get_policy_initializer_from_cfg(
+    initializer = PolicyInitializer(
         agent_cfg=agent_cfg,
         system_cfg=system_cfg,
-        trainer_cfg=trainer_cfg,
         metta_grid_env=metta_grid_env,
-        distributed_config=distributed_config,
+        is_master=distributed_config.is_master,
         device=device,
     )
     policy_store = get_policy_store_from_cfg(train_job_config, wandb_run)
-    policy_store.agent_factory = lambda: initializer.get_blank_policy(policy_store, initial_policy_path)
+    policy_store.agent_factory = lambda: get_initial_policy(
+        policy_store,
+        initial_policy_path,
+        not policy_exists,
+        initializer,
+        metta_grid_env,
+        device,
+        trainer_cfg,
+        distributed_config,
+    )
 
     # Create checkpoint manager
     checkpoint_manager = CheckpointManager(
@@ -223,7 +319,16 @@ def train(
     )
 
     # ?? why do we need policy here - shouldn't policy be part of policy_record?
-    policy_record, policy = initializer.get_initial_policy(policy_store, initial_policy_path, not policy_exists)
+    policy_record, policy = get_initial_policy(
+        policy_store=policy_store,
+        policy_path=initial_policy_path,
+        create_new_policy=not policy_exists,
+        initializer=initializer,
+        metta_grid_env=metta_grid_env,
+        device=device,
+        trainer_cfg=trainer_cfg,
+        distributed_config=distributed_config,
+    )
     policy_record_uri = policy_record.uri
     latest_saved_policy_record = policy_record
 
