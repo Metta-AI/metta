@@ -5,7 +5,6 @@ import os
 from pathlib import Path
 
 import torch
-from omegaconf import DictConfig
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
 from metta.agent.policy_record import PolicyRecord
@@ -167,7 +166,7 @@ class CheckpointManager:
 
     def load_or_create_policy(
         self,
-        agent_cfg: DictConfig,
+        agent_cfg: str,
         system_cfg: SystemConfig,
         trainer_cfg: TrainerConfig,
         checkpoint: TrainerCheckpoint | None,
@@ -228,10 +227,9 @@ class CheckpointManager:
 
             agent_config = AgentConfig(
                 env=metta_grid_env,
-                system_cfg=system_cfg,
                 agent_cfg=agent_cfg,
             )
-            new_policy_record.policy = MettaAgent(agent_config)
+            new_policy_record.policy = MettaAgent(agent_config, system_cfg)
 
             # Only master saves the new policy to disk
             if self.is_master:

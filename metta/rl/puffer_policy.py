@@ -75,8 +75,7 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[Di
 
     agent_config = AgentConfig(
         env=env,
-        system_cfg=system_cfg,
         agent_cfg=agent_cfg,
         policy=policy,
     )
-    return MettaAgent(agent_config)
+    return MettaAgent(agent_config, system_cfg)

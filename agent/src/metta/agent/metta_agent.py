@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import gymnasium as gym
 import numpy as np
@@ -60,6 +60,7 @@ class MettaAgent(MettaAgentInterface):
     def __init__(
         self,
         config: AgentConfig,
+        system_cfg: SystemConfig,
     ):
         super().__init__()
 
@@ -68,7 +69,9 @@ class MettaAgent(MettaAgentInterface):
         # Do NOT store the full config on the instance to keep the agent picklable.
         # The config may hold references (e.g., env) that include locks and cannot be pickled.
         self.cfg = config.agent_cfg
-        self.device = config.system_cfg.device
+        self.device = system_cfg.device
+
+        logger.info(f"Device: {self.device}")
 
         # Create observation space
         self.obs_space = gym.spaces.Dict(
@@ -85,7 +88,7 @@ class MettaAgent(MettaAgentInterface):
 
         # Create policy if not provided
         if config.policy is None:
-            policy = self._create_policy(config.agent_cfg, config.env, config.system_cfg)
+            policy = self._create_policy(config.agent_cfg, config.env, system_cfg)
         else:
             policy = config.policy
 
@@ -104,7 +107,7 @@ class MettaAgent(MettaAgentInterface):
         state.pop("config", None)
         return state
 
-    def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
+    def _create_policy(self, agent_cfg: Union[str, DictConfig], env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
 
         # map agent_cfg.agent_type to the appropriate policy class

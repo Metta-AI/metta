@@ -7,12 +7,10 @@ from pydantic import ConfigDict
 
 from metta.common.util.config import Config
 from metta.mettagrid import MettaGridEnv
-from metta.rl.system_config import SystemConfig
 
 
 class AgentConfig(Config):
     env: MettaGridEnv
-    system_cfg: SystemConfig
     agent_cfg: Union[str, DictConfig]
     policy: Optional[nn.Module] = None
 
