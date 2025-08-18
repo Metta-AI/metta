@@ -1,18 +1,18 @@
 import numpy as np
 import pytest
 
+from metta.mettagrid.core import MettaGridCore
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
 from metta.mettagrid.map_builder.utils import create_grid
-from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
-from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from metta.mettagrid.mettagrid_c import PackedCoordinate, dtype_actions
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
-    AgentConfig,
-    AttackActionConfig,
     ChangeGlyphActionConfig,
     ConverterConfig,
     EnvConfig,
     GameConfig,
+    GlobalObsConfig,
     GroupConfig,
     WallConfig,
 )
@@ -21,131 +21,69 @@ from metta.mettagrid.test_support import ObservationHelper, TokenTypes
 NUM_OBS_TOKENS = 50
 
 
-def create_env_from_grid(
-    game_map: np.ndarray,
-    obs_width: int = 3,
-    obs_height: int = 3,
-    objects: dict = None,
-    max_steps: int = 1000,
-    actions: dict = None,
-    groups: dict = None,
-    inventory_item_names: list = None,
-    global_obs: dict = None,
-) -> MettaGrid:
-    """Create a MettaGrid environment from a numpy grid using the new EnvConfig system."""
-    from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
-
-    # Convert numpy array to list format for AsciiMapBuilderConfig
-    map_data = game_map.tolist()
-    map_builder = AsciiMapBuilderConfig(map_data=map_data)
-
-    # Set up default objects
-    if objects is None:
-        objects = {"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)}
-
-    # Set up default actions
-    if actions is None:
-        actions = ActionsConfig(
-            noop=ActionConfig(),
-            move=ActionConfig(),
-            rotate=ActionConfig(),
-            get_items=ActionConfig(),
+@pytest.fixture
+def basic_env() -> MettaGridCore:
+    """Create a basic test environment."""
+    cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=2,
+            max_steps=1000,
+            obs_width=3,
+            obs_height=3,
+            num_observation_tokens=NUM_OBS_TOKENS,
+            actions=ActionsConfig(
+                noop=ActionConfig(),
+                move=ActionConfig(),
+                rotate=ActionConfig(),
+                get_items=ActionConfig(),
+            ),
+            objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
+            inventory_item_names=["laser", "armor", "heart"],
+            map_builder=AsciiMapBuilderConfig(
+                map_data=[
+                    ["#", "#", "#", "#", "#", "#", "#", "#"],
+                    ["#", "@", ".", ".", ".", ".", ".", "#"],
+                    ["#", ".", ".", ".", "@", ".", ".", "#"],
+                    ["#", "#", "#", "#", "#", "#", "#", "#"],
+                ]
+            ),
         )
-    else:
-        # Convert dict format to ActionsConfig
-        action_configs = {}
-        for name, config in actions.items():
-            if name == "attack":
-                action_configs[name] = AttackActionConfig(**config)
-            elif name == "change_glyph":
-                action_configs[name] = ChangeGlyphActionConfig(**config)
-            else:
-                action_configs[name] = ActionConfig(**config)
-        actions = ActionsConfig(**action_configs)
-
-    # Set up default groups
-    if groups is None:
-        groups = {"agent": GroupConfig(id=0)}
-    else:
-        group_configs = {}
-        for name, config in groups.items():
-            props = None
-            if "props" in config and config["props"]:
-                props = AgentConfig(**config["props"])
-            group_configs[name] = GroupConfig(id=config["id"], props=props)
-        groups = group_configs
-
-    # Count agents in the map
-    num_agents = np.count_nonzero(np.char.startswith(game_map, "agent"))
-
-    # Set up default inventory items
-    if inventory_item_names is None:
-        inventory_item_names = ["laser", "armor", "heart"]
-
-    # Set up default global obs
-    if global_obs is None:
-        global_obs = {
-            "episode_completion_pct": True,
-            "last_action": True,
-            "last_reward": True,
-            "resource_rewards": False,
-        }
-
-    # Create the game configuration
-    game_config = GameConfig(
-        map_builder=map_builder,
-        objects=objects,
-        actions=actions,
-        groups=groups,
-        num_agents=num_agents,
-        max_steps=max_steps,
-        obs_width=obs_width,
-        obs_height=obs_height,
-        num_observation_tokens=NUM_OBS_TOKENS,
-        inventory_item_names=inventory_item_names,
-        global_obs=global_obs,
     )
 
-    # Create the environment configuration
-    env_config = EnvConfig(game=game_config)
-
-    # Convert to C++ config and create environment
-    c_cfg = from_mettagrid_config(env_config.game.model_dump())
-    return MettaGrid(c_cfg, map_data, 0)
+    return MettaGridCore(cfg)
 
 
 @pytest.fixture
-def basic_env() -> MettaGrid:
-    """Create a basic test environment."""
-    # Create basic 4x8 grid with walls around perimeter
-    game_map = create_grid(4, 8)
-    game_map[0, :] = "wall"
-    game_map[-1, :] = "wall"
-    game_map[:, 0] = "wall"
-    game_map[:, -1] = "wall"
-
-    # Place agents
-    game_map[1, 1] = "agent.agent"
-    game_map[2, 4] = "agent.agent"
-
-    return create_env_from_grid(game_map, obs_width=3, obs_height=3)
-
-
-@pytest.fixture
-def adjacent_agents_env() -> MettaGrid:
+def adjacent_agents_env() -> MettaGridCore:
     """Create an environment with adjacent agents."""
-    # Create 5x5 grid with walls around perimeter
-    game_map = create_grid(5, 5)
-    game_map[0, :] = "wall"
-    game_map[-1, :] = "wall"
-    game_map[:, 0] = "wall"
-    game_map[:, -1] = "wall"
+    cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=2,
+            max_steps=1000,
+            obs_width=3,
+            obs_height=3,
+            num_observation_tokens=NUM_OBS_TOKENS,
+            actions=ActionsConfig(
+                noop=ActionConfig(),
+                move=ActionConfig(),
+                rotate=ActionConfig(),
+                get_items=ActionConfig(),
+            ),
+            objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
+            inventory_item_names=["laser", "armor", "heart"],
+            map_builder=AsciiMapBuilderConfig(
+                map_data=[
+                    ["#", "#", "#", "#", "#"],
+                    ["#", ".", ".", ".", "#"],
+                    ["#", "@", "@", ".", "#"],
+                    ["#", ".", ".", ".", "#"],
+                    ["#", "#", "#", "#", "#"],
+                ]
+            ),
+        )
+    )
 
-    # Place adjacent agents
-    game_map[2, 1] = "agent.agent"
-    game_map[2, 2] = "agent.agent"
-
-    return create_env_from_grid(game_map, obs_width=3, obs_height=3)
+    return MettaGridCore(cfg)
 
 
 class TestObservations:
@@ -166,6 +104,7 @@ class TestObservations:
         # Test empty terminator
         assert (obs[0, -1, :] == TokenTypes.EMPTY_TOKEN).all()
         assert (obs[1, -1, :] == TokenTypes.EMPTY_TOKEN).all()
+
 
     def test_detailed_wall_observations(self, basic_env):
         """Test detailed wall observations for both agents."""
@@ -247,17 +186,17 @@ class TestObservations:
     def test_agent_surrounded_by_altars(self):
         """Test agent observation when surrounded by colored altars."""
         # Create a 5x5 environment with agent in center surrounded by altars
-        game_map = create_grid(5, 5)
+        game_map = create_grid(5, 5, fill_value=".")
         helper = ObservationHelper()
 
         # Add walls around perimeter
-        game_map[0, :] = "wall"
-        game_map[-1, :] = "wall"
-        game_map[:, 0] = "wall"
-        game_map[:, -1] = "wall"
+        game_map[0, :] = "#"
+        game_map[-1, :] = "#"
+        game_map[:, 0] = "#"
+        game_map[:, -1] = "#"
 
         # Place agent in center at grid position (2,2)
-        game_map[2, 2] = "agent.red"
+        game_map[2, 2] = "@"
 
         # Place 8 altars around the agent with different colors
         # Layout:
@@ -281,38 +220,46 @@ class TestObservations:
         ]
 
         # Place altars on the map
-        for i, (x, y, _color) in enumerate(altar_positions):
-            altar_name = f"altar_{i + 1}"
-            game_map[y, x] = altar_name
+        for x, y, _color in altar_positions:
+            game_map[y, x] = "_"  # Use underscore character for altars
 
-        # Create altar objects configuration
-        objects = {"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)}
-        for i, (_x, _y, color) in enumerate(altar_positions):
-            altar_name = f"altar_{i + 1}"
-            objects[altar_name] = ConverterConfig(
-                type_id=i + 2,
+        # Create altar objects configuration - single altar type for simplicity
+        objects = {
+            "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID),
+            "altar": ConverterConfig(
+                type_id=TokenTypes.ALTAR_TYPE_ID,
                 input_resources={"resource1": 1},
                 output_resources={"resource2": 1},
                 max_output=10,
                 conversion_ticks=5,
                 cooldown=3,
                 initial_resource_count=0,
-                color=color,
+                color=42,  # Single color for all altars
+            ),
+        }
+
+        # Create the environment using direct EnvConfig
+        cfg = EnvConfig(
+            game=GameConfig(
+                num_agents=1,
+                max_steps=10,
+                obs_width=3,  # Use 3x3 observation window for this test
+                obs_height=3,
+                num_observation_tokens=NUM_OBS_TOKENS,
+                actions=ActionsConfig(
+                    noop=ActionConfig(),
+                    move=ActionConfig(),
+                    rotate=ActionConfig(),
+                    get_items=ActionConfig(),
+                ),
+                objects=objects,
+                groups={"agent": GroupConfig(id=0)},  # "@" maps to "agent.agent"
+                inventory_item_names=["laser", "resource1", "resource2"],  # include laser to allow attack
+                map_builder=AsciiMapBuilderConfig(map_data=game_map.tolist()),
             )
-
-        # Create groups for the red agent
-        groups = {"red": {"id": 0, "props": {}}}
-
-        # Create the environment using the new system
-        env = create_env_from_grid(
-            game_map=game_map,
-            max_steps=10,
-            obs_width=3,  # Use 3x3 observation window for this test
-            obs_height=3,
-            inventory_item_names=["laser", "resource1", "resource2"],  # include laser to allow attack
-            objects=objects,  # Pass the altar objects with individual configs
-            groups=groups,
         )
+
+        env = MettaGridCore(cfg)
 
         obs, _ = env.reset()
         agent_obs = obs[0]
@@ -323,29 +270,25 @@ class TestObservations:
         #   D & E  -> (0,1) (1,1) (2,1)
         #   F G H     (0,2) (1,2) (2,2)
 
-        expected_altars = [
-            (0, 0, 2, 1),  # A: top-left, type_id=2, color=1
-            (1, 0, 3, 2),  # B: top-center, type_id=3, color=2
-            (2, 0, 4, 3),  # C: top-right, type_id=4, color=3
-            (0, 1, 5, 4),  # D: middle-left, type_id=5, color=4
-            (2, 1, 6, 5),  # E: middle-right, type_id=6, color=5
-            (0, 2, 7, 6),  # F: bottom-left, type_id=7, color=6
-            (1, 2, 8, 7),  # G: bottom-center, type_id=8, color=7
-            (2, 2, 9, 8),  # H: bottom-right, type_id=9, color=8
+        expected_altar_positions = [
+            (0, 0),  # A: top-left
+            (1, 0),  # B: top-center
+            (2, 0),  # C: top-right
+            (0, 1),  # D: middle-left
+            (2, 1),  # E: middle-right (center 1,1 is agent)
+            (0, 2),  # F: bottom-left
+            (1, 2),  # G: bottom-center
+            (2, 2),  # H: bottom-right
         ]
 
-        # Check that we see each altar with correct type_id
-        for x, y, expected_type_id, expected_color in expected_altars:
+        # Check that we see altars at all expected positions
+        for x, y in expected_altar_positions:
             # Check altar exists at location
-            assert helper.has_feature_at(agent_obs, x, y, expected_type_id), (
-                f"Should have altar with type_id {expected_type_id} at ({x}, {y})"
-            )
+            assert helper.has_feature_at(agent_obs, x, y, TokenTypes.ALTAR_TYPE_ID), f"Should have altar at ({x}, {y})"
 
             # Check color token
             color_value = helper.find_token_value_at_location(agent_obs, x, y, TokenTypes.COLOR)
-            assert color_value == expected_color, (
-                f"Altar at ({x}, {y}) should have color {expected_color}, got {color_value}"
-            )
+            assert color_value == 42, f"Altar at ({x}, {y}) should have color 42, got {color_value}"
 
             # Check converter status token exists
             converter_value = helper.find_token_value_at_location(
@@ -357,13 +300,9 @@ class TestObservations:
         agent_tokens = helper.find_tokens_at_location(agent_obs, 1, 1)
         assert len(agent_tokens) > 0, "Agent should see itself at center position"
 
-        # Count unique altar types
-        unique_type_ids = set()
-        for type_id in range(2, 10):  # Altar type_ids are 2-9
-            if helper.count_features_by_type(agent_obs, type_id) > 0:
-                unique_type_ids.add(type_id)
-
-        assert len(unique_type_ids) == 8, f"Should see 8 different altar types, got {len(unique_type_ids)}"
+        # Count total altars
+        altar_count = helper.count_features_by_type(agent_obs, TokenTypes.ALTAR_TYPE_ID)
+        assert altar_count == 8, f"Should see 8 altars, got {altar_count}"
 
     def _check_token_exists(self, obs, x, y, type_id, feature_id, agent_name):
         """Helper to check if a specific token exists at a location."""
@@ -449,29 +388,42 @@ class TestGlobalTokens:
     def test_global_tokens_update(self):
         """Test that global tokens update correctly."""
         # Create basic 4x8 grid with walls around perimeter
-        game_map = create_grid(4, 8)
-        game_map[0, :] = "wall"
-        game_map[-1, :] = "wall"
-        game_map[:, 0] = "wall"
-        game_map[:, -1] = "wall"
+        game_map = create_grid(4, 8, fill_value=".")
+        game_map[0, :] = "#"
+        game_map[-1, :] = "#"
+        game_map[:, 0] = "#"
+        game_map[:, -1] = "#"
 
         # Place agents
-        game_map[1, 1] = "agent.agent"
-        game_map[2, 4] = "agent.agent"
+        game_map[1, 1] = "@"
+        game_map[2, 4] = "@"
 
         # Create environment with max_steps=10 so that 1 step = 10% completion
-        env = create_env_from_grid(
-            game_map,
-            max_steps=10,  # Important: 10 steps total so 1 step = 10%
-            obs_width=3,
-            obs_height=3,
-            global_obs={
-                "episode_completion_pct": True,
-                "last_action": True,
-                "last_reward": True,
-                "resource_rewards": False,
-            },
+        cfg = EnvConfig(
+            game=GameConfig(
+                num_agents=2,
+                max_steps=10,  # Important: 10 steps total so 1 step = 10%
+                obs_width=3,
+                obs_height=3,
+                num_observation_tokens=NUM_OBS_TOKENS,
+                actions=ActionsConfig(
+                    noop=ActionConfig(),
+                    move=ActionConfig(),
+                    rotate=ActionConfig(),
+                    get_items=ActionConfig(),
+                ),
+                objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
+                global_obs=GlobalObsConfig(
+                    episode_completion_pct=True,
+                    last_action=True,
+                    last_reward=True,
+                    resource_rewards=False,
+                ),
+                inventory_item_names=["laser", "armor", "heart"],
+                map_builder=AsciiMapBuilderConfig(map_data=game_map.tolist()),
+            )
         )
+        env = MettaGridCore(cfg)
         obs, _ = env.reset()
         num_agents = env.num_agents
         helper = ObservationHelper()
@@ -481,7 +433,7 @@ class TestGlobalTokens:
         global_y = env.obs_height // 2
 
         # Take a noop action
-        noop_idx = env.action_names().index("noop")
+        noop_idx = env.action_names.index("noop")
         actions = np.full((num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
         obs, _, _, _, _ = env.step(actions)
 
@@ -503,7 +455,7 @@ class TestGlobalTokens:
         assert last_arg == 0, f"Expected last action arg 0, got {last_arg}"
 
         # Take a move action
-        move_idx = env.action_names().index("move")
+        move_idx = env.action_names.index("move")
         actions = np.full((num_agents, 2), [move_idx, 1], dtype=dtype_actions)
         obs, _, _, _, _ = env.step(actions)
 
@@ -523,40 +475,44 @@ class TestGlobalTokens:
     def test_glyph_signaling(self):
         """Test that agents can signal using glyphs and observe each other's glyphs."""
         # Create a 5x5 environment with two adjacent agents
-        game_map = create_grid(5, 5)
+        game_map = create_grid(5, 5, fill_value=".")
         helper = ObservationHelper()
 
         # Add walls around perimeter
-        game_map[0, :] = "wall"
-        game_map[-1, :] = "wall"
-        game_map[:, 0] = "wall"
-        game_map[:, -1] = "wall"
+        game_map[0, :] = "#"
+        game_map[-1, :] = "#"
+        game_map[:, 0] = "#"
+        game_map[:, -1] = "#"
 
         # Place two agents next to each other
         # Agent 0 at (1,2), Agent 1 at (2,2)
-        game_map[2, 1] = "agent.red"
-        game_map[2, 2] = "agent.blue"
+        game_map[2, 1] = "@"
+        game_map[2, 2] = "@"
 
         # Create environment with change_glyph enabled and 8 glyphs
-        actions = {
-            "change_glyph": {"enabled": True, "number_of_glyphs": 8},
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
-            "get_items": {"enabled": True},
-        }
-
-        groups = {"red": {"id": 0, "props": {}}, "blue": {"id": 1, "props": {}}}
-
-        env = create_env_from_grid(
-            game_map=game_map,
-            max_steps=10,
-            obs_width=3,  # Use 3x3 observation window
-            obs_height=3,
-            inventory_item_names=["laser", "armor"],
-            actions=actions,
-            groups=groups,
+        cfg = EnvConfig(
+            game=GameConfig(
+                num_agents=2,
+                max_steps=10,
+                obs_width=3,  # Use 3x3 observation window
+                obs_height=3,
+                num_observation_tokens=NUM_OBS_TOKENS,
+                actions=ActionsConfig(
+                    noop=ActionConfig(),
+                    move=ActionConfig(),
+                    rotate=ActionConfig(),
+                    get_items=ActionConfig(),
+                    change_glyph=ChangeGlyphActionConfig(enabled=True, number_of_glyphs=8),
+                ),
+                objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
+                groups={
+                    "agent": GroupConfig(id=0),  # "@" maps to "agent.agent" for both agents
+                },
+                inventory_item_names=["laser", "armor"],
+                map_builder=AsciiMapBuilderConfig(map_data=game_map.tolist()),
+            )
         )
+        env = MettaGridCore(cfg)
 
         obs, _ = env.reset()
 
@@ -577,7 +533,7 @@ class TestGlobalTokens:
             print("This appears to be uninitialized memory. Attempting workaround...")
 
             # Workaround: explicitly set glyphs to 0 and step once
-            change_glyph_idx = env.action_names().index("change_glyph")
+            change_glyph_idx = env.action_names.index("change_glyph")
             actions = np.array(
                 [
                     [change_glyph_idx, 0],  # Agent 0 to glyph 0
@@ -609,8 +565,8 @@ class TestGlobalTokens:
         # Test changing glyphs
         print("\n=== Testing Glyph Changes ===")
 
-        change_glyph_idx = env.action_names().index("change_glyph")
-        noop_idx = env.action_names().index("noop")
+        change_glyph_idx = env.action_names.index("change_glyph")
+        noop_idx = env.action_names.index("noop")
 
         # Test 1: Agent 0 changes to glyph 3, Agent 1 stays at 0
         actions = np.array(
@@ -836,55 +792,60 @@ class TestEdgeObservations:
     def test_observation_off_edge_with_large_window(self):
         """Test observation window behavior when agent walks to corner of large map."""
         # Create a 15x10 grid (width=15, height=10) with 7x7 observation window
-        game_map = create_grid(10, 15)
+        game_map = create_grid(10, 15, fill_value=".")
         helper = ObservationHelper()
 
         # Add walls around perimeter
-        game_map[0, :] = "wall"
-        game_map[-1, :] = "wall"
-        game_map[:, 0] = "wall"
-        game_map[:, -1] = "wall"
+        game_map[0, :] = "#"
+        game_map[-1, :] = "#"
+        game_map[:, 0] = "#"
+        game_map[:, -1] = "#"
 
         # Place agent near top-left at (2, 2)
-        game_map[2, 2] = "agent.red"
+        game_map[2, 2] = "@"
 
         # Place an altar at (7, 5) - we'll watch it move through our view
-        game_map[5, 7] = "altar"
-
-        # Create altar object configuration
-        objects = {
-            "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID),
-            "altar": ConverterConfig(
-                type_id=TokenTypes.ALTAR_TYPE_ID,
-                input_resources={"resource1": 1},
-                output_resources={"resource2": 1},
-                max_output=10,
-                conversion_ticks=5,
-                cooldown=3,
-                initial_resource_count=0,
-                color=42,  # Distinctive color
-            ),
-        }
-
-        # Create groups for the red agent
-        groups = {"red": {"id": 0, "props": {}}}
+        game_map[5, 7] = "_"
 
         # Create environment with 7x7 observation window
-        env = create_env_from_grid(
-            game_map=game_map,
-            max_steps=50,  # Enough steps to walk around
-            obs_width=7,
-            obs_height=7,
-            inventory_item_names=["laser", "resource1", "resource2"],  # laser required for attack action
-            objects=objects,  # Pass the altar configuration
-            groups=groups,
+        cfg = EnvConfig(
+            game=GameConfig(
+                num_agents=1,
+                max_steps=50,  # Enough steps to walk around
+                obs_width=7,
+                obs_height=7,
+                num_observation_tokens=NUM_OBS_TOKENS,
+                actions=ActionsConfig(
+                    noop=ActionConfig(),
+                    move=ActionConfig(),
+                    rotate=ActionConfig(),
+                    get_items=ActionConfig(),
+                ),
+                objects={
+                    "wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID),
+                    "altar": ConverterConfig(
+                        type_id=TokenTypes.ALTAR_TYPE_ID,
+                        input_resources={"resource1": 1},
+                        output_resources={"resource2": 1},
+                        max_output=10,
+                        conversion_ticks=5,
+                        cooldown=3,
+                        initial_resource_count=0,
+                        color=42,  # Distinctive color
+                    ),
+                },
+                groups={"agent": GroupConfig(id=0)},  # "@" maps to "agent.agent"
+                inventory_item_names=["laser", "resource1", "resource2"],  # laser required for attack action
+                map_builder=AsciiMapBuilderConfig(map_data=game_map.tolist()),
+            )
         )
+        env = MettaGridCore(cfg)
 
         obs, _ = env.reset()
 
         # Get action indices
-        move_idx = env.action_names().index("move")
-        rotate_idx = env.action_names().index("rotate")
+        move_idx = env.action_names.index("move")
+        rotate_idx = env.action_names.index("rotate")
 
         # Verify initial position - agent should be at center of observation
         agent_tokens = helper.find_tokens_at_location(obs[0], 3, 3)
