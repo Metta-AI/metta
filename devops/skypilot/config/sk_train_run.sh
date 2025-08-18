@@ -46,6 +46,23 @@ fi
 bash ./devops/skypilot/config/configure_environment.sh
 source "$METTA_ENV_FILE"
 
+# Export Datadog environment variables if DD_API_KEY is present
+if [ -n "${DD_API_KEY:-}" ]; then
+  export DD_AGENT_HOST=localhost  # Agent runs locally on EC2 instance
+  export DD_TRACE_ENABLED=true
+  export DD_ENV="${DD_ENV:-production}"
+  export DD_SERVICE="${DD_SERVICE:-skypilot-worker}"
+  export DD_VERSION="${METTA_GIT_REF:-unknown}"
+  export DD_TAGS="run_id:${METTA_RUN_ID},node_rank:${RANK}"
+  echo "[CONFIG] Datadog integration enabled:"
+  echo "  - DD_ENV: ${DD_ENV}"
+  echo "  - DD_SERVICE: ${DD_SERVICE}"
+  echo "  - DD_VERSION: ${DD_VERSION}"
+  echo "  - DD_TAGS: ${DD_TAGS}"
+else
+  echo "[CONFIG] Datadog integration disabled (no API key)"
+fi
+
 EXIT_SUCCESS=0
 EXIT_FAILURE=1
 EXIT_NCCL_TEST_FAILURE=42
