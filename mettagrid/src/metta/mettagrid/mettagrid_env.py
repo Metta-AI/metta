@@ -263,13 +263,51 @@ class MettaGridEnv(MettaGridPufferBase):
                 return stats
 
             if step_rewards is not None and len(step_rewards) > 0:
+                # Safely gather rewards for each group with bounds validation
+                is_torch_tensor = torch.is_tensor(step_rewards)
+                total_agents = len(step_rewards)
+
+                def _safe_group_rewards(group: list[int]):
+                    if not group:
+                        if is_torch_tensor:
+                            sr_t = cast(torch.Tensor, step_rewards)
+                            return torch.zeros_like(sr_t[:1])
+                        else:
+                            sr_np = cast(np.ndarray, step_rewards)
+                            return np.zeros(1, dtype=sr_np.dtype)
+
+                    valid_indices = [
+                        idx for idx in group if isinstance(idx, (int, np.integer)) and 0 <= idx < total_agents
+                    ]
+
+                    if not valid_indices:
+                        if is_torch_tensor:
+                            sr_t = cast(torch.Tensor, step_rewards)
+                            return torch.zeros_like(sr_t[:1])
+                        else:
+                            sr_np = cast(np.ndarray, step_rewards)
+                            return np.zeros(1, dtype=sr_np.dtype)
+
+                    try:
+                        return step_rewards[valid_indices]
+                    except Exception as e:
+                        logger.warning(
+                            (f"[MettaGridEnv] Failed to index step_rewards with indices {valid_indices}: {e}")
+                        )
+                        if is_torch_tensor:
+                            sr_t = cast(torch.Tensor, step_rewards)
+                            return torch.zeros_like(sr_t[:1])
+                        else:
+                            sr_np = cast(np.ndarray, step_rewards)
+                            return np.zeros(1, dtype=sr_np.dtype)
+
                 # NPC group stats
-                npc_rewards = step_rewards[npc_group] if len(npc_group) > 0 else torch.zeros(1)
+                npc_rewards = _safe_group_rewards(npc_group)
                 stats["dual_policy/npc/step_reward_mean"] = npc_rewards.mean().item()
                 stats["dual_policy/npc/step_reward_sum"] = npc_rewards.sum().item()
 
                 # Trained policy group stats
-                trained_rewards = step_rewards[trained_group] if len(trained_group) > 0 else torch.zeros(1)
+                trained_rewards = _safe_group_rewards(trained_group)
                 stats["dual_policy/trained/step_reward_mean"] = trained_rewards.mean().item()
                 stats["dual_policy/trained/step_reward_sum"] = trained_rewards.sum().item()
 

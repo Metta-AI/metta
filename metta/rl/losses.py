@@ -58,7 +58,7 @@ class Losses:
 
 
 def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dtype) -> Composite:
-    scalar_f32 = UnboundedContinuous(shape=(), dtype=torch.float32)
+    scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
     return Composite(
         rewards=scalar_f32,
@@ -72,7 +72,7 @@ def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dt
         values=scalar_f32,
         returns=scalar_f32,
         is_student_agent=UnboundedContinuous(
-            shape=(), dtype=torch.float32
+            shape=torch.Size([]), dtype=torch.float32
         ),  # Track which agents are student-controlled (1.0 for student, 0.0 for NPC)
     )
 
@@ -127,7 +127,16 @@ def process_minibatch_update(
     # If dual-policy is enabled, slice to get only student agent data
     if trainer_cfg.dual_policy.enabled and not torch.all(is_student):
         # Find indices of student agents (assuming contiguous arrangement)
-        student_indices = torch.nonzero(is_student.flatten()).squeeze(-1)
+        student_indices_tensor = torch.nonzero(is_student.flatten())
+
+        # Check if there are any student agents
+        if student_indices_tensor.numel() == 0:
+            # No student agents - skip loss computation for this minibatch
+            # Return zero loss to continue training without error
+            logger.warning("No student agents found in minibatch - skipping loss computation")
+            return torch.tensor(0.0, device=device, dtype=torch.float32)
+
+        student_indices = student_indices_tensor.squeeze(-1)
 
         # Slice all relevant tensors to get only student data
         student_new_logprob = new_logprob.flatten()[student_indices]
@@ -137,11 +146,16 @@ def process_minibatch_update(
         student_importance_ratio = importance_sampling_ratio.flatten()[student_indices]
         student_values = newvalue.flatten()[student_indices]
 
-        # Create student-only minibatch for loss computation
-        student_minibatch = minibatch.clone()
-        student_minibatch["act_log_prob"] = student_old_logprob
-        student_minibatch["values"] = minibatch["values"].flatten()[student_indices]
-        student_minibatch["returns"] = minibatch["returns"].flatten()[student_indices]
+        # Create student-only minibatch for loss computation with a matching 1D batch size
+        num_students = student_indices.shape[0]
+        student_minibatch = TensorDict(
+            {
+                "act_log_prob": student_old_logprob,
+                "values": minibatch["values"].flatten()[student_indices],
+                "returns": minibatch["returns"].flatten()[student_indices],
+            },
+            batch_size=[num_students],
+        )
 
         # Compute losses with only student data
         pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(
@@ -159,9 +173,27 @@ def process_minibatch_update(
         metric_new_logprob = student_new_logprob
         # For kickstarter, only use student agent data
         student_full_logprobs = full_logprobs.flatten()[student_indices]
-        student_env_obs = (
-            policy_td["env_obs"][student_indices] if policy_td["env_obs"].ndim > 1 else policy_td["env_obs"]
-        )
+
+        # Safe indexing for env_obs with proper shape handling and bounds checks
+        if policy_td["env_obs"].ndim > 1:
+            env_obs = policy_td["env_obs"]
+            # Choose an indexable view: original if indices fit first dim, otherwise flatten leading dims
+            if student_indices.numel() > 0 and student_indices.max() < env_obs.shape[0]:
+                env_obs_indexable = env_obs
+            else:
+                env_obs_indexable = env_obs.reshape(-1, *env_obs.shape[2:])
+
+            if student_indices.numel() > 0:
+                valid = (student_indices >= 0) & (student_indices < env_obs_indexable.shape[0])
+                if torch.any(~valid):
+                    logger.warning("Found out-of-bounds student indices for env_obs; using only valid indices")
+                safe_indices = student_indices[valid]
+                student_env_obs = env_obs_indexable[safe_indices]
+            else:
+                student_env_obs = env_obs_indexable[:0]
+        else:
+            student_env_obs = policy_td["env_obs"]
+
         ks_newvalue = student_values
     else:
         # Standard PPO losses when no NPCs or all agents are students

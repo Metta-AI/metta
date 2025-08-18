@@ -100,7 +100,7 @@ def _aggregate_dual_policy_stats(stats: Dict[str, Any], device: torch.device) ->
 
     # Collect local dual_policy keys and build a global, deterministic union
     local_keys = {k for k in stats.keys() if k.startswith("dual_policy/")}
-    gathered_key_sets = [None] * world_size  # type: ignore[var-annotated]
+    gathered_key_sets: list[set[str]] = [set() for _ in range(world_size)]
     torch.distributed.all_gather_object(gathered_key_sets, local_keys)
     union_keys = sorted(set().union(*gathered_key_sets))
 
@@ -119,7 +119,12 @@ def _aggregate_dual_policy_stats(stats: Dict[str, Any], device: torch.device) ->
 
         # Keep only numeric values (support Python and NumPy scalars)
         numeric_vals = [v for v in values if isinstance(v, numbers.Number)]
-        local_sum = float(sum(numeric_vals)) if numeric_vals else 0.0
+
+        def _to_float(x: Any) -> float:
+            return float(x)
+
+        numeric_vals_f = [_to_float(v) for v in numeric_vals]
+        local_sum = float(sum(numeric_vals_f)) if numeric_vals_f else 0.0
         local_count = float(len(numeric_vals))
 
         tensor = torch.tensor([local_sum, local_count], dtype=torch.float32, device=device)
@@ -428,8 +433,21 @@ def train(
                         if is_master:
                             logger.info(f"Dual policy groups: NPC={len(npc_agents)}, Trained={len(trained_agents)}")
                     except Exception as e:
+                        # Treat group assignment failure as critical to training integrity
                         if is_master:
-                            logger.warning(f"Failed to set dual policy groups: {e}")
+                            logger.error(
+                                f"Failed to set dual policy groups: {e}. Disabling dual policy training.",
+                                exc_info=True,
+                            )
+                        trainer_cfg.dual_policy.enabled = False
+                        # Disable env-side dual policy flags as well
+                        try:
+                            metta_grid_env._dual_policy_enabled = False
+                            metta_grid_env._dual_policy_agent_groups = [[], []]
+                        except Exception:
+                            pass
+                        # Reset mask so all agents are treated as students downstream
+                        npc_mask_per_env = None
 
                 while not experience.ready_for_training:
                     # Get observation
@@ -494,13 +512,26 @@ def train(
                             elif actions.ndim == 2:
                                 # Shape like [B*agents_per_env, action_components]
                                 total = actions.shape[0]
-                                if agents_per_env > 0 and total % agents_per_env == 0:
-                                    repeats = total // agents_per_env
-                                    npc_mask_flat = npc_mask_per_env.repeat(repeats)
-                                    actions[npc_mask_flat, :] = td_npc["actions"][npc_mask_flat, :]
+                                if agents_per_env > 0:
+                                    if total % agents_per_env == 0:
+                                        repeats = total // agents_per_env
+                                        npc_mask_flat = npc_mask_per_env.repeat(repeats)
+                                        # Validate shapes before indexing
+                                        if npc_mask_flat.shape[0] == total and td_npc["actions"].shape[0] == total:
+                                            actions[npc_mask_flat, :] = td_npc["actions"][npc_mask_flat, :]
+                                        else:
+                                            logger.warning(
+                                                "Skipping NPC action assignment due to shape mismatch: "
+                                                f"mask={npc_mask_flat.shape[0]}, actions={total}, "
+                                                f"npc_actions={td_npc['actions'].shape[0]}"
+                                            )
+                                    else:
+                                        logger.warning(
+                                            "Skipping NPC action assignment: total agents "
+                                            f"{total} not divisible by agents_per_env {agents_per_env}"
+                                        )
                                 else:
-                                    # Unable to infer grouping; skip merge to avoid shape errors
-                                    pass
+                                    logger.warning("Skipping NPC action assignment: agents_per_env <= 0")
                             else:
                                 # Unsupported shape; skip merge
                                 pass
