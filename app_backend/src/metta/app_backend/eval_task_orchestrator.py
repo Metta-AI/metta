@@ -57,13 +57,17 @@ class FixedScaler(AbstractWorkerScaler):
 
 
 class AutoScaler(AbstractWorkerScaler):
+    CREATED_IN_LAST_DAY_FILTER = "created_at > NOW() - INTERVAL '1 day'"
+    DONE_FILTER = "status = 'done'"
+    UNPROCESSED_FILTER = "status = 'unprocessed'"
+
     def __init__(self, task_client: EvalTaskClient, default_task_runtime: float, logger: logging.Logger):
         self._task_client = task_client
         self._default_task_runtime = default_task_runtime
         self._logger = logger
 
     async def _compute_desired_workers(self, avg_task_runtime: float) -> int:
-        num_tasks_per_day = (await self._task_client.count_tasks("created_at > NOW() - INTERVAL '1 day'")).count
+        num_tasks_per_day = (await self._task_client.count_tasks(self.CREATED_IN_LAST_DAY_FILTER)).count
         total_work_time_seconds = num_tasks_per_day * avg_task_runtime
         single_worker_work_time_seconds = 60 * 60 * 24
         return math.ceil(total_work_time_seconds / single_worker_work_time_seconds * 1.2)  # 20% buffer
@@ -71,25 +75,26 @@ class AutoScaler(AbstractWorkerScaler):
     async def _get_avg_task_runtime(self) -> float:
         avg_task_runtime = self._default_task_runtime
         num_done_tasks_last_day = (
-            await self._task_client.count_tasks("status = 'done' AND created_at > NOW() - INTERVAL '1 day'")
+            await self._task_client.count_tasks(f"{self.DONE_FILTER} AND {self.CREATED_IN_LAST_DAY_FILTER}")
         ).count
         if num_done_tasks_last_day > 20:
             avg_runtime_last_day = (
-                await self._task_client.get_avg_runtime("status = 'done' AND created_at > NOW() - INTERVAL '1 day'")
+                await self._task_client.get_avg_runtime(f"{self.DONE_FILTER} AND {self.CREATED_IN_LAST_DAY_FILTER}")
             ).avg_runtime
             if avg_runtime_last_day is not None:
                 avg_task_runtime = avg_runtime_last_day
         return avg_task_runtime
 
     async def get_desired_workers(self, num_workers: int) -> int:
-        num_unclaimed_tasks = (await self._task_client.count_tasks("status = 'unprocessed'")).count
+        num_unclaimed_tasks = (await self._task_client.count_tasks(self.UNPROCESSED_FILTER)).count
         avg_task_runtime = await self._get_avg_task_runtime()
+        num_desired_workers = await self._compute_desired_workers(avg_task_runtime)
 
         if num_unclaimed_tasks > num_workers * 5:
-            # We have a big backlog of tasks.  Launch enough workers to work through the backlog in 1 hour
-            return math.ceil(num_unclaimed_tasks * avg_task_runtime / 3600)
+            # We have a big backlog of tasks.  Launch at least enough workers to work through the backlog in 1 hour
+            return max(num_desired_workers, math.ceil(num_unclaimed_tasks * avg_task_runtime / 3600))
         else:
-            return await self._compute_desired_workers(avg_task_runtime)
+            return num_desired_workers
 
 
 class EvalTaskOrchestrator:
@@ -220,7 +225,7 @@ class EvalTaskOrchestrator:
                 w for w in alive_workers_by_name.values() if not w.assigned_task and w.worker.status == "Running"
             ]
             if idle_workers:
-                num_workers_to_kill = max(len(idle_workers), len(alive_workers_by_name) - desired_workers)
+                num_workers_to_kill = len(alive_workers_by_name) - desired_workers
                 self._logger.info(f"Killing {num_workers_to_kill} idle workers")
                 for worker in idle_workers[:num_workers_to_kill]:
                     self._worker_manager.cleanup_worker(worker.worker.name)
