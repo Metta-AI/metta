@@ -76,6 +76,5 @@ sweep_job_overrides:
       evaluate_local: true
       evaluate_interval: 25 # No evaluation during training for speed
       replay_dir: "" # No replays for sweeps
-      gif_hash: null
 
 cmd: sweep
