@@ -1,0 +1,183 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String                 @id @default(cuid())
+  name                  String?
+  email                 String?                @unique(map: "user_email_unique")
+  emailVerified         DateTime?
+  image                 String?
+  accounts              Account[]
+  authenticators        Authenticator[]
+  posts                 Post[]
+  comments              Comment[]
+  sessions              Session[]
+  userPaperInteractions UserPaperInteraction[]
+
+  @@map("user")
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+  @@map("account")
+}
+
+model Session {
+  sessionToken String   @id
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime @db.Timestamp(6)
+
+  @@id([identifier, token])
+  @@map("verificationToken")
+}
+
+model Authenticator {
+  credentialID         String  @unique(map: "authenticator_credentialID_unique")
+  userId               String
+  providerAccountId    String
+  credentialPublicKey  String
+  counter              Int
+  credentialDeviceType String
+  credentialBackedUp   Boolean
+  transports           String?
+  user                 User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, credentialID])
+  @@map("authenticator")
+}
+
+model Post {
+  id        String     @id @default(cuid())
+  authorId  String
+  title     String
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @default(now()) @updatedAt
+  content   String?
+  postType  String     @default("user-post")
+  queues    Int        @default(0)
+  replies   Int        @default(0)
+  paperId   String?
+  author    User       @relation(fields: [authorId], references: [id])
+  paper     Paper?     @relation(fields: [paperId], references: [id])
+  comments  Comment[]
+
+  @@map("post")
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  content   String
+  postId    String
+  authorId  String
+  parentId  String?
+  isBot     Boolean   @default(false)
+  botType   String?   // e.g., "library_bot"
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[] @relation("CommentReplies")
+
+  @@map("comment")
+}
+
+model Author {
+  id              String        @id @default(cuid())
+  name            String        @unique
+  username        String?       @unique // "@username" format
+  email           String?
+  avatar          String?       // Profile image URL or initials
+  institution     String?
+  department      String?       // Academic department
+  title           String?       // Academic title
+  expertise       String[]      // Array of expertise tags
+  hIndex          Int?          @default(0)
+  totalCitations  Int?          @default(0)
+  claimed         Boolean       @default(false)
+  recentActivity  DateTime?
+  orcid           String?       @unique
+  googleScholarId String?
+  arxivId         String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @default(now()) @updatedAt
+  paperAuthors    PaperAuthor[]
+
+  @@map("author")
+}
+
+model Paper {
+  id                    String                 @id @default(cuid())
+  title                 String
+  abstract              String?
+  institutions          String[]
+  tags                  String[]
+  link                  String?
+  source                String?
+  externalId            String?
+  stars                 Int                    @default(0)
+  starred               Boolean                @default(false)
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @default(now()) @updatedAt
+  llmAbstract           Json?                  // LLM-generated enhanced abstract
+  llmAbstractGeneratedAt DateTime?             // When LLM abstract was generated
+  paperAuthors          PaperAuthor[]
+  posts                 Post[]
+  userPaperInteractions UserPaperInteraction[]
+
+  @@map("paper")
+}
+
+model PaperAuthor {
+  paperId  String
+  authorId String
+  author   Author @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  paper    Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
+
+  @@id([paperId, authorId])
+  @@map("paper_author")
+}
+
+model UserPaperInteraction {
+  userId  String
+  paperId String
+  starred Boolean?  @default(false)
+  readAt  DateTime? @db.Timestamp(6)
+  queued  Boolean?  @default(false)
+  notes   String?
+  paper   Paper     @relation(fields: [paperId], references: [id])
+  user    User      @relation(fields: [userId], references: [id])
+
+  @@id([userId, paperId], map: "user_paper_interaction_userId_paperId_pk")
+  @@map("user_paper_interaction")
+}
+
+

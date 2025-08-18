@@ -155,7 +155,8 @@ function updateDom(htmlBubble: HTMLElement, object: Entity) {
   addParam('Type', typeName)
   if (object.isAgent) {
     addParam('Agent ID', object.agentId.toString())
-    addParam('Current Reward', object.currentReward.get().toString())
+    addParam('Current Reward', object.currentReward.get().toFixed(3))
+    addParam('Total Reward', object.totalReward.get().toFixed(3))
   }
 
   // Populate the inventory area.

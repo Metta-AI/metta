@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import styles from './EvalSelector.module.css'
+import { getEvalCategory, groupEvalNamesByCategory, reconstructEvalName } from '../utils/evalNameUtils'
 
 interface EvalSelectorProps {
   evalNames: Set<string>
@@ -16,18 +17,7 @@ export const EvalSelector: React.FC<EvalSelectorProps> = ({
 }) => {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set())
 
-  const getEvalCategory = (evalName: string): string => {
-    return evalName.split('/')[0]
-  }
-
-  const categories: Map<string, string[]> = new Map()
-  for (const evalName of evalNames) {
-    const [category, envName] = evalName.split('/')
-    if (!categories.has(category)) {
-      categories.set(category, [])
-    }
-    categories.get(category)!.push(envName)
-  }
+  const categories = groupEvalNamesByCategory(evalNames)
 
   const toggleCategoryExpansion = (category: string) => {
     setExpandedCategories((prev) => {
@@ -52,18 +42,25 @@ export const EvalSelector: React.FC<EvalSelectorProps> = ({
   }
 
   const isCategorySelected = (category: string): boolean => {
-    // count selected eval names that have this category
-    let count = countSelectedEvalNamesInCategory(category)
-    return count === categories.get(category)!.length
+    const envNames = categories.get(category)
+    if (!envNames) {
+      throw new Error(`No environment names found for category: ${category}`)
+    }
+    const count = countSelectedEvalNamesInCategory(category)
+    return count === envNames.length
   }
 
   const isCategoryPartiallySelected = (category: string): boolean => {
-    let count = countSelectedEvalNamesInCategory(category)
-    return count > 0 && count < categories.get(category)!.length
+    const envNames = categories.get(category)
+    if (!envNames) {
+      throw new Error(`No environment names found for category: ${category}`)
+    }
+    const count = countSelectedEvalNamesInCategory(category)
+    return count > 0 && count < envNames.length
   }
 
   const isEnvSelected = (category: string, envName: string): boolean => {
-    return selectedEvalNames.has(`${category}/${envName}`)
+    return selectedEvalNames.has(reconstructEvalName(category, envName))
   }
 
   const handleCategoryToggle = (category: string) => {
@@ -74,16 +71,27 @@ export const EvalSelector: React.FC<EvalSelectorProps> = ({
       onSelectionChange(new Set([...selectedEvalNames].filter((evalName) => getEvalCategory(evalName) !== category)))
     } else {
       // Select entire category
+      const envNames = categories.get(category)
+      if (!envNames) {
+        throw new Error(`No environment names found for category: ${category}`)
+      }
+      const reconstructedNames = envNames.map((envName) => reconstructEvalName(category, envName))
       const newSelections = new Set([
         ...selectedEvalNames,
-        ...categories.get(category)!.map((envName) => `${category}/${envName}`),
+        ...reconstructedNames,
       ])
       onSelectionChange(newSelections)
     }
   }
 
   const handleEnvToggle = (category: string, envName: string) => {
-    const newSelections = new Set([...selectedEvalNames, `${category}/${envName}`])
+    const evalName = reconstructEvalName(category, envName)
+    const newSelections = new Set(selectedEvalNames)
+    if (newSelections.has(evalName)) {
+      newSelections.delete(evalName)
+    } else {
+      newSelections.add(evalName)
+    }
     onSelectionChange(newSelections)
   }
 

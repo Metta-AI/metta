@@ -8,6 +8,7 @@ import { MetricSelector } from './components/MetricSelector'
 import { TagEditor } from './TagEditor'
 import { DescriptionEditor } from './DescriptionEditor'
 import { METTASCOPE_REPLAY_URL } from './constants'
+import { getShortName } from './utils/evalNameUtils'
 
 const TRAINING_RUN_DETAIL_CSS = `
 .training-run-detail-container {
@@ -185,10 +186,6 @@ interface TrainingRunDetailProps {
   repo: Repo
 }
 
-const getShortName = (evalName: string) => {
-  if (evalName === 'Overall') return evalName
-  return evalName.split('/').pop() || evalName
-}
 
 export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   const { runId } = useParams<{ runId: string }>()
@@ -553,6 +550,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   const selectedCellData = selectedCell ? scorecardData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
   const selectedEval = selectedCellData?.evalName ?? null
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null
+  const selectedThumbnailUrl = selectedCellData?.thumbnailUrl ?? null
 
   if (loading.initial) {
     return (
@@ -690,6 +688,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
           selectedEval={selectedEval}
           isViewLocked={isViewLocked}
           selectedReplayUrl={selectedReplayUrl}
+          selectedThumbnailUrl={selectedThumbnailUrl}
           onToggleLock={toggleLock}
           onReplayClick={handleReplayClick}
         />

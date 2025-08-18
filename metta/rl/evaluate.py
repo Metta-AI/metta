@@ -115,17 +115,13 @@ def upload_replay_html(
 
         # Log all links in a single HTML entry
         html_content = " | ".join(links)
-        _upload_replay_html(
-            html_content, agent_step, epoch, wandb_run, metric_prefix, step_metric_key, epoch_metric_key
-        )
+        _upload_replay_html(html_content, agent_step, epoch, wandb_run, step_metric_key, epoch_metric_key)
 
     # Maintain backward compatibility - log training task separately if available
     if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
         training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
         html_content = _form_mettascope_link(training_url, f"MetaScope Replay (Epoch {epoch})")
-        _upload_replay_html(
-            html_content, agent_step, epoch, wandb_run, metric_prefix, step_metric_key, epoch_metric_key
-        )
+        _upload_replay_html(html_content, agent_step, epoch, wandb_run, step_metric_key, epoch_metric_key)
 
 
 def _form_mettascope_link(url: str, name: str) -> str:
@@ -137,13 +133,11 @@ def _upload_replay_html(
     agent_step: int,
     epoch: int,
     wandb_run: WandbRun,
-    metric_prefix: str | None = None,
     step_metric_key: str | None = None,
     epoch_metric_key: str | None = None,
 ) -> None:
-    key_all = (f"{metric_prefix}/" if metric_prefix else "") + "replays/all"
     payload: dict[str, Any] = remove_none_keys(
-        {key_all: wandb.Html(html_content), step_metric_key: agent_step, epoch_metric_key: epoch}
+        {"replays/all": wandb.Html(html_content), step_metric_key: agent_step, epoch_metric_key: epoch}
     )
     if step_metric_key or epoch_metric_key:
         wandb_run.log(payload)

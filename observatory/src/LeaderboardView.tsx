@@ -236,6 +236,7 @@ export function LeaderboardView({ repo }: LeaderboardViewProps) {
   const selectedCellData = selectedCell ? scorecardData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
   const selectedEval = selectedCellData?.evalName ?? null
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null
+  const selectedThumbnailUrl = selectedCellData?.thumbnailUrl ?? null
 
 
   if (loading) {
@@ -358,6 +359,7 @@ export function LeaderboardView({ repo }: LeaderboardViewProps) {
               selectedEval={selectedEval}
               isViewLocked={isViewLocked}
               selectedReplayUrl={selectedReplayUrl}
+              selectedThumbnailUrl={selectedThumbnailUrl}
               onToggleLock={toggleLock}
               onReplayClick={handleReplayClick}
             />

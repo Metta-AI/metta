@@ -309,7 +309,6 @@ export function updateAvailableColumns() {
   const availableColumnNames = [
     'agentId',
     'totalReward',
-    'totalReward',
     'actionId',
     'actionParameter',
     'actionSuccess',

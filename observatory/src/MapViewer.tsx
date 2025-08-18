@@ -2,6 +2,7 @@ interface MapViewerProps {
   selectedEval: string | null
   isViewLocked: boolean
   selectedReplayUrl: string | null
+  selectedThumbnailUrl: string | null
   onToggleLock: () => void
   onReplayClick: () => void
 }
@@ -73,20 +74,13 @@ const MAP_VIEWER_CSS = `
 }
 `
 
-const getShortName = (evalName: string) => {
-  return evalName.split('/').pop() || evalName
-}
-
-const getMapImageUrl = (evalName: string) => {
-  if (evalName.toLowerCase() === 'overall') return ''
-  const shortName = getShortName(evalName)
-  return `https://softmax-public.s3.amazonaws.com/policydash/evals/img/${shortName.toLowerCase()}.png`
-}
+// No longer need hardcoded URL construction - thumbnail URLs come from API
 
 export function MapViewer({
   selectedEval,
   isViewLocked,
   selectedReplayUrl,
+  selectedThumbnailUrl,
   onToggleLock,
   onReplayClick,
 }: MapViewerProps) {
@@ -97,13 +91,19 @@ export function MapViewer({
         <div className="map-viewer-title">{selectedEval || 'Map Viewer'}</div>
         {!selectedEval ? (
           <div className="map-viewer-placeholder">Hover over an evaluation name or cell to see the environment map</div>
+        ) : selectedEval.startsWith('eval/') ? (
+          <div className="map-viewer-placeholder">No thumbnail available for synthetic evaluation: {selectedEval}</div>
+        ) : !selectedThumbnailUrl ? (
+          <div className="map-viewer-placeholder">No thumbnail available for {selectedEval}</div>
         ) : (
           <img
+            key={selectedThumbnailUrl} // Force reload when thumbnail URL changes
             className="map-viewer-img"
-            src={getMapImageUrl(selectedEval)}
+            src={selectedThumbnailUrl}
             alt={`Environment map for ${selectedEval}`}
             onError={(e) => {
               const target = e.target as HTMLImageElement
+              // If the thumbnail URL fails, show placeholder
               target.style.display = 'none'
               const placeholder = target.parentElement?.querySelector('.map-viewer-placeholder') as HTMLDivElement
               if (placeholder) {

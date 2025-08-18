@@ -106,18 +106,26 @@ class TestCodeclipCLI(unittest.TestCase):
         # README.md files are always included even with extension filtering
         self.assertIn("README.md", result.output)
 
-    def test_raw_output_format(self):
-        """Test raw output format."""
+    def test_readmes_only_flag(self):
+        """Test readmes-only flag (-r)."""
         Path("test.py").write_text("print('test')\n")
+        Path("README.md").write_text("# Test Project\n")
 
-        # Test with raw format (using -s for stdout output)
+        # Test with readmes-only flag (using -s for stdout output)
         result = self.runner.invoke(cli, [".", "-r", "-s"])
         self.assertEqual(result.exit_code, 0)
 
-        # Should not have XML tags
-        self.assertNotIn("<file path=", result.output)
-        # Should have file content
-        self.assertIn("print('test')", result.output)
+        # Should have XML format (we always use XML now)
+        self.assertIn("<document index=", result.output)
+        self.assertIn("<source>", result.output)
+
+        # Should include README.md
+        self.assertIn("README.md", result.output)
+        self.assertIn("Test Project", result.output)
+
+        # Should NOT include test.py (filtered out by readmes-only)
+        self.assertNotIn("test.py", result.output)
+        self.assertNotIn("print('test')", result.output)
 
     def test_xml_output_format(self):
         """Test XML output format (default)."""
@@ -184,45 +192,18 @@ class TestCodeclipCLI(unittest.TestCase):
         # Should NOT have summary since -s was used
         self.assertNotIn("Copied", result.output)
 
-    @patch("subprocess.Popen")
-    def test_dry_run_flag(self, mock_popen):
-        """Test that --dry flag prevents output and clipboard copy."""
-        Path("test.py").write_text("print('test')\n")
-
-        # Mock the process
-        mock_process = MagicMock()
-        mock_process.communicate = MagicMock()
-        mock_popen.return_value = mock_process
-
-        result = self.runner.invoke(cli, [".", "--dry"])
+    def test_help_contains_all_options(self):
+        """Test that help output contains all expected options."""
+        result = self.runner.invoke(cli, ["--help"])
         self.assertEqual(result.exit_code, 0)
 
-        # Check that pbcopy was NOT called
-        mock_popen.assert_not_called()
-
-        # Should see "Would copy" summary in stderr
-        self.assertIn("Would copy", result.output)
-        self.assertIn("tokens", result.output)
-
-        # Should NOT have file content in output
-        self.assertNotIn("print('test')", result.output)
-
-    @patch("subprocess.Popen")
-    def test_dry_run_with_stdout_flag(self, mock_popen):
-        """Test that --dry with -s still prevents output."""
-        Path("test.py").write_text("print('test')\n")
-
-        result = self.runner.invoke(cli, [".", "-s", "--dry"])
-        self.assertEqual(result.exit_code, 0)
-
-        # Should NOT have file content in stdout
-        self.assertNotIn("print('test')", result.output)
-
-        # Should see "Would copy" summary since dry run
-        self.assertIn("Would copy", result.output)
-
-        # pbcopy should not be called
-        mock_popen.assert_not_called()
+        # Check that all options are mentioned in help
+        self.assertIn("-s, --stdout", result.output)
+        self.assertIn("-r, --readmes", result.output)
+        self.assertIn("-e, --extension", result.output)
+        self.assertIn("-p, --profile", result.output)
+        self.assertIn("-f, --flamegraph", result.output)
+        self.assertIn("-d, --diff", result.output)
 
 
 if __name__ == "__main__":

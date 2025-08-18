@@ -2,6 +2,7 @@ import logging
 import os
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 import httpx
 
@@ -333,3 +334,39 @@ def add_remote(name: str, url: str, repo_path: Path | None = None):
         run_git_in_dir(repo_path, "remote", "add", name, url)
     else:
         run_git("remote", "add", name, url)
+
+
+def find_root(start: Path) -> Optional[Path]:
+    """Return the repository root that contains start, or None if not in a repo."""
+    current = start if start.is_dir() else start.parent
+    while current != current.parent:
+        if (current / ".git").is_dir():
+            return current
+        current = current.parent
+    return None
+
+
+def fetch(repo_root: Path) -> None:
+    """Best effort git fetch. No exception if it fails."""
+    try:
+        run_git_in_dir(repo_root, "fetch")
+    except GitError:
+        # Network issues are non-fatal for fetch
+        pass
+
+
+def ref_exists(repo_root: Path, ref: str) -> bool:
+    """True if ref resolves in this repo."""
+    try:
+        run_git_in_dir(repo_root, "rev-parse", "--verify", "--quiet", ref)
+        return True
+    except GitError:
+        return False
+
+
+def diff(repo_root: Path, base_ref: str) -> str:
+    """Unified diff of working tree vs base_ref. Empty string if no changes or failure."""
+    try:
+        return run_git_in_dir(repo_root, "diff", base_ref)
+    except GitError:
+        return ""

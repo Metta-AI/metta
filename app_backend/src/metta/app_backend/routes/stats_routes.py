@@ -59,6 +59,7 @@ class EpisodeCreate(BaseModel):
     attributes: dict[str, Any] = Field(default_factory=dict)
     eval_task_id: uuid.UUID | None = None
     tags: list[str] | None = None
+    thumbnail_url: str | None = None
 
 
 class EpisodeResponse(BaseModel):
@@ -184,6 +185,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 attributes=episode.attributes,
                 eval_task_id=episode.eval_task_id,
                 tags=episode.tags,
+                thumbnail_url=episode.thumbnail_url,
             )
             return EpisodeResponse(id=episode_id)
         except ValueError as e:

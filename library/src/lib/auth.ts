@@ -1,11 +1,11 @@
 import "server-only";
 
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import { PrismaAdapter } from "@auth/prisma-adapter";
 import NextAuth, { NextAuthConfig, NextAuthResult, Session } from "next-auth";
 import { Provider } from "next-auth/providers";
 import { redirect } from "next/navigation";
 
-import { db } from "./db";
+import { prisma } from "./db/prisma";
 
 function buildAuthConfig(): NextAuthConfig {
   const providers: Provider[] = [];
@@ -26,7 +26,7 @@ function buildAuthConfig(): NextAuthConfig {
   // TODO: configure Google provider for production deployment.
 
   const config: NextAuthConfig = {
-    adapter: DrizzleAdapter(db),
+    adapter: PrismaAdapter(prisma),
     providers,
     session: {
       strategy: "database",
@@ -64,4 +64,4 @@ export async function getSessionOrRedirect() {
     return session;
   }
   redirect("/api/auth/signin"); // TODO - callbackUrl
-}
+} 

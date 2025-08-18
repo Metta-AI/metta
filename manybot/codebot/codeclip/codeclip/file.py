@@ -2,17 +2,21 @@
 File loading and context extraction utilities.
 
 Provides methods for collecting and formatting files from different project structures,
-with special handling for READMEs and support for both XML and raw output formats.
+with special handling for READMEs and XML output format.
 """
 
 import fnmatch
 import logging
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import tiktoken
+
+# Import git helpers
+from metta.common.util import git as gitlib
 
 logger = logging.getLogger(__name__)
 
@@ -47,25 +51,47 @@ def resolve_codebase_path(path_str: Union[str, Path]) -> Path:
     return (Path.cwd() / path_obj).resolve()
 
 
-def _find_git_root(start_path: Path) -> Optional[Path]:
+def _build_git_diff_document(base_ref: str, start_path: Path, index: int) -> Optional[Document]:
     """
-    Find the root of the git repository containing the given path.
-
-    Args:
-        start_path: Path to start searching from
-
-    Returns:
-        Path to git root directory, or None if not in a git repo
+    Build a Document that contains a Git diff against base_ref.
+    Uses git.py helpers. If the repo or base_ref is missing, return a header-only doc.
     """
-    current = start_path if start_path.is_dir() else start_path.parent
+    repo_root = gitlib.find_root(start_path) or gitlib.find_root(Path.cwd())
+    header_title = f"===== Git diff against {base_ref} ====="
 
-    # Search up the directory tree for .git directory
-    while current != current.parent:
-        if (current / ".git").is_dir():
-            return current
-        current = current.parent
+    if not repo_root:
+        header = [
+            header_title,
+            "repo: (not a git repository)",
+            f"generated: {datetime.now().isoformat(timespec='seconds')}",
+            "",
+            "(no diff available)",
+        ]
+        return Document(index=index, source=f"GIT_DIFF:{base_ref}", content="\n".join(header))
 
-    return None
+    # Best effort fetch
+    gitlib.fetch(repo_root)
+
+    if not gitlib.ref_exists(repo_root, base_ref):
+        header = [
+            header_title,
+            f"repo: {repo_root}",
+            f"generated: {datetime.now().isoformat(timespec='seconds')}",
+            "",
+            f"(warning, base ref not found: {base_ref})",
+        ]
+        return Document(index=index, source=f"GIT_DIFF:{base_ref}", content="\n".join(header))
+
+    diff_text = gitlib.diff(repo_root, base_ref)
+    body = diff_text if diff_text.strip() else "(working tree matches base, no changes)"
+    lines = [
+        header_title,
+        f"repo: {repo_root}",
+        f"generated: {datetime.now().isoformat(timespec='seconds')}",
+        "",
+        body,
+    ]
+    return Document(index=index, source=f"GIT_DIFF:{base_ref}@{repo_root}", content="\n".join(lines))
 
 
 def _find_parent_readmes(path: Path) -> List[Path]:
@@ -84,7 +110,7 @@ def _find_parent_readmes(path: Path) -> List[Path]:
     current = path.parent
 
     # Find the git root to use as our boundary
-    git_root = _find_git_root(current)
+    git_root = gitlib.find_root(current)
     stop_at = git_root if git_root else Path("/")
 
     # Collect READMEs up to the boundary
@@ -173,7 +199,7 @@ def _should_ignore(
     if basename == "README.md":
         return False
 
-    # If filtering by extension for files, and this file doesn’t match, ignore it.
+    # If filtering by extension for files, and this file doesn't match, ignore it.
     if extensions and path.is_file() and not any(path.name.endswith(ext) for ext in extensions):
         return True
 
@@ -454,7 +480,7 @@ def _find_gitignore(start_path: Path) -> Optional[Path]:
     current = start_path if start_path.is_dir() else start_path.parent
 
     # Find the git root to use as our boundary
-    git_root = _find_git_root(current)
+    git_root = gitlib.find_root(current)
     stop_at = git_root if git_root else Path("/")
 
     # Search up the directory tree for .gitignore
@@ -472,64 +498,64 @@ def _find_gitignore(start_path: Path) -> Optional[Path]:
     return None
 
 
-def _format_document(doc: Document, raw: bool) -> str:
-    """Format a document according to output format."""
-    if raw:
-        lines = [doc.source, "---"]
-        if doc.is_readme:
-            lines.append("### README START ###")
-        lines.append(doc.content)
-        if doc.is_readme:
-            lines.append("### README END ###")
-        lines.append("---")
+def _format_document(doc: Document) -> str:
+    """Format a document in XML format."""
+    lines = [f'<document index="{doc.index}">', f"<source>{doc.source}</source>"]
+    if doc.is_readme:
+        lines.extend(["<type>readme</type>", "<instructions>", doc.content, "</instructions>"])
     else:
-        lines = [f'<document index="{doc.index}">', f"<source>{doc.source}</source>"]
-        if doc.is_readme:
-            lines.extend(["<type>readme</type>", "<instructions>", doc.content, "</instructions>"])
-        else:
-            lines.extend(["<document_content>", doc.content, "</document_content>"])
-        lines.append("</document>")
-
+        lines.extend(["<document_content>", doc.content, "</document_content>"])
+    lines.append("</document>")
     return "\n".join(lines)
 
 
 def get_context(
-    paths: Optional[List[Union[str, Path]]], raw: bool = False, extensions: Optional[Tuple[str, ...]] = None
+    paths: Optional[List[Union[str, Path]]],
+    extensions: Optional[Tuple[str, ...]] = None,
+    include_git_diff: bool = False,
+    diff_base: str = "origin/main",
+    readmes_only: bool = False,
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Load and format context from specified paths, with basic token counting.
 
     Args:
         paths: List of paths to load context from, or None for no context
-        raw: Whether to use raw format instead of XML
         extensions: Optional tuple of file extensions to filter
+        include_git_diff: Whether to include git diff as a virtual file
+        diff_base: Base reference for git diff
+        readmes_only: Whether to only include README.md files
 
     Returns:
         Tuple of (formatted context string, token info dict)
     """
-    # Handle empty paths
-    if not paths:
-        content = "" if raw else "<documents></documents>"
-        return content, {"total_tokens": 0, "total_files": 0}
+    from collections import defaultdict
+
+    # Early out only if truly nothing to do and include_git_diff is False
+    if not paths and not include_git_diff:
+        return "<documents></documents>", {"total_tokens": 0, "total_files": 0}
 
     # Initialize tokenizer for counting
     encoding = tiktoken.get_encoding("cl100k_base")
 
-    # Token tracking variables
-    total_tokens = 0
-    path_tokens = {}  # path -> {tokens, files}
-    top_level_tokens = {}  # For single-path summaries
-    file_token_counts = {}  # filepath -> token count for profiling
+    # Staged docs and where they came from
+    documents: List[Document] = []
+    origin_for_source: Dict[str, Optional[Path]] = {}
+
+    def _stage(doc: Document, origin: Optional[Path]) -> None:
+        """
+        Add a document and remember which requested path it belongs to.
+        origin=None means it is not tied to a requested path
+        (for example a Git diff or other virtual document).
+        """
+        documents.append(doc)
+        origin_for_source[doc.source] = origin
 
     processed_files: Set[Path] = set()
-    documents = []
     next_index = 1
 
-    for path_str in paths:
-        path_file_count = 0
-        path_token_count = 0
-        path_top_level = {}  # top-level items for this path
-
+    # Process requested paths
+    for path_str in paths or []:
         try:
             # Resolve path relative to current directory
             path = resolve_codebase_path(path_str)
@@ -541,17 +567,9 @@ def get_context(
             # Process parent READMEs first
             for readme_path in _find_parent_readmes(path):
                 if doc := _load_file(readme_path, next_index, processed_files):
-                    documents.append(doc)
+                    _stage(doc, origin=path)  # parent READMEs count toward the requested path
                     processed_files.add(readme_path)
                     next_index += 1
-
-                    # Count tokens
-                    tokens = len(encoding.encode(doc.content))
-                    path_token_count += tokens
-                    path_file_count += 1
-
-                    # Track per-file tokens
-                    file_token_counts[doc.source] = tokens
 
             # Process requested path
             gitignore_path = _find_gitignore(path)
@@ -559,39 +577,24 @@ def get_context(
             gitignore_root = gitignore_path.parent if gitignore_path else None
             new_docs = _collect_files(path, gitignore_rules, gitignore_root, processed_files, next_index, extensions)
 
-            # Count tokens for new docs
+            # Stage collected files
             for doc in new_docs:
-                tokens = len(encoding.encode(doc.content))
-                path_token_count += tokens
-                path_file_count += 1
+                if readmes_only and not doc.is_readme:
+                    continue
+                _stage(doc, origin=path)
 
-                # Track per-file tokens for profiling
-                file_token_counts[doc.source] = tokens
-
-                # Track top-level item
-                doc_path = Path(doc.source)
-                try:
-                    relative = doc_path.relative_to(path)
-                    if len(relative.parts) > 0:
-                        name = relative.parts[0]
-                        path_top_level[name] = path_top_level.get(name, 0) + tokens
-                except ValueError:
-                    pass
-
-            next_index += len(new_docs)
-            documents.extend(new_docs)
-
-            # Store path summary
-            if path_file_count > 0:
-                path_tokens[str(path)] = {"tokens": path_token_count, "files": path_file_count}
-                total_tokens += path_token_count
-
-                # Merge top-level tokens
-                for name, tokens in path_top_level.items():
-                    top_level_tokens[name] = top_level_tokens.get(name, 0) + tokens
+            next_index += len([doc for doc in new_docs if not readmes_only or doc.is_readme])
 
         except Exception as e:
             print(f"Error processing path {path_str}: {e}")
+
+    # Add git diff document if requested
+    if include_git_diff:
+        start_for_git = resolve_codebase_path(paths[0]) if paths else Path.cwd()
+        diff_doc = _build_git_diff_document(diff_base, start_for_git, next_index)
+        if diff_doc:
+            _stage(diff_doc, origin=None)
+            next_index += 1
 
     # Sort documents (READMEs first, then by path)
     documents.sort(key=lambda d: (not d.is_readme, d.source))
@@ -600,30 +603,54 @@ def get_context(
     for i, doc in enumerate(documents, 1):
         doc.index = i
 
-    # Generate output
-    output_lines = []
-    if not raw:
-        output_lines.append("<documents>")
+    # One token pass for everything
+    total_tokens = 0
+    path_summaries: Dict[str, Dict[str, int]] = defaultdict(lambda: {"tokens": 0, "files": 0})
+    file_token_counts: Dict[str, int] = {}
+    top_level_tokens: Dict[str, int] = {}
+
+    # Work out if there was exactly one requested origin path
+    requested_origins = {p for p in origin_for_source.values() if p is not None}
+    single_origin: Optional[Path] = next(iter(requested_origins)) if len(requested_origins) == 1 else None
 
     for doc in documents:
-        output_lines.append(_format_document(doc, raw))
+        tokens = len(encoding.encode(doc.content))
+        total_tokens += tokens
+        file_token_counts[doc.source] = tokens
 
-    if not raw:
-        output_lines.append("</documents>")
+        origin = origin_for_source.get(doc.source)
+        if origin is not None:
+            key = str(origin)
+            path_summaries[key]["tokens"] += tokens
+            path_summaries[key]["files"] += 1
 
+            if single_origin is not None:
+                try:
+                    relative = Path(doc.source).relative_to(single_origin)
+                    if len(relative.parts) > 0:
+                        name = relative.parts[0]
+                        top_level_tokens[name] = top_level_tokens.get(name, 0) + tokens
+                except Exception:
+                    pass
+
+    # Generate output
+    output_lines = ["<documents>"]
+    for doc in documents:
+        output_lines.append(_format_document(doc))
+    output_lines.append("</documents>")
     content = "\n".join(output_lines)
 
     # Prepare token info
     token_info = {
         "total_tokens": total_tokens,
         "total_files": len(documents),
-        "path_summaries": path_tokens,
-        "file_token_counts": file_token_counts,  # Per-file token counts for profiling
-        "documents": documents,  # Include documents for profiling to avoid re-parsing
+        "path_summaries": dict(path_summaries),
+        "file_token_counts": file_token_counts,
+        "documents": documents,
     }
 
     # Add top-level summary for single path
-    if len(paths) == 1 and top_level_tokens:
+    if single_origin is not None and top_level_tokens:
         token_info["top_level_summary"] = top_level_tokens
 
     return content, token_info
