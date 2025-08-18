@@ -152,42 +152,55 @@ graceful_shutdown() {
   fi
   TERMINATION_REASON="${TERMINATION_REASON:-controlled_shutdown}"
 
-  if [[ "$IS_MASTER" == "true" ]]; then
-    sleep 30 # Allow workers to shut down before master tears down TCPStore
-  fi
-
   # Kill the entire process tree gracefully
   if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
     echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
 
+    # First, signal all worker nodes to start shutdown
+    if [[ "$IS_MASTER" == "true" ]] && [ -n "${CLUSTER_STOP_FILE:-}" ]; then
+      echo "graceful_shutdown" > "$CLUSTER_STOP_FILE"
+      echo "[SHUTDOWN] Signaled all nodes to begin shutdown"
+      sleep 20  # Give workers time to receive the signal
+    fi
+
     echo "[DEBUG] Process tree before shutdown:"
     ps -ejH | grep "$CMD_PGID" || true
 
-    # send SIGTERM
+    # Send SIGTERM to the process group
     kill -TERM -"${CMD_PGID}" 2>/dev/null || true
+
+    # Wait longer for graceful shutdown (especially for distributed training)
     count=0
-    while kill -0 "$CMD_PID" 2>/dev/null && [ $count -lt 15 ]; do
+    max_wait=30  # Increase from 15 to 30 seconds
+    while kill -0 "$CMD_PID" 2>/dev/null && [ $count -lt $max_wait ]; do
       sleep 1
       ((count++))
+      if [ $((count % 5)) -eq 0 ]; then
+        echo "[SHUTDOWN] Waiting for graceful shutdown... ${count}/${max_wait}s"
+      fi
     done
 
     # If STILL alive, use SIGKILL
     if kill -0 "$CMD_PID" 2>/dev/null; then
-      echo "[SHUTDOWN] Process didn't terminate gracefully, using SIGKILL"
+      echo "[SHUTDOWN] Process didn't terminate gracefully after ${max_wait}s, using SIGKILL"
       kill -KILL -"${CMD_PGID}" 2>/dev/null || true
     fi
 
+    # Wait for the process to actually exit
     if kill -0 "$CMD_PID" 2>/dev/null; then
       echo "[SHUTDOWN] Waiting for process $CMD_PID to exit..."
       wait "$CMD_PID" 2>/dev/null || true
     else
-      echo "[SHUTDOWN] Process $CMD_PID already exited, skipping wait"
+      echo "[SHUTDOWN] Process $CMD_PID already exited"
     fi
-
-    echo "[SHUTDOWN] Process terminated"
   fi
 
-  sleep 1
+  # Master waits for workers to disconnect
+  if [[ "$IS_MASTER" == "true" ]] && [[ "$TOTAL_NODES" -gt 1 ]]; then
+    echo "[SHUTDOWN] Master waiting for workers to disconnect..."
+    sleep 10  # Give workers time to shut down cleanly
+  fi
+
   terminate_monitors
 
   # Compute duration (best-effort)
