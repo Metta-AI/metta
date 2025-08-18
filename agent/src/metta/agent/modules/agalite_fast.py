@@ -161,12 +161,16 @@ class FastAGaLiTeLayer(nn.Module):
         final_values_reshaped = final_values.reshape(T, B, self.r, self.head_num, self.head_dim)
         kv = (final_values_reshaped * attn_scores.unsqueeze(-1).unsqueeze(-1)).sum(dim=2)
         
-        # Normalization
+        # Normalization with stability fix
         norm = (final_s * queries_expanded).sum(dim=-1, keepdim=True)
-        attn_out = kv / (2 * self.r * norm + self.eps)
+        # Clamp norm to prevent division issues (this was the fix that worked)
+        norm = torch.clamp(norm.abs(), min=self.eps)
+        attn_out = kv / (2 * self.r * norm)
         
-        # Output projection
+        # Output projection with safety clamp
         attn_out = attn_out.reshape(T, B, self.head_num * self.head_dim)
+        # Prevent extreme values that could cause NaN/Inf in downstream operations
+        attn_out = torch.clamp(attn_out, min=-10, max=10)
         attn_out = self.dropout(self.project(attn_out))
         
         # Update memory
