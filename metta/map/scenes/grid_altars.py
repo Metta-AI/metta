@@ -26,6 +26,10 @@ class GridAltars(Scene[GridAltarsParams]):
     def render(self):
         height, width, params = self.height, self.width, self.params
 
+        # Validate min_spacing to prevent division by zero
+        if params.min_spacing <= 0:
+            raise ValueError(f"min_spacing must be greater than 0, got {params.min_spacing}")
+
         # Collect all objects to place
         symbols = []
         for obj_name, count in params.objects.items():
