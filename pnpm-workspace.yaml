@@ -10,7 +10,7 @@ packages:
   - "experiments/notebooks/utils/eval_finder_widget" # @softmax/eval_finder_widget
   - "experiments/notebooks/utils/policy_selector_widget" # @softmax/policy_selector_widget
 onlyBuiltDependencies:
-  - '@tailwindcss/oxide'
+  - "@tailwindcss/oxide"
   - es5-ext
   - esbuild
   - sharp
