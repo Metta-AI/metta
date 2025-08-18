@@ -26,8 +26,15 @@ schedule:
         sweep:
           protein:
             max_suggestion_cost: 1800
+            num_random_samples: 20  # More random exploration initially
             random_suggestions: 18
+            resample_frequency: 3
+            global_search_scale: 1.2  # Wider search in early phase
             expansion_rate: 0.18
+            seed_with_search_center: false  # Pure exploration
+            # Use UCB with high beta for broad exploration in early phase
+            acquisition_fn: ucb
+            ucb_beta: 2.5 # High value encourages exploration of uncertain regions
           parameters:
             trainer:
               total_timesteps: { mean: 1500000000 } # 1.5B
@@ -42,9 +49,15 @@ schedule:
         sweep:
           protein:
             max_suggestion_cost: 3600
+            num_random_samples: 15  # Moderate random sampling
             random_suggestions: 10
             suggestions_per_pareto: 24
+            resample_frequency: 4
+            global_search_scale: 1.0  # Standard search scale
             expansion_rate: 0.10
+            seed_with_search_center: true  # Start leveraging good regions
+            # Use EI for balanced exploration/exploitation in middle phase
+            acquisition_fn: ei  # EI naturally balances exploration and exploitation
           parameters:
             trainer:
               total_timesteps: { mean: 2500000000 } # 2.5B
@@ -59,9 +72,16 @@ schedule:
         sweep:
           protein:
             max_suggestion_cost: 7200
+            num_random_samples: 10  # Less random, more focused
             random_suggestions: 5
             suggestions_per_pareto: 16
+            resample_frequency: 5
+            global_search_scale: 0.8  # Narrower search, focus on best regions
             expansion_rate: 0.06
+            seed_with_search_center: true  # Definitely use best known regions
+            # Use UCB with low beta for exploitation in final phase
+            acquisition_fn: ucb
+            ucb_beta: 1.0  # Low value focuses on exploitation of promising regions
           parameters:
             trainer:
               total_timesteps: { mean: 3500000000 } # 3.5B

@@ -39,9 +39,9 @@ parameters:
 
     batch_size:
       distribution: uniform_pow2
-      min: 262144 # 2^18
+      min: 524288 # 2^19
       max: 2097152 # 2^21
-      mean: 524288 # 2^19
+      mean: 1048576 # 2^20
       scale: auto
 
     # HIGH IMPACT PPO PARAMETERS
