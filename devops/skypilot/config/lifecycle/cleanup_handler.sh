@@ -25,11 +25,9 @@ cleanup() {
     CMD_EXIT=$actual_exit_code
   fi
 
-  # Read termination reason from file if it exists
-  if [ -f "$TERMINATION_REASON_FILE" ]; then
-    TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE")
-    echo "[INFO] Termination reason from monitor: $TERMINATION_REASON"
-  fi
+  # Read termination reason
+  TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE")
+  echo "[INFO] Termination reason: $TERMINATION_REASON"
 
   # Master-only: Handle notifications and status updates
   if [[ "$IS_MASTER" == "true" ]]; then
@@ -40,7 +38,7 @@ cleanup() {
   # Set the final exit code for the script
   determine_final_exit_code
 
-  sleep 3
+  sleep 1
 
   # Override the process exit code from within the EXIT trap.
   # Note: calling `exit` inside an EXIT trap does not recurse the trap.
@@ -75,13 +73,20 @@ handle_master_cleanup() {
     CMD_EXIT=1
     FINAL_EXIT_CODE=1
 
-  elif [[ $CMD_EXIT -eq $EXIT_SUCCESS ]]; then
-    echo "[SUCCESS] Job completed successfully"
-    export GITHUB_STATUS_STATE="success"
-    export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
-    export TERMINATION_REASON="completed"
-    # bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
-    #   "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
+  elif [[ -z "${TERMINATION_REASON}" ]]; then
+    if [[ $CMD_EXIT -eq $EXIT_SUCCESS ]]; then
+      echo "[SUCCESS] Job completed successfully"
+      export TERMINATION_REASON="completed"
+      export GITHUB_STATUS_STATE="success"
+      export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
+      # bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
+      #   "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
+    else
+      echo "[ERROR] Job failed with exit code $CMD_EXIT"
+      export TERMINATION_REASON="exit_code_${CMD_EXIT}"
+      export GITHUB_STATUS_STATE="failure"
+      export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
+    fi
 
   elif [[ $CMD_EXIT -eq $EXIT_NCCL_TEST_FAILURE ]]; then
     echo "[ERROR] Job failed during NCCL tests"

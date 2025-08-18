@@ -32,11 +32,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
   if [ -f common/src/metta/common/util/cost_monitor.py ]; then
     echo "[RUN] Collecting instance cost..."
     METTA_HOURLY_COST="$(uv run python common/src/metta/common/util/cost_monitor.py 2>/dev/null | tail -1 || true)"
-    if [ -n "${METTA_HOURLY_COST:-}" ]; then
-      echo "[RUN] METTA_HOURLY_COST set to $METTA_HOURLY_COST in $METTA_ENV_FILE by python."
-    else
-      echo "[RUN] Cost monitor script failed to run or returned no value."
-    fi
+    echo "[RUN] METTA_HOURLY_COST set to $METTA_HOURLY_COST in $METTA_ENV_FILE by python."
   else
     echo "[RUN] Cost monitor script is missing!"
   fi
@@ -92,7 +88,6 @@ export WRAPPER_PID=$BASHPID
 export START_TIME=0
 export HEARTBEAT_FILE="${HEARTBEAT_FILE:-${WANDB_DIR:-.}/heartbeat.txt}"
 export TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
-export TERMINATION_REASON="unknown"
 
 if [[ "$IS_MASTER" == "true" ]]; then
   if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
@@ -126,9 +121,7 @@ shutdown() {
 
   echo "[SHUTDOWN] Caught INT/TERM/HUP; initiating graceful shutdown..."
 
-  if [ -z "${TERMINATION_REASON:-}" ] && [ -f "$TERMINATION_REASON_FILE" ]; then
-    TERMINATION_REASON="$(cat "$TERMINATION_REASON_FILE" || true)"
-  fi
+  local termination_reason="$(cat "$TERMINATION_REASON_FILE" || true)"
 
   # Kill the entire process tree gracefully
   if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
@@ -136,13 +129,12 @@ shutdown() {
 
     # First, signal all worker nodes to start shutdown
     if [[ "$IS_MASTER" == "true" ]]; then
-      echo "$TERMINATION_REASON" > "$CLUSTER_STOP_FILE"
+      echo "$termination_reason" > "$CLUSTER_STOP_FILE"
       echo "[SHUTDOWN] Signaled all nodes to begin shutdown"
-      sleep 10  # Give workers time to receive the signal
+      sleep 3  # Give workers time to receive the signal
     fi
 
-    echo "[DEBUG] Process tree before shutdown:"
-    ps -ejH | grep "$CMD_PGID" || true
+    terminate_monitors
 
     # Send SIGTERM to the process group
     kill -TERM -"${CMD_PGID}" 2>/dev/null || true
@@ -176,10 +168,8 @@ shutdown() {
   # Master waits for workers to disconnect
   if [[ "$IS_MASTER" == "true" ]] && [[ "$TOTAL_NODES" -gt 1 ]]; then
     echo "[SHUTDOWN] Master waiting for workers to disconnect..."
-    sleep 10  # Give workers time to shut down cleanly
+    sleep 7  # Give workers time to shut down cleanly
   fi
-
-  terminate_monitors
 
   # Compute duration (best-effort)
   if [ -n "${START_TIME:-}" ] && [ "${START_TIME}" -ne 0 ]; then
@@ -288,8 +278,7 @@ else
   echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
   if ! uv run python ./devops/skypilot/config/preflight/test_nccl.py; then
     echo "[ERROR] NCCL tests failed!"
-    TERMINATION_REASON="nccl_test_failure"
-    echo "$TERMINATION_REASON" > "$TERMINATION_REASON_FILE"
+    echo "nccl_test_failure" > "$TERMINATION_REASON_FILE"
     exit $EXIT_NCCL_TEST_FAILURE
   else
     echo "[SUCCESS] NCCL tests passed"
@@ -304,13 +293,3 @@ fi
 
 # Run the command
 run_cmd
-CMD_EXIT=$?
-if [[ "$IS_MASTER" == "true" ]]; then
-  if [[ $CMD_EXIT -eq 0 ]]; then
-    TERMINATION_REASON="completed"
-    echo "$TERMINATION_REASON" > "$TERMINATION_REASON_FILE"
-  fi
-  echo "completed" > "$CLUSTER_STOP_FILE"
-fi
-
-exit $CMD_EXIT
