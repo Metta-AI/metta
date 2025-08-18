@@ -129,7 +129,7 @@ def get_initial_policy_path(
     return policy_path, policy_exists
 
 
-def get_initial_policy(
+def get_policy_record(
     policy_store: PolicyStore,
     policy_path: str,
     create_new_policy: bool,
@@ -142,12 +142,12 @@ def get_initial_policy(
     """Get initial policy for training with distributed sync, compilation, and DDP wrapping."""
     # Now all ranks have the same policy_path and can load/create consistently
     policy_record: PolicyRecord | None = None
-    if not create_new_policy:
-        logger.info(f"Rank {distributed_config.rank}: Loading policy from {policy_path}")
-        policy_record = policy_store.policy_record(policy_path)
-    else:
-        logger.info(f"Rank {distributed_config.rank}: No existing policy found, creating new one")
-        policy_record = initializer.get_blank_policy(policy_store, policy_path)
+    #    if not create_new_policy:
+    #        logger.info(f"Rank {distributed_config.rank}: Loading policy from {policy_path}")
+    #        policy_record = policy_store.create_policy_record(policy_path)
+    #    else:
+    # logger.info(f"Rank {distributed_config.rank}: No existing policy found, creating new one")
+    policy_record = initializer.create_policy_handle(policy_store, policy_path)
 
     if policy_record is None:
         raise RuntimeError("Failed to create or load policy record")
@@ -280,10 +280,10 @@ def train(
         device=device,
     )
     policy_store = get_policy_store_from_cfg(train_job_config, wandb_run)
-    policy_store.agent_factory = lambda: get_initial_policy(
+    policy_store.agent_factory = lambda: get_policy_record(
         policy_store,
         initial_policy_path,
-        not policy_exists,
+        False,
         initializer,
         metta_grid_env,
         device,
@@ -319,7 +319,7 @@ def train(
     )
 
     # ?? why do we need policy here - shouldn't policy be part of policy_record?
-    policy_record, policy = get_initial_policy(
+    policy_record, policy = get_policy_record(
         policy_store=policy_store,
         policy_path=initial_policy_path,
         create_new_policy=not policy_exists,

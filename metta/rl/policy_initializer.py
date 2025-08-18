@@ -50,7 +50,7 @@ class PolicyInitializer:
         logger.info(f"Created new policy record to {pr.uri}")
         return pr
 
-    def get_blank_policy(self, policy_store: PolicyStore, policy_path: str) -> PolicyRecord:
+    def create_policy_handle(self, policy_store: PolicyStore, policy_path: str) -> PolicyRecord:
         policy = self.make_policy()
         policy_record = self.create_nondistributed_policy_record(
             policy_store._policy_loader,
