@@ -662,16 +662,6 @@ def setup_nccl_debug_env(master_addr: str | None = None) -> None:
     if not master_addr:
         master_addr = os.environ.get("MASTER_ADDR")
 
-    debug_mode = os.environ.get("METTA_NCCL_DEBUG", "0") == "1"
-
-    # Minimal overrides - only what's necessary for testing
-    if debug_mode:
-        os.environ["NCCL_DEBUG"] = "INFO"
-        os.environ["NCCL_DEBUG_SUBSYS"] = "ALL"
-        os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
-    else:
-        os.environ.setdefault("NCCL_DEBUG", "VERSION")
-
     # Always ensure async error handling
     os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"
 
