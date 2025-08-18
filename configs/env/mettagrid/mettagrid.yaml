@@ -17,6 +17,7 @@ game:
 
   # Movement metrics tracking
   track_movement_metrics: true
+  no_agent_interference: false
 
   # Global observation tokens configuration
   global_obs:
@@ -42,6 +43,7 @@ game:
     - blueprint
 
   # Show recipe inputs in observations for all converters
+  resource_loss_prob: 0.0
   recipe_details_obs: false
 
   actions:
@@ -53,6 +55,8 @@ game:
       enabled: true
     put_items:
       enabled: true
+    place_box:
+      enabled: false
     get_items:
       enabled: true
     attack:

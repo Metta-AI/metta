@@ -11,11 +11,13 @@ defaults:
 
 push_metrics_to_wandb: true
 
+stats_server_uri: http://localhost:8000
+
 trainer:
   compile: false
-  total_timesteps: 10_000_000
-  # curriculum: /env/mettagrid/navigation/training/multienv
-  # curriculum: /env/mettagrid/curriculum/arena/learning_progress
+  total_timesteps: 10_000_000_000
+  #curriculum: /env/mettagrid/navigation/training/multienv
+  #curriculum: /env/mettagrid/curriculum/arena/learning_progress
   checkpoint:
     checkpoint_interval: 10
     wandb_checkpoint_interval: 10

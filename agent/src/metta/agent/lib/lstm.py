@@ -37,6 +37,18 @@ class LSTM(LayerBase):
         self.lstm_h: Dict[int, torch.Tensor] = {}
         self.lstm_c: Dict[int, torch.Tensor] = {}
 
+    def __setstate__(self, state):
+        """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
+        self.__dict__.update(state)
+        # Reset hidden states when loading from checkpoint to avoid batch size mismatch
+        if not hasattr(self, "lstm_h"):
+            self.lstm_h = {}
+        if not hasattr(self, "lstm_c"):
+            self.lstm_c = {}
+        # Clear any existing states to handle batch size mismatches
+        self.lstm_h.clear()
+        self.lstm_c.clear()
+
     def has_memory(self):
         return True
 
@@ -57,7 +69,18 @@ class LSTM(LayerBase):
         self._net = self._make_net()
 
     def _make_net(self):
-        self._out_tensor_shape = [self.hidden_size]
+        # Get hidden_size from _nn_params
+        hidden_size = self._nn_params.get("hidden_size", self.hidden_size)
+        self._out_tensor_shape = [hidden_size]
+
+        # Guard against setup order issues for static analyzers and runtime safety
+        assert (
+            getattr(self, "_in_tensor_shapes", None) is not None
+            and isinstance(self._in_tensor_shapes, list)
+            and len(self._in_tensor_shapes) > 0
+            and isinstance(self._in_tensor_shapes[0], list)
+            and len(self._in_tensor_shapes[0]) > 0
+        ), "LSTM requires a valid input tensor shape from its source component"
         net = nn.LSTM(self._in_tensor_shapes[0][0], **self._nn_params)
 
         for name, param in net.named_parameters():
@@ -68,38 +91,42 @@ class LSTM(LayerBase):
 
         return net
 
-    @torch.compile(disable=True)  # Dynamo doesn't support compiling LSTMs
+    @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def _forward(self, td: TensorDict):
+        assert (
+            getattr(self, "_sources", None) is not None and isinstance(self._sources, list) and len(self._sources) > 0
+        ), "LSTM requires at least one source component"
         hidden = td[self._sources[0]["name"]]  # → (2, num_layers, batch, hidden_size)
 
-        TT = td.bptt
-        B = td.batch
+        TT = td["bptt"][0]
+        B = td["batch"][0]
 
         hidden = rearrange(hidden, "(b t) h -> t b h", b=B, t=TT)
 
-        if hasattr(td, "training_env_id"):
-            training_env_id = td.training_env_id.start
+        training_env_id_start = td.get("training_env_id_start", None)
+        if training_env_id_start is None:
+            training_env_id_start = 0
         else:
-            training_env_id = 0
+            training_env_id_start = training_env_id_start[0].item()
 
-        if training_env_id in self.lstm_h and training_env_id in self.lstm_c:
-            h_0 = self.lstm_h[training_env_id]
-            c_0 = self.lstm_c[training_env_id]
+        if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
+            h_0 = self.lstm_h[training_env_id_start]
+            c_0 = self.lstm_c[training_env_id_start]
             # reset the hidden state if the episode is done or truncated
             dones = td.get("dones", None)
             truncateds = td.get("truncateds", None)
             if dones is not None and truncateds is not None:
-                reset_mask = dones.bool() | truncateds.bool()
-                h_0[:, reset_mask, :] = 0
-                c_0[:, reset_mask, :] = 0
+                reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
+                h_0 = h_0.masked_fill(reset_mask, 0)
+                c_0 = c_0.masked_fill(reset_mask, 0)
         else:
             h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
             c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=hidden.device)
 
         hidden, (h_n, c_n) = self._net(hidden, (h_0, c_0))
 
-        self.lstm_h[training_env_id] = h_n.detach()
-        self.lstm_c[training_env_id] = c_n.detach()
+        self.lstm_h[training_env_id_start] = h_n.detach()
+        self.lstm_c[training_env_id_start] = c_n.detach()
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 

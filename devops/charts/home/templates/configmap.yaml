@@ -18,7 +18,7 @@ data:
         ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
         a.card { display: block; padding: 16px 18px; background: white; border: 1px solid #e2e8f0; border-radius: 10px; text-decoration: none; color: #0f172a; transition: box-shadow .15s ease, transform .05s ease; }
         a.card:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.08); transform: translateY(-1px); }
-        small { color: #64748b; }
+        a.card small { color: #64748b; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 720px; }
         footer { margin-top: 40px; color: #94a3b8; font-size: 12px; }
       </style>
     </head>

@@ -1,7 +1,7 @@
 import logging
 import os
 from collections import defaultdict
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import torch
@@ -22,12 +22,12 @@ from metta.core.monitoring import (
     setup_monitoring,
 )
 from metta.eval.eval_request_config import EvalRewardSummary
+from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
-from metta.rl.env_config import EnvConfig
-from metta.rl.evaluate import evaluate_policy, evaluate_policy_remote
+from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
@@ -44,6 +44,7 @@ from metta.rl.stats import (
     accumulate_rollout_stats,
     process_stats,
 )
+from metta.rl.system_config import SystemConfig
 from metta.rl.torch_profiler import TorchProfiler
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import TrainerConfig
@@ -57,7 +58,7 @@ from metta.rl.wandb import (
     log_model_parameters,
     setup_wandb_metrics,
 )
-from metta.sim.simulation_config import SimulationSuiteConfig, SingleEnvSimulationConfig
+from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
 
 try:
@@ -76,10 +77,20 @@ _local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
 
 
+def _update_training_status_on_failure(stats_client: StatsClient | None, stats_run_id, logger) -> None:
+    """Helper to update training run status to 'failed' when training encounters an error."""
+    if stats_client and stats_run_id:
+        try:
+            stats_client.update_training_run_status(stats_run_id, "failed")
+            logger.info("Training run status updated to 'failed'")
+        except Exception as e:
+            logger.warning(f"Failed to update training run status to failed: {e}", exc_info=True)
+
+
 def train(
     run_dir: str,
     run: str,
-    env_cfg: EnvConfig,
+    system_cfg: SystemConfig,
     agent_cfg: DictConfig,
     device: torch.device,
     trainer_cfg: TrainerConfig,
@@ -87,7 +98,7 @@ def train(
     policy_store: PolicyStore,
     sim_suite_config: SimulationSuiteConfig,
     stats_client: StatsClient | None,
-) -> None:
+) -> dict[str, Any] | None:
     """Main training loop for Metta agents."""
     logger.info(f"run_dir = {run_dir}")
 
@@ -120,7 +131,7 @@ def train(
     # Create vectorized environment
     vecenv = make_vecenv(
         curriculum,
-        env_cfg.vectorization,
+        system_cfg.vectorization,
         num_envs=num_envs,
         batch_size=batch_size,
         num_workers=trainer_cfg.num_workers,
@@ -128,7 +139,7 @@ def train(
         is_training=True,
     )
 
-    vecenv.async_reset(env_cfg.seed + rank)
+    vecenv.async_reset(system_cfg.seed + rank)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
@@ -158,7 +169,7 @@ def train(
     # Load or initialize policy with distributed coordination
     initial_policy_record = latest_saved_policy_record = checkpoint_manager.load_or_create_policy(
         agent_cfg=agent_cfg,
-        env_cfg=env_cfg,
+        system_cfg=system_cfg,
         trainer_cfg=trainer_cfg,
         checkpoint=checkpoint,
         metta_grid_env=metta_grid_env,
@@ -312,7 +323,15 @@ def train(
                     td["rewards"] = r
                     td["dones"] = d.float()
                     td["truncateds"] = t.float()
-                    td.training_env_id = training_env_id
+                    td.set(
+                        "training_env_id_start",
+                        torch.full(
+                            td.batch_size,
+                            training_env_id.start,
+                            device=td.device,
+                            dtype=torch.long,
+                        ),
+                    )
 
                     # Inference
                     with torch.no_grad():
@@ -513,42 +532,50 @@ def train(
                     num_episodes=sim_suite_config.num_episodes,
                 )
 
-                # Add training task to the suite
-                # Pass the config as _pre_built_env_config to avoid Hydra loading
-                task_cfg = curriculum.get_task().env_cfg()
-                training_task_config = SingleEnvSimulationConfig(
-                    env="eval/training_task",  # Just a descriptive name
-                    num_episodes=1,
-                    env_overrides={"_pre_built_env_config": task_cfg},
-                )
-                extended_suite_config.simulations["eval/training_task"] = training_task_config
+                evaluate_local = trainer_cfg.simulation.evaluate_local
 
                 if trainer_cfg.simulation.evaluate_remote:
-                    evaluate_policy_remote(
+                    try:
+                        evaluate_policy_remote(
+                            policy_record=latest_saved_policy_record,
+                            sim_suite_config=extended_suite_config,
+                            stats_epoch_id=stats_tracker.stats_epoch_id,
+                            wandb_policy_name=wandb_policy_name,
+                            stats_client=stats_client,
+                            wandb_run=wandb_run,
+                            trainer_cfg=trainer_cfg,
+                        )
+                    except Exception as e:
+                        logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
+                        logger.error("Falling back to local evaluation")
+                        evaluate_local = True
+
+                if evaluate_local:
+                    evaluation_results = evaluate_policy(
                         policy_record=latest_saved_policy_record,
-                        sim_suite_config=extended_suite_config,
-                        stats_epoch_id=stats_tracker.stats_epoch_id,
-                        wandb_policy_name=wandb_policy_name,
-                        stats_client=stats_client,
-                        wandb_run=wandb_run,
-                        trainer_cfg=trainer_cfg,
-                    )
-                else:
-                    eval_scores = evaluate_policy(
-                        policy_record=latest_saved_policy_record,
-                        sim_suite_config=extended_suite_config,
+                        simulation_suite=extended_suite_config,
                         device=device,
-                        vectorization=env_cfg.vectorization,
+                        vectorization=system_cfg.vectorization,
                         replay_dir=trainer_cfg.simulation.replay_dir,
                         stats_epoch_id=stats_tracker.stats_epoch_id,
                         wandb_policy_name=wandb_policy_name,
                         policy_store=policy_store,
                         stats_client=stats_client,
-                        wandb_run=wandb_run,
-                        trainer_cfg=trainer_cfg,
-                        agent_step=agent_step,
-                        epoch=epoch,
+                        logger=logger,
+                        training_curriculum=curriculum,
                     )
+                    logger.info("Simulation complete")
+                    eval_scores = evaluation_results.scores
+                    category_scores = list(eval_scores.category_scores.values())
+                    if category_scores and latest_saved_policy_record:
+                        latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+                    if wandb_run is not None and evaluation_results.replay_urls:
+                        upload_replay_html(
+                            replay_urls=evaluation_results.replay_urls,
+                            agent_step=agent_step,
+                            epoch=epoch,
+                            wandb_run=wandb_run,
+                        )
 
                 stats_tracker.update_epoch_tracking(epoch + 1)
 
@@ -575,6 +602,15 @@ def train(
         return
 
     logger.info("Training complete!")
+
+    # Update training run status to completed
+    if stats_client and stats_tracker.stats_run_id:
+        try:
+            stats_client.update_training_run_status(stats_tracker.stats_run_id, "completed")
+            logger.info("Training run status updated to 'completed'")
+        except Exception as e:
+            logger.warning(f"Failed to update training run status to completed: {e}", exc_info=True)
+
     timing_summary = timer.get_all_summaries()
     for name, summary in timing_summary.items():
         logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
@@ -595,3 +631,8 @@ def train(
     )
 
     cleanup_monitoring(memory_monitor, system_monitor)
+
+    # Return stats info for exception handling at higher levels
+    if stats_client and stats_tracker and hasattr(stats_tracker, "stats_run_id"):
+        return {"stats_run_id": stats_tracker.stats_run_id, "stats_client": stats_client, "logger": logger}
+    return None

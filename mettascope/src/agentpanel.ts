@@ -361,6 +361,9 @@ export function updateAvailableColumns() {
 
 /** Get the amount of an item in the inventory. */
 function getInventoryAmount(agent: any, itemName: string, step: number) {
+  if (itemName === '') {
+    throw new Error('Item name must be a non-empty string')
+  }
   const itemId = state.replay.itemNames.indexOf(itemName)
   const inventory = agent.inventory.get(step)
   for (const [inventoryId, inventoryAmount] of inventory) {
@@ -374,6 +377,9 @@ function getInventoryAmount(agent: any, itemName: string, step: number) {
 
 /** Try to load a value from the agent or return 0. */
 function getColumnValue(agent: any, field: string, step: number) {
+  if (field === '') {
+    throw new Error('Field name must be a non-empty string')
+  }
   if (state.replay.itemNames.includes(field)) {
     return getInventoryAmount(agent, field, step)
   }
