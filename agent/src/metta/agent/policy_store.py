@@ -23,8 +23,10 @@ from omegaconf import DictConfig
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.puffer_policy import load_pytorch_policy
+from metta.sim.utils import get_pr_scores_from_stats_server
 
 logger = logging.getLogger("policy_store")
 
@@ -69,8 +71,10 @@ class PolicyStore:
         uri_or_config: str | DictConfig,
         selector_type: PolicySelectorType = "top",
         metric: str = "score",
+        stats_client: StatsClient | None = None,
+        eval_name: str | None = None,
     ) -> PolicyRecord:
-        prs = self.policy_records(uri_or_config, selector_type, 1, metric)
+        prs = self.policy_records(uri_or_config, selector_type, 1, metric, stats_client, eval_name)
         assert len(prs) == 1, f"Expected 1 policy record, got {len(prs)} policy records!"
         return prs[0]
 
@@ -80,12 +84,20 @@ class PolicyStore:
         selector_type: PolicySelectorType = "top",
         n: int = 1,
         metric: str = "score",
+        stats_client: StatsClient | None = None,
+        eval_name: str | None = None,
     ) -> list[PolicyRecord]:
         uri = uri_or_config if isinstance(uri_or_config, str) else uri_or_config.uri
-        return self._select_policy_records(uri, selector_type, n, metric)
+        return self._select_policy_records(uri, selector_type, n, metric, stats_client, eval_name)
 
     def _select_policy_records(
-        self, uri: str, selector_type: PolicySelectorType = "top", n: int = 1, metric: str = "score"
+        self,
+        uri: str,
+        selector_type: PolicySelectorType = "top",
+        n: int = 1,
+        metric: str = "score",
+        stats_client: StatsClient | None = None,
+        eval_name: str | None = None,
     ) -> list[PolicyRecord]:
         """
         Select policy records based on URI and selection criteria.
@@ -122,7 +134,7 @@ class PolicyStore:
             return [selected]
 
         elif selector_type == "top":
-            return self._select_top_prs_by_metric(prs, n, metric)
+            return self._select_top_prs_by_metric(prs, n, metric, stats_client, eval_name)
 
         else:
             raise ValueError(f"Invalid selector type: {selector_type}")
@@ -165,10 +177,20 @@ class PolicyStore:
         else:
             return self._prs_from_path(uri)
 
-    def _select_top_prs_by_metric(self, prs: list[PolicyRecord], n: int, metric: str) -> list[PolicyRecord]:
+    def _select_top_prs_by_metric(
+        self,
+        prs: list[PolicyRecord],
+        n: int,
+        metric: str,
+        stats_client: StatsClient | None = None,
+        eval_name: str | None = None,
+    ) -> list[PolicyRecord]:
         """Select top N policy records based on metric score."""
         # Extract scores
         policy_scores = self._get_pr_scores(prs, metric)
+        if eval_name and stats_client and any([s is None for s in policy_scores.values()]):
+            # Because an eval_name is provided, assume that the metric is reward
+            policy_scores.update(get_pr_scores_from_stats_server(stats_client, prs, eval_name, metric="reward"))
 
         # Filter policy records with valid scores
         valid_policies = [(p, score) for p, score in policy_scores.items() if score is not None]

@@ -14,7 +14,7 @@ logger = logging.getLogger("leaderboard_routes")
 logger.setLevel(logging.INFO)
 
 
-class LeaderboardCreate(BaseModel):
+class LeaderboardCreateOrUpdate(BaseModel):
     name: str
     evals: List[str]
     metric: str
@@ -80,7 +80,7 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
     @router.post("")
     @timed_route("create_leaderboard")
     async def create_leaderboard(  # type: ignore[reportUnusedFunction]
-        leaderboard_data: LeaderboardCreate,
+        leaderboard_data: LeaderboardCreateOrUpdate,
         user_id: str = user_or_token,
     ) -> LeaderboardResponse:
         """Create a new leaderboard."""
@@ -97,6 +97,22 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
         if not leaderboard:
             raise HTTPException(status_code=500, detail="Failed to create leaderboard")
 
+        return LeaderboardResponse.from_db(leaderboard)
+
+    @router.put("/{leaderboard_id}")
+    @timed_route("update_leaderboard")
+    async def update_leaderboard(  # type: ignore[reportUnusedFunction]
+        leaderboard_id: str, leaderboard_data: LeaderboardCreateOrUpdate, user_id: str = user_or_token
+    ) -> LeaderboardResponse:
+        """Update a leaderboard."""
+        leaderboard = await metta_repo.update_leaderboard(
+            leaderboard_id=uuid.UUID(leaderboard_id),
+            user_id=user_id,
+            name=leaderboard_data.name,
+            evals=leaderboard_data.evals,
+            metric=leaderboard_data.metric,
+            start_date=leaderboard_data.start_date,
+        )
         return LeaderboardResponse.from_db(leaderboard)
 
     @router.delete("/{leaderboard_id}")

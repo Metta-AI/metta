@@ -11,6 +11,7 @@ from torchrl.data import Composite, MultiCategorical, UnboundedContinuous
 from metta.agent.metta_agent import PolicyAgent
 from metta.rl.advantage import compute_advantage, normalize_advantage_distributed
 from metta.rl.experience import Experience
+from metta.rl.ppo import compute_ppo_losses
 from metta.rl.trainer_config import TrainerConfig
 
 logger = logging.getLogger(__name__)
@@ -115,8 +116,6 @@ def process_minibatch_update(
     # Normalize advantages with distributed support, then apply prioritized weights
     adv = normalize_advantage_distributed(adv, trainer_cfg.ppo.norm_adv)
     adv = prio_weights * adv
-
-    from metta.rl.ppo import compute_ppo_losses
 
     # Compute losses
     pg_loss, v_loss, entropy_loss, approx_kl, clipfrac = compute_ppo_losses(

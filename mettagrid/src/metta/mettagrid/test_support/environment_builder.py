@@ -59,6 +59,7 @@ class TestEnvironmentBuilder:
         max_steps: int = 1000,
         inventory_item_names: Optional[list[str]] = None,
         no_agent_interference: bool = False,
+        resource_loss_prob: float = 0.0,
         **kwargs,
     ) -> dict[str, Any]:
         """Create a test configuration for MettaGrid.
@@ -129,6 +130,7 @@ class TestEnvironmentBuilder:
             "num_observation_tokens": num_observation_tokens or DefaultEnvConfig.NUM_OBS_TOKENS,
             "inventory_item_names": inventory_item_names,
             "no_agent_interference": no_agent_interference,
+            "resource_loss_prob": resource_loss_prob,
             "global_obs": {
                 "episode_completion_pct": True,
                 "last_action": True,

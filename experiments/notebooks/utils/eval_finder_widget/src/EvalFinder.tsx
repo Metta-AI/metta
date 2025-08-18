@@ -6,74 +6,44 @@ import { SearchBar } from "./SearchBar";
 import { EvalMetadata, EvalCategory } from "./types";
 
 interface EvalFinderProps {
-  model: any;
+  evalData: any;
+  selectedEvals: string[];
+  categoryFilter: string[];
+  viewMode: "tree" | "list" | "category";
+  searchTerm: string;
+  showPrerequisites: boolean;
+  onSelectionChange: (selected: string[]) => void;
+  onFilterChange: (filters: any) => void;
 }
 
-export const EvalFinder: React.FC<EvalFinderProps> = ({ model }) => {
-  // Widget state from Python backend
-  const [evalData, setEvalData] = useState<any>(null);
-  const [selectedEvals, setSelectedEvals] = useState<string[]>([]);
-  const [categoryFilter, setCategoryFilter] = useState<string[]>([]);
-  const [viewMode, setViewMode] = useState<"tree" | "list" | "category">("category");
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [showPrerequisites, setShowPrerequisites] = useState<boolean>(true);
+export const EvalFinder: React.FC<EvalFinderProps> = ({ 
+  evalData,
+  selectedEvals,
+  categoryFilter,
+  viewMode,
+  searchTerm,
+  showPrerequisites,
+  onSelectionChange,
+  onFilterChange
+}) => {
+  // Local UI state
+  const [localSearchTerm, setLocalSearchTerm] = useState<string>(searchTerm);
 
-  // Sync with Python backend
+  // Use localSearchTerm for immediate UI updates, but sync with parent on change
   useEffect(() => {
-    const updateFromModel = () => {
-      const newEvalData = model.get("eval_data");
-      if (newEvalData) {
-        //console.log("🔍 EvalFinder: Received eval data:", newEvalData);
-        setEvalData(newEvalData);
-      }
-
-      const pySelectedEvals = model.get("selected_evals");
-      if (pySelectedEvals && JSON.stringify(pySelectedEvals) !== JSON.stringify(selectedEvals)) {
-        setSelectedEvals(pySelectedEvals);
-      }
-
-      setCategoryFilter(model.get("category_filter") || []);
-      // setViewMode(model.get("view_mode") || "tree");
-      setSearchTerm(model.get("search_term") || "");
-      setShowPrerequisites(model.get("show_prerequisites") !== false);
-    };
-
-    updateFromModel();
-    model.on("change", updateFromModel);
-
-    return () => model.off("change", updateFromModel);
-  }, [model]);
-
-  // Sync selection back to Python
-  useEffect(() => {
-    const currentPySelection = model.get("selected_evals") || [];
-    if (JSON.stringify(selectedEvals) !== JSON.stringify(currentPySelection)) {
-      model.set("selected_evals", selectedEvals);
-      model.save_changes();
-
-      // Trigger callback
-      model.set("selection_changed", {
-        selected_evals: selectedEvals,
-        action: "updated",
-        timestamp: Date.now()
-      });
-      model.save_changes();
-    }
-  }, [selectedEvals, model]);
+    setLocalSearchTerm(searchTerm);
+  }, [searchTerm]);
 
   // Filter evaluations based on current filters
   const filteredEvaluations = useMemo(() => {
     if (!evalData?.evaluations) {
-      //console.log("🔍 EvalFinder: No eval data or evaluations found", evalData);
       return [];
     }
 
-    //console.log("🔍 EvalFinder: Filtering", evalData.evaluations.length, "evaluations");
-
     const filtered = evalData.evaluations.filter((evaluation: EvalMetadata) => {
-      // Search filter
-      if (searchTerm) {
-        const searchLower = searchTerm.toLowerCase();
+      // Search filter (use local search term for immediate feedback)
+      if (localSearchTerm) {
+        const searchLower = localSearchTerm.toLowerCase();
         const matchesName = evaluation.name.toLowerCase().includes(searchLower);
         const matchesDescription = evaluation.description?.toLowerCase().includes(searchLower) || false;
         const matchesTags = evaluation.tags?.some(tag => tag.toLowerCase().includes(searchLower)) || false;
@@ -83,7 +53,6 @@ export const EvalFinder: React.FC<EvalFinderProps> = ({ model }) => {
         }
       }
 
-
       // Category filter
       if (categoryFilter.length > 0 && !categoryFilter.includes(evaluation.category)) {
         return false;
@@ -92,9 +61,8 @@ export const EvalFinder: React.FC<EvalFinderProps> = ({ model }) => {
       return true;
     });
 
-    //console.log("🔍 EvalFinder: Filtered to", filtered.length, "evaluations");
     return filtered;
-  }, [evalData, searchTerm, categoryFilter]);
+  }, [evalData, localSearchTerm, categoryFilter]);
 
   // Filter eval structure based on filtered evaluations
   const filteredEvalStructure = useMemo(() => {
@@ -111,30 +79,40 @@ export const EvalFinder: React.FC<EvalFinderProps> = ({ model }) => {
   }, [evalData, filteredEvaluations]);
 
   const handleEvalToggle = (evalName: string) => {
-    setSelectedEvals(prev =>
-      prev.includes(evalName)
-        ? prev.filter(name => name !== evalName)
-        : [...prev, evalName]
-    );
+    const newSelection = selectedEvals.includes(evalName)
+      ? selectedEvals.filter(name => name !== evalName)
+      : [...selectedEvals, evalName];
+    onSelectionChange(newSelection);
   };
 
   const handleSelectAll = () => {
     const allEvalNames = filteredEvaluations.map((e: EvalMetadata) => e.name);
-    setSelectedEvals(allEvalNames);
+    onSelectionChange(allEvalNames);
   };
 
   const handleClearAll = () => {
-    setSelectedEvals([]);
+    onSelectionChange([]);
   };
 
   const handleFilterChange = (filters: {
     category?: string[];
   }) => {
-    if (filters.category !== undefined) {
-      setCategoryFilter(filters.category);
-      model.set("category_filter", filters.category);
-    }
-    model.save_changes();
+    onFilterChange({
+      categoryFilter: filters.category,
+      searchTerm: localSearchTerm,
+      viewMode,
+      showPrerequisites
+    });
+  };
+
+  const handleSearchChange = (term: string) => {
+    setLocalSearchTerm(term);
+    onFilterChange({
+      categoryFilter,
+      searchTerm: term,
+      viewMode,
+      showPrerequisites
+    });
   };
 
   if (!evalData) {
@@ -157,8 +135,8 @@ export const EvalFinder: React.FC<EvalFinderProps> = ({ model }) => {
       </div>
 
       <SearchBar
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
+        searchTerm={localSearchTerm}
+        onSearchChange={handleSearchChange}
       />
 
       <FilterPanel
@@ -172,7 +150,12 @@ export const EvalFinder: React.FC<EvalFinderProps> = ({ model }) => {
           <label>View:</label>
           <select
             value={viewMode}
-            onChange={(e) => setViewMode(e.target.value as "tree" | "list" | "category")}
+            onChange={(e) => onFilterChange({
+              categoryFilter,
+              searchTerm: localSearchTerm,
+              viewMode: e.target.value as "tree" | "list" | "category",
+              showPrerequisites
+            })}
           >
             <option value="tree">Tree</option>
             <option value="list">List</option>

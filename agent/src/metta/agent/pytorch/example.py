@@ -2,17 +2,19 @@ import logging
 from typing import Optional
 
 import einops
-import pufferlib.models
 import pufferlib.pytorch
 import torch
 import torch.nn.functional as F
 from tensordict import TensorDict
 from torch import nn
 
+from metta.agent.pytorch.base import LSTMWrapper
+from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
+
 logger = logging.getLogger(__name__)
 
 
-class Example(pufferlib.models.LSTMWrapper):
+class Example(PyTorchAgentMixin, LSTMWrapper):
     """Recurrent LSTM-based policy wrapper with discrete multi-head action space."""
 
     def __init__(
@@ -22,25 +24,33 @@ class Example(pufferlib.models.LSTMWrapper):
         cnn_channels: int = 128,
         input_size: int = 512,
         hidden_size: int = 512,
+        num_layers: int = 2,
+        **kwargs,
     ):
+        # Extract mixin parameters before passing to parent
+        mixin_params = self.extract_mixin_params(kwargs)
+
         if policy is None:
             policy = Policy(env, cnn_channels=cnn_channels, hidden_size=hidden_size, input_size=input_size)
 
-        super().__init__(env, policy, input_size, hidden_size)
+        # Use enhanced LSTMWrapper with num_layers support
+        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
+
+        # Initialize mixin with configuration parameters
+        self.init_mixin(**mixin_params)
 
     def forward(self, td: TensorDict, state: Optional[dict] = None, action=None) -> TensorDict:
         """Forward pass: encodes observations, runs LSTM, decodes into actions, value, and stats."""
 
-        # Handle BPTT reshaping
-        td.set("bptt", torch.full((td.batch_size.numel(),), 1, device=td.device, dtype=torch.long))
-        td.set("batch", torch.full((td.batch_size.numel(),), td.batch_size.numel(), device=td.device, dtype=torch.long))
-        if td.batch_dims > 1:
-            B, TT = td.batch_size
-            td = td.reshape(td.batch_size.numel())
-            td.set("bptt", torch.full((B,), TT, device=td.device, dtype=torch.long))
-            td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
+        observations = td["env_obs"]
 
-        observations = td["env_obs"].to(self.device)
+        # Use mixin to set critical TensorDict fields
+        B, TT = self.set_tensordict_fields(td, observations)
+
+        # Handle BPTT reshaping if needed
+        if td.batch_dims > 1:
+            total_batch = B * TT
+            td = td.reshape(total_batch)
         state = state or {"lstm_h": None, "lstm_c": None, "hidden": None}
 
         hidden = self.policy.encode_observations(observations, state)
@@ -64,7 +74,7 @@ class Example(pufferlib.models.LSTMWrapper):
         actions_tensor = actions_tensor.to(dtype=torch.int32)
 
         if action is None:
-            td["actions"] = torch.zeros(actions_tensor.shape, dtype=torch.int32, device=self.device)
+            td["actions"] = torch.zeros(actions_tensor.shape, dtype=torch.int32, device=observations.device)
             td["act_log_prob"] = log_probs.mean(dim=-1)
             td["values"] = value.flatten()
             td["full_log_probs"] = full_log_probs
@@ -75,13 +85,6 @@ class Example(pufferlib.models.LSTMWrapper):
             td["full_log_probs"] = full_log_probs
             td = td.reshape(B, TT)
         return td
-
-    def _prepare_lstm_state(self, state: dict):
-        """Ensures LSTM hidden states are on the correct device and sized properly."""
-        h, c = state.get("lstm_h"), state.get("lstm_c")
-        if h is None or c is None:
-            return None
-        return h.to(self.device)[: self.lstm.num_layers], c.to(self.device)[: self.lstm.num_layers]
 
     def _sample_actions(self, logits_list: list[torch.Tensor]):
         """Samples discrete actions from logits and computes log-probs and entropy."""
@@ -111,17 +114,12 @@ class Example(pufferlib.models.LSTMWrapper):
             torch.stack(full_log_probs, dim=-1),
         )
 
-    def clip_weights(self):
-        for p in self.parameters():
-            p.data.clamp_(-1, 1)
-
 
 class Policy(nn.Module):
     """CNN + Self feature encoder policy for discrete multi-head action space."""
 
     def __init__(self, env, cnn_channels=128, hidden_size=512, **kwargs):
         super().__init__()
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.hidden_size = hidden_size
         self.action_space = env.single_action_space
         self.is_continuous = kwargs.get("is_continuous", False)
@@ -143,21 +141,47 @@ class Policy(nn.Module):
             nn.ReLU(),
         )
 
+        # Use values that avoid division by very small numbers
+        # These values represent the expected maximum for each feature layer
         max_vec = torch.tensor(
-            [9, 1, 1, 10, 3, 254, 1, 1, 235, 8, 9, 250, 29, 1, 1, 8, 1, 1, 6, 3, 1, 2],
+            [
+                9.0,
+                1.0,
+                1.0,
+                10.0,
+                3.0,
+                254.0,
+                1.0,
+                1.0,
+                235.0,
+                8.0,
+                9.0,
+                250.0,
+                29.0,
+                1.0,
+                1.0,
+                8.0,
+                1.0,
+                1.0,
+                6.0,
+                3.0,
+                1.0,
+                2.0,
+            ],
             dtype=torch.float32,
-        )[None, :, None, None]
-        self.register_buffer("max_vec", max_vec.to(self.device))
+        )
+        # Clamp minimum value to 1.0 to avoid near-zero divisions
+        max_vec = torch.maximum(max_vec, torch.ones_like(max_vec))
+        max_vec = max_vec[None, :, None, None]
+        self.register_buffer("max_vec", max_vec)
 
         self.actor = nn.ModuleList(
             [pufferlib.pytorch.layer_init(nn.Linear(hidden_size, n), std=0.01) for n in self.action_space.nvec]
         )
         self.value = pufferlib.pytorch.layer_init(nn.Linear(hidden_size, 1), std=1)
-        self.to(self.device)
 
     def encode_observations(self, observations: torch.Tensor, state=None) -> torch.Tensor:
         """Converts raw observation tokens into a concatenated self + CNN feature vector."""
-        observations = observations.to(self.device)
         B = observations.shape[0]
         TT = 1 if observations.dim() == 3 else observations.shape[1]
 
@@ -176,7 +200,7 @@ class Policy(nn.Module):
         box_obs = torch.zeros(
             (B * TT, self.num_layers, self.out_width, self.out_height),
             dtype=atr_values.dtype,
-            device=self.device,
+            device=observations.device,
         )
 
         valid_tokens = (
@@ -186,12 +210,13 @@ class Policy(nn.Module):
             & (atr_indices < self.num_layers)
         )
 
-        batch_idx = torch.arange(B * TT, device=self.device).unsqueeze(-1).expand_as(atr_values)
+        batch_idx = torch.arange(B * TT, device=observations.device).unsqueeze(-1).expand_as(atr_values)
         box_obs[batch_idx[valid_tokens], atr_indices[valid_tokens], x_coords[valid_tokens], y_coords[valid_tokens]] = (
             atr_values[valid_tokens]
         )
 
-        features = box_obs / self.max_vec
+        # Normalize features with epsilon for numerical stability
+        features = box_obs / (self.max_vec + 1e-8)
         self_features = self.self_encoder(features[:, :, 5, 5])
         cnn_features = self.network(features)
 

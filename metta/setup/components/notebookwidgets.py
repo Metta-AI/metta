@@ -1,6 +1,7 @@
 import subprocess
 
 from metta.setup.components.base import SetupModule
+from metta.setup.config import SetupConfig
 from metta.setup.registry import register_module
 from metta.setup.utils import info, warning
 
@@ -9,6 +10,12 @@ from metta.setup.utils import info, warning
 class NotebookWidgetsSetup(SetupModule):
     install_once = False
 
+    _widgets = [
+        "scorecard_widget",
+        "eval_finder_widget",
+        "policy_selector_widget",
+    ]
+
     def dependencies(self) -> list[str]:
         return ["nodejs"]
 
@@ -16,91 +23,73 @@ class NotebookWidgetsSetup(SetupModule):
     def description(self) -> str:
         return "The python notebook widgets we create"
 
+    def __init__(self, config: SetupConfig):
+        super().__init__(config)
+        self.widget_root = self.repo_root / "experiments/notebooks/utils"
+
     def is_applicable(self) -> bool:
         return self.config.is_component_enabled("notebookwidgets")
 
+    def should_install_widget(self, widget: str) -> bool:
+        widget_path = self.widget_root / widget
+        node_modules_path = widget_path / "node_modules"
+        return not node_modules_path.exists()
+
+    def should_build_widget(self, widget: str) -> bool:
+        widget_path = self.widget_root / widget
+        build_cache_status = subprocess.run(
+            [
+                "bash",
+                "-c",
+                "npx turbo run build --dry=json 2>/dev/null | jq .tasks[0].cache.status",
+            ],
+            cwd=widget_path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        build_cache_status = build_cache_status.stdout.decode("utf-8").strip()
+        # INFO: https://turborepo.com/docs/reference/run#--dry----dry-run
+        # This will be "MISS" if the project needs to be built or "HIT" if not.
+        return build_cache_status == '"MISS"'
+
     def check_installed(self) -> bool:
-        scorecard_node_modules = (
-            subprocess.call(
-                ["ls", "./experiments/notebooks/utils/scorecard_widget/node_modules"],
-                cwd=self.repo_root,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            == 0
-        )
-        eval_finder_node_modules = (
-            subprocess.call(
-                ["ls", "./experiments/notebooks/utils/eval_finder_widget/node_modules"],
-                cwd=self.repo_root,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            == 0
-        )
-        scorecard_compiled_js = (
-            subprocess.call(
-                ["ls", "./experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js"],
-                cwd=self.repo_root,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            == 0
-        )
-        eval_finder_compiled_js = (
-            subprocess.call(
-                ["ls", "./experiments/notebooks/utils/eval_finder_widget/eval_finder_widget/static/index.js"],
-                cwd=self.repo_root,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            == 0
-        )
-        scorecard_should_build = (
-            subprocess.call(
-                ["bash", "-c", "./should_build.sh"],
-                cwd=self.repo_root / "experiments/notebooks/utils/scorecard_widget/scorecard_widget",
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            == 0
-        )
-        eval_finder_should_build = (
-            subprocess.call(
-                ["bash", "-c", "./should_build.sh"],
-                cwd=self.repo_root / "experiments/notebooks/utils/scorecard_widget",
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            == 0
-        )
-        has_node_modules = scorecard_node_modules and eval_finder_node_modules
-        has_compiled_js = scorecard_compiled_js and eval_finder_compiled_js
-        should_build = scorecard_should_build and eval_finder_should_build
-        return has_node_modules and has_compiled_js and not should_build
+        for widget in self._widgets:
+            if self.should_install_widget(widget):
+                return False
+            if self.should_build_widget(widget):
+                return False
+        return True
 
     def install(self) -> None:
         info("Setting up Metta's custom Python notebook widgets...")
         try:
-            if not self.check_installed():
-                subprocess.run(
-                    [
-                        "bash",
-                        "-c",
-                        "npm install && npm run build",
-                    ],
-                    check=True,
-                    cwd=self.repo_root / "experiments/notebooks/utils/scorecard_widget",
-                )
-                subprocess.run(
-                    [
-                        "bash",
-                        "-c",
-                        "npm install && npm run build",
-                    ],
-                    check=True,
-                    cwd=self.repo_root / "experiments/notebooks/utils/eval_finder_widget",
-                )
+            for widget in self._widgets:
+                if self.should_install_widget(widget):
+                    print(f"Installing dependencies and building {widget}...")
+                    subprocess.run(
+                        [
+                            "bash",
+                            "-c",
+                            "pnpm install && npx turbo run build",
+                        ],
+                        check=True,
+                        cwd=self.widget_root / widget,
+                    )
+                    continue
+                if self.should_build_widget(widget):
+                    print(f"Building {widget} (cache miss)...")
+                    subprocess.run(
+                        [
+                            "bash",
+                            "-c",
+                            "npx turbo run build",
+                        ],
+                        check=True,
+                        cwd=self.widget_root / widget,
+                    )
+                else:
+                    # print(f"Skipping {widget} (cache hit - no changes detected)")
+                    continue
 
             info(
                 "The notebook widgets are now compiled. Check out "

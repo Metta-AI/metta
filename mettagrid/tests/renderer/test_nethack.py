@@ -203,6 +203,16 @@ class TestNethackRenderer:
         assert all(len(line) == 10 for line in lines)
         assert "0" in result  # Agent should be present
 
+    def test_get_buffer_returns_string(self, basic_renderer, sample_grid_objects):
+        """Exercise the get_buffer path without printing to stdout."""
+        buf = basic_renderer.get_buffer(sample_grid_objects)
+        assert isinstance(buf, str)
+        lines = buf.split("\n")
+        assert len(lines) == 3
+        assert all(len(line) == 3 for line in lines)
+        # Basic content checks
+        assert "#" in buf or "." in buf
+
 
 class TestRendererIntegration:
     """Test renderer integration with MettaGridEnv and tools.sim style setup."""
