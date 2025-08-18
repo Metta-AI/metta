@@ -29,8 +29,8 @@ on:
         description: "Number of Nodes to request (e.g., 1, 2). If empty, defaults to SkyPilot task definition (usually 1)."
         required: false
         type: string
-      test_job_restart:
-        description: "Force the job to restart at 30% of timeout_hours to test reloading policies."
+      run_ci_tests:
+        description: "Runs NCCL and job restart tests."
         required: false
         type: boolean
         default: false
@@ -42,7 +42,7 @@ env:
   DEFAULT_TIMEOUT_HOURS: 0.333 # 20 minutes = 0.333 hours
   DEFAULT_NUM_GPUS: "4"
   DEFAULT_NUM_NODES: "2"
-  DEFAULT_TEST_JOB_RESTART: true
+  DEFAULT_RUN_CI_TESTS: true
   RUN_NAME_PREFIX: "github.sky"
 
 jobs:
@@ -144,7 +144,7 @@ jobs:
           timeout_hours: ${{ github.event_name == 'push' && env.DEFAULT_TIMEOUT_HOURS || github.event.inputs.timeout_hours || env.DEFAULT_TIMEOUT_HOURS }}
           num_gpus: ${{ github.event_name == 'push' && env.DEFAULT_NUM_GPUS || github.event.inputs.num_gpus || '' }}
           num_nodes: ${{ github.event_name == 'push' && env.DEFAULT_NUM_NODES || github.event.inputs.num_nodes || '' }}
-          test_job_restart: ${{ github.event_name == 'push' && env.DEFAULT_TEST_JOB_RESTART || github.event.inputs.test_job_restart || false }}
+          run_ci_tests: ${{ github.event_name == 'push' && env.DEFAULT_RUN_CI_TESTS || github.event.inputs.run_ci_tests || false }}
           run_name: ${{ steps.generate_run_name.outputs.run_name }}
           wandb_api_key: ${{ secrets.WANDB_API_KEY }}
           skypilot_service_account_token: ${{ secrets.SKYPILOT_SERVICE_ACCOUNT_TOKEN }}
@@ -220,8 +220,8 @@ jobs:
           echo "| **Commit** | \`${{ github.event_name == 'workflow_dispatch' && github.event.inputs.commit_to_run || github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Trainer Env** | \`${{ github.event.inputs.trainer_env || env.DEFAULT_TRAINER_ENV }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| **Timeout** | ${{ github.event.inputs.timeout_hours || env.DEFAULT_TIMEOUT_HOURS }} hours |" >> $GITHUB_STEP_SUMMARY
-          RESTART_TEST_ENABLED="${{ github.event_name == 'push' && env.DEFAULT_TEST_JOB_RESTART || github.event.inputs.test_job_restart || false }}"
-          echo "| **Force Restart Test** | ${RESTART_TEST_ENABLED} |" >> $GITHUB_STEP_SUMMARY
+          CI_TESTS_ENABLED="${{ github.event_name == 'push' && env.DEFAULT_RUN_CI_TESTS || github.event.inputs.run_ci_tests || false }}"
+          echo "| **Run CI Tests** | ${CI_TESTS_ENABLED} |" >> $GITHUB_STEP_SUMMARY
 
           if [ -n "${{ steps.extract_request_id.outputs.request_id }}" ]; then
             echo "| **Request ID** | \`${{ steps.extract_request_id.outputs.request_id_short }}\` |" >> $GITHUB_STEP_SUMMARY
