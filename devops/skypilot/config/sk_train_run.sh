@@ -103,9 +103,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     echo "[RUN] GitHub status reporting is enabled"
 
     # Set initial GitHub status
-    export GITHUB_STATUS_STATE=pending
-    export GITHUB_STATUS_DESCRIPTION="Queued on SkyPilot…"
-    bash ./devops/skypilot/config/notifications/set_github_status.sh
+    uv run devops/skypilot/config/notifications/set_github_status.py "pending" "Queued on SkyPilot…"
   else
     export ENABLE_GITHUB_STATUS=false
     echo "[RUN] GitHub status reporting is disabled (missing required credentials)"
