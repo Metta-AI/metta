@@ -469,11 +469,6 @@ def get_system_diagnostics() -> dict[str, Any]:
     code, stdout, stderr = run_command(["ip", "-o", "route", "get", master_addr])
     diagnostics["system"]["ROUTE_TO_MASTER"] = stdout.strip() if code == 0 else f"No route to {master_addr}"
 
-    # Network interface
-    iface = os.environ.get("NCCL_SOCKET_IFNAME", "enp39s0")
-    code, stdout, stderr = run_command(["ip", "-o", "addr", "show", iface])
-    diagnostics["system"]["NETWORK_INTERFACE"] = stdout.strip() if code == 0 else f"Interface {iface} not found"
-
     # IPC namespace
     try:
         ipc_ns = os.readlink("/proc/1/ns/ipc")
@@ -574,7 +569,6 @@ def format_system_diagnostics(diagnostics: dict[str, Any]) -> str:
     # Extract values
     master_addr = diagnostics["cluster"]["MASTER_ADDR"]
     master_port = diagnostics["cluster"]["MASTER_PORT"]
-    nccl_socket_ifname = os.environ.get("NCCL_SOCKET_IFNAME", "enp39s0")
     nccl_socket_family = os.environ.get("NCCL_SOCKET_FAMILY", "AF_INET")
     nccl_port_range = os.environ.get("NCCL_PORT_RANGE", "43000-43063")
     nccl_debug = os.environ.get("NCCL_DEBUG", "VERSION")
@@ -582,12 +576,9 @@ def format_system_diagnostics(diagnostics: dict[str, Any]) -> str:
     nccl_p2p_disable = int(os.environ.get("NCCL_P2P_DISABLE", "0"))
     nccl_shm_disable = int(os.environ.get("NCCL_SHM_DISABLE", "0"))
     nccl_ib_disable = int(os.environ.get("NCCL_IB_DISABLE", "1"))
-    nccl_min_nchannels = os.environ.get("NCCL_MIN_NCHANNELS", "4")
-    nccl_max_nchannels = os.environ.get("NCCL_MAX_NCHANNELS", "8")
 
     # Print in a clean table format
     output.write(f"  Rendezvous Endpoint    : {master_addr}:{master_port}\n")
-    output.write(f"  Network Interface      : {nccl_socket_ifname}\n")
     output.write(f"  Socket Family          : {nccl_socket_family}\n")
     output.write(f"  Port Range             : {nccl_port_range}\n")
 
@@ -596,7 +587,6 @@ def format_system_diagnostics(diagnostics: dict[str, Any]) -> str:
         debug_str += f" (subsys: {nccl_debug_subsys})"
     output.write(f"  Debug Level            : {debug_str}\n")
 
-    output.write(f"  Channels (min-max)     : {nccl_min_nchannels}-{nccl_max_nchannels}\n")
     output.write("\n  Communication Modes:\n")
     output.write(f"    • P2P (GPU Direct)   : {'✓ Enabled' if not nccl_p2p_disable else '✗ Disabled'}\n")
     output.write(f"    • Shared Memory      : {'✓ Enabled' if not nccl_shm_disable else '✗ Disabled'}\n")
@@ -705,14 +695,6 @@ def setup_nccl_debug_env(master_addr: str | None = None) -> None:
         os.environ.setdefault(k, v)
         logger.info(f"{k}={os.environ.get(k)}")
 
-    iface = _detect_iface_to(master_addr) if master_addr else None
-    if iface and _iface_is_up(iface):
-        os.environ["NCCL_SOCKET_IFNAME"] = iface
-    else:
-        # safer: explicitly prefer your real NIC
-        os.environ.setdefault("NCCL_SOCKET_IFNAME", "enp39s0")
-
-    logger.info(f"NCCL_SOCKET_IFNAME={os.environ['NCCL_SOCKET_IFNAME']}")
     logger.info(f"MASTER_ADDR={master_addr or os.environ.get('MASTER_ADDR', '<unset>')}")
 
 
@@ -966,7 +948,7 @@ def main():
 
     # Only show key NCCL vars from non-GPU0 ranks to reduce noise
     if not IS_GPU0:
-        key_vars = ["NCCL_DEBUG", "NCCL_SOCKET_IFNAME", "NCCL_SOCKET_FAMILY"]
+        key_vars = ["NCCL_DEBUG", "NCCL_SOCKET_FAMILY"]
         nccl_vars = [(k, v) for k, v in nccl_vars if k in key_vars]
 
     for k, v in nccl_vars:
