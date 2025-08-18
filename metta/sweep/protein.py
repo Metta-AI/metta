@@ -417,7 +417,7 @@ class Protein:
         if len(self.success_observations) == 0 and self.seed_with_search_center:
             best = self.hyperparameters.search_centers
             return self.hyperparameters.to_dict(best, fill), info
-        elif not self.seed_with_search_center and len(self.success_observations) < self.num_random_samples:
+        elif len(self.success_observations) < self.num_random_samples:
             suggestions = self.hyperparameters.sample(self.random_suggestions)
             self.suggestion = random.choice(suggestions)
             return self.hyperparameters.to_dict(self.suggestion, fill), info
@@ -466,8 +466,12 @@ class Protein:
 
         # Choose acquisition function
         if self.acquisition_fn == "ei":
-            # Find best observed value
-            best_observed = np.max(y) if self.hyperparameters.optimize_direction == 1 else np.min(y)
+            # Find best observed value (with safety check)
+            if len(y) > 0:
+                best_observed = np.max(y) if self.hyperparameters.optimize_direction == 1 else np.min(y)
+            else:
+                # Default when no observations (shouldn't happen but defensive)
+                best_observed = float("-inf") if self.hyperparameters.optimize_direction == 1 else float("inf")
             ei_scores = self._compute_ei(gp_y, gp_y_std, best_observed)
             suggestion_scores = max_c_mask * ei_scores
         elif self.acquisition_fn == "ucb":

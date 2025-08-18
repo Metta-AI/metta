@@ -107,7 +107,7 @@ def evaluate_sweep_rollout(
         wandb_run.summary.update(eval_results)  # type: ignore[attr-defined]
         logger.info(f"Evaluation results: {eval_results}")
 
-        suggestion_cost = eval_results["time.total"]
+        suggestion_cost = eval_results["time.total"] / 3600.0  # Convert to hours
         suggestion_score = eval_results[metric]
         record_protein_observation_to_wandb(
             wandb_run,
@@ -127,7 +127,7 @@ def evaluate_sweep_rollout(
 
         # Save results for all ranks to read
         OmegaConf.save(
-            {"eval_metric": suggestion_score, "total_time": suggestion_cost},
+            {"eval_metric": suggestion_score, "total_time": eval_results["time.total"], "cost_hours": suggestion_cost},
             f"{train_job_cfg.run_dir}/sweep_eval_results.yaml",
         )
 
@@ -150,7 +150,7 @@ def _run_policy_evaluation(
 
     # Get policy store and record
     policy_store = get_policy_store_from_cfg(train_job_cfg, wandb_run)
-    policy_pr = policy_store.policy_record("wandb://run/" + wandb_run.name, selector_type="latest")
+    policy_pr = policy_store.policy_record("wandb://run/" + wandb_run.name)
 
     # Load the policy record directly using its wandb URI
     if not policy_pr.uri:

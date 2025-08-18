@@ -7,7 +7,7 @@ defaults:
 sweep_name: ??? # Will be set via command line override
 
 settings:
-  max_consecutive_failures: 0
+  max_consecutive_failures: 5
   rollout_retry_delay: 5
   max_observations_to_load: 250
   sweep_server_uri: https://api.observatory.softmax-research.net
