@@ -657,43 +657,29 @@ def _detect_iface_to(master_addr: str) -> str | None:
         return None
 
 
-def _iface_is_up(iface: str) -> bool:
-    """Return True if the network interface exists and is UP."""
-    try:
-        out = subprocess.check_output(
-            ["bash", "-lc", f"ip -o link show dev {iface}"],
-            text=True,
-        )
-        return "state UP" in out
-    except Exception:
-        return False
-
-
 def setup_nccl_debug_env(master_addr: str | None = None) -> None:
-    """Set sane NCCL defaults for test runs, with optional verbose mode via METTA_NCCL_DEBUG=1."""
+    """Set minimal NCCL settings for test runs."""
     if not master_addr:
         master_addr = os.environ.get("MASTER_ADDR")
 
     debug_mode = os.environ.get("METTA_NCCL_DEBUG", "0") == "1"
 
-    defaults = {
-        "NCCL_DEBUG": "INFO" if debug_mode else "VERSION",
-        "TORCH_NCCL_ASYNC_ERROR_HANDLING": "1",
-        "NCCL_SHM_DISABLE": "1",  # keep isolation by default
-        "NCCL_P2P_DISABLE": "1",  # keep isolation by default
-        "NCCL_IB_DISABLE": "1",  # no IB/RDMA on these boxes
-        "NCCL_SOCKET_FAMILY": "AF_INET",
-        "NCCL_PORT_RANGE": os.environ.get("NCCL_PORT_RANGE", "43000-43063"),
-        "NCCL_MIN_NCHANNELS": "1",
-        "NCCL_MAX_NCHANNELS": "2",
-    }
+    # Minimal overrides - only what's necessary for testing
     if debug_mode:
-        defaults["NCCL_DEBUG_SUBSYS"] = "ALL"
-        defaults["CUDA_LAUNCH_BLOCKING"] = "1"
+        os.environ["NCCL_DEBUG"] = "INFO"
+        os.environ["NCCL_DEBUG_SUBSYS"] = "ALL"
+        os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+    else:
+        os.environ.setdefault("NCCL_DEBUG", "VERSION")
 
-    for k, v in defaults.items():
-        os.environ.setdefault(k, v)
-        logger.info(f"{k}={os.environ.get(k)}")
+    # Always ensure async error handling
+    os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"
+
+    # Log current NCCL settings
+    logger.info("NCCL Environment for testing:")
+    for key, value in sorted(os.environ.items()):
+        if key.startswith("NCCL_"):
+            logger.info(f"{key}={value}")
 
     logger.info(f"MASTER_ADDR={master_addr or os.environ.get('MASTER_ADDR', '<unset>')}")
 
