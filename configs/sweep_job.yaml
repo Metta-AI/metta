@@ -72,7 +72,10 @@ sweep_job_overrides:
     curriculum: /env/mettagrid/arena/basic_easy_shaped
     total_timesteps: 10000
     simulation:
+      evaluate_remote: false
+      evaluate_local: true
       evaluate_interval: 25 # No evaluation during training for speed
       replay_dir: "" # No replays for sweeps
+      git_commit: null
 
 cmd: sweep
