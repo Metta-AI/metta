@@ -9,7 +9,7 @@ from pettingzoo.test import parallel_api_test
 
 from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
-from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig, WallConfig
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
 
@@ -19,19 +19,19 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
         map_data = [
             ["#", "#", "#", "#", "#", "#", "#"],
             ["#", ".", ".", ".", ".", ".", "#"],
-            ["#", ".", "1", ".", "2", ".", "#"],
-            ["#", ".", ".", "3", ".", ".", "#"],
+            ["#", ".", "@", ".", "@", ".", "#"],
+            ["#", ".", ".", "@", ".", ".", "#"],
             ["#", ".", ".", ".", ".", ".", "#"],
             ["#", "#", "#", "#", "#", "#", "#"],
         ]
     elif num_agents == 5:
         map_data = [
             ["#", "#", "#", "#", "#", "#", "#", "#"],
-            ["#", ".", "1", ".", ".", "2", ".", "#"],
+            ["#", ".", "@", ".", ".", "@", ".", "#"],
             ["#", ".", ".", ".", ".", ".", ".", "#"],
-            ["#", ".", "3", ".", ".", "4", ".", "#"],
+            ["#", ".", "@", ".", ".", "@", ".", "#"],
             ["#", ".", ".", ".", ".", ".", ".", "#"],
-            ["#", ".", ".", ".", "5", ".", ".", "#"],
+            ["#", ".", ".", ".", "@", ".", ".", "#"],
             ["#", ".", ".", ".", ".", ".", ".", "#"],
             ["#", "#", "#", "#", "#", "#", "#", "#"],
         ]
@@ -48,6 +48,7 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
                 noop=ActionConfig(),
                 rotate=ActionConfig(),
             ),
+            objects={"wall": WallConfig(type_id=1)},
             map_builder=AsciiMapBuilderConfig(map_data=map_data),
         )
     )
