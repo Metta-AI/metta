@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, Optional, Union
+from typing import ClassVar, Optional, Union
 
 import gymnasium as gym
 import torch.nn as nn
@@ -6,11 +6,12 @@ from omegaconf import DictConfig
 from pydantic import ConfigDict
 
 from metta.common.util.config import Config
+from metta.env.metta_grid_env import MettaGridEnv
 from metta.rl.system_config import SystemConfig
 
 
 class AgentConfig(Config):
-    env: Any
+    env: MettaGridEnv
     system_cfg: SystemConfig
     agent_cfg: Union[str, DictConfig]
     policy: Optional[nn.Module] = None
