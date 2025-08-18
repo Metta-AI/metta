@@ -4,10 +4,10 @@ defaults:
   - /common
   - /agent/fast
   - /trainer/trainer
-  - /sim/arena@sim
+  - /sim/coop_arena@sim
   - _self_
 
-run: krishnakanth.coop_rewardsharing.lp
+run: krishnakanth.coop_rewardsharing_v2.lp
 cmd: train
 
 data_dir: ${oc.env:DATA_DIR,./train_dir}
