@@ -96,8 +96,6 @@ sweep_job_overrides: # Applied to all training runs
       replay_dir: '' # No replays for sweeps
 ```
 
-# <<<<<<< HEAD
-
 ### Sweep Phasing System
 
 The sweep system supports a phasing mechanism that allows you to dynamically adjust hyperparameter search strategies as
@@ -691,8 +689,6 @@ optimizer.record_observation(objective=objective_value, cost=120.0)
    - Check that Protein is converging before final phase
 
 ## Troubleshooting
-
-<<<<<<< HEAD
 
 ### Common Issues
 

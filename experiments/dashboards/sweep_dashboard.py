@@ -643,7 +643,7 @@ def create_parameter_correlation_plots(df, show_all=True):
                 text += f"Run: {data_row.get('run_name', 'N/A')}"
             hover_text.append(text)
 
-        # Add scatter plot
+        # Add scatter plot with click data
         fig.add_trace(
             go.Scatter(
                 x=df[param],
@@ -658,6 +658,7 @@ def create_parameter_correlation_plots(df, show_all=True):
                 ),
                 text=hover_text,
                 hovertemplate="%{text}<extra></extra>",
+                customdata=df.index.values,  # Add index for click events
                 showlegend=False,
             ),
             row=row,
@@ -1471,10 +1472,14 @@ def update_plots(filtered_data):
 
 @app.callback(
     Output("selected-run-details", "children"),
-    [Input("cost-vs-score-plot", "clickData"), Input("timeline-plot", "clickData")],
+    [
+        Input("cost-vs-score-plot", "clickData"),
+        Input("timeline-plot", "clickData"),
+        Input("parameter-correlation-plots", "clickData"),
+    ],
     [State("filtered-data", "data")],
 )
-def display_run_details(cost_click, timeline_click, filtered_data):
+def display_run_details(cost_click, timeline_click, correlation_click, filtered_data):
     """Display detailed information about selected run."""
     ctx = callback_context
 
@@ -1488,6 +1493,11 @@ def display_run_details(cost_click, timeline_click, filtered_data):
         point_index = cost_click["points"][0]["pointIndex"]
     elif trigger_id == "timeline-plot" and timeline_click:
         point_index = timeline_click["points"][0]["pointIndex"]
+    elif trigger_id == "parameter-correlation-plots" and correlation_click:
+        # For correlation plots, use customdata which contains the index
+        point_index = correlation_click["points"][0].get("customdata")
+        if point_index is None:
+            point_index = correlation_click["points"][0]["pointIndex"]
     else:
         return "Click on a point in any plot to see run details"
 
