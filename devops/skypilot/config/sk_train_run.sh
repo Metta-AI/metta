@@ -156,6 +156,9 @@ graceful_shutdown() {
   if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
       echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
 
+      echo "[DEBUG] Process tree before shutdown:"
+      ps -ejH | grep "$CMD_PGID" || true
+
       # start with SIGTERM
       if kill -0 "$CMD_PID" 2>/dev/null; then
         echo "[SHUTDOWN] Sending SIGTERM to process group..."
@@ -432,8 +435,6 @@ export HEARTBEAT_MONITOR_PID=""
 export CLUSTER_STOP_MONITOR_PID=""
 export CMD_EXIT=1  # Default exit code
 export FINAL_EXIT_CODE=1 # Default to failure
-export -f terminate_process
-export -f terminate_monitors
 
 # Set up cleanup trap
 trap cleanup EXIT
