@@ -203,6 +203,7 @@ class PolicyStore:
 
     # ?? rename to save_policy_record
     # ?? does checkpoint_file_type need to be here - isn't it part of the pr?
+    # ?? this just returns pr without changing it - is that correct?
     def save(
         self, pr: PolicyRecord, checkpoint_file_type: CheckpointFileType = "pt", path: str | None = None
     ) -> PolicyRecord:
@@ -239,3 +240,11 @@ class PolicyStore:
         """Load a single policy record from URI using the policy loader."""
         pr = self._policy_loader.load_from_uri(uri)
         return pr
+
+    @property
+    def agent_factory(self):
+        return self._policy_loader.agent_factory
+
+    @agent_factory.setter
+    def agent_factory(self, agent_factory):
+        self._policy_loader.agent_factory = agent_factory

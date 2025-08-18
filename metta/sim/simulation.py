@@ -31,6 +31,7 @@ from metta.mettagrid.curriculum.core import Curriculum, SingleTrialTask, Task
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.rl.policy_management import initialize_policy_for_environment
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB

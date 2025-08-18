@@ -63,41 +63,14 @@ class CheckpointManager:
         agent_step: int,
         epoch: int,
         optimizer: torch.optim.Optimizer,
-        policy_path: str,
-        timer: Stopwatch,
-        run_dir: str,
-        kickstarter: Kickstarter | None = None,
-    ) -> bool:
-        """Save trainer checkpoint if needed."""
-        # Create checkpoint
-        checkpoint = TrainerCheckpoint(
-            agent_step=agent_step,
-            epoch=epoch,
-            optimizer_state_dict=optimizer.state_dict(),
-            policy_path=policy_path,
-            stopwatch_state=timer.save_state(),
-            extra_args=remove_none_values({"teacher_pr_uri": kickstarter and kickstarter.teacher_uri}),
-        )
-
-        # Save checkpoint
-        checkpoint.save(run_dir)
-
-        return True
-
-    def model_suffix(self) -> str:
-        return self.checkpoint_cfg.model_suffix()
-
-    def save_policy(
-        self,
         policy: PolicyAgent,
-        epoch: int,
-        agent_step: int,
         evals: EvalRewardSummary,
         timer: Stopwatch,
+        run_dir: str,
         initial_policy_uri: str | None,
-    ) -> PolicyRecord:
-        """Save policy with metadata if needed."""
-
+        kickstarter: Kickstarter | None = None,
+    ) -> tuple[PolicyRecord, bool]:
+        """Save policy with metadata and trainer checkpoint."""
         logger.info(f"Saving policy at epoch {epoch}")
 
         # Extract the actual policy module from distributed wrapper if needed
@@ -162,16 +135,39 @@ class CheckpointManager:
 
         # Create and save policy record
         path = PolicyStore.make_model_path(self.checkpoint_cfg.checkpoint_dir, name)
-        policy_record = self.initializer.create_policy_record(
-            self.policy_store, path, policy_to_save, self.checkpoint_cfg.checkpoint_file_type, metadata
+        policy_record = self.initializer.create_nondistributed_policy_record(
+            self.policy_store._policy_loader, path, policy_to_save, metadata
         )
 
         # Save the policy record
-        policy_record = self.policy_store.save(policy_record, self.checkpoint_cfg.checkpoint_file_type)
+        policy_record = self.policy_store._policy_loader.save_policy(
+            policy_record, self.checkpoint_cfg.checkpoint_file_type
+        )
 
         logger.info(f"Successfully saved policy at epoch {epoch}")
 
-        return policy_record
+        # Check if policy record has a URI - cannot save checkpoint in this case
+        if not policy_record.uri:
+            logger.warning(f"Saved policy record did not have a uri: {policy_record}")
+            return policy_record, False
+
+        # Create checkpoint
+        checkpoint = TrainerCheckpoint(
+            agent_step=agent_step,
+            epoch=epoch,
+            optimizer_state_dict=optimizer.state_dict(),
+            policy_path=policy_record.uri,
+            stopwatch_state=timer.save_state(),
+            extra_args=remove_none_values({"teacher_pr_uri": kickstarter and kickstarter.teacher_uri}),
+        )
+
+        # Save checkpoint
+        checkpoint.save(run_dir)
+
+        return policy_record, True
+
+    def model_suffix(self) -> str:
+        return self.checkpoint_cfg.model_suffix()
 
 
 def maybe_establish_checkpoint(
@@ -196,30 +192,23 @@ def maybe_establish_checkpoint(
     record_heartbeat()
 
     logger.info(f"Saving checkpoint at epoch {epoch}")
-    new_record = checkpoint_manager.save_policy(
-        policy=policy,
-        epoch=epoch,
+    # Save policy and create checkpoint in one call
+    new_record, checkpoint_success = checkpoint_manager.save_checkpoint(
         agent_step=agent_step,
+        epoch=epoch,
+        optimizer=optimizer,
+        policy=policy,
         evals=eval_scores,
         timer=timer,
+        run_dir=run_dir,
         initial_policy_uri=initial_policy_uri,
+        kickstarter=kickstarter,
     )
-    if not new_record.uri:
-        # We shouldn't get here
-        logger.warning(f"Saved policy record did not have a uri: {new_record}")
+    if not checkpoint_success:
         return None
 
     logger.info(f"Creating a checkpoint at {new_record.uri}")
     record_heartbeat()
-    checkpoint_manager.save_checkpoint(
-        agent_step=agent_step,
-        epoch=epoch,
-        optimizer=optimizer,
-        policy_path=new_record.uri,
-        timer=timer,
-        run_dir=run_dir,
-        kickstarter=kickstarter,
-    )
 
     wandb_policy_name: str | None = None
     # TODO: enforce that wandb_checkpoint_interval is a multiple of checkpoint_interval

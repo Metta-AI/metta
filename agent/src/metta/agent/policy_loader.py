@@ -355,9 +355,10 @@ class PolicyLoader:
         safetensors_path = policy_metadata_yaml_helper.save_policy(pr, checkpoint_name, Path(checkpoint_dir))
         return str(safetensors_path)
 
+    # ?? this just returns the pr that is passed in. is that correct?
     def save_policy(
         self, pr: PolicyRecord, checkpoint_file_type: CheckpointFileType = "pt", path: str | None = None
-    ) -> str:
+    ) -> PolicyRecord:
         """Save a policy record using the specified checkpoint file type."""
         if path is None:
             if hasattr(pr, "file_path"):
@@ -378,4 +379,4 @@ class PolicyLoader:
         if path is not None and self._cached_prs is not None:
             self._cached_prs.put(path, pr)
 
-        return path
+        return pr

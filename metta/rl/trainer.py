@@ -32,7 +32,6 @@ from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
-from metta.rl.policy_initializer import PolicyInitializer
 from metta.rl.rollout import get_observation, send_observation
 from metta.rl.stats import (
     StatsTracker,
@@ -55,7 +54,7 @@ from metta.rl.wandb import (
 )
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
-from tools.utils import get_policy_store_from_cfg
+from tools.utils import get_policy_initializer_from_cfg, get_policy_store_from_cfg
 
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
@@ -183,10 +182,9 @@ def train(
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
-    # Todo: encapsulate the construction of policy_store. check that agent_factory gets where it needs to go.
-    # Todo: refactor of PolicyStore
-    # Todo: go through code and check what else needs cleaned up
-    initializer = PolicyInitializer(
+    # ?? encapsulate the construction of policy_store. check that agent_factory gets where it needs to go.
+    # ?? go through code and check what else needs cleaned up
+    initializer = get_policy_initializer_from_cfg(
         agent_cfg=agent_cfg,
         system_cfg=system_cfg,
         trainer_cfg=trainer_cfg,
@@ -194,7 +192,7 @@ def train(
         distributed_config=distributed_config,
         device=device,
     )
-    policy_store = get_policy_store_from_cfg(train_job_config.run, wandb_run)
+    policy_store = get_policy_store_from_cfg(train_job_config, wandb_run)
     policy_store.agent_factory = lambda: initializer.get_blank_policy(policy_store, initial_policy_path)
 
     # Create checkpoint manager
@@ -224,7 +222,7 @@ def train(
         distributed_config=distributed_config,
     )
 
-    # warning - spaghetti code
+    # ?? why do we need policy here - shouldn't policy be part of policy_record?
     policy_record, policy = initializer.get_initial_policy(policy_store, initial_policy_path, not policy_exists)
     policy_record_uri = policy_record.uri
     latest_saved_policy_record = policy_record

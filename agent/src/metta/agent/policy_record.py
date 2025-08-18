@@ -17,6 +17,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# ?? the name of this class isn't descriptive enough. i think it's more PolicyHandle. maybe too hard to change it.
+# ?? in any case i probably broke serialization and some effort will be necessary to handle backward compatibility
+# ?? with .pt files
 class PolicyRecord:
     """A record containing a policy and its metadata."""
 
@@ -123,6 +126,7 @@ class PolicyRecord:
 
         return self.uri[len(file_uri_prefix) :]
 
+    # ?? add a comment here. maybe change name. unclear from outside that this can invoke the policy loader
     @property
     def policy(self) -> "PolicyAgent":
         """Load and return the policy, using cache if available."""

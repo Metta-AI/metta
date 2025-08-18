@@ -6,6 +6,7 @@ import torch
 from omegaconf import DictConfig
 
 from metta.agent.metta_agent import MettaAgent, PolicyAgent
+from metta.agent.policy_loader import PolicyLoader
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.agent.util.distribution_utils import get_from_master
@@ -43,29 +44,26 @@ class PolicyInitializer:
 
         return MettaAgent(env=self.metta_grid_env, system_cfg=self.system_cfg, agent_cfg=self.agent_cfg)
 
-    def create_policy_record(
+    def create_nondistributed_policy_record(
         self,
-        policy_store: PolicyStore,
+        policy_loader: "PolicyLoader",
         path: str,
         policy: PolicyAgent,
-        checkpoint_file_type: str,
         metadata: dict[str, Any] | None = None,
     ) -> PolicyRecord:
         name = os.path.basename(path)
         metadata = metadata or {}
 
-        # ??  encapsulation
-        new_policy_record = PolicyRecord(policy_store._policy_loader, name, f"file://{path}", metadata, policy)
-        logger.info(f"Created new policy record to {new_policy_record.uri}")
-        return new_policy_record
+        pr = PolicyRecord(policy_loader, name, f"file://{path}", metadata, policy)
+        logger.info(f"Created new policy record to {pr.uri}")
+        return pr
 
     def _get_blank_policy(self, policy_store: PolicyStore, policy_path: str) -> PolicyRecord:
         policy = self.make_policy()
-        policy_record = self.create_policy_record(
-            policy_store,
+        policy_record = self.create_nondistributed_policy_record(
+            policy_store._policy_loader,
             path=policy_path,
             policy=policy,
-            checkpoint_file_type=self.trainer_cfg.checkpoint.checkpoint_file_type,
         )
 
         # Only master saves the new policy to disk
@@ -135,7 +133,8 @@ class PolicyInitializer:
             policy = cast(PolicyAgent, torch.compile(policy, mode=self.trainer_cfg.compile_mode))
 
         # Wrap in DDP if distributed
-        # ?? should this be applied in get_blank_policy?
+        # ?? should this be applied in get_blank_policy? i think we are not wrapping in DDP in get_blank_policy, which
+        # ?? means that DDP will not work for hydration from safetensors files
         if torch.distributed.is_initialized():
             logger.info(f"Initializing DistributedDataParallel on device {self.device}")
             torch.distributed.barrier()
