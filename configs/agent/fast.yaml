@@ -50,13 +50,12 @@ optimizer:
   weight_decay: 0
   clip_grad_norm: 0
 
-leaf_components: # output heads
-  # - EMA_pred_output_2
+output_heads: # leaf_nodes/components
   - _action_
   - _value_
 
 components:
-  #necessary layers: _core_, _action_embeds_, _action_, _value_
+  #necessary layers: _action_embeds_, _action_, _value_
   #necessary input_source: _obs_
 
   _obs_:
@@ -155,20 +154,3 @@ components:
     sources:
       - name: actor_query
       - name: _action_embeds_
-
-  # EMA_pred_output_1:
-  #   _target_: metta.agent.lib.nn_layer_library.Linear
-  #   sources:
-  #     - name: _core_
-  #   nn_params:
-  #     out_features: 512
-  #   nonlinearity: nn.Tanh
-  #   effective_rank: true
-
-  # EMA_pred_output_2:
-  #   _target_: metta.agent.lib.nn_layer_library.Linear
-  #   sources:
-  #     - name: EMA_pred_output_1
-  #   nn_params:
-  #     out_features: 32
-  #   nonlinearity: null

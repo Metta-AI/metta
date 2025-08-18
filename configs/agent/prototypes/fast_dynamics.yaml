@@ -4,6 +4,9 @@
 # height, and then passes it to a CNN encoder stack. It is not robust to changing observation features. For that,
 # use the attention-based models.
 
+# Author and Date needed for prototype configs
+# Author - Date: AV - 8-17-25
+
 _target_: metta.agent.metta_agent.MettaAgent
 
 observations:
@@ -55,14 +58,14 @@ optimizer:
   weight_decay: 0
   clip_grad_norm: 0
 
-leaf_components: # output heads
+output_heads: # leaf_nodes/components
   - returns_pred
   - reward_pred
   - _action_
   - _value_
 
 components:
-  #necessary layers: _core_, _action_embeds_, _action_, _value_
+  #necessary layers: _action_embeds_, _action_, _value_
   #necessary input_source: _obs_
 
   _obs_:

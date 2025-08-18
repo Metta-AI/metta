@@ -41,7 +41,7 @@ class Dynamics(BaseLoss):
         reward_pred_aligned = reward_pred[:-1]
         reward_loss = F.mse_loss(reward_pred_aligned, future_rewards) * self.loss_cfg.reward_pred_coef
 
-        self.loss_tracker["dynamics_returns_loss"] += float(returns_loss.item())
-        self.loss_tracker["dynamics_reward_loss"] += float(reward_loss.item())
+        self.loss_tracker["dynamics_returns_loss"].append(float(returns_loss.item()))
+        self.loss_tracker["dynamics_reward_loss"].append(float(reward_loss.item()))
 
         return returns_loss + reward_loss, shared_loss_data

@@ -72,5 +72,5 @@ class EMA(BaseLoss):
         shared_loss_data["EMA"]["target_pred"] = target_pred.reshape(B, TT, -1)
 
         loss = F.mse_loss(pred, target_pred) * self.ema_coef
-        self.loss_tracker["EMA_mse_loss"] += float(loss.item())
+        self.loss_tracker["EMA_mse_loss"].append(float(loss.item()))
         return loss, shared_loss_data

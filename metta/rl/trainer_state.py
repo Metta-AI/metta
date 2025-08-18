@@ -12,7 +12,6 @@ class TrainerState:
     epoch: int = 0
     update_epoch: int = 0
     mb_idx: int = 0
-    num_mbs: int = 0
     optimizer: torch.optim.Optimizer | None = None
     training_env_id: slice | None = None
 

@@ -65,7 +65,7 @@ class ComponentPolicy(nn.Module):
             self.components[component_name] = instantiate(comp_dict)
 
         # Setup components by triggering leaf node setup
-        for component_name in self.cfg.leaf_components:
+        for component_name in self.cfg.output_heads:
             component = self.components[component_name]
             self._setup_components(component)
 

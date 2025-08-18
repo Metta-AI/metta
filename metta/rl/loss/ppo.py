@@ -70,7 +70,7 @@ class PPO(BaseLoss):
 
         # Check if we should early stop this update epoch (on subsequent minibatches)
         if self.loss_cfg.target_kl is not None and trainer_state.mb_idx > 0:
-            average_approx_kl = self.loss_tracker["approx_kl"] / trainer_state.mb_idx
+            average_approx_kl = np.mean(self.loss_tracker["approx_kl"]) if self.loss_tracker["approx_kl"] else 0.0
             if average_approx_kl > self.loss_cfg.target_kl:
                 trainer_state.early_stop_update_epoch = True
 
@@ -103,13 +103,13 @@ class PPO(BaseLoss):
 
         return loss, shared_loss_data
 
-    def _on_train_phase_end(self, trainer_state: TrainerState) -> None:
+    def on_train_phase_end(self, trainer_state: TrainerState) -> None:
         with torch.no_grad():
             y_pred = self.policy.replay.buffer["values"].flatten()
             y_true = self.advantages.flatten() + self.policy.replay.buffer["values"].flatten()
             var_y = y_true.var()
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
-            self.loss_tracker["explained_variance"] += float(ev)
+            self.loss_tracker["explained_variance"].append(float(ev))
 
     def _on_first_mb(self, trainer_state: TrainerState) -> tuple[Tensor, float]:
         # reset importance sampling ratio
@@ -197,14 +197,14 @@ class PPO(BaseLoss):
         self.policy.replay.update(indices, update_td)
 
         # Update loss tracking
-        self.loss_tracker["policy_loss"] += float(pg_loss.item())
-        self.loss_tracker["value_loss"] += float(v_loss.item())
-        self.loss_tracker["entropy"] += float(entropy_loss.item())
-        self.loss_tracker["approx_kl"] += float(approx_kl.item())
-        self.loss_tracker["clipfrac"] += float(clipfrac.item())
+        self.loss_tracker["policy_loss"].append(float(pg_loss.item()))
+        self.loss_tracker["value_loss"].append(float(v_loss.item()))
+        self.loss_tracker["entropy"].append(float(entropy_loss.item()))
+        self.loss_tracker["approx_kl"].append(float(approx_kl.item()))
+        self.loss_tracker["clipfrac"].append(float(clipfrac.item()))
         # av why were these getting normalized by mb_idx???
-        self.loss_tracker["importance"] += float(importance_sampling_ratio.mean().item())
-        self.loss_tracker["current_logprobs"] += float(new_logprob.mean().item())
+        self.loss_tracker["importance"].append(float(importance_sampling_ratio.mean().item()))
+        self.loss_tracker["current_logprobs"].append(float(new_logprob.mean().item()))
 
         return loss
 

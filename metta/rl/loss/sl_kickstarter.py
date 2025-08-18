@@ -124,7 +124,7 @@ class SLKickstarter(BaseLoss):
 
         loss = ks_action_loss + ks_value_loss
 
-        self.loss_tracker["sl_ks_action_loss"] += float(ks_action_loss.item())
-        self.loss_tracker["sl_ks_value_loss"] += float(ks_value_loss.item())
+        self.loss_tracker["sl_ks_action_loss"].append(float(ks_action_loss.item()))
+        self.loss_tracker["sl_ks_value_loss"].append(float(ks_value_loss.item()))
 
         return loss, shared_loss_data

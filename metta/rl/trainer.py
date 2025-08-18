@@ -216,6 +216,7 @@ def train(
         raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
 
     # Instantiate configured losses dynamically by class name
+    # TODO: AV refactor once the dust settles on configs 8-17-25
     loss_instances: dict[str, BaseLoss] = {}
     for loss_instance_name, loss_config in policy_cfg.losses.items():
         module_path, class_name = loss_config["path"].rsplit(".", 1)

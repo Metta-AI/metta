@@ -58,7 +58,7 @@ class BaseLoss:
         self.policy_cfg = self.policy.get_cfg()
         self.vec_env = vec_env
         self.device = device
-        self.loss_tracker = defaultdict(float)
+        self.loss_tracker = defaultdict(list)
         self.policy_store = policy_store
         self.instance_name = instance_name
         self.loss_cfg = self.policy_cfg.losses.get(self.instance_name, {})
@@ -72,18 +72,19 @@ class BaseLoss:
     # ------------------------ UTILITY METHODS -----------------------------
 
     def stats(self) -> dict[str, float]:
-        """Cycles through keys in self.loss_tracker, normalizes by trainer_state.mb_idx, and returns a dictionary of
-        metrics to track. Expects the super loss class to add keys dynamically to this dict as it updates its values
-        for the first time.
-        Note that this doesn't check for name collisions from other losses. If there is more than one instance of a
-        specific loss class then its values will be summed."""
-        return self.loss_tracker
-        # return {k: v for k, v in self.loss_tracker.items()} # av shouldn't this just return the stats dict?
+        """Cycles through keys in self.loss_tracker, calculates the mean of the list of floats, and returns a dictionary
+        of metrics to track. It's safe to call this method multiple times as it doesn't mutate the state of the loss
+        tracker. It also gracefully handles the case where a list is empty, returning 0.0 in that case."""
+        return {
+            k: sum(v) / len(v) if v else 0.0
+            for k, v in self.loss_tracker.items()
+            # return {k: v for k, v in self.loss_tracker.items()} # av shouldn't this just return the stats dict?
+        }
 
     def zero_loss_tracker(self):
         """Zero all values in the loss tracker."""
         for k in self.loss_tracker.keys():
-            self.loss_tracker[k] = 0.0
+            self.loss_tracker[k].clear()
 
     # ------------------------ END UTILITY METHODS -----------------------------
 
@@ -133,17 +134,6 @@ class BaseLoss:
     def on_train_phase_end(self, trainer_state: TrainerState) -> None:
         """We've completed the train phase and will be transitioning to the next rollout phase. Average stats then call
         internal method _on_train_phase_end."""
-        self._on_train_phase_end(trainer_state)
-        for k, v in self.loss_tracker.items():
-            if trainer_state.mb_idx > 0:
-                self.loss_tracker[k] = v / trainer_state.mb_idx
-            else:
-                self.loss_tracker[k] = 0.0
-        return
-
-    def _on_train_phase_end(self, trainer_state: TrainerState) -> None:
-        """Override this method in subclasses to implement train phase end logic."""
-        return
 
     def save_loss_states(self):
         # TODO: Implement this
