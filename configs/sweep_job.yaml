@@ -1,7 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
-  - sweep: full
+  - sweep: reduced
   - _self_
 
 sweep_name: ??? # Will be set via command line override
