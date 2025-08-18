@@ -27,12 +27,26 @@ build_command() {
     local curriculum=$2
     local bptt=$3
 
+    # Calculate appropriate batch size based on BPTT horizon
+    # Need batch_size >= num_agents * bptt_horizon
+    # Assuming 8192 agents from the error message
+    local num_agents=8192
+    local min_batch_size=$((num_agents * bptt))
+    # Round up to next power of 2 for efficiency
+    local batch_size=524288  # Default
+    if [ $bptt -eq 128 ]; then
+        batch_size=1048576  # 1M
+    elif [ $bptt -eq 256 ]; then
+        batch_size=2097152  # 2M
+    fi
+
     if [ "$USE_USER_CONFIG" = "user" ]; then
         echo "python devops/skypilot/launch.py train user=jacke \
             run=$run_name \
             trainer.curriculum=env/mettagrid/curriculum/${curriculum} \
             sim=colortree_nosim \
             trainer.bptt_horizon=${bptt} \
+            trainer.batch_size=${batch_size} \
             seed=$SEED"
     else
         echo "python devops/skypilot/launch.py train \
@@ -40,6 +54,7 @@ build_command() {
             trainer.curriculum=env/mettagrid/curriculum/${curriculum} \
             sim=colortree_nosim \
             trainer.bptt_horizon=${bptt} \
+            trainer.batch_size=${batch_size} \
             seed=$SEED"
     fi
 }
