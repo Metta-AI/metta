@@ -65,7 +65,13 @@ envs:
   SKYPILOT_DOCKER_PASSWORD: ""
   SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
 
+  # Datadog configuration
+  DD_SITE: datadoghq.com
+  DD_ENV: production
+  DD_SERVICE: skypilot-worker
+
 secrets:
   # configured by launch script based on local credentials
   WANDB_PASSWORD: ""
   OBSERVATORY_TOKEN: ""
+  DD_API_KEY: ""

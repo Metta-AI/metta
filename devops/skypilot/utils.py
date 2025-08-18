@@ -228,9 +228,17 @@ def set_task_secrets(task: sky.Task) -> None:
     if not observatory_token:
         observatory_token = ""  # we don't have a token in CI
 
+    # Get Datadog API key from environment
+    dd_api_key = os.environ.get("DD_API_KEY", "")
+    if dd_api_key:
+        print(cyan("✓ Datadog API key found, agent will be installed on workers"))
+    else:
+        print(yellow("⚠ No DD_API_KEY found, Datadog monitoring will be disabled"))
+
     task.update_secrets(
         dict(
             WANDB_PASSWORD=wandb_password,
             OBSERVATORY_TOKEN=observatory_token,
+            DD_API_KEY=dd_api_key,
         )
     )
