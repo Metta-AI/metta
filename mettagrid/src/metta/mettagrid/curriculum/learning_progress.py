@@ -27,7 +27,7 @@ class LearningProgressCurriculum(RandomCurriculum):
         ema_timescale: float = 0.001,
         progress_smoothing: float = 0.05,
         num_active_tasks: int = 16,
-        rand_task_rate: float = 0.25,
+        rand_task_rate: float = 0.4,
         sample_threshold: int = 10,
         memory: int = 25,
     ):
