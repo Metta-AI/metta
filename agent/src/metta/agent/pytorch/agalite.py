@@ -504,5 +504,11 @@ class AGaLiTe(PyTorchAgentMixin, TransformerWrapper):
             # Note: The mixin will try to reshape at the end, but that's okay
             # because our TD is already flat and matches what it expects
             td = self.forward_training(td, action, logits, values_flat)
+            
+            # Debug: Verify required fields are set
+            if "value" not in td.keys():
+                logger.warning("AGaLiTe: value field not set in TD!")
+            if "act_log_prob" not in td.keys():
+                logger.warning("AGaLiTe: act_log_prob field not set in TD!")
 
         return td
