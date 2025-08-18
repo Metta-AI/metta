@@ -1,7 +1,7 @@
 import logging
 import os
 from collections import defaultdict
-from typing import cast
+from typing import Any, cast
 
 import numpy as np
 import torch
@@ -77,6 +77,16 @@ _local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
 
 
+def _update_training_status_on_failure(stats_client: StatsClient | None, stats_run_id, logger) -> None:
+    """Helper to update training run status to 'failed' when training encounters an error."""
+    if stats_client and stats_run_id:
+        try:
+            stats_client.update_training_run_status(stats_run_id, "failed")
+            logger.info("Training run status updated to 'failed'")
+        except Exception as e:
+            logger.warning(f"Failed to update training run status to failed: {e}", exc_info=True)
+
+
 def train(
     run_dir: str,
     run: str,
@@ -88,7 +98,7 @@ def train(
     policy_store: PolicyStore,
     sim_suite_config: SimulationSuiteConfig,
     stats_client: StatsClient | None,
-) -> None:
+) -> dict[str, Any] | None:
     """Main training loop for Metta agents."""
     logger.info(f"run_dir = {run_dir}")
 
@@ -592,6 +602,15 @@ def train(
         return
 
     logger.info("Training complete!")
+
+    # Update training run status to completed
+    if stats_client and stats_tracker.stats_run_id:
+        try:
+            stats_client.update_training_run_status(stats_tracker.stats_run_id, "completed")
+            logger.info("Training run status updated to 'completed'")
+        except Exception as e:
+            logger.warning(f"Failed to update training run status to completed: {e}", exc_info=True)
+
     timing_summary = timer.get_all_summaries()
     for name, summary in timing_summary.items():
         logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
@@ -612,3 +631,8 @@ def train(
     )
 
     cleanup_monitoring(memory_monitor, system_monitor)
+
+    # Return stats info for exception handling at higher levels
+    if stats_client and stats_tracker and hasattr(stats_tracker, "stats_run_id"):
+        return {"stats_run_id": stats_tracker.stats_run_id, "stats_client": stats_client, "logger": logger}
+    return None
