@@ -6,7 +6,7 @@ import pytest
 import wandb
 from omegaconf import OmegaConf
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.common.util.logging_helpers import init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext
 

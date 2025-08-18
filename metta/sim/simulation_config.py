@@ -4,7 +4,7 @@ from typing import Optional
 
 from pydantic import Field
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.mettagrid import EnvConfig
 
 

@@ -1,6 +1,6 @@
 from typing import Optional
 
-from metta.map.mapgen import MapGenConfig
+from metta.map.mapgen import MapGen
 from metta.map.scene import SceneConfig
 from metta.map.scenes.convchain import ConvChain
 from metta.map.scenes.wfc import WFC
@@ -33,7 +33,7 @@ def make_wfc_config_from_pattern(pattern: str) -> Optional[SceneConfig]:
 
     # Some WFC patterns are invalid, so we need to check that they are valid.
     # This is the slowest part of import, 2-20 seconds per map.
-    mapgen = MapGenConfig(width=100, height=100, root=root_config).create()
+    mapgen = MapGen.Config(width=100, height=100, root=root_config).create()
     try:
         mapgen.build()
     except Exception:

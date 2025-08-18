@@ -1,6 +1,6 @@
 from typing import Callable
 
-from metta.map.mapgen import MapGenConfig
+from metta.map.mapgen import MapGen
 from metta.map.random.int import IntConstantDistribution
 from metta.map.scene import ChildrenAction
 from metta.map.scenes.ascii import Ascii
@@ -20,7 +20,9 @@ from metta.sim.simulation_config import SimulationConfig
 def make_ascii_env(max_steps: int, ascii_map: str, border_width: int = 1) -> EnvConfig:
     env = make_navigation(num_agents=1)
     env.game.max_steps = max_steps
-    env.game.map_builder = MapGenConfig.with_ascii(ascii_map, border_width=border_width)
+    env.game.map_builder = MapGen.Config.with_ascii(
+        ascii_map, border_width=border_width
+    )
     return env
 
 
@@ -80,7 +82,7 @@ def make_obstacles1_env() -> EnvConfig:
     # Make a copy of the altar config before modifying
     env.game.objects["altar"] = env.game.objects["altar"].model_copy()
     env.game.objects["altar"].cooldown = 255
-    env.game.map_builder = MapGenConfig(
+    env.game.map_builder = MapGen.Config(
         border_width=1,
         root=Ascii.factory(
             params=Ascii.Params(
@@ -129,7 +131,7 @@ def make_radial_small_env() -> EnvConfig:
 def make_radialmaze_env() -> EnvConfig:
     env = make_navigation(num_agents=1)
     env.game.max_steps = 200
-    env.game.map_builder = MapGenConfig(
+    env.game.map_builder = MapGen.Config(
         width=20,
         height=20,
         border_width=1,
@@ -185,7 +187,7 @@ def make_walkaround_env() -> EnvConfig:
 def make_walls_outofsight_env() -> EnvConfig:
     env = make_navigation(num_agents=1)
     env.game.max_steps = 120
-    env.game.map_builder = MapGenConfig(
+    env.game.map_builder = MapGen.Config(
         width=25,
         height=25,
         border_width=3,
@@ -202,7 +204,7 @@ def make_walls_outofsight_env() -> EnvConfig:
 def make_walls_sparse_env() -> EnvConfig:
     env = make_navigation(num_agents=1)
     env.game.max_steps = 250
-    env.game.map_builder = MapGenConfig(
+    env.game.map_builder = MapGen.Config(
         width=35,
         height=35,
         border_width=3,
@@ -219,7 +221,7 @@ def make_walls_sparse_env() -> EnvConfig:
 def make_walls_withinsight_env() -> EnvConfig:
     env = make_navigation(num_agents=1)
     env.game.max_steps = 75
-    env.game.map_builder = MapGenConfig(
+    env.game.map_builder = MapGen.Config(
         width=12,
         height=12,
         border_width=3,
@@ -243,7 +245,7 @@ def make_wanderout_env() -> EnvConfig:
 def make_emptyspace_outofsight_env() -> EnvConfig:
     env = make_navigation(num_agents=1)
     env.game.max_steps = 150
-    env.game.map_builder = MapGenConfig(
+    env.game.map_builder = MapGen.Config(
         width=25,
         height=25,
         border_width=3,
@@ -260,7 +262,7 @@ def make_emptyspace_outofsight_env() -> EnvConfig:
 def make_emptyspace_withinsight_env() -> EnvConfig:
     env = make_navigation(num_agents=1)
     env.game.max_steps = 45
-    env.game.map_builder = MapGenConfig(
+    env.game.map_builder = MapGen.Config(
         width=12,
         height=12,
         border_width=3,
@@ -277,7 +279,7 @@ def make_emptyspace_withinsight_env() -> EnvConfig:
 def make_emptyspace_sparse_medium_env() -> EnvConfig:
     env = make_navigation(num_agents=1)
     env.game.max_steps = 1000
-    env.game.map_builder = MapGenConfig(
+    env.game.map_builder = MapGen.Config(
         width=100,
         height=100,
         border_width=5,
@@ -318,7 +320,7 @@ def make_emptyspace_sparse_medium_env() -> EnvConfig:
 def make_emptyspace_sparse_env() -> EnvConfig:
     env = make_navigation(num_agents=1)
     env.game.max_steps = 300
-    env.game.map_builder = MapGenConfig(
+    env.game.map_builder = MapGen.Config(
         width=60,
         height=60,
         border_width=3,
@@ -335,7 +337,7 @@ def make_emptyspace_sparse_env() -> EnvConfig:
 def make_labyrinth_env() -> EnvConfig:
     env = make_navigation(num_agents=1)
     env.game.max_steps = 250
-    env.game.map_builder = MapGenConfig(
+    env.game.map_builder = MapGen.Config(
         width=31,
         height=31,
         border_width=2,

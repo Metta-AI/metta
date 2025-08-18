@@ -6,7 +6,7 @@ from typing import Any, List, Protocol
 
 import numpy as np
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.mettagrid import (
     MettaGridEnv,
     dtype_actions,

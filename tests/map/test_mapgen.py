@@ -1,8 +1,7 @@
 import numpy as np
 import pytest
 
-# Import MapGenConfig first from __init__ to avoid circular import
-from metta.map.mapgen import MapGenConfig
+from metta.map.mapgen import MapGen
 from metta.map.scenes.inline_ascii import InlineAscii
 from metta.map.scenes.nop import Nop
 from metta.map.scenes.room_grid import RoomGrid
@@ -14,7 +13,7 @@ class TestMapGenSize:
     def test_basic_dimensions(self):
         (width, height, border_width) = (10, 10, 2)
 
-        mg = MapGenConfig(
+        mg = MapGen.Config(
             root=Nop.factory(),
             width=width,
             height=height,
@@ -34,14 +33,14 @@ class TestMapGenSize:
         assert np.all(grid[bw:-bw, bw:-bw] == "empty")
 
     def test_dimensions_required(self):
-        mg = MapGenConfig(
+        mg = MapGen.Config(
             root=Nop.factory(),
         ).create()
         with pytest.raises(ValueError, match="width and height must be provided"):
             mg.build()
 
     def test_intrinsic_size(self):
-        mg = MapGenConfig(
+        mg = MapGen.Config(
             root=InlineAscii.factory(InlineAscii.Params(data="@")),
             border_width=2,
         ).create()
@@ -50,7 +49,7 @@ class TestMapGenSize:
         assert level.grid[2, 2] == "agent.agent"
 
     def test_intrinsic_size_with_explicit_dimensions(self):
-        mg = MapGenConfig(
+        mg = MapGen.Config(
             root=InlineAscii.factory(InlineAscii.Params(data="@")),
             width=10,
             height=10,
@@ -71,7 +70,7 @@ class TestMapGenInstances:
     )
     def test_instances(self, instances, instance_bw):
         width, height, border_width = 5, 3, 2
-        mg = MapGenConfig(
+        mg = MapGen.Config(
             root=InlineAscii.factory(InlineAscii.Params(data="@")),
             width=width,
             height=height,
@@ -91,7 +90,7 @@ class TestMapGenInstances:
         assert np.count_nonzero(np.char.startswith(level.grid, "agent")) == instances
 
     def test_num_agents(self):
-        mg = MapGenConfig(
+        mg = MapGen.Config(
             root=InlineAscii.factory(
                 InlineAscii.Params(
                     data="""

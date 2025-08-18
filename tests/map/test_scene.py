@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.map.scene import ChildrenAction, Scene
 from metta.map.types import Area, AreaQuery, AreaWhere
 
