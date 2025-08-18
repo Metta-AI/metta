@@ -150,7 +150,7 @@ def _run_policy_evaluation(
     if not wandb_run.name:
         raise ValueError("WandB run has no name")
     policy_store = get_policy_store_from_cfg(train_job_cfg, wandb_run)
-    policy_pr = policy_store.policy_record("wandb://run/" + wandb_run.name, selector_type="latest")
+    policy_pr = policy_store.policy_record("wandb://run/" + wandb_run.name)
 
     # Load the policy record directly using its wandb URI
     # This will download the artifact and give us a local path
