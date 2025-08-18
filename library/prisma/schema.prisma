@@ -17,7 +17,7 @@ model User {
   email         String?   @unique
   emailVerified DateTime?
   image         String?
-  
+
   // Relations
   accounts      Account[]
   sessions      Session[]
@@ -40,10 +40,10 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
-  
+
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@id([provider, providerAccountId])
   @@map("account")
 }
@@ -52,10 +52,10 @@ model Session {
   sessionToken String   @id
   userId       String
   expires      DateTime
-  
+
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@map("session")
 }
 
@@ -63,7 +63,7 @@ model VerificationToken {
   identifier String
   token      String
   expires    DateTime
-  
+
   @@id([identifier, token])
   @@map("verificationToken")
 }
@@ -77,10 +77,10 @@ model Authenticator {
   credentialDeviceType   String
   credentialBackedUp     Boolean
   transports             String?
-  
+
   // Relations
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@id([userId, credentialID])
   @@unique([credentialID])
   @@map("authenticator")
@@ -123,22 +123,20 @@ model Paper {
   paperAuthors          PaperAuthor[]
   posts                 Post[]
   userPaperInteractions UserPaperInteraction[]
-  
+
   @@map("paper")
 }
 
 // User paper interactions table
 model UserPaperInteraction {
-  userId   String
-  paperId  String
-  starred  Boolean @default(false)
-  readAt   DateTime?
-  queued   Boolean @default(false)
-  notes    String?
-  
-  // Relations
-  user  User  @relation(fields: [userId], references: [id])
-  paper Paper @relation(fields: [paperId], references: [id])
+  userId  String
+  paperId String
+  starred Boolean?  @default(false)
+  readAt  DateTime? @db.Timestamp(6)
+  queued  Boolean?  @default(false)
+  notes   String?
+  paper   Paper     @relation(fields: [paperId], references: [id])
+  user    User      @relation(fields: [userId], references: [id])
   
   @@id([userId, paperId])
   @@map("user_paper_interaction")
@@ -155,13 +153,13 @@ model Comment {
   botType   String?  // e.g., "library_bot"
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
-  
+
   // Relations
   post     Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
   author   User      @relation(fields: [authorId], references: [id])
   parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
   replies  Comment[] @relation("CommentReplies")
-  
+
   @@map("comment")
 }
 
@@ -177,10 +175,10 @@ model Author {
   bio          String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @default(now()) @updatedAt
-  
+
   // Relations
   paperAuthors PaperAuthor[]
-  
+
   @@map("author")
 }
 
@@ -188,12 +186,9 @@ model Author {
 model PaperAuthor {
   paperId  String
   authorId String
-  order    Int     @default(0) // Author order in the paper
-  
-  // Relations
-  paper  Paper  @relation(fields: [paperId], references: [id])
-  author Author @relation(fields: [authorId], references: [id])
-  
+  author   Author @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  paper    Paper  @relation(fields: [paperId], references: [id], onDelete: Cascade)
+
   @@id([paperId, authorId])
   @@map("paper_author")
 }
