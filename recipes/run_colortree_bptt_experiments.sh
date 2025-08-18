@@ -1,13 +1,14 @@
 #!/bin/bash
 
-# ColorTree BPTT Horizon Experiments
-# Tests different BPTT horizons for various step configurations
-# NOTE: This experiment uses a modified curriculum that switches sequences every 2 episodes.
+# ColorTree BPTT Horizon Experiments with sqrt(N) Learning Rate Scaling
+# Tests different BPTT horizons with learning rate scaled by 1/sqrt(bptt_horizon)
+# This sqrt(N) scaling approach maintains stable learning across different sequence lengths
 # Note: Uses existing curriculum files and can optionally use user config
 
 # Generate random seed if not provided
 SEED=${1:-$RANDOM}
 USE_USER_CONFIG=${2:-"no"}  # Pass "user" as second arg to include user config
+echo "=== ColorTree BPTT sqrt(N) Learning Rate Scaling Experiments ==="
 echo "Using seed: $SEED"
 if [ "$USE_USER_CONFIG" = "user" ]; then
     echo "Including user config: user/jacke"
@@ -21,6 +22,7 @@ echo ""
 
 # Fixed parameters
 NUM_COLORS=2
+BASE_LR=0.0008  # Base learning rate (from jacke.yaml)
 
 # Build base command with optional user config
 build_command() {
@@ -41,6 +43,12 @@ build_command() {
         batch_size=2097152  # 2M
     fi
 
+    # Calculate learning rate with 1/sqrt(N) scaling
+    # Using bc for floating point arithmetic
+    # LR = constant / sqrt(bptt), where constant is chosen so LR=BASE_LR at BPTT=64
+    # constant = BASE_LR * sqrt(64) = BASE_LR * 8
+    local lr=$(echo "scale=8; $BASE_LR * 8 / sqrt($bptt)" | bc)
+
     if [ "$USE_USER_CONFIG" = "user" ]; then
         echo "python devops/skypilot/launch.py train user=jacke \
             run=$run_name \
@@ -48,6 +56,7 @@ build_command() {
             sim=colortree_nosim \
             trainer.bptt_horizon=${bptt} \
             trainer.batch_size=${batch_size} \
+            trainer.optimizer.learning_rate=${lr} \
             seed=$SEED"
     else
         echo "python devops/skypilot/launch.py train \
@@ -56,6 +65,7 @@ build_command() {
             sim=colortree_nosim \
             trainer.bptt_horizon=${bptt} \
             trainer.batch_size=${batch_size} \
+            trainer.optimizer.learning_rate=${lr} \
             seed=$SEED"
     fi
 }
@@ -65,13 +75,17 @@ for bptt in 64 128 256; do
     steps=128
     # Using the actual existing curriculum file
     curriculum="colortree_easy_${steps}step_${NUM_COLORS}colors"
-    run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
+    run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
 
-    echo "Launching Test: 128 steps, BPTT=${bptt}"
+    # Calculate LR for display
+    lr=$(echo "scale=8; $BASE_LR * 8 / sqrt($bptt)" | bc)
+
+    echo "Launching Test: 128 steps, BPTT=${bptt}, 1/sqrt(N) LR scaling"
     echo "  Run name: $run_name"
     echo "  Steps: ${steps}"
     echo "  Colors: ${NUM_COLORS}"
     echo "  BPTT Horizon: ${bptt}"
+    echo "  Learning Rate: ${lr} (${BASE_LR} * 8 / sqrt(${bptt}))"
     echo "  Curriculum: ${curriculum}"
     echo "  Seed: ${SEED}"
 
@@ -85,13 +99,17 @@ steps=64
 bptt=128
 # For 64 steps, the curriculum file is just "colortree_easy_2colors"
 curriculum="colortree_easy_${NUM_COLORS}colors"
-run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
+run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
 
-echo "Launching Test: 64 steps, BPTT=128"
+# Calculate LR for display
+lr=$(echo "scale=8; $BASE_LR * 8 / sqrt($bptt)" | bc)
+
+echo "Launching Test: 64 steps, BPTT=128, 1/sqrt(N) LR scaling"
 echo "  Run name: $run_name"
 echo "  Steps: ${steps}"
 echo "  Colors: ${NUM_COLORS}"
 echo "  BPTT Horizon: ${bptt}"
+echo "  Learning Rate: ${lr} (${BASE_LR} * 8 / sqrt(${bptt}))"
 echo "  Curriculum: ${curriculum}"
 echo "  Seed: ${SEED}"
 
@@ -104,17 +122,26 @@ steps=32
 bptt=64
 # Using the actual existing curriculum file
 curriculum="colortree_easy_${steps}step_${NUM_COLORS}colors"
-run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
+run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
 
-echo "Launching Test: 32 steps, BPTT=64"
+# Calculate LR for display
+lr=$(echo "scale=8; $BASE_LR * 8 / sqrt($bptt)" | bc)
+
+echo "Launching Test: 32 steps, BPTT=64, 1/sqrt(N) LR scaling"
 echo "  Run name: $run_name"
 echo "  Steps: ${steps}"
 echo "  Colors: ${NUM_COLORS}"
 echo "  BPTT Horizon: ${bptt}"
+echo "  Learning Rate: ${lr} (${BASE_LR} * 8 / sqrt(${bptt}))"
 echo "  Curriculum: ${curriculum}"
 echo "  Seed: ${SEED}"
 
 eval $(build_command "$run_name" "$curriculum" "$bptt")
 
 echo "---"
-echo "All 5 experiments launched!"
+echo ""
+echo "=== All 5 experiments with 1/sqrt(N) LR scaling launched! ==="
+echo "Learning rates used (LR = constant / sqrt(BPTT)):"
+echo "  BPTT=64:  $(echo "scale=8; $BASE_LR * 8 / sqrt(64)" | bc) = ${BASE_LR}"
+echo "  BPTT=128: $(echo "scale=8; $BASE_LR * 8 / sqrt(128)" | bc)"
+echo "  BPTT=256: $(echo "scale=8; $BASE_LR * 8 / sqrt(256)" | bc)"
