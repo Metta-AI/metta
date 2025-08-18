@@ -258,7 +258,7 @@ class TestEvalTaskOrchestratorIntegration:
             worker_manager=worker_manager,
             poll_interval=0.5,
             worker_idle_timeout=5.0,
-            max_workers=2,
+            worker_scaler=FixedScaler(2),
         )
 
         try:
@@ -511,7 +511,7 @@ class TestEvalTaskOrchestratorIntegration:
             worker_manager=worker_manager,
             poll_interval=0.5,
             worker_idle_timeout=5.0,
-            max_workers=1,
+            worker_scaler=FixedScaler(1),
         )
 
         # Create a test task
@@ -624,7 +624,7 @@ class TestEvalTaskOrchestratorIntegration:
             worker_manager=mock_worker_manager,
             poll_interval=0.5,
             worker_idle_timeout=5.0,  # Short timeout for testing
-            max_workers=1,
+            worker_scaler=FixedScaler(1),
         )
 
         # Manually create a task with old timestamp for testing
@@ -719,7 +719,7 @@ class TestEvalTaskOrchestratorIntegration:
             task_client=eval_task_client,
             worker_manager=mock_worker_manager,
             poll_interval=0.5,
-            max_workers=1,
+            worker_scaler=FixedScaler(1),
         )
 
         # Create a mock task with 3 retries assigned to dead worker
@@ -766,7 +766,7 @@ class TestEvalTaskOrchestratorIntegration:
             worker_manager=worker_manager,
             poll_interval=0.5,
             worker_idle_timeout=5.0,
-            max_workers=1,
+            worker_scaler=FixedScaler(1),
         )
 
         try:
@@ -834,7 +834,7 @@ class TestEvalTaskOrchestratorIntegration:
             task_client=error_task_client,
             worker_manager=mock_worker_manager,
             poll_interval=0.5,
-            max_workers=1,
+            worker_scaler=FixedScaler(1),
         )
 
         # Create a task assigned to a dead worker
@@ -913,7 +913,7 @@ class TestEvalTaskOrchestratorIntegration:
             task_client=eval_task_client,
             worker_manager=worker_manager,
             poll_interval=0.2,
-            max_workers=2,
+            worker_scaler=FixedScaler(2),
         )
 
         try:
@@ -986,7 +986,7 @@ class TestEvalTaskOrchestratorIntegration:
             task_client=eval_task_client,
             worker_manager=worker_manager,
             poll_interval=0.2,
-            max_workers=3,  # Scale to 3 workers (reduced from 5)
+            worker_scaler=FixedScaler(3),  # Scale to 3 workers (reduced from 5)
         )
 
         try:
@@ -1013,7 +1013,7 @@ class TestEvalTaskOrchestratorIntegration:
             # Verify worker scaling occurred
             max_workers_seen = max(worker_counts) if worker_counts else 0
             assert max_workers_seen >= 2, f"Should scale to at least 2 workers, saw max {max_workers_seen}"
-            assert max_workers_seen <= 3, f"Should not exceed max_workers=3, saw {max_workers_seen}"
+            assert max_workers_seen <= 3, f"Should not exceed 3 workers (FixedScaler), saw {max_workers_seen}"
 
             # Verify tasks were distributed and completed
             filters = TaskFilterParams(policy_ids=[test_policy_id])
@@ -1058,7 +1058,7 @@ class TestEvalTaskOrchestratorIntegration:
             worker_manager=worker_manager,
             poll_interval=0.2,
             worker_idle_timeout=2.0,  # Short timeout for testing
-            max_workers=4,
+            worker_scaler=FixedScaler(4),
         )
 
         try:
@@ -1140,7 +1140,7 @@ class TestEvalTaskOrchestratorIntegration:
             task_client=eval_task_client,
             worker_manager=worker_manager,
             poll_interval=0.2,
-            max_workers=1,
+            worker_scaler=FixedScaler(1),
         )
 
         try:

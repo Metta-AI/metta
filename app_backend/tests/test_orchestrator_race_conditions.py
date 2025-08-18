@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator
+from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator, FixedScaler
 from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker
 from metta.app_backend.routes.eval_task_routes import (
     TaskClaimRequest,
@@ -143,25 +143,31 @@ class TestOrchestratorRaceConditions:
         )
         task_id = task_response.id
 
-        # Create multiple workers that will compete for the task
-        def create_worker(worker_name: str) -> EvalTaskWorker:
-            return EvalTaskWorker(
-                client=http_env.make_client(),
-                assignee=worker_name,
-                task_executor=SlowTaskExecutor(delay=2.0),
-                poll_interval=0.1,
-            )
-
-        worker_manager = ThreadWorkerManager(create_worker=create_worker)
-
-        # Create multiple orchestrators to simulate concurrent claim attempts
+        # Create multiple orchestrators with separate worker managers to simulate concurrent claim attempts
         orchestrators = []
+        worker_managers = []
+
+        def create_worker_factory():
+            def create_worker(worker_name: str) -> EvalTaskWorker:
+                return EvalTaskWorker(
+                    client=http_env.make_client(),
+                    assignee=worker_name,
+                    task_executor=SlowTaskExecutor(delay=2.0),
+                    poll_interval=0.1,
+                )
+
+            return create_worker
+
         for _i in range(3):
+            # Each orchestrator gets its own worker manager
+            worker_manager = ThreadWorkerManager(create_worker_factory())
+            worker_managers.append(worker_manager)
+
             orchestrator = EvalTaskOrchestrator(
                 task_client=http_env.make_client(),
                 worker_manager=worker_manager,
                 poll_interval=0.1,
-                max_workers=1,
+                worker_scaler=FixedScaler(1),
             )
             orchestrators.append(orchestrator)
 
@@ -189,7 +195,8 @@ class TestOrchestratorRaceConditions:
             assert task_count == 1, "Task should not be duplicated"
 
         finally:
-            worker_manager.shutdown_all()
+            for worker_manager in worker_managers:
+                worker_manager.shutdown_all()
 
     @pytest.mark.asyncio
     async def test_worker_death_during_assignment_race(self, http_env, orchestrator_test_policy_id: uuid.UUID):
@@ -220,7 +227,7 @@ class TestOrchestratorRaceConditions:
             task_client=eval_task_client,
             worker_manager=worker_manager,
             poll_interval=0.1,
-            max_workers=1,
+            worker_scaler=FixedScaler(1),
         )
 
         try:
@@ -365,7 +372,7 @@ class TestOrchestratorRaceConditions:
                 task_client=http_env.make_client(),
                 worker_manager=worker_manager,
                 poll_interval=0.1,
-                max_workers=2,
+                worker_scaler=FixedScaler(2),
             )
             orchestrators.append(orchestrator)
 
@@ -424,7 +431,7 @@ class TestOrchestratorRaceConditions:
             task_client=eval_task_client,
             worker_manager=worker_manager,
             poll_interval=0.1,
-            max_workers=3,
+            worker_scaler=FixedScaler(3),
         )
 
         try:

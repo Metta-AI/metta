@@ -13,7 +13,7 @@ from unittest.mock import Mock
 import pytest
 from httpx import ConnectError, HTTPStatusError
 
-from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator
+from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator, FixedScaler
 from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker
 from metta.app_backend.routes.eval_task_routes import (
     TaskCreateRequest,
@@ -102,7 +102,7 @@ class TestOrchestratorResilience:
             task_client=http_env.make_client(),
             worker_manager=worker_manager,
             poll_interval=0.2,
-            max_workers=2,
+            worker_scaler=FixedScaler(2),
         )
 
         try:
@@ -181,7 +181,7 @@ class TestOrchestratorResilience:
             task_client=eval_task_client,
             worker_manager=worker_manager,
             poll_interval=0.2,
-            max_workers=1,
+            worker_scaler=FixedScaler(1),
         )
 
         try:
@@ -255,7 +255,7 @@ class TestOrchestratorResilience:
             task_client=eval_task_client,
             worker_manager=worker_manager,
             poll_interval=0.2,
-            max_workers=1,
+            worker_scaler=FixedScaler(1),
         )
 
         try:
@@ -330,7 +330,7 @@ class TestOrchestratorResilience:
             task_client=eval_task_client,
             worker_manager=worker_manager,
             poll_interval=0.2,
-            max_workers=1,
+            worker_scaler=FixedScaler(1),
         )
 
         try:
@@ -407,7 +407,7 @@ class TestOrchestratorResilience:
             task_client=eval_task_client,
             worker_manager=worker_manager,
             poll_interval=0.2,
-            max_workers=1,
+            worker_scaler=FixedScaler(1),
         )
 
         try:
@@ -504,7 +504,7 @@ class TestOrchestratorResilience:
             task_client=eval_task_client,
             worker_manager=flaky_manager,
             poll_interval=0.2,
-            max_workers=2,
+            worker_scaler=FixedScaler(2),
         )
 
         try:
@@ -585,7 +585,7 @@ class TestOrchestratorResilience:
                     task_client=eval_task_client,
                     worker_manager=worker_manager,
                     poll_interval=0.15,
-                    max_workers=2,
+                    worker_scaler=FixedScaler(2),
                 )
                 orchestrators.append(orchestrator)
 
@@ -681,7 +681,7 @@ class TestOrchestratorResilience:
             task_client=eval_task_client,
             worker_manager=worker_manager,
             poll_interval=0.2,
-            max_workers=1,  # Limited workers to test resource constraints
+            worker_scaler=FixedScaler(1),  # Limited workers to test resource constraints
         )
 
         try:
@@ -746,12 +746,12 @@ class TestOrchestratorResilience:
 
         worker_manager = ThreadWorkerManager(create_worker=create_worker)
 
-        # Reduce max_workers from 4 to 3 to avoid the scaling issue we found earlier
+        # Reduce workers from 4 to 3 to avoid the scaling issue we found earlier
         orchestrator = EvalTaskOrchestrator(
             task_client=eval_task_client,
             worker_manager=worker_manager,
             poll_interval=0.1,  # Fast polling under load
-            max_workers=3,  # Reduced from 4 to stay within working limits
+            worker_scaler=FixedScaler(3),  # Reduced from 4 to stay within working limits
         )
 
         try:
