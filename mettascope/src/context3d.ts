@@ -603,10 +603,7 @@ export class Context3d {
     this.drawSolidRect(x + width - strokeWidth, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color)
   }
 
-  /**
-   * Layout text into textured quads in font-pixel space relative to baseline (0,0).
-   * Returns per-glyph quads plus overall width and vertical bounds.
-   */
+  /** Layout text into textured quads. */
   private layoutText(
     fontName: string,
     text: string
@@ -739,10 +736,7 @@ export class Context3d {
     this.restore()
   }
 
-  /** Measure text bounds in font pixel units (before world scaling).
-   * Returns the logical width (advances+kerning) and vertical bounds relative to the baseline.
-   * Top and bottom include the atlas margin and glyph inner padding so centering matches draw.
-   */
+  /** Measure text bounds in font pixel units. */
   measureTextBounds(
     fontName: string,
     text: string
