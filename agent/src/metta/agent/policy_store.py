@@ -25,7 +25,7 @@ from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
-from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOn, WandbRun
+from metta.common.wandb.wandb_context import WandbConfig, WandbRun
 from metta.rl.puffer_policy import load_pytorch_policy
 from metta.sim.utils import get_pr_scores_from_stats_server
 
@@ -496,8 +496,8 @@ class PolicyStore:
             device=device,
             wandb_run=wandb_run,
             data_dir=data_dir,
-            wandb_entity=wandb_config.entity if isinstance(wandb_config, WandbConfigOn) else None,
-            wandb_project=wandb_config.project if isinstance(wandb_config, WandbConfigOn) else None,
+            wandb_entity=wandb_config.entity if wandb_config.enabled else None,
+            wandb_project=wandb_config.project if wandb_config.enabled else None,
         )
 
     def policy_record_or_mock(
