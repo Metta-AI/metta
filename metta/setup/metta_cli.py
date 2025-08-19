@@ -367,11 +367,10 @@ class MettaCLI:
         module.run(args.args)
 
     def cmd_install(self, args, unknown_args=None) -> None:
-        from metta.setup.registry import get_all_modules, get_applicable_modules
+        from metta.setup.registry import get_all_modules, get_enabled_setup_modules
         from metta.setup.utils import error, info, success, warning
 
-        saved_settings = get_saved_settings()
-        if not saved_settings.config_path.exists():
+        if not self.saved_settings.config_path.exists():
             warning("No configuration found. Running setup wizard first...")
             self.setup_wizard()
 
@@ -384,7 +383,7 @@ class MettaCLI:
         if args.components:
             modules = get_all_modules()
         else:
-            modules = get_applicable_modules()
+            modules = get_enabled_setup_modules()
 
         if args.components:
             only_names = args.components
@@ -635,7 +634,7 @@ class MettaCLI:
             return
 
         # Check if any modules are applicable
-        applicable_modules = [m for m in modules if m.is_applicable()]
+        applicable_modules = [m for m in modules if m.is_enabled()]
         if not applicable_modules:
             warning("No applicable modules found.")
             return

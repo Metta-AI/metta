@@ -16,13 +16,9 @@ class TailscaleSetup(SetupModule):
     def description(self) -> str:
         return "Tailscale VPN for internal network access"
 
-    def is_applicable(self) -> bool:
+    def _is_applicable(self) -> bool:
         saved_settings = get_saved_settings()
-        return (
-            platform.system() == "Darwin"
-            and saved_settings.user_type == UserType.SOFTMAX
-            and saved_settings.is_component_enabled("tailscale")
-        )
+        return platform.system() == "Darwin" and saved_settings.user_type == UserType.SOFTMAX
 
     def check_installed(self) -> bool:
         try:
