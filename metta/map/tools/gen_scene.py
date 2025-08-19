@@ -3,7 +3,7 @@ import logging
 
 from omegaconf import OmegaConf
 
-from metta.common.config.tool import Tool
+from metta.common.config import Tool
 from metta.map.mapgen import MapGen
 from metta.map.scene import SceneConfig
 from metta.map.utils.show import ShowMode, show_map
