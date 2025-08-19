@@ -12,6 +12,10 @@ game:
       inventory:
         heart: 0.333
 
+  objects:
+    box:
+      type_id: 12
+
   map_builder:
     _target_: metta.map.mapgen_ascii.MapGenAscii
     border_width: 1
