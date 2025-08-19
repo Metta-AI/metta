@@ -103,14 +103,14 @@ class MettaAgent(nn.Module):
 
         # PyTorch models use env, ComponentPolicies use structured parameters
         if agent_name.startswith("pytorch/"):
-            policy = AgentClass(env=env)
+            policy = AgentClass(env=env, clip_range=0, analyze_weights_interval=300)
         else:
             policy = AgentClass(
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
                 obs_height=self.obs_height,
                 feature_normalizations=self.feature_normalizations,
-                config={},  # Empty config for now, can be extended if needed
+                config={"clip_range": 0, "analyze_weights_interval": 300},
             )
         
         logger.info(f"Using agent: {agent_name}")
