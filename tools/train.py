@@ -4,11 +4,9 @@ import logging
 import multiprocessing
 import os
 import platform
-import sys
 from logging import Logger
 
 import torch
-import torch.distributed.elastic.multiprocessing.api as mp_api
 from omegaconf import DictConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
@@ -36,21 +34,6 @@ logger = logging.getLogger(__name__)
 # TODO - app_backend stats uses httpx which manages it's own logs at INFO
 # consider where we really want to put this
 logging.getLogger("httpx").setLevel(logging.WARNING)
-
-
-# Silence elastic logs
-logging.getLogger("torch.distributed.elastic").setLevel(logging.ERROR)
-
-
-# Globally suppress traceback printing for SignalException(sigval=15)
-def quiet_sigterm_hook(exc_type, value, tb):
-    if isinstance(value, mp_api.SignalException) and value.sigval == 15:
-        print(f"[INFO] Suppressed SignalException: {value}", file=sys.stderr)
-    else:
-        sys.__excepthook__(exc_type, value, tb)
-
-
-sys.excepthook = quiet_sigterm_hook
 
 
 # TODO: populate this more
