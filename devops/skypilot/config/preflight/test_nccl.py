@@ -1048,7 +1048,7 @@ def main():
     test_results = []
 
     # Single GPU test
-    if gpu_diagnostics["pytorch_cuda_available"]:
+    if torch.cuda.is_available():
         if IS_GPU0:
             print(f"\n  🔧 Node {node_index}: Running single GPU tests...")
         if test_single_gpu():
@@ -1061,7 +1061,7 @@ def main():
         all_passed = False
 
     # NCCL communication test
-    if world_size > 1:
+    if all_passed and world_size > 1:
         if IS_GPU0:
             print(f"\n  🔧 Node {node_index}: Running NCCL communication tests...")
 
@@ -1075,7 +1075,7 @@ def main():
 
     # NCCL benchmarks
     benchmark_results = None
-    if world_size > 1:
+    if all_passed and world_size > 1:
         if IS_GPU0:
             print(f"\n  📊 Node {node_index}: Running benchmarks...")
 
@@ -1092,7 +1092,7 @@ def main():
     all_ranks_passed = all_passed
 
     # Synchronize results if distributed
-    if is_distributed:
+    if all_ranks_passed and is_distributed:
         if dist.is_initialized():
             dist.barrier()
         # Check if we're still initialized (test might have destroyed it)
