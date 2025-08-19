@@ -1,6 +1,8 @@
 import logging
 
+import torch
 from omegaconf import DictConfig
+from tensordict import TensorDict
 
 from metta.agent.component_policy import ComponentPolicy
 from metta.agent.lib.action import ActionEmbedding
@@ -17,6 +19,11 @@ class Fast(ComponentPolicy):
     """
     Fast CNN-based component policy - fastest but least robust to feature changes.
     """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Add a projection layer for latent observations (16 -> 128)
+        self.latent_projection = torch.nn.Linear(16, 128)
 
     def _build_components(self) -> dict:
         """Build components for Fast CNN architecture."""
@@ -98,3 +105,51 @@ class Fast(ComponentPolicy):
                 sources=[{"name": "actor_1"}, {"name": "_action_embeds_"}],
             ),
         }
+
+    def forward(self, td: TensorDict, state=None, action=None) -> TensorDict:
+        """Forward pass with support for both token observations and latent observations."""
+
+        # Check if we have latent observations
+        if "latent_obs" in td:
+            return self._forward_latent(td, state, action)
+        else:
+            # Use the regular ComponentPolicy forward method for token observations
+            return super().forward(td, state, action)
+
+    def _forward_latent(self, td: TensorDict, state=None, action=None) -> TensorDict:
+        """Forward pass for latent observations (bypass CNN pipeline)."""
+        # Handle BPTT reshaping
+        if td.batch_dims > 1:
+            B = td.batch_size[0]
+            TT = td.batch_size[1]
+            td = td.reshape(td.batch_size.numel())  # flatten to BT
+            td.set("bptt", torch.full((B * TT,), TT, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((B * TT,), B, device=td.device, dtype=torch.long))
+        else:
+            B = td.batch_size.numel()
+            td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
+            td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
+
+        # Use latent observations with projection to match expected dimensionality
+        latent_obs = td["latent_obs"]
+        # Project from 16 to 128 dimensions to match LSTM input size
+        encoded_obs = self.latent_projection(latent_obs)
+        td["encoded_obs"] = encoded_obs
+
+        # Run LSTM on encoded observations
+        self.components["_core_"](td)
+
+        # Run value and action components
+        self.components["_value_"](td)
+        self.components["_action_"](td)
+
+        if action is None:
+            output_td = self.forward_inference(td)
+        else:
+            output_td = self.forward_training(td, action)
+            # Reshape back for training mode
+            batch_size = td["batch"][0].item()
+            bptt_size = td["bptt"][0].item()
+            output_td = output_td.reshape(batch_size, bptt_size)
+
+        return output_td

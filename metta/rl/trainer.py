@@ -494,7 +494,10 @@ def train(
                     """
 
                     td = buffer_step[training_env_id].clone()
-                    td["env_obs"] = o
+                    td["latent_obs"] = o  # Use latent_obs key for encoded observations
+                    # Remove the original token observations to force latent path
+                    if "env_obs" in td:
+                        del td["env_obs"]
                     td["rewards"] = r
                     td["dones"] = d.float()
                     td["truncateds"] = t.float()

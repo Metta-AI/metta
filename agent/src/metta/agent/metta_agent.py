@@ -144,7 +144,7 @@ class MettaAgent(nn.Module):
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
-            env_obs=UnboundedContinuous(shape=torch.Size([16]), dtype=torch.float32),
+            latent_obs=UnboundedContinuous(shape=torch.Size([16]), dtype=torch.float32),
         )
 
     def initialize_to_environment(

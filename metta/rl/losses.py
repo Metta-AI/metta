@@ -192,7 +192,7 @@ def process_minibatch_update(
             else:
                 student_env_obs = env_obs_indexable[:0]
         else:
-            student_env_obs = policy_td["env_obs"]
+            student_env_obs = policy_td.get("latent_obs", policy_td.get("env_obs", None))
 
         ks_newvalue = student_values
     else:
@@ -211,7 +211,7 @@ def process_minibatch_update(
         metric_importance_ratio = importance_sampling_ratio
         metric_new_logprob = new_logprob
         student_full_logprobs = full_logprobs
-        student_env_obs = policy_td["env_obs"]
+        student_env_obs = policy_td.get("latent_obs", policy_td.get("env_obs", None))
         ks_newvalue = newvalue
 
     # Kickstarter losses (using student-only data when dual-policy is enabled)
