@@ -10,6 +10,7 @@ from metta.mettagrid.mettagrid_config import (
     ActionsConfig,
     EnvConfig,
     GameConfig,
+    WallConfig,
 )
 
 
@@ -22,7 +23,6 @@ def test_cardinal_movement_basic():
             num_agents=1,
             actions=ActionsConfig(
                 move_cardinal=ActionConfig(),
-                rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
             map_builder=AsciiMapBuilderConfig(
@@ -97,6 +97,7 @@ def test_cardinal_movement_obstacles():
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
+            objects={"wall": WallConfig(type_id=1)},
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
@@ -126,12 +127,12 @@ def test_cardinal_movement_obstacles():
     # First move North to (1, 2) - should succeed (empty space)
     actions[0] = [move_cardinal_idx, 0]
     env.step(actions)
-    assert env.action_success()[0]
+    assert env.action_success[0]
 
     # Now try to move North again into wall at (0, 2) - should fail
     actions[0] = [move_cardinal_idx, 0]
     env.step(actions)
-    assert not env.action_success()[0]
+    assert not env.action_success[0]
 
     # Move to corner
     actions[0] = [move_cardinal_idx, 2]  # West
@@ -145,11 +146,11 @@ def test_cardinal_movement_obstacles():
     # Now both North and West should fail (walls)
     actions[0] = [move_cardinal_idx, 0]  # North
     env.step(actions)
-    assert not env.action_success()[0]
+    assert not env.action_success[0]
 
     actions[0] = [move_cardinal_idx, 2]  # West
     env.step(actions)
-    assert not env.action_success()[0]
+    assert not env.action_success[0]
 
 
 def test_orientation_preserved_in_cardinal_mode():
@@ -238,6 +239,7 @@ def test_orientation_changes_with_cardinal_movement():
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
+            objects={"wall": WallConfig(type_id=1)},
             map_builder=AsciiMapBuilderConfig(
                 map_data=[
                     ["#", "#", "#"],
@@ -275,7 +277,7 @@ def test_orientation_changes_with_cardinal_movement():
     env.step(actions)
 
     objects = env.grid_objects
-    assert not env.action_success()[0]  # Movement should fail
+    assert not env.action_success[0]  # Movement should fail
     assert objects[agent_id]["orientation"] == 3  # Orientation SHOULD change to East
 
     # Try to move North into wall
@@ -283,7 +285,7 @@ def test_orientation_changes_with_cardinal_movement():
     env.step(actions)
 
     objects = env.grid_objects
-    assert not env.action_success()[0]  # Movement should fail
+    assert not env.action_success[0]  # Movement should fail
     assert objects[agent_id]["orientation"] == 0  # Orientation SHOULD change to North
 
 
@@ -293,6 +295,7 @@ def test_hybrid_movement_mode():
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
+                move=ActionConfig(),
                 move_cardinal=ActionConfig(),
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
@@ -377,7 +380,7 @@ def test_cardinal_movement_with_simple_environment():
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     # Verify agent is at expected position
-    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (3, 3)
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (2, 2)
 
     action_names = env.action_names
     move_cardinal_idx = action_names.index("move_cardinal")
@@ -389,22 +392,22 @@ def test_cardinal_movement_with_simple_environment():
     actions[0] = [move_cardinal_idx, 0]
     env.step(actions)
     objects = env.grid_objects
-    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (2, 3)
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 2)
 
     # Move East
     actions[0] = [move_cardinal_idx, 3]
     env.step(actions)
     objects = env.grid_objects
-    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (2, 4)
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 3)
 
     # Move South
     actions[0] = [move_cardinal_idx, 1]
     env.step(actions)
     objects = env.grid_objects
-    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (3, 4)
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (2, 3)
 
     # Move West - back to start
     actions[0] = [move_cardinal_idx, 2]
     env.step(actions)
     objects = env.grid_objects
-    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (3, 3)
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (2, 2)

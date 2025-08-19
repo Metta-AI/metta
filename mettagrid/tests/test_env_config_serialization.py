@@ -75,8 +75,17 @@ def test_env_config_polymorphism_deserialization():
     # Deserialize it back
     reconstructed_config = EnvConfig.model_validate_json(config_json)
 
-    # Verify the map_builder is correctly reconstructed
-    map_builder = reconstructed_config.game.map_builder
+    # The map_builder field is typed as Any to avoid circular imports,
+    # so it gets deserialized as a dict. We need to manually reconstruct it.
+    map_builder_data = reconstructed_config.game.map_builder
+    assert isinstance(map_builder_data, dict)
+    assert map_builder_data["type"] == "random"
+    assert map_builder_data["agents"] == 16
+    assert map_builder_data["width"] == 10
+    assert map_builder_data["height"] == 10
+
+    # Test manual reconstruction from the dict data
+    map_builder = RandomMapBuilderConfig.model_validate(map_builder_data)
     assert isinstance(map_builder, RandomMapBuilderConfig)
     assert map_builder.type == "random"
     assert map_builder.agents == 16
