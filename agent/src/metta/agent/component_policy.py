@@ -14,6 +14,8 @@ from metta.common.util.datastruct import duplicates
 
 logger = logging.getLogger(__name__)
 
+IS_MASTER = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+
 
 class ComponentPolicy(nn.Module, ABC):
     """
@@ -75,8 +77,8 @@ class ComponentPolicy(nn.Module, ABC):
         if duplicate_names := duplicates(all_names):
             raise ValueError(f"Duplicate component names found: {duplicate_names}")
 
-        # Move to device
-        logger.info(f"{self.__class__.__name__} policy components: {self.components}")
+        if IS_MASTER:
+            logger.info(f"{self.__class__.__name__} policy components: {self.components}")
 
         # Initialize action conversion tensors (will be set by MettaAgent)
         self.cum_action_max_params = None

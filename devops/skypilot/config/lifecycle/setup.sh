@@ -3,6 +3,8 @@
 set -e
 cd /workspace/metta
 
+git config advice.detachedHead false
+
 echo "[SETUP] Fetching latest from origin..."
 git fetch origin "$METTA_GIT_REF" || git fetch --depth=1000 origin
 git checkout "$METTA_GIT_REF"
