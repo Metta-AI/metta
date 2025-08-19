@@ -194,10 +194,16 @@ def _():
     env_config.game.obs_height = 11
 
     # Enable basic movement and item collection - disable combat
+    env_config.game.actions.move_cardinal.enabled = True
+    env_config.game.actions.rotate.enabled = True
+    env_config.game.actions.noop.enabled = True
+    env_config.game.actions.move_8way.enabled = False
     env_config.game.actions.attack.enabled = False
-    env_config.game.actions.swap.enabled = False
+    env_config.game.actions.put_items.enabled = False
     env_config.game.actions.change_color.enabled = False
     env_config.game.actions.change_glyph.enabled = False
+    env_config.game.actions.swap.enabled = False
+    env_config.game.actions.place_box.enabled = False
 
     # Ensure ore collection gives rewards
     env_config.game.agent.rewards.inventory.ore_red = 1.0
@@ -516,7 +522,7 @@ def _(datetime, env_config, mo, train_button):
     # Create and configure the training tool
     train_tool = TrainTool(
         trainer=trainer_config,
-        wandb=WandbConfigOff(),  # Disable wandb for simplicity
+        # wandb=WandbConfigOff(),  # Disable wandb for simplicity
         run=run_name,
         run_dir=f"train_dir/{run_name}",
     )
