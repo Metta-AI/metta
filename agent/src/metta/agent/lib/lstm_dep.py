@@ -90,13 +90,24 @@ class LSTM(LayerBase):
         hidden_size = self._nn_params.get("hidden_size", self.hidden_size)
         self._out_tensor_shape = [hidden_size]
 
-        self.lstm = nn.LSTM(self._in_tensor_shapes[0][0], **self._nn_params)
+        if self.reset_in_training:
+            # NOTE: this only gets called on init so we cannot use this flag on a rehydrated agent if it wasn't set
+            # to true on init. If we want this functionality later then we can create a method to set cells after
+            # rehydration.
+            self.cells = nn.ModuleList()
+            input_size = self._in_tensor_shapes[0][0]
+            for _ in range(self.num_layers):
+                cell = nn.LSTMCell(input_size, self.hidden_size)
+                self.cells.append(cell)
+                input_size = self.hidden_size  # For subsequent layers, input size is hidden size
+        else:
+            self.lstm = nn.LSTM(self._in_tensor_shapes[0][0], **self._nn_params)
 
-        for name, param in self.lstm.named_parameters():
-            if "bias" in name:
-                nn.init.constant_(param, 1)  # Joseph originally had this as 0
-            elif "weight" in name:
-                nn.init.orthogonal_(param, 1)  # torch's default is uniform
+            for name, param in self.lstm.named_parameters():
+                if "bias" in name:
+                    nn.init.constant_(param, 1)  # Joseph originally had this as 0
+                elif "weight" in name:
+                    nn.init.orthogonal_(param, 1)  # torch's default is uniform
 
         return None
 
@@ -126,6 +137,13 @@ class LSTM(LayerBase):
         if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
             h_0 = self.lstm_h[training_env_id_start]
             c_0 = self.lstm_c[training_env_id_start]
+            # reset the cell state if the episode is done or truncated
+            # dones = td.get("dones", None)
+            # truncateds = td.get("truncateds", None)
+            # if dones is not None and truncateds is not None:
+            #     reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
+            # else:
+            #     reset_mask = torch.ones(1, B, 1, device=hidden.device)
             if TT == 1:
                 h_0 = h_0.masked_fill(reset_mask, 0)
                 c_0 = c_0.masked_fill(reset_mask, 0)
@@ -133,13 +151,15 @@ class LSTM(LayerBase):
             h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
             c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
 
-        latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
         if self.reset_in_training and TT != 1:
-            hidden, (h_n, c_n) = self._forward_train_step(latent, h_0, c_0, reset_mask, B, TT)
+            latent = rearrange(latent, "(b t) h -> b t h", b=B, t=TT)
+            hidden, (h_n, c_n) = self._forward_cell(latent, h_0, c_0, reset_mask, B, TT)
+        elif self.reset_in_training and TT == 1:
+            hidden, (h_n, c_n) = self._cell_inference(latent, h_0, c_0)
         else:
+            latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
             hidden, (h_n, c_n) = self.lstm(latent, (h_0, c_0))
-
-        hidden = rearrange(hidden, "t b h -> (b t) h")
+            hidden = rearrange(hidden, "t b h -> (b t) h")
 
         self.lstm_h[training_env_id_start] = h_n.detach()
         self.lstm_c[training_env_id_start] = c_n.detach()
@@ -148,25 +168,50 @@ class LSTM(LayerBase):
 
         return td
 
-    def _forward_train_step(self, latent, h_t, c_t, reset_mask, B, TT):
+    def _forward_cell(self, latent, h_0, c_0, reset_mask, B, TT):
         # latent is (B * TT, input_size)
         # h_0 is (num_layers, B, input_size)
         # c_0 is (num_layers, B, input_size)
         # reset_mask is (1, B * TT, 1)
 
         reset_mask = reset_mask.view(1, B, TT, 1)
-        hidden = None
+        hidden = torch.zeros(0, self.hidden_size, device=latent.device)
 
         for t in range(TT):
-            latent_t = latent[t, :, :].unsqueeze(0)
+            latent_t = latent[:, t, :]
             reset_mask_t = reset_mask[0, :, t, :]
-            h_t = h_t.masked_fill(reset_mask_t, 0)
-            c_t = c_t.masked_fill(reset_mask_t, 0)
-            hidden_t, (h_t, c_t) = self.lstm(latent_t, (h_t, c_t))  # one time step
+            hidden_t, (h_n, c_n) = self._forward_cell_step(latent_t, h_0, c_0, reset_mask_t)
             # stack hidden
-            if hidden is None:
-                hidden = hidden_t
-            else:
-                hidden = torch.cat([hidden, hidden_t], dim=0)
+            hidden = torch.cat([hidden, hidden_t], dim=0)
 
-        return hidden, (h_t, c_t)
+        return hidden, (h_n, c_n)
+
+    def _forward_cell_step(self, latent, h_0, c_0, reset_mask_t):
+        h_n_layers, c_n_layers = [], []
+        layer_input = latent
+        for i, cell in enumerate(self.cells):
+            h_i, c_i = h_0[i], c_0[i]
+            # h_i = h_i.masked_fill(reset_mask_t, 0)
+            # c_i = c_i.masked_fill(reset_mask_t, 0)
+            h_n_i, c_n_i = cell(layer_input, (h_i, c_i))
+            h_n_layers.append(h_n_i)
+            c_n_layers.append(c_n_i)
+            layer_input = h_n_i
+        h_n = torch.stack(h_n_layers)
+        c_n = torch.stack(c_n_layers)
+
+        return layer_input, (h_n, c_n)
+
+    def _cell_inference(self, latent, h_0, c_0):
+        h_n_layers, c_n_layers = [], []
+        layer_input = latent
+        for i, cell in enumerate(self.cells):
+            h_i, c_i = h_0[i], c_0[i]
+            h_n_i, c_n_i = cell(layer_input, (h_i, c_i))
+            h_n_layers.append(h_n_i)
+            c_n_layers.append(c_n_i)
+            layer_input = h_n_i
+        h_n = torch.stack(h_n_layers)
+        c_n = torch.stack(c_n_layers)
+
+        return layer_input, (h_n, c_n)
