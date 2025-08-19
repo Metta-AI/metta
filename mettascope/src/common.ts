@@ -142,7 +142,8 @@ export const state = {
     width: number
     height: number
     values: number[] | Float32Array
-    valueRange?: { min: number; max: number }
+    valueRange: { min: number; max: number }
+    step: number
   },
 }
 

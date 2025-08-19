@@ -251,6 +251,7 @@ def make_app(cfg: DictConfig):
                     height=int(height),
                     values=grid.reshape(-1).tolist(),
                     valueRange={"min": int(vmin), "max": int(vmax)},
+                    step=int(current_step),
                 )
 
         # Send the first replay step.
@@ -287,6 +288,7 @@ def make_app(cfg: DictConfig):
                         height=int(height),
                         values=grid.reshape(-1).tolist(),
                         valueRange={"min": int(vmin), "max": int(vmax)},
+                        step=int(current_step),
                     )
                 continue
 
@@ -306,6 +308,7 @@ def make_app(cfg: DictConfig):
                         height=int(height),
                         values=grid.reshape(-1).tolist(),
                         valueRange={"min": int(vmin), "max": int(vmax)},
+                        step=int(current_step),
                     )
                 continue
 
@@ -325,6 +328,7 @@ def make_app(cfg: DictConfig):
                         height=int(height),
                         values=grid.reshape(-1).tolist(),
                         valueRange={"min": int(vmin), "max": int(vmax)},
+                        step=int(current_step),
                     )
                 continue
 

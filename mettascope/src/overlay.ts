@@ -128,8 +128,12 @@ export function drawObservationOverlay(): void {
       if (value === 0) continue // don't display 0 tensors.
       const text = String(value)
 
-      const wx = ax + (c - halfW)
-      const wy = ay + (r - halfH)
+      // Align overlay with the step the agent was on when we got the snapshot.
+      // this prevents a flicking when the agent is moving.
+      const agentStep = state.visualGrid.step
+      const agentLoc = agentObj.location.get(agentStep)
+      const wx = agentLoc[0] + (c - halfW)
+      const wy = agentLoc[1] + (r - halfH)
 
       const centerX = wx * tileSize
       const centerY = wy * tileSize

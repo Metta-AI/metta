@@ -668,12 +668,12 @@ export function initWebSocket(wsUrl: string) {
       }
       updateObsOverlayMenu()
     } else if (data.type === 'visual_grid') {
-      // Set current visual grid for rendering
       state.visualGrid = {
         width: data.width,
         height: data.height,
         values: data.values,
         valueRange: data.valueRange,
+        step: data.step,
       }
       state.activeVisualAgentId = data.agentId
       state.activeVisualLayerId = data.layerId
