@@ -10,7 +10,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.agent_mapper import component_agents, pytorch_agents
+from metta.agent.agent_mapper import agents
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
@@ -104,19 +104,19 @@ class MettaAgent(nn.Module):
         agent_name = str(agent_cfg)  # Ensure it's a string
         config_dict = default_config
 
-        # Check if it's explicitly requesting a vanilla PyTorch model with "pytorch/" prefix
+        # Look up agent class in unified mapper
+        if agent_name not in agents:
+            raise ValueError(f"Unknown agent: '{agent_name}'. Available agents: {list(agents.keys())}")
+
+        AgentClass = agents[agent_name]
+
+        # Check if it's a PyTorch model (starts with "pytorch/") or ComponentPolicy
         if agent_name.startswith("pytorch/"):
-            # Explicitly requested vanilla PyTorch model
-            model_name = agent_name[8:]  # Remove "pytorch/" prefix
-            if model_name in pytorch_agents:
-                AgentClass = pytorch_agents[model_name]
-                policy = AgentClass(env=env, **config_dict)
-                logger.info(f"Using PyTorch model: {model_name}")
-            else:
-                raise ValueError(f"Unknown PyTorch model: '{model_name}'. Available: {list(pytorch_agents.keys())}")
-        elif agent_name in component_agents:
-            # Default to ComponentPolicy (no prefix needed)
-            AgentClass = component_agents[agent_name]
+            # PyTorch model - initialize with env
+            policy = AgentClass(env=env, **config_dict)
+            logger.info(f"Using PyTorch model: {agent_name}")
+        else:
+            # ComponentPolicy - initialize with structured parameters
             policy = AgentClass(
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
@@ -125,13 +125,6 @@ class MettaAgent(nn.Module):
                 config=config_dict,
             )
             logger.info(f"Using ComponentPolicy: {agent_name}")
-        else:
-            raise ValueError(
-                f"Unknown agent: '{agent_name}'. "
-                f"Available ComponentPolicies: {list(component_agents.keys())}, "
-                f"PyTorch models: {list(pytorch_agents.keys())}. "
-                f"For PyTorch models, use 'pytorch/' prefix (e.g., 'pytorch/fast')"
-            )
 
         return policy
 

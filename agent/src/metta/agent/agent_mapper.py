@@ -17,26 +17,17 @@ from metta.agent.pytorch.latent_attn_med import LatentAttnMed as PyTorchLatentAt
 from metta.agent.pytorch.latent_attn_small import LatentAttnSmall as PyTorchLatentAttnSmall
 from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatentAttnTiny
 
-# PyTorch models - vanilla implementations
-pytorch_agents = {
-    "example": Example,
-    "fast": PyTorchFast,
-    "latent_attn_small": PyTorchLatentAttnSmall,
-    "latent_attn_med": PyTorchLatentAttnMed,
-    "latent_attn_tiny": PyTorchLatentAttnTiny,
-}
-
-# ComponentPolicy models - modular implementations (default)
-component_agents = {
+# Unified agent mapping - includes both PyTorch and ComponentPolicy implementations
+agents = {
+    # ComponentPolicy implementations (default, no prefix)
     "fast": ComponentFast,
     "latent_attn_med": ComponentLatentAttnMed,
     "latent_attn_small": ComponentLatentAttnSmall,
     "latent_attn_tiny": ComponentLatentAttnTiny,
-}
-
-# Combined mapping for backward compatibility
-# ComponentPolicies take precedence as they are the preferred implementation
-all_agents = {
-    **pytorch_agents,  # Add PyTorch agents first
-    **component_agents,  # ComponentPolicies override PyTorch ones with same name
+    # PyTorch implementations (with explicit prefix)
+    "pytorch/example": Example,
+    "pytorch/fast": PyTorchFast,
+    "pytorch/latent_attn_small": PyTorchLatentAttnSmall,
+    "pytorch/latent_attn_med": PyTorchLatentAttnMed,
+    "pytorch/latent_attn_tiny": PyTorchLatentAttnTiny,
 }
