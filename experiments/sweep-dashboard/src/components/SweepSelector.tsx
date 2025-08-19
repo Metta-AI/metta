@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
-import { fetchAvailableSweeps } from '../api/sweepApi'
+import { fetchAvailableSweeps, SweepsResponse } from '../api/sweepApi'
 
 interface SweepSelectorProps {
   onSelectSweep: (sweepName: string) => void
 }
 
 export function SweepSelector({ onSelectSweep }: SweepSelectorProps) {
-  const [sweeps, setSweeps] = useState<string[]>([])
+  const [sweepsData, setSweepsData] = useState<SweepsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [customSweep, setCustomSweep] = useState('')
@@ -18,12 +18,16 @@ export function SweepSelector({ onSelectSweep }: SweepSelectorProps) {
   const loadSweeps = async () => {
     try {
       const data = await fetchAvailableSweeps()
-      setSweeps(data)
-      setError(null)
+      setSweepsData(data)
+      if (data.error && data.sweeps.length === 0) {
+        setError(data.error)
+      } else {
+        setError(null)
+      }
     } catch (err) {
       // Don't show error if backend is just not running yet
       console.log('Could not fetch sweeps - backend may not be running')
-      setSweeps([])
+      setSweepsData({ sweeps: [], count: 0 })
     } finally {
       setLoading(false)
     }
@@ -55,15 +59,22 @@ export function SweepSelector({ onSelectSweep }: SweepSelectorProps) {
         </div>
       )}
 
-      {!loading && !error && (
+      {!loading && !error && sweepsData && (
         <>
-          {sweeps.length > 0 && (
+          {sweepsData.sweeps.length > 0 && (
             <div style={{ marginBottom: '30px' }}>
-              <h3 style={{ fontSize: '16px', fontWeight: 500, marginBottom: '12px' }}>
-                Recent Sweeps
-              </h3>
-              <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))' }}>
-                {sweeps.map(sweep => (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: 500 }}>
+                  Available Sweeps ({sweepsData.count})
+                </h3>
+                {sweepsData.entity && sweepsData.project && (
+                  <span style={{ fontSize: '12px', color: '#6c757d' }}>
+                    {sweepsData.entity}/{sweepsData.project}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                {sweepsData.sweeps.map(sweep => (
                   <button
                     key={sweep}
                     className="card"
@@ -71,17 +82,27 @@ export function SweepSelector({ onSelectSweep }: SweepSelectorProps) {
                     style={{
                       textAlign: 'left',
                       cursor: 'pointer',
-                      border: '1px solid #dee2e6',
+                      border: '2px solid #dee2e6',
                       transition: 'all 0.2s',
-                      ':hover': {
-                        borderColor: '#007bff',
-                        boxShadow: '0 2px 8px rgba(0, 123, 255, 0.15)'
-                      }
+                      padding: '16px',
+                      backgroundColor: 'white'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = '#007bff'
+                      e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 123, 255, 0.15)'
+                      e.currentTarget.style.transform = 'translateY(-2px)'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = '#dee2e6'
+                      e.currentTarget.style.boxShadow = 'none'
+                      e.currentTarget.style.transform = 'translateY(0)'
                     }}
                   >
-                    <div style={{ fontWeight: 500, marginBottom: '4px' }}>{sweep}</div>
+                    <div style={{ fontWeight: 600, marginBottom: '4px', color: '#212529' }}>
+                      {sweep}
+                    </div>
                     <div style={{ fontSize: '12px', color: '#6c757d' }}>
-                      Click to view analysis
+                      Click to view analysis →
                     </div>
                   </button>
                 ))}

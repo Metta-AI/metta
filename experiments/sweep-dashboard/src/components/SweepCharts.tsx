@@ -509,32 +509,92 @@ export function SweepCharts({ data }: SweepChartsProps) {
       </div>
 
       {/* Summary Statistics */}
-      <div className="card">
-        <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px' }}>
+      <div className="card" style={{ padding: '24px' }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '20px', color: '#333' }}>
           Summary Statistics
         </h3>
-        <div className="grid grid-cols-2" style={{ gap: '20px' }}>
-          <div>
-            <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>Score Statistics</h4>
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              <li>Mean: {(data.runs.reduce((sum, r) => sum + r.score, 0) / data.runs.length).toFixed(4)}</li>
-              <li>Median: {data.runs.sort((a, b) => a.score - b.score)[Math.floor(data.runs.length / 2)]?.score.toFixed(4)}</li>
-              <li>Min: {Math.min(...data.runs.map(r => r.score)).toFixed(4)}</li>
-              <li>Max: {Math.max(...data.runs.map(r => r.score)).toFixed(4)}</li>
-              <li>Std Dev: {Math.sqrt(
-                data.runs.reduce((sum, r) => sum + Math.pow(r.score - data.runs.reduce((s, r2) => s + r2.score, 0) / data.runs.length, 2), 0) / data.runs.length
-              ).toFixed(4)}</li>
-            </ul>
+        <div className="grid grid-cols-2" style={{ gap: '32px' }}>
+          <div style={{ 
+            backgroundColor: '#f8f9fa', 
+            padding: '20px', 
+            borderRadius: '8px',
+            border: '1px solid #e9ecef'
+          }}>
+            <h4 style={{ 
+              fontSize: '15px', 
+              fontWeight: 600, 
+              marginBottom: '16px', 
+              color: '#28a745',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span style={{ fontSize: '18px' }}>📊</span> Score Statistics
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'white', borderRadius: '6px' }}>
+                <span style={{ color: '#6c757d', fontSize: '14px' }}>Mean:</span>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>{(data.runs.reduce((sum, r) => sum + r.score, 0) / data.runs.length).toFixed(4)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'white', borderRadius: '6px' }}>
+                <span style={{ color: '#6c757d', fontSize: '14px' }}>Median:</span>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>{data.runs.sort((a, b) => a.score - b.score)[Math.floor(data.runs.length / 2)]?.score.toFixed(4)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'white', borderRadius: '6px' }}>
+                <span style={{ color: '#6c757d', fontSize: '14px' }}>Min:</span>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>{Math.min(...data.runs.map(r => r.score)).toFixed(4)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'white', borderRadius: '6px' }}>
+                <span style={{ color: '#6c757d', fontSize: '14px' }}>Max:</span>
+                <span style={{ fontWeight: 600, fontSize: '14px', color: '#28a745' }}>{Math.max(...data.runs.map(r => r.score)).toFixed(4)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'white', borderRadius: '6px' }}>
+                <span style={{ color: '#6c757d', fontSize: '14px' }}>Std Dev:</span>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>{Math.sqrt(
+                  data.runs.reduce((sum, r) => sum + Math.pow(r.score - data.runs.reduce((s, r2) => s + r2.score, 0) / data.runs.length, 2), 0) / data.runs.length
+                ).toFixed(4)}</span>
+              </div>
+            </div>
           </div>
-          <div>
-            <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>Cost Statistics</h4>
-            <ul style={{ listStyle: 'none', padding: 0 }}>
-              <li>Total: ${data.totalCost.toFixed(2)}</li>
-              <li>Mean: ${(data.totalCost / data.runs.length).toFixed(2)}</li>
-              <li>Median: ${data.runs.sort((a, b) => a.cost - b.cost)[Math.floor(data.runs.length / 2)]?.cost.toFixed(2)}</li>
-              <li>Min: ${Math.min(...data.runs.map(r => r.cost)).toFixed(2)}</li>
-              <li>Max: ${Math.max(...data.runs.map(r => r.cost)).toFixed(2)}</li>
-            </ul>
+          <div style={{ 
+            backgroundColor: '#f8f9fa', 
+            padding: '20px', 
+            borderRadius: '8px',
+            border: '1px solid #e9ecef'
+          }}>
+            <h4 style={{ 
+              fontSize: '15px', 
+              fontWeight: 600, 
+              marginBottom: '16px', 
+              color: '#ffc107',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}>
+              <span style={{ fontSize: '18px' }}>💵</span> Cost Statistics
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'white', borderRadius: '6px' }}>
+                <span style={{ color: '#6c757d', fontSize: '14px' }}>Total:</span>
+                <span style={{ fontWeight: 600, fontSize: '14px', color: '#ffc107' }}>${data.totalCost.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'white', borderRadius: '6px' }}>
+                <span style={{ color: '#6c757d', fontSize: '14px' }}>Mean:</span>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>${(data.totalCost / data.runs.length).toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'white', borderRadius: '6px' }}>
+                <span style={{ color: '#6c757d', fontSize: '14px' }}>Median:</span>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>${data.runs.sort((a, b) => a.cost - b.cost)[Math.floor(data.runs.length / 2)]?.cost.toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'white', borderRadius: '6px' }}>
+                <span style={{ color: '#6c757d', fontSize: '14px' }}>Min:</span>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>${Math.min(...data.runs.map(r => r.cost)).toFixed(2)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', backgroundColor: 'white', borderRadius: '6px' }}>
+                <span style={{ color: '#6c757d', fontSize: '14px' }}>Max:</span>
+                <span style={{ fontWeight: 600, fontSize: '14px' }}>${Math.max(...data.runs.map(r => r.cost)).toFixed(2)}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

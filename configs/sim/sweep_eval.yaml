@@ -1,10 +1,10 @@
 defaults:
-  - arena  # Inherit from arena to get all 5 arena environments
+  - arena # Inherit from arena to get all 5 arena environments
   - _self_
 
 name: sweep_eval
 
 # Override evaluation parameters for sweep evaluations
 # num_episodes will be overridden by phase configuration (7/20/50)
-max_time_s: 240  # 4 minutes per simulation max
-num_episodes: 7  # Default, will be overridden by phases
+max_time_s: 240 # 4 minutes per simulation max
+num_episodes: 7 # Default, will be overridden by phases

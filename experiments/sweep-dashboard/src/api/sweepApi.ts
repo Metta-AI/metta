@@ -2,18 +2,26 @@ import { SweepData, SweepRun } from '../types'
 
 const API_BASE = 'http://localhost:8000'
 
-export async function fetchAvailableSweeps(): Promise<string[]> {
+export interface SweepsResponse {
+  sweeps: string[]
+  count: number
+  entity?: string
+  project?: string
+  error?: string
+}
+
+export async function fetchAvailableSweeps(): Promise<SweepsResponse> {
   try {
     const response = await fetch(`${API_BASE}/api/sweeps`)
     if (!response.ok) {
       throw new Error('Failed to fetch sweeps')
     }
     const data = await response.json()
-    return data.sweeps
+    return data
   } catch (error) {
     console.error('Error fetching sweeps:', error)
-    // Return empty array if backend is not running
-    return []
+    // Return empty response if backend is not running
+    return { sweeps: [], count: 0, error: 'Backend not available' }
   }
 }
 

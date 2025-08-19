@@ -108,17 +108,43 @@ def extract_observations_to_dict(observations):
 
 
 @app.get("/api/sweeps")
-async def get_available_sweeps():
-    """Get list of available sweeps"""
-    # In production, this would query WandB API for available sweeps
-    # For now, return some example sweep names
-    return {
-        "sweeps": [
-            "protein-optimization-2024",
-            "hyperparameter-sweep-v3",
-            "architecture-search-latest",
-        ]
-    }
+async def get_available_sweeps(
+    entity: str = DEFAULT_ENTITY,
+    project: str = DEFAULT_PROJECT,
+):
+    """Get list of available sweeps from WandB"""
+    try:
+        from metta.sweep.wandb_utils import get_all_sweep_groups
+
+        # Get all sweep groups from WandB
+        sweeps = get_all_sweep_groups(entity=entity, project=project, max_runs=500)
+
+        # If no sweeps found, return some defaults for testing
+        if not sweeps:
+            sweeps = [
+                "protein-optimization-2024",
+                "hyperparameter-sweep-v3",
+                "architecture-search-latest",
+            ]
+
+        return {
+            "sweeps": sweeps,
+            "count": len(sweeps),
+            "entity": entity,
+            "project": project,
+        }
+    except Exception as e:
+        print(f"Error fetching sweep groups: {e}")
+        # Fallback to example sweeps if WandB API fails
+        return {
+            "sweeps": [
+                "protein-optimization-2024",
+                "hyperparameter-sweep-v3",
+                "architecture-search-latest",
+            ],
+            "count": 3,
+            "error": str(e),
+        }
 
 
 @app.get("/api/sweeps/{sweep_name}/confidence")

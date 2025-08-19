@@ -13,8 +13,51 @@ logger = logging.getLogger("sweep")
 def get_active_sweep_runs(sweep_name: str, entity: str, project: str) -> List[Any]:
     """Get all active runs from a sweep (group)."""
     api = wandb.Api()
-    runs = api.runs(f"{entity}/{project}", filters={"group": sweep_name, "state": "running"})
+    runs = api.runs(
+        f"{entity}/{project}",
+        filters={
+            "group": sweep_name,
+            "state": "running",
+        },
+    )
     return runs
+
+
+def get_all_sweep_groups(entity: str, project: str, max_runs: int = 200) -> List[str]:
+    """
+    Get all unique sweep group names from runs with the 'sweep' tag.
+
+    Args:
+        entity: WandB entity
+        project: WandB project
+        max_runs: Maximum number of runs to process (for efficiency)
+
+    Returns:
+        List of unique sweep group names, sorted alphabetically
+    """
+    api = wandb.Api(timeout=60)
+
+    # Get runs with sweep tag
+    runs = api.runs(
+        f"{entity}/{project}",
+        filters={"tags": {"$in": ["sweep"]}},  # Only runs with sweep tag
+        per_page=50,  # Process in reasonable batches
+        order="-created_at",  # Most recent first
+    )
+
+    groups = set()
+    processed = 0
+
+    for run in runs:
+        if processed >= max_runs:
+            break
+
+        if run.group:  # Only add if group exists
+            groups.add(run.group)
+
+        processed += 1
+
+    return sorted(list(groups))
 
 
 def get_sweep_runs(sweep_name: str, entity: str, project: str) -> List[Any]:
