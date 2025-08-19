@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Optional
 import numpy as np
 from pydantic import Field, model_validator
 
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 
 if TYPE_CHECKING:
@@ -45,14 +46,16 @@ class MapGen(MapBuilder):
 
         # Alternative to `root`: Root map configuration.
         # Either this or `root` must be set.
-        # The difference is that `root` doesn't have an intrinsic size, so you need to set `width` and `height` explicitly.
+        # The difference is that `root` doesn't have an intrinsic size, so you
+        # need to set `width` and `height` explicitly.
         # `instance_map` must point to a `MapBuilder` configuration, with the class name specified in `type`, and params
         # specified in `params` dict.
         instance_map: Optional[AnyMapBuilderConfig] = Field(default=None)
 
         ########## Multiple instances parameters ##########
 
-        # MapGen can place multiple instances of the root scene on the grid. This is useful for additional parallelization.
+        # MapGen can place multiple instances of the root scene on the
+        # grid. This is useful for additional parallelization.
         # By default, the map will be generated as a single root scene instance, with the given width and height.
         #
         # There are two ways to get multiple root scene instances:
@@ -62,11 +65,13 @@ class MapGen(MapBuilder):
         # In either case, if the number of instances is larger than 1, MapGen will organize them in a grid separated by
         # borders, and make the overall grid as square as possible.
 
-        # Number of root scene instances to generate. If set, the map will be generated as a grid of instances, separated by
+        # Number of root scene instances to generate. If set, the map will be generated
+        # as a grid of instances, separated by
         # the given `instance_border_width`.
         instances: Optional[int] = Field(default=None, ge=1)
 
-        # Number of agents to generate. If set, MapGen will automatically compute the number of instances based on how many
+        # Number of agents to generate. If set, MapGen will automatically compute the
+        # number of instances based on how many
         # agents there are in the root scene.
         num_agents: Optional[int] = Field(default=None, ge=0)
 
@@ -86,7 +91,7 @@ class MapGen(MapBuilder):
             return self
 
         @classmethod
-        def with_ascii(cls, ascii_map: str, **kwargs) -> "MapGen.Config":
+        def with_ascii_uri(cls, ascii_map_uri: str, **kwargs) -> "MapGen.Config":
             """Create a MapGenConfig with an ASCII map file as the instance_map.
             Args:
                 ascii_map: Path to ASCII map file
@@ -94,9 +99,7 @@ class MapGen(MapBuilder):
             Returns:
                 New MapGenConfig instance
             """
-            from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
-
-            kwargs["instance_map"] = AsciiMapBuilderConfig.from_uri(ascii_map)
+            kwargs["instance_map"] = AsciiMapBuilder.Config.from_uri(ascii_map_uri)
             return cls(**kwargs)
 
     def __init__(self, config: Config):
