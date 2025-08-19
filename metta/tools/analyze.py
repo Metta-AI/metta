@@ -9,13 +9,13 @@ from metta.common.config.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.analysis import analyze
 from metta.eval.analysis_config import AnalysisConfig
-from softmax import softmax
+from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
 
 class AnalysisTool(Tool):
-    wandb: WandbConfig = softmax.wandb_config()
+    wandb: WandbConfig = auto_wandb_config()
 
     analysis: AnalysisConfig
     policy_uri: str

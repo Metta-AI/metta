@@ -34,6 +34,11 @@ class WandbConfig(Config):
     def Off() -> "WandbConfig":
         return WandbConfig(enabled=False, project="na", entity="na")
 
+    # Has the same behavior as Off, but indicates that it should be replaced by wandb_auto_config
+    @staticmethod
+    def Unconfigured() -> "WandbConfig":
+        return WandbConfig(enabled=False, project="unconfigured", entity="unconfigured")
+
 
 class WandbContext:
     """
