@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.distributed
 from heavyball import ForeachMuon
-from omegaconf import DictConfig
+from metta.agent.agent_config import AgentConfig
 from torchrl.data import Composite
 
 from metta.agent.metta_agent import PolicyAgent
@@ -89,7 +89,7 @@ def train(
     run_dir: str,
     run: str,
     system_cfg: SystemConfig,
-    agent_cfg: DictConfig,
+    agent_cfg: AgentConfig,
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,

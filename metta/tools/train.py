@@ -5,9 +5,9 @@ from logging import Logger
 from typing import Any, Optional
 
 import torch
-import yaml
 from omegaconf import OmegaConf
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
@@ -31,7 +31,7 @@ def log_on_master(*args, **argv):
 class TrainTool(Tool):
     trainer: TrainerConfig = TrainerConfig()
     wandb: WandbConfig = WandbConfig.Unconfigured()
-    policy_architecture: Optional[Any] = None
+    policy_architecture: Optional[AgentConfig] = None
     run: str
     run_dir: Optional[str] = None
     stats_server_uri: Optional[str] = auto_stats_server_uri()
@@ -54,9 +54,10 @@ class TrainTool(Tool):
         # Set up checkpoint and replay directories
         if not self.trainer.checkpoint.checkpoint_dir:
             self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
-
+        
+        # Initialize policy_architecture if not provided
         if self.policy_architecture is None:
-            self.policy_architecture = yaml.safe_load(open("configs/agent/fast.yaml"))
+            self.policy_architecture = AgentConfig()
 
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
@@ -134,7 +135,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         run=cfg.run,
         run_dir=run_dir,
         system_cfg=cfg.system,
-        agent_cfg=OmegaConf.create(cfg.policy_architecture),
+        agent_cfg=cfg.policy_architecture,
         device=torch.device(cfg.system.device),
         trainer_cfg=cfg.trainer,
         wandb_run=wandb_run,

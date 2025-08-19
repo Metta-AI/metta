@@ -1,13 +1,10 @@
 """
-Agent configuration system following the dehydration branch pattern.
-
-This module provides factory functions for creating agent instances,
-replacing the string-based agent_mapper with a type-safe configuration approach.
+Agent configuration following the dehydration branch Config pattern.
 """
 
-from typing import Any
+from typing import Literal
 
-import torch.nn as nn
+from metta.common.config import Config
 
 # ComponentPolicy implementations (modular architecture)
 from metta.agent.component_policies.fast import Fast as ComponentFast
@@ -23,108 +20,68 @@ from metta.agent.pytorch.latent_attn_small import LatentAttnSmall as PyTorchLate
 from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatentAttnTiny
 
 
-def fast(
-    obs_space: Any = None,
-    obs_width: int = None,
-    obs_height: int = None,
-    feature_normalizations: dict = None,
-    config: dict = None,
-    **kwargs,
-) -> nn.Module:
-    """Create a Fast CNN-based component policy."""
-    config = config or {"clip_range": 0, "analyze_weights_interval": 300}
-    return ComponentFast(
-        obs_space=obs_space,
-        obs_width=obs_width,
-        obs_height=obs_height,
-        feature_normalizations=feature_normalizations,
-        config=config,
-    )
+class AgentConfig(Config):
+    """Configuration for agent architecture selection."""
+    
+    name: Literal[
+        "fast",
+        "latent_attn_tiny", 
+        "latent_attn_small",
+        "latent_attn_med",
+        "pytorch/example",
+        "pytorch/fast",
+        "pytorch/latent_attn_tiny",
+        "pytorch/latent_attn_small",
+        "pytorch/latent_attn_med",
+    ] = "fast"
+    
+    clip_range: float = 0
+    analyze_weights_interval: int = 300
 
 
-def latent_attn_tiny(
-    obs_space: Any = None,
-    obs_width: int = None,
-    obs_height: int = None,
-    feature_normalizations: dict = None,
-    config: dict = None,
-    **kwargs,
-) -> nn.Module:
-    """Create a Latent Attention Tiny component policy."""
-    config = config or {"clip_range": 0, "analyze_weights_interval": 300}
-    return ComponentLatentAttnTiny(
-        obs_space=obs_space,
-        obs_width=obs_width,
-        obs_height=obs_height,
-        feature_normalizations=feature_normalizations,
-        config=config,
-    )
+# Registry mapping agent names to classes
+AGENT_REGISTRY = {
+    "fast": ComponentFast,
+    "latent_attn_tiny": ComponentLatentAttnTiny,
+    "latent_attn_small": ComponentLatentAttnSmall,
+    "latent_attn_med": ComponentLatentAttnMed,
+    "pytorch/example": Example,
+    "pytorch/fast": PyTorchFast,
+    "pytorch/latent_attn_tiny": PyTorchLatentAttnTiny,
+    "pytorch/latent_attn_small": PyTorchLatentAttnSmall,
+    "pytorch/latent_attn_med": PyTorchLatentAttnMed,
+}
 
 
-def latent_attn_small(
-    obs_space: Any = None,
-    obs_width: int = None,
-    obs_height: int = None,
-    feature_normalizations: dict = None,
-    config: dict = None,
-    **kwargs,
-) -> nn.Module:
-    """Create a Latent Attention Small component policy."""
-    config = config or {"clip_range": 0, "analyze_weights_interval": 300}
-    return ComponentLatentAttnSmall(
-        obs_space=obs_space,
-        obs_width=obs_width,
-        obs_height=obs_height,
-        feature_normalizations=feature_normalizations,
-        config=config,
-    )
-
-
-def latent_attn_med(
-    obs_space: Any = None,
-    obs_width: int = None,
-    obs_height: int = None,
-    feature_normalizations: dict = None,
-    config: dict = None,
-    **kwargs,
-) -> nn.Module:
-    """Create a Latent Attention Medium component policy."""
-    config = config or {"clip_range": 0, "analyze_weights_interval": 300}
-    return ComponentLatentAttnMed(
-        obs_space=obs_space,
-        obs_width=obs_width,
-        obs_height=obs_height,
-        feature_normalizations=feature_normalizations,
-        config=config,
-    )
-
-
-# PyTorch implementations with different signature
-def pytorch_example(env: Any = None, **kwargs) -> nn.Module:
-    """Create a PyTorch Example policy."""
-    config = kwargs.get("config", {"clip_range": 0, "analyze_weights_interval": 300})
-    return Example(env=env, **config)
-
-
-def pytorch_fast(env: Any = None, **kwargs) -> nn.Module:
-    """Create a PyTorch Fast policy."""
-    config = kwargs.get("config", {"clip_range": 0, "analyze_weights_interval": 300})
-    return PyTorchFast(env=env, **config)
-
-
-def pytorch_latent_attn_tiny(env: Any = None, **kwargs) -> nn.Module:
-    """Create a PyTorch Latent Attention Tiny policy."""
-    config = kwargs.get("config", {"clip_range": 0, "analyze_weights_interval": 300})
-    return PyTorchLatentAttnTiny(env=env, **config)
-
-
-def pytorch_latent_attn_small(env: Any = None, **kwargs) -> nn.Module:
-    """Create a PyTorch Latent Attention Small policy."""
-    config = kwargs.get("config", {"clip_range": 0, "analyze_weights_interval": 300})
-    return PyTorchLatentAttnSmall(env=env, **config)
-
-
-def pytorch_latent_attn_med(env: Any = None, **kwargs) -> nn.Module:
-    """Create a PyTorch Latent Attention Medium policy."""
-    config = kwargs.get("config", {"clip_range": 0, "analyze_weights_interval": 300})
-    return PyTorchLatentAttnMed(env=env, **config)
+def create_agent(
+    config: AgentConfig,
+    obs_space=None,
+    obs_width=None,
+    obs_height=None,
+    feature_normalizations=None,
+    env=None,
+):
+    """Create an agent instance from configuration."""
+    if config.name not in AGENT_REGISTRY:
+        raise ValueError(f"Unknown agent: '{config.name}'. Available: {list(AGENT_REGISTRY.keys())}")
+    
+    AgentClass = AGENT_REGISTRY[config.name]
+    
+    # PyTorch models use env, ComponentPolicies use structured parameters
+    if config.name.startswith("pytorch/"):
+        return AgentClass(
+            env=env,
+            clip_range=config.clip_range,
+            analyze_weights_interval=config.analyze_weights_interval,
+        )
+    else:
+        return AgentClass(
+            obs_space=obs_space,
+            obs_width=obs_width,
+            obs_height=obs_height,
+            feature_normalizations=feature_normalizations,
+            config={
+                "clip_range": config.clip_range,
+                "analyze_weights_interval": config.analyze_weights_interval,
+            },
+        )
