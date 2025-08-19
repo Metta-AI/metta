@@ -15,6 +15,7 @@ game:
   objects:
     box:
       type_id: 12
+      resources_to_create: {}
 
   map_builder:
     _target_: metta.map.mapgen_ascii.MapGenAscii
