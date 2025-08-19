@@ -226,10 +226,9 @@ class CheckpointManager:
             from metta.agent.agent_config import AgentConfig
 
             agent_config = AgentConfig(
-                env=metta_grid_env,
                 agent=agent,
             )
-            new_policy_record.policy = MettaAgent(agent_config, system_cfg)
+            new_policy_record.policy = MettaAgent(agent_config, metta_grid_env, system_cfg)
 
             # Only master saves the new policy to disk
             if self.is_master:

@@ -13,6 +13,7 @@ from torchrl.data import Composite, UnboundedDiscrete
 from metta.agent.agent_config import AgentConfig
 from metta.agent.agent_interface import MettaAgentInterface
 from metta.agent.pytorch.agent_mapper import agent_classes
+from metta.mettagrid import MettaGridEnv
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
@@ -60,6 +61,7 @@ class MettaAgent(MettaAgentInterface):
     def __init__(
         self,
         config: AgentConfig,
+        env: MettaGridEnv,
         system_cfg: SystemConfig,
     ):
         super().__init__()
@@ -76,19 +78,19 @@ class MettaAgent(MettaAgentInterface):
         # Create observation space
         self.obs_space = gym.spaces.Dict(
             {
-                "grid_obs": config.env.single_observation_space,
+                "grid_obs": env.single_observation_space,
                 "global_vars": gym.spaces.Box(low=-np.inf, high=np.inf, shape=(0,), dtype=np.int32),
             }
         )
 
-        self.obs_width = config.env.obs_width
-        self.obs_height = config.env.obs_height
-        self.action_space = config.env.single_action_space
-        self.feature_normalizations = config.env.feature_normalizations
+        self.obs_width = env.obs_width
+        self.obs_height = env.obs_height
+        self.action_space = env.single_action_space
+        self.feature_normalizations = env.feature_normalizations
 
         # Create policy if not provided
         if config.policy is None:
-            policy = self._create_policy(config.agent, config.env, system_cfg)
+            policy = self._create_policy(config.agent, env, system_cfg)
         else:
             policy = config.policy
 

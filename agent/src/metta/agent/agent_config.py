@@ -5,11 +5,9 @@ import torch.nn as nn
 from pydantic import ConfigDict
 
 from metta.common.util.config import Config
-from metta.mettagrid import MettaGridEnv
 
 
 class AgentConfig(Config):
-    env: MettaGridEnv
     agent: Literal[
         "fast",
         "latent_attn_med",

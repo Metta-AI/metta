@@ -104,11 +104,10 @@ def create_metta_agent():
     from metta.agent.agent_config import AgentConfig
 
     agent_config = AgentConfig(
-        env=MinimalEnv(),
         agent=agent_cfg,
         policy=None,  # Will create ComponentPolicy internally
     )
-    agent = MettaAgent(agent_config, system_cfg)
+    agent = MettaAgent(agent_config, MinimalEnv(), system_cfg)
 
     # Create test components that have clip_weights method for testing
     class ClippableComponent(torch.nn.Module):

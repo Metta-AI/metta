@@ -53,11 +53,10 @@ def test_metta_agent_with_vanilla_policy():
 
     vanilla_policy = VanillaTorchPolicy()
     agent_config = AgentConfig(
-        env=MinimalEnv(),
         agent=agent_cfg,
         policy=vanilla_policy,
     )
-    agent = MettaAgent(agent_config, system_cfg)
+    agent = MettaAgent(agent_config, MinimalEnv(), system_cfg)
 
     # Test that initialization works
     features = {
@@ -131,11 +130,10 @@ def test_metta_agent_fallback_methods():
 
     policy = MinimalPolicy()
     agent_config = AgentConfig(
-        env=MinimalEnv(),
         agent=agent_cfg,
         policy=policy,
     )
-    agent = MettaAgent(agent_config, system_cfg)
+    agent = MettaAgent(agent_config, MinimalEnv(), system_cfg)
 
     # Test that all these methods work without errors
     features = {"test": {"id": 1, "type": "scalar"}}
