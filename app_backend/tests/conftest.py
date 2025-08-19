@@ -25,6 +25,50 @@ from metta.common.test_support import docker_client_fixture, isolated_test_schem
 docker_client = docker_client_fixture()
 
 
+# HTTP Testing Infrastructure for EvalTaskOrchestrator tests
+
+
+class HttpEvalTaskClientEnv:
+    """Environment for HTTP-based eval task client tests."""
+
+    def __init__(self, base_url: str, token: str):
+        self.base_url = base_url
+        self.token = token
+        self._httpx_clients = []
+
+    def make_client(self) -> EvalTaskClient:
+        """Create a new EvalTaskClient instance."""
+        client = EvalTaskClient.__new__(EvalTaskClient)
+        httpx_client = AsyncClient(base_url=self.base_url)
+        client._http_client = httpx_client
+        client._machine_token = self.token
+        self._httpx_clients.append(httpx_client)
+        return client
+
+    async def aclose_all(self):
+        await asyncio.gather(*(cl.aclose() for cl in self._httpx_clients), return_exceptions=True)
+
+
+class TestClientStatsEnv:
+    """Environment for TestClient-based stats client tests."""
+
+    def __init__(self, test_client: TestClient, token: str):
+        self.test_client = test_client
+        self.token = token
+        self._clients = []
+
+    def make_client(self) -> StatsClient:
+        """Create a new StatsClient instance using TestClient."""
+        client = create_test_stats_client(self.test_client, self.token)
+        self._clients.append(client)
+        return client
+
+    def close_all(self):
+        """Clean up all clients if needed."""
+        # TestClient cleanup happens automatically
+        pass
+
+
 @pytest.fixture(scope="session", autouse=True)
 def mock_debug_user_email():
     """Mock debug_user_email for all tests to prevent local env interference."""
@@ -86,20 +130,10 @@ def auth_headers() -> Dict[str, str]:
     return {"X-Auth-Request-Email": "test@example.com"}
 
 
-@pytest.fixture(scope="class")
-def stats_client(test_client: TestClient) -> StatsClient:
-    """Create a stats client for testing."""
-    # First create a machine token
-    token_response = test_client.post(
-        "/tokens",
-        json={"name": "test_token", "permissions": ["read", "write"]},
-        headers={"X-Auth-Request-Email": "test_user@example.com"},
-    )
-    assert token_response.status_code == 200, f"Failed to create token: {token_response.text}"
-    token = token_response.json()["token"]
-
-    # Create stats client that works with TestClient
-    return create_test_stats_client(test_client, machine_token=token)
+@pytest.fixture
+def stats_client(test_client_stats_env: TestClientStatsEnv) -> StatsClient:
+    """Create a stats client for testing using TestClient environment."""
+    return test_client_stats_env.make_client()
 
 
 # Isolated fixtures for function-scoped testing
@@ -129,19 +163,9 @@ def isolated_test_client(isolated_test_app: FastAPI) -> TestClient:
 
 
 @pytest.fixture(scope="function")
-def isolated_stats_client(isolated_test_client: TestClient) -> StatsClient:
+def isolated_stats_client(isolated_test_client_stats_env: TestClientStatsEnv) -> StatsClient:
     """Create a stats client with isolated database for testing."""
-    # First create a machine token
-    token_response = isolated_test_client.post(
-        "/tokens",
-        json={"name": "test_token", "permissions": ["read", "write"]},
-        headers={"X-Auth-Request-Email": "test_user@example.com"},
-    )
-    assert token_response.status_code == 200, f"Failed to create token: {token_response.text}"
-    token = token_response.json()["token"]
-
-    # Create stats client that works with TestClient
-    return create_test_stats_client(isolated_test_client, machine_token=token)
+    return isolated_test_client_stats_env.make_client()
 
 
 @pytest.fixture
@@ -238,30 +262,6 @@ def record_episodes(stats_client: StatsClient):
     return _record
 
 
-# HTTP Testing Infrastructure for EvalTaskOrchestrator tests
-
-
-class HttpEvalTaskClientEnv:
-    """Environment for HTTP-based eval task client tests."""
-
-    def __init__(self, base_url: str, token: str):
-        self.base_url = base_url
-        self.token = token
-        self._httpx_clients = []
-
-    def make_client(self) -> EvalTaskClient:
-        """Create a new EvalTaskClient instance."""
-        client = EvalTaskClient.__new__(EvalTaskClient)
-        httpx_client = AsyncClient(base_url=self.base_url)
-        client._http_client = httpx_client
-        client._machine_token = self.token
-        self._httpx_clients.append(httpx_client)
-        return client
-
-    async def aclose_all(self):
-        await asyncio.gather(*(cl.aclose() for cl in self._httpx_clients), return_exceptions=True)
-
-
 def _find_free_port() -> int:
     """Find a free port for the HTTP server."""
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -300,7 +300,7 @@ async def _http_server(test_app: FastAPI):
 
 
 @pytest_asyncio.fixture
-async def http_env(test_app: FastAPI, test_client: TestClient) -> AsyncGenerator[HttpEvalTaskClientEnv, Any]:
+async def http_eval_task_env(test_app: FastAPI, test_client: TestClient) -> AsyncGenerator[HttpEvalTaskClientEnv, Any]:
     """Create an HTTP environment for eval task client tests."""
     async with _http_server(test_app) as base_url:
         async with AsyncClient(base_url=base_url) as tmp:
@@ -316,6 +316,55 @@ async def http_env(test_app: FastAPI, test_client: TestClient) -> AsyncGenerator
             yield env
         finally:
             await env.aclose_all()
+
+
+@pytest_asyncio.fixture
+async def isolated_http_eval_task_env(isolated_test_app: FastAPI) -> AsyncGenerator[HttpEvalTaskClientEnv, Any]:
+    """Create an HTTP environment for isolated database tests."""
+    async with _http_server(isolated_test_app) as base_url:
+        async with AsyncClient(base_url=base_url) as tmp:
+            r = await tmp.post(
+                "/tokens",
+                json={"name": "isolated_test_token", "permissions": ["read", "write"]},
+                headers={"X-Auth-Request-Email": "test_user@example.com"},
+            )
+            r.raise_for_status()
+            token = r.json()["token"]
+        env = HttpEvalTaskClientEnv(base_url=base_url, token=token)
+        try:
+            yield env
+        finally:
+            await env.aclose_all()
+
+
+@pytest.fixture
+def test_client_stats_env(test_client: TestClient) -> TestClientStatsEnv:
+    """Create a TestClient environment for stats client tests."""
+    # Create a token first using TestClient
+    token_response = test_client.post(
+        "/tokens",
+        json={"name": "test_client_stats_token", "permissions": ["read", "write"]},
+        headers={"X-Auth-Request-Email": "test_user@example.com"},
+    )
+    assert token_response.status_code == 200, f"Failed to create token: {token_response.text}"
+    token = token_response.json()["token"]
+
+    return TestClientStatsEnv(test_client, token)
+
+
+@pytest.fixture(scope="function")
+def isolated_test_client_stats_env(isolated_test_client: TestClient) -> TestClientStatsEnv:
+    """Create a TestClient environment for isolated stats client tests."""
+    # Create a token first using TestClient
+    token_response = isolated_test_client.post(
+        "/tokens",
+        json={"name": "isolated_test_client_stats_token", "permissions": ["read", "write"]},
+        headers={"X-Auth-Request-Email": "test_user@example.com"},
+    )
+    assert token_response.status_code == 200, f"Failed to create token: {token_response.text}"
+    token = token_response.json()["token"]
+
+    return TestClientStatsEnv(isolated_test_client, token)
 
 
 @pytest.fixture

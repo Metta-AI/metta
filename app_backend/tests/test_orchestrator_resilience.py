@@ -66,19 +66,19 @@ class TestOrchestratorResilience:
     def test_policy_id(self, orchestrator_test_policy_id):
         return orchestrator_test_policy_id
 
-    def create_reliable_worker(self, worker_name: str, http_env) -> EvalTaskWorker:
+    def create_reliable_worker(self, worker_name: str, http_eval_task_env) -> EvalTaskWorker:
         """Create a worker that executes tasks reliably."""
         return EvalTaskWorker(
-            client=http_env.make_client(),
+            client=http_eval_task_env.make_client(),
             assignee=worker_name,
             task_executor=ReliableTaskExecutor(delay=0.1),
             poll_interval=0.1,
         )
 
     @pytest.mark.asyncio
-    async def test_network_failure_resilience(self, http_env, test_policy_id: uuid.UUID):
+    async def test_network_failure_resilience(self, http_eval_task_env, test_policy_id: uuid.UUID):
         """Test orchestrator resilience to network failures."""
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create tasks
         task_ids = []
@@ -93,13 +93,13 @@ class TestOrchestratorResilience:
             task_ids.append(task_response.id)
 
         def create_worker(worker_name: str) -> EvalTaskWorker:
-            return self.create_reliable_worker(worker_name, http_env)
+            return self.create_reliable_worker(worker_name, http_eval_task_env)
 
         worker_manager = ThreadWorkerManager(create_worker=create_worker)
 
         # Create orchestrator with original client
         orchestrator = EvalTaskOrchestrator(
-            task_client=http_env.make_client(),
+            task_client=http_eval_task_env.make_client(),
             worker_manager=worker_manager,
             poll_interval=0.2,
             worker_scaler=FixedScaler(2),
@@ -156,9 +156,9 @@ class TestOrchestratorResilience:
             worker_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_backend_connection_failure(self, http_env, orchestrator_test_policy_id: uuid.UUID):
+    async def test_backend_connection_failure(self, http_eval_task_env, orchestrator_test_policy_id: uuid.UUID):
         """Test orchestrator resilience when backend server is unreachable."""
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create some tasks first while backend is working
         task_ids = []
@@ -173,7 +173,7 @@ class TestOrchestratorResilience:
             task_ids.append(task_response.id)
 
         def create_worker(worker_name: str) -> EvalTaskWorker:
-            return self.create_reliable_worker(worker_name, http_env)
+            return self.create_reliable_worker(worker_name, http_eval_task_env)
 
         worker_manager = ThreadWorkerManager(create_worker=create_worker)
 
@@ -230,9 +230,9 @@ class TestOrchestratorResilience:
             worker_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_api_timeout_handling(self, http_env, orchestrator_test_policy_id: uuid.UUID):
+    async def test_api_timeout_handling(self, http_eval_task_env, orchestrator_test_policy_id: uuid.UUID):
         """Test when individual API calls to backend timeout."""
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create some tasks first
         task_ids = []
@@ -247,7 +247,7 @@ class TestOrchestratorResilience:
             task_ids.append(task_response.id)
 
         def create_worker(worker_name: str) -> EvalTaskWorker:
-            return self.create_reliable_worker(worker_name, http_env)
+            return self.create_reliable_worker(worker_name, http_eval_task_env)
 
         worker_manager = ThreadWorkerManager(create_worker=create_worker)
 
@@ -305,9 +305,9 @@ class TestOrchestratorResilience:
             worker_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_partial_api_failure(self, http_env, orchestrator_test_policy_id: uuid.UUID):
+    async def test_partial_api_failure(self, http_eval_task_env, orchestrator_test_policy_id: uuid.UUID):
         """Test when some API endpoints work but others return 500 errors."""
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create some tasks first
         task_ids = []
@@ -322,7 +322,7 @@ class TestOrchestratorResilience:
             task_ids.append(task_response.id)
 
         def create_worker(worker_name: str) -> EvalTaskWorker:
-            return self.create_reliable_worker(worker_name, http_env)
+            return self.create_reliable_worker(worker_name, http_eval_task_env)
 
         worker_manager = ThreadWorkerManager(create_worker=create_worker)
 
@@ -382,9 +382,9 @@ class TestOrchestratorResilience:
             worker_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_database_constraint_violation(self, http_env, orchestrator_test_policy_id: uuid.UUID):
+    async def test_database_constraint_violation(self, http_eval_task_env, orchestrator_test_policy_id: uuid.UUID):
         """Test handling of database constraint violations (unique key, foreign key, etc)."""
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create some tasks
         task_ids = []
@@ -399,7 +399,7 @@ class TestOrchestratorResilience:
             task_ids.append(task_response.id)
 
         def create_worker(worker_name: str) -> EvalTaskWorker:
-            return self.create_reliable_worker(worker_name, http_env)
+            return self.create_reliable_worker(worker_name, http_eval_task_env)
 
         worker_manager = ThreadWorkerManager(create_worker=create_worker)
 
@@ -459,10 +459,10 @@ class TestOrchestratorResilience:
             worker_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_worker_manager_failures(self, http_env, orchestrator_test_policy_id: uuid.UUID):
+    async def test_worker_manager_failures(self, http_eval_task_env, orchestrator_test_policy_id: uuid.UUID):
         """Test resilience to worker manager failures."""
 
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create a task for worker manager failure test
         await eval_task_client.create_task(
@@ -536,10 +536,10 @@ class TestOrchestratorResilience:
                 pass
 
     @pytest.mark.asyncio
-    async def test_concurrent_orchestrator_resilience(self, http_env, orchestrator_test_policy_id: uuid.UUID):
+    async def test_concurrent_orchestrator_resilience(self, http_eval_task_env, orchestrator_test_policy_id: uuid.UUID):
         """Test resilience with multiple orchestrators running concurrently."""
 
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create multiple tasks
         task_ids = []
@@ -568,7 +568,7 @@ class TestOrchestratorResilience:
                             executor = ReliableTaskExecutor(delay=0.1)
 
                         return EvalTaskWorker(
-                            client=http_env.make_client(),
+                            client=http_eval_task_env.make_client(),
                             assignee=worker_name,
                             task_executor=executor,
                             poll_interval=0.1,
@@ -630,10 +630,10 @@ class TestOrchestratorResilience:
                 worker_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_resource_exhaustion_handling(self, http_env, orchestrator_test_policy_id: uuid.UUID):
+    async def test_resource_exhaustion_handling(self, http_eval_task_env, orchestrator_test_policy_id: uuid.UUID):
         """Test handling of resource exhaustion scenarios."""
 
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create many tasks to simulate load
         task_ids = []
@@ -669,7 +669,7 @@ class TestOrchestratorResilience:
 
         def create_worker(worker_name: str) -> EvalTaskWorker:
             return EvalTaskWorker(
-                client=http_env.make_client(),
+                client=http_eval_task_env.make_client(),
                 assignee=worker_name,
                 task_executor=resource_executor,
                 poll_interval=0.1,
@@ -717,10 +717,10 @@ class TestOrchestratorResilience:
             worker_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_graceful_degradation_under_load(self, http_env, orchestrator_test_policy_id: uuid.UUID):
+    async def test_graceful_degradation_under_load(self, http_eval_task_env, orchestrator_test_policy_id: uuid.UUID):
         """Test graceful degradation under high load conditions."""
 
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create a large number of tasks
         task_ids = []
@@ -738,7 +738,7 @@ class TestOrchestratorResilience:
             # Mix of fast and slow workers to simulate realistic conditions
             delay = 0.1 if "fast" in worker_name else 0.2  # Reduced slow delay from 0.4 to 0.2
             return EvalTaskWorker(
-                client=http_env.make_client(),
+                client=http_eval_task_env.make_client(),
                 assignee=worker_name,
                 task_executor=ReliableTaskExecutor(delay=delay),
                 poll_interval=0.05,  # Aggressive polling under load

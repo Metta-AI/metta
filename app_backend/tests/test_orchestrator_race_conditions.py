@@ -6,17 +6,12 @@ task loss, or inconsistent state if not properly handled.
 """
 
 import asyncio
-import socket
 import uuid
-from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
 import pytest
-import uvicorn
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
-from metta.app_backend.clients.eval_task_client import EvalTaskClient
+from conftest import HttpEvalTaskClientEnv
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator, FixedScaler
 from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker
@@ -49,54 +44,6 @@ class SlowTaskExecutor(AbstractTaskExecutor):
 class TestOrchestratorRaceConditions:
     """Test race conditions in EvalTaskOrchestrator."""
 
-    def _find_free_port(self) -> int:
-        """Find a free port for the HTTP server."""
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("", 0))
-            s.listen(1)
-            port = s.getsockname()[1]
-        return port
-
-    @asynccontextmanager
-    async def _http_server(self, app: FastAPI):
-        """Start a real HTTP server for testing."""
-        port = self._find_free_port()
-        config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="critical")
-        server = uvicorn.Server(config)
-
-        # Start server in background
-        task = asyncio.create_task(server.serve())
-
-        # Wait for server to start
-        await asyncio.sleep(0.1)
-
-        try:
-            yield f"http://127.0.0.1:{port}"
-        finally:
-            # Shutdown server
-            server.should_exit = True
-            await task
-
-    @pytest.fixture
-    async def eval_task_client(self, test_client: TestClient, test_app: FastAPI):
-        """Create an eval task client for testing."""
-        token_response = test_client.post(
-            "/tokens",
-            json={"name": "race_test_token", "permissions": ["read", "write"]},
-            headers={"X-Auth-Request-Email": "test_user@example.com"},
-        )
-        assert token_response.status_code == 200
-        token = token_response.json()["token"]
-
-        async with self._http_server(test_app) as base_url:
-            client = EvalTaskClient.__new__(EvalTaskClient)
-            from httpx import AsyncClient
-
-            client._http_client = AsyncClient(base_url=base_url)
-            client._machine_token = token
-            yield client
-            await client._http_client.aclose()
-
     @pytest.fixture
     def test_policy_id(self, stats_client: StatsClient) -> uuid.UUID:
         """Create a test policy and return its ID."""
@@ -119,19 +66,23 @@ class TestOrchestratorRaceConditions:
 
         return policy.id
 
-    def create_test_worker(self, worker_name: str, http_env, delay: float = 0.5) -> EvalTaskWorker:
+    def create_test_worker(
+        self, worker_name: str, http_eval_task_env: HttpEvalTaskClientEnv, delay: float = 0.5
+    ) -> EvalTaskWorker:
         """Create a test worker with configurable delay."""
         return EvalTaskWorker(
-            client=http_env.make_client(),
+            client=http_eval_task_env.make_client(),
             assignee=worker_name,
             task_executor=SlowTaskExecutor(delay=delay),
             poll_interval=0.1,  # Fast polling for race tests
         )
 
     @pytest.mark.asyncio
-    async def test_concurrent_task_claim_race(self, http_env, orchestrator_test_policy_id: uuid.UUID):
+    async def test_concurrent_task_claim_race(
+        self, http_eval_task_env: HttpEvalTaskClientEnv, orchestrator_test_policy_id: uuid.UUID
+    ):
         """Test that multiple workers trying to claim the same task handle race conditions correctly."""
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create a single task
         task_response = await eval_task_client.create_task(
@@ -150,7 +101,7 @@ class TestOrchestratorRaceConditions:
         def create_worker_factory():
             def create_worker(worker_name: str) -> EvalTaskWorker:
                 return EvalTaskWorker(
-                    client=http_env.make_client(),
+                    client=http_eval_task_env.make_client(),
                     assignee=worker_name,
                     task_executor=SlowTaskExecutor(delay=2.0),
                     poll_interval=0.1,
@@ -164,7 +115,7 @@ class TestOrchestratorRaceConditions:
             worker_managers.append(worker_manager)
 
             orchestrator = EvalTaskOrchestrator(
-                task_client=http_env.make_client(),
+                task_client=http_eval_task_env.make_client(),
                 worker_manager=worker_manager,
                 poll_interval=0.1,
                 worker_scaler=FixedScaler(1),
@@ -199,9 +150,11 @@ class TestOrchestratorRaceConditions:
                 worker_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_worker_death_during_assignment_race(self, http_env, orchestrator_test_policy_id: uuid.UUID):
+    async def test_worker_death_during_assignment_race(
+        self, http_eval_task_env: HttpEvalTaskClientEnv, orchestrator_test_policy_id: uuid.UUID
+    ):
         """Test that orchestrator handles worker death gracefully by starting new workers and reassigning tasks."""
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create a task
         task_response = await eval_task_client.create_task(
@@ -215,7 +168,7 @@ class TestOrchestratorRaceConditions:
 
         def create_worker(worker_name: str) -> EvalTaskWorker:
             return EvalTaskWorker(
-                client=http_env.make_client(),
+                client=http_eval_task_env.make_client(),
                 assignee=worker_name,
                 task_executor=SlowTaskExecutor(delay=2.0),  # Long delay to prevent actual execution
                 poll_interval=0.1,
@@ -270,9 +223,11 @@ class TestOrchestratorRaceConditions:
             worker_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_concurrent_status_update_race(self, http_env, orchestrator_test_policy_id: uuid.UUID):
+    async def test_concurrent_status_update_race(
+        self, http_eval_task_env: HttpEvalTaskClientEnv, orchestrator_test_policy_id: uuid.UUID
+    ):
         """Test concurrent status updates with require_assignee conflicts."""
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create and claim a task
         task_response = await eval_task_client.create_task(
@@ -340,9 +295,11 @@ class TestOrchestratorRaceConditions:
             assert final_task.assignee is None
 
     @pytest.mark.asyncio
-    async def test_multiple_orchestrator_competition(self, http_env, orchestrator_test_policy_id: uuid.UUID):
+    async def test_multiple_orchestrator_competition(
+        self, http_eval_task_env: HttpEvalTaskClientEnv, orchestrator_test_policy_id: uuid.UUID
+    ):
         """Test multiple orchestrator instances competing for resources."""
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create multiple tasks
         task_ids = []
@@ -363,13 +320,13 @@ class TestOrchestratorRaceConditions:
         for _i in range(3):
 
             def create_worker(worker_name: str) -> EvalTaskWorker:
-                return self.create_test_worker(worker_name, http_env, delay=1.0)
+                return self.create_test_worker(worker_name, http_eval_task_env, delay=1.0)
 
             worker_manager = ThreadWorkerManager(create_worker=create_worker)
             worker_managers.append(worker_manager)
 
             orchestrator = EvalTaskOrchestrator(
-                task_client=http_env.make_client(),
+                task_client=http_eval_task_env.make_client(),
                 worker_manager=worker_manager,
                 poll_interval=0.1,
                 worker_scaler=FixedScaler(2),
@@ -406,9 +363,11 @@ class TestOrchestratorRaceConditions:
                 worker_manager.shutdown_all()
 
     @pytest.mark.asyncio
-    async def test_worker_lifecycle_race_conditions(self, http_env, orchestrator_test_policy_id: uuid.UUID):
+    async def test_worker_lifecycle_race_conditions(
+        self, http_eval_task_env: HttpEvalTaskClientEnv, orchestrator_test_policy_id: uuid.UUID
+    ):
         """Test race conditions during worker startup and shutdown."""
-        eval_task_client = http_env.make_client()
+        eval_task_client = http_eval_task_env.make_client()
 
         # Create tasks
         task_ids = []
@@ -423,7 +382,7 @@ class TestOrchestratorRaceConditions:
             task_ids.append(task_response.id)
 
         def create_worker(worker_name: str) -> EvalTaskWorker:
-            return self.create_test_worker(worker_name, http_env, delay=0.5)
+            return self.create_test_worker(worker_name, http_eval_task_env, delay=0.5)
 
         worker_manager = ThreadWorkerManager(create_worker=create_worker)
 
