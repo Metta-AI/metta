@@ -207,8 +207,8 @@ def _():
 
     renderer_config = RendererToolConfig(
         policy_type="opportunistic",
-        num_steps=150,
-        sleep_time=0.03,
+        num_steps=1000,
+        sleep_time=0.010,
         renderer_type="human",
     )
 
@@ -268,7 +268,9 @@ def _(
         display(header, map_box)
         _obs, info = env.reset()
 
-        for _step in range(renderer_config.num_steps):
+        # steps = renderer_config.num_steps
+        steps = 1000
+        for _step in range(steps):
             _actions = policy.predict(_obs)
             _obs, rewards, terminals, truncations, info = env.step(_actions)
             _agent_obj = next(
@@ -278,7 +280,7 @@ def _(
                 env.inventory_item_names[idx]: count
                 for idx, count in _agent_obj.get("inventory", {}).items()
             }
-            header.value = f"<b>Step:</b> {_step + 1}/{renderer_config.num_steps} <br/> <b>Inventory:</b> {_inv.get('ore_red', 0)}"
+            header.value = f"<b>Step:</b> {_step + 1}/{steps} <br/> <b>Inventory:</b> {_inv.get('ore_red', 0)}"
             with contextlib.redirect_stdout(io.StringIO()):
                 buffer_str = env.render()
             map_box.value = f"<pre>{buffer_str}</pre>"
@@ -494,11 +496,11 @@ def _(datetime, env_config, mo, train_button):
     # Create trainer configuration with small settings for demo
     trainer_config = TrainerConfig(
         curriculum=curriculum,
-        total_timesteps=10000,  # Small demo run
+        total_timesteps=20000,  # Small demo run
         # total_timesteps=1000,  # DEBUG run
         batch_size=256,
         minibatch_size=256,
-        rollout_workers=2,  # Correct field name
+        rollout_workers=14,  # Correct field name
         checkpoint=CheckpointConfig(
             checkpoint_interval=50,  # Checkpoint every 50 steps for demo
             wandb_checkpoint_interval=50,
@@ -661,7 +663,8 @@ def _(
             # Convert obs to tensor format for policy
             obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
 
-            for _step in range(150):  # Same number of steps as opportunistic
+            steps = 1000
+            for _step in range(steps):  # Same number of steps as opportunistic
                 # Use TensorDict format for trained policy (same as simulation.py:272-275)
                 from tensordict import TensorDict
 
@@ -686,7 +689,7 @@ def _(
                         for idx, cnt in _agent_obj.get("inventory", {}).items()
                     }
                     header.value = (
-                        f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/150 - "
+                        f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/{steps} - "
                         f"<b>Ore collected:</b> {_inv.get('ore_red', 0)}"
                     )
                     with contextlib.redirect_stdout(io.StringIO()):
