@@ -105,7 +105,6 @@ class TestObservations:
         assert (obs[0, -1, :] == TokenTypes.EMPTY_TOKEN).all()
         assert (obs[1, -1, :] == TokenTypes.EMPTY_TOKEN).all()
 
-
     def test_detailed_wall_observations(self, basic_env):
         """Test detailed wall observations for both agents."""
         obs, _ = basic_env.reset()

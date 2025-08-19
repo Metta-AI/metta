@@ -20,7 +20,7 @@ from metta.sim.simulation_config import SimulationConfig
 def make_ascii_env(max_steps: int, ascii_map: str, border_width: int = 1) -> EnvConfig:
     env = make_navigation(num_agents=1)
     env.game.max_steps = max_steps
-    env.game.map_builder = MapGen.Config.with_ascii(
+    env.game.map_builder = MapGen.Config.with_ascii_uri(
         ascii_map, border_width=border_width
     )
     return env
