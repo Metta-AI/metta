@@ -291,17 +291,18 @@ def print_benchmark_results(results: dict[str, Any], topology: dict[str, Any] | 
     print(output)
 
 
-def format_box_header(title: str, width: int = 75, include_rank: bool = True) -> str:
+def format_box_header(
+    title: str,
+    width: int = 75,
+) -> str:
     """Format a box header as a string instead of printing directly."""
     output = io.StringIO()
 
     # Prepare the title with rank info if requested
-    display_title = title
-    if include_rank and "RANK" in os.environ:
-        rank = int(os.environ.get("RANK", 0))
-        node_rank = int(os.environ.get("NODE_RANK", os.environ.get("NODE_INDEX", 0)))
-        local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        display_title = f"{title} (Rank {rank}, Node {node_rank}, GPU {local_rank})"
+    rank = int(os.environ.get("RANK", 0))
+    node_rank = int(os.environ.get("NODE_RANK", os.environ.get("NODE_INDEX", 0)))
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    display_title = f"{title} (Rank {rank}, Node {node_rank}, GPU {local_rank})"
 
     # Ensure title fits with padding
     max_title_width = width - 4  # Account for borders and spacing
@@ -316,7 +317,6 @@ def format_box_header(title: str, width: int = 75, include_rank: bool = True) ->
     output.write(f"╔{'═' * width}╗\n")
     output.write(f"║{' ' * left_pad}{display_title}{' ' * right_pad}║\n")
     output.write(f"╚{'═' * width}╝\n")
-
     return output.getvalue()
 
 
@@ -326,24 +326,10 @@ def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> 
     When include_rank is True and in a distributed environment, this function
     ensures ranks print in order to avoid garbled output.
     """
-    # Check if we're in a distributed environment with rank info
-    is_distributed = "RANK" in os.environ and "WORLD_SIZE" in os.environ and int(os.environ.get("WORLD_SIZE", 1)) > 1
+    if dist.is_available() and dist.is_initialized() and dist.get_rank() != 0:
+        return  # Only print from rank 0 in distributed mode
 
-    # If we want rank-specific output in a distributed setting, synchronize
-    if include_rank and is_distributed and dist.is_initialized():
-        rank = int(os.environ.get("RANK", 0))
-        world_size = int(os.environ.get("WORLD_SIZE", 1))
-
-        # Print in rank order
-        for i in range(world_size):
-            if rank == i:
-                print(format_box_header(title, width, include_rank), end="")
-                sys.stdout.flush()
-                time.sleep(0.01)
-            dist.barrier()
-    else:
-        # Non-distributed or rank-agnostic printing
-        print(format_box_header(title, width, include_rank), end="")
+    print(format_box_header(title, width), end="")
 
 
 def run_command(cmd: list[str], check: bool = False) -> tuple[int, str, str]:
@@ -1152,9 +1138,9 @@ def main():
         all_passed = False
 
     # NCCL communication test
-    if "RANK" in os.environ and world_size > 1:
-        if IS_MASTER:
-            print("\n  🔧 Running NCCL communication test across all ranks...")
+    if world_size > 1:
+        print(f"\n  🔧 Running NCCL communication test on rank {local_rank}...")
+
         if test_nccl_communication():
             test_results.append(("NCCL Communication Test", "✓ PASSED"))
         else:
@@ -1168,9 +1154,8 @@ def main():
 
     # NCCL benchmarks
     benchmark_results = None
-    if "RANK" in os.environ and world_size > 1:
-        if IS_MASTER:
-            print("\n  📊 Running bandwidth and latency benchmarks...")
+    if world_size > 1:
+        print(f"\n  📊 Running bandwidth and latency benchmarks on rank {local_rank}...")
 
         bench_result = collect_nccl_benchmarks()
 
@@ -1185,7 +1170,7 @@ def main():
     all_ranks_passed = all_passed  # default for non-distributed
 
     # Synchronize results if distributed
-    if is_distributed and "RANK" in os.environ:
+    if is_distributed:
         if dist.is_initialized():
             dist.barrier()
         # Check if we're still initialized (test might have destroyed it)
