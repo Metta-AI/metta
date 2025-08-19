@@ -4,6 +4,7 @@ import logging
 import multiprocessing
 import os
 import platform
+import sys
 from logging import Logger
 
 import torch
@@ -36,7 +37,20 @@ logger = logging.getLogger(__name__)
 # consider where we really want to put this
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
+
+# Silence elastic logs
 logging.getLogger("torch.distributed.elastic").setLevel(logging.ERROR)
+
+
+# Globally suppress traceback printing for SignalException(sigval=15)
+def quiet_sigterm_hook(exc_type, value, tb):
+    if isinstance(value, mp_api.SignalException) and value.sigval == 15:
+        print(f"[INFO] Suppressed SignalException: {value}", file=sys.stderr)
+    else:
+        sys.__excepthook__(exc_type, value, tb)
+
+
+sys.excepthook = quiet_sigterm_hook
 
 
 # TODO: populate this more
@@ -219,10 +233,4 @@ def main(cfg: DictConfig) -> int:
     return 0
 
 
-try:
-    metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
-except mp_api.SignalException as e:
-    if e.sigval == 15:
-        logging.info(f"Suppressed expected SIGTERM: {e}")
-    else:
-        raise
+metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)

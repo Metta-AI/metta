@@ -123,7 +123,7 @@ determine_final_exit_code() {
     echo "[INFO] Will exit with code 0 to prevent SkyPilot restart"
     FINAL_EXIT_CODE=0
   else
-    echo "[INFO] Will exit with actual exit code: $CMD_EXIT"
+    echo "[INFO] Will exit with code: $CMD_EXIT"
     FINAL_EXIT_CODE=$CMD_EXIT
   fi
 }

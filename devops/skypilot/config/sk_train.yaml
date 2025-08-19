@@ -47,11 +47,7 @@ setup: |
   set -u
   bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
 
-run: |
-  /workspace/metta/devops/skypilot/config/sk_train_run.sh
-  EXIT_CODE=$?
-  echo "sk_train_run script exited with code: $EXIT_CODE"
-  exit $EXIT_CODE
+run: /workspace/metta/devops/skypilot/config/sk_train_run.sh
 
 envs:
   TEST_NCCL: "false"

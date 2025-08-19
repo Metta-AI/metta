@@ -21,7 +21,7 @@ fi
 
 max_seconds=$(awk "BEGIN {print int(${MAX_RUNTIME_HOURS} * 3600)}")
 remaining_at_start=$((max_seconds - ACCUMULATED_RUNTIME))
-force_restart_delay=$(awk "BEGIN {print int(${remaining_at_start} * 0.3)}")
+force_restart_delay=$(awk "BEGIN {print int(${remaining_at_start} * 0.5)}")
 
 if [ "$force_restart_delay" -le 0 ]; then
   echo "[INFO] Job restart monitor: skipping (No time remains!)"
