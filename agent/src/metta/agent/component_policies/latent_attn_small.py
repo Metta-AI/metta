@@ -93,7 +93,3 @@ class LatentAttnSmall(ComponentPolicy):
                 sources=[{"name": "actor_1"}, {"name": "_action_embeds_"}],
             ),
         }
-
-
-# Legacy alias for backward compatibility
-ComponentPolicy = LatentAttnSmall
