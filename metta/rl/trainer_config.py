@@ -130,6 +130,11 @@ class DualPolicyConfig(Config):
     training_agents_pct: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
+class WorldModelPretrainingConfig(Config):
+    enabled: bool = True
+    steps: int = Field(default=10000, gt=0)
+
+
 class TrainerConfig(Config):
     # Core training parameters
     # Total timesteps: Type 2 arbitrary default
@@ -194,6 +199,9 @@ class TrainerConfig(Config):
 
     # Dual-policy training (train against an NPC checkpoint policy)
     dual_policy: DualPolicyConfig = Field(default_factory=DualPolicyConfig)
+
+    # World model pre-training configuration
+    world_model_pretraining: WorldModelPretrainingConfig = Field(default_factory=WorldModelPretrainingConfig)
 
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware

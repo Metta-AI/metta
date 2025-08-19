@@ -22,8 +22,6 @@ class Fast(ComponentPolicy):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # Add a projection layer for latent observations (16 -> 128)
-        self.latent_projection = torch.nn.Linear(16, 128)
 
     def _build_components(self) -> dict:
         """Build components for Fast CNN architecture."""
@@ -130,11 +128,9 @@ class Fast(ComponentPolicy):
             td.set("bptt", torch.full((B,), 1, device=td.device, dtype=torch.long))
             td.set("batch", torch.full((B,), B, device=td.device, dtype=torch.long))
 
-        # Use latent observations with projection to match expected dimensionality
+        # Use latent observations directly (already 128-dimensional)
         latent_obs = td["latent_obs"]
-        # Project from 16 to 128 dimensions to match LSTM input size
-        encoded_obs = self.latent_projection(latent_obs)
-        td["encoded_obs"] = encoded_obs
+        td["encoded_obs"] = latent_obs
 
         # Run LSTM on encoded observations
         self.components["_core_"](td)

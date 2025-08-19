@@ -26,6 +26,11 @@ grad_mean_variance_interval: 0 # 0 to disable
 
 total_timesteps: 10_000_000_000
 
+# World model pre-training configuration  
+world_model_pretraining:
+  enabled: false  # Disabled by default - needs proper vectorenv integration
+  steps: 10000  # Number of steps to train world model before starting agent training
+
 optimizer:
   type: adam
   beta1: 0.9

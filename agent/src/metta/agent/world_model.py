@@ -14,10 +14,10 @@ class WorldModel(nn.Module):
         self.l1 = nn.Linear(200 * 3, 2048)
         self.l2 = nn.Linear(2048, 2048)
         self.l3 = nn.Linear(2048, 1024)
-        self.l4 = nn.Linear(1024, 16)
+        self.l4 = nn.Linear(1024, 128)
 
         # decoder layers
-        self.l5 = nn.Linear(16, 1024)
+        self.l5 = nn.Linear(128, 1024)
         self.l6 = nn.Linear(1024, 2048)
         self.l7 = nn.Linear(2048, 2048)
         self.l8 = nn.Linear(2048, 200 * 3)
