@@ -33,143 +33,60 @@ def measure_p2p_bandwidth(
     num_iterations: int = 10,
     num_warmup: int = 5,
 ) -> Optional[dict[str, float]]:
-    """
-    Measure point-to-point bandwidth between two specific ranks.
-    Fixed version with proper synchronization.
-    """
+    """Measure point-to-point bandwidth between two specific ranks."""
     rank = dist.get_rank()
     world_size = dist.get_world_size()
 
-    # Skip if only one rank
     if world_size < 2:
         return None
 
-    # All ranks must participate in barriers
-    if rank not in [src_rank, dst_rank]:
-        # Non-participating ranks just wait at barriers
-        dist.barrier()  # Initial sync
-        dist.barrier()  # After warmup
-        dist.barrier()  # After measurement
-        return None
+    # Only participating ranks do the work
+    if rank in [src_rank, dst_rank]:
+        # Create tensor
+        message_size = (message_size_mb * 1024 * 1024) // 4
+        tensor = torch.randn(message_size, dtype=torch.float32, device=device)
+        bytes_transferred = tensor.numel() * tensor.element_size()
 
-    # Create tensor
-    message_size = (message_size_mb * 1024 * 1024) // 4  # Convert to float32 elements
-    tensor = torch.randn(message_size, dtype=torch.float32, device=device)
-    bytes_transferred = tensor.numel() * tensor.element_size()
+        # Warmup
+        for _ in range(num_warmup):
+            if rank == src_rank:
+                dist.send(tensor, dst=dst_rank)
+            elif rank == dst_rank:
+                dist.recv(tensor, src=src_rank)
 
-    # Initial synchronization
+        torch.cuda.synchronize()
+
+        # Measure bandwidth
+        start = time.perf_counter()
+
+        for _ in range(num_iterations):
+            if rank == src_rank:
+                dist.send(tensor, dst=dst_rank)
+            elif rank == dst_rank:
+                dist.recv(tensor, src=src_rank)
+
+        torch.cuda.synchronize()
+        end = time.perf_counter()
+
+        if rank == dst_rank:
+            elapsed_seconds = (end - start) / num_iterations
+            bandwidth_gbps = (bytes_transferred / elapsed_seconds) / 1e9
+
+            result = {
+                "src_rank": src_rank,
+                "dst_rank": dst_rank,
+                "message_size_mb": message_size_mb,
+                "bandwidth_gbps": bandwidth_gbps,
+                "time_ms": elapsed_seconds * 1000,
+            }
+        else:
+            result = None
+    else:
+        result = None
+
+    # Single barrier at the end for all ranks
     dist.barrier()
-
-    # Warmup
-    for _ in range(num_warmup):
-        if rank == src_rank:
-            dist.send(tensor, dst=dst_rank)
-        elif rank == dst_rank:
-            dist.recv(tensor, src=src_rank)
-
-    # Synchronize after warmup
-    torch.cuda.synchronize()
-    dist.barrier()
-
-    # Measure bandwidth
-    start = time.perf_counter()
-
-    for _ in range(num_iterations):
-        if rank == src_rank:
-            dist.send(tensor, dst=dst_rank)
-        elif rank == dst_rank:
-            dist.recv(tensor, src=src_rank)
-
-    torch.cuda.synchronize()
-
-    # Final synchronization
-    dist.barrier()
-
-    end = time.perf_counter()
-
-    if rank == dst_rank:
-        elapsed_seconds = (end - start) / num_iterations
-        bandwidth_gbps = (bytes_transferred / elapsed_seconds) / 1e9
-
-        return {
-            "src_rank": src_rank,
-            "dst_rank": dst_rank,
-            "message_size_mb": message_size_mb,
-            "bandwidth_gbps": bandwidth_gbps,
-            "time_ms": elapsed_seconds * 1000,
-        }
-
-    return None
-
-
-def test_nccl_benchmarks() -> bool:
-    """Run NCCL bandwidth benchmarks with proper error handling."""
-    try:
-        local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        torch.cuda.set_device(local_rank)
-        device = torch.device(f"cuda:{local_rank}")
-        rank = dist.get_rank()
-        world_size = dist.get_world_size()
-
-        # Log start
-        if rank == 0:
-            logger.info("Starting NCCL benchmarks...")
-
-        # Ensure all ranks are ready
-        dist.barrier()
-
-        # Collect results
-        results = {}
-
-        # 1. P2P Bandwidth Test (if we have at least 2 ranks)
-        if world_size >= 2:
-            if rank == 0:
-                logger.info("Running P2P bandwidth test...")
-
-            p2p_result = measure_p2p_bandwidth(device)
-
-            # Gather results from rank 1 to rank 0
-            if rank == 1 and p2p_result:
-                dist.send(torch.tensor([p2p_result["bandwidth_gbps"]], dtype=torch.float32, device=device), dst=0)
-            elif rank == 0:
-                if world_size >= 2:
-                    bandwidth_tensor = torch.zeros(1, device=device)
-                    dist.recv(bandwidth_tensor, src=1)
-                    results["p2p_bandwidth"] = {
-                        "src_rank": 0,
-                        "dst_rank": 1,
-                        "message_size_mb": 64,
-                        "bandwidth_gbps": float(bandwidth_tensor.item()),
-                        "time_ms": 0,  # Will be calculated
-                    }
-
-        # Ensure all ranks complete P2P test
-        dist.barrier()
-
-        # 2. Allreduce Bandwidth Test
-        if rank == 0:
-            logger.info("Running allreduce bandwidth test...")
-
-        allreduce_results = measure_allreduce_bandwidth(device)
-        if rank == 0 and allreduce_results:
-            results["allreduce_bandwidth"] = allreduce_results
-
-        # Final synchronization
-        dist.barrier()
-
-        if rank == 0:
-            print_benchmark_results(results)
-
-        return True
-
-    except Exception as e:
-        logger.error(f"Rank {rank}: Benchmark test failed: {e}", exc_info=True)
-        # Try to sync remaining ranks
-        try:
-            dist.barrier()
-        except Exception:
-            pass
-        return False
+    return result
 
 
 def measure_allreduce_bandwidth(
@@ -178,9 +95,7 @@ def measure_allreduce_bandwidth(
     num_iterations: int = 10,
     num_warmup: int = 5,
 ) -> list[dict[str, float]]:
-    """
-    Measure allreduce bandwidth with better error handling.
-    """
+    """Measure allreduce bandwidth with minimal synchronization."""
     if sizes_mb is None:
         sizes_mb = [1, 4, 16, 64]
 
@@ -188,13 +103,16 @@ def measure_allreduce_bandwidth(
     world_size = dist.get_world_size()
     results = []
 
+    # Single barrier at start
+    dist.barrier()
+
     for size_mb in sizes_mb:
-        size_elements = (size_mb * 1024 * 1024) // 4  # Convert MB to float32 elements
+        size_elements = (size_mb * 1024 * 1024) // 4
 
         try:
-            # Check available memory first
+            # Check available memory
             free_memory = torch.cuda.mem_get_info(device.index)[0]
-            required_memory = size_elements * 4 * 2  # float32 * 2 for safety
+            required_memory = size_elements * 4 * 2
 
             if free_memory < required_memory:
                 if rank == 0:
@@ -206,16 +124,11 @@ def measure_allreduce_bandwidth(
             bytes_per_element = tensor.element_size()
             total_bytes = size_elements * bytes_per_element
 
-            # Ensure all ranks are ready
-            dist.barrier()
-
-            # Warmup
+            # Warmup (no barrier needed - allreduce is already collective)
             for _ in range(num_warmup):
                 dist.all_reduce(tensor)
 
-            # Synchronize before timing
             torch.cuda.synchronize()
-            dist.barrier()
 
             # Time the operation
             start = time.perf_counter()
@@ -224,16 +137,10 @@ def measure_allreduce_bandwidth(
                 dist.all_reduce(tensor)
 
             torch.cuda.synchronize()
-
-            # Ensure all ranks complete
-            dist.barrier()
-
             end = time.perf_counter()
 
             # Calculate bandwidth
             elapsed_seconds = (end - start) / num_iterations
-
-            # Allreduce algorithmic bandwidth: 2 * (n-1) / n * data_size
             algo_bytes = 2 * (world_size - 1) / world_size * total_bytes
             algo_bandwidth_gbps = (algo_bytes / elapsed_seconds) / 1e9
 
@@ -247,30 +154,79 @@ def measure_allreduce_bandwidth(
                 results.append(result)
                 logger.info(f"Allreduce {size_mb}MB: {algo_bandwidth_gbps:.2f} GB/s")
 
-            # Clean up tensor
+            # Clean up
             del tensor
             torch.cuda.empty_cache()
 
         except torch.cuda.OutOfMemoryError:
             if rank == 0:
                 logger.warning(f"Out of memory at size {size_mb}MB")
-            # Ensure all ranks sync even on error
-            try:
-                dist.barrier()
-            except Exception:
-                pass
             break
         except Exception as e:
             if rank == 0:
                 logger.error(f"Error at size {size_mb}MB: {e}")
-            # Ensure all ranks sync even on error
-            try:
-                dist.barrier()
-            except Exception:
-                pass
             break
 
+    # Single barrier at end
+    dist.barrier()
     return results if rank == 0 else []
+
+
+def collect_nccl_benchmarks() -> dict[str, Any] | None:
+    """Run NCCL bandwidth benchmarks with minimal synchronization."""
+    try:
+        local_rank = int(os.environ.get("LOCAL_RANK", 0))
+        torch.cuda.set_device(local_rank)
+        device = torch.device(f"cuda:{local_rank}")
+        if not dist.is_initialized():
+            logger.error("Process group not initialized, cannot run benchmarks")
+            return None
+
+        rank = dist.get_rank()
+        world_size = dist.get_world_size()
+
+        if rank == 0:
+            logger.info("Starting NCCL benchmarks...")
+
+        # Initial sync
+        dist.barrier()
+
+        results = {}
+
+        # P2P Bandwidth Test
+        if world_size >= 2:
+            if rank == 0:
+                logger.info("Running P2P bandwidth test...")
+
+            p2p_result = measure_p2p_bandwidth(device)  # Has its own barrier
+
+            # Gather results
+            if rank == 1 and p2p_result:
+                dist.send(torch.tensor([p2p_result["bandwidth_gbps"]], dtype=torch.float32, device=device), dst=0)
+            elif rank == 0 and world_size >= 2:
+                bandwidth_tensor = torch.zeros(1, device=device)
+                dist.recv(bandwidth_tensor, src=1)
+                results["p2p_bandwidth"] = {
+                    "src_rank": 0,
+                    "dst_rank": 1,
+                    "message_size_mb": 64,
+                    "bandwidth_gbps": float(bandwidth_tensor.item()),
+                    "time_ms": 0,
+                }
+
+        # Allreduce Bandwidth Test
+        if rank == 0:
+            logger.info("Running allreduce bandwidth test...")
+
+        allreduce_results = measure_allreduce_bandwidth(device)  # Has its own barriers
+        if rank == 0 and allreduce_results:
+            results["allreduce_bandwidth"] = allreduce_results
+
+        return results if rank == 0 else None
+
+    except Exception as e:
+        logger.error(f"Rank {rank}: Benchmark test failed: {e}", exc_info=True)
+        return None
 
 
 def format_benchmark_results(results: dict[str, Any]) -> str:
@@ -304,9 +260,35 @@ def format_benchmark_results(results: dict[str, Any]) -> str:
     return output.getvalue()
 
 
-def print_benchmark_results(results: dict[str, Any]) -> None:
-    """Pretty print benchmark results - kept for backward compatibility."""
-    print(format_benchmark_results(results))
+def print_benchmark_results(results: dict[str, Any], topology: dict[str, Any] | None = None) -> None:
+    """Pretty print benchmark results with topology-aware interpretation."""
+    output = format_benchmark_results(results)
+
+    # Add topology-aware interpretation
+    if topology and "p2p_bandwidth" in results:
+        p2p = results["p2p_bandwidth"]
+        src = f"GPU{p2p['src_rank']}"
+        dst = f"GPU{p2p['dst_rank']}"
+
+        # Check connection type
+        conn_type = topology.get("matrix", {}).get(src, {}).get(dst, "SYS")
+
+        expected_bandwidth = {
+            "NV1": 25.0,  # NVLink 1.0
+            "NV2": 50.0,  # NVLink 2.0
+            "NV3": 300.0,  # NVLink 3.0
+            "PIX": 16.0,  # PCIe switch
+            "SYS": 8.0,  # System/CPU
+        }.get(conn_type[:3], 8.0)
+
+        efficiency = (p2p["bandwidth_gbps"] / expected_bandwidth) * 100
+
+        output += "\n  📊 Topology Analysis:\n"
+        output += f"    Connection Type: {conn_type}\n"
+        output += f"    Expected BW: ~{expected_bandwidth:.0f} GB/s\n"
+        output += f"    Efficiency: {efficiency:.0f}%\n"
+
+    print(output)
 
 
 def format_box_header(title: str, width: int = 75, include_rank: bool = True) -> str:
@@ -375,6 +357,123 @@ def run_command(cmd: list[str], check: bool = False) -> tuple[int, str, str]:
         return -1, "", str(e)
 
 
+def parse_gpu_topology(topo_output: str) -> dict[str, Any]:
+    """Parse nvidia-smi topology matrix output."""
+    lines = topo_output.strip().split("\n")
+    topology = {
+        "matrix": {},
+        "connections": [],
+        "numa_affinity": {},
+        "cpu_affinity": {},
+    }
+
+    # Find the header line
+    header_idx = -1
+    for i, line in enumerate(lines):
+        if "GPU0" in line or "GPU1" in line:
+            header_idx = i
+            break
+
+    if header_idx == -1:
+        return topology
+
+    # Parse header to get GPU indices
+    header_parts = lines[header_idx].split()
+    gpu_indices = [p for p in header_parts if p.startswith("GPU")]
+
+    # Parse the matrix
+    for i, gpu_src in enumerate(gpu_indices):
+        if header_idx + i + 1 >= len(lines):
+            break
+
+        line = lines[header_idx + i + 1]
+        parts = line.split()
+        if len(parts) < len(gpu_indices) + 1:
+            continue
+
+        topology["matrix"][gpu_src] = {}
+        for j, gpu_dst in enumerate(gpu_indices):
+            if j + 1 < len(parts):
+                conn_type = parts[j + 1]
+                topology["matrix"][gpu_src][gpu_dst] = conn_type
+
+                # Extract meaningful connections
+                if conn_type not in ["X", "SYS"] and "NV" in conn_type:
+                    topology["connections"].append(
+                        {
+                            "src": gpu_src,
+                            "dst": gpu_dst,
+                            "type": "NVLink",
+                            "links": int(conn_type[2]) if len(conn_type) > 2 else 1,
+                        }
+                    )
+
+        # Parse CPU/NUMA affinity if present
+        if "CPU Affinity" in lines[header_idx]:
+            # Extract affinity info from the line
+            affinity_parts = parts[len(gpu_indices) + 1 :]
+            if affinity_parts:
+                topology["cpu_affinity"][gpu_src] = affinity_parts[0]
+            if len(affinity_parts) > 1:
+                topology["numa_affinity"][gpu_src] = affinity_parts[1]
+
+    return topology
+
+
+def analyze_topology_performance(topology: dict[str, Any]) -> dict[str, Any]:
+    """Analyze topology for performance implications."""
+    analysis = {"nvlink_pairs": [], "isolated_gpus": [], "topology_type": "unknown", "recommendations": []}
+
+    if not topology or "matrix" not in topology:
+        return analysis
+
+    matrix = topology["matrix"]
+    gpu_list = list(matrix.keys())
+
+    # Find NVLink pairs
+    for gpu_src in gpu_list:
+        for gpu_dst in gpu_list:
+            if gpu_src < gpu_dst:  # Avoid duplicates
+                conn = matrix.get(gpu_src, {}).get(gpu_dst, "")
+                if "NV" in conn:
+                    analysis["nvlink_pairs"].append((gpu_src, gpu_dst))
+
+    # Find isolated GPUs (no NVLink)
+    for gpu in gpu_list:
+        has_nvlink = False
+        for other_gpu in gpu_list:
+            if gpu != other_gpu:
+                conn = matrix.get(gpu, {}).get(other_gpu, "")
+                if "NV" in conn:
+                    has_nvlink = True
+                    break
+        if not has_nvlink:
+            analysis["isolated_gpus"].append(gpu)
+
+    # Determine topology type
+    num_gpus = len(gpu_list)
+    num_nvlink_pairs = len(analysis["nvlink_pairs"])
+
+    if num_nvlink_pairs == 0:
+        analysis["topology_type"] = "PCIe-only"
+        analysis["recommendations"].append("Consider using gradient accumulation to reduce communication overhead")
+    elif num_nvlink_pairs == num_gpus * (num_gpus - 1) // 2:
+        analysis["topology_type"] = "Fully-connected (DGX-style)"
+        analysis["recommendations"].append("Excellent topology for model parallelism and large batch training")
+    elif num_nvlink_pairs == num_gpus // 2:
+        analysis["topology_type"] = "Paired"
+        analysis["recommendations"].append("Consider using hybrid parallelism with pairs as pipeline stages")
+    else:
+        analysis["topology_type"] = "Hybrid"
+
+    # NUMA recommendations
+    numa_nodes = set(topology.get("numa_affinity", {}).values())
+    if len(numa_nodes) > 1:
+        analysis["recommendations"].append("GPUs span multiple NUMA nodes - ensure proper CPU affinity")
+
+    return analysis
+
+
 def get_gpu_diagnostics() -> dict[str, Any]:
     """Collect comprehensive GPU diagnostics."""
     diagnostics = {
@@ -386,6 +485,7 @@ def get_gpu_diagnostics() -> dict[str, Any]:
         "gpu_count": 0,
         "pytorch_cuda_available": torch.cuda.is_available(),
         "pytorch_cuda_version": (getattr(getattr(torch, "version", None), "cuda", None)),
+        "gpu_topology": None,
         "errors": [],
     }
 
@@ -401,6 +501,14 @@ def get_gpu_diagnostics() -> dict[str, Any]:
             diagnostics["errors"].append(f"Failed to get GPU count: {e}")
     else:
         diagnostics["errors"].append(f"nvidia-smi failed: {stderr}")
+
+    if code == 0:  # If nvidia-smi worked
+        logger.info("Checking GPU topology...")
+        topo_code, topo_stdout, topo_stderr = run_command(["nvidia-smi", "topo", "-m"])
+        if topo_code == 0:
+            diagnostics["gpu_topology"] = parse_gpu_topology(topo_stdout)
+        else:
+            diagnostics["errors"].append(f"Failed to get GPU topology: {topo_stderr}")
 
     # Get CUDA version from nvcc
     logger.info("Checking CUDA version...")
@@ -643,6 +751,48 @@ def format_gpu_diagnostics(diagnostics: dict[str, Any]) -> str:
             output.write(f"  {line}\n")
         output.write("  " + "-" * 70 + "\n")
 
+    # Add topology section if available
+    if diagnostics.get("gpu_topology") and diagnostics["gpu_topology"].get("matrix"):
+        topology = diagnostics["gpu_topology"]
+        output.write("\n  GPU Topology:\n")
+        output.write("  " + "-" * 50 + "\n")
+
+        # Show connection matrix
+        matrix = topology["matrix"]
+        gpu_list = sorted(matrix.keys())
+
+        if gpu_list:
+            # Header
+            output.write("       ")
+            for gpu in gpu_list:
+                output.write(f"{gpu:>6}")
+            output.write("\n")
+
+            # Matrix rows
+            for gpu_src in gpu_list:
+                output.write(f"  {gpu_src:>5}")
+                for gpu_dst in gpu_list:
+                    conn = matrix.get(gpu_src, {}).get(gpu_dst, "?")
+                    output.write(f"{conn:>6}")
+                output.write("\n")
+
+        # Show analysis
+        analysis = analyze_topology_performance(topology)
+        output.write(f"\n  Topology Type: {analysis['topology_type']}\n")
+
+        if analysis["nvlink_pairs"]:
+            output.write("  NVLink Connections:\n")
+            for src, dst in analysis["nvlink_pairs"]:
+                output.write(f"    • {src} ↔ {dst}\n")
+
+        if analysis["isolated_gpus"]:
+            output.write("  ⚠️  PCIe-only GPUs: " + ", ".join(analysis["isolated_gpus"]) + "\n")
+
+        if analysis["recommendations"]:
+            output.write("  Recommendations:\n")
+            for rec in analysis["recommendations"]:
+                output.write(f"    • {rec}\n")
+
     return output.getvalue()
 
 
@@ -672,6 +822,34 @@ def setup_nccl_debug_env(master_addr: str | None = None) -> None:
 def test_nccl_communication() -> bool:
     """Test NCCL communication in distributed setting."""
     logger.info("Testing NCCL communication...")
+
+    # Print diagnostic info before initialization
+    logger.info("Environment variables for initialization:")
+    logger.info(f"  RANK={os.environ.get('RANK', 'NOT SET')}")
+    logger.info(f"  WORLD_SIZE={os.environ.get('WORLD_SIZE', 'NOT SET')}")
+    logger.info(f"  LOCAL_RANK={os.environ.get('LOCAL_RANK', 'NOT SET')}")
+    logger.info(f"  MASTER_ADDR={os.environ.get('MASTER_ADDR', 'NOT SET')}")
+    logger.info(f"  MASTER_PORT={os.environ.get('MASTER_PORT', 'NOT SET')}")
+    logger.info(f"  NODE_RANK={os.environ.get('NODE_RANK', 'NOT SET')}")
+
+    # Also check network connectivity to master
+    master_addr = os.environ.get("MASTER_ADDR", "localhost")
+    master_port = int(os.environ.get("MASTER_PORT", "29500"))
+
+    try:
+        import socket
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)
+        result = sock.connect_ex((master_addr, master_port))
+        sock.close()
+
+        if result == 0:
+            logger.info(f"Successfully connected to {master_addr}:{master_port}")
+        else:
+            logger.error(f"Failed to connect to {master_addr}:{master_port} - error code: {result}")
+    except Exception as conn_error:
+        logger.error(f"Connection test failed: {conn_error}")
 
     try:
         # Check if we're in a distributed environment
@@ -989,10 +1167,16 @@ def main():
         test_results.append(("NCCL Communication Test", "⚠ SKIPPED (Not distributed)"))
 
     # NCCL benchmarks
+    benchmark_results = None
     if "RANK" in os.environ and world_size > 1:
         if IS_MASTER:
             print("\n  📊 Running bandwidth and latency benchmarks...")
-        if test_nccl_benchmarks():
+
+        bench_result = collect_nccl_benchmarks()
+
+        # Only rank 0 gets results
+        if bench_result is not None:
+            benchmark_results = bench_result
             test_results.append(("NCCL Benchmarks", "✓ PASSED"))
         else:
             test_results.append(("NCCL Benchmarks", "✗ FAILED"))
@@ -1016,6 +1200,11 @@ def main():
             logger.warning("Process group not initialized for result aggregation")
 
     # Summary - only from master
+    if IS_MASTER and benchmark_results:
+        # Get topology from diagnostics if available
+        topology = gpu_diagnostics.get("gpu_topology", {}) if "gpu_diagnostics" in locals() else {}
+        print_benchmark_results(benchmark_results, topology)
+
     if IS_MASTER:
         print()
         print_box_header("TEST SUMMARY", include_rank=False)
