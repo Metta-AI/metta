@@ -19,7 +19,7 @@ HEARTBEAT_COUNT=0
 
 while true; do
   if [ -s "$CLUSTER_STOP_FILE" ]; then
-    echo "[INFO] Cluster stop detected, monitor exiting"
+    echo "[INFO] Cluster stop detected, heartbeat monitor exiting"
     break
   fi
 

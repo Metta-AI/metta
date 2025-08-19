@@ -38,7 +38,7 @@ echo "[INFO] Checking every ${RESTART_CHECK_INTERVAL} seconds"
 
 while true; do
   if [ -s "$CLUSTER_STOP_FILE" ]; then
-    echo "[INFO] Cluster stop detected, monitor exiting"
+    echo "[INFO] Cluster stop detected, test job restart monitor exiting"
     break
   fi
 

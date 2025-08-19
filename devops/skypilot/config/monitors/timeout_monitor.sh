@@ -30,7 +30,7 @@ echo "[INFO] Checking every ${TIMEOUT_CHECK_INTERVAL} seconds"
 
 while true; do
   if [ -s "$CLUSTER_STOP_FILE" ]; then
-    echo "[INFO] Cluster stop detected, monitor exiting"
+    echo "[INFO] Cluster stop detected, timeout monitor exiting"
     break
   fi
 
