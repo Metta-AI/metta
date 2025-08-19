@@ -294,294 +294,300 @@ def train(
     wandb_policy_name: str | None = None
 
     # Main training loop
-    while agent_step < trainer_cfg.total_timesteps:
-        steps_before = agent_step
-        record_heartbeat()
+    try:
+        while agent_step < trainer_cfg.total_timesteps:
+            steps_before = agent_step
+            record_heartbeat()
 
-        with torch_profiler:
-            # ---- ROLLOUT PHASE ----
-            with timer("_rollout"):
-                raw_infos = []
-                experience.reset_for_rollout()
-                total_steps = 0
+            with torch_profiler:
+                # ---- ROLLOUT PHASE ----
+                with timer("_rollout"):
+                    raw_infos = []
+                    experience.reset_for_rollout()
+                    total_steps = 0
 
-                policy.reset_memory()
-                buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
+                    policy.reset_memory()
+                    buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
-                while not experience.ready_for_training:
-                    # Get observation
-                    o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
-                    total_steps += num_steps
+                    while not experience.ready_for_training:
+                        # Get observation
+                        o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
+                        total_steps += num_steps
 
-                    td = buffer_step[training_env_id].clone()
-                    td["env_obs"] = o
-                    td["rewards"] = r
-                    td["dones"] = d.float()
-                    td["truncateds"] = t.float()
-                    td.set(
-                        "training_env_id_start",
-                        torch.full(
-                            td.batch_size,
-                            training_env_id.start,
-                            device=td.device,
-                            dtype=torch.long,
-                        ),
-                    )
-
-                    # Inference
-                    with torch.no_grad():
-                        policy(td)
-
-                    # Store experience
-                    experience.store(
-                        data_td=td,
-                        env_id=training_env_id,
-                    )
-
-                    # Send observation
-                    send_observation(vecenv, td["actions"], dtype_actions, timer)
-
-                    if info:
-                        raw_infos.extend(info)
-
-                agent_step += total_steps * torch_dist_cfg.world_size
-            accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
-
-            # ---- TRAINING PHASE ----
-            with timer("_train"):
-                # Inline PPO training
-                losses.zero()
-                experience.reset_importance_sampling_ratios()
-
-                # Calculate prioritized sampling parameters
-                anneal_beta = calculate_prioritized_sampling_params(
-                    epoch=epoch,
-                    total_timesteps=trainer_cfg.total_timesteps,
-                    batch_size=trainer_cfg.batch_size,
-                    prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
-                    prio_beta0=trainer_cfg.prioritized_experience_replay.prio_beta0,
-                )
-
-                # Compute initial advantages
-                advantages = torch.zeros(experience.buffer["values"].shape, device=device)
-                initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
-
-                advantages = compute_advantage(
-                    experience.buffer["values"],
-                    experience.buffer["rewards"],
-                    experience.buffer["dones"],
-                    initial_importance_sampling_ratio,
-                    advantages,
-                    trainer_cfg.ppo.gamma,
-                    trainer_cfg.ppo.gae_lambda,
-                    trainer_cfg.vtrace.vtrace_rho_clip,
-                    trainer_cfg.vtrace.vtrace_c_clip,
-                    device,
-                )
-
-                # Train for multiple epochs
-                minibatch_idx = 0
-                epochs_trained = 0
-                policy_spec = policy.get_agent_experience_spec()
-
-                for _update_epoch in range(trainer_cfg.update_epochs):
-                    for _ in range(experience.num_minibatches):
-                        policy.reset_memory()
-                        # Sample minibatch
-                        minibatch, indices, prio_weights = experience.sample_minibatch(
-                            advantages=advantages,
-                            prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
-                            prio_beta=anneal_beta,
+                        td = buffer_step[training_env_id].clone()
+                        td["env_obs"] = o
+                        td["rewards"] = r
+                        td["dones"] = d.float()
+                        td["truncateds"] = t.float()
+                        td.set(
+                            "training_env_id_start",
+                            torch.full(
+                                td.batch_size,
+                                training_env_id.start,
+                                device=td.device,
+                                dtype=torch.long,
+                            ),
                         )
 
-                        policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
+                        # Inference
+                        with torch.no_grad():
+                            policy(td)
 
-                        # Process minibatch
-                        loss = process_minibatch_update(
-                            policy=policy,
-                            experience=experience,
-                            minibatch=minibatch,
-                            policy_td=policy_td,
-                            indices=indices,
-                            prio_weights=prio_weights,
-                            trainer_cfg=trainer_cfg,
-                            kickstarter=kickstarter,
-                            agent_step=agent_step,
-                            losses=losses,
-                            device=device,
+                        # Store experience
+                        experience.store(
+                            data_td=td,
+                            env_id=training_env_id,
                         )
 
-                        # Optimizer step
-                        optimizer.zero_grad()
+                        # Send observation
+                        send_observation(vecenv, td["actions"], dtype_actions, timer)
 
-                        # This also serves as a barrier for all ranks
-                        loss.backward()
+                        if info:
+                            raw_infos.extend(info)
 
-                        if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
-                            torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
-                            optimizer.step()
+                    agent_step += total_steps * torch_dist_cfg.world_size
+                accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
-                            # Optional weight clipping
-                            policy.clip_weights()
+                # ---- TRAINING PHASE ----
+                with timer("_train"):
+                    # Inline PPO training
+                    losses.zero()
+                    experience.reset_importance_sampling_ratios()
 
-                            if device.type == "cuda":
-                                torch.cuda.synchronize()
+                    # Calculate prioritized sampling parameters
+                    anneal_beta = calculate_prioritized_sampling_params(
+                        epoch=epoch,
+                        total_timesteps=trainer_cfg.total_timesteps,
+                        batch_size=trainer_cfg.batch_size,
+                        prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
+                        prio_beta0=trainer_cfg.prioritized_experience_replay.prio_beta0,
+                    )
 
-                        minibatch_idx += 1
-                    epochs_trained += 1
+                    # Compute initial advantages
+                    advantages = torch.zeros(experience.buffer["values"].shape, device=device)
+                    initial_importance_sampling_ratio = torch.ones_like(experience.buffer["values"])
 
-                    # Early exit if KL divergence is too high
-                    if trainer_cfg.ppo.target_kl is not None:
-                        average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
-                        if average_approx_kl > trainer_cfg.ppo.target_kl:
-                            break
+                    advantages = compute_advantage(
+                        experience.buffer["values"],
+                        experience.buffer["rewards"],
+                        experience.buffer["dones"],
+                        initial_importance_sampling_ratio,
+                        advantages,
+                        trainer_cfg.ppo.gamma,
+                        trainer_cfg.ppo.gae_lambda,
+                        trainer_cfg.vtrace.vtrace_rho_clip,
+                        trainer_cfg.vtrace.vtrace_c_clip,
+                        device,
+                    )
 
-                # Calculate explained variance
-                y_pred = experience.buffer["values"].flatten()
-                y_true = advantages.flatten() + experience.buffer["values"].flatten()
-                var_y = y_true.var()
-                losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
-            epoch += epochs_trained
+                    # Train for multiple epochs
+                    minibatch_idx = 0
+                    epochs_trained = 0
+                    policy_spec = policy.get_agent_experience_spec()
 
-        # Safe to proceed to next rollout phase only once all ranks have completed training
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+                    for _update_epoch in range(trainer_cfg.update_epochs):
+                        for _ in range(experience.num_minibatches):
+                            policy.reset_memory()
+                            # Sample minibatch
+                            minibatch, indices, prio_weights = experience.sample_minibatch(
+                                advantages=advantages,
+                                prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
+                                prio_beta=anneal_beta,
+                            )
 
-        if not torch_dist_cfg.is_master:
-            # Only master needs to do bookkeeping
-            continue
+                            policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
 
-        torch_profiler.on_epoch_end(epoch)
+                            # Process minibatch
+                            loss = process_minibatch_update(
+                                policy=policy,
+                                experience=experience,
+                                minibatch=minibatch,
+                                policy_td=policy_td,
+                                indices=indices,
+                                prio_weights=prio_weights,
+                                trainer_cfg=trainer_cfg,
+                                kickstarter=kickstarter,
+                                agent_step=agent_step,
+                                losses=losses,
+                                device=device,
+                            )
 
-        with timer("_process_stats"):
-            if wandb_run:
-                process_stats(
-                    agent_cfg=agent_cfg,
-                    stats=stats_tracker.rollout_stats,
-                    losses=losses,
-                    evals=eval_scores,
-                    grad_stats=stats_tracker.grad_stats,
-                    experience=experience,
-                    policy=policy,
-                    timer=timer,
-                    trainer_cfg=trainer_cfg,
-                    agent_step=agent_step,
-                    epoch=epoch,
-                    wandb_run=wandb_run,
-                    # We know these exist within master
-                    memory_monitor=memory_monitor,  # type: ignore[arg-type]
-                    system_monitor=system_monitor,  # type: ignore[arg-type]
-                    latest_saved_policy_record=latest_saved_policy_record,
-                    optimizer=optimizer,
-                    kickstarter=kickstarter,
-                )
-            # Clear stats after processing
-            stats_tracker.clear_rollout_stats()
-            stats_tracker.clear_grad_stats()
+                            # Optimizer step
+                            optimizer.zero_grad()
 
-        log_training_progress(
-            epoch=epoch,
-            agent_step=agent_step,
-            prev_agent_step=steps_before,
-            total_timesteps=trainer_cfg.total_timesteps,
-            train_time=timer.get_last_elapsed("_train"),
-            rollout_time=timer.get_last_elapsed("_rollout"),
-            stats_time=timer.get_last_elapsed("_process_stats"),
-            run_name=run,
-        )
-        checkpoint_result = maybe_establish_checkpoint(
-            checkpoint_manager=checkpoint_manager,
-            epoch=epoch,
-            policy=policy,
-            agent_step=agent_step,
-            eval_scores=eval_scores,
-            timer=timer,
-            initial_policy_record=initial_policy_record,
-            optimizer=optimizer,
-            run_dir=run_dir,
-            kickstarter=kickstarter,
-            wandb_run=wandb_run,
-        )
-        if checkpoint_result:
-            # TODO: wandb_policy_name should come directly from last_saved_policy_record
-            latest_saved_policy_record, wandb_policy_name = checkpoint_result
+                            # This also serves as a barrier for all ranks
+                            loss.backward()
 
-        if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
-            if latest_saved_policy_record:
-                if stats_client and stats_tracker.stats_run_id:
-                    stats_tracker.stats_epoch_id = stats_client.create_epoch(
-                        run_id=stats_tracker.stats_run_id,
-                        start_training_epoch=stats_tracker.stats_epoch_start,
-                        end_training_epoch=epoch,
-                    ).id
+                            if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
+                                torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
+                                optimizer.step()
 
-                sims = [
-                    curriculum.get_task().get_env_cfg().to_sim(f"train_task_{i}")
-                    for i in range(trainer_cfg.evaluation.num_training_tasks)
-                ]
-                sims.extend(trainer_cfg.evaluation.simulations)
+                                # Optional weight clipping
+                                policy.clip_weights()
 
-                evaluate_local = trainer_cfg.evaluation.evaluate_local
+                                if device.type == "cuda":
+                                    torch.cuda.synchronize()
 
-                if trainer_cfg.evaluation.evaluate_remote:
-                    try:
-                        evaluate_policy_remote(
+                            minibatch_idx += 1
+                        epochs_trained += 1
+
+                        # Early exit if KL divergence is too high
+                        if trainer_cfg.ppo.target_kl is not None:
+                            average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
+                            if average_approx_kl > trainer_cfg.ppo.target_kl:
+                                break
+
+                    # Calculate explained variance
+                    y_pred = experience.buffer["values"].flatten()
+                    y_true = advantages.flatten() + experience.buffer["values"].flatten()
+                    var_y = y_true.var()
+                    losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
+                epoch += epochs_trained
+
+            # Safe to proceed to next rollout phase only once all ranks have completed training
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
+
+            if not torch_dist_cfg.is_master:
+                # Only master needs to do bookkeeping
+                continue
+
+            torch_profiler.on_epoch_end(epoch)
+
+            with timer("_process_stats"):
+                if wandb_run:
+                    process_stats(
+                        agent_cfg=agent_cfg,
+                        stats=stats_tracker.rollout_stats,
+                        losses=losses,
+                        evals=eval_scores,
+                        grad_stats=stats_tracker.grad_stats,
+                        experience=experience,
+                        policy=policy,
+                        timer=timer,
+                        trainer_cfg=trainer_cfg,
+                        agent_step=agent_step,
+                        epoch=epoch,
+                        wandb_run=wandb_run,
+                        # We know these exist within master
+                        memory_monitor=memory_monitor,  # type: ignore[arg-type]
+                        system_monitor=system_monitor,  # type: ignore[arg-type]
+                        latest_saved_policy_record=latest_saved_policy_record,
+                        optimizer=optimizer,
+                        kickstarter=kickstarter,
+                    )
+                # Clear stats after processing
+                stats_tracker.clear_rollout_stats()
+                stats_tracker.clear_grad_stats()
+
+            log_training_progress(
+                epoch=epoch,
+                agent_step=agent_step,
+                prev_agent_step=steps_before,
+                total_timesteps=trainer_cfg.total_timesteps,
+                train_time=timer.get_last_elapsed("_train"),
+                rollout_time=timer.get_last_elapsed("_rollout"),
+                stats_time=timer.get_last_elapsed("_process_stats"),
+                run_name=run,
+            )
+            checkpoint_result = maybe_establish_checkpoint(
+                checkpoint_manager=checkpoint_manager,
+                epoch=epoch,
+                policy=policy,
+                agent_step=agent_step,
+                eval_scores=eval_scores,
+                timer=timer,
+                initial_policy_record=initial_policy_record,
+                optimizer=optimizer,
+                run_dir=run_dir,
+                kickstarter=kickstarter,
+                wandb_run=wandb_run,
+            )
+            if checkpoint_result:
+                # TODO: wandb_policy_name should come directly from last_saved_policy_record
+                latest_saved_policy_record, wandb_policy_name = checkpoint_result
+
+            if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
+                if latest_saved_policy_record:
+                    if stats_client and stats_tracker.stats_run_id:
+                        stats_tracker.stats_epoch_id = stats_client.create_epoch(
+                            run_id=stats_tracker.stats_run_id,
+                            start_training_epoch=stats_tracker.stats_epoch_start,
+                            end_training_epoch=epoch,
+                        ).id
+
+                    sims = [
+                        curriculum.get_task().get_env_cfg().to_sim(f"train_task_{i}")
+                        for i in range(trainer_cfg.evaluation.num_training_tasks)
+                    ]
+                    sims.extend(trainer_cfg.evaluation.simulations)
+
+                    evaluate_local = trainer_cfg.evaluation.evaluate_local
+
+                    if trainer_cfg.evaluation.evaluate_remote:
+                        try:
+                            evaluate_policy_remote(
+                                policy_record=latest_saved_policy_record,
+                                simulations=sims,
+                                stats_epoch_id=stats_tracker.stats_epoch_id,
+                                wandb_policy_name=wandb_policy_name,
+                                stats_client=stats_client,
+                                wandb_run=wandb_run,
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
+                            logger.error("Falling back to local evaluation")
+                            evaluate_local = True
+
+                    if evaluate_local:
+                        evaluation_results = evaluate_policy(
                             policy_record=latest_saved_policy_record,
                             simulations=sims,
+                            device=device,
+                            vectorization=system_cfg.vectorization,
+                            replay_dir=trainer_cfg.evaluation.replay_dir,
                             stats_epoch_id=stats_tracker.stats_epoch_id,
                             wandb_policy_name=wandb_policy_name,
+                            policy_store=policy_store,
                             stats_client=stats_client,
-                            wandb_run=wandb_run,
+                            logger=logger,
                         )
-                    except Exception as e:
-                        logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
-                        logger.error("Falling back to local evaluation")
-                        evaluate_local = True
+                        logger.info("Simulation complete")
+                        eval_scores = evaluation_results.scores
+                        category_scores = list(eval_scores.category_scores.values())
+                        if category_scores and latest_saved_policy_record:
+                            latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+                        if wandb_run is not None and evaluation_results.replay_urls:
+                            upload_replay_html(
+                                replay_urls=evaluation_results.replay_urls,
+                                agent_step=agent_step,
+                                epoch=epoch,
+                                wandb_run=wandb_run,
+                            )
 
-                if evaluate_local:
-                    evaluation_results = evaluate_policy(
-                        policy_record=latest_saved_policy_record,
-                        simulations=sims,
-                        device=device,
-                        vectorization=system_cfg.vectorization,
-                        replay_dir=trainer_cfg.evaluation.replay_dir,
-                        stats_epoch_id=stats_tracker.stats_epoch_id,
-                        wandb_policy_name=wandb_policy_name,
-                        policy_store=policy_store,
-                        stats_client=stats_client,
-                        logger=logger,
+                    stats_tracker.update_epoch_tracking(epoch + 1)
+
+            # Compute gradient stats
+            if should_run(epoch, trainer_cfg.grad_mean_variance_interval):
+                with timer("grad_stats"):
+                    stats_tracker.grad_stats = compute_gradient_stats(policy)
+
+            # Check for abort every 5 epochs
+            if should_run(epoch, 5):
+                if wandb_run and abort_requested(wandb_run, min_interval_sec=60):
+                    logger.info("Abort tag detected. Stopping the run.")
+                    trainer_cfg.total_timesteps = int(agent_step)
+                    wandb_run.config.update(
+                        {"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True
                     )
-                    logger.info("Simulation complete")
-                    eval_scores = evaluation_results.scores
-                    category_scores = list(eval_scores.category_scores.values())
-                    if category_scores and latest_saved_policy_record:
-                        latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
-                    if wandb_run is not None and evaluation_results.replay_urls:
-                        upload_replay_html(
-                            replay_urls=evaluation_results.replay_urls,
-                            agent_step=agent_step,
-                            epoch=epoch,
-                            wandb_run=wandb_run,
-                        )
+                    break
 
-                stats_tracker.update_epoch_tracking(epoch + 1)
-
-        # Compute gradient stats
-        if should_run(epoch, trainer_cfg.grad_mean_variance_interval):
-            with timer("grad_stats"):
-                stats_tracker.grad_stats = compute_gradient_stats(policy)
-
-        # Check for abort every 5 epochs
-        if should_run(epoch, 5):
-            if wandb_run and abort_requested(wandb_run, min_interval_sec=60):
-                logger.info("Abort tag detected. Stopping the run.")
-                trainer_cfg.total_timesteps = int(agent_step)
-                wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
-                break
-
-    # All ranks wait until training is complete before closing vecenv
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
+        # All ranks wait until training is complete before closing vecenv
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+    except:
+        _update_training_status_on_failure(stats_client, stats_tracker.stats_run_id, logger)
+        raise
 
     vecenv.close()
 
