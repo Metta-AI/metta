@@ -30,7 +30,7 @@ class TrainTool(Tool):
     run: str
     run_dir: Optional[str] = None
 
-    # Stats server configuration
+    # Stats server configuration. If null, stats logging is disabled. If set, authentication with the server is verified
     stats_server_uri: Optional[str] = "https://api.observatory.softmax-research.net"
 
     # Policy configuration
