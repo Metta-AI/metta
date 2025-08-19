@@ -1128,8 +1128,6 @@ def main():
             print("                    ✗ SOME TESTS FAILED ✗")
         print("═" * 75 + "\n")
 
-    return_code = 0 if all_passed else 1
-
     # Add after tests, before destroying process group
     if is_distributed and dist.is_initialized() and not all_ranks_passed:
         # Collect error details from failed ranks only
@@ -1154,7 +1152,7 @@ def main():
     if dist.is_initialized():
         dist.destroy_process_group()
 
-    return return_code
+    return 1  # 0 if all_passed else 1
 
 
 if __name__ == "__main__":
