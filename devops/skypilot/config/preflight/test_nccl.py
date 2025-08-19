@@ -217,7 +217,7 @@ def format_benchmark_results(results: dict[str, Any]) -> str:
     output = io.StringIO()
 
     output.write("\n")
-    output.write(format_box_header("NCCL BANDWIDTH BENCHMARKS"))
+    output.write(format_box_header("NCCL BANDWIDTH BENCHMARKS", include_rank=False))
 
     # P2P bandwidth
     if "p2p_bandwidth" in results:

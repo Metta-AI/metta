@@ -27,7 +27,8 @@ class DistributedMettaAgent(DistributedDataParallel):
     module: "MettaAgent"
 
     def __init__(self, agent: "MettaAgent", device: torch.device):
-        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
 
         # Check if the agent might have circular references that would cause recursion
         # This can happen with legacy checkpoints wrapped in LegacyMettaAgentAdapter
@@ -178,7 +179,8 @@ class MettaAgent(nn.Module):
         # Store original feature mapping on first initialization
         if not hasattr(self, "original_feature_mapping"):
             self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
-            logger.info(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
+            if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+                logger.info(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
         else:
             # Create remapping for subsequent initializations
             self._create_feature_remapping(features)
@@ -285,7 +287,9 @@ class MettaAgent(nn.Module):
             device=device,
             dtype=torch.int32,
         )
-        logger.info(f"Actions initialized: {self.active_actions}")
+
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            logger.info(f"Actions initialized: {self.active_actions}")
 
         # Pass tensors to policy if needed
         if self.policy is not None:

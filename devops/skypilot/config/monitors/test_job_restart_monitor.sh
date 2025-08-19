@@ -21,19 +21,15 @@ fi
 
 max_seconds=$(awk "BEGIN {print int(${MAX_RUNTIME_HOURS} * 3600)}")
 remaining_at_start=$((max_seconds - ACCUMULATED_RUNTIME))
-force_restart_seconds=$(awk "BEGIN {print int(${remaining_at_start} * 0.3)}")
+force_restart_delay=$(awk "BEGIN {print int(${remaining_at_start} * 0.3)}")
 
-if [ "$force_restart_seconds" -le 0 ]; then
+if [ "$force_restart_delay" -le 0 ]; then
   echo "[INFO] Job restart monitor: skipping (No time remains!)"
   exit 0
 fi
 
 echo "[INFO] Test Job Restart monitor started!"
-echo "     ↳ max runtime hours: ${MAX_RUNTIME_HOURS}"
-echo "     ↳ max runtime seconds: ${max_seconds}"
-echo "     ↳ accumulated runtime: ${ACCUMULATED_RUNTIME}"
-echo "     ↳ remaining runtime: ${remaining_at_start}"
-echo "     ↳ restarting after 30% of remainder: ${force_restart_seconds}"
+echo "     ↳ restarting after: ${force_restart_delay}"
 echo "[INFO] Checking every ${RESTART_CHECK_INTERVAL} seconds"
 
 while true; do
@@ -45,13 +41,12 @@ while true; do
   sleep "$RESTART_CHECK_INTERVAL"
 
   elapsed=$(($(date +%s) - START_TIME))
-  total_runtime=$((ACCUMULATED_RUNTIME + elapsed))
 
-  remaining=$((force_restart_seconds - total_runtime))
+  remaining=$((force_restart_delay - elapsed))
   if [ $remaining -gt 0 ]; then
     elapsed_min=$((elapsed / 60))
     remaining_min=$((remaining / 60))
-    echo "[INFO] Test Job Restart Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining (max: ${MAX_RUNTIME_HOURS}h)"
+    echo "[INFO] Test Job Restart Status: ${elapsed_min} minutes elapsed, ${remaining_min} minutes remaining until job restart test"
   else
     echo "[INFO] Test Job Restart limit reached - terminating process group"
     echo "force_restart_test" > "$TERMINATION_REASON_FILE"

@@ -84,7 +84,8 @@ class ComponentPolicy(nn.Module):
 
         self.components = self.components.to(device)
 
-        logger.info(f"ComponentPolicy components: {self.components}")
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            logger.info(f"ComponentPolicy components: {self.components}")
 
         # Initialize action conversion tensors (will be set by MettaAgent)
         self.cum_action_max_params = None
