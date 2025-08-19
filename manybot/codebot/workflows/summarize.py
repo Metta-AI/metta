@@ -17,6 +17,7 @@ from ..workflow import Command, CommandOutput, ExecutionContext, FileChange
 logger = logging.getLogger(__name__)
 
 
+# Define structured models for the summarizer
 class CodeComponent(BaseModel):
     """A significant code component identified in the summary"""
 
@@ -76,7 +77,6 @@ class SummarizeCommand(Command):
 
         # Create agent with structured result type
         summarizer = Agent(
-            "claude-3-5-sonnet-20241022",
             result_type=SummaryResult,
             system_prompt=self.prompt_template.format(token_limit=token_limit),
         )
@@ -205,7 +205,6 @@ class SummaryCache:
 
         # Create new summary using PydanticAI
         summarizer = Agent(
-            "claude-3-5-sonnet-20241022",
             result_type=SummaryResult,
             system_prompt=f"""Create a summary of the provided code that:
             1. Captures the essential functionality and structure
