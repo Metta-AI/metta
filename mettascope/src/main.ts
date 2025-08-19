@@ -24,7 +24,15 @@ import {
 } from './htmlutils.js'
 import { drawMiniMap } from './minimap.js'
 import { initObjectMenu } from './objmenu.js'
-import { Entity, fetchReplay, initWebSocket, readFile, sendVisualOverlayEnable, sendVisualSetAgent, sendVisualSetLayer } from './replay.js'
+import {
+  Entity,
+  fetchReplay,
+  initWebSocket,
+  readFile,
+  sendVisualOverlayEnable,
+  sendVisualSetAgent,
+  sendVisualSetLayer,
+} from './replay.js'
 import { drawTimeline, initTimeline, onScrubberChange, onTraceMinimapChange, updateTimeline } from './timeline.js'
 import { initializeTooltips } from './tooltips.js'
 import { drawTrace, invalidateTrace } from './traces.js'

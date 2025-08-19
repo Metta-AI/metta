@@ -124,7 +124,7 @@ export function drawObservationOverlay(): void {
   for (let r = 0; r < g.height; r++) {
     for (let c = 0; c < g.width; c++) {
       const idx = r * g.width + c
-      const value = (g.values)[idx]
+      const value = g.values[idx]
       if (value === 0) continue // don't display 0 tensors.
       const text = String(value)
 
@@ -149,4 +149,3 @@ export function drawObservationOverlay(): void {
     }
   }
 }
-

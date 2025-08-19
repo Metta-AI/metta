@@ -731,10 +731,7 @@ export class Context3d {
   }
 
   /** Measure text bounds in font pixel units. */
-  measureTextBounds(
-    fontName: string,
-    text: string
-  ): { width: number; top: number; bottom: number } {
+  measureTextBounds(fontName: string, text: string): { width: number; top: number; bottom: number } {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
