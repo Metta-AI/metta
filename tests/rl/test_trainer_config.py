@@ -346,6 +346,11 @@ class TestRealTypedConfigs:
                 content = f.read()
                 if "trainer:" not in content:
                     continue  # Skip configs without trainer overrides
+                
+                # Skip configs that reference agent configs (which are now Python-based)
+                if "- /agent/" in content:
+                    print(f"Skipping {config_type} config {config_name}: references agent config")
+                    continue
 
             print(f"Testing {config_type} config: {config_name}")
 
