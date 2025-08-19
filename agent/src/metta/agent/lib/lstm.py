@@ -57,10 +57,11 @@ class LSTM(LayerBase):
         self.reset_memory()
 
     def on_mb_start(self):
-        if self.reset_in_training:
-            pass
-        else:
-            self.reset_memory()
+        # if self.reset_in_training:
+        #     pass
+        # else:
+        #     self.reset_memory()
+        self.reset_memory()
 
     def on_eval_start(self):
         self.reset_memory()
