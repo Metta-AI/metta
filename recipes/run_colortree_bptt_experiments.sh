@@ -45,10 +45,10 @@ build_command() {
     fi
 
     # Calculate learning rate with 1/sqrt(N) scaling
-    # Using bc for floating point arithmetic
+    # Using Python for floating point arithmetic
     # LR = constant / sqrt(bptt), where constant is chosen so LR=BASE_LR at BPTT=128
     # constant = BASE_LR * sqrt(128) = BASE_LR * 11.3137085
-    local lr=$(echo "scale=8; $BASE_LR * sqrt(128) / sqrt($bptt)" | bc)
+    local lr=$(python -c "import math; print(f'{$BASE_LR * math.sqrt(128) / math.sqrt($bptt):.8f}')")
 
     if [ "$USE_USER_CONFIG" = "user" ]; then
         echo "python devops/skypilot/launch.py train user=jacke \
@@ -79,7 +79,7 @@ for bptt in 64 128 256; do
     run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_norm128_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
 
     # Calculate LR for display
-    lr=$(echo "scale=8; $BASE_LR * sqrt(128) / sqrt($bptt)" | bc)
+    lr=$(python -c "import math; print(f'{$BASE_LR * math.sqrt(128) / math.sqrt($bptt):.8f}')")
 
     echo "Launching Test: 128 steps, BPTT=${bptt}, 1/sqrt(N) LR scaling"
     echo "  Run name: $run_name"
@@ -143,6 +143,6 @@ echo "---"
 echo ""
 echo "=== All 5 experiments with 1/sqrt(N) LR scaling launched! ==="
 echo "Learning rates used (normalized to BPTT=128):"
-echo "  BPTT=64:  $(echo "scale=8; $BASE_LR * sqrt(128) / sqrt(64)" | bc) (higher than baseline)"
-echo "  BPTT=128: $(echo "scale=8; $BASE_LR * sqrt(128) / sqrt(128)" | bc) = ${BASE_LR} (baseline)"
-echo "  BPTT=256: $(echo "scale=8; $BASE_LR * sqrt(128) / sqrt(256)" | bc) (lower than baseline)"
+echo "  BPTT=64:  $(python -c "import math; print(f'{$BASE_LR * math.sqrt(128) / math.sqrt(64):.8f}')") (higher than baseline)"
+echo "  BPTT=128: $(python -c "import math; print(f'{$BASE_LR * math.sqrt(128) / math.sqrt(128):.8f}')") = ${BASE_LR} (baseline)"
+echo "  BPTT=256: $(python -c "import math; print(f'{$BASE_LR * math.sqrt(128) / math.sqrt(256):.8f}')") (lower than baseline)"
