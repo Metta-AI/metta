@@ -22,7 +22,6 @@ def main():
             with open(os.path.expanduser("~/.netrc"), "w") as f:
                 f.write(f"machine api.wandb.ai\n  login user\n  password {args.wandb_password}\n")
             os.chmod(os.path.expanduser("~/.netrc"), 0o600)  # Restrict to owner read/write only
-            print("~/.netrc created")
 
     if args.observatory_token:
         if os.path.exists(os.path.expanduser("~/.metta/observatory_tokens.yaml")):

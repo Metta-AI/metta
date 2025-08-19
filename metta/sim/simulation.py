@@ -20,7 +20,6 @@ from typing import Any, Dict
 import numpy as np
 import torch
 from einops import rearrange
-from omegaconf import OmegaConf
 from tensordict import TensorDict
 
 from metta.agent.policy_record import PolicyRecord
@@ -28,13 +27,11 @@ from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
-from metta.mettagrid.curriculum.core import Curriculum, SingleTrialTask, Task
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.rl.policy_management import initialize_policy_for_environment
 from metta.rl.vecenv import make_vecenv
-from metta.sim.simulation_config import SingleEnvSimulationConfig
+from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
 from metta.sim.thumbnail_automation import maybe_generate_and_upload_thumbnail
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
@@ -51,26 +48,6 @@ class SimulationCompatibilityError(Exception):
     pass
 
 
-class PreBuiltConfigCurriculum(Curriculum):
-    """A curriculum that uses a pre-built config instead of loading from Hydra.
-    This allows us to bypass Hydra entirely when running evaluation or replay
-    generation without having Hydra initialized.
-    """
-
-    def __init__(self, env_name: str, pre_built_config: Any):
-        self._env_name = env_name
-        self._cfg_template = pre_built_config
-
-    def get_task(self) -> Task:
-        """Return a task with the pre-built config."""
-        return SingleTrialTask(f"prebuilt({self._env_name})", self, self._cfg_template)
-
-    def get_task_probs(self) -> Dict[str, float]:
-        """Return the current task probability for logging purposes."""
-        task_name = f"prebuilt({self._env_name})"
-        return {task_name: 1.0}
-
-
 class Simulation:
     """
     A vectorized batch of MettaGrid environments sharing the same parameters.
@@ -79,7 +56,7 @@ class Simulation:
     def __init__(
         self,
         name: str,
-        config: SingleEnvSimulationConfig,
+        cfg: SimulationConfig,
         policy_pr: PolicyRecord,
         policy_store: PolicyStore,
         device: torch.device,
@@ -95,7 +72,7 @@ class Simulation:
     ):
         self._name = name
         self._sim_suite_name = sim_suite_name
-        self._config = config
+        self._config = cfg
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
         self._episode_tags = episode_tags
@@ -105,21 +82,6 @@ class Simulation:
             self._wandb_policy_name, self._wandb_uri = wandb_policy_name_to_uri(wandb_policy_name)
 
         # ---------------- env config ----------------------------------- #
-        logger.info(f"config.env {config.env}")
-        logger.info(f"config.env_overrides {config.env_overrides}")
-
-        # Extract pre_built_config if present (for Hydra-free operation)
-        pre_built_config = config.env_overrides.get("_pre_built_env_config", None)
-
-        # Create env_overrides without _pre_built_env_config
-        if pre_built_config is not None:
-            env_overrides_dict = {k: v for k, v in config.env_overrides.items() if k != "_pre_built_env_config"}
-            env_overrides = OmegaConf.create(env_overrides_dict)
-        else:
-            env_overrides = OmegaConf.create(config.env_overrides)
-
-        self._env_name = config.env
-
         replay_dir = f"{replay_dir}/{self._id}" if replay_dir else None
 
         sim_stats_dir = (Path(stats_dir) / self._id).resolve()
@@ -133,32 +95,22 @@ class Simulation:
         # Calculate number of parallel environments and episodes per environment
         # to achieve the target total number of episodes
         max_envs = os.cpu_count() or 1
-        if config.num_episodes <= max_envs:
+        if cfg.num_episodes <= max_envs:
             # If we want fewer episodes than CPUs, create one env per episode
-            num_envs = config.num_episodes
+            num_envs = cfg.num_episodes
             episodes_per_env = 1
         else:
             # Otherwise, use all CPUs and distribute episodes
             num_envs = max_envs
-            episodes_per_env = (config.num_episodes + num_envs - 1) // num_envs  # Ceiling division
+            episodes_per_env = (cfg.num_episodes + num_envs - 1) // num_envs  # Ceiling division
 
         logger.info(
             f"Creating vecenv with {num_envs} environments, {episodes_per_env} "
-            f"episodes per env (total target: {config.num_episodes})"
+            f"episodes per env (total target: {cfg.num_episodes})"
         )
 
-        if pre_built_config is not None:
-            # Use our custom curriculum that doesn't require Hydra
-            # Apply any additional env_overrides to the pre_built config
-            if env_overrides:
-                pre_built_config = OmegaConf.merge(pre_built_config, env_overrides)
-            curriculum = PreBuiltConfigCurriculum(config.env, pre_built_config)
-        else:
-            curriculum = curriculum_from_config_path(config.env, env_overrides)
-
-        env_cfg = curriculum.get_task().env_cfg()
         self._vecenv = make_vecenv(
-            curriculum,
+            cfg.env.to_curriculum(),
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
@@ -167,14 +119,14 @@ class Simulation:
 
         self._num_envs = num_envs
         self._min_episodes = episodes_per_env
-        self._max_time_s = config.max_time_s
-        self._agents_per_env = env_cfg.game.num_agents
+        self._max_time_s = cfg.max_time_s
+        self._agents_per_env = cfg.env.game.num_agents
 
         # ---------------- policies ------------------------------------- #
         self._policy_pr = policy_pr
         self._policy_store = policy_store
-        self._npc_pr = policy_store.policy_record(config.npc_policy_uri) if config.npc_policy_uri else None
-        self._policy_agents_pct = config.policy_agents_pct if self._npc_pr is not None else 1.0
+        self._npc_pr = policy_store.policy_record(cfg.npc_policy_uri) if cfg.npc_policy_uri else None
+        self._policy_agents_pct = cfg.policy_agents_pct if self._npc_pr is not None else 1.0
 
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
@@ -213,6 +165,51 @@ class Simulation:
             else torch.tensor([], device=self._device, dtype=torch.long)
         )
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
+
+    @classmethod
+    def create(
+        cls,
+        sim_config: SimulationConfig,
+        policy_store: PolicyStore,
+        device: str,
+        vectorization: str,
+        stats_dir: str = "./train_dir/stats",
+        replay_dir: str = "./train_dir/replays",
+        policy_uri: str | None = None,
+        run_name: str = "simulation_run",
+    ) -> "Simulation":
+        """Create a Simulation with sensible defaults.
+
+        Args:
+            sim_config: Simulation configuration with environment settings
+            policy_store: PolicyStore instance for managing policies
+            device: Device to run on (e.g., "cpu", "cuda")
+            vectorization: Vectorization backend (e.g., "serial", "multiprocessing")
+            stats_dir: Directory for simulation statistics
+            replay_dir: Directory for replay files
+            policy_uri: Optional policy URI to load (None for mock policy)
+            run_name: Name for the mock run if no policy URI provided
+
+        Returns:
+            Configured Simulation instance
+        """
+        # Get policy record or create a mock
+        policy_record = policy_store.policy_record_or_mock(policy_uri, run_name)
+
+        # Create replay directory path with simulation name
+        full_replay_dir = f"{replay_dir}/{sim_config.name}"
+
+        # Create and return simulation
+        return cls(
+            sim_config.name,
+            sim_config,
+            policy_record,
+            policy_store,
+            device=torch.device(device),
+            vectorization=vectorization,
+            stats_dir=stats_dir,
+            replay_dir=full_replay_dir,
+        )
 
     def start_simulation(self) -> None:
         """
@@ -321,7 +318,7 @@ class Simulation:
 
     def step_simulation(self, actions_np: np.ndarray) -> None:
         # ---------------- env.step ------------------------------- #
-        obs, _, dones, trunc, _ = self._vecenv.step(actions_np)
+        obs, rewards, dones, trunc, infos = self._vecenv.step(actions_np)
 
         # ---------------- episode FSM ---------------------------- #
         done_now = np.logical_or(
@@ -428,7 +425,7 @@ class Simulation:
 
         suite_name = "" if self._sim_suite_name is None else self._sim_suite_name
         db = SimulationStatsDB.from_shards_and_context(
-            self._id, self._stats_dir, agent_map, self._name, suite_name, self._config.env, self._policy_pr
+            self._id, self._stats_dir, agent_map, self._name, suite_name, self._policy_pr
         )
         return db
 
@@ -487,7 +484,7 @@ class Simulation:
                     attributes[attr_name] = attr_value
 
                 # Record the episode remotely
-                episode_tags = self._episode_tags if self._episode_tags else None
+                episode_tags = self._episode_tags or None
                 try:
                     self._stats_client.record_episode(
                         agent_policies=agent_map,
@@ -526,6 +523,62 @@ class Simulation:
         if len(self._vecenv.envs) != 1:
             raise ValueError("Attempting to get single env, but simulation has multiple envs")
         return self._vecenv.envs[0]
+
+    @property
+    def policy_record(self) -> PolicyRecord:
+        """Get the policy record used in this simulation."""
+        return self._policy_pr
+
+    @property
+    def name(self) -> str:
+        return self._name
+
+    def get_policy_state(self):
+        """Get the policy state for memory manipulation.
+
+        Returns a PolicyState object with lstm_h and lstm_c attributes if available.
+        Note: The actual state management depends on the specific policy implementation.
+        """
+        # The policy is the LSTM wrapper
+        policy = self._policy_pr.policy
+
+        # Try to get LSTM state from the policy
+        # This depends on the specific policy implementation
+        lstm_h = None
+        lstm_c = None
+
+        # Check if it's a pufferlib LSTMWrapper
+        if hasattr(policy, "lstm") and hasattr(policy.lstm, "weight_hh_l0"):
+            # For pufferlib LSTMWrapper, the state is managed internally during forward pass
+            # We would need to track it differently or access it through the forward pass
+            # For now, return None as this requires deeper integration
+            return None
+
+        # Check if policy has direct lstm_h and lstm_c attributes (custom implementations)
+        if hasattr(policy, "lstm_h") and hasattr(policy, "lstm_c"):
+            lstm_h = policy.lstm_h
+            lstm_c = policy.lstm_c
+
+        # Check if policy has a component that manages LSTM state (MettaAgent style)
+        elif hasattr(policy, "component") and hasattr(policy.component, "lstm"):
+            lstm_component = policy.component.lstm
+            if hasattr(lstm_component, "lstm_h") and hasattr(lstm_component, "lstm_c"):
+                # These are dictionaries mapping env_id to tensors
+                # Get the first one for single-env simulations
+                if 0 in lstm_component.lstm_h and 0 in lstm_component.lstm_c:
+                    lstm_h = lstm_component.lstm_h[0]
+                    lstm_c = lstm_component.lstm_c[0]
+
+        if lstm_h is not None and lstm_c is not None:
+            # Return an object-like dict that allows attribute access
+            class PolicyState:
+                def __init__(self, lstm_h, lstm_c):
+                    self.lstm_h = lstm_h
+                    self.lstm_c = lstm_c
+
+            return PolicyState(lstm_h, lstm_c)
+
+        return None
 
 
 @dataclass

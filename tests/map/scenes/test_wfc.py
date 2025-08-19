@@ -4,13 +4,14 @@ from tests.map.scenes.utils import render_scene
 
 def test_basic():
     scene = render_scene(
-        WFC,
-        dict(
-            pattern="""
-        .#...
-        ###..
-        ###..
-            """,
+        WFC.factory(
+            WFC.Params(
+                pattern="""
+                    .#...
+                    ###..
+                    ###..
+                """
+            )
         ),
         (20, 20),
     )

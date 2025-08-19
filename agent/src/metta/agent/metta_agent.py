@@ -10,12 +10,16 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.agent_mapper import agents
+from metta.agent.component_policy import ComponentPolicy
+from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
 
-IS_MASTER = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+
+def log_on_master(*args, **argv):
+    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+        logger.info(*args, **argv)
 
 
 class DistributedMettaAgent(DistributedDataParallel):
@@ -28,8 +32,7 @@ class DistributedMettaAgent(DistributedDataParallel):
     module: "MettaAgent"
 
     def __init__(self, agent: "MettaAgent", device: torch.device):
-        if IS_MASTER:
-            logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+        log_on_master("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
 
         # Check if the agent might have circular references that would cause recursion
         # This can happen with legacy checkpoints wrapped in LegacyMettaAgentAdapter
@@ -62,11 +65,11 @@ class MettaAgent(nn.Module):
         self,
         env,
         system_cfg: SystemConfig,
-        agent_cfg: DictConfig,
+        policy_architecture_cfg: DictConfig,
         policy: Optional[nn.Module] = None,
     ):
         super().__init__()
-        self.cfg = agent_cfg
+        self.cfg = policy_architecture_cfg
         self.device = system_cfg.device
 
         # Create observation space
@@ -84,45 +87,50 @@ class MettaAgent(nn.Module):
 
         # Create policy if not provided
         if policy is None:
-            policy = self._create_policy(agent_cfg, env, system_cfg)
+            policy = self._create_policy(policy_architecture_cfg, env, system_cfg)
 
         self.policy = policy
-        if self.policy is not None:
-            # Move policy to device - this matches how main branch handled it
-            self.policy = self.policy.to(self.device)
-            # Set device attribute if the policy supports it (for backwards compatibility)
-            if hasattr(self.policy, "device"):
-                self.policy.device = self.device
+        if self.policy is not None and hasattr(self.policy, "device"):
+            self.policy.device = self.device
+            self.policy.to(self.device)
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
 
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
-        # Agent config is a string representing the agent class name
-        agent_name = str(agent_cfg)
+        if agent_cfg.get("agent_type") in agent_classes:
+            # Create PyTorch policy with configuration parameters
+            AgentClass = agent_classes[agent_cfg.agent_type]
 
-        if agent_name not in agents:
-            raise ValueError(f"Unknown agent: '{agent_name}'. Available agents: {list(agents.keys())}")
+            # Extract configuration parameters that PyTorch policies need
+            # All PyTorch agents must use the mixin which handles these
+            policy_kwargs = {
+                "env": env,
+                "clip_range": agent_cfg.get("clip_range", 0),
+                "analyze_weights_interval": agent_cfg.get("analyze_weights_interval", 300),
+            }
 
-        AgentClass = agents[agent_name]
+            # Add any additional config parameters that might be in agent_cfg
+            # This allows policies to accept custom parameters
+            for key, value in agent_cfg.items():
+                if key not in ["agent_type", "clip_range", "analyze_weights_interval", "_target_"]:
+                    policy_kwargs[key] = value
 
-        # Default configuration for all policies
-        config = {"clip_range": 0, "analyze_weights_interval": 300}
-
-        # PyTorch models use env, ComponentPolicies use structured parameters
-        if agent_name.startswith("pytorch/"):
-            policy = AgentClass(env=env, **config)
+            # All PyTorch agents must accept these parameters via the mixin
+            policy = AgentClass(**policy_kwargs)
         else:
-            policy = AgentClass(
+            # Create ComponentPolicy (YAML config)
+            policy = ComponentPolicy(
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
                 obs_height=self.obs_height,
+                action_space=self.action_space,
                 feature_normalizations=self.feature_normalizations,
-                config=config,
+                device=system_cfg.device,
+                cfg=agent_cfg,
             )
 
-        logger.info(f"Using agent: {agent_name}")
         return policy
 
     def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
@@ -175,8 +183,7 @@ class MettaAgent(nn.Module):
         # Store original feature mapping on first initialization
         if not hasattr(self, "original_feature_mapping"):
             self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
-            if IS_MASTER:
-                logger.info(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
+            log_on_master(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
         else:
             # Create remapping for subsequent initializations
             self._create_feature_remapping(features)
@@ -255,7 +262,7 @@ class MettaAgent(nn.Module):
         """Restore the original feature mapping from metadata."""
         # Make a copy to avoid shared state between agents
         self.original_feature_mapping = mapping.copy()
-        logger.info(f"Restored original feature mapping with {len(mapping)} features from metadata")
+        log_on_master(f"Restored original feature mapping with {len(mapping)} features from metadata")
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Initialize action space for the agent."""
@@ -284,8 +291,7 @@ class MettaAgent(nn.Module):
             dtype=torch.int32,
         )
 
-        if IS_MASTER:
-            logger.info(f"Actions initialized: {self.active_actions}")
+        log_on_master(f"Actions initialized: {self.active_actions}")
 
         # Pass tensors to policy if needed
         if self.policy is not None:
@@ -353,26 +359,15 @@ class MettaAgent(nn.Module):
             logger.info("Detected old checkpoint format - converting to new ComponentPolicy structure")
 
             # Extract the components and related attributes that belong in ComponentPolicy
-            from metta.agent.agent_mapper import agents
+            from metta.agent.component_policy import ComponentPolicy
 
             # First, break any circular references in the old state
             if "policy" in state and state.get("policy") is state:
                 del state["policy"]
-                logger.info("Removed circular reference: state['policy'] = state")
+                log_on_master("Removed circular reference: state['policy'] = state")
 
-            # Try to determine the agent type from state
-            agent_type = state.get("cfg", "fast")  # Default to "fast" if no cfg
-            if isinstance(agent_type, str) and agent_type in agents:
-                PolicyClass = agents[agent_type]
-            else:
-                # Default to Fast ComponentPolicy for old checkpoints
-                from metta.agent.component_policies.fast import Fast
-
-                PolicyClass = Fast
-                logger.info("Could not determine agent type from checkpoint, defaulting to Fast")
-
-            # Create the specific policy class without calling __init__ to avoid rebuilding components
-            policy = PolicyClass.__new__(PolicyClass)
+            # Create ComponentPolicy without calling __init__ to avoid rebuilding components
+            policy = ComponentPolicy.__new__(ComponentPolicy)
 
             # Initialize nn.Module base class
             nn.Module.__init__(policy)
@@ -462,7 +457,7 @@ class MettaAgent(nn.Module):
             if hasattr(self, "device") and self.policy is not None:
                 self.policy.device = self.device
 
-            logger.info("Successfully converted old checkpoint to new structure")
+            log_on_master("Successfully converted old checkpoint to new structure")
         else:
             # Normal checkpoint restoration
             self.__dict__.update(state)
