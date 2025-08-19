@@ -242,14 +242,8 @@ else
 
   if [ $NCCL_TEST_EXIT_CODE -ne 0 ]; then
     echo "[ERROR] NCCL tests failed with exit code: $NCCL_TEST_EXIT_CODE"
-
-    # Only master writes the termination reason file
-    if [[ "$IS_MASTER" == "true" ]]; then
-      echo "nccl_test_failure" > "$TERMINATION_REASON_FILE"
-    else
-      bash ./devops/skypilot/config/lifecycle/wait_for_termination.sh "nccl_test_failure" 30
-      kill -TERM "${WRAPPER_PID}" 2> /dev/null || true # initiate shutdown
-    fi
+    echo "nccl_test_failure" > "$TERMINATION_REASON_FILE"
+     kill -TERM "${WRAPPER_PID}" 2> /dev/null || true # initiate shutdown
   else
     echo "[SUCCESS] NCCL tests passed"
   fi
