@@ -234,7 +234,7 @@ def format_benchmark_results(results: dict[str, Any]) -> str:
     output = io.StringIO()
 
     output.write("\n")
-    output.write(format_box_header("NCCL BANDWIDTH BENCHMARKS", include_rank=False))
+    output.write(format_box_header("NCCL BANDWIDTH BENCHMARKS"))
 
     # P2P bandwidth
     if "p2p_bandwidth" in results:
@@ -291,10 +291,7 @@ def print_benchmark_results(results: dict[str, Any], topology: dict[str, Any] | 
     print(output)
 
 
-def format_box_header(
-    title: str,
-    width: int = 75,
-) -> str:
+def format_box_header(title: str, width: int = 75, include_rank: bool = True) -> str:
     """Format a box header as a string instead of printing directly."""
     output = io.StringIO()
 
@@ -303,6 +300,9 @@ def format_box_header(
     node_rank = int(os.environ.get("NODE_RANK", os.environ.get("NODE_INDEX", 0)))
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     display_title = f"{title} (Rank {rank}, Node {node_rank}, GPU {local_rank})"
+
+    if not include_rank:
+        display_title = f"{title}"
 
     # Ensure title fits with padding
     max_title_width = width - 4  # Account for borders and spacing
@@ -321,15 +321,11 @@ def format_box_header(
 
 
 def print_box_header(title: str, width: int = 75, include_rank: bool = True) -> None:
-    """Print a formatted box header with centered title.
-
-    When include_rank is True and in a distributed environment, this function
-    ensures ranks print in order to avoid garbled output.
-    """
+    """Print a formatted box header with centered title."""
     if dist.is_available() and dist.is_initialized() and dist.get_rank() != 0:
         return  # Only print from rank 0 in distributed mode
 
-    print(format_box_header(title, width), end="")
+    print(format_box_header(title, width, include_rank), end="")
 
 
 def run_command(cmd: list[str], check: bool = False) -> tuple[int, str, str]:
