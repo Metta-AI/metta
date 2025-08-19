@@ -21,7 +21,7 @@ from pydantic import Field
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicySelectorType, PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.config import Tool
+from metta.common.config.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.eval_service import evaluate_policy
