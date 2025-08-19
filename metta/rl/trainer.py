@@ -81,7 +81,7 @@ def train(
     run_dir: str,
     run: str,
     system_cfg: SystemConfig,
-    agent_cfg: DictConfig,
+    agent_cfg: str,
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,
@@ -158,7 +158,7 @@ def train(
 
     # Load or initialize policy with distributed coordination
     initial_policy_record = latest_saved_policy_record = checkpoint_manager.load_or_create_policy(
-        agent_cfg=agent_cfg,
+        agent=agent_cfg,
         system_cfg=system_cfg,
         trainer_cfg=trainer_cfg,
         checkpoint=checkpoint,
