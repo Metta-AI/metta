@@ -7,7 +7,7 @@ defaults:
   - /sim/coop_arena@sim
   - _self_
 
-run: krishnakanth.coop_rewardsharing_bucket.lp
+run: krishnakanth.coop_rewardsharing_bucket.local.lp
 cmd: train
 
 data_dir: ${oc.env:DATA_DIR,./train_dir}
