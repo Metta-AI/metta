@@ -346,7 +346,7 @@ class TestRealTypedConfigs:
                 content = f.read()
                 if "trainer:" not in content:
                     continue  # Skip configs without trainer overrides
-                
+
                 # Skip configs that reference agent configs (which are now Python-based)
                 if "- /agent/" in content:
                     print(f"Skipping {config_type} config {config_name}: references agent config")
@@ -366,8 +366,8 @@ class TestRealTypedConfigs:
                 if "Could not load 'agent/" in error_msg or ("Cannot find" in error_msg and "/agent/" in error_msg):
                     # This is expected on the dehydration branch where agent YAML configs have been removed
                     # in favor of Python-based ComponentPolicy classes
-                    print(f"INFO: Skipping {config_type} config '{config_name}' - references agent YAML configs (removed in dehydration)")
+                    print(f"INFO: Skipping {config_type} config '{config_name}' - references agent YAML configs")
                     continue
-                
+
                 print(f"Error loading {config_type} config {config_name}: {e}")
                 raise AssertionError(f"Failed to load {config_type} config {config_name}: {e}") from e
