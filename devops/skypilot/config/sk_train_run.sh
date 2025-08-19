@@ -121,7 +121,7 @@ shutdown() {
     if [[ "$IS_MASTER" == "true" ]]; then
       echo "$termination_reason" > "$CLUSTER_STOP_FILE"
       echo "[SHUTDOWN] Signaled all nodes to begin shutdown"
-      sleep 3  # Give workers time to receive the signal
+      sleep 5  # Give workers time to receive the signal
     fi
 
     # Send SIGTERM to the process group
@@ -156,8 +156,10 @@ shutdown() {
   # Master waits for workers to disconnect
   if [[ "$IS_MASTER" == "true" ]] && [[ "$TOTAL_NODES" -gt 1 ]]; then
     echo "[SHUTDOWN] Master waiting for workers to disconnect..."
-    sleep 7  # Give workers time to shut down cleanly
+    sleep 10  # Give workers time to shut down cleanly
   fi
+
+  sleep 10
 }
 trap shutdown INT TERM HUP
 

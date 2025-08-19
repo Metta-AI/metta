@@ -5,7 +5,6 @@ import multiprocessing
 import os
 import platform
 import signal
-import sys
 from logging import Logger
 
 import torch
@@ -47,8 +46,6 @@ def handle_shutdown(signal_code, frame):
             torch.distributed.destroy_process_group()
         except Exception as e:
             logger.error(f"Error destroying process group: {e}")
-
-    sys.exit(0)
 
 
 # TODO: populate this more

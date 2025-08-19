@@ -108,7 +108,7 @@ handle_master_cleanup() {
   # Final GitHub status update
   export CMD_EXIT
 
-  uv run devops/skypilot/config/notifications/set_github_status.py $GITHUB_STATUS_STATE $GITHUB_STATUS_DESCRIPTION
+  uv run devops/skypilot/config/notifications/set_github_status.py "$GITHUB_STATUS_STATE" "$GITHUB_STATUS_DESCRIPTION"
 }
 
 print_final_summary() {
