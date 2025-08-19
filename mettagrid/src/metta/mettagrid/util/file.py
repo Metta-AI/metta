@@ -261,7 +261,9 @@ class WandbURI:
 
     def http_url(self) -> str:
         """Human-readable URL for this artifact version."""
-        return f"https://wandb.ai/{WANDB_ENTITY}/{self.project}/artifacts/{self.artifact_path}/{self.version}"
+        # Use sanitized artifact name for the URL to match what we actually create
+        sanitized_name = re.sub(r"[^a-zA-Z0-9_\-.]+", "_", self.artifact_path)
+        return f"https://wandb.ai/{WANDB_ENTITY}/{self.project}/artifacts/{sanitized_name}/{self.version}"
 
     # pretty print
     def __str__(self) -> str:  # noqa: D401 (keep dunder)
