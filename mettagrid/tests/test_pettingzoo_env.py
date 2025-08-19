@@ -8,7 +8,7 @@ import numpy as np
 from pettingzoo.test import parallel_api_test
 
 from metta.mettagrid.config.envs import make_arena
-from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig, GroupConfig, WallConfig
 from metta.mettagrid.pettingzoo_env import MettaGridPettingZooEnv
 
@@ -63,7 +63,7 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
             ),
             objects={"wall": WallConfig(type_id=1)},
             groups=groups,
-            map_builder=AsciiMapBuilderConfig(map_data=map_data),
+            map_builder=AsciiMapBuilder.Config(map_data=map_data),
         )
     )
     return cfg

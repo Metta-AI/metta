@@ -3,7 +3,7 @@
 import numpy as np
 
 from metta.mettagrid.core import MettaGridCore
-from metta.mettagrid.map_builder.ascii import AsciiMapBuilder, AsciiMapBuilderConfig
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.mettagrid_c import dtype_actions
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
@@ -24,7 +24,7 @@ def test_8way_movement_all_directions():
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
@@ -149,7 +149,7 @@ def test_orientation_changes_with_8way():
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", ".", ".", "."],
                     [".", "@", ".", ".", "."],
@@ -213,7 +213,7 @@ def test_cardinal_movement_changes_orientation():
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", ".", ".", "."],
                     [".", "@", ".", ".", "."],
@@ -261,7 +261,7 @@ def test_8way_movement_with_simple_environment():
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", ".", "."],
@@ -326,7 +326,7 @@ def test_8way_movement_boundary_check():
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", "."],
                     [".", "@", "."],
@@ -387,7 +387,7 @@ def test_orientation_changes_on_failed_8way_movement():
                 move_8way=ActionConfig(enabled=True),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#"],
                     ["#", "@", "#"],

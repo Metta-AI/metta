@@ -12,7 +12,7 @@ import pytest
 
 from metta.mettagrid.char_encoder import CHAR_TO_NAME
 from metta.mettagrid.config.envs import make_arena
-from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.renderer.nethack import NethackRenderer
 
@@ -222,7 +222,7 @@ class TestRendererIntegration:
         # Use the working approach from our demo scripts
         cfg = make_arena(num_agents=1)
         cfg.game.max_steps = 5
-        cfg.game.map_builder = RandomMapBuilderConfig(
+        cfg.game.map_builder = RandomMapBuilder.Config(
             width=5,
             height=5,
             agents=1,
@@ -260,7 +260,7 @@ class TestRendererIntegration:
         cfg.game.max_steps = 5
 
         # Override map builder to ensure agent count matches
-        cfg.game.map_builder = RandomMapBuilderConfig(
+        cfg.game.map_builder = RandomMapBuilder.Config(
             width=5,
             height=5,
             agents=1,
@@ -296,7 +296,7 @@ class TestRendererIntegration:
         cfg.game.max_steps = 5
 
         # Override map builder to ensure agent count matches
-        cfg.game.map_builder = RandomMapBuilderConfig(
+        cfg.game.map_builder = RandomMapBuilder.Config(
             width=5,
             height=5,
             agents=1,

@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 
 from metta.mettagrid.core import MettaGridCore
-from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
@@ -46,7 +46,7 @@ def env_with_visitation():
                 resource_rewards=False,
                 visitation_counts=True,  # Enable visitation counts
             ),
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
@@ -89,7 +89,7 @@ def env_without_visitation():
                 resource_rewards=False,
                 visitation_counts=False,  # Disable visitation counts
             ),
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
@@ -126,7 +126,7 @@ def env_default():
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
             # No explicit visitation_counts setting - uses default (False)
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", ".", ".", ".", ".", "."],
                     [".", ".", ".", ".", ".", ".", "."],
@@ -248,7 +248,7 @@ def test_visitation_counts_configurable():
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
             global_obs=GlobalObsConfig(visitation_counts=True),
-            map_builder=AsciiMapBuilderConfig(map_data=simple_map),
+            map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
     )
     env = MettaGridCore(config_enabled)
@@ -268,7 +268,7 @@ def test_visitation_counts_configurable():
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
             global_obs=GlobalObsConfig(visitation_counts=False),
-            map_builder=AsciiMapBuilderConfig(map_data=simple_map),
+            map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
     )
     env = MettaGridCore(config_disabled)
@@ -287,7 +287,7 @@ def test_visitation_counts_configurable():
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
-            map_builder=AsciiMapBuilderConfig(map_data=simple_map),
+            map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
     )
     env = MettaGridCore(config_default)
@@ -321,7 +321,7 @@ def performance_config():
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
-            map_builder=AsciiMapBuilderConfig(map_data=simple_map),
+            map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
     )
     return config

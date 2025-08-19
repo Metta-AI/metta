@@ -5,13 +5,9 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
 
-from metta.mettagrid.map_builder import (
-    AnyMapBuilderConfig,
-)
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-from metta.mettagrid.map_builder.maze import MazePrimMapBuilder
+from metta.mettagrid.map_builder.maze import MazeKruskalMapBuilder, MazePrimMapBuilder
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 
 
@@ -21,7 +17,6 @@ class TestPolymorphicSerialization:
     def test_random_config_serialization(self):
         """Test serialization and deserialization of RandomMapBuilderConfig."""
         config = RandomMapBuilder.Config(
-            type="random",
             width=20,
             height=30,
             seed=42,
@@ -33,7 +28,7 @@ class TestPolymorphicSerialization:
 
         # Test serialization
         serialized = config.model_dump()
-        assert serialized["type"] == "random"
+        assert serialized["type"] == "metta.mettagrid.map_builder.random.RandomMapBuilder"
         assert serialized["width"] == 20
         assert serialized["height"] == 30
         assert serialized["seed"] == 42
@@ -45,7 +40,7 @@ class TestPolymorphicSerialization:
 
         # Test deserialization
         deserialized = RandomMapBuilder.Config.model_validate(serialized)
-        assert deserialized.type == "random"
+        assert isinstance(deserialized, RandomMapBuilder.Config)
         assert deserialized.width == 20
         assert deserialized.height == 30
         assert deserialized.seed == 42
@@ -54,36 +49,34 @@ class TestPolymorphicSerialization:
     def test_maze_prim_config_serialization(self):
         """Test serialization and deserialization of MazePrimMapBuilderConfig."""
         config = MazePrimMapBuilder.Config(
-            type="maze_prim", width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), branching=0.2, seed=123
+            width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), branching=0.2, seed=123
         )
 
         # Test serialization
         serialized = config.model_dump()
-        assert serialized["type"] == "maze_prim"
+        assert serialized["type"] == "metta.mettagrid.map_builder.maze.MazePrimMapBuilder"
         assert serialized["width"] == 15
         assert serialized["start_pos"] == (1, 1)  # tuples remain as tuples in model_dump
 
         # Test deserialization
-        deserialized = MazePrimMapBuilderConfig.model_validate(serialized)
-        assert deserialized.type == "maze_prim"
+        deserialized = MazePrimMapBuilder.Config.model_validate(serialized)
+        assert isinstance(deserialized, MazePrimMapBuilder.Config)
         assert deserialized.width == 15
         assert deserialized.start_pos == (1, 1)
         assert deserialized.branching == 0.2
 
     def test_maze_kruskal_config_serialization(self):
         """Test serialization and deserialization of MazeKruskalMapBuilderConfig."""
-        config = MazeKruskalMapBuilderConfig(
-            type="maze_kruskal", width=21, height=21, start_pos=(0, 0), end_pos=(20, 20), seed=456
-        )
+        config = MazeKruskalMapBuilder.Config(width=21, height=21, start_pos=(0, 0), end_pos=(20, 20), seed=456)
 
         # Test serialization
         serialized = config.model_dump()
-        assert serialized["type"] == "maze_kruskal"
+        assert serialized["type"] == "metta.mettagrid.map_builder.maze.MazeKruskalMapBuilder"
         assert serialized["width"] == 21
 
         # Test deserialization
-        deserialized = MazeKruskalMapBuilderConfig.model_validate(serialized)
-        assert deserialized.type == "maze_kruskal"
+        deserialized = MazeKruskalMapBuilder.Config.model_validate(serialized)
+        assert isinstance(deserialized, MazeKruskalMapBuilder.Config)
         assert deserialized.width == 21
 
     def test_ascii_config_serialization(self):
@@ -97,80 +90,22 @@ class TestPolymorphicSerialization:
 
             # Test serialization
             serialized = config.model_dump()
-            assert serialized["type"] == "ascii"
+            assert serialized["type"] == "metta.mettagrid.map_builder.ascii.AsciiMapBuilder"
             assert serialized["map_data"] == [["#", "#", "#"], ["#", ".", "#"], ["#", "#", "#"]]
 
             # Test deserialization
             deserialized = AsciiMapBuilder.Config.model_validate(serialized)
-            assert deserialized.type == "ascii"
+            assert isinstance(deserialized, AsciiMapBuilder.Config)
             assert deserialized.map_data == [["#", "#", "#"], ["#", ".", "#"], ["#", "#", "#"]]
 
         finally:
             Path(temp_path).unlink()
 
-    def test_discriminator_validation(self):
-        """Test that the discriminator field correctly validates types."""
-        # Valid configs should work
-        valid_configs = [
-            {"type": "random", "width": 10, "height": 10},
-            {"type": "maze_prim", "width": 15, "height": 15, "start_pos": [1, 1], "end_pos": [13, 13]},
-            {"type": "maze_kruskal", "width": 21, "height": 21, "start_pos": [0, 0], "end_pos": [20, 20]},
-            {"type": "ascii", "map_data": [["#", "#", "#"], ["#", ".", "#"], ["#", "#", "#"]]},
-        ]
-
-        for config_dict in valid_configs:
-            # Should not raise an exception
-            config_type = config_dict["type"]
-            if config_type == "random":
-                RandomMapBuilder.Config.model_validate(config_dict)
-            elif config_type == "maze_prim":
-                MazePrimMapBuilderConfig.model_validate(config_dict)
-            elif config_type == "maze_kruskal":
-                MazeKruskalMapBuilderConfig.model_validate(config_dict)
-            elif config_type == "ascii":
-                AsciiMapBuilderConfig.model_validate(config_dict)
-
-    def test_invalid_discriminator_value(self):
-        """Test that invalid discriminator values are rejected."""
-        # Wrong type for RandomMapBuilderConfig
-        with pytest.raises(ValidationError):
-            RandomMapBuilderConfig.model_validate({"type": "wrong_type", "width": 10, "height": 10})
-
-        # Missing type field - should use default value, not raise error
-        config = RandomMapBuilderConfig.model_validate({"width": 10, "height": 10})
-        assert config.type == "random"  # Uses the default value
-
-    def test_union_discriminator_validation(self):
-        """Test that the MapBuilderConfigUnion properly discriminates between types."""
-
-        from pydantic import BaseModel
-
-        # Create a test model that uses the union
-        class TestContainer(BaseModel):
-            config: AnyMapBuilderConfig
-
-        # Test valid configs for each type
-        test_cases = [
-            {"config": {"type": "random", "width": 10, "height": 10}},
-            {"config": {"type": "maze_prim", "width": 15, "height": 15, "start_pos": [1, 1], "end_pos": [13, 13]}},
-            {"config": {"type": "maze_kruskal", "width": 21, "height": 21, "start_pos": [0, 0], "end_pos": [20, 20]}},
-        ]
-
-        for test_case in test_cases:
-            container = TestContainer.model_validate(test_case)
-            assert container.config.type == test_case["config"]["type"]
-
-        # Test invalid discriminator value should raise error
-        with pytest.raises(ValidationError):
-            TestContainer.model_validate({"config": {"type": "invalid_type", "width": 10, "height": 10}})
-
     def test_json_round_trip(self):
         """Test that configs can be serialized to JSON and back."""
         configs = [
-            RandomMapBuilderConfig(type="random", width=10, height=10, seed=42, objects={"wall": 3}),
-            MazePrimMapBuilderConfig(
-                type="maze_prim", width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), seed=123
-            ),
+            RandomMapBuilder.Config(width=10, height=10, seed=42, objects={"wall": 3}),
+            MazePrimMapBuilder.Config(width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), seed=123),
         ]
 
         for original_config in configs:
@@ -182,22 +117,22 @@ class TestPolymorphicSerialization:
 
             # Reconstruct the config
             config_type = data["type"]
-            if config_type == "random":
-                reconstructed = RandomMapBuilderConfig.model_validate(data)
-            elif config_type == "maze_prim":
-                reconstructed = MazePrimMapBuilderConfig.model_validate(data)
+            if config_type == "metta.mettagrid.map_builder.random.RandomMapBuilder":
+                reconstructed = RandomMapBuilder.Config.model_validate(data)
+            elif config_type == "metta.mettagrid.map_builder.maze.MazePrimMapBuilder":
+                reconstructed = MazePrimMapBuilder.Config.model_validate(data)
             else:
                 pytest.fail(f"Unexpected config type: {config_type}")
 
             # Compare key attributes
-            assert reconstructed.type == original_config.type
+            assert isinstance(reconstructed, original_config.__class__)
             assert reconstructed.width == original_config.width
             assert reconstructed.height == original_config.height
 
     def test_default_values_serialization(self):
         """Test that default values are properly handled in serialization."""
         # Create config with minimal required fields
-        config = RandomMapBuilderConfig(type="random")
+        config = RandomMapBuilder.Config()
 
         serialized = config.model_dump()
 
@@ -208,17 +143,17 @@ class TestPolymorphicSerialization:
         assert serialized["border_width"] == 0  # default value
 
         # Deserialization should work
-        deserialized = RandomMapBuilderConfig.model_validate(serialized)
+        deserialized = RandomMapBuilder.Config.model_validate(serialized)
         assert deserialized.width == 10
         assert deserialized.height == 10
 
     def test_config_creation_methods(self):
         """Test that the create() methods work correctly after serialization."""
-        config = RandomMapBuilderConfig(type="random", width=5, height=5, seed=999)
+        config = RandomMapBuilder.Config(width=5, height=5, seed=999)
 
         # Serialize and deserialize
         serialized = config.model_dump()
-        deserialized = RandomMapBuilderConfig.model_validate(serialized)
+        deserialized = RandomMapBuilder.Config.model_validate(serialized)
 
         # Test that create() method still works
         map_builder = deserialized.create()
@@ -228,24 +163,3 @@ class TestPolymorphicSerialization:
         game_map = map_builder.build()
         assert game_map is not None
         assert game_map.grid.shape == (5, 5)
-
-    def test_type_field_immutability(self):
-        """Test that type field defaults are correctly set and immutable."""
-        random_config = RandomMapBuilderConfig()
-        assert random_config.type == "random"
-
-        maze_prim_config = MazePrimMapBuilderConfig(width=15, height=15, start_pos=(1, 1), end_pos=(13, 13))
-        assert maze_prim_config.type == "maze_prim"
-
-        maze_kruskal_config = MazeKruskalMapBuilderConfig(width=21, height=21, start_pos=(0, 0), end_pos=(20, 20))
-        assert maze_kruskal_config.type == "maze_kruskal"
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-            f.write("#")
-            temp_path = f.name
-
-        try:
-            ascii_config = AsciiMapBuilderConfig.from_uri(temp_path)
-            assert ascii_config.type == "ascii"
-        finally:
-            Path(temp_path).unlink()

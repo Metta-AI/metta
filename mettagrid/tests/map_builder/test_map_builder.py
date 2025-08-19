@@ -1,5 +1,3 @@
-from typing import Literal
-
 import numpy as np
 
 from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig, map_grid_dtype
@@ -24,17 +22,16 @@ class TestGameMap:
         assert large_map.grid.shape == (10, 15)
 
 
-class ConcreteMapBuilderConfig(MapBuilderConfig):
-    """Test implementation of abstract MapBuilderConfig"""
-
-    type: Literal["test"] = "test"
-
-    def create(self) -> "ConcreteMapBuilder":
-        return ConcreteMapBuilder(self)
-
-
 class ConcreteMapBuilder(MapBuilder):
     """Test implementation of abstract MapBuilder"""
+
+    class Config(MapBuilderConfig["ConcreteMapBuilder"]):
+        """Test implementation of abstract MapBuilderConfig"""
+
+        pass
+
+    def __init__(self, config: Config):
+        self._config = config
 
     def build(self) -> GameMap:
         grid = np.array([["wall", "empty"], ["agent.agent", "altar"]], dtype=map_grid_dtype)
@@ -43,19 +40,19 @@ class ConcreteMapBuilder(MapBuilder):
 
 class TestMapBuilderConfig:
     def test_create_abstract_method(self):
-        config = ConcreteMapBuilderConfig()
+        config = ConcreteMapBuilder.Config()
         builder = config.create()
         assert isinstance(builder, ConcreteMapBuilder)
 
 
 class TestMapBuilder:
     def test_init(self):
-        config = ConcreteMapBuilderConfig()
+        config = ConcreteMapBuilder.Config()
         builder = ConcreteMapBuilder(config)
         assert builder._config == config
 
     def test_build_abstract_method(self):
-        config = ConcreteMapBuilderConfig()
+        config = ConcreteMapBuilder.Config()
         builder = ConcreteMapBuilder(config)
         game_map = builder.build()
         assert isinstance(game_map, GameMap)
