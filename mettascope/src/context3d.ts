@@ -327,7 +327,7 @@ export class Context3d {
 
     const pos = new Vec2f(x, y)
 
-    // Calculate vertex positions (screen pixels, origin top-left) - 4 vertices for a quad
+    // Calculate vertex positions (screen pixels, origin top-left) - 4 vertices for a quad.
     const untransformedTopLeft = pos
     const untransformedBottomLeft = new Vec2f(pos.x(), pos.y() + height)
     const untransformedTopRight = new Vec2f(pos.x() + width, pos.y())
@@ -365,7 +365,7 @@ export class Context3d {
       return
     }
 
-    // Draw the rectangle with the image's texture coordinates
+    // Draw the rectangle with the image's texture coordinates.
     // Note: bounds x,y already include margin, but we need to offset back for correct positioning
     this.drawRect(x, y, bounds.width, bounds.height, bounds.u0, bounds.v0, bounds.u1, bounds.v1, color)
   }
