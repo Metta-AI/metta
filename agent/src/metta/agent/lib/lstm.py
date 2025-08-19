@@ -143,9 +143,9 @@ class LSTM(LayerBase):
             #     reset_mask = (dones.bool() | truncateds.bool()).view(1, -1, 1)
             # else:
             #     reset_mask = torch.ones(1, B, 1, device=hidden.device)
-
-            h_0 = h_0.masked_fill(reset_mask, 0)
-            c_0 = c_0.masked_fill(reset_mask, 0)
+            if TT == 1:
+                h_0 = h_0.masked_fill(reset_mask, 0)
+                c_0 = c_0.masked_fill(reset_mask, 0)
         else:
             h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
             c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
