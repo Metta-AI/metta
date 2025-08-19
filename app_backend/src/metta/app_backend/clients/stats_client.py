@@ -102,6 +102,7 @@ class AsyncStatsClient(BaseAppBackendClient):
         attributes: dict[str, Any] | None = None,
         eval_task_id: uuid.UUID | None = None,
         tags: list[str] | None = None,
+        thumbnail_url: str | None = None,
     ) -> EpisodeResponse:
         data = EpisodeCreate(
             agent_policies=agent_policies,
@@ -114,6 +115,7 @@ class AsyncStatsClient(BaseAppBackendClient):
             attributes=attributes or {},
             eval_task_id=eval_task_id,
             tags=tags,
+            thumbnail_url=thumbnail_url,
         )
         return await self._make_request(EpisodeResponse, "POST", "/stats/episodes", json=data.model_dump(mode="json"))
 
@@ -235,6 +237,7 @@ class StatsClient:
         attributes: dict[str, Any] | None = None,
         eval_task_id: uuid.UUID | None = None,
         tags: list[str] | None = None,
+        thumbnail_url: str | None = None,
     ) -> EpisodeResponse:
         data = EpisodeCreate(
             agent_policies=agent_policies,
@@ -247,6 +250,7 @@ class StatsClient:
             attributes=attributes or {},
             eval_task_id=eval_task_id,
             tags=tags,
+            thumbnail_url=thumbnail_url,
         )
         return self._make_sync_request(EpisodeResponse, "POST", "/stats/episodes", json=data.model_dump(mode="json"))
 
