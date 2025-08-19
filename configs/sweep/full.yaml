@@ -1,4 +1,4 @@
-metric: reward
+metric: heart.get
 goal: maximize
 method: bayes
 max_observations_to_load: 250
@@ -12,14 +12,16 @@ protein:
   suggestions_per_pareto: 32
   expansion_rate: 0.15
   seed_with_search_center: true
+  # acquisition_fn: naive  # Options: naive (default), ei, ucb
+  # ucb_beta: 2.0  # Only used when acquisition_fn is ucb
 
 parameters:
   trainer:
     total_timesteps:
       distribution: int_uniform
-      min: 100000000
-      max: 2000000000
-      mean: 250000000
+      min: 800000000 # 800M - just before first plateau jump at 900M
+      max: 6000000000 # 6B - extended range for finding optimal convergence
+      mean: 1500000000 # 1.5B - balanced starting point
       scale: auto
 
     batch_size:
