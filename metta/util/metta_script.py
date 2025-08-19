@@ -1,28 +1,37 @@
 """Common initialization for Metta scripts."""
 
-import argparse
-import importlib
+import functools
 import inspect
-import json
 import logging
 import os
+import platform
 import signal
 import sys
 from types import FrameType
-from typing import Callable, TypeVar, cast
+from typing import Callable
 
-from omegaconf import OmegaConf
-from pydantic import BaseModel
+import hydra
+from omegaconf import DictConfig, ListConfig
 
+from metta.common.util.fs import get_repo_root
 from metta.common.util.logging_helpers import init_logging
+from metta.common.util.resolvers import register_resolvers
+from metta.util.init.mettagrid_system import init_mettagrid_system_environment
 
 logger = logging.getLogger(__name__)
 
 
-T = TypeVar("T", bound=BaseModel)
+def apply_mac_device_overrides(cfg: DictConfig) -> None:
+    if not cfg.bypass_mac_overrides and platform.system() == "Darwin":
+        cfg.device = "cpu"
+        cfg.vectorization = "serial"
 
 
-def pydantic_metta_script(main: Callable[[T], int | None]) -> None:
+def metta_script(
+    main: Callable[[DictConfig], int | None],
+    config_name: str,
+    pre_main: Callable[[DictConfig], None] | None = None,
+) -> None:
     """
     Wrapper for Metta script entry points that performs environment setup and
     configuration before calling the `main` function.
@@ -31,30 +40,93 @@ def pydantic_metta_script(main: Callable[[T], int | None]) -> None:
     ```python
     from metta.util.metta_script import metta_script
 
-    class MyToolConfig(Config):
+    def main(cfg: DictConfig):
         ...
 
-    def main(cfg: MyToolConfig):
-        ...
-
-    pydantic_metta_script(main)
+    # call main() with the config from configs/my_job.yaml
+    metta_script(main, "my_job")
     ```
 
     Calling this function will do nothing if the script is loaded as a module.
 
-    The script can be run with:
-    ```bash
-    ./tools/my_tool.py --cfg configs/my_tool.yaml
-    ./tools/my_tool.py --func metta.tools.my_tool.main
-    ./tools/my_tool.py --func metta.tools.my_tool.main my.param.override=value
-    ```
-
     This wrapper:
-    1. Parses CLI arguments
-    2. Initializes logging to both stdout and run_dir/logs/
-    3. Initializes the runtime environment for MettaGrid simulations:
-       - Sets up environment variables
-       - Initializes random seeds
+    1. Configures Hydra to load the `config_name` config and pass it to the `main` function
+    2. Applies device overrides for Mac
+    3. Calls the optional `pre_main` if provided
+    4. Initializes logging to both stdout and run_dir/logs/
+    5. Initializes the runtime environment for MettaGrid simulations:
+       - Create required directories (including run_dir)
+       - Configure CUDA settings
+       - Set up environment variables
+       - Initialize random seeds
+       - Register OmegaConf resolvers
+    6. Performs device validation and sets the device to "cpu" if CUDA is not available
+    """
+
+    # If not running as a script, there's nothing to do.
+    caller_frame: FrameType = inspect.stack()[1].frame
+    caller_globals = caller_frame.f_globals
+    if caller_globals.get("__name__") != "__main__":
+        return
+
+    script_path = caller_globals["__file__"]
+
+    # Wrapped main function that we want to run.
+    # This code runs after the Hydra was configured. Depending on CLI args such as `--help`, it may not run at all.
+    def extended_main(cfg: ListConfig | DictConfig) -> None:
+        if not isinstance(cfg, DictConfig):
+            raise ValueError("Metta scripts must be run with a DictConfig")
+
+        if pre_main:
+            pre_main(cfg)
+
+        apply_mac_device_overrides(cfg)
+
+        run_dir = cfg.get("run_dir")
+        if run_dir:
+            os.makedirs(run_dir, exist_ok=True)
+
+        # Initialize logging
+        init_logging(run_dir=run_dir)
+
+        logger.info(f"Starting {main.__name__} from {script_path} with run_dir: {run_dir or 'not set'}")
+
+        # Initialize the full mettagrid environment (includes device validation)
+        init_mettagrid_system_environment(cfg)
+
+        logger.info("Environment setup completed")
+
+        # Exit on ctrl+c
+        signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
+
+        # Call the original function
+        result = main(cfg)
+        if result is not None:
+            sys.exit(result)
+
+    # Hydra analyzes the wrapped function, and the function must come from the
+    # `__main__` name for hydra to work correctly.
+    # So we have to pretend that we wrap the original function from the script,
+    # not the `extended_main()` function defined above.
+    functools.update_wrapper(extended_main, main)
+
+    # Hydra needs the config path to be relative to the original script.
+    script_dir = os.path.abspath(os.path.dirname(script_path))
+    abs_config_path = str(get_repo_root() / "configs")
+    relative_config_path = os.path.relpath(abs_config_path, script_dir)
+
+    # Calling `hydra.main` as a function instead of a decorator, because `extended_main` function
+    # needs to be patched with `functools.update_wrapper` first.
+    configured_main = hydra.main(config_path=relative_config_path, config_name=config_name, version_base=None)(
+        extended_main
+    )
+
+    configured_main()
+
+
+def hydraless_metta_script(main: Callable[[], int | None]) -> None:
+    """
+    Wrapper for Metta scripts that does not use Hydra.
     """
     # If not running as a script, there's nothing to do.
     caller_frame: FrameType = inspect.stack()[1].frame
@@ -62,53 +134,13 @@ def pydantic_metta_script(main: Callable[[T], int | None]) -> None:
     if caller_globals.get("__name__") != "__main__":
         return
 
-    # Parse CLI arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--func", type=str, required=False)
-    parser.add_argument("--cfg", type=str, required=False)
-    args, override_args = parser.parse_known_args()
-    overrides_conf = OmegaConf.from_cli(override_args)
-
     init_logging()
+    register_resolvers()
 
     # Exit on ctrl+c
     signal.signal(signal.SIGINT, lambda sig, frame: os._exit(0))
 
-    # Detect the Pydantic model
-    config_class = main.__annotations__.get("cfg")
-    if config_class is None:
-        raise ValueError("Main function must have a cfg parameter")
-    if isinstance(config_class, str):
-        raise ValueError(
-            "cfg parameter must be a Pydantic model, got str, are you using `from __future__ import annotations`?"
-        )
-    if not issubclass(config_class, BaseModel):
-        raise ValueError(f"cfg parameter must be a Pydantic model, got {config_class}")
-
-    # Load the config and apply overrides
-    if args.cfg:
-        with open(args.cfg, "r") as f:
-            conf = OmegaConf.merge(json.load(f), overrides_conf)
-            cfg = config_class.model_validate(conf)
-    elif args.func:
-        module_name, func_name = args.func.rsplit(".", 1)
-        cfg = importlib.import_module(module_name).__getattribute__(func_name)()
-        cfg = config_class.model_validate(OmegaConf.to_container(OmegaConf.merge(cfg.model_dump(), overrides_conf)))
-    else:
-        cfg = config_class.model_validate(OmegaConf.to_container(overrides_conf))
-
-    assert isinstance(cfg, config_class)
-    cfg = cast(T, cfg)
-
-    # Determine the filename where `main` is defined and print it relative to CWD
-    main_source_file = inspect.getsourcefile(main) or inspect.getfile(main)
-    if main_source_file:
-        main_source_relpath = os.path.relpath(os.path.abspath(main_source_file), os.getcwd())
-    else:
-        main_source_relpath = f"{main.__module__}:<unknown>"
-
-    logger.info(f"Running {main_source_relpath} with config:\n{cfg.model_dump_json(indent=2)}")
-
-    result = main(cfg)
+    # Call the original function
+    result = main()
     if result is not None:
         sys.exit(result)
