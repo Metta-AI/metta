@@ -227,6 +227,7 @@
     "sessionfinish",
     "setsid",
     "setuptools",
+    "sigval",
     "skylaunch",
     "skypilot",
     "softmax",
