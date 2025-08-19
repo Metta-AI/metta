@@ -21,10 +21,11 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicySelectorType, PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.tool import Tool
-from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff
+from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.eval_service import evaluate_policy
 from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationConfig
+from softmax import softmax
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +51,7 @@ class SimTool(Tool):
     policy_uris: Sequence[str]  # list of policy uris to evaluate
     replay_dir: str  # where to store replays
 
-    wandb: WandbConfig = WandbConfigOff()
+    wandb: WandbConfig = softmax.wandb_config()
 
     selector_type: PolicySelectorType = "top"
     stats_dir: str | None = None  # The (local) directory where stats should be stored

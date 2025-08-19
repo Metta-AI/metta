@@ -2,7 +2,6 @@ from typing import Optional
 
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
-import softmax.softmax as softmax
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import ValueRange as vr
 from metta.map.mapgen import MapGenConfig
@@ -20,7 +19,7 @@ def make_env(num_agents: int = 4) -> EnvConfig:
     nav = eb.make_navigation(num_agents=num_agents)
 
     nav.game.map_builder = MapGenConfig(
-        instances=4,
+        instances=num_agents,
         border_width=6,
         instance_border_width=3,
         instance_map=TerrainFromNumpyConfig(
@@ -57,7 +56,6 @@ def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
-            replay_dir=f"s3://softmax-public/replays/{run}",
             evaluate_remote=False,
             evaluate_local=True,
             simulations=make_navigation_eval_suite(),
@@ -66,7 +64,6 @@ def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
     return TrainTool(
         trainer=trainer_cfg,
-        wandb=softmax.wandb_config(run=run),
         run=run,
     )
 
@@ -78,5 +75,4 @@ def play(env: Optional[EnvConfig] = None) -> PlayTool:
             env=eval_env,
             name="navigation",
         ),
-        wandb=softmax.wandb_config(run="navigation.play"),
     )
