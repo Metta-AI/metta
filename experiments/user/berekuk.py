@@ -1,4 +1,3 @@
-import yaml
 from experiments.evals.navigation import make_navigation_eval_suite
 from metta.cogworks.curriculum import env_curriculum
 from metta.mettagrid.config.envs import make_arena
@@ -16,7 +15,7 @@ def train(run: str) -> TrainTool:
             forward_pass_minibatch_target_size=2,
             curriculum=env_curriculum(make_arena(num_agents=6)),
         ),
-        policy_architecture=yaml.safe_load(open("configs/agent/fast.yaml")),
+        policy_architecture="fast",  # Use component policy name directly
     )
 
 

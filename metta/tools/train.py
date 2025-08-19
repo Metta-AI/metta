@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 class TrainTool(Tool):
     trainer: TrainerConfig = TrainerConfig()
     wandb: WandbConfig = WandbConfigOff()
-    policy_architecture: Optional[Any] = None
+    policy_architecture: Optional[str] = None  # Name of agent: "fast", "latent_attn_tiny", etc.
     run: str
     run_dir: Optional[str] = None
 
@@ -53,7 +53,7 @@ class TrainTool(Tool):
 
         if self.policy_architecture is None:
             # Default to "fast" agent - ComponentPolicies will handle instantiation
-            self.policy_architecture = {"agent_type": "fast"}
+            self.policy_architecture = "fast"
 
     def invoke(self) -> int:
         assert self.run_dir is not None
@@ -128,7 +128,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         run=cfg.run,
         run_dir=run_dir,
         system_cfg=cfg.system,
-        agent_cfg=OmegaConf.create(cfg.policy_architecture),
+        agent_cfg=OmegaConf.create({"agent_type": cfg.policy_architecture}) if isinstance(cfg.policy_architecture, str) else cfg.policy_architecture,
         device=torch.device(cfg.system.device),
         trainer_cfg=cfg.trainer,
         wandb_run=wandb_run,
