@@ -7,6 +7,7 @@ import platform
 from logging import Logger
 
 import torch
+import torch.distributed.elastic.multiprocessing.api as mp_api
 from omegaconf import DictConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
@@ -34,6 +35,8 @@ logger = logging.getLogger(__name__)
 # TODO - app_backend stats uses httpx which manages it's own logs at INFO
 # consider where we really want to put this
 logging.getLogger("httpx").setLevel(logging.WARNING)
+
+logging.getLogger("torch.distributed.elastic").setLevel(logging.ERROR)
 
 
 # TODO: populate this more
@@ -216,4 +219,10 @@ def main(cfg: DictConfig) -> int:
     return 0
 
 
-metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
+try:
+    metta_script(main, config_name="train_job", pre_main=set_run_name_if_missing)
+except mp_api.SignalException as e:
+    if e.sigval == 15:
+        logging.info(f"Suppressed expected SIGTERM: {e}")
+    else:
+        raise
