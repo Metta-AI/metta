@@ -96,14 +96,14 @@ def run_single_rollout(cfg: DictConfig, original_args: list[str] | None = None) 
     launch_training_subprocess(
         run_name=run_name,
         protein_suggestion=protein_suggestion,
-        sweep_name=cfg.sweep_name,
-        wandb_entity=cfg.wandb.entity,
-        wandb_project=cfg.wandb.project,
-        cfg=cfg,
+        sweep_name=phased_cfg.sweep_name,
+        wandb_entity=phased_cfg.wandb.entity,
+        wandb_project=phased_cfg.wandb.project,
+        cfg=phased_cfg,  # Use phased config to include all phase overrides
         original_args=original_args,
     )
     logger.info("Training completed...")
-    run_dir = os.path.join(cfg.data_dir, run_name)
+    run_dir = os.path.join(phased_cfg.data_dir, run_name)
     config_path = os.path.join(run_dir, "sweep_eval_config.yaml")
     full_train_job_cfg = OmegaConf.load(config_path)
     assert isinstance(full_train_job_cfg, DictConfig)
