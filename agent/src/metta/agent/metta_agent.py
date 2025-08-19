@@ -94,30 +94,53 @@ class MettaAgent(nn.Module):
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
 
-        # map agent_cfg.agent_type to the appropriate policy class
-        if agent_cfg.split(".")[-1] == "py" and agent_cfg.split(".")[0] in agent_classes:
-            # Create PyTorch policy
-            policy_name = agent_cfg.split(".")[0]
-            AgentClass = agent_classes[policy_name]
-            policy = AgentClass(env=env)
-            logger.info(f"Using PyTorch Policy: {policy} (type: {policy_name})")
-        else:
-            policy_name = agent_cfg
+        # Default config parameters that were in YAML configs
+        default_config = {
+            "clip_range": 0,
+            "analyze_weights_interval": 300,
+        }
 
+        # Handle both string and DictConfig agent_cfg
+        if isinstance(agent_cfg, str):
+            agent_name = agent_cfg
+            config_dict = default_config
+        else:
+            # Extract agent name and any extra config from DictConfig
+            agent_name = agent_cfg.get("name", "fast")
+            config_dict = {**default_config}
+            # Add any additional config parameters from agent_cfg
+            for key, value in agent_cfg.items():
+                if key not in ["name", "_target_"]:
+                    config_dict[key] = value
+
+        # Determine if it's a PyTorch policy or ComponentPolicy
+        if agent_name.endswith(".py"):
+            # PyTorch policy
+            policy_name = agent_name[:-3]  # Remove .py extension
+            if policy_name in agent_classes:
+                AgentClass = agent_classes[policy_name]
+                policy = AgentClass(env=env, **config_dict)
+                logger.info(f"Using PyTorch Policy: {policy} (type: {policy_name})")
+            else:
+                raise ValueError(f"Unknown PyTorch policy: {policy_name}")
+        else:
+            # ComponentPolicy
             from metta.agent.component_policies.agent_mapper import agent_classes as component_agent_classes
 
-            AgentClass = component_agent_classes[policy_name.split(".")[0]]
-
-            # Create ComponentPolicy (YAML config)
-            policy = AgentClass(
-                obs_space=self.obs_space,
-                obs_width=self.obs_width,
-                obs_height=self.obs_height,
-                action_space=self.action_space,
-                feature_normalizations=self.feature_normalizations,
-                device=system_cfg.device,
-            )
-            logger.info(f"Using ComponentPolicy: {policy_name}")
+            if agent_name in component_agent_classes:
+                AgentClass = component_agent_classes[agent_name]
+                policy = AgentClass(
+                    obs_space=self.obs_space,
+                    obs_width=self.obs_width,
+                    obs_height=self.obs_height,
+                    action_space=self.action_space,
+                    feature_normalizations=self.feature_normalizations,
+                    device=system_cfg.device,
+                    config=config_dict,
+                )
+                logger.info(f"Using ComponentPolicy: {agent_name}")
+            else:
+                raise ValueError(f"Unknown ComponentPolicy: {agent_name}")
 
         return policy
 

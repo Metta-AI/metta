@@ -2,7 +2,7 @@ import logging
 
 from omegaconf import DictConfig
 
-from metta.agent.component_policies.component_policy_interface import ComponentPolicyInterface
+from metta.agent.component_policies.component_policy import ComponentPolicy
 from metta.agent.lib.action import ActionEmbedding
 from metta.agent.lib.actor import MettaActorSingleHead
 from metta.agent.lib.lstm import LSTM
@@ -13,7 +13,7 @@ from metta.agent.lib.observation_normalizer import ObservationNormalizer
 logger = logging.getLogger(__name__)
 
 
-class Fast(ComponentPolicyInterface):
+class Fast(ComponentPolicy):
     """
     Fast CNN-based component policy - fastest but least robust to feature changes.
     """
