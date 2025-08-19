@@ -99,7 +99,7 @@ class SimTool(Tool):
             for pr in policy_prs:
                 eval_results = evaluate_policy(
                     policy_record=pr,
-                    simulations=self.simulations,
+                    simulations=list(self.simulations),
                     stats_dir=self.stats_dir,
                     replay_dir=f"{self.replay_dir}/{eval_run_name}/{pr.run_name}",
                     device=device,
