@@ -133,7 +133,10 @@ protected:
       }
       bool has_resources = true;
       for (const auto& [item, qty] : target_box->resources_to_pick_up) {
-        if (actor->inventory[item] < qty) { has_resources = false; break; }
+        if (actor->inventory[item] < qty) {
+          has_resources = false;
+          break;
+        }
       }
       if (!has_resources) {
         return false;
