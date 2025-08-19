@@ -17,14 +17,6 @@ game:
       group_reward_pct: 1.0 # 100% reward sharing within team
 
   map_builder:
-    _target_: metta.map.mapgen.MapGen
-    width: 5
-    height: 5
-    border_width: 0
-    instances: ${div:${..num_agents},2}
-    instance_border_width: 1
-
-    root:
-      type: metta.map.scenes.ascii.Ascii
-      params:
-        uri: "configs/env/mettagrid/maps/simple/coop_rewardsharing.map"
+    _target_: metta.map.mapgen_ascii.MapGenAscii
+    border_width: 1
+    uri: "configs/env/mettagrid/maps/simple/coop_rewardsharing.map"

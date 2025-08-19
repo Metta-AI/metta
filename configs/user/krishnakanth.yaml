@@ -19,6 +19,7 @@ trainer:
   simulation:
     evaluate_interval: 100
     skip_git_check: true
+    evaluate_remote: false
   checkpoint:
     wandb_checkpoint_interval: 100
   total_timesteps: 1_000_000_000
