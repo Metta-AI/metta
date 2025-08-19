@@ -52,7 +52,8 @@ class TrainTool(Tool):
             self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
 
         if self.policy_architecture is None:
-            self.policy_architecture = yaml.safe_load(open("configs/agent/fast.yaml"))
+            # Default to "fast" agent - ComponentPolicies will handle instantiation
+            self.policy_architecture = {"agent_type": "fast"}
 
     def invoke(self) -> int:
         assert self.run_dir is not None
