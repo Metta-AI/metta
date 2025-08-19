@@ -18,6 +18,10 @@ npc_policy_uri: null
 #   game:
 #     max_steps: 1000
 
+trainer:
+  simulation:
+    skip_git_check: true
+
 eval:
   policy_uri: ${..policy_uri}
   npc_policy_uri: ${..npc_policy_uri}
@@ -33,7 +37,7 @@ wandb:
   enabled: true
   # checkpoint_interval: 1
 
-run_id: 2708
+run_id: 3304
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"

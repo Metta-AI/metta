@@ -8,7 +8,7 @@ from omegaconf import DictConfig
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
-from torchrl.data import Composite, UnboundedDiscrete
+from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.agent_mapper import agents
 from metta.rl.system_config import SystemConfig
@@ -135,6 +135,27 @@ class MettaAgent(nn.Module):
         if hasattr(self.policy, "reset_memory"):
             self.policy.reset_memory()
 
+    def on_rollout_start(self) -> None:
+        if hasattr(self.policy, "on_rollout_start"):
+            self.policy.on_rollout_start()
+            self.reset_memory()
+            # non component policies have their memories reset. Component policies choose to reset or not.
+
+    def on_train_phase_start(self) -> None:
+        if hasattr(self.policy, "on_train_phase_start"):
+            self.policy.on_train_phase_start()
+            self.reset_memory()
+
+    def on_mb_start(self) -> None:
+        if hasattr(self.policy, "on_mb_start"):
+            self.policy.on_mb_start()
+            self.reset_memory()
+
+    def on_eval_start(self) -> None:
+        if hasattr(self.policy, "on_eval_start"):
+            self.policy.on_eval_start()
+            self.reset_memory()
+
     def get_memory(self) -> dict:
         """Get memory state - delegates to policy if it supports memory."""
         return getattr(self.policy, "get_memory", lambda: {})()
@@ -142,6 +163,8 @@ class MettaAgent(nn.Module):
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            dones=UnboundedContinuous(shape=torch.Size([1]), dtype=torch.float32),
+            truncateds=UnboundedContinuous(shape=torch.Size([1]), dtype=torch.float32),
         )
 
     def initialize_to_environment(

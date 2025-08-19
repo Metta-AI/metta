@@ -66,6 +66,7 @@ class Fast(ComponentPolicy):
                 name="_core_",
                 nn_params=DictConfig({"hidden_size": 128, "num_layers": 2}),
                 sources=[{"name": "encoded_obs"}],
+                reset_in_training=True,  # this resets memory on dones in training. 3-4x speed reduction
             ),
             "critic_1": Linear(
                 name="critic_1",

@@ -420,7 +420,7 @@ def train(
                 experience.reset_for_rollout()
                 total_steps = 0
 
-                policy.reset_memory()
+                policy.on_rollout_start()
                 buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
                 # Precompute agent split per-env and publish to env for logging
@@ -603,9 +603,11 @@ def train(
                 epochs_trained = 0
                 policy_spec = policy.get_agent_experience_spec()
 
+                policy.on_train_phase_start()
+
                 for _update_epoch in range(trainer_cfg.update_epochs):
                     for _ in range(experience.num_minibatches):
-                        policy.reset_memory()
+                        policy.on_mb_start()
                         # Sample minibatch
                         minibatch, indices, prio_weights = experience.sample_minibatch(
                             advantages=advantages,

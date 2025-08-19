@@ -111,6 +111,18 @@ class LayerBase(nn.Module):
 
         return td
 
+    def on_rollout_start(self):
+        pass
+
+    def on_train_phase_start(self):
+        pass
+
+    def on_mb_start(self):
+        pass
+
+    def on_eval_start(self):
+        pass
+
     def _forward(self, td: TensorDict):
         """Components that have more than one input sources must have their own _forward() method."""
         # get the input tensor from the source component by calling its forward method (which recursively calls

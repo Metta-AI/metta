@@ -62,13 +62,9 @@ class ComponentPolicy(nn.Module, ABC):
         self._setup_components(self.components["_value_"])
         self._setup_components(self.components["_action_"])
 
-        # Track components with memory
-        self.components_with_memory = []
         for name, component in self.components.items():
             if not getattr(component, "ready", False):
                 raise RuntimeError(f"Component {name} in {self.__class__.__name__} policy was never setup.")
-            if hasattr(component, "has_memory") and component.has_memory():
-                self.components_with_memory.append(name)
 
         # Check for duplicate component names
         all_names = [c._name for c in self.components.values() if hasattr(c, "_name")]
@@ -213,27 +209,24 @@ class ComponentPolicy(nn.Module, ABC):
             self.components["_action_embeds_"].activate_actions(full_action_names, device)
 
     # ============================================================================
-    # Memory-related Methods
+    # Memory and event related Methods
     # ============================================================================
 
-    def reset_memory(self) -> None:
-        """Reset memory for all components that have memory."""
-        for name in self.components_with_memory:
-            comp = self.components[name]
-            if not hasattr(comp, "reset_memory"):
-                raise ValueError(
-                    f"Component '{name}' listed in components_with_memory but has no reset_memory() method."
-                    + " Perhaps an obsolete policy?"
-                )
-            comp.reset_memory()
+    def on_rollout_start(self):
+        for _, component in self.components.items():
+            component.on_rollout_start()
 
-    def get_memory(self) -> dict:
-        """Get memory state from all components that have memory."""
-        memory = {}
-        for name in self.components_with_memory:
-            if hasattr(self.components[name], "get_memory"):
-                memory[name] = self.components[name].get_memory()
-        return memory
+    def on_train_phase_start(self):
+        for _, component in self.components.items():
+            component.on_train_phase_start()
+
+    def on_mb_start(self):
+        for _, component in self.components.items():
+            component.on_mb_start()
+
+    def on_eval_start(self):
+        for _, component in self.components.items():
+            component.on_eval_start()
 
     # ============================================================================
     # Weight/Training Utility Methods
