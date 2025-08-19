@@ -1,9 +1,9 @@
 export type ScorecardCell = {
   evalName: string
   replayUrl: string | null
+  thumbnailUrl: string | null
   value: number
 }
-
 
 export type ScorecardData = {
   evalNames: string[]
@@ -182,6 +182,7 @@ export type TrainingRunPolicy = {
 export type PolicyScorecardCell = {
   evalName: string
   replayUrl: string | null
+  thumbnailUrl: string | null
   value: number
 }
 
@@ -192,6 +193,35 @@ export type PolicyScorecardData = {
   policyAverageScores: Record<string, number>
   evalAverageScores: Record<string, number>
   evalMaxScores: Record<string, number>
+}
+
+// Leaderboard types
+export type Leaderboard = {
+  id: string
+  name: string
+  user_id: string
+  evals: string[]
+  metric: string
+  start_date: string
+  latest_episode: number
+  created_at: string
+  updated_at: string
+}
+
+export type LeaderboardCreateOrUpdate = {
+  name: string
+  evals: string[]
+  metric: string
+  start_date: string
+}
+
+export type LeaderboardListResponse = {
+  leaderboards: Leaderboard[]
+}
+
+export type LeaderboardScorecardRequest = {
+  selector: 'latest' | 'best'
+  num_policies: number
 }
 
 import { config } from './config'
@@ -279,6 +309,14 @@ export interface Repo {
   getEvalNames(request: EvalNamesRequest): Promise<Set<string>>
   getAvailableMetrics(request: MetricsRequest): Promise<string[]>
   generatePolicyScorecard(request: PolicyScorecardRequest): Promise<PolicyScorecardData>
+
+  // Leaderboard methods
+  listLeaderboards(): Promise<LeaderboardListResponse>
+  getLeaderboard(leaderboardId: string): Promise<Leaderboard>
+  createLeaderboard(leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard>
+  updateLeaderboard(leaderboardId: string, leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard>
+  deleteLeaderboard(leaderboardId: string): Promise<void>
+  generateLeaderboardScorecard(leaderboardId: string, request: LeaderboardScorecardRequest): Promise<ScorecardData>
 }
 
 export class ServerRepo implements Repo {
@@ -465,5 +503,37 @@ export class ServerRepo implements Repo {
 
   async generatePolicyScorecard(request: PolicyScorecardRequest): Promise<PolicyScorecardData> {
     return this.apiCallWithBody<PolicyScorecardData>('/scorecard/scorecard', request)
+  }
+
+  // Leaderboard methods
+  async listLeaderboards(): Promise<LeaderboardListResponse> {
+    return this.apiCall<LeaderboardListResponse>('/leaderboards')
+  }
+
+  async getLeaderboard(leaderboardId: string): Promise<Leaderboard> {
+    return this.apiCall<Leaderboard>(`/leaderboards/${encodeURIComponent(leaderboardId)}`)
+  }
+
+  async createLeaderboard(leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard> {
+    return this.apiCallWithBody<Leaderboard>('/leaderboards', leaderboardData)
+  }
+
+  async updateLeaderboard(leaderboardId: string, leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard> {
+    return this.apiCallWithBodyPut<Leaderboard>(`/leaderboards/${encodeURIComponent(leaderboardId)}`, leaderboardData)
+  }
+
+  async deleteLeaderboard(leaderboardId: string): Promise<void> {
+    return this.apiCallDelete(`/leaderboards/${encodeURIComponent(leaderboardId)}`)
+  }
+
+  async generateLeaderboardScorecard(
+    leaderboardId: string,
+    request: LeaderboardScorecardRequest
+  ): Promise<ScorecardData> {
+    return this.apiCallWithBody<ScorecardData>('/scorecard/leaderboard', {
+      leaderboard_id: leaderboardId,
+      selector: request.selector,
+      num_policies: request.num_policies,
+    })
   }
 }

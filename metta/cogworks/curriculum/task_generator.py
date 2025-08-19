@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import random
 from abc import ABC, abstractmethod
-from typing import Any, ClassVar
+from typing import Annotated, Any, ClassVar, Literal, Union
 
 from omegaconf import OmegaConf
 from pydantic import ConfigDict, Field, field_validator
@@ -93,6 +93,7 @@ class TaskGenerator(ABC):
 class SingleTaskGeneratorConfig(TaskGeneratorConfig):
     """Configuration for SingleTaskGenerator."""
 
+    type: Literal["single"] = Field(default="single", description="Type discriminator for SingleTaskGenerator")
     env_config: EnvConfig = Field(description="The environment configuration to always return")
 
     def create(self) -> "SingleTaskGenerator":
@@ -120,9 +121,13 @@ class SingleTaskGenerator(TaskGenerator):
 class TaskGeneratorSetConfig(TaskGeneratorConfig):
     """Configuration for TaskGeneratorSet."""
 
-    task_generator_configs: list[TaskGeneratorConfig] = Field(
-        min_length=1, description="Task generator configurations to sample from"
-    )
+    type: Literal["set"] = Field(default="set", description="Type discriminator for TaskGeneratorSet")
+    task_generator_configs: list[
+        Annotated[
+            Union["SingleTaskGeneratorConfig", "TaskGeneratorSetConfig", "BucketedTaskGeneratorConfig"],
+            Field(discriminator="type"),
+        ]
+    ] = Field(min_length=1, description="Task generator configurations to sample from")
     weights: list[float] = Field(min_length=1, description="Weights for sampling each task generator")
 
     @field_validator("weights")
@@ -188,7 +193,11 @@ class ValueRange(Config):
 class BucketedTaskGeneratorConfig(TaskGeneratorConfig):
     """Configuration for BucketedTaskGenerator."""
 
-    child_generator_config: TaskGeneratorConfig = Field(description="Child task generator configuration")
+    type: Literal["bucketed"] = Field(default="bucketed", description="Type discriminator for BucketedTaskGenerator")
+    child_generator_config: Annotated[
+        Union["SingleTaskGeneratorConfig", "TaskGeneratorSetConfig", "BucketedTaskGeneratorConfig"],
+        Field(discriminator="type", description="Child task generator configuration"),
+    ]
     buckets: dict[str, list[int | float | str | ValueRange]] = Field(
         default_factory=dict, description="Buckets for sampling, keys are config paths"
     )
@@ -247,3 +256,14 @@ class BucketedTaskGenerator(TaskGenerator):
 
         # Apply the sampled bucket values as overrides
         return self._apply_overrides(env_config, overrides)
+
+
+# Type alias for all TaskGeneratorConfig subclasses with discriminator
+TaskGeneratorConfigUnion = Annotated[
+    Union[SingleTaskGeneratorConfig, TaskGeneratorSetConfig, BucketedTaskGeneratorConfig], Field(discriminator="type")
+]
+
+# Rebuild models to resolve forward references
+SingleTaskGeneratorConfig.model_rebuild()
+TaskGeneratorSetConfig.model_rebuild()
+BucketedTaskGeneratorConfig.model_rebuild()

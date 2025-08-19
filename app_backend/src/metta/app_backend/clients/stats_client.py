@@ -6,6 +6,10 @@ from pydantic import BaseModel
 
 from metta.app_backend.clients.base_client import BaseAppBackendClient
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse, TasksResponse
+from metta.app_backend.routes.score_routes import (
+    PolicyScoresData,
+    PolicyScoresRequest,
+)
 from metta.app_backend.routes.stats_routes import (
     EpisodeCreate,
     EpisodeResponse,
@@ -47,6 +51,13 @@ class AsyncStatsClient(BaseAppBackendClient):
         return await self._make_request(
             TrainingRunResponse, "POST", "/stats/training-runs", json=data.model_dump(mode="json")
         )
+
+    async def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        headers = remove_none_values({"X-Auth-Token": self._machine_token})
+        response = await self._http_client.request(
+            "PATCH", f"/stats/training-runs/{run_id}/status", headers=headers, json={"status": status}
+        )
+        response.raise_for_status()
 
     async def create_epoch(
         self,
@@ -91,6 +102,7 @@ class AsyncStatsClient(BaseAppBackendClient):
         attributes: dict[str, Any] | None = None,
         eval_task_id: uuid.UUID | None = None,
         tags: list[str] | None = None,
+        thumbnail_url: str | None = None,
     ) -> EpisodeResponse:
         data = EpisodeCreate(
             agent_policies=agent_policies,
@@ -103,8 +115,14 @@ class AsyncStatsClient(BaseAppBackendClient):
             attributes=attributes or {},
             eval_task_id=eval_task_id,
             tags=tags,
+            thumbnail_url=thumbnail_url,
         )
         return await self._make_request(EpisodeResponse, "POST", "/stats/episodes", json=data.model_dump(mode="json"))
+
+    async def get_policy_scores(self, request: PolicyScoresRequest) -> PolicyScoresData:
+        return await self._make_request(
+            PolicyScoresData, "POST", "/scorecard/score", json=request.model_dump(mode="json")
+        )
 
 
 class StatsClient:
@@ -169,6 +187,13 @@ class StatsClient:
             TrainingRunResponse, "POST", "/stats/training-runs", json=data.model_dump(mode="json")
         )
 
+    def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        headers = remove_none_values({"X-Auth-Token": self._machine_token})
+        response = self._http_client.request(
+            "PATCH", f"/stats/training-runs/{run_id}/status", headers=headers, json={"status": status}
+        )
+        response.raise_for_status()
+
     def create_epoch(
         self,
         run_id: uuid.UUID,
@@ -212,6 +237,7 @@ class StatsClient:
         attributes: dict[str, Any] | None = None,
         eval_task_id: uuid.UUID | None = None,
         tags: list[str] | None = None,
+        thumbnail_url: str | None = None,
     ) -> EpisodeResponse:
         data = EpisodeCreate(
             agent_policies=agent_policies,
@@ -224,6 +250,7 @@ class StatsClient:
             attributes=attributes or {},
             eval_task_id=eval_task_id,
             tags=tags,
+            thumbnail_url=thumbnail_url,
         )
         return self._make_sync_request(EpisodeResponse, "POST", "/stats/episodes", json=data.model_dump(mode="json"))
 
@@ -233,3 +260,8 @@ class StatsClient:
     def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
         params = filters.model_dump(mode="json", exclude_none=True) if filters else {}
         return self._make_sync_request(TasksResponse, "GET", "/tasks/all", params=params)
+
+    def get_policy_scores(self, request: PolicyScoresRequest) -> PolicyScoresData:
+        return self._make_sync_request(
+            PolicyScoresData, "POST", "/scorecard/score", json=request.model_dump(mode="json")
+        )

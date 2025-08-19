@@ -138,6 +138,7 @@ class ActionsConfig(Config):
     move_cardinal: Optional[ActionConfig] = None
     rotate: Optional[ActionConfig] = None
     put_items: Optional[ActionConfig] = None
+    place_box: Optional[ActionConfig] = None
     get_items: Optional[ActionConfig] = None
     attack: Optional[AttackActionConfig] = None
     swap: Optional[ActionConfig] = None
@@ -166,6 +167,13 @@ class WallConfig(Config):
 
     type_id: int
     swappable: bool = Field(default=False)
+
+
+class BoxConfig(Config):
+    """Python box configuration."""
+
+    type_id: int = Field(default=0, ge=0, le=255)
+    resources_to_create: dict[str, int] = Field(default_factory=dict)
 
 
 class ConverterConfig(Config):
@@ -217,7 +225,7 @@ class GameConfig(Config):
     actions: ActionsConfig = Field(default_factory=ActionsConfig)
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
     recipe_details_obs: bool = Field(default=False)
-    objects: dict[str, ConverterConfig | WallConfig] = Field(default_factory=dict)
+    objects: dict[str, ConverterConfig | WallConfig | BoxConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
@@ -234,6 +242,7 @@ class GameConfig(Config):
     no_agent_interference: bool = Field(
         default=False, description="Enable agents to move through and not observe each other"
     )
+    resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
 
 
 class EnvConfig(Config):

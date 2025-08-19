@@ -21,6 +21,8 @@ game:
       enabled: false
     change_color:
       enabled: false
+    place_box:
+      enabled: true
   map_builder:
     _target_: metta.map.mapgen.MapGen
     instances: 4
@@ -33,7 +35,6 @@ game:
         agents: 4
         objects:
           altar: 0
-          box: 0
   objects:
     altar:
       cooldown: 1000
@@ -41,5 +42,7 @@ game:
       type_id: 2
     box:
       type_id: 12
+      resources_to_create:
+        battery_blue: 1
 
   no_agent_interference: true
