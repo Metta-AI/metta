@@ -1,7 +1,7 @@
 #! /bin/bash -e
 
 # temporary fix until https://github.com/skypilot-org/skypilot/pull/6698 is published on pypi
-curl https://raw.githubusercontent.com/skypilot-org/skypilot/b653d6ac428ebcecfc50a809ba7d61f93cdaf12c/sky/server/common.py > .venv/lib/python3.11/site-packages/sky/server/common.py
+curl https://raw.githubusercontent.com/skypilot-org/skypilot/b653d6ac428ebcecfc50a809ba7d61f93cdaf12c/sky/server/common.py >.venv/lib/python3.11/site-packages/sky/server/common.py
 
 SERVER=https://skypilot-api.softmax-research.net
 
