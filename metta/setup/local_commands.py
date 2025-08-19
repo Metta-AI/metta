@@ -198,7 +198,6 @@ class LocalCommands:
         if not stats_client:
             print("No stats client")
             return
-        stats_client.validate_authenticated()
         runs = find_training_runs(
             entity=entity,
             project=project,
