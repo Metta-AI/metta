@@ -378,10 +378,11 @@ def _(
     pd,
     renderer_config,
 ):
-    mo.stop(not eval_button.value)
-
     EVAL_EPISODES = 10
     scores: list[int] = []
+
+    mo.stop(not eval_button.value)
+
     with contextlib.redirect_stdout(io.StringIO()):
         # Create evaluation environment with our simple config
         eval_env = MettaGridEnv(env_config, render_mode="human")
@@ -420,7 +421,7 @@ def _(
     print(
         f"Opportunistic agent baseline: {mean_score:.2f} ± {std_score:.2f} ore collected"
     )
-    return
+    return (EVAL_EPISODES,)
 
 
 @app.cell(hide_code=True)
@@ -573,6 +574,7 @@ def _(mo):
 
 @app.cell
 def _(
+    EVAL_EPISODES,
     MettaGridEnv,
     Path,
     contextlib,
@@ -596,93 +598,59 @@ def _(
 
         print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-        # Create a simple wrapper that doesn't depend on a separate environment
-        class SimpleTrainedPolicyWrapper:
-            def __init__(self, policy):
-                self.policy = policy
-
-            def predict(self, obs):
-                import torch
-
-                with torch.no_grad():
-                    # Convert observation to tensor
-                    obs_tensor = torch.from_numpy(obs).float()
-
-                    # Create input dict for MettaAgent.forward()
-                    if len(obs_tensor.shape) == 3:  # Single agent obs
-                        obs_tensor = obs_tensor.unsqueeze(0)  # Add batch dimension
-
-                    input_dict = {"grid_obs": obs_tensor}
-
-                    # Get actions from policy
-                    result = self.policy.forward(input_dict)
-
-                    # Extract actions from result
-                    if hasattr(result, "get") and "action" in result:
-                        actions = result["action"]
-                    elif hasattr(result, "action"):
-                        actions = result.action
-                    else:
-                        # Fallback: assume result is the action tensor
-                        actions = result
-
-                    if isinstance(actions, torch.Tensor):
-                        actions = actions.cpu().numpy()
-
-                    # Ensure proper shape and dtype
-                    if len(actions.shape) == 1:
-                        actions = actions.reshape(1, -1)
-
-                    return actions.astype("int32")
-
-        # Create fallback opportunistic policy wrapper
-        class SimpleOpportunisticWrapper:
-            def __init__(self):
-                pass
-
-            def predict(self, obs):
-                # Simple opportunistic logic - move towards resources or randomly
-                import numpy as np
-                from metta.mettagrid.util.actions import generate_valid_random_actions
-
-                # For now, just generate random valid actions
-                # This is a simplified version - could be enhanced with actual opportunistic logic
-                actions = np.array(
-                    [[0, 1]], dtype="int32"
-                )  # Move action with direction 1
-                return actions
-
-        # Load the trained policy using PolicyStore (handles PolicyRecord objects)
+        # Load trained policy using repo's PolicyStore approach (like tools/sim.py)
         from metta.agent.policy_store import PolicyStore
+        from metta.common.wandb.wandb_context import WandbConfigOff
+        from metta.rl.policy_management import initialize_policy_for_environment
+        import torch
 
-        try:
-            # Create PolicyStore and load the checkpoint
-            policy_store = PolicyStore(device="cpu")
-            policy_uri = f"file://{latest_ckpt.absolute()}"
+        # Create policy store (same as tools/sim.py:65-70)
+        policy_store = PolicyStore.create(
+            device="cpu",
+            wandb_config=WandbConfigOff(),
+            data_dir="train_dir",
+            wandb_run=None,
+        )
 
-            # Load policy record and get the actual policy
-            policy_record = policy_store.load_from_uri(policy_uri)
-            raw_policy = policy_record.policy
+        # Get policy record (same as tools/sim.py:76-82)
+        policy_uri = f"file://{latest_ckpt.parent.absolute()}"
+        policy_records = policy_store.policy_records(
+            uri_or_config=policy_uri,
+            selector_type="latest",
+            n=1,
+            metric="score",
+        )
 
-            trained_policy = SimpleTrainedPolicyWrapper(raw_policy)
-            print("✅ Successfully loaded trained policy")
+        if not policy_records:
+            raise Exception("No policy records found")
 
-        except Exception as e:
-            print(f"❌ Failed to load trained policy: {e}")
-            print("Using simplified opportunistic policy as fallback")
-            trained_policy = SimpleOpportunisticWrapper()
+        policy_record = policy_records[0]
+        print(f"✅ Successfully loaded policy: {policy_record.run_name}")
 
-        # Run animated evaluation just like the opportunistic agent
-        EVAL_EPISODES = 10
+        # Create evaluation environment
+        with contextlib.redirect_stdout(io.StringIO()):
+            eval_env = MettaGridEnv(env_config, render_mode="human")
+
+        # Initialize policy for environment (same as simulation.py:133-138)
+        initialize_policy_for_environment(
+            policy_record=policy_record,
+            metta_grid_env=eval_env,
+            device=torch.device("cpu"),
+            restore_feature_mapping=True,
+        )
+
+        # Get the trained policy from the policy record
+        trained_policy = policy_record.policy
+
+        # Run animated evaluation with the trained policy
         trained_scores: list[int] = []
 
-        # Create header and display widgets
+        # Create header and display widgets for animation
         header = widgets.HTML()
         map_box = widgets.HTML()
         display(header, map_box)
 
-        with contextlib.redirect_stdout(io.StringIO()):
-            eval_env = MettaGridEnv(env_config, render_mode="human")
+        print(f"🎯 Running {EVAL_EPISODES} episodes with animated evaluation...")
 
         for ep in range(1, EVAL_EPISODES + 1):
             header.value = (
@@ -690,11 +658,19 @@ def _(
             )
 
             _obs, _ = eval_env.reset()
-            inv_count = 0
+            # Convert obs to tensor format for policy
+            obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
 
             for _step in range(150):  # Same number of steps as opportunistic
-                _actions = trained_policy.predict(_obs)
+                # Use TensorDict format for trained policy (same as simulation.py:272-275)
+                from tensordict import TensorDict
+
+                td = TensorDict({"env_obs": obs_tensor}, batch_size=obs_tensor.shape[0])
+                trained_policy(td)
+                _actions = td["actions"].cpu().numpy()
+
                 _obs, _, _, _, _ = eval_env.step(_actions)
+                obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
 
                 # Update display every few steps to show animation
                 if _step % 3 == 0:  # Update every 3 steps for smooth animation
@@ -740,14 +716,14 @@ def _(
         header.value = f"<b>✅ Evaluation Complete!</b>"
         map_box.value = f"""<pre>
     🏆 TRAINED AGENT RESULTS 🏆
-    
+
     Episodes: {EVAL_EPISODES}
     Average Score: {mean_score:.2f} ± {std_score:.2f} ore collected
     Best Episode: {max(trained_scores)} ore
     Worst Episode: {min(trained_scores)} ore
-    
+
     Individual Episode Scores: {trained_scores}
-    
+
     Compare this to the opportunistic baseline from earlier!
         </pre>"""
 
