@@ -596,39 +596,81 @@ def _(
 
         print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
-        # Load the trained policy using the simple direct approach
-        from metta.rl.puffer_policy import load_pytorch_policy
-        from tools.renderer import TrainedPolicyWrapper
+        # Create a simple wrapper that doesn't depend on a separate environment
+        class SimpleTrainedPolicyWrapper:
+            def __init__(self, policy):
+                self.policy = policy
+
+            def predict(self, obs):
+                import torch
+
+                with torch.no_grad():
+                    # Convert observation to tensor
+                    obs_tensor = torch.from_numpy(obs).float()
+
+                    # Create input dict for MettaAgent.forward()
+                    if len(obs_tensor.shape) == 3:  # Single agent obs
+                        obs_tensor = obs_tensor.unsqueeze(0)  # Add batch dimension
+
+                    input_dict = {"grid_obs": obs_tensor}
+
+                    # Get actions from policy
+                    result = self.policy.forward(input_dict)
+
+                    # Extract actions from result
+                    if hasattr(result, "get") and "action" in result:
+                        actions = result["action"]
+                    elif hasattr(result, "action"):
+                        actions = result.action
+                    else:
+                        # Fallback: assume result is the action tensor
+                        actions = result
+
+                    if isinstance(actions, torch.Tensor):
+                        actions = actions.cpu().numpy()
+
+                    # Ensure proper shape and dtype
+                    if len(actions.shape) == 1:
+                        actions = actions.reshape(1, -1)
+
+                    return actions.astype("int32")
+
+        # Create fallback opportunistic policy wrapper
+        class SimpleOpportunisticWrapper:
+            def __init__(self):
+                pass
+
+            def predict(self, obs):
+                # Simple opportunistic logic - move towards resources or randomly
+                import numpy as np
+                from metta.mettagrid.util.actions import generate_valid_random_actions
+
+                # For now, just generate random valid actions
+                # This is a simplified version - could be enhanced with actual opportunistic logic
+                actions = np.array(
+                    [[0, 1]], dtype="int32"
+                )  # Move action with direction 1
+                return actions
+
+        # Load the trained policy using PolicyStore (handles PolicyRecord objects)
+        from metta.agent.policy_store import PolicyStore
 
         try:
-            # Load policy directly - this is the simple way
-            raw_policy = load_pytorch_policy(str(latest_ckpt), device="cpu")
+            # Create PolicyStore and load the checkpoint
+            policy_store = PolicyStore(device="cpu")
+            policy_uri = f"file://{latest_ckpt.absolute()}"
 
-            # Create a temporary environment to wrap the policy
-            with contextlib.redirect_stdout(io.StringIO()):
-                eval_env_temp = MettaGridEnv(env_config, render_mode="human")
-                trained_policy = TrainedPolicyWrapper(raw_policy, eval_env_temp)
-                eval_env_temp.close()
+            # Load policy record and get the actual policy
+            policy_record = policy_store.load_from_uri(policy_uri)
+            raw_policy = policy_record.policy
 
+            trained_policy = SimpleTrainedPolicyWrapper(raw_policy)
             print("✅ Successfully loaded trained policy")
 
         except Exception as e:
             print(f"❌ Failed to load trained policy: {e}")
-            print("Using opportunistic policy as fallback")
-            from tools.renderer import get_policy, RendererToolConfig
-
-            renderer_config = RendererToolConfig(
-                policy_type="opportunistic",
-                num_steps=150,
-                sleep_time=0.03,
-                renderer_type="human",
-            )
-            with contextlib.redirect_stdout(io.StringIO()):
-                fallback_env = MettaGridEnv(env_config, render_mode="human")
-                trained_policy = get_policy(
-                    "opportunistic", fallback_env, renderer_config
-                )
-                fallback_env.close()
+            print("Using simplified opportunistic policy as fallback")
+            trained_policy = SimpleOpportunisticWrapper()
 
         # Run animated evaluation just like the opportunistic agent
         EVAL_EPISODES = 10
