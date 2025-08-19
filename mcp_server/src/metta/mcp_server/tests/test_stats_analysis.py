@@ -223,11 +223,30 @@ class TestBehavioralAnalysisEngine:
         with pytest.raises(ValueError, match="No agent statistics provided"):
             engine.analyze_agent_behaviors([])
 
-    def test_analyze_performance_correlations(self, sample_agent_stats):
-        """Test performance correlation calculations"""
-        engine = BehavioralAnalysisEngine()
+    @pytest.mark.parametrize("replay_format", ["objects_format_replay", "grid_objects_format_replay"])
+    def test_analyze_performance_correlations(self, replay_format, request):
+        """Test performance correlation calculations using real agent data from both formats"""
+        replay_data = request.getfixturevalue(replay_format)
+        extractor = StatsExtractor()
+        episode_stats = extractor.extract_from_replay_data(replay_data)
 
-        correlations = engine._analyze_performance_correlations(sample_agent_stats)
+        # Create agent stats from real replay data
+        agent_stats = []
+        for agent_data in episode_stats.get("agent", [])[:10]:  # Use first 10 agents
+            agent_stat = AgentStats(
+                agent_id=agent_data.get("agent_id", 0),
+                total_actions=agent_data.get("action_counts", {}),
+                action_success_rates={},
+                resource_flows=agent_data.get("resource_transactions", {}),
+                movement_patterns=agent_data.get("movement_stats", {}),
+                combat_stats=agent_data.get("interaction_stats", {}),
+                building_interactions={},
+                efficiency_metrics={"overall_efficiency": agent_data.get("total_reward", 0.0)},
+            )
+            agent_stats.append(agent_stat)
+
+        engine = BehavioralAnalysisEngine()
+        correlations = engine._analyze_performance_correlations(agent_stats)
 
         # Should return correlation dictionary
         assert isinstance(correlations, dict)
@@ -236,11 +255,30 @@ class TestBehavioralAnalysisEngine:
         for _key, value in correlations.items():
             assert -1 <= value <= 1
 
-    def test_detect_behavioral_outliers(self, sample_agent_stats):
-        """Test outlier detection in agent behaviors"""
-        engine = BehavioralAnalysisEngine()
+    @pytest.mark.parametrize("replay_format", ["objects_format_replay", "grid_objects_format_replay"])
+    def test_detect_behavioral_outliers(self, replay_format, request):
+        """Test outlier detection in agent behaviors using real agent data from both formats"""
+        replay_data = request.getfixturevalue(replay_format)
+        extractor = StatsExtractor()
+        episode_stats = extractor.extract_from_replay_data(replay_data)
 
-        outliers = engine._detect_behavioral_outliers(sample_agent_stats)
+        # Create agent stats from real replay data
+        agent_stats = []
+        for agent_data in episode_stats.get("agent", []):
+            agent_stat = AgentStats(
+                agent_id=agent_data.get("agent_id", 0),
+                total_actions=agent_data.get("action_counts", {}),
+                action_success_rates={},
+                resource_flows=agent_data.get("resource_transactions", {}),
+                movement_patterns=agent_data.get("movement_stats", {}),
+                combat_stats=agent_data.get("interaction_stats", {}),
+                building_interactions={},
+                efficiency_metrics={"overall_efficiency": agent_data.get("total_reward", 0.0)},
+            )
+            agent_stats.append(agent_stat)
+
+        engine = BehavioralAnalysisEngine()
+        outliers = engine._detect_behavioral_outliers(agent_stats)
 
         # Should return list of outlier information
         assert isinstance(outliers, list)
@@ -404,11 +442,33 @@ class TestCombatInteractionAnalyzer:
 class TestBuildingEfficiencyScorer:
     """Test BuildingEfficiencyScorer functionality"""
 
-    def test_score_building_efficiency_success(self, sample_building_stats):
-        """Test successful building efficiency scoring"""
-        scorer = BuildingEfficiencyScorer()
+    @pytest.mark.parametrize("replay_format", ["objects_format_replay", "grid_objects_format_replay"])
+    def test_score_building_efficiency_success(self, replay_format, request):
+        """Test successful building efficiency scoring using real building data from both formats"""
+        replay_data = request.getfixturevalue(replay_format)
+        extractor = StatsExtractor()
+        episode_stats = extractor.extract_from_replay_data(replay_data)
 
-        result = scorer.score_building_efficiency(sample_building_stats)
+        # Create building stats from real replay data
+        building_stats = []
+        for building_data in episode_stats.get("converter", []):
+            building_stat = BuildingStats(
+                building_id=building_data.get("building_id", 0),
+                type_id=building_data.get("type_id", 0),
+                type_name=building_data.get("type_name", f"type_{building_data.get('type_id', 0)}"),
+                location=building_data.get("location", (0, 0)),
+                production_efficiency=building_data.get("production_stats", {}),
+                resource_flows=building_data.get("resource_flows", {}),
+                operational_stats=building_data.get("operational_stats", {}),
+                bottleneck_analysis={"bottleneck_score": building_data.get("bottleneck_score", 0.0)},
+            )
+            building_stats.append(building_stat)
+
+        if not building_stats:  # Skip if no buildings in this format
+            pytest.skip(f"No building stats found in {replay_format}")
+
+        scorer = BuildingEfficiencyScorer()
+        result = scorer.score_building_efficiency(building_stats)
 
         # Verify structure matches actual implementation
         assert "individual_scores" in result
@@ -431,21 +491,65 @@ class TestBuildingEfficiencyScorer:
         with pytest.raises(ValueError, match="No building statistics provided"):
             scorer.score_building_efficiency([])
 
-    def test_score_individual_buildings(self, sample_building_stats):
-        """Test individual building scoring"""
-        scorer = BuildingEfficiencyScorer()
+    @pytest.mark.parametrize("replay_format", ["objects_format_replay", "grid_objects_format_replay"])
+    def test_score_individual_buildings(self, replay_format, request):
+        """Test individual building scoring using real building data from both formats"""
+        replay_data = request.getfixturevalue(replay_format)
+        extractor = StatsExtractor()
+        episode_stats = extractor.extract_from_replay_data(replay_data)
 
-        scores = scorer._score_individual_buildings(sample_building_stats)
+        # Create building stats from real replay data
+        building_stats = []
+        for building_data in episode_stats.get("converter", []):
+            building_stat = BuildingStats(
+                building_id=building_data.get("building_id", 0),
+                type_id=building_data.get("type_id", 0),
+                type_name=building_data.get("type_name", f"type_{building_data.get('type_id', 0)}"),
+                location=building_data.get("location", (0, 0)),
+                production_efficiency=building_data.get("production_stats", {}),
+                resource_flows=building_data.get("resource_flows", {}),
+                operational_stats=building_data.get("operational_stats", {}),
+                bottleneck_analysis={"bottleneck_score": building_data.get("bottleneck_score", 0.0)},
+            )
+            building_stats.append(building_stat)
+
+        if not building_stats:  # Skip if no buildings in this format
+            pytest.skip(f"No building stats found in {replay_format}")
+
+        scorer = BuildingEfficiencyScorer()
+        scores = scorer._score_individual_buildings(building_stats)
 
         # Should return dict with building scores
         assert isinstance(scores, dict)
-        assert len(scores) == len(sample_building_stats)
+        assert len(scores) == len(building_stats)
 
-    def test_generate_optimization_recommendations(self, sample_building_stats):
-        """Test optimization recommendation generation"""
+    @pytest.mark.parametrize("replay_format", ["objects_format_replay", "grid_objects_format_replay"])
+    def test_generate_optimization_recommendations(self, replay_format, request):
+        """Test optimization recommendation generation using real building data from both formats"""
+        replay_data = request.getfixturevalue(replay_format)
+        extractor = StatsExtractor()
+        episode_stats = extractor.extract_from_replay_data(replay_data)
+
+        # Create building stats from real replay data
+        building_stats = []
+        for building_data in episode_stats.get("converter", []):
+            building_stat = BuildingStats(
+                building_id=building_data.get("building_id", 0),
+                type_id=building_data.get("type_id", 0),
+                type_name=building_data.get("type_name", f"type_{building_data.get('type_id', 0)}"),
+                location=building_data.get("location", (0, 0)),
+                production_efficiency=building_data.get("production_stats", {}),
+                resource_flows=building_data.get("resource_flows", {}),
+                operational_stats=building_data.get("operational_stats", {}),
+                bottleneck_analysis={"bottleneck_score": building_data.get("bottleneck_score", 0.0)},
+            )
+            building_stats.append(building_stat)
+
+        if not building_stats:  # Skip if no buildings in this format
+            pytest.skip(f"No building stats found in {replay_format}")
+
         scorer = BuildingEfficiencyScorer()
-
-        recommendations = scorer._generate_optimization_recommendations(sample_building_stats)
+        recommendations = scorer._generate_optimization_recommendations(building_stats)
 
         # Should provide actionable recommendations
         assert isinstance(recommendations, list)
