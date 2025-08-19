@@ -12,6 +12,7 @@ from metta.mettagrid.util.file import exists, http_url, read, write_data
 def _has_gdrive_credentials():
     """Check if Google Drive credentials are available"""
     from metta.mettagrid.util.file import GOOGLE_DRIVE_CREDENTIALS_FILE, GOOGLE_DRIVE_TOKEN_FILE
+
     cred_path = Path(GOOGLE_DRIVE_CREDENTIALS_FILE).expanduser()
     token_path = Path(GOOGLE_DRIVE_TOKEN_FILE).expanduser()
     return cred_path.exists() or token_path.exists()
