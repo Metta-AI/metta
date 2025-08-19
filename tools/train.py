@@ -150,12 +150,18 @@ def _configure_vecenv_settings(cfg: TrainTool) -> None:
 
 
 def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
+    if cfg.trainer.evaluation is None:
+        return None
+
+    if not cfg.trainer.evaluation.replay_dir:
+        cfg.trainer.evaluation.replay_dir = f"s3://softmax-public/replays/{cfg.run}"
+
     stats_client: StatsClient | None = None
     if cfg.stats_server_uri is not None:
         stats_client = StatsClient.create(cfg.stats_server_uri)
 
     # Determine git hash for remote simulations
-    if cfg.trainer.evaluation and cfg.trainer.evaluation.evaluate_remote:
+    if cfg.trainer.evaluation.evaluate_remote:
         if not stats_client:
             cfg.trainer.evaluation.evaluate_remote = False
             logger.info("Not connected to stats server, disabling remote evaluations")

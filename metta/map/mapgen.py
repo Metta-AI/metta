@@ -87,6 +87,22 @@ class MapGenConfig(MapBuilderConfig):
         """Create a MapGen builder from this configuration."""
         return MapGen(self)
 
+    @classmethod
+    def with_ascii(cls, ascii_map: str, **kwargs) -> "MapGenConfig":
+        """Create a MapGenConfig with an ASCII map file as the instance_map.
+
+        Args:
+            ascii_map: Path to ASCII map file
+            **kwargs: Additional MapGenConfig parameters (e.g., border_width)
+
+        Returns:
+            New MapGenConfig instance
+        """
+        from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+
+        kwargs["instance_map"] = AsciiMapBuilderConfig.from_uri(ascii_map)
+        return cls(**kwargs)
+
 
 # Root map generator, based on scenes.
 class MapGen(MapBuilder):
