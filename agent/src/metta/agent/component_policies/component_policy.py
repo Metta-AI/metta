@@ -36,7 +36,6 @@ class ComponentPolicy(nn.Module, ABC):
         self.clip_range = self.config.get("clip_range", 0)
         self.analyze_weights_interval = self.config.get("analyze_weights_interval", 300)
 
-
         # Extract observation shape (always uses "grid_obs" key)
         obs_key = "grid_obs"
         obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape") if obs_space is not None else None
