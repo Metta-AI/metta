@@ -89,14 +89,6 @@ class LSTM(LayerBase):
         hidden_size = self._nn_params.get("hidden_size", self.hidden_size)
         self._out_tensor_shape = [hidden_size]
 
-        # Guard against setup order issues for static analyzers and runtime safety
-        assert (
-            getattr(self, "_in_tensor_shapes", None) is not None
-            and isinstance(self._in_tensor_shapes, list)
-            and len(self._in_tensor_shapes) > 0
-            and isinstance(self._in_tensor_shapes[0], list)
-            and len(self._in_tensor_shapes[0]) > 0
-        ), "LSTM requires a valid input tensor shape from its source component"
         self.lstm = nn.LSTM(self._in_tensor_shapes[0][0], **self._nn_params)
 
         for name, param in self.lstm.named_parameters():
@@ -113,10 +105,6 @@ class LSTM(LayerBase):
             input_size = self._in_tensor_shapes[0][0]
             for i in range(self.num_layers):
                 cell = nn.LSTMCell(input_size, self.hidden_size)
-
-                # To satisfy the type checker, we wrap the weights from the nn.LSTM
-                # in nn.Parameter(). This ensures they are correctly registered as
-                # parameters of the LSTMCell while still sharing the underlying data.
                 cell.weight_ih = nn.Parameter(getattr(self.lstm, f"weight_ih_l{i}"))
                 cell.weight_hh = nn.Parameter(getattr(self.lstm, f"weight_hh_l{i}"))
                 cell.bias_ih = nn.Parameter(getattr(self.lstm, f"bias_ih_l{i}"))
@@ -124,6 +112,9 @@ class LSTM(LayerBase):
 
                 self.cells.append(cell)
                 input_size = self.hidden_size  # For subsequent layers, input size is hidden size
+
+                # delete self.lstm
+                del self.lstm
 
         return None
 
