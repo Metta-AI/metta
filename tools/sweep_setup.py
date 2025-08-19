@@ -25,7 +25,6 @@ Example usage:
 import logging
 import sys
 
-import hydra
 import numpy as np  # noqa: E402
 
 if not hasattr(np, "byte"):
@@ -43,7 +42,6 @@ from metta.sweep.wandb_utils import create_wandb_sweep
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 def main(cfg: DictConfig) -> int:
     # Extract sweep base name from CLI sweep_name parameter (e.g., "simple_sweep")
     # Individual training runs will be "simple_sweep.r.0", etc.
