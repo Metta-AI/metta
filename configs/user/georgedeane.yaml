@@ -13,7 +13,7 @@ defaults:
   - _self_
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/operant_conditioning/2_converters
+  curriculum: /env/mettagrid/curriculum/operant_conditioning/in_context_learning/all
   simulation:
     skip_git_check: true
 
