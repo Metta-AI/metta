@@ -29,64 +29,6 @@ def create_metta_agent():
     action_space = gym.spaces.MultiDiscrete([3, 2])
     feature_normalizations = {0: 1.0, 1: 30.0, 2: 10.0}
 
-    config_dict = {
-        "clip_range": 0.1,
-        "observations": {"obs_key": "grid_obs"},
-        "components": {
-            "_obs_": {
-                "_target_": "metta.agent.lib.obs_token_to_box_shaper.ObsTokenToBoxShaper",
-                "sources": None,
-            },
-            "obs_normalizer": {
-                "_target_": "metta.agent.lib.observation_normalizer.ObservationNormalizer",
-                "sources": [{"name": "_obs_"}],
-            },
-            "obs_flattener": {
-                "_target_": "metta.agent.lib.nn_layer_library.Flatten",
-                "sources": [{"name": "obs_normalizer"}],
-            },
-            "encoded_obs": {
-                "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "obs_flattener"}],
-                "nn_params": {"out_features": 64},
-            },
-            "_core_": {
-                "_target_": "metta.agent.lib.lstm.LSTM",
-                "sources": [{"name": "encoded_obs"}],
-                "output_size": 64,
-                "nn_params": {"num_layers": 1, "hidden_size": 128},
-            },
-            "_action_embeds_": {
-                "_target_": "metta.agent.lib.action.ActionEmbedding",
-                "sources": None,
-                "nn_params": {"num_embeddings": 50, "embedding_dim": 8},
-            },
-            "actor_layer": {
-                "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "_core_"}],
-                "nn_params": {"out_features": 128},
-            },
-            "_action_": {
-                "_target_": "metta.agent.lib.actor.MettaActorBig",
-                "sources": [{"name": "actor_layer"}, {"name": "_action_embeds_"}],
-                "bilinear_output_dim": 32,
-                "mlp_hidden_dim": 128,
-            },
-            "critic_layer": {
-                "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "_core_"}],
-                "nn_params": {"out_features": 64},
-                "nonlinearity": "nn.Tanh",
-            },
-            "_value_": {
-                "_target_": "metta.agent.lib.nn_layer_library.Linear",
-                "sources": [{"name": "critic_layer"}],
-                "nn_params": {"out_features": 1},
-                "nonlinearity": None,
-            },
-        },
-    }
-
     # Create a minimal environment mock
     class MinimalEnv:
         def __init__(self):
@@ -98,7 +40,8 @@ def create_metta_agent():
 
     # Create system config
     system_cfg = SystemConfig(device="cpu")
-    agent_cfg = DictConfig(config_dict)
+    # Use the new string-based agent configuration
+    agent_cfg = "fast"
 
     # Create the agent with the new signature
     agent = MettaAgent(
