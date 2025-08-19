@@ -42,8 +42,12 @@ def initialize_sweep(sweep_job_cfg: DictConfig, logger: logging.Logger) -> None:
         logger.info(f"Found existing sweep {sweep_job_cfg.sweep_name} in the centralized DB")
 
 
-def prepare_sweep_run(sweep_job_cfg: DictConfig, logger: logging.Logger) -> tuple[str, dict[str, Any]]:
-    """Generate a new sweep run configuration with Protein suggestions and run name."""
+def prepare_sweep_run(sweep_job_cfg: DictConfig, logger: logging.Logger) -> tuple[str, dict[str, Any], DictConfig]:
+    """Generate a new sweep run configuration with Protein suggestions and run name.
+
+    Returns:
+        Tuple of (run_name, protein_suggestion, phased_config)
+    """
 
     previous_observations = fetch_protein_observations_from_wandb(
         wandb_entity=sweep_job_cfg.wandb.entity,
@@ -52,19 +56,21 @@ def prepare_sweep_run(sweep_job_cfg: DictConfig, logger: logging.Logger) -> tupl
         max_observations=sweep_job_cfg.settings.max_observations_to_load,
     )
 
+    # Apply phase overrides if using phased schedule
+    phased_sweep_job_cfg = sweep_job_cfg
     if hasattr(sweep_job_cfg, "schedule"):
         total_runs = 0
-        phase_overrides = {}
         for phase_idx, phase in enumerate(sweep_job_cfg.schedule.phases):
             total_runs += phase.get("num_runs", 0)
             if total_runs > len(previous_observations) or phase_idx == len(sweep_job_cfg.schedule.phases) - 1:
-                phase_overrides = phase.sweep
+                logger.info(f"Using phase {phase_idx} ({phase.name}) configuration")
+                if "overrides" in phase:
+                    # Merge phase overrides into the base config
+                    phased_sweep_job_cfg = OmegaConf.merge(sweep_job_cfg, phase.overrides)
                 break
-        default_sweep_config = OmegaConf.create(OmegaConf.to_yaml(sweep_job_cfg.sweep))
-        sweep_phase_config = OmegaConf.merge(default_sweep_config, phase_overrides)
-        protein = MettaProtein(sweep_phase_config)  # type: ignore[arg-type]
-    else:
-        protein = MettaProtein(sweep_job_cfg.sweep)
+
+    # Use the phased config for protein
+    protein = MettaProtein(phased_sweep_job_cfg.sweep)
 
     logger.info(f"Loaded {len(previous_observations)} previous observations from WandB")
     for obs in previous_observations:
@@ -73,16 +79,17 @@ def prepare_sweep_run(sweep_job_cfg: DictConfig, logger: logging.Logger) -> tupl
     # Generate new suggestion
     protein_suggestion, _ = protein.suggest()
 
-    # Get next available run name from central DB
+    # Get next available run name from central DB (use original config for server URI)
     cogweb_client = CogwebClient.get_client(base_url=sweep_job_cfg.settings.sweep_server_uri)
     run_name = cogweb_client.sweep_client().get_next_run_id(sweep_job_cfg.sweep_name)
     logger.info(f"Got next run name from Cogweb DB: {run_name}")
 
-    return run_name, protein_suggestion
+    return run_name, protein_suggestion, phased_sweep_job_cfg
 
 
 def evaluate_sweep_rollout(
     train_job_cfg: DictConfig,
+    sweep_sim_cfg: DictConfig,
     protein_suggestion: dict[str, Any],
     metric: str,
     sweep_name: str,
@@ -95,13 +102,14 @@ def evaluate_sweep_rollout(
             logger.error("Failed to initialize WandB context for evaluation")
             raise RuntimeError("WandB initialization failed during evaluation")
 
-        # Run evaluation
+        # Run evaluation with sweep sim config
         # side-effect: updates last policy metadata and adds policy to wandb sweep
         eval_results = _run_policy_evaluation(
             wandb_run,
             metric,
             sweep_name,
             train_job_cfg,
+            sweep_sim_cfg,
         )
 
         # Record evaluation results in WandB
@@ -152,10 +160,11 @@ def _run_policy_evaluation(
     sweep_metric: str,
     sweep_name: str,
     train_job_cfg: DictConfig,
+    sweep_sim_cfg: DictConfig,
 ) -> dict[str, Any]:
     """Execute policy evaluation using the standard evaluate_policy function."""
-    # Setup configuration
-    simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(train_job_cfg.sim, resolve=True))  # type: ignore[arg-type]
+    # Setup configuration - use sweep sim config for evaluation
+    simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(sweep_sim_cfg, resolve=True))  # type: ignore[arg-type]
     env_cfg = create_system_config(train_job_cfg)
 
     if not wandb_run.name:

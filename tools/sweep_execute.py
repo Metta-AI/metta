@@ -78,19 +78,8 @@ def run_single_rollout(cfg: DictConfig, original_args: list[str] | None = None) 
     """Run a single rollout using the simplified pipeline."""
     logger.info(f"Starting single rollout for sweep: {cfg.sweep_name}")
 
-    # Generate configuration for the sweep run - get run name and protein suggestion
+    # Generate configuration for the sweep run - get run name, protein suggestion, and phased config
     # Only rank 0 does this, others wait
-<<<<<<< HEAD:tools/sweep_execute.py
-    results = run_once(
-        lambda: prepare_sweep_run(cfg, logger),
-    )
-
-    if results is None:
-        logger.error("Failed to prepare sweep run")
-        return 1
-
-    run_name, protein_suggestion = results
-=======
     result = run_once(
         lambda: prepare_sweep_run(cfg, logger),
     )
@@ -99,8 +88,7 @@ def run_single_rollout(cfg: DictConfig, original_args: list[str] | None = None) 
         logger.error("Failed to prepare sweep run")
         return 1
 
-    run_name, protein_suggestion = result
->>>>>>> 50256677f (feat(sweep): Add phasing):tools/sweep_rollout.py
+    run_name, protein_suggestion, phased_cfg = result
 
     logger.info(f"Prepared sweep run: {run_name}")
 
@@ -119,10 +107,11 @@ def run_single_rollout(cfg: DictConfig, original_args: list[str] | None = None) 
     config_path = os.path.join(run_dir, "sweep_eval_config.yaml")
     full_train_job_cfg = OmegaConf.load(config_path)
     assert isinstance(full_train_job_cfg, DictConfig)
-    # Master node only
+    # Master node only - pass the phased sim config for evaluation
     eval_results = run_once(
         lambda: evaluate_sweep_rollout(
             full_train_job_cfg,
+            phased_cfg.sim,  # Pass the sweep sim config
             protein_suggestion,
             metric=cfg.sweep.metric,
             sweep_name=cfg.sweep_name,
@@ -194,9 +183,7 @@ def launch_training_subprocess(
             # Pass through everything else
             cmd.append(arg)
 
-    # We can either do this or pass it through CLI args
-    # I would prefer the latter.
-    cmd.append(f"sim={cfg.sim_name}")
+    # Sim config is now handled separately in sweep evaluation, not during training
 
     logger.info(f"[SWEEP:{run_name}] Running training with {len(suggestion_args)} parameter overrides")
     logger.debug(f"[SWEEP:{run_name}] Full command: {' '.join(cmd)}")
