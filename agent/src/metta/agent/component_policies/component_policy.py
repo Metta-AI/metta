@@ -26,9 +26,7 @@ class ComponentPolicy(nn.Module, ABC):
         obs_space: Optional[Union[gym.spaces.Space, gym.spaces.Dict]] = None,
         obs_width: Optional[int] = None,
         obs_height: Optional[int] = None,
-        action_space: Optional[gym.spaces.Space] = None,
         feature_normalizations: Optional[dict[int, float]] = None,
-        device: Optional[str] = None,
         config: Optional[dict] = None,
     ):
         super().__init__()
@@ -38,8 +36,6 @@ class ComponentPolicy(nn.Module, ABC):
         self.clip_range = self.config.get("clip_range", 0)
         self.analyze_weights_interval = self.config.get("analyze_weights_interval", 300)
 
-        # Device setup
-        self.device = torch.device(device) if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         # Validate and extract observation key
         obs_key = "grid_obs"
@@ -48,7 +44,6 @@ class ComponentPolicy(nn.Module, ABC):
         # Create agent attributes dict
         self.agent_attributes = {
             "clip_range": self.clip_range,
-            "action_space": action_space,
             "feature_normalizations": feature_normalizations,
             "obs_width": obs_width,
             "obs_height": obs_height,
@@ -56,13 +51,6 @@ class ComponentPolicy(nn.Module, ABC):
             "obs_shape": obs_shape,
         }
 
-        # Action space handling
-        if action_space is not None and hasattr(action_space, "nvec"):
-            action_nvec = action_space.nvec
-        else:
-            action_nvec = [100]  # default
-
-        self.action_nvec = action_nvec
         self.components = nn.ModuleDict()
 
         # Build components using the abstract method
@@ -89,8 +77,6 @@ class ComponentPolicy(nn.Module, ABC):
             raise ValueError(f"Duplicate component names found: {duplicate_names}")
 
         # Move to device
-        self.components = self.components.to(self.device)
-
         logger.info(f"{self.__class__.__name__} policy components: {self.components}")
 
         # Initialize action conversion tensors (will be set by MettaAgent)
