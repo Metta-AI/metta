@@ -64,7 +64,13 @@ class WallConfig(GridObjectConfig):
     swappable: bool
 
 class BoxConfig(GridObjectConfig):
-    def __init__(self, type_id: int, type_name: str, resources_to_create: dict[int, int], resources_to_pick_up: dict[int, int] = ...): ...
+    def __init__(
+        self,
+        type_id: int,
+        type_name: str,
+        resources_to_create: dict[int, int],
+        resources_to_pick_up: dict[int, int] = ...,
+    ): ...
     type_id: int
     type_name: str
     resources_to_create: dict[int, int]
