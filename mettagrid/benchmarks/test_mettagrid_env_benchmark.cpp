@@ -72,7 +72,8 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
                                                              std::map<std::string, RewardType>(),
                                                              std::map<std::string, RewardType>(),
                                                              0.0f,
-                                                             std::map<InventoryItem, InventoryQuantity>());
+                                                             std::map<InventoryItem, InventoryQuantity>(),
+                                                             std::map<InventoryItem, float>());
   objects_cfg["agent.team2"] = std::make_shared<AgentConfig>(0,
                                                              "agent",
                                                              1,
@@ -85,7 +86,8 @@ GameConfig CreateBenchmarkConfig(size_t num_agents) {
                                                              std::map<std::string, RewardType>(),
                                                              std::map<std::string, RewardType>(),
                                                              0.0f,
-                                                             std::map<InventoryItem, InventoryQuantity>());
+                                                             std::map<InventoryItem, InventoryQuantity>(),
+                                                             std::map<InventoryItem, float>());
 
   // Create default global observation config
   GlobalObsConfig global_obs_config;

@@ -32,6 +32,8 @@ class TestGlobalRewardObservations:
             },
             resource_reward_max={i: 100 for i in range(len(inventory_items))},
             group_reward_pct=0.0,
+            initial_inventory={},
+            resource_loss_probs={},
         )
 
         # Create global obs config - uses defaults
@@ -109,6 +111,8 @@ class TestGlobalRewardObservations:
             resource_rewards={0: 1.0, 1: 1.0, 2: 1.0, 3: 1.0},
             resource_reward_max={i: 100 for i in range(len(inventory_items))},
             group_reward_pct=0.0,
+            initial_inventory={},
+            resource_loss_probs={},
         )
 
         # Create global obs config - uses defaults
@@ -171,6 +175,8 @@ class TestGlobalRewardObservations:
             },
             resource_reward_max={i: 100 for i in range(len(inventory_items))},
             group_reward_pct=0.0,
+            initial_inventory={},
+            resource_loss_probs={},
         )
 
         # Create global obs config - uses defaults
@@ -239,6 +245,8 @@ class TestGlobalRewardObservations:
             },
             resource_reward_max={i: 100 for i in range(len(inventory_items))},
             group_reward_pct=0.0,
+            initial_inventory={},
+            resource_loss_probs={},
         )
 
         # Create global obs config - uses defaults
