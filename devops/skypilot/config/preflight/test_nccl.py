@@ -1001,7 +1001,7 @@ def main():
         logger.info("Running as distributed worker")
     else:
         # We're the main process, check if we need to launch distributed
-        if is_distributed_environment() and "RANK" not in os.environ:
+        if is_distributed_environment():
             logger.info("Detected distributed environment, launching with torchrun...")
             return launch_distributed_test()
 
