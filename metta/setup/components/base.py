@@ -191,7 +191,7 @@ class SetupModule(ABC):
         Returns:
             Dictionary with status information or None if not applicable
         """
-        if not self.is_applicable():
+        if not self.is_enabled():
             return None
 
         installed = self.check_installed()
