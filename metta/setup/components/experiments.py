@@ -1,5 +1,4 @@
 import os
-import shutil
 from pathlib import Path
 
 from metta.setup.components.base import SetupModule
@@ -24,7 +23,17 @@ class ExperimentsSetup(SetupModule):
 
     def install(self) -> None:
         info(f"Setting up personal experiments file under {self._personal_experiments_path}...")
-        shutil.copyfile(self.user_experiments_dir / "example.py", self._personal_experiments_path)
+        username = os.getenv("USER", "user")
+
+        template_path = self.user_experiments_dir / "example.py"
+        with open(template_path, "r") as f:
+            template_content = f.read()
+
+        processed_content = template_content.replace("{{ USER }}", username)
+
+        with open(self._personal_experiments_path, "w") as f:
+            f.write(processed_content)
+
         success("Experiments installed")
 
     def check_installed(self) -> bool:
