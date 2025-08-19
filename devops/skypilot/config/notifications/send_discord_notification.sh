@@ -17,7 +17,7 @@ ADDITIONAL_INFO="${4:-}"
 : "${METTA_GIT_REF:?Missing METTA_GIT_REF}"
 : "${METTA_RUN_ID:?Missing METTA_RUN_ID}"
 : "${TOTAL_NODES:?Missing TOTAL_NODES}"
-: "${JOB_METADATA_DIR:?Missing JOB_METADATA_DIR}"
+: "${IPC_DIR:?Missing IPC_DIR}"
 
 echo "[RUN] Sending Discord notification: $TITLE"
 
@@ -43,8 +43,8 @@ fi
   echo "**Time**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
   echo "**Nodes**: ${TOTAL_NODES}"
   [ -n "$ADDITIONAL_INFO" ] && echo "" && echo "$ADDITIONAL_INFO"
-} > "$JOB_METADATA_DIR/discord_message.txt"
+} > "$IPC_DIR/discord_message.txt"
 
-DISCORD_CONTENT="$(cat "$JOB_METADATA_DIR/discord_message.txt")"
+DISCORD_CONTENT="$(cat "$IPC_DIR/discord_message.txt")"
 export DISCORD_CONTENT
 uv run -m metta.common.util.discord || echo "[WARN] Discord notification failed; continuing"

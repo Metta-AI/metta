@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-NUM_GPUS=${NUM_GPUS:-$(command -v nvidia-smi > /dev/null && nvidia-smi --list-gpus | wc -l || echo 1)}
+NUM_GPUS=${NUM_GPUS:-$(command -v nvidia-smi >/dev/null && nvidia-smi --list-gpus | wc -l || echo 1)}
 NUM_NODES=${NUM_NODES:-1}
 MASTER_ADDR=${MASTER_ADDR:-localhost}
 MASTER_PORT=${MASTER_PORT:-12345}
