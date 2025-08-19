@@ -44,10 +44,20 @@ class DistributedMettaAgent(DistributedDataParallel):
             layers_converted_agent = agent
 
         # Pass device_ids for GPU, but not for CPU
+        # Use static graph for world model to handle unused parameters
         if device.type == "cpu":
-            super().__init__(module=layers_converted_agent)
+            super().__init__(module=layers_converted_agent, find_unused_parameters=True)
         else:
-            super().__init__(module=layers_converted_agent, device_ids=[device], output_device=device)
+            super().__init__(
+                module=layers_converted_agent, device_ids=[device], output_device=device, find_unused_parameters=True
+            )
+
+        # Set static graph to handle the world model case where computation graph is dynamic
+        try:
+            self._set_static_graph()
+        except Exception:
+            # _set_static_graph might not be available in all PyTorch versions
+            pass
 
     def __getattr__(self, name: str) -> Any:
         # First try DistributedDataParallel's __getattr__, then self.module's (MettaAgent's)
