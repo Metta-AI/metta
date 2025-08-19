@@ -191,8 +191,8 @@ class LSTM(LayerBase):
         layer_input = latent
         for i, cell in enumerate(self.cells):
             h_i, c_i = h_0[i], c_0[i]
-            h_i = h_i.masked_fill(reset_mask_t, 0)
-            c_i = c_i.masked_fill(reset_mask_t, 0)
+            # h_i = h_i.masked_fill(reset_mask_t, 0)
+            # c_i = c_i.masked_fill(reset_mask_t, 0)
             h_n_i, c_n_i = cell(layer_input, (h_i, c_i))
             h_n_layers.append(h_n_i)
             c_n_layers.append(c_n_i)
