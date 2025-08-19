@@ -7,24 +7,28 @@ defaults:
   - _self_
 
 game:
-  # Adjust as needed for your map/agents
   num_agents: 2
-  max_steps: 300
+  max_steps: 500
 
-  # Configure team reward sharing
   groups:
     team_1:
-      group_reward_pct: 1.0 # 100% reward sharing within team
+      group_reward_pct: 1.0
+
+  agent:
+    rewards:
+      inventory:
+        heart: 1.0
 
   map_builder:
     _target_: metta.map.mapgen.MapGen
-    width: 5
+    width: 4
     height: 5
     border_width: 0
+    # Tile multiple instances: 2 agents per tile => instances = num_agents / 2
     instances: ${div:${..num_agents},2}
     instance_border_width: 1
 
     root:
       type: metta.map.scenes.ascii.Ascii
       params:
-        uri: "configs/env/mettagrid/maps/simple/coop_rewardsharing.map"
+        uri: "configs/env/mettagrid/maps/simple/coop_rewardsharing_alt.map"

@@ -1,0 +1,10 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  /env/mettagrid/curriculum/coop_rewardsharing/bucketed: 4
+  /env/mettagrid/arena/coop_rewardsharing: 1
+  /env/mettagrid/arena/coop_rewardsharing_ascii_alt: 1
+
+env_overrides:
+  game:
+    num_agents: 2

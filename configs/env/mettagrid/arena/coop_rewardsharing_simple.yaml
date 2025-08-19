@@ -1,0 +1,35 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/basic@game.objects
+  - /env/mettagrid/game/objects/mines@game.objects
+  - /env/mettagrid/game/objects/generators@game.objects
+  - override /env/mettagrid/game/groups@game.groups: teams
+  - _self_
+
+game:
+  num_agents: 2
+  max_steps: 500
+
+  # BOTH agents in team_1 for reward sharing!
+  groups:
+    team_1:
+      group_reward_pct: 1.0 # 100% reward sharing
+
+  # Simple rewards
+  agent:
+    rewards:
+      inventory:
+        heart: 1.0 # Only reward that matters
+
+  # Simple random placement
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+    width: 10
+    height: 10
+    border_width: 1
+
+    root:
+      type: metta.map.scenes.coop_divided.CoopDivided
+      params:
+        agents_top: 1
+        agents_bottom: 1
