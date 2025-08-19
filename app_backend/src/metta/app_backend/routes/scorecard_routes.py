@@ -6,7 +6,7 @@ from typing import Dict, List, Optional
 from fastapi import APIRouter, HTTPException
 from psycopg import AsyncConnection
 from psycopg.rows import class_row
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Literal
 
 from metta.app_backend.metta_repo import MettaRepo
@@ -92,9 +92,11 @@ class TrainingRunScorecardRequest(BaseModel):
 class ScorecardCell(BaseModel):
     """Single cell in the policy scorecard grid."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     evalName: str
     replayUrl: Optional[str]
-    thumbnailUrl: Optional[str]
+    thumbnailUrl: Optional[str] = Field(default=None, alias="chartUrl")
     value: float
 
 
