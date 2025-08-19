@@ -206,16 +206,28 @@ programmatic processing
 
 ```bash
 # Evaluate a single policy
-./tools/sim.py sim_job.policy_uris='["wandb://run/experiment_001"]'
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://run/experiment_001"]'
 
 # Evaluate multiple policies
-./tools/sim.py sim_job.policy_uris='["wandb://team/project/model:v0", "wandb://run/exp_002"]'
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://team/project/model:v0", "wandb://run/exp_002"]'
+
+# Evaluate a single policy with stats DB
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://run/experiment_001"]' stats_db_uri='wandb://stats/navigation_db'
+
+# Evaluate multiple policies with stats DB
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://team/project/model:v0", "wandb://run/exp_002"]' stats_db_uri='wandb://stats/navigation_db'
 
 # Export stats to S3
-./tools/sim.py sim_job.policy_uris='["wandb://run/exp"]' sim_job.stats_db_uri=s3://bucket/eval.db
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://run/exp"]' stats_db_uri=s3://bucket/eval.db
+
+# Evaluate a single policy with stats DB
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://run/exp"]' stats_db_uri='s3://bucket/eval.db'
+
+# Evaluate multiple policies with stats DB
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://team/project/model:v0", "wandb://run/exp_002"]' stats_db_uri='s3://bucket/eval.db'
 
 # Use specific evaluation suite
-./tools/sim.py sim_job.simulation_suite=navigation selector_type=top
+./tools/run.py experiments.navigation.eval --overrides simulation_suite=navigation selector_type=top
 ```
 
 **Key Features**:

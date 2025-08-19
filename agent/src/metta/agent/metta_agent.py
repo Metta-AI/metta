@@ -17,6 +17,11 @@ from metta.rl.system_config import SystemConfig
 logger = logging.getLogger("metta_agent")
 
 
+def log_on_master(*args, **argv):
+    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+        logger.info(*args, **argv)
+
+
 class DistributedMettaAgent(DistributedDataParallel):
     """
     Because this class passes through __getattr__ to its self.module, it implements everything
@@ -27,7 +32,7 @@ class DistributedMettaAgent(DistributedDataParallel):
     module: "MettaAgent"
 
     def __init__(self, agent: "MettaAgent", device: torch.device):
-        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+        log_on_master("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
 
         # Check if the agent might have circular references that would cause recursion
         # This can happen with legacy checkpoints wrapped in LegacyMettaAgentAdapter
@@ -178,7 +183,7 @@ class MettaAgent(nn.Module):
         # Store original feature mapping on first initialization
         if not hasattr(self, "original_feature_mapping"):
             self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
-            logger.info(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
+            log_on_master(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
         else:
             # Create remapping for subsequent initializations
             self._create_feature_remapping(features)
@@ -257,7 +262,7 @@ class MettaAgent(nn.Module):
         """Restore the original feature mapping from metadata."""
         # Make a copy to avoid shared state between agents
         self.original_feature_mapping = mapping.copy()
-        logger.info(f"Restored original feature mapping with {len(mapping)} features from metadata")
+        log_on_master(f"Restored original feature mapping with {len(mapping)} features from metadata")
 
     def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
         """Initialize action space for the agent."""
@@ -285,7 +290,8 @@ class MettaAgent(nn.Module):
             device=device,
             dtype=torch.int32,
         )
-        logger.info(f"Actions initialized: {self.active_actions}")
+
+        log_on_master(f"Actions initialized: {self.active_actions}")
 
         # Pass tensors to policy if needed
         if self.policy is not None:
@@ -358,7 +364,7 @@ class MettaAgent(nn.Module):
             # First, break any circular references in the old state
             if "policy" in state and state.get("policy") is state:
                 del state["policy"]
-                logger.info("Removed circular reference: state['policy'] = state")
+                log_on_master("Removed circular reference: state['policy'] = state")
 
             # Create ComponentPolicy without calling __init__ to avoid rebuilding components
             policy = ComponentPolicy.__new__(ComponentPolicy)
@@ -451,7 +457,7 @@ class MettaAgent(nn.Module):
             if hasattr(self, "device") and self.policy is not None:
                 self.policy.device = self.device
 
-            logger.info("Successfully converted old checkpoint to new structure")
+            log_on_master("Successfully converted old checkpoint to new structure")
         else:
             # Normal checkpoint restoration
             self.__dict__.update(state)

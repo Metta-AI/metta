@@ -50,7 +50,7 @@ def _determine_run_name(policy_uri: str) -> str:
 class SimTool(Tool):
     # required params:
     simulations: Sequence[SimulationConfig]  # list of simulations to run
-    policy_uris: Sequence[str]  # list of policy uris to evaluate
+    policy_uris: str | Sequence[str] | None = None  # list of policy uris to evaluate
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
 
     wandb: WandbConfig = auto_wandb_config()
@@ -64,6 +64,12 @@ class SimTool(Tool):
     push_metrics_to_wandb: bool = False
 
     def invoke(self) -> None:
+        if self.policy_uris is None:
+            raise ValueError("policy_uris is required")
+
+        if isinstance(self.policy_uris, str):
+            self.policy_uris = [self.policy_uris]
+
         # TODO(daveey): #dehydration
         policy_store = PolicyStore.create(
             device=self.system.device,
@@ -99,7 +105,7 @@ class SimTool(Tool):
             for pr in policy_prs:
                 eval_results = evaluate_policy(
                     policy_record=pr,
-                    simulations=self.simulations,
+                    simulations=list(self.simulations),
                     stats_dir=self.stats_dir,
                     replay_dir=f"{self.replay_dir}/{eval_run_name}/{pr.run_name}",
                     device=device,

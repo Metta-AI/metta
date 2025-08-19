@@ -43,11 +43,11 @@ file_mounts:
     source: s3://softmax-train-dir
     mode: MOUNT_CACHED
 
-setup: |
-  set -u
-  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/sk_setup.sh")
+# `set -u`: Exit on undefined variables to catch missing env vars early
+setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
 
-run: /workspace/metta/devops/skypilot/config/skypilot_run.sh
+# `set -e`: Ensure SkyPilot propagates exit codes from skypilot_run.sh (otherwise restart test fails)
+run: set -e && /workspace/metta/devops/skypilot/config/skypilot_run.sh
 
 envs:
   TEST_NCCL: "false"

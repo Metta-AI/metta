@@ -10,6 +10,7 @@ from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
+from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 
 from experiments.evals.navigation import make_navigation_eval_suite
@@ -76,3 +77,7 @@ def play(env: Optional[EnvConfig] = None) -> PlayTool:
             name="navigation",
         ),
     )
+
+
+def eval() -> SimTool:
+    return SimTool(simulations=make_navigation_eval_suite())
