@@ -125,3 +125,14 @@ kickstart:
     #  - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
     #    action_loss_coef: 1
     #    value_loss_coef: 1
+
+# Dual-policy training configuration (for training against NPC policies)
+dual_policy:
+  enabled: false
+  checkpoint_npc:
+    uri: null
+    type: top
+    range: 1
+    metric: epoch
+    filters: {}
+  training_agents_pct: 0.5
