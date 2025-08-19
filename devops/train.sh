@@ -23,16 +23,6 @@ export HYDRA_FULL_ERROR=1
 export WANDB_DIR="./wandb"
 export DATA_DIR=${DATA_DIR:-./train_dir}
 
-# Simple cleanup function
-cleanup() {
-    echo "[INFO] Caught signal, waiting for torchrun to finish..."
-    # Don't kill torchrun - let it handle its own shutdown
-    wait $TORCHRUN_PID 2>/dev/null || true
-}
-
-# Set trap
-trap cleanup INT TERM HUP
-
 echo "[INFO] Starting training..."
 
 # run torchrun; preserve exit code and print a friendly line

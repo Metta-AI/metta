@@ -18,12 +18,7 @@ set -euo pipefail
 
 cleanup() {
   # Capture the actual exit code that triggered the trap
-  local actual_exit_code=$?
-
-  # If CMD_EXIT wasn't set (meaning we failed before run_cmd), use the actual exit code
-  if [ -z "${CMD_PID:-}" ]; then
-    CMD_EXIT=$actual_exit_code
-  fi
+  CMD_EXIT=${CMD_EXIT:-$?}
 
   # Read termination reason
   TERMINATION_REASON=$(cat "$TERMINATION_REASON_FILE")

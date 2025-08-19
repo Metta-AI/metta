@@ -157,11 +157,8 @@ def test_nccl_benchmarks() -> bool:
         # Final synchronization
         dist.barrier()
 
-        # Store results for later use
         if rank == 0:
-            # Changed: Get string output instead of printing
-            benchmark_output = format_benchmark_results(results)
-            print(benchmark_output)
+            print_benchmark_results(results)
 
         return True
 
