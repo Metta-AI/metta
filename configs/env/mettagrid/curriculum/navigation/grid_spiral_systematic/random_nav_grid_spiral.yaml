@@ -12,7 +12,7 @@ tasks:
   /env/mettagrid/navigation/training/sparse_bucketed: 0.1
 
   # Grid navigation pattern
-  /env/mettagrid/navigation/training/grid_multiroom: 0.1
+  /env/mettagrid/navigation/training/variants/grid/grid_multiroom: 0.1
 
   # Spiral navigation pattern
-  /env/mettagrid/navigation/training/spiral_altar_multiroom: 0.1
+  /env/mettagrid/navigation/training/variants/spiral/spiral_altar_multiroom: 0.1

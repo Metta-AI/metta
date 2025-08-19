@@ -13,7 +13,7 @@ tasks:
   /env/mettagrid/curriculum/navigation/subcurricula/sparse: 1
 
   # Grid tasks - using our new training config
-  /env/mettagrid/navigation/training/grid_multiroom: 1
+  /env/mettagrid/navigation/training/variants/grid/grid_multiroom: 1
 
 
 

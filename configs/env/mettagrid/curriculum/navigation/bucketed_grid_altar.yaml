@@ -1,6 +1,6 @@
 _target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
 
-env_cfg_template_path: /env/mettagrid/navigation/training/grid_multiroom
+env_cfg_template_path: /env/mettagrid/navigation/training/variants/grid/grid_multiroom
 
 buckets:
   # Vary the map size

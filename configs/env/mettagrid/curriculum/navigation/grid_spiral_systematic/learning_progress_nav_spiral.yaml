@@ -11,7 +11,7 @@ tasks:
   /env/mettagrid/curriculum/navigation/subcurricula/sparse: 1
   /env/mettagrid/navigation/training/sparse_bucketed: 1
   # Spiral navigation pattern
-  /env/mettagrid/navigation/training/spiral_altar_multiroom: 1
+  /env/mettagrid/navigation/training/variants/spiral/spiral_altar_multiroom: 1
 
 # Focus on subset of tasks at once for efficient learning
 num_active_tasks: 4

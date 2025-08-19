@@ -2,10 +2,10 @@ _target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculu
 
 tasks:
   # Grid navigation pattern
-  /env/mettagrid/navigation/training/grid_multiroom: 1
+  /env/mettagrid/navigation/training/variants/grid/grid_multiroom: 1
 
   # Spiral navigation pattern
-  /env/mettagrid/navigation/training/spiral_altar_multiroom: 1
+  /env/mettagrid/navigation/training/variants/spiral/spiral_altar_multiroom: 1
 
 # Focus on both tasks
 num_active_tasks: 2
