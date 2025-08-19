@@ -77,7 +77,7 @@ echo "  - RESTART_COUNT: ${RESTART_COUNT}"
 echo "  - TEST_JOB_RESTART: ${TEST_JOB_RESTART:-false}" # used in timeout_monitor
 [[ ${force_restart_seconds} -gt 0 ]] && echo "     ↳ job restart test delay: ${force_restart_seconds}"
 echo "  - TEST_NCCL: ${TEST_NCCL:-false}"
-[[ "${RESTART_COUNT:-0}" -eq 0 ]] && echo "     ↳ will be run"
+[[ "${RESTART_COUNT:-0}" -eq 0 ]] && echo "     ↳ will run"
 [[ "${RESTART_COUNT:-0}" -gt 0 ]] && echo "     ↳ skipping on restart #${RESTART_COUNT}"
 echo "  - JOB_METADATA_DIR: $JOB_METADATA_DIR"
 echo "     ↳ TERMINATION_REASON_FILE: $TERMINATION_REASON_FILE"
@@ -234,12 +234,12 @@ else
   NCCL_TEST_EXIT_CODE=$?
   set -e
 
-  sleep 10 # wait for other nodes to complete tests
+  sleep 20 # wait for other nodes to complete tests
 
   if [ $NCCL_TEST_EXIT_CODE -ne 0 ]; then
     echo "[ERROR] NCCL tests failed with exit code: $NCCL_TEST_EXIT_CODE"
     echo "nccl_test_failure" > "$TERMINATION_REASON_FILE"
-     kill -TERM "${WRAPPER_PID}" 2> /dev/null || true # initiate shutdown
+    kill -TERM "${WRAPPER_PID}" 2> /dev/null || true # initiate shutdown
   else
     echo "[SUCCESS] NCCL tests passed"
   fi
