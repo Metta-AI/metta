@@ -25,7 +25,8 @@ mkdir -p "$JOB_METADATA_DIR"
 RESTART_COUNT_FILE="$JOB_METADATA_DIR/restart_count"
 ACCUMULATED_RUNTIME_FILE="$JOB_METADATA_DIR/accumulated_runtime"
 CLUSTER_STOP_FILE="$JOB_METADATA_DIR/cluster_stop"
-HEARTBEAT_FILE="${HEARTBEAT_FILE:-${WANDB_DIR:-./wandb}/heartbeat.txt}"
+TERMINATION_REASON_FILE="$JOB_METADATA_DIR/termination_reason"
+HEARTBEAT_FILE="${HEARTBEAT_FILE:-$JOB_METADATA_DIR/heartbeat_file}"
 
 # Initialize or update restart tracking
 if [ -f "$RESTART_COUNT_FILE" ]; then
@@ -50,12 +51,12 @@ else
   ACCUMULATED_RUNTIME=0
 fi
 
-echo "[RESTART INFO] ========================"
+echo "============= RESTART INFO ============="
 echo "  METTA_RUN_ID: ${METTA_RUN_ID}"
 echo "  RESTART_COUNT: ${RESTART_COUNT}"
 echo "  ACCUMULATED_RUNTIME: ${ACCUMULATED_RUNTIME}s ($((ACCUMULATED_RUNTIME / 60))m)"
 echo "  METADATA_DIR: ${JOB_METADATA_DIR}"
-echo "=================================="
+echo "========================================"
 
 # Write all environment variables using heredoc
 cat >> "$METTA_ENV_FILE" << EOF
@@ -78,9 +79,11 @@ export RESTART_COUNT="${RESTART_COUNT}"
 export ACCUMULATED_RUNTIME="${ACCUMULATED_RUNTIME}"
 
 # File path exports for monitors
+export JOB_METADATA_DIR="${JOB_METADATA_DIR}"
 export ACCUMULATED_RUNTIME_FILE="${ACCUMULATED_RUNTIME_FILE}"
 export CLUSTER_STOP_FILE="${CLUSTER_STOP_FILE}"
 export HEARTBEAT_FILE="${HEARTBEAT_FILE}"
+export TERMINATION_REASON_FILE="${TERMINATION_REASON_FILE}"
 
 # NCCL Configuration
 export NCCL_PORT_RANGE="\${NCCL_PORT_RANGE:-43000-43063}"

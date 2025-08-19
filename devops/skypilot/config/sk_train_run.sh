@@ -10,15 +10,7 @@ if [ -n "${VIRTUAL_ENV:-}" ]; then
 fi
 . .venv/bin/activate
 
-# Create IPC directory for this job instance
 export WRAPPER_PID=$BASHPID
-export IPC_DIR="/tmp/metta_job_ipc"
-mkdir -p "$IPC_DIR"
-export TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
-echo "[RUN] WRAPPER_PID: $WRAPPER_PID"
-echo "[RUN] IPC_DIR: $IPC_DIR"
-echo "[RUN] TERMINATION_REASON_FILE: $TERMINATION_REASON_FILE"
-touch $TERMINATION_REASON_FILE
 
 # Determine node role using SkyPilot environment variables
 export RANK=${SKYPILOT_NODE_RANK:-0}
@@ -71,6 +63,7 @@ fi
 
 # Print run configuration
 echo "[CONFIG] Run Configuration:"
+echo "  - WRAPPER_PID: $WRAPPER_PID"
 echo "  - NODE_RANK: ${RANK}"
 echo "  - IS_MASTER: ${IS_MASTER}"
 echo "  - TOTAL_NODES: ${TOTAL_NODES}"
@@ -84,8 +77,16 @@ echo "  - RESTART_COUNT: ${RESTART_COUNT}"
 echo "  - TEST_JOB_RESTART: ${TEST_JOB_RESTART:-false}" # used in timeout_monitor
 [[ ${force_restart_seconds} -gt 0 ]] && echo "     ↳ job restart test delay: ${force_restart_seconds}"
 echo "  - TEST_NCCL: ${TEST_NCCL:-false}"
+[[ "${RESTART_COUNT:-0}" -eq 0 ]] && echo "     ↳ will be run"
+[[ "${RESTART_COUNT:-0}" -gt 0 ]] && echo "     ↳ skipping on restart #${RESTART_COUNT}"
+echo "  - JOB_METADATA_DIR: $JOB_METADATA_DIR"
+echo "     ↳ TERMINATION_REASON_FILE: $TERMINATION_REASON_FILE"
+echo "     ↳ CLUSTER_STOP_FILE: $CLUSTER_STOP_FILE"
+echo "     ↳ HEARTBEAT_FILE: $HEARTBEAT_FILE"
+echo "     ↳ ACCUMULATED_RUNTIME_FILE: $ACCUMULATED_RUNTIME_FILE"
 echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
 echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
+
 
 if [[ "$IS_MASTER" == "true" ]]; then
   if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
@@ -196,7 +197,7 @@ run_cmd() {
     cmd+=("${extra_args[@]}")
   fi
   # Use process substitution so $! is the trainer (not tee)
-  setsid "${cmd[@]}" > >(tee "$IPC_DIR/${METTA_CMD}_log.txt") 2> >(tee -a "$IPC_DIR/${METTA_CMD}_log.txt" >&2) &
+  setsid "${cmd[@]}" &
   export CMD_PID=$!
 
   sleep 1
@@ -241,32 +242,16 @@ else
   # Wait a moment to ensure all output is flushed
   sleep 1
 
-  if [ $NCCL_TEST_EXIT_CODE -ne 0 ]; then
+    if [ $NCCL_TEST_EXIT_CODE -ne 0 ]; then
     echo "[ERROR] NCCL tests failed with exit code: $NCCL_TEST_EXIT_CODE"
 
     # Only master writes the termination reason file
     if [[ "$IS_MASTER" == "true" ]]; then
       echo "nccl_test_failure" > "$TERMINATION_REASON_FILE"
     else
-      # Workers wait for the termination reason file to contain valid data
-      echo "[WORKER] Waiting for master to write termination reason..."
-      local max_wait=30 # Maximum wait time in seconds
-      local wait_count=0
-      while [ $wait_count -lt $max_wait ]; do
-        if grep -q "nccl_test_failure" "$TERMINATION_REASON_FILE"; then
-          echo "Termination reason received: nccl_test_failure"
-          break
-        fi
-        sleep 1
-        ((wait_count++))
-      done
-
-      if [ $wait_count -eq $max_wait ]; then
-        echo "[WORKER] Warning: Termination reason not received after ${max_wait}s"
-      fi
-
-      sleep 10                                         # wait for other nodes to complete tests
-      kill -TERM "${WRAPPER_PID}" 2> /dev/null || true # initiate shutdown
+      bash ./devops/skypilot/config/lifecycle/wait_for_termination.sh "nccl_test_failure" 30
+      sleep 10  # wait for other nodes to complete tests
+      kill -TERM "${WRAPPER_PID}" 2>/dev/null || true  # initiate shutdown
     fi
   else
     echo "[SUCCESS] NCCL tests passed"
