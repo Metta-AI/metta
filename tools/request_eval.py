@@ -111,7 +111,6 @@ async def _create_remote_eval_tasks(
     if stats_client is None:
         warning("No stats client found")
         return
-    stats_client.validate_authenticated()
 
     policy_store = PolicyStore(
         wandb_entity=request.wandb_entity,
