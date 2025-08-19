@@ -494,8 +494,8 @@ def _(datetime, env_config, mo, train_button):
     # Create trainer configuration with small settings for demo
     trainer_config = TrainerConfig(
         curriculum=curriculum,
-        # total_timesteps=10000,  # Small demo run
-        total_timesteps=1000,  # Small demo run
+        total_timesteps=10000,  # Small demo run
+        # total_timesteps=1000,  # DEBUG run
         batch_size=256,
         minibatch_size=256,
         rollout_workers=2,  # Correct field name
