@@ -41,7 +41,7 @@ class ComponentPolicy(nn.Module, ABC):
         # Device setup
         self.device = torch.device(device) if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Validate and extract observation key
+        # Extract observation shape (always uses "grid_obs" key)
         obs_key = "grid_obs"
         obs_shape = safe_get_from_obs_space(obs_space, obs_key, "shape") if obs_space is not None else None
 
@@ -323,11 +323,10 @@ class ComponentPolicy(nn.Module, ABC):
 
     @property
     def lstm(self):
-        """Access to LSTM component if it exists."""
-        if "_core_" in self.components and hasattr(self.components["_core_"], "_net"):
-            return self.components["_core_"]._net
-        elif "_core_" in self.components:
-            return self.components["_core_"]
+        """Access to underlying PyTorch LSTM network if it exists."""
+        if "_core_" in self.components:
+            # LSTM component stores the actual nn.LSTM in _net attribute
+            return getattr(self.components["_core_"], "_net", None)
         return None
 
     @property
