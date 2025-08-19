@@ -234,7 +234,7 @@ else
     uv run python ./devops/skypilot/config/preflight/test_nccl.py
   ) || NCCL_TEST_EXIT_CODE=$?
 
-  sleep 20 # wait for other nodes to complete tests
+  sleep 10 # wait for other nodes to complete tests
 
   if [ $NCCL_TEST_EXIT_CODE -ne 0 ]; then
     echo "[ERROR] NCCL tests failed with exit code: $NCCL_TEST_EXIT_CODE"

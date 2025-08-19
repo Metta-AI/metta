@@ -1160,7 +1160,7 @@ def main():
     if dist.is_initialized():
         dist.destroy_process_group()
 
-    return 1  # 0 if all_passed else 1
+    return 0 if all_passed else 1
 
 
 if __name__ == "__main__":
