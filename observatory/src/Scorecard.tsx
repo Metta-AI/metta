@@ -109,7 +109,7 @@ export function Scorecard({
   }
 
   // Build x-labels and mapping
-  forEachCategoryEnv((category, envName, fullEvalName) => {
+  forEachCategoryEnv((_category, _envName, fullEvalName) => {
     const shortName = getShortName(fullEvalName)
     xLabels.push(shortName)
     shortNameToEvalName.set(shortName, fullEvalName)
