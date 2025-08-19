@@ -417,6 +417,17 @@ class Protein:
     def suggest(self, fill):
         info = {}
         self.suggestion_idx += 1
+
+        # Set random seed for diversity in parallel runs
+        if self.randomize_acquisition:
+            import time
+
+            # Use current time plus suggestion index for unique seed
+            seed = int((time.time() * 1000000 + self.suggestion_idx) % 2**32)
+            np.random.seed(seed)
+            random.seed(seed)
+            info["random_seed"] = seed
+
         if len(self.success_observations) == 0 and self.seed_with_search_center:
             best = self.hyperparameters.search_centers
             return self.hyperparameters.to_dict(best, fill), info
