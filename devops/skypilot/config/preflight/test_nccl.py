@@ -904,7 +904,6 @@ def launch_distributed_test() -> int:
         result = subprocess.run(cmd, check=True)
         return result.returncode
     except subprocess.CalledProcessError as e:
-        print(f"Distributed test failed with return code {e.returncode}")
         return e.returncode
 
 

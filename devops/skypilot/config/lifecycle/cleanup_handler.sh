@@ -45,14 +45,14 @@ handle_master_cleanup() {
     echo "[ERROR] Job terminated due to heartbeat timeout"
     export GITHUB_STATUS_STATE="failure"
     export GITHUB_STATUS_DESCRIPTION="Job failed - no heartbeat for ${HEARTBEAT_TIMEOUT} seconds"
-    bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
+    bash ./devops/skypilot/config/observability/send_discord_notification.sh \
       "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
 
   elif [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]]; then
     echo "[INFO] Job terminated due to max runtime limit"
     export GITHUB_STATUS_STATE="success"
     export GITHUB_STATUS_DESCRIPTION="Job ran successfully for ${MAX_RUNTIME_HOURS:-unknown} hours"
-    # bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
+    # bash ./devops/skypilot/config/observability/send_discord_notification.sh \
     #   "✅" "SkyPilot Job Completed" "${GITHUB_STATUS_DESCRIPTION}"
     # Map to success
     CMD_EXIT=0
@@ -61,7 +61,7 @@ handle_master_cleanup() {
     echo "[INFO] Job restarting for test purposes"
     export GITHUB_STATUS_STATE="pending"
     export GITHUB_STATUS_DESCRIPTION="Forced a restart test in run #${RESTART_COUNT}"
-    # bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
+    # bash ./devops/skypilot/config/observability/send_discord_notification.sh \
     #   "🔄" "SkyPilot Job Restarting (Test)" "${GITHUB_STATUS_DESCRIPTION}"
     # Set exit code to trigger restart
     CMD_EXIT=1
@@ -73,7 +73,7 @@ handle_master_cleanup() {
       export TERMINATION_REASON="completed"
       export GITHUB_STATUS_STATE="success"
       export GITHUB_STATUS_DESCRIPTION="Job completed successfully"
-      # bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
+      # bash ./devops/skypilot/config/observability/send_discord_notification.sh \
       #   "✅" "SkyPilot Job Completed Successfully" "${GITHUB_STATUS_DESCRIPTION}"
     else
       echo "[ERROR] Job failed with exit code $CMD_EXIT"
@@ -87,7 +87,7 @@ handle_master_cleanup() {
     export GITHUB_STATUS_STATE="error"  # Changed from "failure" - this is infrastructure issue
     export GITHUB_STATUS_DESCRIPTION="NCCL tests failed - GPU communication issue"
     export TERMINATION_REASON="nccl_test_failure"
-    bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
+    bash ./devops/skypilot/config/observability/send_discord_notification.sh \
       "⚠️" "SkyPilot Job NCCL Config Error" "${GITHUB_STATUS_DESCRIPTION}"
 
   else
@@ -95,14 +95,14 @@ handle_master_cleanup() {
     export GITHUB_STATUS_STATE="failure"
     export GITHUB_STATUS_DESCRIPTION="Job failed with exit code $CMD_EXIT"
     export TERMINATION_REASON="exit_code_${CMD_EXIT}"
-    bash ./devops/skypilot/config/notifications/send_discord_notification.sh \
+    bash ./devops/skypilot/config/observability/send_discord_notification.sh \
       "❌" "SkyPilot Job Failed" "${GITHUB_STATUS_DESCRIPTION}"
   fi
 
   # Final GitHub status update
   export CMD_EXIT
 
-  uv run devops/skypilot/config/notifications/set_github_status.py "$GITHUB_STATUS_STATE" "$GITHUB_STATUS_DESCRIPTION"
+  uv run devops/skypilot/config/observability/set_github_status.py "$GITHUB_STATUS_STATE" "$GITHUB_STATUS_DESCRIPTION"
 }
 
 print_final_summary() {

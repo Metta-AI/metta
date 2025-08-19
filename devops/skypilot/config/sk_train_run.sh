@@ -99,7 +99,7 @@ if [[ "$IS_MASTER" == "true" ]]; then
     echo "[RUN] GitHub status reporting is enabled"
 
     # Set initial GitHub status
-    uv run devops/skypilot/config/notifications/set_github_status.py "pending" "Queued on SkyPilot…"
+    uv run devops/skypilot/config/observability/set_github_status.py "pending" "Queued on SkyPilot…"
   else
     export ENABLE_GITHUB_STATUS=false
     echo "[RUN] GitHub status reporting is disabled (missing required credentials)"
@@ -239,7 +239,25 @@ else
 
     if [ $NCCL_TEST_EXIT_CODE -ne 0 ]; then
         echo "[ERROR] NCCL tests failed with exit code: $NCCL_TEST_EXIT_CODE"
-        echo "nccl_test_failure" > "$TERMINATION_REASON_FILE"
+
+        # Only master writes the termination reason file
+        if [[ "$IS_MASTER" == "true" ]]; then
+            echo "nccl_test_failure" > "$TERMINATION_REASON_FILE"
+        else
+            # Workers wait for the termination reason file to be written
+            echo "[WORKER] Waiting for master to write termination reason..."
+            local max_wait=30  # Maximum wait time in seconds
+            local wait_count=0
+            while [ ! -f "$TERMINATION_REASON_FILE" ] && [ $wait_count -lt $max_wait ]; do
+                sleep 1
+                ((wait_count++))
+            done
+
+            if [ ! -f "$TERMINATION_REASON_FILE" ]; then
+                echo "[WORKER] Warning: Termination reason file not found after ${max_wait}s"
+            fi
+        fi
+
         exit $EXIT_NCCL_TEST_FAILURE
     else
         echo "[SUCCESS] NCCL tests passed"
