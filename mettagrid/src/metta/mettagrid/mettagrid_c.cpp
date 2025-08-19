@@ -48,8 +48,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       _global_obs_config(cfg.global_obs),
       _num_observation_tokens(cfg.num_observation_tokens),
       _track_movement_metrics(cfg.track_movement_metrics),
-      _no_agent_interference(cfg.no_agent_interference),
-      _resource_loss_probs(cfg.resource_loss_probs) {
+      _no_agent_interference(cfg.no_agent_interference) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -525,32 +524,30 @@ void MettaGrid::_step(Actions actions) {
     }
   }
 
-     // Handle resource loss
+   // Handle resource loss
    for (auto& agent : _agents) {
-     if (!_resource_loss_probs.empty()) {
-       // For every resource in an agent's inventory, it should disappear with probability from _resource_loss_probs
-       // Make a real copy of the agent's inventory map to avoid iterator invalidation
-       const auto inventory_copy = agent->inventory;
-       for (const auto& [item, qty] : inventory_copy) {
-         if (qty > 0) {
-           float prob = 0.0f;
-           if (auto it = _resource_loss_probs.find(item); it != _resource_loss_probs.end()) {
-             prob = it->second;
-           }
-           if (prob <= 0.0f) {
-             continue;
-           }
-           double loss = static_cast<double>(prob) * qty;
-           int lost = static_cast<int>(std::floor(loss));
-           // With probability equal to the fractional part, lose one more
-           if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
-             lost += 1;
-           }
-
-           if (lost > 0) {
-            agent->update_inventory(item, -static_cast<InventoryDelta>(lost));
-           }
-         }
+     // Make a real copy of the agent's inventory map to avoid iterator invalidation
+     const auto inventory_copy = agent->inventory;
+     for (const auto& [item, qty] : inventory_copy) {
+       if (qty <= 0) {
+         continue;
+       }
+       // Per-agent resource loss probability
+       float prob = 0.0f;
+       if (auto it = agent->resource_loss_probs.find(item); it != agent->resource_loss_probs.end()) {
+         prob = it->second;
+       }
+       if (prob <= 0.0f) {
+         continue;
+       }
+       double loss = static_cast<double>(prob) * qty;
+       int lost = static_cast<int>(std::floor(loss));
+       // With probability equal to the fractional part, lose one more
+       if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
+         lost += 1;
+       }
+       if (lost > 0) {
+         agent->update_inventory(item, -static_cast<InventoryDelta>(lost));
        }
      }
    }
@@ -1035,7 +1032,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<std::string, RewardType>&,
                     const std::map<std::string, RewardType>&,
                     float,
-                    const std::map<InventoryItem, InventoryQuantity>&>(),
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, float>&>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
            py::arg("group_id"),
@@ -1048,7 +1046,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("stat_rewards") = std::map<std::string, RewardType>(),
            py::arg("stat_reward_max") = std::map<std::string, RewardType>(),
            py::arg("group_reward_pct") = 0,
-           py::arg("initial_inventory") = std::map<InventoryItem, InventoryQuantity>())
+           py::arg("initial_inventory") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("resource_loss_probs") = std::map<InventoryItem, float>())
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
       .def_readwrite("group_name", &AgentConfig::group_name)
@@ -1061,7 +1060,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("stat_rewards", &AgentConfig::stat_rewards)
       .def_readwrite("stat_reward_max", &AgentConfig::stat_reward_max)
       .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct)
-      .def_readwrite("initial_inventory", &AgentConfig::initial_inventory);
+      .def_readwrite("initial_inventory", &AgentConfig::initial_inventory)
+      .def_readwrite("resource_loss_probs", &AgentConfig::resource_loss_probs);
 
   py::class_<ConverterConfig, GridObjectConfig, std::shared_ptr<ConverterConfig>>(m, "ConverterConfig")
       .def(py::init<TypeId,
@@ -1152,7 +1152,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
                     bool,
                     bool,
-                    const std::map<InventoryItem, float>&,
+
                     bool>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
@@ -1166,7 +1166,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("objects"),
            py::arg("track_movement_metrics"),
            py::arg("no_agent_interference") = false,
-           py::arg("resource_loss_probs") = std::map<InventoryItem, float>(),
+
            py::arg("recipe_details_obs") = false)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
@@ -1178,7 +1178,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("global_obs", &GameConfig::global_obs)
       .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
       .def_readwrite("no_agent_interference", &GameConfig::no_agent_interference)
-      .def_readwrite("resource_loss_probs", &GameConfig::resource_loss_probs)
+
       .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!

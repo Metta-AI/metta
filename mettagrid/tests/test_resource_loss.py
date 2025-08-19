@@ -20,17 +20,19 @@ class TestResourceLoss:
             ["wall", "wall", "wall"],
         ]
 
-        # Create environment with per-resource loss and initial inventory
+        # Create environment with per-agent resource loss and initial inventory
         env = builder.create_environment(
             game_map=game_map,
             num_agents=1,
-            resource_loss_probs={"heart": 1.0, "battery_blue": 1.0},
             inventory_item_names=["heart", "battery_blue", "laser", "armor"],
             obs_width=3,
             obs_height=3,
             num_observation_tokens=50,
             actions={"attack": {"enabled": False}},  # Disable attack action to avoid resource conflicts
-            agent={"initial_inventory": {"heart": 5, "battery_blue": 3}},
+            agent={
+                "initial_inventory": {"heart": 5, "battery_blue": 3},
+                "resource_loss_probs": {"heart": 1.0, "battery_blue": 1.0},
+            },
         )
 
         # Reset environment
@@ -89,17 +91,19 @@ class TestResourceLoss:
             ["wall", "wall", "wall"],
         ]
 
-        # Create environment with per-resource zero loss and initial inventory
+        # Create environment with per-agent zero resource loss and initial inventory
         env = builder.create_environment(
             game_map=game_map,
             num_agents=1,
-            resource_loss_probs={"heart": 0.0, "battery_blue": 0.0},
             inventory_item_names=["heart", "battery_blue", "laser", "armor"],
             obs_width=3,
             obs_height=3,
             num_observation_tokens=50,
             actions={"attack": {"enabled": False}},  # Disable attack action to avoid resource conflicts
-            agent={"initial_inventory": {"heart": 5, "battery_blue": 3}},
+            agent={
+                "initial_inventory": {"heart": 5, "battery_blue": 3},
+                "resource_loss_probs": {"heart": 0.0, "battery_blue": 0.0},
+            },
         )
 
         # Reset environment
@@ -159,17 +163,19 @@ class TestResourceLoss:
             ["wall", "wall", "wall"],
         ]
 
-        # Create environment with per-resource loss and initial inventory
+        # Create environment with per-agent resource loss and initial inventory
         env = builder.create_environment(
             game_map=game_map,
             num_agents=1,
-            resource_loss_probs={"heart": 1.0, "battery_blue": 1.0},
             inventory_item_names=["heart", "battery_blue", "laser", "armor"],
             obs_width=3,
             obs_height=3,
             num_observation_tokens=50,
             actions={"attack": {"enabled": False}},  # Disable attack action to avoid resource conflicts
-            agent={"initial_inventory": {"heart": 5, "battery_blue": 3}},
+            agent={
+                "initial_inventory": {"heart": 5, "battery_blue": 3},
+                "resource_loss_probs": {"heart": 1.0, "battery_blue": 1.0},
+            },
         )
 
         # Reset environment

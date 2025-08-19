@@ -90,6 +90,12 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
             "type_id": 0,
             "type_name": "agent",
             "initial_inventory": initial_inventory,
+            # Per-agent resource loss probs (name->id mapping)
+            "resource_loss_probs": {
+                resource_name_to_id[k]: float(v)
+                for k, v in (agent_group_props.get("resource_loss_probs") or {}).items()
+                if k in resource_name_to_id
+            },
         }
 
         objects_cpp_params["agent." + group_name] = CppAgentConfig(**agent_cpp_params)
@@ -211,13 +217,6 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
 
     # Add no_agent_interference flag
     game_cpp_params["no_agent_interference"] = game_config.no_agent_interference
-
-    # Convert resource_loss_probs: name -> id mapping
-    resource_loss_probs_by_id: dict[int, float] = {}
-    for name, prob in (game_config.resource_loss_probs or {}).items():
-        if name in resource_name_to_id:
-            resource_loss_probs_by_id[resource_name_to_id[name]] = float(prob)
-    game_cpp_params["resource_loss_probs"] = resource_loss_probs_by_id
 
     return CppGameConfig(**game_cpp_params)
 

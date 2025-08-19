@@ -62,12 +62,14 @@ class AgentRewards(Config):
 class AgentConfig(Config):
     """Python agent configuration."""
 
-    default_resource_limit: int = Field(default=255, ge=0)
-    resource_limits: dict[str, int] = Field(default_factory=dict)
-    freeze_duration: int = Field(default=10, ge=-1)
-    rewards: AgentRewards = Field(default_factory=AgentRewards)
-    action_failure_penalty: float = Field(default=0, ge=0)
-    initial_inventory: dict[str, int] = Field(default_factory=dict)
+    default_resource_limit: Optional[int] = Field(default=0, ge=0)
+    resource_limits: Optional[dict[str, int]] = Field(default_factory=dict)
+    freeze_duration: Optional[int] = Field(default=10, ge=-1)
+    rewards: Optional[AgentRewards] = Field(default_factory=AgentRewards)
+    action_failure_penalty: Optional[float] = Field(default=0, ge=0)
+    initial_inventory: Optional[dict[str, int]] = Field(default_factory=dict)
+    # Per-resource loss probabilities for this agent/group; keys are resource names from inventory_item_names
+    resource_loss_probs: Optional[dict[str, float]] = Field(default_factory=dict)
 
 
 class GroupConfig(Config):
@@ -215,10 +217,6 @@ class GameConfig(Config):
     )
     no_agent_interference: bool = Field(
         default=False, description="Enable agents to move through and not observe each other"
-    )
-    # Per-resource loss probabilities; keys are resource names from inventory_item_names
-    resource_loss_probs: dict[str, float] = Field(
-        default_factory=dict, description="Per-resource loss probability per step"
     )
 
 

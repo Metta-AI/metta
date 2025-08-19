@@ -81,6 +81,7 @@ class AgentConfig(GridObjectConfig):
     resource_reward_max: dict[int, float]
     group_reward_pct: float
     initial_inventory: dict[int, int]
+    resource_loss_probs: dict[int, float]
 
 class ConverterConfig(GridObjectConfig):
     type_id: int
