@@ -100,17 +100,20 @@ class MettaAgent(nn.Module):
             raise ValueError(f"Unknown agent: '{agent_name}'. Available agents: {list(agents.keys())}")
 
         AgentClass = agents[agent_name]
+        
+        # Default configuration for all policies
+        config = {"clip_range": 0, "analyze_weights_interval": 300}
 
         # PyTorch models use env, ComponentPolicies use structured parameters
         if agent_name.startswith("pytorch/"):
-            policy = AgentClass(env=env, clip_range=0, analyze_weights_interval=300)
+            policy = AgentClass(env=env, **config)
         else:
             policy = AgentClass(
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
                 obs_height=self.obs_height,
                 feature_normalizations=self.feature_normalizations,
-                config={"clip_range": 0, "analyze_weights_interval": 300},
+                config=config,
             )
         
         logger.info(f"Using agent: {agent_name}")
