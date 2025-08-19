@@ -239,10 +239,9 @@ else
   NCCL_TEST_EXIT_CODE=$?
   set -e
 
-  # Wait a moment to ensure all output is flushed
-  sleep 1
+  sleep 10 # wait for other nodes to complete tests
 
-    if [ $NCCL_TEST_EXIT_CODE -ne 0 ]; then
+  if [ $NCCL_TEST_EXIT_CODE -ne 0 ]; then
     echo "[ERROR] NCCL tests failed with exit code: $NCCL_TEST_EXIT_CODE"
 
     # Only master writes the termination reason file
@@ -250,7 +249,6 @@ else
       echo "nccl_test_failure" > "$TERMINATION_REASON_FILE"
     else
       bash ./devops/skypilot/config/lifecycle/wait_for_termination.sh "nccl_test_failure" 30
-      sleep 10  # wait for other nodes to complete tests
       kill -TERM "${WRAPPER_PID}" 2>/dev/null || true  # initiate shutdown
     fi
   else
