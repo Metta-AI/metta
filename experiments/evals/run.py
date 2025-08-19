@@ -1,5 +1,6 @@
-from experiments.evals.registry import get_eval_suite
 from metta.tools.sim import SimTool
+
+from experiments.evals.registry import get_eval_suite
 
 
 # Used by eval_task_worker.py

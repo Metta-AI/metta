@@ -10,7 +10,7 @@ from omegaconf import OmegaConf
 
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.config import Tool
+from metta.common.config.tool import Tool
 from metta.common.util.git import get_git_hash_for_remote_task
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.logging_helpers import init_file_logging, init_logging
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class TrainTool(Tool):
     trainer: TrainerConfig = TrainerConfig()
-    wandb: WandbConfig = softmax.wandb_config()
+    wandb: WandbConfig | None = None
     policy_architecture: Optional[Any] = None
     run: str
     run_dir: Optional[str] = None
@@ -43,6 +43,9 @@ class TrainTool(Tool):
         # Set run_dir based on run name if not explicitly set
         if self.run_dir is None:
             self.run_dir = f"{self.system.data_dir}/{self.run}"
+
+        if self.wandb is None:
+            self.wandb = softmax.wandb_config(self.run)
 
         # Set policy_uri if not set
         if not self.policy_uri:
