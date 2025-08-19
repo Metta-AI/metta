@@ -1,13 +1,11 @@
 import logging
 import uuid
-from pathlib import Path
 from typing import Any, Optional, Type, TypeVar
 
 import httpx
-import yaml
 from pydantic import BaseModel
 
-from metta.app_backend.clients.base_client import BaseAppBackendClient
+from metta.app_backend.clients.base_client import BaseAppBackendClient, NotAuthenticatedError, get_machine_token
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse, TasksResponse
 from metta.app_backend.routes.score_routes import (
     PolicyScoresData,
@@ -158,12 +156,12 @@ class StatsClient:
         response.raise_for_status()
         return response_type.model_validate(response.json())
 
-    def validate_authenticated(self) -> str:
+    def _validate_authenticated(self) -> str:
         from metta.app_backend.server import WhoAmIResponse
 
         auth_user = self._make_sync_request(WhoAmIResponse, "GET", "/whoami")
         if auth_user.user_email in ["unknown", None]:
-            raise ConnectionError(f"Not authenticated. User: {auth_user.user_email}")
+            raise NotAuthenticatedError(f"Not authenticated. User: {auth_user.user_email}")
         return auth_user.user_email
 
     def get_policy_ids(self, policy_names: list[str]) -> PolicyIdResponse:
@@ -275,45 +273,6 @@ class StatsClient:
         if machine_token is None:
             logger.warning(f"No machine token found for {stats_server_uri}, stats logging disabled")
             return None
-        stats_client = StatsClient(backend_url=stats_server_uri, machine_token=machine_token)
+        stats_client = cls(backend_url=stats_server_uri, machine_token=machine_token)
         stats_client.validate_authenticated()
         return stats_client
-
-
-def get_machine_token(stats_server_uri: str | None = None) -> str | None:
-    """Get machine token for the given stats server.
-
-    Args:
-        stats_server_uri: The stats server URI to get token for.
-                         If None, returns token from env var or legacy location.
-
-    Returns:
-        The machine token or None if not found.
-    """
-    yaml_file = Path.home() / ".metta" / "observatory_tokens.yaml"
-    if yaml_file.exists():
-        with open(yaml_file) as f:
-            tokens = yaml.safe_load(f) or {}
-        if isinstance(tokens, dict) and stats_server_uri in tokens:
-            token = tokens[stats_server_uri].strip()
-        else:
-            return None
-    elif stats_server_uri is None or stats_server_uri in (
-        "https://observatory.softmax-research.net/api",
-        PROD_STATS_SERVER_URI,
-    ):
-        # Fall back to legacy token file, which is assumed to contain production
-        # server tokens if it exists
-        legacy_file = Path.home() / ".metta" / "observatory_token"
-        if legacy_file.exists():
-            with open(legacy_file) as f:
-                token = f.read().strip()
-        else:
-            return None
-    else:
-        return None
-
-    if not token or token.lower() == "none":
-        return None
-
-    return token

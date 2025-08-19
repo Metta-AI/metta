@@ -1,8 +1,8 @@
 import os
 import subprocess
 
+from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.constants import DEV_STATS_SERVER_URI, PROD_STATS_SERVER_URI
-from metta.common.util.stats_client_cfg import get_machine_token
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
 from metta.setup.utils import info, success, warning
