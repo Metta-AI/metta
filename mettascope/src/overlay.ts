@@ -165,7 +165,7 @@ export function drawObservationOverlay(): void {
       const textHeight = bottom - top
       // Move origin so the visual bounds are centered.
       ctx.translate(-textWidth / 2, -(top + textHeight / 2))
-      ctx.drawTextWorld(fontId, text, [1, 1, 1, a])
+      ctx.drawText(fontId, text, [1, 1, 1, a])
       ctx.restore()
     }
   }
