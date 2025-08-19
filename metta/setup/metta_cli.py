@@ -247,7 +247,7 @@ class MettaCLI:
         info("Note: You can run 'metta configure <component>' to change component-level settings later.\n")
 
         saved_settings = get_saved_settings()
-        if saved_settings.config_path.exists():
+        if saved_settings.exists():
             info("Current configuration:")
             info(f"Profile: {saved_settings.user_type.value}")
             info(f"Mode: {'custom' if saved_settings.is_custom_config else 'profile'}")
@@ -262,7 +262,7 @@ class MettaCLI:
         choices = [(ut, ut.get_description()) for ut in UserType]
 
         # Current configuration
-        current_user_type = saved_settings.user_type if saved_settings.config_path.exists() else None
+        current_user_type = saved_settings.user_type if saved_settings.exists() else None
 
         result = prompt_choice(
             "Select configuration:",
@@ -370,7 +370,7 @@ class MettaCLI:
         from metta.setup.registry import get_all_modules, get_enabled_setup_modules
         from metta.setup.utils import error, info, success, warning
 
-        if not self.saved_settings.config_path.exists():
+        if not get_saved_settings().exists():
             warning("No configuration found. Running setup wizard first...")
             self.setup_wizard()
 
@@ -843,7 +843,7 @@ Examples:
         saved_settings = get_saved_settings()
         # Handle no command
         if not args.command:
-            if not saved_settings.config_path.exists():
+            if not saved_settings.exists():
                 print("No configuration found. Running setup wizard...\n")
                 self.setup_wizard()
                 return
@@ -855,7 +855,7 @@ Examples:
         if args.command in COMMAND_REGISTRY:
             cmd_config = COMMAND_REGISTRY[args.command]
             if cmd_config.needs_config and args.command not in ["configure", "symlink-setup"]:
-                if not saved_settings.config_path.exists():
+                if not saved_settings.exists():
                     print("Error: No configuration found. Please run 'metta configure' first.", file=sys.stderr)
                     sys.exit(1)
                 else:

@@ -17,6 +17,9 @@ class SavedSettings:
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         self._config: dict = self._load_config()
 
+    def exists(self) -> bool:
+        return self.config_path.exists()
+
     def _load_config(self) -> dict:
         if self.config_path.exists():
             with open(self.config_path, "r") as f:
