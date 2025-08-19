@@ -2,7 +2,6 @@ from experiments.evals.registry import get_eval_suite
 from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.rl.system_config import SystemConfig
 from metta.tools.sim import SimTool
-from softmax import softmax
 
 
 # Used by eval_task_worker.py
@@ -17,5 +16,4 @@ def eval(policy_uri: str, sim_suite: str) -> SimTool:
             device="cpu",
             vectorization="serial",
         ),
-        wandb=softmax.wandb_config(),
     )
