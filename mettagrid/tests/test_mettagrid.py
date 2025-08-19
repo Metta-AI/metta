@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from metta.mettagrid.core import MettaGridCore
-from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
 from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig
 from metta.mettagrid.test_support import TokenTypes
@@ -24,7 +24,7 @@ def basic_env() -> MettaGrid:
                 move=ActionConfig(),
                 rotate=ActionConfig(),
             ),
-            map_builder=RandomMapBuilderConfig(
+            map_builder=RandomMapBuilder.Config(
                 width=8,
                 height=4,
                 agents=2,

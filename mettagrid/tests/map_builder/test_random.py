@@ -1,19 +1,19 @@
 import numpy as np
 
 from metta.mettagrid.map_builder.map_builder import GameMap
-from metta.mettagrid.map_builder.random import RandomMapBuilder, RandomMapBuilderConfig
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 
 
 class TestRandomMapBuilderConfig:
     def test_create(self):
         objects = {"wall": 5, "empty": 10}
-        config = RandomMapBuilderConfig(width=5, height=5, objects=objects, agents=1, seed=42)
+        config = RandomMapBuilder.Config(width=5, height=5, objects=objects, agents=1, seed=42)
         builder = config.create()
         assert isinstance(builder, RandomMapBuilder)
 
     def test_config_defaults(self):
         objects = {"wall": 5}
-        config = RandomMapBuilderConfig(width=5, height=5, objects=objects)
+        config = RandomMapBuilder.Config(width=5, height=5, objects=objects)
         assert config.agents == 0
         assert config.seed is None
         assert config.border_width == 0
@@ -23,8 +23,8 @@ class TestRandomMapBuilderConfig:
 class TestRandomMapBuilder:
     def test_build_deterministic_with_seed(self):
         objects = {"wall": 3, "altar": 2}
-        config = RandomMapBuilderConfig(width=4, height=4, objects=objects, agents=1, seed=42)
-        builder = RandomMapBuilder(config)
+        config = RandomMapBuilder.Config(width=4, height=4, objects=objects, agents=1, seed=42)
+        builder = config.create()
         map1 = builder.build()
 
         # Build again with same seed
@@ -35,11 +35,11 @@ class TestRandomMapBuilder:
 
     def test_build_different_seeds_different_results(self):
         objects = {"wall": 3, "altar": 2}
-        config1 = RandomMapBuilderConfig(width=4, height=4, objects=objects, agents=1, seed=42)
-        config2 = RandomMapBuilderConfig(width=4, height=4, objects=objects, agents=1, seed=123)
+        config1 = RandomMapBuilder.Config(width=4, height=4, objects=objects, agents=1, seed=42)
+        config2 = RandomMapBuilder.Config(width=4, height=4, objects=objects, agents=1, seed=123)
 
-        builder1 = RandomMapBuilder(config1)
-        builder2 = RandomMapBuilder(config2)
+        builder1 = config1.create()
+        builder2 = config2.create()
         map1 = builder1.build()
         map2 = builder2.build()
 
@@ -48,8 +48,8 @@ class TestRandomMapBuilder:
 
     def test_build_correct_object_counts(self):
         objects = {"wall": 3, "altar": 2}
-        config = RandomMapBuilderConfig(width=5, height=3, objects=objects, agents=1, seed=42)
-        builder = RandomMapBuilder(config)
+        config = RandomMapBuilder.Config(width=5, height=3, objects=objects, agents=1, seed=42)
+        builder = config.create()
         game_map = builder.build()
 
         # Count objects in the map
@@ -66,8 +66,8 @@ class TestRandomMapBuilder:
 
     def test_build_with_integer_agents(self):
         objects = {"wall": 2}
-        config = RandomMapBuilderConfig(width=3, height=3, objects=objects, agents=2, seed=42)
-        builder = RandomMapBuilder(config)
+        config = RandomMapBuilder.Config(width=3, height=3, objects=objects, agents=2, seed=42)
+        builder = config.create()
         game_map = builder.build()
 
         unique, counts = np.unique(game_map.grid, return_counts=True)
@@ -78,8 +78,8 @@ class TestRandomMapBuilder:
     def test_build_with_dictconfig_agents(self):
         objects = {"wall": 2}
         agents = {"agent": 1, "prey": 2}
-        config = RandomMapBuilderConfig(width=4, height=3, objects=objects, agents=agents, seed=42)
-        builder = RandomMapBuilder(config)
+        config = RandomMapBuilder.Config(width=4, height=3, objects=objects, agents=agents, seed=42)
+        builder = config.create()
         game_map = builder.build()
 
         unique, counts = np.unique(game_map.grid, return_counts=True)
@@ -91,14 +91,14 @@ class TestRandomMapBuilder:
     def test_build_too_many_objects_halving(self):
         # Create scenario where objects exceed 2/3 of area
         objects = {"wall": 10, "altar": 10}  # 20 objects
-        config = RandomMapBuilderConfig(
+        config = RandomMapBuilder.Config(
             width=5,
             height=5,
             objects=objects,
             agents=0,
             seed=42,  # 25 total cells, 2/3 ≈ 16.67
         )
-        builder = RandomMapBuilder(config)
+        builder = config.create()
         game_map = builder.build()
 
         # Should have halved the object counts
@@ -111,8 +111,8 @@ class TestRandomMapBuilder:
 
     def test_build_empty_map(self):
         objects = {}
-        config = RandomMapBuilderConfig(width=3, height=2, objects=objects, agents=0, seed=42)
-        builder = RandomMapBuilder(config)
+        config = RandomMapBuilder.Config(width=3, height=2, objects=objects, agents=0, seed=42)
+        builder = config.create()
         game_map = builder.build()
 
         # Should be all empty
@@ -121,8 +121,8 @@ class TestRandomMapBuilder:
 
     def test_build_single_cell(self):
         objects = {"wall": 1}
-        config = RandomMapBuilderConfig(width=1, height=1, objects=objects, agents=0, seed=42)
-        builder = RandomMapBuilder(config)
+        config = RandomMapBuilder.Config(width=1, height=1, objects=objects, agents=0, seed=42)
+        builder = config.create()
         game_map = builder.build()
 
         assert game_map.grid.shape == (1, 1)
@@ -130,16 +130,16 @@ class TestRandomMapBuilder:
 
     def test_build_map_shape(self):
         objects = {"wall": 1}
-        config = RandomMapBuilderConfig(width=7, height=4, objects=objects, agents=0, seed=42)
-        builder = RandomMapBuilder(config)
+        config = RandomMapBuilder.Config(width=7, height=4, objects=objects, agents=0, seed=42)
+        builder = config.create()
         game_map = builder.build()
 
         assert game_map.grid.shape == (4, 7)  # height x width
 
     def test_build_no_agents_int(self):
         objects = {"wall": 2}
-        config = RandomMapBuilderConfig(width=3, height=3, objects=objects, agents=0, seed=42)
-        builder = RandomMapBuilder(config)
+        config = RandomMapBuilder.Config(width=3, height=3, objects=objects, agents=0, seed=42)
+        builder = config.create()
         game_map = builder.build()
 
         unique, counts = np.unique(game_map.grid, return_counts=True)
@@ -150,8 +150,8 @@ class TestRandomMapBuilder:
     def test_build_no_agents_empty_dict(self):
         objects = {"wall": 2}
         agents = {}
-        config = RandomMapBuilderConfig(width=3, height=3, objects=objects, agents=agents, seed=42)
-        builder = RandomMapBuilder(config)
+        config = RandomMapBuilder.Config(width=3, height=3, objects=objects, agents=agents, seed=42)
+        builder = config.create()
         game_map = builder.build()
 
         unique, counts = np.unique(game_map.grid, return_counts=True)
@@ -163,8 +163,8 @@ class TestRandomMapBuilder:
 
     def test_build_returns_numpy_array(self):
         objects = {"wall": 1}
-        config = RandomMapBuilderConfig(width=2, height=2, objects=objects, agents=0, seed=42)
-        builder = RandomMapBuilder(config)
+        config = RandomMapBuilder.Config(width=2, height=2, objects=objects, agents=0, seed=42)
+        builder = config.create()
         result = builder.build()
 
         # Should return a GameMap object
@@ -174,8 +174,8 @@ class TestRandomMapBuilder:
     def test_build_large_map_performance(self):
         """Test that large maps can be built without performance issues"""
         objects = {"wall": 50, "altar": 20}
-        config = RandomMapBuilderConfig(width=50, height=50, objects=objects, agents=10, seed=42)
-        builder = RandomMapBuilder(config)
+        config = RandomMapBuilder.Config(width=50, height=50, objects=objects, agents=10, seed=42)
+        builder = config.create()
 
         # This should complete without issues
         game_map = builder.build()
@@ -184,8 +184,8 @@ class TestRandomMapBuilder:
     def test_multiple_agent_types(self):
         objects = {"wall": 2}
         agents = {"agent": 1, "prey": 1, "predator": 1}
-        config = RandomMapBuilderConfig(width=4, height=4, objects=objects, agents=agents, seed=42)
-        builder = RandomMapBuilder(config)
+        config = RandomMapBuilder.Config(width=4, height=4, objects=objects, agents=agents, seed=42)
+        builder = config.create()
         game_map = builder.build()
 
         unique, counts = np.unique(game_map.grid, return_counts=True)

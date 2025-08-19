@@ -4,7 +4,7 @@ from typing import Annotated, Any, ClassVar, Generic, Type, TypeAlias, TypeVar
 
 import numpy as np
 import numpy.typing as npt
-from pydantic import WrapValidator, model_serializer
+from pydantic import SerializeAsAny, WrapValidator, model_serializer, model_validator
 
 from metta.common.config import Config
 
@@ -53,16 +53,28 @@ class MapBuilderConfig(Config, Generic[TBuilder]):
         If you define a standalone Config subclass, either set `_builder_cls`
         on the class or override `create()`.
         """
-        if self._builder_cls is None:
-            raise TypeError(
-                f"{self.__class__.__name__} is not bound to a MapBuilder; "
-                f"either define it nested under the builder or set `_builder_cls`."
-            )
-        return self._builder_cls(self)  # type: ignore[call-arg]
+        return self.builder_cls()(self)  # type: ignore[call-arg]
 
     @classmethod
-    def builder_cls(cls) -> Type[TBuilder] | None:
+    def builder_cls(cls) -> Type[TBuilder]:
+        if cls._builder_cls is None:
+            raise TypeError(
+                f"{cls.__class__.__name__} is not bound to a MapBuilder; "
+                f"either define it nested under the builder or set `_builder_cls`."
+            )
         return cls._builder_cls
+
+    @model_validator(mode="before")
+    @classmethod
+    def _strip_type_field(cls, data: Any) -> Any:
+        """Strip the 'type' field during validation if present."""
+        if isinstance(data, dict) and "type" in data:
+            builder_cls = cls.builder_cls()
+            expected_type = f"{builder_cls.__module__}.{builder_cls.__name__}"
+            if data["type"] != expected_type:
+                raise ValueError(f"Invalid type: {data['type']}, expected {expected_type}")
+            return {k: v for k, v in data.items() if k != "type"}
+        return data
 
     # Ensure YAML/JSON dumps always include a 'type' with a nice FQCN
     @model_serializer(mode="wrap")
@@ -106,6 +118,8 @@ def _validate_open_map_builder(v: Any, handler):
       - a dict with {"type": "<FQCN-of-Builder-or-Config>", ...params...}
       - anything else -> let the default handler try (will error if invalid)
     """
+    print("validating", v)
+    print("validating type", type(v))
     if isinstance(v, MapBuilderConfig):
         return v
 
@@ -137,6 +151,6 @@ def _validate_open_map_builder(v: Any, handler):
     return handler(v)
 
 
-AnyMapBuilderConfig = Annotated[MapBuilderConfig[Any], WrapValidator(_validate_open_map_builder)]
+AnyMapBuilderConfig = SerializeAsAny[Annotated[MapBuilderConfig[Any], WrapValidator(_validate_open_map_builder)]]
 
 C = TypeVar("C")

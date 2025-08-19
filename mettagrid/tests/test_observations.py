@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from metta.mettagrid.core import MettaGridCore
-from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.map_builder.utils import create_grid
 from metta.mettagrid.mettagrid_c import PackedCoordinate, dtype_actions
 from metta.mettagrid.mettagrid_config import (
@@ -39,7 +39,7 @@ def basic_env() -> MettaGridCore:
             ),
             objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
             inventory_item_names=["laser", "armor", "heart"],
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#", "#", "#", "#"],
                     ["#", "@", ".", ".", ".", ".", ".", "#"],
@@ -71,7 +71,7 @@ def adjacent_agents_env() -> MettaGridCore:
             ),
             objects={"wall": WallConfig(type_id=TokenTypes.WALL_TYPE_ID)},
             inventory_item_names=["laser", "armor", "heart"],
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
                     ["#", ".", ".", ".", "#"],
@@ -255,7 +255,7 @@ class TestObservations:
                 objects=objects,
                 groups={"agent": GroupConfig(id=0)},  # "@" maps to "agent.agent"
                 inventory_item_names=["laser", "resource1", "resource2"],  # include laser to allow attack
-                map_builder=AsciiMapBuilderConfig(map_data=game_map.tolist()),
+                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
 
@@ -420,7 +420,7 @@ class TestGlobalTokens:
                     resource_rewards=False,
                 ),
                 inventory_item_names=["laser", "armor", "heart"],
-                map_builder=AsciiMapBuilderConfig(map_data=game_map.tolist()),
+                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
         env = MettaGridCore(cfg)
@@ -509,7 +509,7 @@ class TestGlobalTokens:
                     "agent": GroupConfig(id=0),  # "@" maps to "agent.agent" for both agents
                 },
                 inventory_item_names=["laser", "armor"],
-                map_builder=AsciiMapBuilderConfig(map_data=game_map.tolist()),
+                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
         env = MettaGridCore(cfg)
@@ -836,7 +836,7 @@ class TestEdgeObservations:
                 },
                 groups={"agent": GroupConfig(id=0)},  # "@" maps to "agent.agent"
                 inventory_item_names=["laser", "resource1", "resource2"],  # laser required for attack action
-                map_builder=AsciiMapBuilderConfig(map_data=game_map.tolist()),
+                map_builder=AsciiMapBuilder.Config(map_data=game_map.tolist()),
             )
         )
         env = MettaGridCore(cfg)
