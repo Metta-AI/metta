@@ -21,17 +21,10 @@ DATA_DIR="${DATA_DIR:-./train_dir}"
 JOB_METADATA_DIR="${DATA_DIR}/.job_metadata/${METTA_RUN_ID}"
 mkdir -p "$JOB_METADATA_DIR"
 
-
-# Create IPC directory for this job instance
-IPC_DIR="/tmp/metta_job_$$"
-echo "IPC_DIR: $IPC_DIR"
-mkdir -p "$IPC_DIR"
-
 # Files to track
 RESTART_COUNT_FILE="$JOB_METADATA_DIR/restart_count"
 ACCUMULATED_RUNTIME_FILE="$JOB_METADATA_DIR/accumulated_runtime"
 CLUSTER_STOP_FILE="$JOB_METADATA_DIR/cluster_stop"
-TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
 HEARTBEAT_FILE="${HEARTBEAT_FILE:-${WANDB_DIR:-./wandb}/heartbeat.txt}"
 
 # Initialize or update restart tracking
@@ -87,9 +80,7 @@ export ACCUMULATED_RUNTIME="${ACCUMULATED_RUNTIME}"
 # File path exports for monitors
 export ACCUMULATED_RUNTIME_FILE="${ACCUMULATED_RUNTIME_FILE}"
 export CLUSTER_STOP_FILE="${CLUSTER_STOP_FILE}"
-export TERMINATION_REASON_FILE="${TERMINATION_REASON_FILE}"
 export HEARTBEAT_FILE="${HEARTBEAT_FILE}"
-export IPC_DIR="${IPC_DIR}"
 
 # NCCL Configuration
 export NCCL_PORT_RANGE="\${NCCL_PORT_RANGE:-43000-43063}"

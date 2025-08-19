@@ -8,7 +8,6 @@ set -euo pipefail
 : "${RANK:?Missing RANK}"
 : "${METTA_RUN_ID:?Missing METTA_RUN_ID}"
 : "${SKYPILOT_TASK_ID:?Missing SKYPILOT_TASK_ID}"
-: "${IPC_DIR:?Missing IPC_DIR}"
 : "${TERMINATION_REASON_FILE:?Missing TERMINATION_REASON_FILE}"
 
 # Exit code constants

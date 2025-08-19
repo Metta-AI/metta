@@ -10,6 +10,12 @@ if [ -n "${VIRTUAL_ENV:-}" ]; then
 fi
 . .venv/bin/activate
 
+# Create IPC directory for this job instance
+export IPC_DIR="/tmp/metta_job_$$"
+mkdir -p "$IPC_DIR"
+export TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
+echo "TERMINATION_REASON_FILE: $TERMINATION_REASON_FILE"
+
 # Determine node role using SkyPilot environment variables
 export RANK=${SKYPILOT_NODE_RANK:-0}
 export IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
