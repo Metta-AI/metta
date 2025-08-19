@@ -10,7 +10,8 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.pytorch.agent_mapper import agent_classes
+from metta.agent.pytorch.agent_mapper import agent_classes as pytorch_agent_classes
+from metta.agent.component_policies.agent_mapper import agent_classes as component_agent_classes
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
@@ -100,54 +101,35 @@ class MettaAgent(nn.Module):
             "analyze_weights_interval": 300,
         }
 
-        # Handle both string and DictConfig agent_cfg
-        if isinstance(agent_cfg, str):
-            agent_name = agent_cfg
-            config_dict = default_config
-        else:
-            # Extract agent name from DictConfig
-            # Support both "agent_type" (old format) and "name" (new format)
-            agent_name = agent_cfg.get("agent_type", agent_cfg.get("name", "fast"))
-            config_dict = {**default_config}
-            # Add any additional config parameters from agent_cfg
-            for key, value in agent_cfg.items():
-                if key not in ["name", "agent_type", "_target_"]:
-                    config_dict[key] = value
+        # Agent config is always a string representing the agent class name
+        agent_name = str(agent_cfg)  # Ensure it's a string
+        config_dict = default_config
 
-        # Determine if it's a PyTorch policy or ComponentPolicy
-        if agent_name.endswith(".py"):
-            # PyTorch policy
-            policy_name = agent_name[:-3]  # Remove .py extension
-            if policy_name in agent_classes:
-                AgentClass = agent_classes[policy_name]
-                policy = AgentClass(env=env, **config_dict)
-                logger.info(f"Using PyTorch Policy: {policy} (type: {policy_name})")
-            else:
-                raise ValueError(f"Unknown PyTorch policy: {policy_name}")
+        # Check if it's a vanilla PyTorch model or a ComponentPolicy
+        if agent_name in pytorch_agent_classes:
+            # Vanilla PyTorch model
+            AgentClass = pytorch_agent_classes[agent_name]
+            policy = AgentClass(env=env, **config_dict)
+            logger.info(f"Using PyTorch model: {agent_name}")
+        elif agent_name in component_agent_classes:
+            # ComponentPolicy
+            AgentClass = component_agent_classes[agent_name]
+            policy = AgentClass(
+                obs_space=self.obs_space,
+                obs_width=self.obs_width,
+                obs_height=self.obs_height,
+                action_space=self.action_space,
+                feature_normalizations=self.feature_normalizations,
+                device=system_cfg.device,
+                config=config_dict,
+            )
+            logger.info(f"Using ComponentPolicy: {agent_name}")
         else:
-            # First check if it's in PyTorch policies (for backward compatibility)
-            if agent_name in agent_classes:
-                AgentClass = agent_classes[agent_name]
-                policy = AgentClass(env=env, **config_dict)
-                logger.info(f"Using PyTorch Policy: {policy} (type: {agent_name})")
-            else:
-                # Try ComponentPolicy
-                from metta.agent.component_policies.agent_mapper import agent_classes as component_agent_classes
-
-                if agent_name in component_agent_classes:
-                    AgentClass = component_agent_classes[agent_name]
-                    policy = AgentClass(
-                        obs_space=self.obs_space,
-                        obs_width=self.obs_width,
-                        obs_height=self.obs_height,
-                        action_space=self.action_space,
-                        feature_normalizations=self.feature_normalizations,
-                        device=system_cfg.device,
-                        config=config_dict,
-                    )
-                    logger.info(f"Using ComponentPolicy: {agent_name}")
-                else:
-                    raise ValueError(f"Unknown policy type: {agent_name}")
+            raise ValueError(
+                f"Unknown agent: '{agent_name}'. "
+                f"Available PyTorch models: {list(pytorch_agent_classes.keys())}, "
+                f"ComponentPolicies: {list(component_agent_classes.keys())}"
+            )
 
         return policy
 
