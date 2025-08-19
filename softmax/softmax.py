@@ -1,10 +1,10 @@
-from metta.common.wandb.wandb_context import WandbConfigOn
+from metta.common.wandb.wandb_context import WandbConfig
 
 
 def wandb_config(
     run: str | None = None,
-) -> WandbConfigOn:
-    cfg = WandbConfigOn(
+) -> WandbConfig:
+    cfg = WandbConfig(
         enabled=True,
         project="metta",
         entity="metta-research",
