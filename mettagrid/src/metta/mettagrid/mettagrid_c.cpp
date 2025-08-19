@@ -527,8 +527,11 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
 
   // REWARD UPDATE FOR GENOME GAME
   for (auto& agent : _agents) {
-    if (!(agent->box->location.r == 0 && agent->box->location.c == 0)) {
-      *(agent->reward) += 0.1f;
+    // if (!(agent->box->location.r == 0 && agent->box->location.c == 0)) {
+    //   *(agent->reward) += 0.1f;
+    // }
+    if (agent->box->location.r == 0 && agent->box->location.c == 0) {
+      *(agent->reward) += -0.1f;
     }
   }
 
