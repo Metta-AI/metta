@@ -85,12 +85,7 @@ def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
 def play(env: Optional[EnvConfig] = None) -> PlayTool:
     eval_env = env or make_env()
-    return PlayTool(
-        sim=SimulationConfig(
-            env=eval_env,
-            name="arena",
-        )
-    )
+    return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
 
 
 def evaluate(

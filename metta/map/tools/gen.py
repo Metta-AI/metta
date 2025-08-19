@@ -4,7 +4,7 @@ import logging
 import random
 import string
 
-from metta.common.config import Tool
+from metta.common.config.tool import Tool
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
 from metta.mettagrid.mettagrid_config import EnvConfig

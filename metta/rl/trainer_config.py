@@ -168,7 +168,7 @@ class TrainerConfig(Config):
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
     # Forward minibatch
-    forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
+    forward_pass_minibatch_target_size: int = Field(default=2048, gt=0)
 
     # Async factor 2: overlaps computation and communication for efficiency
     async_factor: int = Field(default=2, gt=0)
