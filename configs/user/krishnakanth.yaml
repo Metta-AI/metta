@@ -4,10 +4,10 @@ defaults:
   - /common
   - /agent/fast
   - /trainer/trainer
-  - /sim/coop_arena@sim
+  - /sim/coop_rewardsharing_only@sim
   - _self_
 
-run: krishnakanth.coop_rewardsharing_bucket.local.lp
+run: krishnakanth.coop_rewardsharing_bucket.$(date +%m-%d).$(date +%H%M)
 cmd: train
 
 data_dir: ${oc.env:DATA_DIR,./train_dir}
@@ -22,7 +22,7 @@ trainer:
     evaluate_remote: false
   checkpoint:
     wandb_checkpoint_interval: 100
-  total_timesteps: 1_000_000_000
+  total_timesteps: 10_000_000_000
 
 wandb:
   enabled: true
