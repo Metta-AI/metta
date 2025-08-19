@@ -100,7 +100,7 @@ PR_NEWSLETTER_HISTORY_DAYS # Override default days for scheduled runs
 The workflow generates several artifacts:
 
 - `discord_summary_output.txt` - Formatted message for Discord
-- `collection_summary_output.txt` - Full collection analysis
+- `newsletter_output.txt` - Full collection analysis
 - `pr_summary_data.json` - Structured data for all PRs
 - `pr-summaries/pr_*.txt` - Individual PR summaries (cached)
 - `pr_digest_output.json` - Raw PR data from GitHub

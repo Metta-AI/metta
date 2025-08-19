@@ -1,9 +1,9 @@
 export type ScorecardCell = {
   evalName: string
   replayUrl: string | null
+  thumbnailUrl: string | null
   value: number
 }
-
 
 export type ScorecardData = {
   evalNames: string[]
@@ -182,6 +182,7 @@ export type TrainingRunPolicy = {
 export type PolicyScorecardCell = {
   evalName: string
   replayUrl: string | null
+  thumbnailUrl: string | null
   value: number
 }
 
@@ -207,7 +208,7 @@ export type Leaderboard = {
   updated_at: string
 }
 
-export type LeaderboardCreate = {
+export type LeaderboardCreateOrUpdate = {
   name: string
   evals: string[]
   metric: string
@@ -312,7 +313,8 @@ export interface Repo {
   // Leaderboard methods
   listLeaderboards(): Promise<LeaderboardListResponse>
   getLeaderboard(leaderboardId: string): Promise<Leaderboard>
-  createLeaderboard(leaderboardData: LeaderboardCreate): Promise<Leaderboard>
+  createLeaderboard(leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard>
+  updateLeaderboard(leaderboardId: string, leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard>
   deleteLeaderboard(leaderboardId: string): Promise<void>
   generateLeaderboardScorecard(leaderboardId: string, request: LeaderboardScorecardRequest): Promise<ScorecardData>
 }
@@ -512,19 +514,26 @@ export class ServerRepo implements Repo {
     return this.apiCall<Leaderboard>(`/leaderboards/${encodeURIComponent(leaderboardId)}`)
   }
 
-  async createLeaderboard(leaderboardData: LeaderboardCreate): Promise<Leaderboard> {
+  async createLeaderboard(leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard> {
     return this.apiCallWithBody<Leaderboard>('/leaderboards', leaderboardData)
+  }
+
+  async updateLeaderboard(leaderboardId: string, leaderboardData: LeaderboardCreateOrUpdate): Promise<Leaderboard> {
+    return this.apiCallWithBodyPut<Leaderboard>(`/leaderboards/${encodeURIComponent(leaderboardId)}`, leaderboardData)
   }
 
   async deleteLeaderboard(leaderboardId: string): Promise<void> {
     return this.apiCallDelete(`/leaderboards/${encodeURIComponent(leaderboardId)}`)
   }
 
-  async generateLeaderboardScorecard(leaderboardId: string, request: LeaderboardScorecardRequest): Promise<ScorecardData> {
+  async generateLeaderboardScorecard(
+    leaderboardId: string,
+    request: LeaderboardScorecardRequest
+  ): Promise<ScorecardData> {
     return this.apiCallWithBody<ScorecardData>('/scorecard/leaderboard', {
       leaderboard_id: leaderboardId,
       selector: request.selector,
-      num_policies: request.num_policies
+      num_policies: request.num_policies,
     })
   }
 }

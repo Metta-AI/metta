@@ -707,6 +707,16 @@ wheels = [
 name = "experiments"
 version = "0.1.0"
 source = { editable = "experiments" }
+dependencies = [
+    { name = "jupytext" },
+    { name = "moutils" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "jupytext", specifier = ">=1.17.2" },
+    { name = "moutils", specifier = ">=0.3.12" },
+]
 
 [[package]]
 name = "farama-notifications"
@@ -1386,6 +1396,22 @@ wheels = [
 ]
 
 [[package]]
+name = "jupytext"
+version = "1.17.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown-it-py" },
+    { name = "mdit-py-plugins" },
+    { name = "nbformat" },
+    { name = "packaging" },
+    { name = "pyyaml" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/30/ce/0bd5290ca4978777154e2683413dca761781aacf57f7dc0146f5210df8b1/jupytext-1.17.2.tar.gz", hash = "sha256:772d92898ac1f2ded69106f897b34af48ce4a85c985fa043a378ff5a65455f02", size = 3748577, upload-time = "2025-06-01T21:31:48.231Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ed/f1/82ea8e783433707cafd9790099a2d19f113c22f32a31c8bb5abdc7a61dbb/jupytext-1.17.2-py3-none-any.whl", hash = "sha256:4f85dc43bb6a24b75491c5c434001ad5ef563932f68f15dd3e1c8ce12a4a426b", size = 164401, upload-time = "2025-06-01T21:31:46.319Z" },
+]
+
+[[package]]
 name = "kiwisolver"
 version = "1.4.9"
 source = { registry = "https://pypi.org/simple" }
@@ -1572,6 +1598,18 @@ wheels = [
 ]
 
 [[package]]
+name = "mdit-py-plugins"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "markdown-it-py" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b2/fd/a756d36c0bfba5f6e39a1cdbdbfdd448dc02692467d83816dff4592a1ebc/mdit_py_plugins-0.5.0.tar.gz", hash = "sha256:f4918cb50119f50446560513a8e311d574ff6aaed72606ddae6d35716fe809c6", size = 44655, upload-time = "2025-08-11T07:25:49.083Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fb/86/dd6e5db36df29e76c7a7699123569a4a18c1623ce68d826ed96c62643cae/mdit_py_plugins-0.5.0-py3-none-any.whl", hash = "sha256:07a08422fc1936a5d26d146759e9155ea466e842f5ab2f7d2266dd084c8dab1f", size = 57205, upload-time = "2025-08-11T07:25:47.597Z" },
+]
+
+[[package]]
 name = "mdurl"
 version = "0.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1626,7 +1664,6 @@ dependencies = [
     { name = "pyro-ppl" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
-    { name = "raylib" },
     { name = "rich" },
     { name = "scipy" },
     { name = "setuptools" },
@@ -1705,7 +1742,6 @@ requires-dist = [
     { name = "pyro-ppl", specifier = ">=1.9.1" },
     { name = "python-dotenv", specifier = ">=1.1.0" },
     { name = "pyyaml", specifier = ">=6.0.2" },
-    { name = "raylib", specifier = ">=5.5.0.0" },
     { name = "rich", specifier = ">=13.9.4" },
     { name = "scipy", specifier = ">=1.15.3" },
     { name = "setuptools", specifier = ">=80.9.0" },
@@ -1777,6 +1813,8 @@ name = "metta-app-backend"
 version = "0.1.0"
 source = { editable = "app_backend" }
 dependencies = [
+    { name = "boto3" },
+    { name = "ddtrace" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "metta-common" },
@@ -1784,6 +1822,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pytest-asyncio" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "wandb" },
 ]
 
 [package.dev-dependencies]
@@ -1798,6 +1837,8 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "boto3", specifier = ">=1.38.32" },
+    { name = "ddtrace", specifier = ">=2.6.0" },
     { name = "fastapi", specifier = ">=0.115.5" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "metta-common", editable = "common" },
@@ -1805,6 +1846,7 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "pytest-asyncio", specifier = ">=1.0.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.34.2" },
+    { name = "wandb", specifier = ">=0.19.11" },
 ]
 
 [package.metadata.requires-dev]
@@ -1864,7 +1906,6 @@ dependencies = [
     { name = "pufferlib" },
     { name = "pydantic" },
     { name = "pyyaml" },
-    { name = "raylib" },
     { name = "rich" },
     { name = "scipy" },
     { name = "tabulate" },
@@ -1897,7 +1938,6 @@ requires-dist = [
     { name = "pufferlib", specifier = ">=3.0.0,<3.1.0" },
     { name = "pydantic", specifier = ">=2.11.5" },
     { name = "pyyaml", specifier = ">=6.0.2" },
-    { name = "raylib", specifier = ">=5.5.0,<5.6" },
     { name = "rich", specifier = ">=13.9.4" },
     { name = "scipy", specifier = ">=1.15.3" },
     { name = "tabulate", specifier = ">=0.9.0" },
@@ -1929,6 +1969,20 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/ea/ca/8e91948b782ddfbd194f323e7e7d9ba12e5877addf04fb2bf8fca38e86ac/monotonic-1.6.tar.gz", hash = "sha256:3a55207bcfed53ddd5c5bae174524062935efed17792e9de2ad0205ce9ad63f7", size = 7615, upload-time = "2021-08-11T14:37:28.79Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/9a/67/7e8406a29b6c45be7af7740456f7f37025f0506ae2e05fb9009a53946860/monotonic-1.6-py2.py3-none-any.whl", hash = "sha256:68687e19a14f11f26d140dd5c86f3dba4bf5df58003000ed467e0e2a69bca96c", size = 8154, upload-time = "2021-04-09T21:58:05.122Z" },
+]
+
+[[package]]
+name = "moutils"
+version = "0.3.12"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anywidget" },
+    { name = "marimo" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b3/36/4435c811526bdc505085a9b7257ba3921e4cf18f416e3bc4976a215e47c4/moutils-0.3.12.tar.gz", hash = "sha256:6380fe05349ebafe016be70d1c8569dc349b23212790963c81e5bffa336ca162", size = 108578, upload-time = "2025-07-16T13:33:20.631Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3d/bc/01e1a05e8ade9e030b5916ce62c275f7f75c0be9ce2dd79a97d988e95de6/moutils-0.3.12-py2.py3-none-any.whl", hash = "sha256:184d0e4427f7c9dd217c06490b1294762926595b1db291735359a3cb43dda79f", size = 44042, upload-time = "2025-07-16T13:33:19.57Z" },
 ]
 
 [[package]]
@@ -2186,7 +2240,7 @@ name = "nvidia-cudnn-cu12"
 version = "9.10.2.21"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ba/51/e123d997aa098c61d029f76663dedbfb9bc8dcf8c60cbd6adbe42f76d049/nvidia_cudnn_cu12-9.10.2.21-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:949452be657fa16687d0930933f032835951ef0892b37d2d53824d1a84dc97a8", size = 706758467, upload-time = "2025-06-06T21:54:08.597Z" },
@@ -2197,7 +2251,7 @@ name = "nvidia-cufft-cu12"
 version = "11.3.3.83"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-nvjitlink-cu12", marker = "sys_platform == 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/1f/13/ee4e00f30e676b66ae65b4f08cb5bcbb8392c03f54f2d5413ea99a5d1c80/nvidia_cufft_cu12-11.3.3.83-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:4d2dd21ec0b88cf61b62e6b43564355e5222e4a3fb394cac0db101f2dd0d4f74", size = 193118695, upload-time = "2025-03-07T01:45:27.821Z" },
@@ -2224,9 +2278,9 @@ name = "nvidia-cusolver-cu12"
 version = "11.7.3.90"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-cublas-cu12" },
-    { name = "nvidia-cusparse-cu12" },
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform == 'linux'" },
+    { name = "nvidia-cusparse-cu12", marker = "sys_platform == 'linux'" },
+    { name = "nvidia-nvjitlink-cu12", marker = "sys_platform == 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/85/48/9a13d2975803e8cf2777d5ed57b87a0b6ca2cc795f9a4f59796a910bfb80/nvidia_cusolver_cu12-11.7.3.90-py3-none-manylinux_2_27_x86_64.whl", hash = "sha256:4376c11ad263152bd50ea295c05370360776f8c3427b30991df774f9fb26c450", size = 267506905, upload-time = "2025-03-07T01:47:16.273Z" },
@@ -2237,7 +2291,7 @@ name = "nvidia-cusparse-cu12"
 version = "12.5.8.93"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "nvidia-nvjitlink-cu12" },
+    { name = "nvidia-nvjitlink-cu12", marker = "sys_platform == 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c2/f5/e1854cb2f2bcd4280c44736c93550cc300ff4b8c95ebe370d0aa7d2b473d/nvidia_cusparse_cu12-12.5.8.93-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:1ec05d76bbbd8b61b06a80e1eaf8cf4959c3d4ce8e711b65ebd0443bb0ebb13b", size = 288216466, upload-time = "2025-03-07T01:48:13.779Z" },
@@ -3167,25 +3221,6 @@ wheels = [
 ]
 
 [[package]]
-name = "raylib"
-version = "5.5.0.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "cffi" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/8c/35/9bf3a2af73c55fd4310dcaec4f997c739888e0db9b4dfac71b7680810852/raylib-5.5.0.2.tar.gz", hash = "sha256:83c108ae3b4af40b53c93d1de2afbe309e986dd5efeb280ebe2e61c79956edb0", size = 181172, upload-time = "2024-11-26T11:12:02.791Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/9e/c4/ce21721b474eb8f65379f7315b382ccfe1d5df728eea4dcf287b874e7461/raylib-5.5.0.2-cp311-cp311-macosx_10_13_x86_64.whl", hash = "sha256:37eb0ec97fc6b08f989489a50e09b5dde519e1bb8eb17e4033ac82227b0e5eda", size = 1703742, upload-time = "2024-11-26T11:09:31.115Z" },
-    { url = "https://files.pythonhosted.org/packages/23/61/138e305c82549869bb8cd41abe75571559eafbeab6aed1ce7d8fbe3ffd58/raylib-5.5.0.2-cp311-cp311-macosx_14_0_arm64.whl", hash = "sha256:bb9e506ecd3dbec6dba868eb036269837a8bde68220690842c3238239ee887ef", size = 1247449, upload-time = "2024-11-26T11:09:34.182Z" },
-    { url = "https://files.pythonhosted.org/packages/85/e0/dc638c42d1a505f0992263d48e1434d82c21afdf376b06f549d2e281dfd4/raylib-5.5.0.2-cp311-cp311-manylinux2014_aarch64.whl", hash = "sha256:70aa8bed67875a8cf25191f35263ef92d646bdfcb1f507915c81562a321f4931", size = 2184315, upload-time = "2024-11-26T11:09:36.715Z" },
-    { url = "https://files.pythonhosted.org/packages/c9/1a/49db57283a28fdc1ff0e4604911b7fff085128c2ac8bdd9efa8c5c47439d/raylib-5.5.0.2-cp311-cp311-manylinux2014_x86_64.whl", hash = "sha256:0365e8c578f72f598795d9377fc70342f0d62aa193c2f304ca048b3e28866752", size = 2278139, upload-time = "2024-11-26T11:09:39.475Z" },
-    { url = "https://files.pythonhosted.org/packages/f0/8a/e1a690ab6889d4cb67346a2d32bad8b8e8b0f85ec826b00f76b0ad7e6ad6/raylib-5.5.0.2-cp311-cp311-win_amd64.whl", hash = "sha256:5219be70e7fca03e9c4fddebf7e60e885d77137125c7a13f3800a947f8562a13", size = 1693944, upload-time = "2024-11-26T11:09:41.596Z" },
-    { url = "https://files.pythonhosted.org/packages/4a/22/2e02e3738ad041f5ec2830aecdfab411fc2960bfc3400e03b477284bfaf7/raylib-5.5.0.2-pp311-pypy311_pp73-macosx_10_13_x86_64.whl", hash = "sha256:bc45fe1c0aac50aa319a9a66d44bb2bd0dcd038a44d95978191ae7bfeb4a06d8", size = 1216231, upload-time = "2025-02-12T04:21:59.38Z" },
-    { url = "https://files.pythonhosted.org/packages/fe/7d/b29afedc4a706b12143f74f322cb32ad5a6f43e56aaca2a9fb89b0d94eee/raylib-5.5.0.2-pp311-pypy311_pp73-manylinux2014_x86_64.whl", hash = "sha256:2242fd6079da5137e9863a447224f800adef6386ca8f59013a5d62cc5cadab2b", size = 1394928, upload-time = "2025-02-12T04:22:03.021Z" },
-    { url = "https://files.pythonhosted.org/packages/b6/fa/2daf36d78078c6871b241168a36156169cfc8ea089faba5abe8edad304be/raylib-5.5.0.2-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:e475a40764c9f83f9e66406bd86d85587eb923329a61ade463c3c59e1e880b16", size = 1564224, upload-time = "2025-02-12T04:22:05.911Z" },
-]
-
-[[package]]
 name = "referencing"
 version = "0.36.2"
 source = { registry = "https://pypi.org/simple" }
@@ -3887,7 +3922,7 @@ name = "triton"
 version = "3.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "setuptools" },
+    { name = "setuptools", marker = "sys_platform == 'linux'" },
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/7d/39/43325b3b651d50187e591eefa22e236b2981afcebaefd4f2fc0ea99df191/triton-3.4.0-cp311-cp311-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:7b70f5e6a41e52e48cfc087436c8a28c17ff98db369447bcaff3b887a3ab4467", size = 155531138, upload-time = "2025-07-30T19:58:29.908Z" },

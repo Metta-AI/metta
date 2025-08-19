@@ -27,6 +27,19 @@ class PaginationRequest(BaseModel):
     page_size: int = Field(default=25, ge=1, le=100)
 
 
+class PoliciesSearchRequest(BaseModel):
+    """Search parameters for policies."""
+
+    search: Optional[str] = Field(default=None, description="Search term for policy names")
+    policy_type: Optional[str] = Field(default=None, description="Filter by policy type: 'training_run' or 'policy'")
+    tags: Optional[List[str]] = Field(
+        default=None, description="Filter by tags (policies must have at least one matching tag)"
+    )
+    user_id: Optional[str] = Field(default=None, description="Filter by user ID")
+    limit: int = Field(default=100, ge=1, le=1000, description="Maximum number of results")
+    offset: int = Field(default=0, ge=0, description="Number of results to skip")
+
+
 class UnifiedPolicyInfo(BaseModel):
     """Unified policy/training run information."""
 
@@ -81,6 +94,7 @@ class ScorecardCell(BaseModel):
 
     evalName: str
     replayUrl: Optional[str]
+    thumbnailUrl: Optional[str]
     value: float
 
 
@@ -112,6 +126,7 @@ class PolicyEvaluationResult:
     eval_category: str
     env_name: str
     replay_url: Optional[str]
+    thumbnail_url: Optional[str]
     total_score: float
     num_agents: int
     episode_id: int
@@ -177,6 +192,7 @@ POLICY_SCORECARD_DATA_QUERY = """
         we.eval_category,
         we.env_name,
         ANY_VALUE(we.replay_url) as replay_url,
+        ANY_VALUE(we.thumbnail_url) as thumbnail_url,
         SUM(eam.value) as total_score,
         COUNT(eam.*) as num_agents,
         MAX(we.internal_id) as episode_id,
@@ -205,6 +221,56 @@ async def get_policies_and_training_runs(con: AsyncConnection) -> PoliciesRespon
     """Get unified training runs and run-free policies with pagination and optional filtering."""
 
     unified_rows = await execute_query_and_log(con, UNIFIED_POLICIES_QUERY, (), "get_unified_policies")
+
+    policies = [
+        UnifiedPolicyInfo(
+            id=str(row[0]), type=row[1], name=row[2], user_id=row[3], created_at=str(row[4]), tags=row[5] or []
+        )
+        for row in unified_rows
+    ]
+
+    return PoliciesResponse(policies=policies)
+
+
+async def search_policies_and_training_runs(
+    con: AsyncConnection, search_params: PoliciesSearchRequest
+) -> PoliciesResponse:
+    """Search unified training runs and run-free policies with filtering."""
+
+    # Build dynamic query based on search parameters
+    base_query = "SELECT * FROM unified_training_runs"
+    conditions = []
+    params = []
+
+    # Add search condition for name
+    if search_params.search:
+        conditions.append("LOWER(name) LIKE LOWER(%s)")
+        params.append(f"%{search_params.search}%")
+
+    # Add policy type filter
+    if search_params.policy_type:
+        conditions.append("type = %s")
+        params.append(search_params.policy_type)
+
+    # Add user_id filter
+    if search_params.user_id:
+        conditions.append("user_id = %s")
+        params.append(search_params.user_id)
+
+    # Add tag filter using array overlap
+    if search_params.tags:
+        conditions.append("tags && %s")
+        params.append(search_params.tags)
+
+    # Combine conditions
+    if conditions:
+        base_query += " WHERE " + " AND ".join(conditions)
+
+    # Add ordering and pagination
+    base_query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+    params.extend([search_params.limit, search_params.offset])
+
+    unified_rows = await execute_query_and_log(con, base_query, tuple(params), "search_policies")
 
     policies = [
         UnifiedPolicyInfo(
@@ -365,7 +431,10 @@ def build_policy_scorecard(
         for eval_name in eval_names:
             eval = data_map.get((policy_name, eval_name))
             cells[policy_name][eval_name] = ScorecardCell(
-                evalName=eval_name, replayUrl=eval.replay_url if eval else None, value=eval.value if eval else 0.0
+                evalName=eval_name,
+                replayUrl=eval.replay_url if eval else None,
+                thumbnailUrl=eval.thumbnail_url if eval else None,
+                value=eval.value if eval else 0.0,
             )
 
     # Calculate averages
@@ -474,6 +543,13 @@ def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
         """Get training runs and run-free policies."""
         async with metta_repo.connect() as con:
             return await get_policies_and_training_runs(con)
+
+    @router.post("/policies/search")
+    @timed_route("search_policies_and_training_runs")
+    async def search_policies(request: PoliciesSearchRequest) -> PoliciesResponse:
+        """Search training runs and run-free policies with filtering."""
+        async with metta_repo.connect() as con:
+            return await search_policies_and_training_runs(con, request)
 
     @router.post("/evals")
     @timed_route("get_evals")
