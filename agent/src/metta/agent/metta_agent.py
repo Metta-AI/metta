@@ -124,9 +124,7 @@ class MettaAgent(nn.Module):
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
                 obs_height=self.obs_height,
-                action_space=self.action_space,
                 feature_normalizations=self.feature_normalizations,
-                device=system_cfg.device,
                 config=config_dict,
             )
             logger.info(f"Using ComponentPolicy: {agent_name}")
