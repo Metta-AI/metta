@@ -10,7 +10,7 @@ import unittest
 
 import pytest
 
-from metta.setup.config import SetupConfig, UserType
+from metta.setup.saved_settings import SavedSettings, UserType
 from tests.setup.test_base import BaseMettaSetupTest
 
 
@@ -55,7 +55,7 @@ class TestInstallSoftmax(BaseMettaSetupTest):
         assert r_symlink.returncode == 0
 
         # Verify config written
-        config = SetupConfig(self.test_config_dir / "config.yaml")
+        config = SavedSettings(self.test_config_dir / "config.yaml")
         assert config.user_type == UserType.SOFTMAX
 
     def test_install_without_config_fails(self):
@@ -88,7 +88,7 @@ class TestInstallCloud(BaseMettaSetupTest):
         self._create_test_config(UserType.CLOUD)
         result = self._run_metta_command(["install"])
         assert result.returncode == 0, f"Install failed: {result.stderr}"
-        config = SetupConfig(self.test_config_dir / "config.yaml")
+        config = SavedSettings(self.test_config_dir / "config.yaml")
         assert config.user_type == UserType.CLOUD
         assert config.is_component_enabled("aws")
 
@@ -100,7 +100,7 @@ class TestInstallCustom(BaseMettaSetupTest):
         self._create_test_config(UserType.EXTERNAL, custom_config=True)
         result = self._run_metta_command(["install"])
         assert result.returncode == 0, f"Install failed: {result.stderr}"
-        config = SetupConfig(self.test_config_dir / "config.yaml")
+        config = SavedSettings(self.test_config_dir / "config.yaml")
         assert config.user_type == UserType.EXTERNAL
         assert config.is_custom_config
 
