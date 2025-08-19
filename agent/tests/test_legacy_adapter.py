@@ -177,6 +177,7 @@ def test_new_checkpoint_format():
 
     # Create a mock ComponentPolicy using Fast as concrete implementation
     from metta.agent.component_policies.fast import Fast
+
     policy = Fast.__new__(Fast)
     nn.Module.__init__(policy)
     policy.components = ModuleDict()

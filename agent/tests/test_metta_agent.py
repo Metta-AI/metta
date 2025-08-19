@@ -2,7 +2,6 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
-from omegaconf import DictConfig
 from tensordict import TensorDict
 
 # Import the actual class
