@@ -150,6 +150,9 @@ shutdown() {
       echo "[SHUTDOWN] Process $CMD_PID already exited"
     fi
   fi
+
+  # shutdown now calls the cleanup_handler
+  exit 0
 }
 
 trap shutdown INT TERM HUP

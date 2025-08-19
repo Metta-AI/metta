@@ -1,9 +1,0 @@
-# test-exit.yaml
-resources:
-  cloud: aws
-  job_recovery:
-    max_restarts_on_errors: 3
-
-run: |
-  echo "Testing exit code 1"
-  exit 1

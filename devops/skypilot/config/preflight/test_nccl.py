@@ -466,6 +466,23 @@ def get_system_diagnostics() -> dict[str, Any]:
     code, stdout, stderr = run_command(["ip", "-o", "route", "get", master_addr])
     diagnostics["system"]["ROUTE_TO_MASTER"] = stdout.strip() if code == 0 else f"No route to {master_addr}"
 
+    # Get network interface info
+    if code == 0 and stdout.strip():
+        # Extract interface name from route output
+        try:
+            # Format: "8.8.8.8 via X.X.X.X dev eth0 src Y.Y.Y.Y"
+            parts = stdout.strip().split()
+            if "dev" in parts:
+                dev_idx = parts.index("dev")
+                if dev_idx + 1 < len(parts):
+                    interface_name = parts[dev_idx + 1]
+                    # Get interface details
+                    code2, stdout2, stderr2 = run_command(["ip", "addr", "show", interface_name])
+                    if code2 == 0:
+                        diagnostics["system"]["NETWORK_INTERFACE"] = stdout2.strip()
+        except Exception:
+            pass
+
     # IPC namespace
     try:
         ipc_ns = os.readlink("/proc/1/ns/ipc")
@@ -789,13 +806,30 @@ def launch_distributed_test() -> int:
 def extract_ip_from_interface(interface_info: str) -> str:
     """Extract IP address from interface info string."""
     try:
-        if "inet" in interface_info:
-            parts = interface_info.split()
-            for i, part in enumerate(parts):
-                if part == "inet" and i + 1 < len(parts):
-                    return parts[i + 1].split("/")[0]
+        # Look for inet (IPv4) addresses
+        lines = interface_info.split("\n")
+        for line in lines:
+            if "inet " in line and "scope global" in line:
+                # Format: "inet 172.31.4.248/20 brd ... scope global ..."
+                parts = line.strip().split()
+                for i, part in enumerate(parts):
+                    if part == "inet" and i + 1 < len(parts):
+                        ip_with_mask = parts[i + 1]
+                        return ip_with_mask.split("/")[0]
     except Exception:
         pass
+
+    # Fallback: try to extract from ROUTE_TO_MASTER if available
+    try:
+        # Check if this is a route output format
+        if "src" in interface_info:
+            parts = interface_info.split()
+            for i, part in enumerate(parts):
+                if part == "src" and i + 1 < len(parts):
+                    return parts[i + 1]
+    except Exception:
+        pass
+
     return "unknown"
 
 
@@ -816,9 +850,10 @@ def main():
     node_index = int(os.environ.get("NODE_INDEX", 0))
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     rank = int(os.environ.get("RANK", 0))
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
     num_nodes = int(os.environ.get("NUM_NODES", 1))
     num_gpus_per_node = int(os.environ.get("NUM_GPUS", 1))
+    world_size = num_nodes * num_gpus_per_node
+    os.environ["WORLD_SIZE"] = str(world_size)
 
     # Define our roles
     IS_GPU0 = local_rank == 0
@@ -857,8 +892,12 @@ def main():
 
     # Node-specific system diagnostics (GPU 0 of each node only)
     if IS_GPU0:
-        # Get this node's IP
+        # Get this node's IP - try network interface first, then route as fallback
         node_ip = extract_ip_from_interface(system_diagnostics["system"].get("NETWORK_INTERFACE", ""))
+        if node_ip == "unknown":
+            # Try extracting from route
+            node_ip = extract_ip_from_interface(system_diagnostics["system"].get("ROUTE_TO_MASTER", ""))
+
         print()
         print_box_header(f"NODE {node_index} SYSTEM DIAGNOSTICS (IP: {node_ip})", include_rank=False)
         sys_info = system_diagnostics["system"]
