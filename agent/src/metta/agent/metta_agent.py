@@ -10,8 +10,8 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.component_policy import ComponentPolicy
-from metta.agent.pytorch.agent_mapper import agent_classes
+from metta.agent.component_policies.component_policy_interface import ComponentPolicy
+from metta.agent.component_policies.agent_mapper import agent_classes
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
