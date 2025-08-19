@@ -118,6 +118,8 @@ if [ -n "$OBSERVATORY_TOKEN" ]; then
   CMD="$CMD --observatory-token \"$OBSERVATORY_TOKEN\""
 fi
 
+echo "Configure Env CMD: $CMD"
+
 # Execute the command
 eval $CMD || {
   echo "ERROR: Failed to create job secrets"

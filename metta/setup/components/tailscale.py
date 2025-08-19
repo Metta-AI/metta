@@ -3,8 +3,8 @@ import platform
 import subprocess
 
 from metta.setup.components.base import SetupModule
-from metta.setup.config import UserType
 from metta.setup.registry import register_module
+from metta.setup.saved_settings import UserType, get_saved_settings
 from metta.setup.utils import info, success, warning
 
 
@@ -16,12 +16,9 @@ class TailscaleSetup(SetupModule):
     def description(self) -> str:
         return "Tailscale VPN for internal network access"
 
-    def is_applicable(self) -> bool:
-        return (
-            platform.system() == "Darwin"
-            and self.config.user_type == UserType.SOFTMAX
-            and self.config.is_component_enabled("tailscale")
-        )
+    def _is_applicable(self) -> bool:
+        saved_settings = get_saved_settings()
+        return platform.system() == "Darwin" and saved_settings.user_type == UserType.SOFTMAX
 
     def check_installed(self) -> bool:
         try:

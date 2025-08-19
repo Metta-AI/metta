@@ -12,9 +12,6 @@ class CoreSetup(SetupModule):
     def description(self) -> str:
         return "Core Python dependencies and virtual environment"
 
-    def is_applicable(self) -> bool:
-        return True
-
     def check_installed(self) -> bool:
         try:
             subprocess.run(["uv", "--version"], check=True, capture_output=True)

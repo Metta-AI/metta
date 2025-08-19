@@ -19,9 +19,6 @@ class FilterRepoSetup(SetupModule):
     def description(self) -> str:
         return "git-filter-repo tool for extracting repository subsets"
 
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("filter-repo")
-
     def check_installed(self) -> bool:
         """Check if git-filter-repo is installed."""
         try:

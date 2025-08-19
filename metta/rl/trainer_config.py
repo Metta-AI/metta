@@ -1,17 +1,19 @@
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, List, Literal, Optional
 
-from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.common.util.config import Config
+from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
+from metta.common.config import Config
+from metta.mettagrid.config.envs import make_arena
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
+from metta.sim.simulation_config import SimulationConfig
 
 
 class OptimizerConfig(Config):
     type: Literal["adam", "muon"] = "adam"
     # Learning rate: Type 2 default chosen by sweep
-    learning_rate: float = Field(default=0.0004573146765703167, gt=0, le=1.0)
+    learning_rate: float = Field(default=0.000457, gt=0, le=1.0)
     # Beta1: Standard Adam default from Kingma & Ba (2014) "Adam: A Method for Stochastic Optimization"
     beta1: float = Field(default=0.9, ge=0, le=1.0)
     # Beta2: Standard Adam default from Kingma & Ba (2014)
@@ -48,31 +50,24 @@ class InitialPolicyConfig(Config):
 
 
 class CheckpointConfig(Config):
-    # Checkpoint every 60s: Balance between recovery granularity and I/O overhead
-    checkpoint_interval: int = Field(default=60, gt=0)
-    # W&B every 5 min: Less frequent due to network overhead and storage costs
-    wandb_checkpoint_interval: int = Field(default=300, ge=0)  # 0 to disable
-    checkpoint_dir: str = Field(default="")
-
-    @model_validator(mode="after")
-    def validate_fields(self) -> "CheckpointConfig":
-        assert self.checkpoint_dir, "checkpoint_dir must be set"
-        return self
+    # Checkpoint every 5 epochs
+    checkpoint_interval: int = Field(default=5, ge=0)
+    # W&B every 5 epochs
+    wandb_checkpoint_interval: int = Field(default=5, ge=0)
+    checkpoint_dir: str | None = Field(default=None)
 
 
-class SimulationConfig(Config):
+class EvaluationConfig(Config):
+    simulations: List[SimulationConfig] = Field(default_factory=list)
+    replay_dir: str | None = Field(default=None)
+
     # Interval at which to evaluate and generate replays: Type 2 arbitrary default
-    evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
-    replay_dir: str = Field(default="")
-    evaluate_remote: bool = Field(default=True)
+    evaluate_interval: int = Field(default=50, ge=0)  # 0 to disable
+    evaluate_remote: bool = Field(default=False)
     evaluate_local: bool = Field(default=True)
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
-
-    @model_validator(mode="after")
-    def validate_fields(self) -> "SimulationConfig":
-        assert self.replay_dir, "replay_dir must be set"
-        return self
+    num_training_tasks: int = Field(default=1)
 
 
 class PPOConfig(Config):
@@ -108,9 +103,9 @@ class PPOConfig(Config):
 
 
 class TorchProfilerConfig(Config):
-    interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable
+    interval_epochs: int = Field(default=0, ge=0)  # 0 to disable
     # Upload location: None disables uploads, supports s3:// or local paths
-    profile_dir: str = Field(default="")
+    profile_dir: str | None = Field(default=None)
 
     @property
     def enabled(self) -> bool:
@@ -118,16 +113,9 @@ class TorchProfilerConfig(Config):
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TorchProfilerConfig":
-        assert self.profile_dir, "profile_dir must be set"
+        if self.enabled:
+            assert self.profile_dir, "profile_dir must be set"
         return self
-
-
-class DualPolicyConfig(Config):
-    enabled: bool = False
-    # Reuse InitialPolicyConfig schema for selecting the NPC checkpoint
-    checkpoint_npc: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
-    # Fraction of agents controlled by the training policy vs the checkpoint NPC
-    training_agents_pct: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
 class TrainerConfig(Config):
@@ -179,11 +167,10 @@ class TrainerConfig(Config):
     # Profile every 10K epochs: Infrequent to minimize overhead
     profiler: TorchProfilerConfig = Field(default_factory=TorchProfilerConfig)
 
-    # Distributed training
-    # Forward minibatch: Type 2 default chosen arbitrarily
-    forward_pass_minibatch_target_size: int = Field(default=4096, gt=0)
-    # Async factor 2: Type 2 default chosen arbitrarily, overlaps computation and communication for efficiency
-    #   (default assumes multiprocessing)
+    # Forward minibatch
+    forward_pass_minibatch_target_size: int = Field(default=2048, gt=0)
+
+    # Async factor 2: overlaps computation and communication for efficiency
     async_factor: int = Field(default=2, gt=0)
 
     # scheduler registry
@@ -192,23 +179,18 @@ class TrainerConfig(Config):
     # Kickstart
     kickstart: KickstartConfig = Field(default_factory=KickstartConfig)
 
-    # Dual-policy training (train against an NPC checkpoint policy)
-    dual_policy: DualPolicyConfig = Field(default_factory=DualPolicyConfig)
-
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware
-    num_workers: int = Field(gt=0)
-    env: str | None = None  # Environment config path
+    rollout_workers: int = Field(default=1, gt=0)
+
     # Default curriculum: Simple environment for initial experiments
-    curriculum: str | None = "/env/mettagrid/curriculum/simple"
-    env_overrides: dict[str, Any] = Field(default_factory=dict)
+    curriculum: CurriculumConfig = env_curriculum(make_arena(num_agents=24))
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
 
-    # Checkpoint configuration
     checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig)
 
     # Simulation configuration
-    simulation: SimulationConfig = Field(default_factory=SimulationConfig)
+    evaluation: Optional[EvaluationConfig] = Field(default=EvaluationConfig())
 
     # Grad mean variance logging
     # Disabled by default: Expensive diagnostic for debugging training instability
@@ -227,26 +209,19 @@ class TrainerConfig(Config):
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
 
-        if not self.curriculum and not self.env:
-            raise ValueError("curriculum or env must be set")
-
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
-        if (
-            self.simulation.evaluate_interval != 0
-            and self.simulation.evaluate_interval < self.checkpoint.checkpoint_interval
-        ):
-            raise ValueError(
-                f"evaluate_interval must be at least as large as checkpoint_interval "
-                f"({self.simulation.evaluate_interval} < {self.checkpoint.checkpoint_interval})"
-            )
-        if (
-            self.simulation.evaluate_interval != 0
-            and self.simulation.evaluate_interval < self.checkpoint.wandb_checkpoint_interval
-        ):
-            raise ValueError(
-                f"evaluate_interval must be at least as large as wandb_checkpoint_interval "
-                f"({self.simulation.evaluate_interval} < {self.checkpoint.wandb_checkpoint_interval})"
-            )
+        if self.evaluation and self.evaluation.evaluate_interval != 0:
+            if self.evaluation.evaluate_interval < self.checkpoint.checkpoint_interval:
+                raise ValueError(
+                    f"evaluate_interval must be at least as large as checkpoint_interval "
+                    f"({self.evaluation.evaluate_interval} < {self.checkpoint.checkpoint_interval})"
+                )
+            if self.evaluation.evaluate_interval < self.checkpoint.wandb_checkpoint_interval:
+                raise ValueError(
+                    f"evaluate_interval must be at least as large as wandb_checkpoint_interval "
+                    f"({self.evaluation.evaluate_interval} < {self.checkpoint.wandb_checkpoint_interval})"
+                )
+
         # Validate that we save policies locally at least as often as we upload to wandb
         if (
             self.checkpoint.wandb_checkpoint_interval != 0
@@ -260,65 +235,3 @@ class TrainerConfig(Config):
             )
 
         return self
-
-    @property
-    def curriculum_or_env(self) -> str:
-        if self.curriculum:
-            return self.curriculum
-        if self.env:
-            return self.env
-        raise ValueError("curriculum or env must be set")
-
-
-def create_trainer_config(
-    cfg: DictConfig,
-) -> TrainerConfig:
-    """Create trainer config from Hydra config.
-
-    Args:
-        cfg: The complete Hydra config (must contain trainer, run, and run_dir)
-    """
-    for key in ["trainer", "run", "run_dir"]:
-        if not hasattr(cfg, key) or cfg[key] is None:
-            raise ValueError(f"cfg must have a '{key}' field")
-
-    trainer_cfg = cfg.trainer
-    if not isinstance(trainer_cfg, DictConfig):
-        raise ValueError("ListConfig is not supported")
-
-    # Convert to dict and let OmegaConf handle all interpolations
-    config_dict = OmegaConf.to_container(trainer_cfg, resolve=True)
-    if not isinstance(config_dict, dict):
-        raise ValueError("trainer config must be a dict")
-
-    # Some keys' defaults in TrainerConfig that are appropriate for multiprocessing but not serial
-    # TODO: This should be handled via EnvConfig instead
-    if cfg.get("vectorization") == "serial":
-        config_dict["async_factor"] = 1
-        config_dict["zero_copy"] = False
-
-    # Set default paths if not provided
-    checkpoint_config = config_dict.setdefault("checkpoint", {})
-    if "checkpoint_dir" not in checkpoint_config:
-        checkpoint_config["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
-
-    # If wandb_checkpoint_interval is None, default to checkpoint_interval
-    if checkpoint_config.get("wandb_checkpoint_interval") is None:
-        checkpoint_interval = checkpoint_config.get("checkpoint_interval", 60)
-        checkpoint_config["wandb_checkpoint_interval"] = checkpoint_interval
-
-    simulation_config = config_dict.setdefault("simulation", {})
-    if "replay_dir" not in simulation_config:
-        simulation_config["replay_dir"] = f"{cfg.run_dir}/replays/"
-
-    # If evaluate_interval is None, default to max of checkpoint intervals
-    # (must be at least as large as both checkpoint_interval and wandb_checkpoint_interval)
-    if simulation_config.get("evaluate_interval") is None:
-        checkpoint_interval = checkpoint_config.get("checkpoint_interval", 60)
-        wandb_checkpoint_interval = checkpoint_config.get("wandb_checkpoint_interval", checkpoint_interval)
-        simulation_config["evaluate_interval"] = max(checkpoint_interval, wandb_checkpoint_interval)
-
-    if "profile_dir" not in config_dict.setdefault("profiler", {}):
-        config_dict["profiler"]["profile_dir"] = f"{cfg.run_dir}/torch_traces"
-
-    return TrainerConfig.model_validate(config_dict)

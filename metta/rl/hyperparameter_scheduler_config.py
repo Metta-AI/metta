@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 
 
 class HyperparameterSchedulerConfig(Config):
