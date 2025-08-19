@@ -15,7 +15,6 @@ import uuid
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple, cast
 
 import numpy as np
-from omegaconf import OmegaConf
 from pydantic import validate_call
 from typing_extensions import override
 
@@ -73,7 +72,13 @@ class MettaGridEnv(MettaGridPufferBase):
         self._last_reset_ts = datetime.datetime.now()
         self._is_training = is_training
 
-        # Initialize with base PufferLib functionality
+        # DesyncEpisodes - when training we want to stagger experience. The first episode
+        # will end early so that the next episode can begin at a different time on each worker.
+        self._early_reset: int | None = None
+        if self._is_training and env_cfg.desync_episodes:
+            self._early_reset = int(np.random.randint(1, env_cfg.game.max_steps))
+
+        # Initialize MettaGridPufferBase
         super().__init__(
             env_cfg,
             render_mode=render_mode,
@@ -82,42 +87,6 @@ class MettaGridEnv(MettaGridPufferBase):
     def _make_episode_id(self) -> str:
         """Generate unique episode ID."""
         return str(uuid.uuid4())
-
-    def _reset_trial(self) -> None:
-        """Reset the environment for a new trial within the same episode."""
-        # Get new task from curriculum (for new trial)
-        self._task = self._curriculum.get_task()
-        task_cfg = self._task.env_cfg()
-        game_config_dict = cast(Dict[str, Any], OmegaConf.to_container(task_cfg.game))
-        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
-
-        # Sync level with task config
-        self._level = task_cfg.game.map_builder.build()
-        self._map_labels = self._level.labels
-
-        # Create new C++ environment for new trial
-        self._c_env_instance = self._create_c_env(game_config_dict, self._current_seed)
-
-        # Reset counters for new trial
-        self._steps = 0
-
-        # Set up new trial tracking
-        self._trial_id = self._make_episode_id()
-        self._reset_at = datetime.datetime.now()
-
-        # CRITICAL: Set buffers once after C++ env creation, before any operations
-        # This establishes shared memory for high-performance training (400k+ SPS)
-        if hasattr(self, "observations") and self._c_env_instance:
-            self._c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
-
-        # Start replay recording for new trial if enabled
-        if self._replay_writer and self._trial_id:
-            self._replay_writer.start_episode(self._trial_id, self)
-
-        # Get initial observations for new trial
-        if self._c_env_instance is None:
-            raise RuntimeError("Core environment not initialized")
-        self._c_env_instance.reset()
 
     @override
     @with_instance_timer("reset")
@@ -133,25 +102,6 @@ class MettaGridEnv(MettaGridPufferBase):
         """
         self.timer.stop("thread_idle")
 
-        # Get new task from curriculum
-        self._task = self._curriculum.get_task()
-        task_cfg = self._task.env_cfg()
-        game_config_dict = cast(Dict[str, Any], OmegaConf.to_container(task_cfg.game))
-        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
-
-        # Sync level with task config
-        self._level = task_cfg.game.map_builder.build()
-        self._map_labels = self._level.labels
-
-        # Recreate C++ environment for new task (after first reset)
-        if self._resets > 0:
-            self._c_env_instance = self._create_c_env(game_config_dict, seed)
-
-            # CRITICAL: Set buffers once after C++ env recreation
-            # This establishes shared memory for high-performance training (400k+ SPS)
-            if hasattr(self, "observations") and self._c_env_instance:
-                self._c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
-
         # Reset counters
         self._steps = 0
         self._resets += 1
@@ -164,22 +114,7 @@ class MettaGridEnv(MettaGridPufferBase):
         if self._replay_writer and self._episode_id:
             self._replay_writer.start_episode(self._episode_id, self)
 
-        # Reset flags
-        self._should_reset = False
-
-        # Create initial C++ environment if this is the first reset
-        if self._resets == 1:
-            self._c_env_instance = self._create_c_env(game_config_dict, seed)
-
-            # CRITICAL: Set buffers once after C++ env creation, before any operations
-            # This establishes shared memory for high-performance training (400k+ SPS)
-            if hasattr(self, "observations") and self._c_env_instance:
-                self._c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
-
-        # Get initial observations from core environment
-        if self._c_env_instance is None:
-            raise RuntimeError("Core environment not initialized")
-        observations, info = self._c_env_instance.reset()
+        observations, info = super().reset(seed)
 
         self.timer.start("thread_idle")
         return observations, info
@@ -212,8 +147,7 @@ class MettaGridEnv(MettaGridPufferBase):
             self._early_reset = None
 
         infos = {}
-
-        if self.terminals.all() or self.truncations.all():
+        if terminals.all() or truncations.all():
             self._process_episode_completion(infos)
 
         self.timer.start("thread_idle")
@@ -240,7 +174,7 @@ class MettaGridEnv(MettaGridPufferBase):
             for n, v in agent_stats.items():
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
         for n, v in infos["agent"].items():
-            infos["agent"][n] = v / self._c_env_instance.num_agents
+            infos["agent"][n] = v / self.num_agents
 
         # Add attributes
         attributes: Dict[str, Any] = {

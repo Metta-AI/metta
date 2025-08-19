@@ -32,17 +32,6 @@ MAP_MODULE = "metta.map.tools"
 #         )
 #         assert exit_status != 0
 
-#     def test_hydra(self):
-#         subprocess.check_call(
-#             [
-#                 "python",
-#                 "-m",
-#                 f"{MAP_MODULE}.gen",
-#                 "--show-mode",
-#                 "ascii",
-#                 "./configs/env/mettagrid/puffer.yaml",
-#             ]
-#         )
 
 #     def test_save(self, tmpdir):
 #         subprocess.check_call(
