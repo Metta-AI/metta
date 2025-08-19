@@ -16,11 +16,13 @@ from pathlib import Path
 from typing import Sequence
 
 import torch
+from pydantic import Field
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicySelectorType, PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config import Tool
+from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.eval_service import evaluate_policy
 from metta.rl.stats import process_policy_evaluator_stats
@@ -49,7 +51,7 @@ class SimTool(Tool):
     # required params:
     simulations: Sequence[SimulationConfig]  # list of simulations to run
     policy_uris: Sequence[str]  # list of policy uris to evaluate
-    replay_dir: str  # where to store replays
+    replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
 
     wandb: WandbConfig = softmax.wandb_config()
 
