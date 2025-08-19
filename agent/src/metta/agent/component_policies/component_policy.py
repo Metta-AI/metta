@@ -1,4 +1,5 @@
 import logging
+from abc import ABC, abstractmethod
 from typing import Optional, Union
 
 import gymnasium as gym
@@ -14,10 +15,10 @@ from metta.common.util.datastruct import duplicates
 logger = logging.getLogger(__name__)
 
 
-class ComponentPolicy(nn.Module):
+class ComponentPolicy(nn.Module, ABC):
     """
-    Base class for component-based policies.
-    Subclasses should override _build_components() to define their architecture.
+    Abstract base class for component-based policies.
+    Subclasses must override _build_components() to define their architecture.
     """
 
     def __init__(
@@ -98,10 +99,10 @@ class ComponentPolicy(nn.Module):
 
         logger.info(f"{self.__class__.__name__} policy initialized with components: {list(self.components.keys())}")
 
+    @abstractmethod
     def _build_components(self) -> dict:
-        """Build the component dictionary. Override this in subclasses to define architecture."""
-        # Default implementation returns empty dict - subclasses should override
-        return {}
+        """Build the component dictionary. Must be implemented by subclasses to define architecture."""
+        pass
 
     def _setup_components(self, component):
         """Setup component connections."""
