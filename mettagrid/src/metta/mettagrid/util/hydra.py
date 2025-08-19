@@ -1,9 +1,48 @@
 import os
 from pathlib import Path
+from typing import Optional, cast
 
-from omegaconf import DictConfig, OmegaConf
+import hydra
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 from metta.common.util.fs import cd_repo_root
+
+
+def config_from_path(
+    config_path: str, overrides: Optional[DictConfig | ListConfig | dict] = None
+) -> DictConfig | ListConfig:
+    """
+    Load configuration from a path, with better error handling
+
+    Args:
+        config_path: Path to the configuration
+        overrides: Optional overrides to apply to the configuration
+
+    Returns:
+        The loaded configuration
+
+    Raises:
+        ValueError: If the config_path is None or if the configuration could not be loaded
+    """
+    if config_path is None:
+        raise ValueError("Config path cannot be None")
+
+    cfg = hydra.compose(config_name=config_path)
+
+    # when hydra loads a config, it "prefixes" the keys with the path of the config file.
+    # We don't want that prefix, so we remove it.
+    if config_path.startswith("/"):
+        config_path = config_path[1:]
+
+    for p in config_path.split("/")[:-1]:
+        cfg = cfg[p]
+
+    if overrides not in [None, {}]:
+        # Allow overrides that are not in the config.
+        OmegaConf.set_struct(cfg, False)
+        cfg = OmegaConf.merge(cfg, overrides)
+        OmegaConf.set_struct(cfg, True)
+    return cast(DictConfig, cfg)
 
 
 def get_test_basic_cfg() -> DictConfig:

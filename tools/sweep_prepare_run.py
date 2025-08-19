@@ -4,7 +4,6 @@
 import logging
 import sys
 
-import hydra
 import numpy as np
 
 if not hasattr(np, "byte"):
@@ -27,7 +26,6 @@ from metta.sweep.wandb_utils import fetch_protein_observations_from_wandb
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 def main(cfg: DictConfig) -> int:
     run_once(lambda: setup_next_run(cfg, logger))
     return 0

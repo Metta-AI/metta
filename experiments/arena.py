@@ -66,8 +66,6 @@ def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
-            evaluate_remote=False,
-            evaluate_local=True,
             simulations=[
                 SimulationConfig(
                     name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
@@ -102,5 +100,4 @@ def evaluate(
     return SimTool(
         simulations=simulations,
         policy_uris=[policy_uri],
-        replay_dir="s3://softmax-public/replays/arena.eval",
     )
