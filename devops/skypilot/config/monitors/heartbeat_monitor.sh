@@ -45,17 +45,10 @@ while true; do
       if [ $((HEARTBEAT_COUNT % 10)) -eq 0 ]; then
         echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
       fi
-
-      # for testing, force exit at 20 beats
-      if [ $HEARTBEAT_COUNT -eq 20 ]; then
-        stop_cluster "Testing heartbeat exit"
-        break
-      fi
     fi
 
     # Check if timeout exceeded
     if [ $((CURRENT_TIME - LAST_HEARTBEAT_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
-
       stop_cluster "No heartbeat for $HEARTBEAT_TIMEOUT seconds"
       break
     fi
