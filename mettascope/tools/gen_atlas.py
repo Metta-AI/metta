@@ -30,7 +30,7 @@ FONTS = [
         "fontName": "plexSans",
         "fontPath": "data/fonts/IBMPlexSans-Regular.ttf",
         "fontSize": 64,
-        "fontCharset": "".join(chr(cp) for cp in range(32, 126)),
+        "fontCharset": "".join(chr(cp) for cp in range(32, 127)),
         "glyphInnerPadding": 2,
     }
 ]
