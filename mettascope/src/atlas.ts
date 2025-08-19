@@ -191,70 +191,6 @@ export async function loadAtlasImage(url: string): Promise<ImageBitmap | null> {
   }
 }
 
-type TextureWrapMode =
-  | WebGLRenderingContext['REPEAT']
-  | WebGLRenderingContext['CLAMP_TO_EDGE']
-  | WebGLRenderingContext['MIRRORED_REPEAT']
-
-type TextureFilterMode =
-  | WebGLRenderingContext['NEAREST']
-  | WebGLRenderingContext['LINEAR']
-  | WebGLRenderingContext['NEAREST_MIPMAP_NEAREST']
-  | WebGLRenderingContext['LINEAR_MIPMAP_NEAREST']
-  | WebGLRenderingContext['NEAREST_MIPMAP_LINEAR']
-  | WebGLRenderingContext['LINEAR_MIPMAP_LINEAR']
-
-type TextureMinFilterMode = TextureFilterMode
-type TextureMagFilterMode = WebGLRenderingContext['NEAREST'] | WebGLRenderingContext['LINEAR']
-
-/* Checks if a minification filter requires mipmaps. */
-function requiresMipmaps(gl: WebGLRenderingContext, minFilter: TextureMinFilterMode): boolean {
-  return (
-    minFilter === gl.NEAREST_MIPMAP_NEAREST ||
-    minFilter === gl.LINEAR_MIPMAP_NEAREST ||
-    minFilter === gl.NEAREST_MIPMAP_LINEAR ||
-    minFilter === gl.LINEAR_MIPMAP_LINEAR
-  )
-}
-
-/* Creates a WebGL texture from an image with specified wrap and filter modes. */
-export function createTexture(
-  gl: WebGLRenderingContext,
-  image: ImageBitmap,
-  wrapS: TextureWrapMode,
-  wrapT: TextureWrapMode,
-  minFilter: TextureMinFilterMode,
-  magFilter: TextureMagFilterMode,
-  generateMipmap: boolean
-): WebGLTexture {
-  // Validate mipmap requirements
-  if (!generateMipmap && requiresMipmaps(gl, minFilter)) {
-    throw new Error(
-      `Minification filter requires mipmaps but generateMipmap is false. ` +
-        `Use NEAREST or LINEAR for minFilter when not generating mipmaps.`
-    )
-  }
-
-  const texture = gl.createTexture()
-  if (!texture) {
-    throw new Error('Failed to create WebGL texture')
-  }
-
-  gl.bindTexture(gl.TEXTURE_2D, texture)
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
-
-  if (generateMipmap) {
-    gl.generateMipmap(gl.TEXTURE_2D)
-  }
-
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrapS)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrapT)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magFilter)
-
-  return texture
-}
-
 /* Loads a complete texture atlas from JSON and image URLs. Texture settings are selected for pixel art. */
 export async function loadAtlas(
   gl: WebGLRenderingContext,
@@ -268,15 +204,19 @@ export async function loadAtlas(
     return null
   }
 
-  const texture = createTexture(
-    gl,
-    image,
-    gl.CLAMP_TO_EDGE, // wrapS
-    gl.CLAMP_TO_EDGE, // wrapT
-    gl.NEAREST, // minFilter
-    gl.NEAREST, // magFilter
-    false // generateMipmap - not needed for pixel art with NEAREST filtering
-  )
+  const texture = gl.createTexture()
+  if (!texture) {
+    throw new Error('Failed to create WebGL texture')
+  }
+
+  gl.bindTexture(gl.TEXTURE_2D, texture)
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
+
+  // gl.generateMipmap(gl.TEXTURE_2D) -- not needed for gl.NEAREST
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 
   return {
     ...atlasData, // Spread all AtlasData properties
