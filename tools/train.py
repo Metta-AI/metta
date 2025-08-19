@@ -22,6 +22,10 @@ from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_conf
 
 logger = logging.getLogger(__name__)
 
+# TODO - app_backend stats uses httpx which manages it's own logs at INFO
+# consider where we really want to put this
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 
 class TrainTool(Tool):
     trainer: TrainerConfig = TrainerConfig()

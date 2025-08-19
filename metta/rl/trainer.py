@@ -22,11 +22,9 @@ from metta.core.monitoring import (
     setup_monitoring,
 )
 from metta.eval.eval_request_config import EvalRewardSummary
-from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
-from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
@@ -183,7 +181,8 @@ def train(
 
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
-        logger.info(f"Initializing DistributedDataParallel on device {device}")
+        if torch_dist_cfg.is_master:
+            logger.info("Initializing DistributedDataParallel")
         torch.distributed.barrier()
         policy = wrap_agent_distributed(policy, device)
         torch.distributed.barrier()
@@ -522,48 +521,48 @@ def train(
                     ]
                     sims.extend(trainer_cfg.evaluation.simulations)
 
-                    evaluate_local = trainer_cfg.evaluation.evaluate_local
-
-                    if trainer_cfg.evaluation.evaluate_remote:
-                        try:
-                            evaluate_policy_remote(
-                                policy_record=latest_saved_policy_record,
-                                simulations=sims,
-                                stats_epoch_id=stats_tracker.stats_epoch_id,
-                                wandb_policy_name=wandb_policy_name,
-                                stats_client=stats_client,
-                                wandb_run=wandb_run,
-                            )
-                        except Exception as e:
-                            logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
-                            logger.error("Falling back to local evaluation")
-                            evaluate_local = True
-
-                    if evaluate_local:
-                        evaluation_results = evaluate_policy(
-                            policy_record=latest_saved_policy_record,
-                            simulations=sims,
-                            device=device,
-                            vectorization=system_cfg.vectorization,
-                            replay_dir=trainer_cfg.evaluation.replay_dir,
-                            stats_epoch_id=stats_tracker.stats_epoch_id,
-                            wandb_policy_name=wandb_policy_name,
-                            policy_store=policy_store,
-                            stats_client=stats_client,
-                            logger=logger,
-                        )
-                        logger.info("Simulation complete")
-                        eval_scores = evaluation_results.scores
-                        category_scores = list(eval_scores.category_scores.values())
-                        if category_scores and latest_saved_policy_record:
-                            latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
-                        if wandb_run is not None and evaluation_results.replay_urls:
-                            upload_replay_html(
-                                replay_urls=evaluation_results.replay_urls,
-                                agent_step=agent_step,
-                                epoch=epoch,
-                                wandb_run=wandb_run,
-                            )
+                    # TODO: (nishad) #dehydration
+                    # evaluate_local = trainer_cfg.evaluation.evaluate_local
+                    # if trainer_cfg.evaluation.evaluate_remote:
+                    #     try:
+                    #         evaluate_policy_remote(
+                    #             policy_record=latest_saved_policy_record,
+                    #             simulations=sims,
+                    #             stats_epoch_id=stats_tracker.stats_epoch_id,
+                    #             wandb_policy_name=wandb_policy_name,
+                    #             stats_client=stats_client,
+                    #             wandb_run=wandb_run,
+                    #             trainer_cfg=trainer_cfg,
+                    #         )
+                    #     except Exception as e:
+                    #         logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
+                    #         logger.error("Falling back to local evaluation")
+                    #         evaluate_local = True
+                    # if evaluate_local:
+                    #     evaluation_results = evaluate_policy(
+                    #         policy_record=latest_saved_policy_record,
+                    #         simulations=sims,
+                    #         device=device,
+                    #         vectorization=system_cfg.vectorization,
+                    #         replay_dir=trainer_cfg.evaluation.replay_dir,
+                    #         stats_epoch_id=stats_tracker.stats_epoch_id,
+                    #         wandb_policy_name=wandb_policy_name,
+                    #         policy_store=policy_store,
+                    #         stats_client=stats_client,
+                    #         logger=logger,
+                    #     )
+                    #     logger.info("Simulation complete")
+                    #     eval_scores = evaluation_results.scores
+                    #     category_scores = list(eval_scores.category_scores.values())
+                    #     if category_scores and latest_saved_policy_record:
+                    #         latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+                    #     if wandb_run is not None and evaluation_results.replay_urls:
+                    #         upload_replay_html(
+                    #             replay_urls=evaluation_results.replay_urls,
+                    #             agent_step=agent_step,
+                    #             epoch=epoch,
+                    #             wandb_run=wandb_run,
+                    #         )
 
                     stats_tracker.update_epoch_tracking(epoch + 1)
 

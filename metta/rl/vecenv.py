@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import Any, Optional
 
@@ -82,19 +81,6 @@ def make_vecenv(
         "is_serial": is_serial,
         "run_dir": run_dir,
     }
-
-    logger.info(
-        "Creating vectorized environment with: \n"
-        + json.dumps(
-            {
-                "num_envs": num_envs,
-                "num_workers": num_workers,
-                "batch_size": batch_size,
-                "vectorization": vectorization,
-            },
-            indent=2,
-        )
-    )
 
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,
     # but the type annotations only allow PufferEnv.

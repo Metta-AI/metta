@@ -9,11 +9,9 @@ Runs eval tasks inside a Docker container.
 """
 
 import asyncio
-import json
 import logging
 import os
 import subprocess
-import tempfile
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -155,7 +153,6 @@ class SimTaskExecutor(AbstractTaskExecutor):
         policy_name = task.policy_name
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
-
         cmd = [
             "uv",
             "run",
@@ -163,43 +160,28 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "experiments.evals.run",
             "--args",
             f"policy_uri=wandb://run/{policy_name}",
-            f"sim_suite={task.sim_suite}",
-            # TODO - move these to evals.run defaults?
+            f"simulations_json={task.attributes.get('simulations')}",
             "--overrides",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
             "push_metrics_to_wandb=true",
         ]
+        self._logger.info(f"Running command: {' '.join(cmd)}")
 
-        with tempfile.TemporaryDirectory(prefix=f"metta-policy-evaluator-{task.id}", dir="/tmp") as task_tmp_dir:
-            if task.sim_suite_config:
-                path = os.path.join(task_tmp_dir, "sim_suite_config.json")
-                with open(path, "w") as f:
-                    json.dump(task.sim_suite_config, f)
-                cmd.append(f"sim_suite_config_path={path}")
+        result = self._run_cmd_from_versioned_checkout(
+            cmd,
+            "sim.py failed with exit code",
+        )
 
-            if task.trainer_task:
-                path = os.path.join(task_tmp_dir, "trainer_task.json")
-                with open(path, "w") as f:
-                    json.dump(task.trainer_task, f)
-                cmd.append(f"trainer_task_path={path}")
+        self._upload_logs_to_s3(str(task.id), result)
 
-            self._logger.info(f"Running command: {' '.join(cmd)}")
+        self._logger.info(f"Simulation completed successfully: {result.stdout}")
 
-            result = self._run_cmd_from_versioned_checkout(
-                cmd,
-                "sim.py failed with exit code",
-            )
-
-            self._upload_logs_to_s3(str(task.id), result)
-
-            self._logger.info(f"Simulation completed successfully: {result.stdout}")
-
-            return TaskResult(
-                success=result.returncode == 0,
-                stdout_log_path=f"{SOFTMAX_S3_BASE}/{self._stdout_log_path(str(task.id))}",
-                stderr_log_path=f"{SOFTMAX_S3_BASE}/{self._stderr_log_path(str(task.id))}",
-            )
+        return TaskResult(
+            success=result.returncode == 0,
+            stdout_log_path=f"{SOFTMAX_S3_BASE}/{self._stdout_log_path(str(task.id))}",
+            stderr_log_path=f"{SOFTMAX_S3_BASE}/{self._stderr_log_path(str(task.id))}",
+        )
 
 
 class EvalTaskWorker:

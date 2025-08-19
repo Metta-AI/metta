@@ -271,8 +271,7 @@ class StatsClient:
     def create(stats_server_uri: str) -> Optional["StatsClient"]:
         machine_token = get_machine_token(stats_server_uri)
         if machine_token is None:
-            logger.warning(f"No machine token found for {stats_server_uri}, stats logging disabled")
-            return None
-        stats_client = cls(backend_url=stats_server_uri, machine_token=machine_token)
-        stats_client.validate_authenticated()
+            raise NotAuthenticatedError(f"No machine token found for {stats_server_uri}")
+        stats_client = StatsClient(backend_url=stats_server_uri, machine_token=machine_token)
+        stats_client._validate_authenticated()
         return stats_client
