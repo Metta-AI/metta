@@ -2,7 +2,6 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
-import softmax.softmax as softmax
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
@@ -67,7 +66,6 @@ def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
-            replay_dir=f"s3://softmax-public/replays/{run}",
             evaluate_remote=False,
             evaluate_local=True,
             simulations=[
@@ -83,7 +81,6 @@ def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
     return TrainTool(
         trainer=trainer_cfg,
-        wandb=softmax.wandb_config(run=run),
         run=run,
     )
 
@@ -94,8 +91,7 @@ def play(env: Optional[EnvConfig] = None) -> PlayTool:
         sim=SimulationConfig(
             env=eval_env,
             name="arena",
-        ),
-        wandb=softmax.wandb_config(run="arena.play"),
+        )
     )
 
 
@@ -107,5 +103,4 @@ def evaluate(
         simulations=simulations,
         policy_uris=[policy_uri],
         replay_dir="s3://softmax-public/replays/arena.eval",
-        wandb=softmax.wandb_config(run="arena.eval"),
     )

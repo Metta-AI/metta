@@ -6,15 +6,16 @@ import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.util.tool import Tool
-from metta.common.wandb.wandb_context import WandbConfig, WandbConfigOff
+from metta.common.wandb.wandb_context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
+from softmax import softmax
 
 logger = logging.getLogger(__name__)
 
 
 class PlayTool(Tool):
-    wandb: WandbConfig = WandbConfigOff()
+    wandb: WandbConfig = softmax.wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
     selector_type: str = "latest"
