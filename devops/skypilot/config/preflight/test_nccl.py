@@ -1057,7 +1057,7 @@ def main():
             test_results.append((f"Single GPU Test [Rank {rank}]", "✗ FAILED"))
             all_passed = False
     else:
-        test_results.append((f"Single GPU Test [Rank {rank}]", "⚠ FAiLED (No CUDA)"))
+        test_results.append((f"Single GPU Test [Rank {rank}]", "⚠ FAILED (No CUDA)"))
         all_passed = False
 
     # NCCL communication test
