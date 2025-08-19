@@ -82,9 +82,6 @@ def make_vecenv(
         "run_dir": run_dir,
     }
 
-    # Pass through additional kwargs (e.g., dual_policy_* flags) into env kwargs so child processes receive them
-    env_kwargs.update(kwargs)
-
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,
     # but the type annotations only allow PufferEnv.
     vecenv = pufferlib.vector.make(
@@ -94,6 +91,7 @@ def make_vecenv(
         num_envs=num_envs,
         num_workers=num_workers,
         batch_size=batch_size or num_envs,
+        **kwargs,
     )
 
     return vecenv
