@@ -16,7 +16,7 @@ def environment(num_agents: int):
     random.seed(seed)
     np.random.seed(seed)
 
-    # Map from num_agents to expected_hash (updated for RandomMapBuilderConfig with render_mode="human")
+    # Map from num_agents to expected_hash (updated for RandomMapBuilder.Config with render_mode="human")
     grid_hash_map = {
         1: 10803749541391338082,
         2: 2514094204136141655,

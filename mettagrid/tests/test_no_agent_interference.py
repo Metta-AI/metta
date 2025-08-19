@@ -2,6 +2,7 @@
 import numpy as np
 import pytest
 
+from metta.map.mapgen import MapGen
 from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.util.actions import get_agent_position
@@ -18,6 +19,7 @@ def no_agent_interference_config():
     cfg.game.obs_height = 5
 
     # Create a custom map with agents at adjacent positions
+    assert isinstance(cfg.game.map_builder, MapGen.Config)
     cfg.game.map_builder.width = 2
     cfg.game.map_builder.height = 2
     cfg.game.map_builder.seed = 42
@@ -37,6 +39,7 @@ def observation_test_config():
     cfg.game.obs_height = 5
 
     # Create a simple level with two agents close to each other
+    assert isinstance(cfg.game.map_builder, MapGen.Config)
     cfg.game.map_builder.width = 5
     cfg.game.map_builder.height = 5
     cfg.game.map_builder.seed = 42
@@ -171,6 +174,7 @@ class TestNoAgentInterference:
         cfg.game.no_agent_interference = True  # Enable ghost mode
 
         # Create a simple level
+        assert isinstance(cfg.game.map_builder, MapGen.Config)
         cfg.game.map_builder.width = 3
         cfg.game.map_builder.height = 3
         cfg.game.map_builder.border_width = 0
@@ -258,6 +262,7 @@ def _test_ghost_movement_with_interference_flag(no_agent_interference: bool):
     cfg.game.no_agent_interference = no_agent_interference
 
     # Create a custom map with agents at adjacent positions
+    assert isinstance(cfg.game.map_builder, MapGen.Config)
     cfg.game.map_builder.width = 2
     cfg.game.map_builder.height = 2
     cfg.game.map_builder.seed = 42
@@ -359,6 +364,7 @@ def _test_observation_filtering(no_agent_interference: bool):
     cfg.game.obs_height = 5
 
     # Create a simple level with two agents close to each other
+    assert isinstance(cfg.game.map_builder, MapGen.Config)
     cfg.game.map_builder.width = 5
     cfg.game.map_builder.height = 5
     cfg.game.map_builder.seed = 42
@@ -434,6 +440,7 @@ def _test_ghost_add_object():
     cfg.game.no_agent_interference = True  # Enable ghost mode
 
     # Create a simple level
+    assert isinstance(cfg.game.map_builder, MapGen.Config)
     cfg.game.map_builder.width = 3
     cfg.game.map_builder.height = 3
     cfg.game.map_builder.border_width = 0
