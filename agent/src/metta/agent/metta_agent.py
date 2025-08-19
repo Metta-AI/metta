@@ -346,16 +346,12 @@ class MettaAgent(nn.Module):
                 del state["policy"]
                 log_on_master("Removed circular reference: state['policy'] = state")
 
-            # Try to determine the agent type from state
-            agent_type = state.get("cfg", "fast")  # Default to "fast" if no cfg
-            if isinstance(agent_type, str) and agent_type in agents:
-                PolicyClass = agents[agent_type]
-            else:
-                # Default to Fast ComponentPolicy for old checkpoints
-                from metta.agent.component_policies.fast import Fast
+            # Default to Fast ComponentPolicy for old checkpoints
+            # (Old checkpoints don't have the agent type stored in a way we can easily retrieve)
+            from metta.agent.component_policies.fast import Fast
 
-                PolicyClass = Fast
-                logger.info("Could not determine agent type from checkpoint, defaulting to Fast")
+            PolicyClass = Fast
+            logger.info("Converting old checkpoint to Fast agent")
 
             # Create the specific policy class without calling __init__ to avoid rebuilding components
             policy = PolicyClass.__new__(PolicyClass)
