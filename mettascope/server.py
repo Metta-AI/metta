@@ -242,7 +242,6 @@ def make_app(cfg: DictConfig):
 
             await send_message(type="replay_step", replay_step={"step": current_step, "objects": grid_objects})
 
-            # If the visual overlay is enabled, send the current agent/layer grid in addition to every replay step.
             if overlay_enabled:
                 await send_tensor_grid()
 
