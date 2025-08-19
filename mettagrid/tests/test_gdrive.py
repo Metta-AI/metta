@@ -4,7 +4,7 @@ from pathlib import Path
 # Add the src directory to the path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from metta.mettagrid.util.file import write_data, read, exists, http_url
+from metta.mettagrid.util.file import exists, http_url, read, write_data
 
 
 def test_gdrive_write_read_file():
@@ -32,8 +32,8 @@ def test_gdrive_write_read_folder():
 def test_gdrive_exists():
     """Test exists() function for Google Drive files"""
     file_id = "your_test_file_id"
-    assert exists(f"gdrive://file/{file_id}") == True
-    assert exists("gdrive://file/nonexistent_id") == False
+    assert exists(f"gdrive://file/{file_id}")
+    assert not exists("gdrive://file/nonexistent_id")
 
 
 def test_gdrive_http_url():

@@ -7,30 +7,28 @@ Use EFS on AWS for shared filesystems.
 
 from __future__ import annotations
 
+import io
 import logging
 import os
+import re
 import shutil
 import tempfile
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Union
+from typing import Literal, Optional, Union
 from urllib.parse import urlparse
 
 import boto3
 import wandb
 from botocore.exceptions import ClientError, NoCredentialsError
-from wandb.errors import CommError
-
-from googleapiclient.discovery import build as gdrive_build
-from googleapiclient.errors import HttpError
+from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
-from googleapiclient.http import MediaIoBaseUpload, MediaFileUpload
-import re
-import io
-from typing import Literal, Optional
+from googleapiclient.discovery import build as gdrive_build
+from googleapiclient.errors import HttpError
+from googleapiclient.http import MediaFileUpload, MediaIoBaseUpload
+from wandb.errors import CommError
 
 # --------------------------------------------------------------------------- #
 #  Globals                                                                     #

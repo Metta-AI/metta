@@ -14,6 +14,7 @@ sys.path.extend(
 )
 
 from codeclip.file import get_context
+
 from metta.mettagrid.util.file import write_data
 
 # Simple fileset definitions
