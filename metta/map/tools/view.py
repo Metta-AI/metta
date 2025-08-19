@@ -1,6 +1,6 @@
 import logging
 
-from metta.common.config import Tool
+from metta.common.config.tool import Tool
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
 

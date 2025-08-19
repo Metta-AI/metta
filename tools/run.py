@@ -12,7 +12,8 @@ from omegaconf import OmegaConf
 from pydantic import validate_call
 from typing_extensions import TypeVar
 
-from metta.common.config import Config, Tool
+from metta.common.config.config import Config
+from metta.common.config.tool import Tool
 from metta.common.util.logging_helpers import init_logging
 from metta.rl.system_config import seed_everything
 

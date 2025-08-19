@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 
 class TrainTool(Tool):
     trainer: TrainerConfig = TrainerConfig()
-    wandb: WandbConfig = softmax.wandb_config()
+    wandb: WandbConfig
     policy_architecture: Optional[Any] = None
     run: str
     run_dir: Optional[str] = None
@@ -43,6 +43,9 @@ class TrainTool(Tool):
         # Set run_dir based on run name if not explicitly set
         if self.run_dir is None:
             self.run_dir = f"{self.system.data_dir}/{self.run}"
+
+        if self.wandb is None:
+            self.wandb = softmax.wandb_config(self.run)
 
         # Set policy_uri if not set
         if not self.policy_uri:
