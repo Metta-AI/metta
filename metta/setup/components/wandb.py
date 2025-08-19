@@ -1,6 +1,7 @@
 import os
 import subprocess
 
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.setup.components.base import SetupModule
 from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
@@ -81,3 +82,33 @@ class WandbSetup(SetupModule):
             return None
         except Exception:
             return None
+
+    def to_config_settings(self) -> dict[str, str | bool]:
+        saved_settings = get_saved_settings()
+        if saved_settings.user_type.is_softmax:
+            return dict(
+                enabled=True,
+                project=METTA_WANDB_PROJECT,
+                entity=METTA_WANDB_ENTITY,
+            )
+        if self.is_enabled():
+            try:
+                import wandb
+
+                # TODO: let users specify their intended entity and project as part of configuration
+                return dict(
+                    enabled=True,
+                    entity=wandb.Api().default_entity or "",
+                    project="",
+                )
+            except Exception:
+                return dict(
+                    enabled=True,
+                    project="",
+                    entity="",
+                )
+        return dict(
+            enabled=False,
+            project="",
+            entity="",
+        )

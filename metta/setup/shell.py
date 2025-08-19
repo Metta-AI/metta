@@ -1,6 +1,5 @@
 import importlib.util
 import sys
-from functools import partial
 
 import IPython
 from omegaconf import DictConfig
@@ -10,15 +9,10 @@ from metta.common.util.fs import get_repo_root
 from metta.common.wandb.wandb_context import WandbRun
 from metta.setup.utils import header, info, success, warning
 
-sys.path.insert(0, str(get_repo_root() / "tools"))
-from validate_config import load_and_print_config  # type: ignore
-
 __name__ = "__ipython__"
 
 REPO_ROOT = get_repo_root()
 CONFIGS_DIR = REPO_ROOT / "configs"
-
-load_cfg = partial(load_and_print_config, exit_on_failure=False, print_cfg=False)
 
 from metta.agent.policy_store import PolicyStore  # noqa
 
