@@ -10,7 +10,7 @@ from httpx import ASGITransport, AsyncClient
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator, FixedScaler
-from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker
+from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker, TaskResult
 from metta.app_backend.routes.eval_task_routes import (
     TaskCreateRequest,
     TaskFilterParams,
@@ -24,15 +24,15 @@ class SuccessTaskExecutor(AbstractTaskExecutor):
     def __init__(self):
         pass
 
-    async def execute_task(self, task: TaskResponse) -> None:
-        pass
+    async def execute_task(self, task: TaskResponse) -> TaskResult:
+        return TaskResult(success=True)
 
 
 class FailureTaskExecutor(AbstractTaskExecutor):
     def __init__(self):
         pass
 
-    async def execute_task(self, task: TaskResponse) -> None:
+    async def execute_task(self, task: TaskResponse) -> TaskResult:
         raise Exception("Failed task")
 
 
