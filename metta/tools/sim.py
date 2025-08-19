@@ -20,7 +20,7 @@ import torch
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicySelectorType, PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.common.util.tool import Tool
+from metta.common.config import Tool
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.eval_service import evaluate_policy
 from metta.rl.stats import process_policy_evaluator_stats
