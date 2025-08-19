@@ -1,10 +1,10 @@
 defaults:
-  - sim_suite
+  - arena  # Inherit from arena to get all 5 arena environments
   - _self_
 
 name: sweep_eval
 
-simulations:
-  simple:
-    env: env/mettagrid/arena/basic_easy_shaped
-# selector_type: "latest"
+# Override evaluation parameters for sweep evaluations
+# num_episodes will be overridden by phase configuration (7/20/50)
+max_time_s: 240  # 4 minutes per simulation max
+num_episodes: 7  # Default, will be overridden by phases
