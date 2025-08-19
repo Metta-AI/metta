@@ -6,17 +6,16 @@ supporting both vanilla PyTorch models and ComponentPolicy architectures.
 """
 
 # PyTorch implementations (vanilla models)
-from metta.agent.pytorch.example import Example
-from metta.agent.pytorch.fast import Fast as PyTorchFast
-from metta.agent.pytorch.latent_attn_med import LatentAttnMed as PyTorchLatentAttnMed
-from metta.agent.pytorch.latent_attn_small import LatentAttnSmall as PyTorchLatentAttnSmall
-from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatentAttnTiny
-
 # ComponentPolicy implementations (modular architecture)
 from metta.agent.component_policies.fast import Fast as ComponentFast
 from metta.agent.component_policies.latent_attn_med import LatentAttnMed as ComponentLatentAttnMed
 from metta.agent.component_policies.latent_attn_small import LatentAttnSmall as ComponentLatentAttnSmall
 from metta.agent.component_policies.latent_attn_tiny import LatentAttnTiny as ComponentLatentAttnTiny
+from metta.agent.pytorch.example import Example
+from metta.agent.pytorch.fast import Fast as PyTorchFast
+from metta.agent.pytorch.latent_attn_med import LatentAttnMed as PyTorchLatentAttnMed
+from metta.agent.pytorch.latent_attn_small import LatentAttnSmall as PyTorchLatentAttnSmall
+from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatentAttnTiny
 
 # PyTorch models - vanilla implementations
 pytorch_agents = {

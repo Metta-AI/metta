@@ -10,7 +10,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.agent_mapper import pytorch_agents, component_agents
+from metta.agent.agent_mapper import component_agents, pytorch_agents
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
@@ -113,9 +113,7 @@ class MettaAgent(nn.Module):
                 policy = AgentClass(env=env, **config_dict)
                 logger.info(f"Using PyTorch model: {model_name}")
             else:
-                raise ValueError(
-                    f"Unknown PyTorch model: '{model_name}'. Available: {list(pytorch_agents.keys())}"
-                )
+                raise ValueError(f"Unknown PyTorch model: '{model_name}'. Available: {list(pytorch_agents.keys())}")
         elif agent_name in component_agents:
             # Default to ComponentPolicy (no prefix needed)
             AgentClass = component_agents[agent_name]
