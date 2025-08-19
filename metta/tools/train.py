@@ -128,7 +128,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         run=cfg.run,
         run_dir=run_dir,
         system_cfg=cfg.system,
-        agent_cfg=OmegaConf.create({"agent_type": cfg.policy_architecture}) if isinstance(cfg.policy_architecture, str) else cfg.policy_architecture,
+        agent_cfg=cfg.policy_architecture,  # Pass string directly - MettaAgent handles it
         device=torch.device(cfg.system.device),
         trainer_cfg=cfg.trainer,
         wandb_run=wandb_run,
