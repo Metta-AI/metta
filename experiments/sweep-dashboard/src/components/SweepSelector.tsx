@@ -65,7 +65,7 @@ export function SweepSelector({ onSelectSweep }: SweepSelectorProps) {
             <div style={{ marginBottom: '30px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                 <h3 style={{ fontSize: '16px', fontWeight: 500 }}>
-                  Available Sweeps ({sweepsData.count})
+                  Available Sweep Groups ({sweepsData.count})
                 </h3>
                 {sweepsData.entity && sweepsData.project && (
                   <span style={{ fontSize: '12px', color: '#6c757d' }}>
