@@ -11,14 +11,14 @@ from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
-from softmax import softmax
+from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
 
 # TODO: This job can be replaced with sim now that Simulations create replays
 class ReplayTool(Tool):
-    wandb: WandbConfig = softmax.wandb_config()
+    wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
     selector_type: str = "latest"

@@ -9,23 +9,19 @@ from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
-from softmax import softmax
+from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
 
 class PlayTool(Tool):
-    wandb: WandbConfig | None = None
+    wandb: WandbConfig = auto_wandb_config()
     sim: SimulationConfig
     policy_uri: str | None = None
     selector_type: str = "latest"
     replay_dir: str | None = None
     stats_dir: str | None = None
     open_browser_on_start: bool = True
-
-    def model_post_init(self, __context):
-        if self.wandb is None:
-            self.wandb = softmax.wandb_config()
 
     @property
     def effective_replay_dir(self) -> str:

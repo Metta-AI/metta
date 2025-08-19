@@ -27,7 +27,7 @@ from metta.common.wandb.wandb_context import WandbConfig
 from metta.eval.eval_service import evaluate_policy
 from metta.rl.stats import process_policy_evaluator_stats
 from metta.sim.simulation_config import SimulationConfig
-from softmax import softmax
+from metta.tools.utils.auto_config import auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ class SimTool(Tool):
     policy_uris: Sequence[str]  # list of policy uris to evaluate
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
 
-    wandb: WandbConfig = softmax.wandb_config()
+    wandb: WandbConfig = auto_wandb_config()
 
     selector_type: PolicySelectorType = "top"
     stats_dir: str | None = None  # The (local) directory where stats should be stored

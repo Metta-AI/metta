@@ -5,6 +5,7 @@ from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.constants import DEV_STATS_SERVER_URI, PROD_STATS_SERVER_URI
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
+from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import info, success, warning
 
 
@@ -62,6 +63,12 @@ class ObservatoryKeySetup(SetupModule):
             return "@stem.ai"
 
         return None
+
+    def to_config_settings(self) -> dict[str, str | None]:
+        if self.is_enabled() and get_saved_settings().user_type.is_softmax:
+            return {"stats_server_uri": PROD_STATS_SERVER_URI}
+
+        return {"stats_server_uri": None}
 
 
 @register_module

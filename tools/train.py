@@ -25,10 +25,12 @@ logger = logging.getLogger(__name__)
 
 class TrainTool(Tool):
     trainer: TrainerConfig = TrainerConfig()
-    wandb: WandbConfig = WandbConfig.Unconfigured()
+    wandb: WandbConfig
     policy_architecture: Optional[Any] = None
     run: str
     run_dir: Optional[str] = None
+
+    # Stats server configuration
     stats_server_uri: Optional[str] = auto_stats_server_uri()
 
     # Policy configuration
@@ -42,6 +44,9 @@ class TrainTool(Tool):
         if self.run_dir is None:
             self.run_dir = f"{self.system.data_dir}/{self.run}"
 
+        if self.wandb is None:
+            self.wandb = auto_wandb_config(self.run)
+
         # Set policy_uri if not set
         if not self.policy_uri:
             self.policy_uri = f"file://{self.run_dir}/checkpoints"
@@ -52,9 +57,6 @@ class TrainTool(Tool):
 
         if self.policy_architecture is None:
             self.policy_architecture = yaml.safe_load(open("configs/agent/fast.yaml"))
-
-        if self.wandb == WandbConfig.Unconfigured():
-            self.wandb = auto_wandb_config(self.run)
 
     def invoke(self) -> int:
         assert self.run_dir is not None
@@ -147,16 +149,22 @@ def _configure_vecenv_settings(cfg: TrainTool) -> None:
         return
 
     ideal_workers = (os.cpu_count() // 2) // torch.cuda.device_count()
-    cfg.trainer.rollout_workers = max(1, ideal_workers)
+    cfg.trainer.rollout_workers = min(1, ideal_workers)
 
 
 def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
+    if cfg.trainer.evaluation is None:
+        return None
+
+    if not cfg.trainer.evaluation.replay_dir:
+        cfg.trainer.evaluation.replay_dir = f"s3://softmax-public/replays/{cfg.run}"
+
     stats_client: StatsClient | None = None
     if cfg.stats_server_uri is not None:
         stats_client = StatsClient.create(cfg.stats_server_uri)
 
     # Determine git hash for remote simulations
-    if cfg.trainer.evaluation and cfg.trainer.evaluation.evaluate_remote:
+    if cfg.trainer.evaluation.evaluate_remote:
         if not stats_client:
             cfg.trainer.evaluation.evaluate_remote = False
             logger.info("Not connected to stats server, disabling remote evaluations")
