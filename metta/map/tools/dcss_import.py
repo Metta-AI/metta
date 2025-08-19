@@ -8,7 +8,7 @@ from pathlib import Path
 
 from omegaconf import OmegaConf
 
-from metta.common.config.tool import Tool
+from metta.common.config import Tool
 from metta.map.config import scenes_root
 from metta.map.scene import SceneConfig
 from metta.map.utils.make_scene_config import (
