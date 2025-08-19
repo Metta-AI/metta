@@ -89,32 +89,24 @@ class LSTM(LayerBase):
         hidden_size = self._nn_params.get("hidden_size", self.hidden_size)
         self._out_tensor_shape = [hidden_size]
 
-        self.lstm = nn.LSTM(self._in_tensor_shapes[0][0], **self._nn_params)
-
-        for name, param in self.lstm.named_parameters():
-            if "bias" in name:
-                nn.init.constant_(param, 1)  # Joseph originally had this as 0
-            elif "weight" in name:
-                nn.init.orthogonal_(param, 1)  # torch's default is uniform
-
         if self.reset_in_training:
             # NOTE: this only gets called on init so we cannot use this flag on a rehydrated agent if it wasn't set
             # to true on init. If we want this functionality later then we can create a method to set cells after
             # rehydration.
             self.cells = nn.ModuleList()
             input_size = self._in_tensor_shapes[0][0]
-            for i in range(self.num_layers):
+            for _ in range(self.num_layers):
                 cell = nn.LSTMCell(input_size, self.hidden_size)
-                cell.weight_ih = nn.Parameter(getattr(self.lstm, f"weight_ih_l{i}"))
-                cell.weight_hh = nn.Parameter(getattr(self.lstm, f"weight_hh_l{i}"))
-                cell.bias_ih = nn.Parameter(getattr(self.lstm, f"bias_ih_l{i}"))
-                cell.bias_hh = nn.Parameter(getattr(self.lstm, f"bias_hh_l{i}"))
-
                 self.cells.append(cell)
                 input_size = self.hidden_size  # For subsequent layers, input size is hidden size
+        else:
+            self.lstm = nn.LSTM(self._in_tensor_shapes[0][0], **self._nn_params)
 
-                # delete self.lstm
-                del self.lstm
+            for name, param in self.lstm.named_parameters():
+                if "bias" in name:
+                    nn.init.constant_(param, 1)  # Joseph originally had this as 0
+                elif "weight" in name:
+                    nn.init.orthogonal_(param, 1)  # torch's default is uniform
 
         return None
 
@@ -161,6 +153,8 @@ class LSTM(LayerBase):
         if self.reset_in_training and TT != 1:
             latent = rearrange(latent, "(b t) h -> b t h", b=B, t=TT)
             hidden, (h_n, c_n) = self._forward_cell(latent, h_0, c_0, reset_mask, B, TT)
+        elif self.reset_in_training and TT == 1:
+            hidden, (h_n, c_n) = self._cell_inference(latent, h_0, c_0)
         else:
             latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
             hidden, (h_n, c_n) = self.lstm(latent, (h_0, c_0))
@@ -198,6 +192,20 @@ class LSTM(LayerBase):
             h_i, c_i = h_0[i], c_0[i]
             h_i = h_i.masked_fill(reset_mask_t, 0)
             c_i = c_i.masked_fill(reset_mask_t, 0)
+            h_n_i, c_n_i = cell(layer_input, (h_i, c_i))
+            h_n_layers.append(h_n_i)
+            c_n_layers.append(c_n_i)
+            layer_input = h_n_i
+        h_n = torch.stack(h_n_layers)
+        c_n = torch.stack(c_n_layers)
+
+        return layer_input, (h_n, c_n)
+
+    def _cell_inference(self, latent, h_0, c_0):
+        h_n_layers, c_n_layers = [], []
+        layer_input = latent
+        for i, cell in enumerate(self.cells):
+            h_i, c_i = h_0[i], c_0[i]
             h_n_i, c_n_i = cell(layer_input, (h_i, c_i))
             h_n_layers.append(h_n_i)
             c_n_layers.append(c_n_i)
