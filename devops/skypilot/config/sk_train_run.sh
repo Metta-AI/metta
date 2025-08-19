@@ -118,10 +118,10 @@ shutdown() {
     echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
 
     # First, signal all worker nodes to start shutdown
-    if [[ "$IS_MASTER" == "true" ]]; then
+    if [[ "$IS_MASTER" == "true" ]] && [[ "$TOTAL_NODES" -gt 1 ]]; then
       echo "$termination_reason" > "$CLUSTER_STOP_FILE"
       echo "[SHUTDOWN] Signaled all nodes to begin shutdown"
-      sleep 5  # Give workers time to receive the signal
+      sleep 20 # Give workers time to shut down
     fi
 
     # Send SIGTERM to the process group
@@ -152,15 +152,8 @@ shutdown() {
       echo "[SHUTDOWN] Process $CMD_PID already exited"
     fi
   fi
-
-  # Master waits for workers to disconnect
-  if [[ "$IS_MASTER" == "true" ]] && [[ "$TOTAL_NODES" -gt 1 ]]; then
-    echo "[SHUTDOWN] Master waiting for workers to disconnect..."
-    sleep 10  # Give workers time to shut down cleanly
-  fi
-
-  sleep 10
 }
+
 trap shutdown INT TERM HUP
 
 start_monitors() {
