@@ -1,5 +1,3 @@
-import { Vec2f } from './vector_math.js'
-
 /**
  * Type definition for atlas data loaded from JSON.
  *
@@ -102,8 +100,8 @@ export interface AtlasData {
 
 /* Complete atlas bundle containing fonts, images, and the texture data. */
 export interface Atlas extends AtlasData {
-  texture: WebGLTexture // The WebGL texture containing all sprites
-  size: Vec2f // Dimensions of the texture in pixels
+  atlasHeight: number // atlas image height - typically 8192 pixels
+  atlasWidth: number // atlas image width - typically 8192 pixels
   margin: number // Pixel margin added around sprites to prevent texture bleeding
 }
 
@@ -111,8 +109,6 @@ export interface Atlas extends AtlasData {
 export function validateAtlas(atlas: Atlas): boolean {
   return (
     typeof atlas.margin === 'number' &&
-    atlas.size instanceof Vec2f &&
-    atlas.texture instanceof WebGLTexture &&
     typeof atlas.buildHash === 'string' &&
     typeof atlas.images === 'object' &&
     Object.values(atlas.images).every(isSpriteBounds) &&
@@ -197,33 +193,37 @@ export async function loadAtlas(
   jsonUrl: string,
   imageUrl: string,
   margin: number = 4
-): Promise<Atlas | null> {
+): Promise<{ atlas: Atlas; texture: WebGLTexture } | null> {
   const [atlasData, image] = await Promise.all([loadAtlasJson(jsonUrl), loadAtlasImage(imageUrl)])
 
   if (!atlasData || !image) {
     return null
   }
 
+  // Create WebGL texture
   const texture = gl.createTexture()
   if (!texture) {
-    throw new Error('Failed to create WebGL texture')
+    console.error('Failed to create WebGL texture')
+    return null
   }
 
-  gl.bindTexture(gl.TEXTURE_2D, texture)
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
+  // Generate mipmaps
+  gl.generateMipmap(gl.TEXTURE_2D)
 
-  // gl.generateMipmap(gl.TEXTURE_2D) -- not needed for gl.NEAREST
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+  // Set texture parameters
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 
-  return {
-    ...atlasData, // Spread all AtlasData properties
-    texture,
-    size: new Vec2f(image.width, image.height),
+  const atlas: Atlas = {
+    ...atlasData,
     margin,
+    atlasWidth: image.width,
+    atlasHeight: image.height,
   }
+
+  return { atlas, texture }
 }
 
 /* Retrieves sprite bounds and UV coordinates for a named sprite in the atlas. */
@@ -249,16 +249,15 @@ export function getSpriteBounds(
   const [x, y, width, height] = spriteData
   const m = atlas.margin
 
-  // Return the actual sprite bounds without including margin in width/height
   return {
     x: x + m,
     y: y + m,
     width: width,
     height: height,
-    u0: (x + m) / atlas.size.x(),
-    v0: (y + m) / atlas.size.y(),
-    u1: (x + width - m) / atlas.size.x(),
-    v1: (y + height - m) / atlas.size.y(),
+    u0: (x + m) / atlas.atlasWidth,
+    v0: (y + m) / atlas.atlasHeight,
+    u1: (x + width - m) / atlas.atlasWidth,
+    v1: (y + height - m) / atlas.atlasHeight,
   }
 }
 
@@ -278,8 +277,8 @@ export function getWhiteUV(atlas: Atlas): { u: number; v: number } | null {
 
   const [x, y, width, height] = whiteSprite
   return {
-    u: (x + width / 2) / atlas.size.x(),
-    v: (y + height / 2) / atlas.size.y(),
+    u: (x + width / 2) / atlas.atlasWidth,
+    v: (y + height / 2) / atlas.atlasHeight,
   }
 }
 

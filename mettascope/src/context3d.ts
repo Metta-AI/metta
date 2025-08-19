@@ -57,6 +57,8 @@ export class Context3d {
   public dpr = 1
   public atlas: Atlas | null = null
 
+  private texture: WebGLTexture | null = null // The WebGL texture containing all sprites
+
   // WebGL rendering state
   private shaderProgram: WebGLProgram | null = null
 
@@ -205,12 +207,13 @@ export class Context3d {
       this.dpr = 2.0 // Retina display only, we don't support other DPI scales.
     }
 
-    this.atlas = await loadAtlas(this.gl, atlasJsonUrl, atlasImageUrl)
-
-    if (!this.atlas) {
+    const result = await loadAtlas(this.gl, atlasJsonUrl, atlasImageUrl)
+    if (!result || !result.atlas || !result.texture) {
       this.fail('Failed to load atlas')
       return false
     }
+    this.atlas = result.atlas
+    this.texture = result.texture
 
     // Create and compile shaders
     const vertexShader = this.createShader(this.gl.VERTEX_SHADER, VERTEX_SHADER_SOURCE)
@@ -533,10 +536,10 @@ export class Context3d {
 
       const [sx, sy, sw, sh] = glyph.rect
       const m = mBase
-      const u0 = (sx - mBase) / this.atlas.size.x()
-      const v0 = (sy - mBase) / this.atlas.size.y()
-      const u1 = (sx + sw + mBase) / this.atlas.size.x()
-      const v1 = (sy + sh + mBase) / this.atlas.size.y()
+      const u0 = (sx - mBase) / this.atlas.atlasWidth
+      const v0 = (sy - mBase) / this.atlas.atlasHeight
+      const u1 = (sx + sw + mBase) / this.atlas.atlasWidth
+      const v1 = (sy + sh + mBase) / this.atlas.atlasHeight
 
       // Position the glyph image so that its baseline aligns at (penX, penY).
       const drawX = penX + glyph.bearingX - glyphInnerPadding - m
@@ -557,7 +560,7 @@ export class Context3d {
 
   /** Flushes all non-empty meshes to the screen. */
   flush() {
-    if (!this.ready || !this.gl || !this.shaderProgram || !this.atlas) {
+    if (!this.ready || !this.gl || !this.shaderProgram || !this.atlas || !this.texture) {
       return
     }
 
@@ -591,7 +594,7 @@ export class Context3d {
 
     // Bind texture
     this.gl.activeTexture(this.gl.TEXTURE0)
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.atlas.texture)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture)
     this.gl.uniform1i(this.samplerLocation, 0)
 
     // Draw each mesh that has quads
