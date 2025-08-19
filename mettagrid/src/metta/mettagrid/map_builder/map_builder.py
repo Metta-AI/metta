@@ -105,7 +105,10 @@ class MapBuilder(ABC):
 
 
 def load_symbol(full_class_name: str):
-    module_name, class_name = full_class_name.rsplit(".", 1)
+    parts = full_class_name.rsplit(".", 1)
+    if len(parts) != 2:
+        raise ValueError(f"Invalid class name: {full_class_name}")
+    module_name, class_name = parts
     module = importlib.import_module(module_name)
     cls = getattr(module, class_name)
     return cls
@@ -118,8 +121,6 @@ def _validate_open_map_builder(v: Any, handler):
       - a dict with {"type": "<FQCN-of-Builder-or-Config>", ...params...}
       - anything else -> let the default handler try (will error if invalid)
     """
-    print("validating", v)
-    print("validating type", type(v))
     if isinstance(v, MapBuilderConfig):
         return v
 

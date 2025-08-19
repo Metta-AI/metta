@@ -2,7 +2,7 @@ import logging
 import os
 import random
 import zipfile
-from typing import Literal, Optional
+from typing import Optional
 
 import boto3
 import numpy as np
@@ -60,7 +60,6 @@ class TerrainFromNumpy(MapBuilder):
     """
 
     class Config(MapBuilderConfig["TerrainFromNumpy"]):
-        type: Literal["terrain_from_numpy"] = "terrain_from_numpy"
         objects: dict[str, int] = Field(default_factory=dict)
         agents: int | dict[str, int] = Field(default=0, ge=0)
         dir: str
