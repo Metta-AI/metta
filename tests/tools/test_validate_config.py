@@ -35,7 +35,6 @@ class TestValidateConfig(unittest.TestCase):
             if e.code != 0:
                 self.fail(f"Failed to load env/mettagrid/arena/advanced.yaml: {e}")
 
-    @unittest.skip("Agent configs are now Python-based, not YAML")
     def test_load_and_print_config_agent_fast(self):
         """Test loading agent/fast.yaml config."""
         f = StringIO()
@@ -74,7 +73,6 @@ class TestValidateConfig(unittest.TestCase):
         self.assertEqual(result.returncode, 0, f"Script failed: {result.stderr}")
         self.assertIn("game:", result.stdout)  # Simple validation that config was loaded
 
-    @unittest.skip("Agent configs are now Python-based, not YAML")
     def test_script_execution_agent_fast(self):
         """Test the script execution via command line for agent fast config."""
         result = subprocess.run(
