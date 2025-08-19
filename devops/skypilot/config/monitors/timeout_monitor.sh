@@ -17,7 +17,7 @@ remaining_at_start=$((max_seconds - ACCUMULATED_RUNTIME))
 
 if [ "$remaining_at_start" -le 0 ]; then
   echo "[INFO] Timeout limit reached at startup - terminating process group"
-  kill -TERM "${WRAPPER_PID}" 2>/dev/null || true
+  kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
   exit 0
 fi
 
@@ -48,7 +48,7 @@ while true; do
   else
     echo "[INFO] Timeout limit reached - terminating process group"
     echo "max_runtime_reached" > "$TERMINATION_REASON_FILE"
-    kill -TERM "${WRAPPER_PID}" 2>/dev/null || true
+    kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
     break
   fi
 done

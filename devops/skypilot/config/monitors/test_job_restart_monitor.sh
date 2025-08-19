@@ -50,7 +50,7 @@ while true; do
   else
     echo "[INFO] Test Job Restart limit reached - terminating process group"
     echo "force_restart_test" > "$TERMINATION_REASON_FILE"
-    kill -TERM "${WRAPPER_PID}" 2>/dev/null || true
+    kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
     break
   fi
 done

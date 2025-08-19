@@ -29,25 +29,25 @@ HEARTBEAT_FILE="${HEARTBEAT_FILE:-${WANDB_DIR:-./wandb}/heartbeat.txt}"
 
 # Initialize or update restart tracking
 if [ -f "$RESTART_COUNT_FILE" ]; then
-    RESTART_COUNT=$(cat "$RESTART_COUNT_FILE")
-    RESTART_COUNT=$((RESTART_COUNT + 1))
+  RESTART_COUNT=$(cat "$RESTART_COUNT_FILE")
+  RESTART_COUNT=$((RESTART_COUNT + 1))
 else
-    RESTART_COUNT=0
+  RESTART_COUNT=0
 fi
 
 if [[ "$IS_MASTER" == "true" ]]; then
-    echo "$RESTART_COUNT" > "$RESTART_COUNT_FILE"
-    # Clear any stale cluster stop flag at the beginning of a fresh attempt
-    : > "$CLUSTER_STOP_FILE" 2>/dev/null || true
+  echo "$RESTART_COUNT" > "$RESTART_COUNT_FILE"
+  # Clear any stale cluster stop flag at the beginning of a fresh attempt
+  : > "$CLUSTER_STOP_FILE" 2> /dev/null || true
 else
-    echo "[INFO] Skipping RESTART_COUNT_FILE and CLUSTER_STOP_FILE updates on non-master node"
+  echo "[INFO] Skipping RESTART_COUNT_FILE and CLUSTER_STOP_FILE updates on non-master node"
 fi
 
 # Read accumulated runtime
 if [ -f "$ACCUMULATED_RUNTIME_FILE" ]; then
-    ACCUMULATED_RUNTIME=$(cat "$ACCUMULATED_RUNTIME_FILE")
+  ACCUMULATED_RUNTIME=$(cat "$ACCUMULATED_RUNTIME_FILE")
 else
-    ACCUMULATED_RUNTIME=0
+  ACCUMULATED_RUNTIME=0
 fi
 
 echo "[RESTART INFO] ========================"
@@ -100,9 +100,9 @@ EOF
 
 # Create job secrets (idempotent - overwrites if exists)
 if [ -z "$WANDB_PASSWORD" ]; then
-    echo "ERROR: WANDB_PASSWORD environment variable is required but not set"
-    echo "Please ensure WANDB_PASSWORD is set in your Skypilot environment variables"
-    exit 1
+  echo "ERROR: WANDB_PASSWORD environment variable is required but not set"
+  echo "Please ensure WANDB_PASSWORD is set in your Skypilot environment variables"
+  exit 1
 fi
 
 echo "Creating/updating job secrets..."
@@ -112,13 +112,13 @@ CMD="uv run ./devops/skypilot/config/lifecycle/create_job_secrets.py --wandb-pas
 
 # Add observatory-token only if it's set
 if [ -n "$OBSERVATORY_TOKEN" ]; then
-    CMD="$CMD --observatory-token \"$OBSERVATORY_TOKEN\""
+  CMD="$CMD --observatory-token \"$OBSERVATORY_TOKEN\""
 fi
 
 # Execute the command
 eval $CMD || {
-    echo "ERROR: Failed to create job secrets"
-    exit 1
+  echo "ERROR: Failed to create job secrets"
+  exit 1
 }
 
 echo "Runtime environment configuration completed"

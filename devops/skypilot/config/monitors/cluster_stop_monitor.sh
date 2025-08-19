@@ -15,10 +15,10 @@ while true; do
   sleep "$CLUSTER_STOP_CHECK_INTERVAL"
 
   if [ -s "$CLUSTER_STOP_FILE" ]; then
-    reason="$(cat "$CLUSTER_STOP_FILE" 2>/dev/null || true)"
+    reason="$(cat "$CLUSTER_STOP_FILE" 2> /dev/null || true)"
     echo "[INFO] Cluster stop flag detected (${reason:-no-reason}); requesting shutdown"
     echo "${reason:-cluster_stop}" > "$TERMINATION_REASON_FILE"
-    kill -TERM "${WRAPPER_PID}" 2>/dev/null || true
+    kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
     break
   fi
 

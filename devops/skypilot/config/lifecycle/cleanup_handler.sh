@@ -84,7 +84,7 @@ handle_master_cleanup() {
 
   elif [[ $CMD_EXIT -eq $EXIT_NCCL_TEST_FAILURE ]]; then
     echo "[ERROR] Job failed during NCCL tests"
-    export GITHUB_STATUS_STATE="error"  # Changed from "failure" - this is infrastructure issue
+    export GITHUB_STATUS_STATE="error" # Changed from "failure" - this is infrastructure issue
     export GITHUB_STATUS_DESCRIPTION="NCCL tests failed - GPU communication issue"
     export TERMINATION_REASON="nccl_test_failure"
     bash ./devops/skypilot/config/observability/send_discord_notification.sh \
@@ -117,9 +117,9 @@ print_final_summary() {
 }
 
 determine_final_exit_code() {
-  if [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]] ||
-     [[ "${TERMINATION_REASON}" == "completed" ]] ||
-     [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
+  if [[ "${TERMINATION_REASON}" == "max_runtime_reached" ]] \
+    || [[ "${TERMINATION_REASON}" == "completed" ]] \
+    || [[ "${TERMINATION_REASON}" == "heartbeat_timeout" ]]; then
     echo "[INFO] Will exit with code 0 to prevent SkyPilot restart"
     FINAL_EXIT_CODE=0
   else

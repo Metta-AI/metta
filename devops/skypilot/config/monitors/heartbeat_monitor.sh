@@ -21,7 +21,7 @@ stop_cluster() {
   local msg="$1"
   echo "[ERROR] Heartbeat timeout! $msg"
   echo "heartbeat_timeout" > "$TERMINATION_REASON_FILE"
-  kill -TERM "${WRAPPER_PID}" 2>/dev/null || true
+  kill -TERM "${WRAPPER_PID}" 2> /dev/null || true
 }
 
 while true; do
@@ -35,7 +35,7 @@ while true; do
   CURRENT_TIME=$(date +%s)
 
   if [ -f "$HEARTBEAT_FILE" ]; then
-    CURRENT_MTIME=$(stat -c %Y "$HEARTBEAT_FILE" 2>/dev/null || stat -f %m "$HEARTBEAT_FILE" 2>/dev/null || echo 0)
+    CURRENT_MTIME=$(stat -c %Y "$HEARTBEAT_FILE" 2> /dev/null || stat -f %m "$HEARTBEAT_FILE" 2> /dev/null || echo 0)
 
     if [ "$CURRENT_MTIME" -gt "$LAST_HEARTBEAT_TIME" ]; then
       HEARTBEAT_COUNT=$((HEARTBEAT_COUNT + 1))
