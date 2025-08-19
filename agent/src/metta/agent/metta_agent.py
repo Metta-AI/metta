@@ -10,7 +10,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.agent_mapper import agents
+from metta.agent import agent_config
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
@@ -101,29 +101,30 @@ class MettaAgent(nn.Module):
 
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
-        # Agent config is a string representing the agent class name
-        agent_name = str(agent_cfg)
-
-        if agent_name not in agents:
-            raise ValueError(f"Unknown agent: '{agent_name}'. Available agents: {list(agents.keys())}")
-
-        AgentClass = agents[agent_name]
-
-        # Default configuration for all policies
-        config = {"clip_range": 0, "analyze_weights_interval": 300}
-
+        # Extract agent name from the DictConfig
+        agent_name = agent_cfg.agent
+        
+        # Convert agent name to function name (replace / with _)
+        factory_name = agent_name.replace("/", "_")
+        
+        # Get the factory function from agent_config module
+        if not hasattr(agent_config, factory_name):
+            available = [name for name in dir(agent_config) if not name.startswith("_") and callable(getattr(agent_config, name))]
+            raise ValueError(f"Unknown agent: '{agent_name}'. Available agents: {available}")
+        
+        factory_func = getattr(agent_config, factory_name)
+        
         # PyTorch models use env, ComponentPolicies use structured parameters
-        if agent_name.startswith("pytorch/"):
-            policy = AgentClass(env=env, **config)
+        if factory_name.startswith("pytorch_"):
+            policy = factory_func(env=env)
         else:
-            policy = AgentClass(
+            policy = factory_func(
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
                 obs_height=self.obs_height,
                 feature_normalizations=self.feature_normalizations,
-                config=config,
             )
-
+        
         logger.info(f"Using agent: {agent_name}")
         return policy
 
@@ -353,7 +354,7 @@ class MettaAgent(nn.Module):
             logger.info("Detected old checkpoint format - converting to new ComponentPolicy structure")
 
             # Extract the components and related attributes that belong in ComponentPolicy
-            from metta.agent.agent_mapper import agents
+            from metta.agent import agent_config
 
             # First, break any circular references in the old state
             if "policy" in state and state.get("policy") is state:
