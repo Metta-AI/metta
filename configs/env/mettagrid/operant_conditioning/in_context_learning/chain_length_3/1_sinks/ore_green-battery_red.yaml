@@ -13,22 +13,22 @@ game:
     root:
       params:
         objects:
-          generator_blue: 1
-          altar: 1
           mine_blue: 1
+          mine_green: 1
+          generator_green: 1
           lab: 1
   objects:
-    generator_blue:
+    mine_blue:
       output_resources:
         ore_green: 1
       cooldown: 15
-    altar:
+    mine_green:
       input_resources:
         ore_green: 1
       output_resources:
         battery_red: 1
       cooldown: 15
-    mine_blue:
+    generator_green:
       input_resources:
         battery_red: 1
       output_resources:
@@ -38,6 +38,3 @@ game:
       input_resources:
         ore_green: 1
         battery_red: 1
-    initial_inventory:
-      input_resources:
-        ore_green: 1
