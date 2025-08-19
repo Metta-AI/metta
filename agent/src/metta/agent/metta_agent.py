@@ -95,12 +95,12 @@ class MettaAgent(nn.Module):
         """Create the appropriate policy based on configuration."""
         # Agent config is a string representing the agent class name
         agent_name = str(agent_cfg)
-        
+
         if agent_name not in agents:
             raise ValueError(f"Unknown agent: '{agent_name}'. Available agents: {list(agents.keys())}")
 
         AgentClass = agents[agent_name]
-        
+
         # Default configuration for all policies
         config = {"clip_range": 0, "analyze_weights_interval": 300}
 
@@ -115,7 +115,7 @@ class MettaAgent(nn.Module):
                 feature_normalizations=self.feature_normalizations,
                 config=config,
             )
-        
+
         logger.info(f"Using agent: {agent_name}")
         return policy
 
