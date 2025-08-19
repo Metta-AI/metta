@@ -2,7 +2,7 @@ import logging
 
 from omegaconf import DictConfig
 
-from metta.agent.component_policies.component_policy_interface import ComponentPolicyInterface
+from metta.agent.component_policies.component_policy import ComponentPolicy
 from metta.agent.lib.action import ActionEmbedding
 from metta.agent.lib.actor import MettaActorSingleHead
 from metta.agent.lib.lstm import LSTM
@@ -13,7 +13,7 @@ from metta.agent.lib.observation_normalizer import ObservationNormalizer
 logger = logging.getLogger(__name__)
 
 
-class Fast(ComponentPolicyInterface):
+class Fast(ComponentPolicy):
     """
     Fast CNN-based component policy - fastest but least robust to feature changes.
     """
@@ -64,19 +64,22 @@ class Fast(ComponentPolicyInterface):
             ),
             "_core_": LSTM(
                 name="_core_",
-                nn_params=DictConfig({"hidden_size": 128, "num_layers": 1}),
+                nn_params=DictConfig({"hidden_size": 128, "num_layers": 2}),
                 sources=[{"name": "encoded_obs"}],
             ),
             "critic_1": Linear(
                 name="critic_1",
                 nn_params=DictConfig({"out_features": 1024}),
                 sources=[{"name": "_core_"}],
+                nonlinearity="nn.Tanh",
+                effective_rank=True,
                 **self.agent_attributes,
             ),
             "_value_": Linear(
                 name="_value_",
                 nn_params=DictConfig({"out_features": 1}),
                 sources=[{"name": "critic_1"}],
+                nonlinearity=None,
                 **self.agent_attributes,
             ),
             "actor_1": Linear(

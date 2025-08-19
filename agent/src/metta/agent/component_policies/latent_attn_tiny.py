@@ -2,7 +2,7 @@ import logging
 
 from omegaconf import DictConfig
 
-from metta.agent.component_policies.component_policy_interface import ComponentPolicyInterface
+from metta.agent.component_policies.component_policy import ComponentPolicy
 from metta.agent.lib.action import ActionEmbedding
 from metta.agent.lib.actor import MettaActorSingleHead
 from metta.agent.lib.lstm import LSTM
@@ -13,7 +13,7 @@ from metta.agent.lib.obs_tokenizers import ObsAttrEmbedFourier, ObsAttrValNorm, 
 logger = logging.getLogger(__name__)
 
 
-class LatentAttnTiny(ComponentPolicyInterface):
+class LatentAttnTiny(ComponentPolicy):
     """
     Latent attention tiny model - fastest attention-based model with minimal expressivity.
     """

@@ -10,8 +10,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.component_policies.component_policy_interface import ComponentPolicy
-from metta.agent.component_policies.agent_mapper import agent_classes
+from metta.agent.pytorch.agent_mapper import agent_classes
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
@@ -60,11 +59,11 @@ class MettaAgent(nn.Module):
         self,
         env,
         system_cfg: SystemConfig,
-        policy_architecture_cfg: DictConfig,
+        agent_cfg: DictConfig,
         policy: Optional[nn.Module] = None,
     ):
         super().__init__()
-        self.cfg = policy_architecture_cfg
+        self.cfg = agent_cfg
         self.device = system_cfg.device
 
         # Create observation space
@@ -82,7 +81,7 @@ class MettaAgent(nn.Module):
 
         # Create policy if not provided
         if policy is None:
-            policy = self._create_policy(policy_architecture_cfg, env, system_cfg)
+            policy = self._create_policy(agent_cfg, env, system_cfg)
 
         self.policy = policy
         if self.policy is not None and hasattr(self.policy, "device"):
@@ -94,37 +93,61 @@ class MettaAgent(nn.Module):
 
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
-        if agent_cfg.get("agent_type") in agent_classes:
-            # Create PyTorch policy with configuration parameters
-            AgentClass = agent_classes[agent_cfg.agent_type]
 
-            # Extract configuration parameters that PyTorch policies need
-            # All PyTorch agents must use the mixin which handles these
-            policy_kwargs = {
-                "env": env,
-                "clip_range": agent_cfg.get("clip_range", 0),
-                "analyze_weights_interval": agent_cfg.get("analyze_weights_interval", 300),
-            }
+        # Default config parameters that were in YAML configs
+        default_config = {
+            "clip_range": 0,
+            "analyze_weights_interval": 300,
+        }
 
-            # Add any additional config parameters that might be in agent_cfg
-            # This allows policies to accept custom parameters
-            for key, value in agent_cfg.items():
-                if key not in ["agent_type", "clip_range", "analyze_weights_interval", "_target_"]:
-                    policy_kwargs[key] = value
-
-            # All PyTorch agents must accept these parameters via the mixin
-            policy = AgentClass(**policy_kwargs)
+        # Handle both string and DictConfig agent_cfg
+        if isinstance(agent_cfg, str):
+            agent_name = agent_cfg
+            config_dict = default_config
         else:
-            # Create ComponentPolicy (YAML config)
-            policy = ComponentPolicy(
-                obs_space=self.obs_space,
-                obs_width=self.obs_width,
-                obs_height=self.obs_height,
-                action_space=self.action_space,
-                feature_normalizations=self.feature_normalizations,
-                device=system_cfg.device,
-                cfg=agent_cfg,
-            )
+            # Extract agent name from DictConfig
+            # Support both "agent_type" (old format) and "name" (new format)
+            agent_name = agent_cfg.get("agent_type", agent_cfg.get("name", "fast"))
+            config_dict = {**default_config}
+            # Add any additional config parameters from agent_cfg
+            for key, value in agent_cfg.items():
+                if key not in ["name", "agent_type", "_target_"]:
+                    config_dict[key] = value
+
+        # Determine if it's a PyTorch policy or ComponentPolicy
+        if agent_name.endswith(".py"):
+            # PyTorch policy
+            policy_name = agent_name[:-3]  # Remove .py extension
+            if policy_name in agent_classes:
+                AgentClass = agent_classes[policy_name]
+                policy = AgentClass(env=env, **config_dict)
+                logger.info(f"Using PyTorch Policy: {policy} (type: {policy_name})")
+            else:
+                raise ValueError(f"Unknown PyTorch policy: {policy_name}")
+        else:
+            # First check if it's in PyTorch policies (for backward compatibility)
+            if agent_name in agent_classes:
+                AgentClass = agent_classes[agent_name]
+                policy = AgentClass(env=env, **config_dict)
+                logger.info(f"Using PyTorch Policy: {policy} (type: {agent_name})")
+            else:
+                # Try ComponentPolicy
+                from metta.agent.component_policies.agent_mapper import agent_classes as component_agent_classes
+
+                if agent_name in component_agent_classes:
+                    AgentClass = component_agent_classes[agent_name]
+                    policy = AgentClass(
+                        obs_space=self.obs_space,
+                        obs_width=self.obs_width,
+                        obs_height=self.obs_height,
+                        action_space=self.action_space,
+                        feature_normalizations=self.feature_normalizations,
+                        device=system_cfg.device,
+                        config=config_dict,
+                    )
+                    logger.info(f"Using ComponentPolicy: {agent_name}")
+                else:
+                    raise ValueError(f"Unknown policy type: {agent_name}")
 
         return policy
 
@@ -353,7 +376,7 @@ class MettaAgent(nn.Module):
             logger.info("Detected old checkpoint format - converting to new ComponentPolicy structure")
 
             # Extract the components and related attributes that belong in ComponentPolicy
-            from metta.agent.component_policies.component_policy_interface import ComponentPolicy
+            from metta.agent.component_policy import ComponentPolicy
 
             # First, break any circular references in the old state
             if "policy" in state and state.get("policy") is state:

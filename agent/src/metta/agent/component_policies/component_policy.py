@@ -1,5 +1,4 @@
 import logging
-from abc import ABC, abstractmethod
 from typing import Optional, Union
 
 import gymnasium as gym
@@ -15,9 +14,10 @@ from metta.common.util.datastruct import duplicates
 logger = logging.getLogger(__name__)
 
 
-class ComponentPolicyInterface(nn.Module, ABC):
+class ComponentPolicy(nn.Module):
     """
-    Abstract base class for component-based policies.
+    Base class for component-based policies.
+    Subclasses should override _build_components() to define their architecture.
     """
 
     def __init__(
@@ -28,10 +28,14 @@ class ComponentPolicyInterface(nn.Module, ABC):
         action_space: Optional[gym.spaces.Space] = None,
         feature_normalizations: Optional[dict[int, float]] = None,
         device: Optional[str] = None,
+        config: Optional[dict] = None,
     ):
         super().__init__()
 
-        self.clip_range = 0
+        # Store config parameters
+        self.config = config or {}
+        self.clip_range = self.config.get("clip_range", 0)
+        self.analyze_weights_interval = self.config.get("analyze_weights_interval", 300)
 
         # Device setup
         self.device = torch.device(device) if device else torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -94,10 +98,10 @@ class ComponentPolicyInterface(nn.Module, ABC):
 
         logger.info(f"{self.__class__.__name__} policy initialized with components: {list(self.components.keys())}")
 
-    @abstractmethod
     def _build_components(self) -> dict:
-        """Build the component dictionary. Must be implemented by subclasses."""
-        pass
+        """Build the component dictionary. Override this in subclasses to define architecture."""
+        # Default implementation returns empty dict - subclasses should override
+        return {}
 
     def _setup_components(self, component):
         """Setup component connections."""
