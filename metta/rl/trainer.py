@@ -13,6 +13,7 @@ from torchrl.data import Composite
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
+from metta.agent.world_model import WorldModel
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
@@ -409,6 +410,10 @@ def train(
         logger.info(f"Training on {device}")
     wandb_policy_name: str | None = None
 
+    # Instantiate world model used during rollout encoding/training
+    world_model = WorldModel().to(device)
+    world_model_optimizer = torch.optim.Adam(world_model.parameters(), lr=0.001)
+
     # Main training loop
     while agent_step < trainer_cfg.total_timesteps:
         steps_before = agent_step
@@ -464,6 +469,29 @@ def train(
                     # Get observation
                     o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
                     total_steps += num_steps
+
+                    # Simple shape asserts for observations and rewards
+                    assert o.ndim == 3 and o.shape[1:] == (200, 3), f"env_obs expected [B,200,3], got {tuple(o.shape)}"
+                    assert r.ndim == 1 and r.shape[0] == o.shape[0], (
+                        f"rewards expected [B], got {tuple(r.shape)} with B={o.shape[0]}"
+                    )
+
+                    # supervised training of the world model
+                    # Cast obs to float for world model supervision to avoid dtype mismatch
+                    reconstructed_obs = world_model(o)
+                    world_model_loss = torch.nn.functional.mse_loss(reconstructed_obs, o.float())
+                    world_model_optimizer.zero_grad()
+                    world_model_loss.backward()
+                    world_model_optimizer.step()
+
+                    # compute latent encoding (detached); keep raw obs for env_obs
+                    with torch.no_grad():
+                        o = world_model.encode(o).detach()
+
+                    """
+                    Now the observations have a very different shape, so we have to find out what else we have to change
+                    to keep everything from breaking
+                    """
 
                     td = buffer_step[training_env_id].clone()
                     td["env_obs"] = o

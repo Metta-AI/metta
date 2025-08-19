@@ -1,6 +1,5 @@
 import logging
 import math
-import warnings
 
 import einops
 import numpy as np
@@ -116,28 +115,9 @@ class Policy(nn.Module):
             # Fallback for environments without feature_normalizations
             self.num_layers = 25  # Default value
 
-        # Match YAML component initialization more closely
-        # Use dynamically determined num_layers as input channels
-        # Note: YAML uses orthogonal with gain=1, not sqrt(2) like pufferlib default
-        self.cnn1 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(in_channels=self.num_layers, out_channels=64, kernel_size=5, stride=3),
-            std=1.0,  # Match YAML orthogonal gain=1
-        )
-        self.cnn2 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
-            std=1.0,  # Match YAML orthogonal gain=1
-        )
-
-        test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
-        with torch.no_grad():
-            test_output = self.cnn2(self.cnn1(test_input))
-            self.flattened_size = test_output.numel() // test_output.shape[0]
-
-        self.flatten = nn.Flatten()
-
-        # Match YAML: Linear layers use orthogonal with gain=1
-        self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(self.flattened_size, 128), std=1.0)
-        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, 128), std=1.0)
+        # For POC latent input [B,16], bypass CNN and use a small MLP
+        self.latent_proj1 = pufferlib.pytorch.layer_init(nn.Linear(16, 128), std=1.0)
+        self.latent_proj2 = pufferlib.pytorch.layer_init(nn.Linear(128, 128), std=1.0)
 
         # Critic branch
         # critic_1 uses gain=sqrt(2) because it's followed by tanh (YAML: nonlinearity: nn.Tanh)
@@ -210,16 +190,13 @@ class Policy(nn.Module):
         # For now, we'll use the first N embeddings
 
     def network_forward(self, x):
-        x = x / self.max_vec
-        x = self.cnn1(x)
-        x = F.relu(x)  # ComponentPolicy has ReLU after cnn1
-        x = self.cnn2(x)
-        x = F.relu(x)  # ComponentPolicy has ReLU after cnn2
-        x = self.flatten(x)
-        x = self.fc1(x)
-        x = F.relu(x)  # ComponentPolicy has ReLU after fc1
-        x = self.encoded_obs(x)
-        x = F.relu(x)  # ComponentPolicy has ReLU after encoded_obs
+        # Expect latent [B*TT, 16]
+        if x.dim() != 2 or x.shape[-1] != 16:
+            raise ValueError(f"POC expects latent [BT,16], got {tuple(x.shape)}")
+        x = self.latent_proj1(x)
+        x = F.relu(x)
+        x = self.latent_proj2(x)
+        x = F.relu(x)
         return x
 
     def encode_observations(self, observations, state=None):
@@ -229,62 +206,11 @@ class Policy(nn.Module):
         This implementation matches ComponentPolicy's ObsTokenToBoxShaper exactly,
         using scatter operation for efficient token placement.
         """
-        token_observations = observations
-        B = token_observations.shape[0]
-        TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
-        B_TT = B * TT
-
-        if token_observations.dim() != 3:
-            token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
-
-        assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
-
-        # Don't modify original tensor - ComponentPolicy doesn't do this
-        # token_observations[token_observations == 255] = 0  # REMOVED
-
-        # Extract coordinates and attributes (matching ObsTokenToBoxShaper exactly)
-        coords_byte = token_observations[..., 0].to(torch.uint8)
-        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
-        y_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
-        atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M]
-        atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
-
-        # Create mask for valid tokens (matching ComponentPolicy)
-        valid_tokens = coords_byte != 0xFF
-
-        # Additional validation: ensure atr_indices are within valid range
-        valid_atr = atr_indices < self.num_layers
-        valid_mask = valid_tokens & valid_atr
-
-        # Log warning for out-of-bounds indices (matching ComponentPolicy)
-        invalid_atr_mask = valid_tokens & ~valid_atr
-        if invalid_atr_mask.any():
-            invalid_indices = atr_indices[invalid_atr_mask].unique()
-            warnings.warn(
-                f"Found observation attribute indices {sorted(invalid_indices.tolist())} "
-                f">= num_layers ({self.num_layers}). These tokens will be ignored. "
-                f"This may indicate the policy was trained with fewer observation channels.",
-                stacklevel=2,
-            )
-
-        # Use scatter-based write to avoid multi-dim advanced indexing (matching ComponentPolicy)
-        # Compute flattened spatial index and a combined index that encodes (layer, x, y)
-        flat_spatial_index = x_coord_indices * self.out_height + y_coord_indices  # [B_TT, M]
-        dim_per_layer = self.out_width * self.out_height
-        combined_index = atr_indices * dim_per_layer + flat_spatial_index  # [B_TT, M]
-
-        # Mask out invalid entries by directing them to index 0 with value 0
-        safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
-        safe_values = torch.where(valid_mask, atr_values, torch.zeros_like(atr_values))
-
-        # Scatter values into a flattened buffer, then reshape to [B_TT, L, W, H]
-        box_flat = torch.zeros(
-            (B_TT, self.num_layers * dim_per_layer), dtype=atr_values.dtype, device=token_observations.device
-        )
-        box_flat.scatter_(1, safe_index, safe_values)
-        box_obs = box_flat.view(B_TT, self.num_layers, self.out_width, self.out_height)
-
-        return self.network_forward(box_obs)
+        # POC path expects latent already
+        latent = observations
+        if latent.dim() == 3:
+            latent = einops.rearrange(latent, "b t d -> (b t) d")
+        return self.network_forward(latent)
 
     def decode_actions(self, hidden, batch_size):
         """Decode actions using bilinear interaction to match MettaActorSingleHead."""

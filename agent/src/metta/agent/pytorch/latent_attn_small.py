@@ -54,7 +54,7 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
     def forward(self, td: TensorDict, state=None, action=None):
-        observations = td["env_obs"]
+        observations = td.get("latent_obs", td["env_obs"])  # prefer latent if present
 
         if state is None:
             state = {"lstm_h": None, "lstm_c": None, "hidden": None}
@@ -153,6 +153,9 @@ class Policy(nn.Module):
         )
 
     def network_forward(self, x):
+        # If x is latent [BT, 16], project directly
+        if x.dim() == 2 and x.shape[-1] == 16:
+            return x.new_zeros(x.shape[0], self.hidden_size) if self.hidden_size != 16 else x
         x, mask, B_TT = self.obs_(x)
         x = self.obs_norm(x)
         x = self.obs_fourier(x)
@@ -177,8 +180,11 @@ class Policy(nn.Module):
         if observations.dim() == 4:
             observations = einops.rearrange(observations, "b t m c -> (b t) m c")
             td["env_obs"] = observations
+        elif observations.dim() == 2 and observations.shape[-1] == 16:
+            # latent already flattened
+            pass
         elif observations.dim() != 3:
-            raise ValueError(f"Expected observations with 3 or 4 dimensions, got shape: {observations.shape}")
+            raise ValueError(f"Expected observations with 3 or 4 dims or latent [BT,16], got: {observations.shape}")
 
         return self.network_forward(td)
 

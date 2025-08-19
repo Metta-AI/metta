@@ -111,10 +111,16 @@ class PyTorchAgentMixin:
         Returns:
             Tuple of (B, TT) dimensions
         """
-        if observations.dim() == 4:  # Training: [B, T, obs_tokens, 3]
+        if observations.dim() == 4:  # Training tokens: [B, T, obs_tokens, 3]
             B = observations.shape[0]
             TT = observations.shape[1]
             # Fields should match the flattened batch size
+            total_batch = B * TT
+            td.set("bptt", torch.full((total_batch,), TT, device=observations.device, dtype=torch.long))
+            td.set("batch", torch.full((total_batch,), B, device=observations.device, dtype=torch.long))
+        elif observations.dim() == 3 and observations.shape[-1] == 16:  # Training latents: [B, T, D]
+            B = observations.shape[0]
+            TT = observations.shape[1]
             total_batch = B * TT
             td.set("bptt", torch.full((total_batch,), TT, device=observations.device, dtype=torch.long))
             td.set("batch", torch.full((total_batch,), B, device=observations.device, dtype=torch.long))

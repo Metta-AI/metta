@@ -8,7 +8,7 @@ from omegaconf import DictConfig
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
-from torchrl.data import Composite, UnboundedDiscrete
+from torchrl.data import Composite, UnboundedContinuous
 
 from metta.agent.agent_mapper import agents
 from metta.rl.system_config import SystemConfig
@@ -144,7 +144,7 @@ class MettaAgent(nn.Module):
 
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
-            env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            env_obs=UnboundedContinuous(shape=torch.Size([16]), dtype=torch.float32),
         )
 
     def initialize_to_environment(
