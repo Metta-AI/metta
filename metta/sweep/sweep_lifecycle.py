@@ -65,8 +65,11 @@ def prepare_sweep_run(sweep_job_cfg: DictConfig, logger: logging.Logger) -> tupl
             if total_runs > len(previous_observations) or phase_idx == len(sweep_job_cfg.schedule.phases) - 1:
                 logger.info(f"Using phase {phase_idx} ({phase.name}) configuration")
                 if "overrides" in phase:
-                    # Merge phase overrides into the base config
-                    phased_sweep_job_cfg = OmegaConf.merge(sweep_job_cfg, phase.overrides)
+                    # Create a non-struct copy to allow adding new fields
+                    base_cfg_copy = OmegaConf.create(OmegaConf.to_yaml(sweep_job_cfg))
+                    OmegaConf.set_struct(base_cfg_copy, False)
+                    # Merge phase overrides into the copy
+                    phased_sweep_job_cfg = OmegaConf.merge(base_cfg_copy, phase.overrides)
                 break
 
     # Use the phased config for protein
