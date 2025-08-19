@@ -135,7 +135,7 @@ shutdown() {
 
     # Wait longer for graceful shutdown (especially for distributed training)
     count=0
-    max_wait=30 # Increase from 15 to 30 seconds
+    max_wait=30
     while kill -0 "$CMD_PID" 2> /dev/null && [ $count -lt $max_wait ]; do
       sleep 1
       ((count++))
@@ -206,20 +206,16 @@ run_cmd() {
 
   start_monitors
 
-  # Wait for command to finish
   wait "$CMD_PID"
   CMD_EXIT=$?
 
-  # Calculate total runtime
   local END_TIME=$(date +%s)
   local DURATION=$((END_TIME - START_TIME))
-
   echo "[SUMMARY] Total runtime: $DURATION seconds ($((DURATION / 60)) minutes)"
 
   return $CMD_EXIT
 }
 
-# Set up cleanup trap
 source ./devops/skypilot/config/lifecycle/cleanup_handler.sh
 trap cleanup EXIT
 
@@ -249,5 +245,4 @@ else
   fi
 fi
 
-# Run the command
 run_cmd
