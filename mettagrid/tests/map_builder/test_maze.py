@@ -3,29 +3,27 @@ import numpy as np
 from metta.mettagrid.map_builder.map_builder import GameMap
 from metta.mettagrid.map_builder.maze import (
     MazeKruskalMapBuilder,
-    MazeKruskalMapBuilderConfig,
     MazePrimMapBuilder,
-    MazePrimMapBuilderConfig,
 )
 
 
 class TestMazePrimMapBuilderConfig:
     def test_create(self):
-        config = MazePrimMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
+        config = MazePrimMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
         builder = config.create()
         assert isinstance(builder, MazePrimMapBuilder)
 
 
 class TestMazeKruskalMapBuilderConfig:
     def test_create(self):
-        config = MazeKruskalMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
+        config = MazeKruskalMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
         builder = config.create()
         assert isinstance(builder, MazeKruskalMapBuilder)
 
 
 class TestMazePrimMapBuilder:
     def test_build_deterministic_with_seed(self):
-        config = MazePrimMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
+        config = MazePrimMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
         builder1 = MazePrimMapBuilder(config)
         map1 = builder1.build()
 
@@ -37,8 +35,8 @@ class TestMazePrimMapBuilder:
         assert np.array_equal(map1.grid, map2.grid)
 
     def test_build_different_seeds_different_results(self):
-        config1 = MazePrimMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
-        config2 = MazePrimMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=123)
+        config1 = MazePrimMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
+        config2 = MazePrimMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=123)
 
         builder1 = MazePrimMapBuilder(config1)
         builder2 = MazePrimMapBuilder(config2)
@@ -49,7 +47,7 @@ class TestMazePrimMapBuilder:
         assert not np.array_equal(map1.grid, map2.grid)
 
     def test_build_start_and_end_positions(self):
-        config = MazePrimMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
+        config = MazePrimMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
         builder = MazePrimMapBuilder(config)
         game_map = builder.build()
 
@@ -57,14 +55,14 @@ class TestMazePrimMapBuilder:
         assert game_map.grid[9, 9] == "altar"  # end position
 
     def test_build_odd_dimensions_preserved(self):
-        config = MazePrimMapBuilderConfig(width=11, height=13, start_pos=(1, 1), end_pos=(9, 11), seed=42)
+        config = MazePrimMapBuilder.Config(width=11, height=13, start_pos=(1, 1), end_pos=(9, 11), seed=42)
         builder = MazePrimMapBuilder(config)
 
         assert builder._width == 11  # Odd, preserved
         assert builder._height == 13  # Odd, preserved
 
     def test_build_even_dimensions_made_odd(self):
-        config = MazePrimMapBuilderConfig(width=10, height=12, start_pos=(1, 1), end_pos=(7, 9), seed=42)
+        config = MazePrimMapBuilder.Config(width=10, height=12, start_pos=(1, 1), end_pos=(7, 9), seed=42)
         builder = MazePrimMapBuilder(config)
 
         assert builder._width == 9  # Even made odd (10-1)
@@ -72,7 +70,7 @@ class TestMazePrimMapBuilder:
 
     def test_build_position_adjustment(self):
         # Test that positions are properly adjusted
-        config = MazePrimMapBuilderConfig(width=11, height=11, start_pos=(0, 0), end_pos=(10, 10), seed=42)
+        config = MazePrimMapBuilder.Config(width=11, height=11, start_pos=(0, 0), end_pos=(10, 10), seed=42)
         builder = MazePrimMapBuilder(config)
 
         # Should be adjusted to odd positions within bounds
@@ -86,7 +84,7 @@ class TestMazePrimMapBuilder:
         assert 0 <= builder._end_pos[1] < builder._height
 
     def test_build_small_maze(self):
-        config = MazePrimMapBuilderConfig(width=5, height=5, start_pos=(1, 1), end_pos=(3, 3), seed=42)
+        config = MazePrimMapBuilder.Config(width=5, height=5, start_pos=(1, 1), end_pos=(3, 3), seed=42)
         builder = MazePrimMapBuilder(config)
         game_map = builder.build()
 
@@ -100,7 +98,7 @@ class TestMazePrimMapBuilder:
         assert count_dict.get("empty", 0) > 0
 
     def test_build_returns_game_map(self):
-        config = MazePrimMapBuilderConfig(width=7, height=7, start_pos=(1, 1), end_pos=(5, 5), seed=42)
+        config = MazePrimMapBuilder.Config(width=7, height=7, start_pos=(1, 1), end_pos=(5, 5), seed=42)
         builder = MazePrimMapBuilder(config)
         result = builder.build()
 
@@ -108,7 +106,7 @@ class TestMazePrimMapBuilder:
 
     def test_build_maze_structure(self):
         """Test that the maze has proper structure with walls and paths"""
-        config = MazePrimMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
+        config = MazePrimMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
         builder = MazePrimMapBuilder(config)
         game_map = builder.build()
 
@@ -129,7 +127,7 @@ class TestMazePrimMapBuilder:
 
 class TestMazeKruskalMapBuilder:
     def test_build_deterministic_with_seed(self):
-        config = MazeKruskalMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
+        config = MazeKruskalMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
         builder1 = MazeKruskalMapBuilder(config)
         map1 = builder1.build()
 
@@ -141,8 +139,8 @@ class TestMazeKruskalMapBuilder:
         assert np.array_equal(map1.grid, map2.grid)
 
     def test_build_different_seeds_different_results(self):
-        config1 = MazeKruskalMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
-        config2 = MazeKruskalMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=123)
+        config1 = MazeKruskalMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
+        config2 = MazeKruskalMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=123)
 
         builder1 = MazeKruskalMapBuilder(config1)
         builder2 = MazeKruskalMapBuilder(config2)
@@ -153,7 +151,7 @@ class TestMazeKruskalMapBuilder:
         assert not np.array_equal(map1.grid, map2.grid)
 
     def test_build_start_and_end_positions(self):
-        config = MazeKruskalMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
+        config = MazeKruskalMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
         builder = MazeKruskalMapBuilder(config)
         game_map = builder.build()
 
@@ -161,14 +159,14 @@ class TestMazeKruskalMapBuilder:
         assert game_map.grid[9, 9] == "altar"  # end position
 
     def test_build_odd_dimensions_preserved(self):
-        config = MazeKruskalMapBuilderConfig(width=11, height=13, start_pos=(1, 1), end_pos=(9, 11), seed=42)
+        config = MazeKruskalMapBuilder.Config(width=11, height=13, start_pos=(1, 1), end_pos=(9, 11), seed=42)
         builder = MazeKruskalMapBuilder(config)
 
         assert builder._width == 11  # Odd, preserved
         assert builder._height == 13  # Odd, preserved
 
     def test_build_even_dimensions_made_odd(self):
-        config = MazeKruskalMapBuilderConfig(width=10, height=12, start_pos=(1, 1), end_pos=(7, 9), seed=42)
+        config = MazeKruskalMapBuilder.Config(width=10, height=12, start_pos=(1, 1), end_pos=(7, 9), seed=42)
         builder = MazeKruskalMapBuilder(config)
 
         assert builder._width == 9  # Even made odd (10-1)
@@ -176,7 +174,7 @@ class TestMazeKruskalMapBuilder:
 
     def test_build_position_adjustment(self):
         # Test that positions are properly adjusted
-        config = MazeKruskalMapBuilderConfig(width=11, height=11, start_pos=(0, 0), end_pos=(10, 10), seed=42)
+        config = MazeKruskalMapBuilder.Config(width=11, height=11, start_pos=(0, 0), end_pos=(10, 10), seed=42)
         builder = MazeKruskalMapBuilder(config)
 
         # Should be adjusted to odd positions within bounds
@@ -190,7 +188,7 @@ class TestMazeKruskalMapBuilder:
         assert 0 <= builder._end_pos[1] < builder._height
 
     def test_build_small_maze(self):
-        config = MazeKruskalMapBuilderConfig(width=5, height=5, start_pos=(1, 1), end_pos=(3, 3), seed=42)
+        config = MazeKruskalMapBuilder.Config(width=5, height=5, start_pos=(1, 1), end_pos=(3, 3), seed=42)
         builder = MazeKruskalMapBuilder(config)
         game_map = builder.build()
 
@@ -199,7 +197,7 @@ class TestMazeKruskalMapBuilder:
         assert game_map.grid[3, 3] == "altar"
 
     def test_build_returns_game_map(self):
-        config = MazeKruskalMapBuilderConfig(width=7, height=7, start_pos=(1, 1), end_pos=(5, 5), seed=42)
+        config = MazeKruskalMapBuilder.Config(width=7, height=7, start_pos=(1, 1), end_pos=(5, 5), seed=42)
         builder = MazeKruskalMapBuilder(config)
         result = builder.build()
 
@@ -207,7 +205,7 @@ class TestMazeKruskalMapBuilder:
 
     def test_build_maze_structure(self):
         """Test that the maze has proper structure with walls and paths"""
-        config = MazeKruskalMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
+        config = MazeKruskalMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
         builder = MazeKruskalMapBuilder(config)
         game_map = builder.build()
 
@@ -227,7 +225,7 @@ class TestMazeKruskalMapBuilder:
 
     def test_union_find_algorithm_integrity(self):
         """Test that Kruskal's algorithm produces a proper maze (connected)"""
-        config = MazeKruskalMapBuilderConfig(width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), seed=42)
+        config = MazeKruskalMapBuilder.Config(width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), seed=42)
         builder = MazeKruskalMapBuilder(config)
         game_map = builder.build()
 
@@ -249,8 +247,8 @@ class TestMazeKruskalMapBuilder:
 class TestMazeAlgorithmComparison:
     def test_both_algorithms_produce_valid_mazes(self):
         """Test that both Prim's and Kruskal's produce valid maze structures"""
-        prim_config = MazePrimMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
-        kruskal_config = MazeKruskalMapBuilderConfig(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
+        prim_config = MazePrimMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
+        kruskal_config = MazeKruskalMapBuilder.Config(width=11, height=11, start_pos=(1, 1), end_pos=(9, 9), seed=42)
 
         prim_builder = MazePrimMapBuilder(prim_config)
         kruskal_builder = MazeKruskalMapBuilder(kruskal_config)
@@ -283,8 +281,8 @@ class TestMazeAlgorithmComparison:
 
     def test_different_algorithms_different_layouts(self):
         """Test that Prim's and Kruskal's produce different maze layouts"""
-        prim_config = MazePrimMapBuilderConfig(width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), seed=42)
-        kruskal_config = MazeKruskalMapBuilderConfig(width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), seed=42)
+        prim_config = MazePrimMapBuilder.Config(width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), seed=42)
+        kruskal_config = MazeKruskalMapBuilder.Config(width=15, height=15, start_pos=(1, 1), end_pos=(13, 13), seed=42)
 
         prim_builder = MazePrimMapBuilder(prim_config)
         kruskal_builder = MazeKruskalMapBuilder(kruskal_config)

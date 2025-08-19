@@ -1,5 +1,3 @@
-from typing import Literal
-
 import numpy as np
 
 from metta.mettagrid.char_encoder import char_to_grid_object
@@ -12,7 +10,6 @@ class AsciiMapBuilder(MapBuilder):
     """
 
     class Config(MapBuilderConfig["AsciiMapBuilder"]):
-        type: Literal["ascii"] = "ascii"
         map_data: list[list[str]]
 
         @classmethod

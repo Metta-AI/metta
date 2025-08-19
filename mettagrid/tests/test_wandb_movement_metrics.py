@@ -4,7 +4,7 @@
 import numpy as np
 
 from metta.mettagrid.config.envs import make_arena
-from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
@@ -20,7 +20,7 @@ def test_wandb_movement_metrics():
     cfg.game.episode_truncates = True
     cfg.game.track_movement_metrics = True  # Enable movement metrics
 
-    cfg.game.map_builder = RandomMapBuilderConfig(width=5, height=5, objects={}, agents=1, border_width=1)
+    cfg.game.map_builder = RandomMapBuilder.Config(width=5, height=5, objects={}, agents=1, border_width=1)
 
     # Create curriculum and environment
     env = MettaGridEnv(cfg, render_mode=None)

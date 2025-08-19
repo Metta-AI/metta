@@ -3,7 +3,7 @@
 import numpy as np
 
 from metta.mettagrid.core import MettaGridCore
-from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.mettagrid_c import dtype_actions
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
@@ -25,7 +25,7 @@ def test_cardinal_movement_basic():
                 move_cardinal=ActionConfig(),
                 noop=ActionConfig(),
             ),
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
@@ -98,7 +98,7 @@ def test_cardinal_movement_obstacles():
                 noop=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
                     ["#", ".", ".", ".", "#"],
@@ -163,7 +163,7 @@ def test_orientation_preserved_in_cardinal_mode():
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", "."],
                     [".", "@", "."],
@@ -240,7 +240,7 @@ def test_orientation_changes_with_cardinal_movement():
                 noop=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#"],
                     ["#", "@", "#"],
@@ -300,7 +300,7 @@ def test_hybrid_movement_mode():
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
@@ -362,7 +362,7 @@ def test_cardinal_movement_with_simple_environment():
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     [".", ".", ".", ".", "."],
                     [".", ".", ".", ".", "."],
