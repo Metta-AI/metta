@@ -353,7 +353,6 @@ class MettaAgent(nn.Module):
             logger.info("Detected old checkpoint format - converting to new ComponentPolicy structure")
 
             # Extract the components and related attributes that belong in ComponentPolicy
-            from metta.agent.component_policy import ComponentPolicy
             from metta.agent.agent_mapper import agents
 
             # First, break any circular references in the old state
@@ -368,8 +367,9 @@ class MettaAgent(nn.Module):
             else:
                 # Default to Fast ComponentPolicy for old checkpoints
                 from metta.agent.component_policies.fast import Fast
+
                 PolicyClass = Fast
-                logger.info(f"Could not determine agent type from checkpoint, defaulting to Fast")
+                logger.info("Could not determine agent type from checkpoint, defaulting to Fast")
 
             # Create the specific policy class without calling __init__ to avoid rebuilding components
             policy = PolicyClass.__new__(PolicyClass)
