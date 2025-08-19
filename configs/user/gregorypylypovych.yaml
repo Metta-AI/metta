@@ -30,4 +30,4 @@ replay_job:
     # env: env/mettagrid/autocurricula/defaults
     env_overrides:
       game:
-        no_agent_interference: true
+        no_agent_interference: true                                                                                                                                                                                                                [^ [^

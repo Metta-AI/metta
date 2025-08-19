@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import shutil
 import tempfile
 from contextlib import contextmanager
@@ -114,7 +115,9 @@ def write_file(path: str, local_file: str, *, content_type: str = "application/o
     # ---------- W&B ---------- #
     if path.startswith("wandb://"):
         uri = WandbURI.parse(path)
-        upload_file_to_wandb(uri, local_file, name=uri.artifact_path)
+        # Use just the filename as the artifact name to avoid invalid characters
+        artifact_name = uri.artifact_path.split("/")[-1]
+        upload_file_to_wandb(uri, local_file, name=artifact_name)
         logger.info("Uploaded %s → %s (size %d B)", local_file, uri, os.path.getsize(local_file))
         return
 
@@ -349,7 +352,10 @@ def upload_file_to_wandb(uri, local_file: str, name: str) -> None:
     try:
         with wandb_export_context(uri.project, WANDB_ENTITY) as run:
             # Create and log the artifact
-            artifact = wandb.Artifact(uri.artifact_path, type="file")
+            # Use a sanitized version of the artifact path as the artifact name
+            # Replace slashes and other invalid characters with underscores
+            sanitized_name = re.sub(r"[^a-zA-Z0-9_\-.]+", "_", uri.artifact_path)
+            artifact = wandb.Artifact(sanitized_name, type="file")
             artifact.add_file(local_file, name=name)
             run.log_artifact(artifact)
 
