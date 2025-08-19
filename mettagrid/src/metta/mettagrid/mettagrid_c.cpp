@@ -999,13 +999,16 @@ PYBIND11_MODULE(mettagrid_c, m) {
   py::class_<BoxConfig, GridObjectConfig, std::shared_ptr<BoxConfig>>(m, "BoxConfig")
       .def(py::init<TypeId,
                     const std::string&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, InventoryQuantity>&>(),
            py::arg("type_id"),
            py::arg("type_name") = "box",
-           py::arg("resources_to_create"))
+           py::arg("resources_to_create"),
+           py::arg("resources_to_pick_up") = std::map<InventoryItem, InventoryQuantity>())
       .def_readwrite("type_id", &BoxConfig::type_id)
       .def_readwrite("type_name", &BoxConfig::type_name)
-      .def_readwrite("resources_to_create", &BoxConfig::resources_to_create);
+      .def_readwrite("resources_to_create", &BoxConfig::resources_to_create)
+      .def_readwrite("resources_to_pick_up", &BoxConfig::resources_to_pick_up);
 
   // ##MettagridConfig
   // We expose these as much as we can to Python. Defining the initializer (and the object's constructor) means

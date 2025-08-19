@@ -6,6 +6,7 @@
 #include "action_handler.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
+#include "objects/box.hpp"
 #include "objects/constants.hpp"
 #include "types.hpp"
 
@@ -32,6 +33,28 @@ protected:
 
     GridLocation current_location = actor->location;
     GridLocation target_location = _grid->relative_location(current_location, move_direction);
+
+    // Determine if target has a box; move box out of the way if resources are satisfied
+    GridLocation target_object_location = target_location;
+    target_object_location.layer = GridLayer::ObjectLayer;
+    GridObject* target_object = _grid->object_at(target_object_location);
+    Box* target_box = dynamic_cast<Box*>(target_object);
+    if (target_object) {
+      if (!target_box) {
+        return false;
+      }
+      bool has_resources = true;
+      for (const auto& [item, qty] : target_box->resources_to_pick_up) {
+        if (actor->inventory[item] < qty) { has_resources = false; break; }
+      }
+      if (!has_resources) {
+        return false;
+      }
+      for (const auto& [item, qty] : target_box->resources_to_pick_up) {
+        actor->update_inventory(item, -static_cast<InventoryDelta>(qty));
+      }
+      _grid->ghost_move_object(target_box->id, GridLocation(0, 0, GridLayer::ObjectLayer));
+    }
 
     bool success = false;
     if (_no_agent_interference) {

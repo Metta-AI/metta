@@ -6,6 +6,7 @@
 #include "action_handler.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
+#include "objects/box.hpp"
 #include "types.hpp"
 
 class Move8Way : public ActionHandler {
@@ -120,6 +121,28 @@ protected:
 
     // Update orientation before moving
     actor->orientation = new_orientation;
+
+    // Determine if target has a box; move box out of the way if resources are satisfied
+    GridLocation target_object_location = target_location;
+    target_object_location.layer = GridLayer::ObjectLayer;
+    GridObject* target_object = _grid->object_at(target_object_location);
+    Box* target_box = dynamic_cast<Box*>(target_object);
+    if (target_object) {
+      if (!target_box) {
+        return false;
+      }
+      bool has_resources = true;
+      for (const auto& [item, qty] : target_box->resources_to_pick_up) {
+        if (actor->inventory[item] < qty) { has_resources = false; break; }
+      }
+      if (!has_resources) {
+        return false;
+      }
+      for (const auto& [item, qty] : target_box->resources_to_pick_up) {
+        actor->update_inventory(item, -static_cast<InventoryDelta>(qty));
+      }
+      _grid->ghost_move_object(target_box->id, GridLocation(0, 0, GridLayer::ObjectLayer));
+    }
 
     // Check if only/remaining target location is valid and empty
     if (!_is_valid_square(target_location, _no_agent_interference)) {

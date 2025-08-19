@@ -7,11 +7,11 @@ game:
   max_steps: 500
   agent:
     initial_inventory:
-      battery_blue: 1
+      battery_blue: 5
     rewards:
       inventory:
         heart: 1.0
-  resource_loss_prob: 0.3
+  resource_loss_prob: 0.0
   actions:
     attack:
       enabled: false
@@ -50,4 +50,6 @@ game:
     box:
       type_id: 12
       resources_to_create:
+        battery_blue: 1
+      resources_to_pick_up:
         battery_blue: 1

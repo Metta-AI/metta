@@ -6,6 +6,7 @@
 #include "action_handler.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
+#include "objects/box.hpp"
 #include "types.hpp"
 
 class MoveCardinal : public ActionHandler {
@@ -43,12 +44,31 @@ protected:
     // Update orientation to face movement direction
     actor->orientation = move_direction;
 
-    // Check if we are blocked by an obstacle
+    // Determine if target has a box; move box out of the way if resources are satisfied
+    GridLocation target_object_location = target_location;
+    target_object_location.layer = GridLayer::ObjectLayer;
+    GridObject* target_object = _grid->object_at(target_object_location);
+    Box* target_box = dynamic_cast<Box*>(target_object);
+    if (target_object) {
+      if (!target_box) {
+        return false;
+      }
+      bool has_resources = true;
+      for (const auto& [item, qty] : target_box->resources_to_pick_up) {
+        if (actor->inventory[item] < qty) { has_resources = false; break; }
+      }
+      if (!has_resources) {
+        return false;
+      }
+      for (const auto& [item, qty] : target_box->resources_to_pick_up) {
+        actor->update_inventory(item, -static_cast<InventoryDelta>(qty));
+      }
+      _grid->ghost_move_object(target_box->id, GridLocation(0, 0, GridLayer::ObjectLayer));
+    }
+
     if (!_grid->is_empty(target_location.r, target_location.c)) {
       return false;
     }
-
-
 
     // Move the agent with new orientation
     return _grid->move_object(actor->id, target_location);

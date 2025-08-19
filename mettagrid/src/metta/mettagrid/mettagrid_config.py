@@ -174,6 +174,7 @@ class BoxConfig(Config):
 
     type_id: int = Field(default=0, ge=0, le=255)
     resources_to_create: dict[str, int] = Field(default_factory=dict)
+    resources_to_pick_up: dict[str, int] = Field(default_factory=dict)
 
 
 class ConverterConfig(Config):

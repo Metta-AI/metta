@@ -62,6 +62,16 @@ protected:
         // Creator cannot open their own box
         return false;
       }
+      // Check if actor has enough resources to pick up the box
+      for (const auto& [item, qty] : box->resources_to_pick_up) {
+        if (actor->inventory[item] < qty) {
+          return false;
+        }
+      }
+      // Use up the required resources
+      for (const auto& [item, qty] : box->resources_to_pick_up) {
+        actor->update_inventory(item, -static_cast<InventoryDelta>(qty));
+      }
       // If the creator of the box is an agent, return blue battery to creator and penalize creator
       if (box->creator_agent_id != 255) {
         Agent* creator = dynamic_cast<Agent*>(_grid->object(box->creator_agent_object_id));

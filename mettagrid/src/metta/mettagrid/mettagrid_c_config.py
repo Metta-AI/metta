@@ -134,6 +134,11 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
                     for k, v in object_config.resources_to_create.items()
                     if k in resource_name_to_id
                 },
+                resources_to_pick_up={
+                    resource_name_to_id[k]: v
+                    for k, v in getattr(object_config, "resources_to_pick_up", {}).items()
+                    if k in resource_name_to_id
+                },
             )
             objects_cpp_params[object_type] = cpp_box_config
         else:
