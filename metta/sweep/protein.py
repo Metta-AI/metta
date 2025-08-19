@@ -442,12 +442,12 @@ class Protein:
             best = suggestions[best_idx]
             return self.hyperparameters.to_dict(best, fill), info
         params = np.array([e["input"] for e in self.success_observations])
-        params = torch.from_numpy(params)
+        params = torch.from_numpy(params).float()  # Convert to float32
         y = np.array([e["output"] for e in self.success_observations])
         min_score = np.min(y)
         max_score = np.max(y)
         y_norm = (y - min_score) / (np.abs(max_score - min_score) + 1e-6)
-        self.gp_score.set_data(params, torch.from_numpy(y_norm))
+        self.gp_score.set_data(params, torch.from_numpy(y_norm).float())  # Convert to float32
         self.gp_score.train()
         gp.util.train(self.gp_score, self.score_opt)
         self.gp_score.eval()
@@ -457,14 +457,14 @@ class Protein:
         log_c_max = np.max(log_c)
         log_c_norm = (log_c - log_c_min) / (log_c_max - log_c_min + 1e-6)
         self.gp_cost.mean_function = lambda x: 1
-        self.gp_cost.set_data(params, torch.from_numpy(log_c_norm))
+        self.gp_cost.set_data(params, torch.from_numpy(log_c_norm).float())  # Convert to float32
         self.gp_cost.train()
         gp.util.train(self.gp_cost, self.cost_opt)
         self.gp_cost.eval()
         candidates, pareto_idxs = pareto_points(self.success_observations)
         search_centers = np.stack([e["input"] for e in candidates])
         suggestions = self.hyperparameters.sample(len(candidates) * self.suggestions_per_pareto, mu=search_centers)
-        suggestions = torch.from_numpy(suggestions)
+        suggestions = torch.from_numpy(suggestions).float()  # Convert to float32
         with torch.no_grad():
             gp_y_norm, gp_y_norm_var = self.gp_score(suggestions)
             gp_log_c_norm, _ = self.gp_cost(suggestions)

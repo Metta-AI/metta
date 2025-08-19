@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import warnings
+from datetime import datetime, timezone
 
 # Add the metta module to path
 sys.path.append(os.path.abspath("../.."))
@@ -120,6 +121,453 @@ async def get_available_sweeps():
     }
 
 
+@app.get("/api/sweeps/{sweep_name}/confidence")
+async def get_model_confidence(
+    sweep_name: str,
+    entity: str = DEFAULT_ENTITY,
+    project: str = DEFAULT_PROJECT,
+):
+    """Get model confidence metrics and convergence statistics"""
+    try:
+        from metta.sweep.protein import Protein
+        import torch
+
+        print(f"Loading confidence metrics for {sweep_name}")
+
+        # Get runs with observations
+        runs = get_sweep_runs(sweep_name=sweep_name, entity=entity, project=project)
+
+        if len(runs) < 5:
+            return {
+                "error": "Not enough data",
+                "message": "Need at least 5 observations for confidence metrics",
+            }
+
+        # Extract observations with run metadata
+        observations = []
+        for run in runs:
+            protein_obs = run.summary.get("protein_observation")
+            if protein_obs:
+                obs = deep_clean(protein_obs)
+                # Try different possible score keys in order of preference
+                score = (
+                    obs.get("objective")
+                    or run.summary.get("reward")
+                    or run.summary.get("score")
+                    or run.summary.get("objective")
+                    or 0
+                )
+                obs["objective"] = score
+                obs["cost"] = obs.get("cost", run.summary.get("cost.accrued", 0))
+                # Use run's created_at timestamp for proper chronological ordering
+                obs["created_at"] = run.created_at
+                obs["run_name"] = run.name
+                observations.append(obs)
+
+        if len(observations) < 5:
+            return {
+                "error": "Not enough valid observations",
+                "message": "Need at least 5 valid observations for confidence metrics",
+            }
+
+        # Calculate running best (for convergence plot)
+        # Sort observations by run creation time to ensure chronological order
+        observations_sorted = sorted(
+            observations, key=lambda x: x.get("created_at", "")
+        )
+        scores = [obs.get("objective", 0) for obs in observations_sorted]
+
+        # Debug output
+        print(f"Confidence metrics: Found {len(scores)} scores")
+        if scores:
+            print(f"  Score range: {min(scores):.4f} to {max(scores):.4f}")
+            print(f"  First 5 scores: {scores[:5]}")
+
+        # Calculate actual running statistics
+        running_best = []
+        running_mean = []
+        running_std = []
+
+        for i in range(len(scores)):
+            scores_so_far = scores[: i + 1]
+            # Running best is the maximum seen up to this point
+            running_best.append(float(max(scores_so_far)))
+            # Running mean of all scores so far
+            running_mean.append(float(np.mean(scores_so_far)))
+            # Running std (0 for first observation)
+            running_std.append(float(np.std(scores_so_far)) if i > 0 else 0.0)
+
+        # Calculate convergence metrics
+        convergence_window = min(10, len(scores) // 2)
+        if len(scores) > convergence_window:
+            recent_scores = scores[-convergence_window:]
+            convergence_std = float(np.std(recent_scores))
+            convergence_slope = float(
+                np.polyfit(range(len(recent_scores)), recent_scores, 1)[0]
+            )
+        else:
+            convergence_std = float(np.std(scores))
+            convergence_slope = 0.0
+
+        # Initialize Protein to get GP predictions (simplified)
+        try:
+            # Debug: Check observation structure
+            if observations and len(observations) > 0:
+                print(f"Sample observation keys: {observations[0].keys()}")
+                if "suggestion" in observations[0]:
+                    print(f"Sample suggestion: {observations[0]['suggestion']}")
+
+            # Check if we have suggestions to work with
+            has_suggestions = any("suggestion" in obs for obs in observations)
+
+            if not has_suggestions:
+                print("No observations have suggestions, skipping GP metrics")
+                raise ValueError("No suggestions found in observations")
+
+            # Create a config that matches the actual parameter structure
+            # First, find parameters that exist in ALL observations
+            all_param_sets = []
+            for obs in observations:
+                if "suggestion" in obs and obs["suggestion"]:
+                    suggestion = obs["suggestion"]
+                    param_set = set()
+
+                    # Flatten the suggestion to get all parameters (use / separator like pufferlib)
+                    def extract_params(d, prefix=""):
+                        for k, v in d.items():
+                            if isinstance(v, dict):
+                                extract_params(v, prefix + k + "/")
+                            elif isinstance(v, (int, float)):
+                                param_key = prefix + k
+                                param_set.add(param_key)
+
+                    extract_params(suggestion)
+                    all_param_sets.append(param_set)
+
+            # Only use parameters that appear in ALL observations
+            if all_param_sets:
+                common_params = set.intersection(*all_param_sets)
+            else:
+                common_params = set()
+
+            print(
+                f"Found {len(common_params)} common parameters across all observations"
+            )
+
+            # Now extract values for common parameters only
+            param_ranges = {}
+            for obs in observations:
+                if "suggestion" in obs and obs["suggestion"]:
+                    suggestion = obs["suggestion"]
+
+                    # Flatten the suggestion to get all parameters (use / separator like pufferlib)
+                    def extract_params(d, prefix=""):
+                        for k, v in d.items():
+                            if isinstance(v, dict):
+                                extract_params(v, prefix + k + "/")
+                            elif isinstance(v, (int, float)):
+                                param_key = prefix + k
+                                if (
+                                    param_key in common_params
+                                ):  # Only collect common params
+                                    if param_key not in param_ranges:
+                                        param_ranges[param_key] = []
+                                    param_ranges[param_key].append(v)
+
+                    extract_params(suggestion)
+
+            # Build sweep config with actual parameter ranges
+            sweep_config = {
+                "metric": "reward",
+                "goal": "maximize",
+                "method": "bayes",
+            }
+
+            # Debug: Check how pufferlib flattens vs our method
+            if observations and "suggestion" in observations[0]:
+                import pufferlib
+
+                puffer_flat = dict(
+                    pufferlib.unroll_nested_dict(observations[0]["suggestion"])
+                )
+                print(f"Pufferlib flattened keys: {list(puffer_flat.keys())}")
+                print(f"Our flattened keys: {list(param_ranges.keys())}")
+
+            print(f"Found {len(param_ranges)} parameters in observations")
+
+            # Add parameter definitions based on observed values
+            for param_name, values in param_ranges.items():
+                if len(values) >= 1:  # Changed from > 1 to >= 1
+                    min_val = min(values)
+                    max_val = max(values)
+                    mean_val = np.mean(values)
+
+                    # If all values are the same, create a small range around them
+                    if min_val == max_val:
+                        if min_val > 0:
+                            min_val = min_val * 0.9
+                            max_val = max_val * 1.1
+                        else:
+                            min_val = min_val - 0.1
+                            max_val = max_val + 0.1
+
+                    # Determine distribution type based on parameter name and values
+                    if param_name.endswith("learning_rate") or param_name.endswith(
+                        "lr"
+                    ):
+                        distribution = "log_normal"
+                    elif (
+                        param_name.endswith("gamma")
+                        or param_name.endswith("gae_lambda")
+                        or param_name.endswith("clip_coef")
+                    ):
+                        distribution = "logit_normal"
+                        # Logit requires values strictly between 0 and 1
+                        min_val = max(0.001, min(min_val * 0.99, 0.999))
+                        max_val = max(0.001, min(max_val * 1.01, 0.999))
+                        mean_val = max(0.001, min(mean_val, 0.999))
+                    elif param_name.endswith("batch_size") or param_name.endswith(
+                        "minibatch_size"
+                    ):
+                        distribution = "uniform_pow2"
+                        # Values should already be powers of 2, just ensure they're integers
+                        min_val = int(min_val)
+                        max_val = int(max_val)
+                        mean_val = int(mean_val)
+                        print(
+                            f"Pow2 param {param_name}: min={min_val}, max={max_val}, mean={mean_val}"
+                        )
+                    elif param_name.endswith("total_timesteps"):
+                        distribution = "int_uniform"
+                        # Ensure integers
+                        min_val = int(min_val)
+                        max_val = int(max_val)
+                        mean_val = int(mean_val)
+                    elif param_name.endswith("ent_coef"):
+                        # Entropy coefficient should use log scale
+                        distribution = "log_normal"
+                    else:
+                        distribution = "uniform"
+
+                    # Final bounds adjustment based on distribution
+                    if distribution == "log_normal":
+                        # Ensure positive values for log scale
+                        min_val = max(1e-10, min_val * 0.8 if min_val > 0 else 1e-6)
+                        max_val = max(min_val * 2, max_val * 1.2)
+                    elif distribution == "logit_normal":
+                        # Already handled above
+                        pass
+                    elif distribution == "uniform_pow2":
+                        # Already handled above
+                        pass
+                    else:
+                        # Regular uniform - widen bounds slightly
+                        range_val = max_val - min_val
+                        if range_val > 0:
+                            min_val = min_val - range_val * 0.1
+                            max_val = max_val + range_val * 0.1
+
+                    param_config = {
+                        "distribution": distribution,
+                        "min": min_val,
+                        "max": max_val,
+                        "mean": mean_val,
+                        "scale": "auto",
+                    }
+
+                    # Debug problematic parameters
+                    if distribution == "logit_normal":
+                        print(
+                            f"Logit param {param_name}: min={min_val}, max={max_val}, mean={mean_val}"
+                        )
+
+                    sweep_config[param_name] = param_config
+
+            print(f"Final sweep config parameters: {list(sweep_config.keys())}")
+            protein = Protein(sweep_config)
+            print(
+                f"Protein expects these parameters: {list(protein.hyperparameters.spaces.keys())}"
+            )
+
+            # Add observations to protein - only those with all common parameters
+            successful_observations = 0
+            for i, obs in enumerate(observations[:50]):  # Limit to recent observations
+                if "suggestion" in obs:
+                    # Check if this observation has all common parameters (use / separator)
+                    suggestion_flat = {}
+
+                    def flatten_dict(d, prefix=""):
+                        for k, v in d.items():
+                            if isinstance(v, dict):
+                                flatten_dict(v, prefix + k + "/")
+                            else:
+                                suggestion_flat[prefix + k] = v
+
+                    flatten_dict(obs["suggestion"])
+
+                    # Only add if it has all common parameters
+                    if all(param in suggestion_flat for param in common_params):
+                        try:
+                            # Debug: print what we're trying to observe
+                            if i == 0:  # Only for first observation
+                                print(
+                                    f"First observation suggestion keys: {list(suggestion_flat.keys())}"
+                                )
+                                print(
+                                    f"Batch size value in observation: {suggestion_flat.get('trainer/batch_size', 'NOT FOUND')}"
+                                )
+
+                            protein.observe(
+                                obs["suggestion"],
+                                obs.get("objective", 0),
+                                obs.get("cost", 1),
+                                is_failure=False,
+                            )
+                            successful_observations += 1
+                        except Exception as e:
+                            print(f"Failed to add observation {i}: {e}")
+                            if i == 0:  # More detail for first failure
+                                print(f"  Suggestion structure: {obs['suggestion']}")
+
+            print(
+                f"Successfully added {successful_observations} observations to Protein"
+            )
+
+            # Calculate average uncertainty over parameter space
+            if len(protein.success_observations) > 3:
+                # Sample some test points
+                n_test = min(50, len(protein.success_observations) * 5)
+                test_suggestions = protein.hyperparameters.sample(n_test)
+                # Convert to float32 for GP compatibility
+                test_suggestions_torch = torch.from_numpy(test_suggestions).float()
+
+                # Get GP predictions
+                with torch.no_grad():
+                    _, score_var = protein.gp_score(test_suggestions_torch)
+                    uncertainties = np.sqrt(score_var.numpy())
+
+                avg_uncertainty = float(np.mean(uncertainties))
+                max_uncertainty = float(np.max(uncertainties))
+                min_uncertainty = float(np.min(uncertainties))
+
+                # Find high confidence regions (low uncertainty)
+                confidence_threshold = np.percentile(uncertainties, 20)
+                high_confidence_indices = np.where(
+                    uncertainties < confidence_threshold
+                )[0]
+                high_confidence_ratio = float(
+                    len(high_confidence_indices) / len(uncertainties)
+                )
+            else:
+                avg_uncertainty = 1.0
+                max_uncertainty = 1.0
+                min_uncertainty = 1.0
+                high_confidence_ratio = 0.0
+
+        except Exception as e:
+            print(f"Warning: Could not compute GP metrics: {e}")
+            import traceback
+
+            traceback.print_exc()
+            avg_uncertainty = None
+            max_uncertainty = None
+            min_uncertainty = None
+            high_confidence_ratio = None
+
+        # Statistical significance metrics
+        baseline_score = scores[0] if scores else 0  # First run's score
+        current_best = max(scores) if scores else 0  # Actual best score achieved
+        best_run_index = (
+            scores.index(current_best) if scores else 0
+        )  # Which run achieved best
+        improvement = current_best - baseline_score  # Improvement from baseline
+
+        # Simple significance test (using bootstrap would be better)
+        if len(scores) > 1:
+            score_std = np.std(scores)
+            if score_std > 0:
+                z_score = improvement / score_std
+                # Rough p-value approximation
+                from scipy import stats
+
+                p_value = float(1 - stats.norm.cdf(abs(z_score)))
+                is_significant = bool(p_value < 0.05)
+            else:
+                p_value = 1.0
+                is_significant = False
+        else:
+            p_value = 1.0
+            is_significant = False
+
+        # Estimate runs until convergence (more realistic)
+        if len(scores) > convergence_window:
+            # Look at rate of improvement over recent runs
+            recent_improvements = []
+            for i in range(len(running_best) - convergence_window, len(running_best)):
+                if i > 0:
+                    recent_improvements.append(running_best[i] - running_best[i - 1])
+
+            avg_recent_improvement = (
+                np.mean(recent_improvements) if recent_improvements else 0
+            )
+
+            # If improvements are very small and std is low, we're likely converged
+            if abs(avg_recent_improvement) < 0.001 and convergence_std < 0.01:
+                estimated_runs_to_convergence = 0  # Already converged
+            elif abs(avg_recent_improvement) > 0:
+                # Estimate based on how much room for improvement and current rate
+                room_for_improvement = (
+                    convergence_std * 2
+                )  # Assume we can improve by 2 std devs
+                estimated_runs_to_convergence = int(
+                    room_for_improvement / abs(avg_recent_improvement)
+                )
+                estimated_runs_to_convergence = max(
+                    5, min(estimated_runs_to_convergence, 100)
+                )
+            else:
+                estimated_runs_to_convergence = 20  # Default if no clear trend
+        else:
+            estimated_runs_to_convergence = None
+
+        return {
+            "num_observations": len(observations),
+            "running_best": running_best,
+            "running_mean": running_mean,
+            "running_std": running_std,
+            "convergence": {
+                "std": convergence_std,
+                "slope": convergence_slope,
+                "is_converged": bool(
+                    convergence_std < 0.01 and abs(convergence_slope) < 0.001
+                ),
+                "estimated_runs_remaining": estimated_runs_to_convergence,
+            },
+            "uncertainty": {
+                "average": avg_uncertainty,
+                "max": max_uncertainty,
+                "min": min_uncertainty,
+                "high_confidence_ratio": high_confidence_ratio,
+            },
+            "significance": {
+                "baseline_score": baseline_score,
+                "current_best": current_best,
+                "best_run_index": best_run_index,
+                "improvement": improvement,
+                "p_value": p_value,
+                "is_significant": is_significant,
+            },
+            "timestamps": list(range(len(scores))),
+        }
+
+    except Exception as e:
+        print(f"Error computing confidence metrics: {str(e)}")
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/sweeps/{sweep_name}")
 async def get_sweep_data(
     sweep_name: str,
@@ -226,7 +674,6 @@ async def get_sweep_data(
 
                     # Calculate seconds since last update
                     import time
-                    from datetime import datetime
 
                     seconds_since_update = None
 
@@ -238,7 +685,8 @@ async def get_sweep_data(
                             heartbeat_dt = datetime.fromisoformat(
                                 run.heartbeat_at.replace("Z", "+00:00")
                             )
-                            current_dt = datetime.utcnow()
+                            # Use timezone-aware UTC datetime
+                            current_dt = datetime.now(timezone.utc)
                             seconds_since_update = int(
                                 (current_dt - heartbeat_dt).total_seconds()
                             )

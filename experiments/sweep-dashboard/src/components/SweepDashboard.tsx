@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { SweepData } from '../types'
 import { SkyJobsMonitor } from './SkyJobsMonitor'
 import { ActiveRunsTable } from './ActiveRunsTable'
+import { ModelConfidence } from './ModelConfidence'
 import { SweepMetrics } from './SweepMetrics'
 import { SweepCharts } from './SweepCharts'
 import { SweepFilters } from './SweepFilters'
@@ -129,6 +130,9 @@ export function SweepDashboard({ sweepData, sweepName }: SweepDashboardProps) {
 
       {/* Active Training Runs */}
       <ActiveRunsTable activeRuns={filteredData.activeRuns || []} isLoading={isLoadingData} />
+
+      {/* Model Confidence Dashboard */}
+      <ModelConfidence sweepName={sweepName} />
 
       {/* Summary Metrics */}
       <SweepMetrics data={filteredData} />

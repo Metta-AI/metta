@@ -111,11 +111,11 @@ export function SweepCharts({ data }: SweepChartsProps) {
         x: data.runs.find(r => r.score === data.bestScore)?.cost || 0,
         y: data.bestScore
       }],
-      backgroundColor: 'red',
-      borderColor: 'darkred',
-      borderWidth: 2,
-      pointRadius: 10,
-      pointStyle: 'star',
+      backgroundColor: '#FFD700',  // Gold color
+      borderColor: '#FFA500',      // Orange border
+      borderWidth: 3,
+      pointRadius: 8,
+      pointStyle: 'triangle',      // Triangle instead of star
       showLine: false
     }]
   }
