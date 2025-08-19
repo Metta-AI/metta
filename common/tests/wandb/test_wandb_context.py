@@ -8,7 +8,7 @@ from omegaconf import OmegaConf
 
 from metta.common.util.config import Config
 from metta.common.util.logging_helpers import init_logging
-from metta.common.wandb.wandb_context import WandbConfigOff, WandbConfigOn, WandbContext
+from metta.common.wandb.wandb_context import WandbConfig, WandbContext
 
 init_logging()
 logger = logging.getLogger("Test")
@@ -76,7 +76,7 @@ def test_enter_disabled_does_not_init(monkeypatch):
 
 def test_structured_config(monkeypatch, dummy_init):
     # Prepare config that's already validated
-    cfg_off = WandbConfigOff(enabled=False)
+    cfg_off = WandbConfig.Off()
 
     ctx = WandbContext(cfg_off, OmegaConf.create())
     run = ctx.__enter__()
@@ -87,7 +87,7 @@ def test_structured_config(monkeypatch, dummy_init):
 
 def test_run_fields(monkeypatch, dummy_init, tmp_path):
     # Prepare enabled config
-    cfg_on = WandbConfigOn(
+    cfg_on = WandbConfig(
         enabled=True,
         project="proj",
         entity="ent",
@@ -124,7 +124,7 @@ def test_run_fields(monkeypatch, dummy_init, tmp_path):
 
 
 def test_tags_and_notes(monkeypatch, dummy_init, tmp_path):
-    cfg_on = WandbConfigOn(
+    cfg_on = WandbConfig(
         enabled=True,
         project="p",
         entity="e",
@@ -153,7 +153,7 @@ def test_tags_and_notes(monkeypatch, dummy_init, tmp_path):
 
 def test_exit_finishes_run(monkeypatch, dummy_init, tmp_path):
     # Prepare enabled config
-    cfg_on = WandbConfigOn(
+    cfg_on = WandbConfig(
         enabled=True,
         project="p",
         entity="e",

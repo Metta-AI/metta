@@ -16,18 +16,6 @@ obstacles_env.game.map_builder = AsciiMapBuilderConfig.from_uri(
 )
 obstacles_env.game.max_steps = 100
 
-# def tool_cfg_replay() -> ReplayTool:
-#     eval_env = obstacles.model_copy()
-#     eval_env.game.max_steps = 100
-#     return ReplayTool(
-#         sim=SimulationConfig(
-#             env=eval_env,
-#             name="arena",
-#         ),
-#         open_browser_on_start=True,
-#         wandb=softmax.wandb_config(run="arena_replay"),
-#     )
-
 
 def train() -> TrainTool:
     env = navigation.make_env()
