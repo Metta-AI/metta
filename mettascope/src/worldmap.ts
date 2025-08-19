@@ -125,8 +125,8 @@ const enum WallTile {
   NW = N | W,
 }
 
-let wallCells: Uint32Array | null = null
-let wallFills: Uint32Array | null = null
+let wallCells: Uint16Array | null = null
+let wallFills: Uint16Array | null = null
 let wallMap: Grid | null = null
 
 /** Draws the walls, based on the adjacency map, and fills any holes. */
@@ -138,8 +138,8 @@ function drawWalls() {
   let numFills = 0
   let numWalls = 0
   if (wallCells === null || wallCells.length < totalCells) {
-    wallCells = new Uint32Array(totalCells)
-    wallFills = new Uint32Array(totalCells)
+    wallCells = new Uint16Array(totalCells)
+    wallFills = new Uint16Array(totalCells)
     wallMap = new Grid(width, height)
   }
 
@@ -154,14 +154,14 @@ function drawWalls() {
     const x = location[0]
     const y = location[1]
     wallMap!.set(x, y, true)
-    wallCells![numWalls++] = (y << 16) | x
+    wallCells![numWalls++] = x
+    wallCells![numWalls++] = y
   }
 
   // Draw the walls, following the adjacency map.
-  for (let i = 0; i < numWalls; i++) {
-    const cell = wallCells![i]
-    const x = cell & 0xFFFF
-    const y = cell >> 16
+  for (let i = 0; i < numWalls; i += 2) {
+    const x = wallCells![i]
+    const y = wallCells![i + 1]
 
     let tile = WallTile.None
     if (wallMap!.get(x, y + 1)) tile |= WallTile.S
@@ -170,7 +170,8 @@ function drawWalls() {
     if (wallMap!.get(x - 1, y)) tile |= WallTile.W
 
     if ((tile & WallTile.SE) == WallTile.SE && wallMap!.get(x + 1, y + 1)) {
-      wallFills![numFills++] = cell
+      wallFills![numFills++] = x
+      wallFills![numFills++] = y
 
       if ((tile & WallTile.NW) == WallTile.NW && wallMap!.get(x + 1, y - 1) && wallMap!.get(x - 1, y - 1) && wallMap!.get(x - 1, y + 1)) {
         continue
@@ -181,10 +182,9 @@ function drawWalls() {
   }
 
   // Draw the wall infills.
-  for (let i = 0; i < numFills; i++) {
-    const cell = wallFills![i]
-    const x = cell & 0xffff
-    const y = cell >> 16
+  for (let i = 0; i < numFills; i += 2) {
+    const x = wallFills![i]
+    const y = wallFills![i + 1]
     ctx.drawSprite(
       "objects/wall.fill.png",
       x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
