@@ -2,13 +2,11 @@ import json
 import logging
 import os
 import socket
-from typing import Annotated, Literal, Union
 
 import wandb
 import wandb.errors
 import wandb.sdk.wandb_run
 from omegaconf import OmegaConf
-from pydantic import Field
 
 from metta.common.util.config import Config
 
@@ -20,9 +18,8 @@ WandbRun = wandb.sdk.wandb_run.Run
 WANDB_IPC_FILENAME = "wandb_ipc.json"
 
 
-class WandbConfigOn(Config):
-    enabled: Literal[True] = True
-
+class WandbConfig(Config):
+    enabled: bool
     project: str
     entity: str
     group: str | None = None
@@ -33,12 +30,9 @@ class WandbConfigOn(Config):
     tags: list[str] = []
     notes: str = ""
 
-
-class WandbConfigOff(Config, extra="allow"):
-    enabled: Literal[False] = False
-
-
-WandbConfig = Annotated[Union[WandbConfigOff, WandbConfigOn], Field(discriminator="enabled")]
+    @staticmethod
+    def Off() -> "WandbConfig":
+        return WandbConfig(enabled=False, project="na", entity="na")
 
 
 class WandbContext:
@@ -69,7 +63,7 @@ class WandbContext:
         if not self.cfg.enabled:
             return None
 
-        assert isinstance(self.cfg, WandbConfigOn)
+        assert self.cfg.enabled
 
         # Check internet connection before proceeding
         try:

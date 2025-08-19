@@ -59,7 +59,7 @@ class CheckpointConfig(Config):
 
 class EvaluationConfig(Config):
     simulations: List[SimulationConfig] = Field(default_factory=list)
-    replay_dir: str = Field(default="s3://softmax-public/replays/")
+    replay_dir: str | None = Field(default=None)
 
     # Interval at which to evaluate and generate replays: Type 2 arbitrary default
     evaluate_interval: int = Field(default=50, ge=0)  # 0 to disable
@@ -68,11 +68,6 @@ class EvaluationConfig(Config):
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
     num_training_tasks: int = Field(default=1)
-
-    @model_validator(mode="after")
-    def validate_fields(self) -> "EvaluationConfig":
-        assert self.replay_dir, "replay_dir must be set"
-        return self
 
 
 class PPOConfig(Config):
