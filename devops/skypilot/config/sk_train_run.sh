@@ -87,7 +87,6 @@ echo "     ↳ ACCUMULATED_RUNTIME_FILE: $ACCUMULATED_RUNTIME_FILE"
 echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
 echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
 
-
 if [[ "$IS_MASTER" == "true" ]]; then
   if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
     export ENABLE_DISCORD=true
@@ -249,7 +248,7 @@ else
       echo "nccl_test_failure" > "$TERMINATION_REASON_FILE"
     else
       bash ./devops/skypilot/config/lifecycle/wait_for_termination.sh "nccl_test_failure" 30
-      kill -TERM "${WRAPPER_PID}" 2>/dev/null || true  # initiate shutdown
+      kill -TERM "${WRAPPER_PID}" 2> /dev/null || true # initiate shutdown
     fi
   else
     echo "[SUCCESS] NCCL tests passed"
