@@ -4,7 +4,7 @@
 
 import json
 
-from metta.mettagrid.map_builder.random import RandomMapBuilderConfig
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 
@@ -21,9 +21,8 @@ def test_env_config_map_builder_serialization():
     # Verify that map_builder contains all expected fields
     map_builder = config_dict["game"]["map_builder"]
 
-    # Check that all RandomMapBuilderConfig fields are present
-    assert "type" in map_builder
-    assert map_builder["type"] == "random"
+    # Check that all RandomMapBuilder.Config fields are present
+    assert map_builder["type"] == "metta.mettagrid.map_builder.random.RandomMapBuilder"
     assert "seed" in map_builder
     assert "width" in map_builder
     assert "height" in map_builder
@@ -44,7 +43,7 @@ def test_env_config_custom_map_builder():
     """Test serialization with custom map_builder configuration."""
 
     # Create custom map builder config
-    custom_map_builder = RandomMapBuilderConfig(
+    custom_map_builder = RandomMapBuilder.Config(
         width=15, height=20, agents=12, border_width=2, border_object="stone", objects={"tree": 5, "rock": 3}
     )
 
@@ -57,6 +56,7 @@ def test_env_config_custom_map_builder():
     config_dict = env_config.model_dump()
     map_builder = config_dict["game"]["map_builder"]
 
+    assert map_builder["type"] == "metta.mettagrid.map_builder.random.RandomMapBuilder"
     assert map_builder["width"] == 15
     assert map_builder["height"] == 20
     assert map_builder["agents"] == 12
@@ -75,19 +75,16 @@ def test_env_config_polymorphism_deserialization():
     # Deserialize it back
     reconstructed_config = EnvConfig.model_validate_json(config_json)
 
-    # The map_builder field is typed as Any to avoid circular imports,
-    # so it gets deserialized as a dict. We need to manually reconstruct it.
     map_builder_data = reconstructed_config.game.map_builder
-    assert isinstance(map_builder_data, dict)
-    assert map_builder_data["type"] == "random"
-    assert map_builder_data["agents"] == 16
-    assert map_builder_data["width"] == 10
-    assert map_builder_data["height"] == 10
+    assert isinstance(map_builder_data, RandomMapBuilder.Config)
+    assert map_builder_data.agents == 16
+    assert map_builder_data.width == 10
+    assert map_builder_data.height == 10
 
     # Test manual reconstruction from the dict data
-    map_builder = RandomMapBuilderConfig.model_validate(map_builder_data)
-    assert isinstance(map_builder, RandomMapBuilderConfig)
-    assert map_builder.type == "random"
+    map_builder = RandomMapBuilder.Config.model_validate(map_builder_data)
+    assert isinstance(map_builder, RandomMapBuilder.Config)
+    assert map_builder._builder_cls == RandomMapBuilder
     assert map_builder.agents == 16
     assert map_builder.width == 10
     assert map_builder.height == 10

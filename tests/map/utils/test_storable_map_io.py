@@ -1,12 +1,12 @@
 import numpy as np
 
 from metta.map.utils.storable_map import StorableMap
-from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.util import file as file_utils
 
 
 def simple_map():
-    return StorableMap.from_cfg(AsciiMapBuilderConfig(map_data=[[".", "#"], ["#", "."]]))
+    return StorableMap.from_cfg(AsciiMapBuilder.Config(map_data=[[".", "#"], ["#", "."]]))
 
 
 def test_save_and_load_local(tmp_path):

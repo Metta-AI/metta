@@ -7,7 +7,16 @@ from tests.map.scenes.utils import assert_connected, render_scene
 
 @pytest.mark.parametrize("algorithm", ["kruskal", "dfs"])
 def test_basic(algorithm):
-    scene = render_scene(Maze.factory(Maze.Params(algorithm=algorithm, room_size=1, wall_size=1)), (9, 9))
+    scene = render_scene(
+        Maze.factory(
+            Maze.Params(
+                algorithm=algorithm,
+                room_size=IntUniformDistribution(low=1, high=1),
+                wall_size=IntUniformDistribution(low=1, high=1),
+            )
+        ),
+        (9, 9),
+    )
 
     assert_connected(scene.grid)
 

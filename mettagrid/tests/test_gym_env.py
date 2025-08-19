@@ -7,7 +7,7 @@ This module tests the MettaGridGymEnv with Gymnasium's standard environment inte
 import numpy as np
 
 from metta.mettagrid.gym_env import MettaGridGymEnv
-from metta.mettagrid.map_builder.ascii import AsciiMapBuilderConfig
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig, WallConfig
 
 
@@ -24,7 +24,7 @@ def test_single_agent_gym_env():
                 rotate=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
                     ["#", ".", ".", ".", "#"],
@@ -77,7 +77,7 @@ def test_gym_env_episode_termination():
                 rotate=ActionConfig(),
             ),
             objects={"wall": WallConfig(type_id=1)},
-            map_builder=AsciiMapBuilderConfig(
+            map_builder=AsciiMapBuilder.Config(
                 map_data=[
                     ["#", "#", "#", "#", "#"],
                     ["#", ".", ".", ".", "#"],
