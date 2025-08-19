@@ -49,9 +49,9 @@ def get_all_modules() -> list["SetupModule"]:
     return result
 
 
-def get_applicable_modules() -> list["SetupModule"]:
-    return [m for m in get_all_modules() if m.is_applicable()]
+def get_enabled_setup_modules() -> list["SetupModule"]:
+    return [m for m in get_all_modules() if m.is_enabled()]
 
 
-def get_available_module_by_name(name: str) -> "SetupModule | None":
-    return find_first(get_applicable_modules(), lambda m: m.name == name)
+def get_enabled_setup_module_by_name(name: str) -> "SetupModule | None":
+    return find_first(get_enabled_setup_modules(), lambda m: m.name == name)

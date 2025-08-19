@@ -4,6 +4,7 @@ import subprocess
 from metta.setup.components.base import SetupModule
 from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
+from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import info, success, warning
 
 
@@ -14,9 +15,6 @@ class WandbSetup(SetupModule):
     @property
     def description(self) -> str:
         return "Weights & Biases experiment tracking"
-
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("wandb")
 
     def check_installed(self) -> bool:
         if os.environ.get("WANDB_API_KEY"):
@@ -36,14 +34,15 @@ class WandbSetup(SetupModule):
             success("W&B already configured")
             return
 
-        if self.config.user_type == UserType.SOFTMAX:
+        saved_settings = get_saved_settings()
+        if saved_settings.user_type == UserType.SOFTMAX:
             info("""
                 Your Weights & Biases access should have been provisioned.
                 If you don't have access, contact your team lead.
 
                 Visit https://wandb.ai/authorize to get your API key.
             """)
-        elif self.config.user_type == UserType.SOFTMAX_DOCKER:
+        elif saved_settings.user_type == UserType.SOFTMAX_DOCKER:
             info("Weights & Biases access should be provided via environment variables.")
             info("Skipping W&B setup.")
         else:

@@ -21,9 +21,6 @@ class SkypilotSetup(SetupModule):
     def description(self) -> str:
         return "SkyPilot cloud compute orchestration"
 
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("skypilot") and self.config.is_component_enabled("aws")
-
     def check_installed(self) -> bool:
         try:
             result = subprocess.run(["sky", "--version"], capture_output=True, text=True)
