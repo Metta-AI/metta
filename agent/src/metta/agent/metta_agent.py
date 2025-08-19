@@ -93,39 +93,27 @@ class MettaAgent(nn.Module):
 
     def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
-
-        # Default config parameters that were in YAML configs
-        default_config = {
-            "clip_range": 0,
-            "analyze_weights_interval": 300,
-        }
-
-        # Agent config is always a string representing the agent class name
-        agent_name = str(agent_cfg)  # Ensure it's a string
-        config_dict = default_config
-
-        # Look up agent class in unified mapper
+        # Agent config is a string representing the agent class name
+        agent_name = str(agent_cfg)
+        
         if agent_name not in agents:
             raise ValueError(f"Unknown agent: '{agent_name}'. Available agents: {list(agents.keys())}")
 
         AgentClass = agents[agent_name]
 
-        # Check if it's a PyTorch model (starts with "pytorch/") or ComponentPolicy
+        # PyTorch models use env, ComponentPolicies use structured parameters
         if agent_name.startswith("pytorch/"):
-            # PyTorch model - initialize with env
-            policy = AgentClass(env=env, **config_dict)
-            logger.info(f"Using PyTorch model: {agent_name}")
+            policy = AgentClass(env=env)
         else:
-            # ComponentPolicy - initialize with structured parameters
             policy = AgentClass(
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
                 obs_height=self.obs_height,
                 feature_normalizations=self.feature_normalizations,
-                config=config_dict,
+                config={},  # Empty config for now, can be extended if needed
             )
-            logger.info(f"Using ComponentPolicy: {agent_name}")
-
+        
+        logger.info(f"Using agent: {agent_name}")
         return policy
 
     def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
