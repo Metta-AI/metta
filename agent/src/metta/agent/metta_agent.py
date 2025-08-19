@@ -105,12 +105,13 @@ class MettaAgent(nn.Module):
             agent_name = agent_cfg
             config_dict = default_config
         else:
-            # Extract agent name and any extra config from DictConfig
-            agent_name = agent_cfg.get("name", "fast")
+            # Extract agent name from DictConfig
+            # Support both "agent_type" (old format) and "name" (new format)
+            agent_name = agent_cfg.get("agent_type", agent_cfg.get("name", "fast"))
             config_dict = {**default_config}
             # Add any additional config parameters from agent_cfg
             for key, value in agent_cfg.items():
-                if key not in ["name", "_target_"]:
+                if key not in ["name", "agent_type", "_target_"]:
                     config_dict[key] = value
 
         # Determine if it's a PyTorch policy or ComponentPolicy
@@ -124,23 +125,29 @@ class MettaAgent(nn.Module):
             else:
                 raise ValueError(f"Unknown PyTorch policy: {policy_name}")
         else:
-            # ComponentPolicy
-            from metta.agent.component_policies.agent_mapper import agent_classes as component_agent_classes
-
-            if agent_name in component_agent_classes:
-                AgentClass = component_agent_classes[agent_name]
-                policy = AgentClass(
-                    obs_space=self.obs_space,
-                    obs_width=self.obs_width,
-                    obs_height=self.obs_height,
-                    action_space=self.action_space,
-                    feature_normalizations=self.feature_normalizations,
-                    device=system_cfg.device,
-                    config=config_dict,
-                )
-                logger.info(f"Using ComponentPolicy: {agent_name}")
+            # First check if it's in PyTorch policies (for backward compatibility)
+            if agent_name in agent_classes:
+                AgentClass = agent_classes[agent_name]
+                policy = AgentClass(env=env, **config_dict)
+                logger.info(f"Using PyTorch Policy: {policy} (type: {agent_name})")
             else:
-                raise ValueError(f"Unknown ComponentPolicy: {agent_name}")
+                # Try ComponentPolicy
+                from metta.agent.component_policies.agent_mapper import agent_classes as component_agent_classes
+
+                if agent_name in component_agent_classes:
+                    AgentClass = component_agent_classes[agent_name]
+                    policy = AgentClass(
+                        obs_space=self.obs_space,
+                        obs_width=self.obs_width,
+                        obs_height=self.obs_height,
+                        action_space=self.action_space,
+                        feature_normalizations=self.feature_normalizations,
+                        device=system_cfg.device,
+                        config=config_dict,
+                    )
+                    logger.info(f"Using ComponentPolicy: {agent_name}")
+                else:
+                    raise ValueError(f"Unknown policy type: {agent_name}")
 
         return policy
 
