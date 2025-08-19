@@ -21,6 +21,7 @@ from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.util.actions import generate_valid_random_actions
 from metta.mettagrid.util.hydra import get_cfg
 from metta.util.metta_script import metta_script
+from tools.utils import get_policy_store_from_cfg
 
 
 class Policy(Protocol):
@@ -75,7 +76,13 @@ class SimplePolicy(BasePolicy):
             action_names: List[str] = self.env.action_names
             self.move_idx: int = action_names.index("move") if "move" in action_names else 0
             self.rotate_idx: int = action_names.index("rotate") if "rotate" in action_names else 1
-            self.pickup_idx: int = action_names.index("pickup") if "pickup" in action_names else 2
+            # Prefer modern name; fall back to legacy alias
+            if "get_items" in action_names:
+                self.pickup_idx = action_names.index("get_items")
+            elif "pickup" in action_names:
+                self.pickup_idx = action_names.index("pickup")
+            else:
+                self.pickup_idx = 2
         except (AttributeError, ValueError):
             # Fallback to default indices
             self.move_idx = 0
@@ -122,6 +129,88 @@ class SimplePolicy(BasePolicy):
 
         assert actions.dtype == dtype_actions
         return actions
+
+
+class OpportunisticPolicy(BasePolicy):
+    """Wander; pick up if front, else rotate toward adjacent resource; else roam."""
+
+    ORIENT_TO_DELTA = {
+        0: (-1, 0),  # up
+        1: (1, 0),  # down
+        2: (0, -1),  # left
+        3: (0, 1),  # right
+    }
+    DELTA_TO_ORIENT = {v: k for k, v in ORIENT_TO_DELTA.items()}
+
+    def __init__(self, env: MettaGridEnv) -> None:
+        super().__init__(env)
+        # Movement options
+        self.cardinal_directions: List[int] = [1, 3, 5, 7]
+        self.rotation_orientations: List[int] = [0, 1, 2, 3]
+        self._initialize_action_indices()
+
+    def _initialize_action_indices(self) -> None:
+        """Determine indices of move/rotate/pickup actions for this env."""
+        try:
+            action_names: List[str] = self.env.action_names
+            self.move_idx: int = action_names.index("move") if "move" in action_names else 0
+            self.rotate_idx: int = action_names.index("rotate") if "rotate" in action_names else 1
+            # Prefer modern name; accept legacy alias
+            if "get_items" in action_names:
+                self.pickup_idx = action_names.index("get_items")
+            elif "pickup" in action_names:
+                self.pickup_idx = action_names.index("pickup")
+            else:
+                self.pickup_idx = 2
+        except (AttributeError, ValueError):
+            # Fallback defaults
+            self.move_idx = 0
+            self.rotate_idx = 1
+            self.pickup_idx = 2
+
+    def predict(self, obs: np.ndarray) -> np.ndarray:
+        """Decide a step action following opportunistic rules."""
+        assert obs.dtype == dtype_observations
+
+        grid_objects = self.env.grid_objects
+        agent = next((o for o in grid_objects.values() if o.get("agent_id") == 0), None)
+        if agent is None:
+            return generate_valid_random_actions(self.env, self.num_agents)
+
+        ar, ac = agent["r"], agent["c"]
+        agent_ori = int(agent.get("agent:orientation", 0))
+
+        # Adjacent resource? pick up if front, else rotate toward it
+        for orient, (dr, dc) in self.ORIENT_TO_DELTA.items():
+            tr, tc = ar + dr, ac + dc
+            for obj in grid_objects.values():
+                if obj.get("r") == tr and obj.get("c") == tc:
+                    base = self.env.object_type_names[obj["type"]].split(".")[0]
+                    if base.startswith(("mine", "generator", "converter")):
+                        inv = obj.get("inventory", {})
+                        total = sum(inv.values()) if isinstance(inv, dict) else 0
+                        if total > 0:
+                            action_type, action_arg = (
+                                (self.pickup_idx, 0) if orient == agent_ori else (self.rotate_idx, orient)
+                            )
+                            return generate_valid_random_actions(
+                                self.env, self.num_agents, force_action_type=action_type, force_action_arg=action_arg
+                            )
+
+        # Roam
+        occupied = {(o["r"], o["c"]) for o in grid_objects.values() if o.get("layer") == 1}
+        candidates = [(-1, 0), (1, 0), (0, -1), (0, 1)]
+        moves = [(dr, dc) for dr, dc in candidates if (ar + dr, ac + dc) not in occupied]
+        if moves:
+            dr, dc = moves[np.random.randint(len(moves))]
+            desired_ori = self.DELTA_TO_ORIENT[(dr, dc)]
+            action_type, action_arg = (self.rotate_idx, desired_ori) if agent_ori != desired_ori else (self.move_idx, 0)
+        else:
+            action_type, action_arg = self.rotate_idx, int(np.random.choice(self.rotation_orientations))
+
+        return generate_valid_random_actions(
+            self.env, self.num_agents, force_action_type=action_type, force_action_arg=action_arg
+        )
 
 
 class TrainedPolicyWrapper(BasePolicy):
@@ -186,7 +275,7 @@ def get_policy(policy_type: str, env: MettaGridEnv, cfg: DictConfig) -> Policy:
     Get a policy based on the specified type.
 
     Args:
-        policy_type: Type of policy ("random", "simple", or "trained")
+        policy_type: Type of policy ("random", "simple", "opportunistic", or "trained")
         env: MettaGrid environment
         cfg: Hydra configuration
 
@@ -197,6 +286,8 @@ def get_policy(policy_type: str, env: MettaGridEnv, cfg: DictConfig) -> Policy:
         return RandomPolicy(env)
     elif policy_type == "simple":
         return SimplePolicy(env)
+    elif policy_type == "opportunistic":
+        return OpportunisticPolicy(env)
     elif policy_type == "trained":
         return _load_trained_policy(env, cfg)
     else:
@@ -207,9 +298,7 @@ def get_policy(policy_type: str, env: MettaGridEnv, cfg: DictConfig) -> Policy:
 def _load_trained_policy(env: MettaGridEnv, cfg: DictConfig) -> Policy:
     """Attempt to load a trained policy, falling back to simple policy on failure."""
     try:
-        from metta.agent.policy_store import PolicyStore
-
-        policy_store = PolicyStore(cfg, None)
+        policy_store = get_policy_store_from_cfg(cfg)
         policy_pr = policy_store.policy_record(cfg.policy_uri)
         return TrainedPolicyWrapper(policy_pr.policy, env)
     except Exception as e:

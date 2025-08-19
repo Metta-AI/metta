@@ -27,6 +27,14 @@ resources:
     strategy: EAGER_NEXT_REGION
     max_restarts_on_errors: 20
 
+config:
+  docker:
+    run_options:
+      - --cap-add=IPC_LOCK
+      - --ulimit memlock=-1:-1
+      - --ipc=host
+      - --userns=host
+
 file_mounts:
   /mnt/s3/softmax-public:
     source: s3://softmax-public
@@ -36,61 +44,21 @@ file_mounts:
     mode: MOUNT_CACHED
 
 setup: |
-  set -e
-  cd /workspace/metta
+  set -u
+  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/sk_setup.sh")
 
-  git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
-  git checkout "$METTA_GIT_REF"
-  echo "Checked out: $(git rev-parse HEAD)"
-
-  bash ./devops/skypilot/config/setup-common.sh
-
-run: |
-  set -e
-  echo "[RUN] Starting run..."
-  echo "[RUN] METTA_RUN_ID: $METTA_RUN_ID"
-  echo "[RUN] SKYPILOT_TASK_ID: $SKYPILOT_TASK_ID"
-
-  source ~/.bashrc
-
-  cd /workspace/metta
-  source ./devops/setup.env
-
-  if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
-    echo "[RUN] Collecting skypilot latency..."
-    LATENCY_OUTPUT=$(uv run python common/src/metta/common/util/skypilot_latency.py 2>&1) || true
-    echo "$LATENCY_OUTPUT"
-  else
-    echo "[RUN] Latency script is missing!"
-  fi
-
-  if [ -f common/src/metta/common/util/cost_monitor.py ]; then
-    echo "[RUN] Collecting instance cost..."
-    if uv run python common/src/metta/common/util/cost_monitor.py; then
-      echo "[RUN] METTA_HOURLY_COST set to: $METTA_HOURLY_COST"
-    else
-      echo "[RUN] Cost monitor script failed to run."
-    fi
-  else
-    echo "[RUN] Cost monitor script is missing!"
-  fi
-
-  echo "[RUN] Running training script..."
-  ./devops/$METTA_CMD.sh \
-    run=$METTA_RUN_ID \
-    $METTA_CMD_ARGS
-  TRAIN_EXIT=$?
-  echo "[RUN] Training script exit code: $TRAIN_EXIT"
-
-  echo "[RUN] Job complete."
-  exit $TRAIN_EXIT
+run: /workspace/metta/devops/skypilot/config/sk_train_run.sh
 
 envs:
+  TEST_NCCL: "false"
+
+  GITHUB_REPOSITORY: Metta-AI/metta
+  GITHUB_PAT: ""
+
   METTA_RUN_ID: ""
   METTA_CMD: train
   METTA_CMD_ARGS: ""
   METTA_GIT_REF: main
-  WANDB_DIR: ./wandb
   HEARTBEAT_TIMEOUT: 600
 
   # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta

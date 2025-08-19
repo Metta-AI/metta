@@ -1,0 +1,24 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: home-oauth2-proxy
+  annotations:
+    cert-manager.io/cluster-issuer: {{ .Values.cert_manager_issuer | required "cert_manager_issuer is required" }}
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: "{{ .Values.host | required "host is required" }}"
+      http:
+        paths:
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: home-oauth2-proxy
+                port:
+                  number: 4180
+  tls:
+    - hosts:
+        - {{ .Values.host | required "host is required" }}
+      secretName: home-tls
+

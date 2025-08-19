@@ -9,7 +9,9 @@ spec:
     consolidateAfter: 30s
     consolidationPolicy: WhenEmptyOrUnderutilized
   template:
-    metadata: {}
+    metadata:
+      labels:
+        workload-type: eval-worker
     spec:
       expireAfter: 336h
       nodeClassRef:

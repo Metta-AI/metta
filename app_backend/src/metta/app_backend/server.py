@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
 
+import asyncio
 import logging
 import sys
 
@@ -9,12 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic.main import BaseModel
 
 from metta.app_backend.auth import user_from_header_or_token
+from metta.app_backend.leaderboard_updater import LeaderboardUpdater
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes import (
     dashboard_routes,
     entity_routes,
-    episode_routes,
     eval_task_routes,
+    leaderboard_routes,
+    score_routes,
     scorecard_routes,
     sql_routes,
     stats_routes,
@@ -71,6 +74,18 @@ def setup_logging():
     scorecard_routes_logger = logging.getLogger("policy_scorecard_routes")
     scorecard_routes_logger.setLevel(logging.INFO)
 
+    # Configure leaderboard updater logger
+    leaderboard_updater_logger = logging.getLogger("leaderboard_updater")
+    leaderboard_updater_logger.setLevel(logging.INFO)
+
+    # Configure metta repo logger
+    metta_repo_logger = logging.getLogger("metta_repo")
+    metta_repo_logger.setLevel(logging.INFO)
+
+    # Configure psycopg pool logger
+    psycopg_pool_logger = logging.getLogger("psycopg.pool")
+    psycopg_pool_logger.setLevel(logging.WARNING)
+
     # Ensure the loggers don't duplicate messages from root logger
     scorecard_logger.propagate = True
     db_logger.propagate = True
@@ -105,22 +120,24 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
     # Create routers with the provided StatsRepo
     dashboard_router = dashboard_routes.create_dashboard_router(stats_repo)
-    episode_router = episode_routes.create_episode_router(stats_repo)
     eval_task_router = eval_task_routes.create_eval_task_router(stats_repo)
+    leaderboard_router = leaderboard_routes.create_leaderboard_router(stats_repo)
     sql_router = sql_routes.create_sql_router(stats_repo)
     stats_router = stats_routes.create_stats_router(stats_repo)
     token_router = token_routes.create_token_router(stats_repo)
     policy_scorecard_router = scorecard_routes.create_policy_scorecard_router(stats_repo)
+    score_router = score_routes.create_score_router(stats_repo)
     sweep_router = sweep_routes.create_sweep_router(stats_repo)
     entity_router = entity_routes.create_entity_router(stats_repo)
 
     app.include_router(dashboard_router)
-    app.include_router(episode_router)
     app.include_router(eval_task_router)
+    app.include_router(leaderboard_router)
     app.include_router(sql_router)
     app.include_router(stats_router)
     app.include_router(token_router)
     app.include_router(policy_scorecard_router, prefix="/scorecard")
+    app.include_router(score_router)
     # TODO: remove this once we're confident we've migrated all clients to use the /scorecard prefix
     app.include_router(policy_scorecard_router, prefix="/heatmap")
     app.include_router(sweep_router)
@@ -137,10 +154,16 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 if __name__ == "__main__":
     from metta.app_backend.config import host, port, stats_db_uri
 
-    # Setup logging first
-    # setup_logging()
-
     stats_repo = MettaRepo(stats_db_uri)
     app = create_app(stats_repo)
+    leaderboard_updater = LeaderboardUpdater(stats_repo)
 
-    uvicorn.run(app, host=host, port=port)
+    # Start the updater in an async context
+    async def main():
+        await leaderboard_updater.start()
+        # Run uvicorn in a way that doesn't block
+        config = uvicorn.Config(app, host=host, port=port)
+        server = uvicorn.Server(config)
+        await server.serve()
+
+    asyncio.run(main())

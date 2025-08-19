@@ -3,7 +3,7 @@ import string
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 
-from metta.app_backend.container_managers.models import WorkerInfo
+from metta.app_backend.worker_managers.worker import Worker
 
 
 class AbstractContainerManager(ABC):
@@ -23,7 +23,7 @@ class AbstractContainerManager(ABC):
         backend_url: str,
         docker_image: str,
         machine_token: str,
-    ) -> WorkerInfo:
+    ) -> str:
         """Start a worker container
 
         Args:
@@ -36,7 +36,7 @@ class AbstractContainerManager(ABC):
         pass
 
     @abstractmethod
-    def cleanup_container(self, container_id: str) -> None:
+    def cleanup_container(self, name: str) -> None:
         """Remove/cleanup a container.
 
         Args:
@@ -45,10 +45,10 @@ class AbstractContainerManager(ABC):
         pass
 
     @abstractmethod
-    async def discover_alive_workers(self) -> list[WorkerInfo]:
+    async def discover_alive_workers(self) -> list[Worker]:
         """Discover all alive workers.
 
         Returns:
-            List of WorkerInfo objects for alive workers
+            List of Worker objects for alive workers
         """
         pass

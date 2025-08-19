@@ -1,5 +1,3 @@
-# Deals with full and partial replays.
-
 import json
 import logging
 import time
@@ -7,12 +5,12 @@ import time
 from omegaconf import DictConfig
 
 from metta.agent.mocks import MockPolicyRecord
-from metta.agent.policy_store import PolicyStore
 from metta.common.wandb.wandb_context import WandbContext
-from metta.rl.env_config import create_env_config
+from metta.rl.system_config import create_system_config
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SingleEnvSimulationConfig
 from metta.util.metta_script import metta_script
+from tools.utils import get_policy_store_from_cfg
 
 logger = logging.getLogger(__name__)
 
@@ -21,10 +19,10 @@ def create_simulation(cfg):
     logger.info(f"Replaying {cfg.run}")
 
     # Create env config
-    env_cfg = create_env_config(cfg)
+    system_config = create_system_config(cfg)
 
     with WandbContext(cfg.wandb, cfg) as wandb_run:
-        policy_store = PolicyStore(cfg, wandb_run)
+        policy_store = get_policy_store_from_cfg(cfg, wandb_run)
         if cfg.replay_job.policy_uri is not None:
             policy_record = policy_store.policy_record(cfg.replay_job.policy_uri)
         else:
@@ -41,7 +39,7 @@ def create_simulation(cfg):
             policy_record,
             policy_store,
             device=cfg.device,
-            vectorization=env_cfg.vectorization,
+            vectorization=system_config.vectorization,
             stats_dir=cfg.replay_job.stats_dir,
             replay_dir=replay_dir,
         )

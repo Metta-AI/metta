@@ -42,14 +42,15 @@ def launch_task(task: sky.Task, dry_run=False):
 
 
 def check_git_state(commit_hash: str) -> str | None:
-    """Check that the commit has been pushed and there are no staged changes."""
     error_lines = []
 
-    if has_unstaged_changes():
+    has_changes, status_output = has_unstaged_changes()
+    if has_changes:
         error_lines.append(red("❌ You have uncommitted changes that won't be reflected in the cloud job."))
         error_lines.append("Options:")
         error_lines.append("  - Commit: git add . && git commit -m 'your message'")
         error_lines.append("  - Stash: git stash")
+        error_lines.append("\nDebug:\n" + status_output)
         return "\n".join(error_lines)
 
     if not is_commit_pushed(commit_hash):

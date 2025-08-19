@@ -4,15 +4,10 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import numpy as np
 
-
-def create_grid(height: int, width: int, fill_value: str = "empty", dtype: str = "<U50") -> np.ndarray:
-    """
-    Creates a NumPy grid with the given height and width, pre-filled with the specified fill_value.
-    """
-    return np.full((height, width), fill_value, dtype=dtype)
+from metta.map.types import MapGrid
 
 
-def draw_border(grid: np.ndarray, border_width: int, border_object: str) -> None:
+def draw_border(grid: MapGrid, border_width: int, border_object: str) -> None:
     """
     Draws a border on the given grid in-place. The border (of thickness border_width) is set to border_object.
     """

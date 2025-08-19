@@ -2,34 +2,29 @@
 
 import numpy as np
 
-from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from metta.mettagrid.mettagrid_env import dtype_actions
-from tests.test_utils import make_test_config
+from metta.mettagrid.mettagrid_c import dtype_actions
+from metta.mettagrid.test_support import TestEnvironmentBuilder
 
 
 def test_cardinal_movement_basic():
     """Test basic cardinal movement in all four directions.
 
     Cardinal movement always changes orientation to match the direction of movement."""
-    config = make_test_config(
-        num_agents=1,
-        map=[
+    env = TestEnvironmentBuilder.create_environment(
+        game_map=[
             [".", ".", ".", ".", "."],
             [".", ".", ".", ".", "."],
             [".", ".", "agent.player", ".", "."],
             [".", ".", ".", ".", "."],
             [".", ".", ".", ".", "."],
         ],
+        num_agents=1,
         actions={
             "move": {"enabled": False},
             "rotate": {"enabled": False},
             "move_cardinal": {"enabled": True},
         },
     )
-
-    game_map = config.pop("map")
-    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     # Get initial agent position and orientation
@@ -83,24 +78,21 @@ def test_cardinal_movement_basic():
 
 def test_cardinal_movement_obstacles():
     """Test that cardinal movement respects obstacles."""
-    config = make_test_config(
-        num_agents=1,
-        map=[
+    env = TestEnvironmentBuilder.create_environment(
+        game_map=[
             ["wall", "wall", "wall", "wall", "wall"],
             ["wall", ".", ".", ".", "wall"],
             ["wall", ".", "agent.player", ".", "wall"],
             ["wall", ".", ".", ".", "wall"],
             ["wall", "wall", "wall", "wall", "wall"],
         ],
+        num_agents=1,
         actions={
             "move": {"enabled": False},
             "rotate": {"enabled": False},
             "move_cardinal": {"enabled": True},
         },
     )
-
-    game_map = config.pop("map")
-    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     objects = env.grid_objects()
@@ -146,22 +138,19 @@ def test_cardinal_movement_obstacles():
 
 def test_orientation_preserved_in_cardinal_mode():
     """Test interaction between cardinal movement and orientation when both are enabled."""
-    config = make_test_config(
-        num_agents=1,
-        map=[
+    env = TestEnvironmentBuilder.create_environment(
+        game_map=[
             [".", ".", "."],
             [".", "agent.player", "."],
             [".", ".", "."],
         ],
+        num_agents=1,
         actions={
             "move": {"enabled": False},
             "rotate": {"enabled": True},  # Enable both rotate and move_cardinal
             "move_cardinal": {"enabled": True},
         },
     )
-
-    game_map = config.pop("map")
-    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     objects = env.grid_objects()
@@ -220,22 +209,19 @@ def test_orientation_preserved_in_cardinal_mode():
 
 def test_orientation_changes_with_cardinal_movement():
     """Test that agent orientation changes to match the cardinal movement direction."""
-    config = make_test_config(
-        num_agents=1,
-        map=[
+    env = TestEnvironmentBuilder.create_environment(
+        game_map=[
             ["wall", "wall", "wall"],
             ["wall", "agent.player", "wall"],
             ["wall", "wall", "wall"],
         ],
+        num_agents=1,
         actions={
             "move": {"enabled": False},
             "rotate": {"enabled": True},  # Enable rotate to test orientation changes
             "move_cardinal": {"enabled": True},
         },
     )
-
-    game_map = config.pop("map")
-    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     objects = env.grid_objects()
@@ -257,14 +243,14 @@ def test_orientation_changes_with_cardinal_movement():
         objects = env.grid_objects()
         assert objects[agent_id]["orientation"] == 2  # Left
 
-    # Try to move East into wall - should fail and NOT change orientation
+    # Try to move East into wall - should fail BUT WILL change orientation
     actions = np.zeros((1, 2), dtype=dtype_actions)
     actions[0] = [move_cardinal_idx, 3]  # East
     env.step(actions)
 
     objects = env.grid_objects()
     assert not env.action_success()[0]  # Movement should fail
-    assert objects[agent_id]["orientation"] == 2  # Orientation should remain Left
+    assert objects[agent_id]["orientation"] == 3  # Orientation SHOULD change to East
 
     # Try to move North into wall
     actions[0] = [move_cardinal_idx, 0]  # North
@@ -272,29 +258,26 @@ def test_orientation_changes_with_cardinal_movement():
 
     objects = env.grid_objects()
     assert not env.action_success()[0]  # Movement should fail
-    assert objects[agent_id]["orientation"] == 2  # Orientation should still be Left
+    assert objects[agent_id]["orientation"] == 0  # Orientation SHOULD change to North
 
 
 def test_hybrid_movement_mode():
     """Test that both movement types can coexist in the same environment."""
-    config = make_test_config(
-        num_agents=1,
-        map=[
+    env = TestEnvironmentBuilder.create_environment(
+        game_map=[
             [".", ".", ".", ".", "."],
             [".", ".", ".", ".", "."],
             [".", ".", "agent.player", ".", "."],
             [".", ".", ".", ".", "."],
             [".", ".", ".", ".", "."],
         ],
+        num_agents=1,
         actions={
             "move": {"enabled": True},
             "rotate": {"enabled": True},
             "move_cardinal": {"enabled": True},
         },
     )
-
-    game_map = config.pop("map")
-    env = MettaGrid(from_mettagrid_config(config), game_map, 42)
     env.reset()
 
     action_names = env.action_names()
@@ -332,3 +315,55 @@ def test_hybrid_movement_mode():
 
     objects = env.grid_objects()
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 3)
+
+
+def test_cardinal_movement_with_simple_environment():
+    """Test cardinal movement using the simple environment builder method."""
+    # Create a simple 6x6 environment with agents at specific positions
+    env = TestEnvironmentBuilder.create_simple_environment(
+        width=6,
+        height=6,
+        agent_positions=[(3, 3)],  # Single agent in center
+        actions={
+            "move": {"enabled": False},
+            "rotate": {"enabled": False},
+            "move_cardinal": {"enabled": True},
+        },
+    )
+    env.reset()
+
+    objects = env.grid_objects()
+    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
+
+    # Verify agent is at expected position
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (3, 3)
+
+    action_names = env.action_names()
+    move_cardinal_idx = action_names.index("move_cardinal")
+
+    # Test movement pattern: North, East, South, West (should form a square)
+    actions = np.zeros((1, 2), dtype=dtype_actions)
+
+    # Move North
+    actions[0] = [move_cardinal_idx, 0]
+    env.step(actions)
+    objects = env.grid_objects()
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (2, 3)
+
+    # Move East
+    actions[0] = [move_cardinal_idx, 3]
+    env.step(actions)
+    objects = env.grid_objects()
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (2, 4)
+
+    # Move South
+    actions[0] = [move_cardinal_idx, 1]
+    env.step(actions)
+    objects = env.grid_objects()
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (3, 4)
+
+    # Move West - back to start
+    actions[0] = [move_cardinal_idx, 2]
+    env.step(actions)
+    objects = env.grid_objects()
+    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (3, 3)

@@ -28,6 +28,20 @@ class PolicyRecord:
         self.metadata = metadata
         self._cached_policy: "PolicyAgent | None" = None
 
+    def extract_wandb_run_info(self) -> tuple[str, str, str, str | None]:
+        if self.uri is None or not self.uri.startswith("wandb://"):
+            raise ValueError("Cannot get wandb info without a valid URI.")
+        try:
+            entity, project, name = self.uri[len("wandb://") :].split("/")
+            version: str | None = None
+            if ":" in name:
+                name, version = name.split(":")
+            return entity, project, name, version
+        except ValueError as e:
+            raise ValueError(
+                f"Failed to parse wandb URI: {self.uri}. Expected format: wandb://<entity>/<project>/<name>"
+            ) from e
+
     @property
     def metadata(self) -> PolicyMetadata:
         """Get the metadata."""
@@ -121,13 +135,6 @@ class PolicyRecord:
         self._cached_policy = policy
         logger.info(f"Policy overwritten for {self.run_name}")
 
-    def policy_as_metta_agent(self):
-        """Return the policy, ensuring it's a MettaAgent type."""
-        policy = self.policy
-        if type(policy).__name__ not in {"MettaAgent", "DistributedMettaAgent", "PytorchAgent"}:
-            raise TypeError(f"Expected MettaAgent, DistributedMettaAgent, or PytorchAgent, got {type(policy).__name__}")
-        return policy
-
     def num_params(self) -> int:
         """Count the number of trainable parameters."""
         return sum(p.numel() for p in self.policy.parameters() if p.requires_grad)
@@ -162,6 +169,12 @@ class PolicyRecord:
         total_params = sum(p.numel() for p in policy.parameters())
         trainable_params = sum(p.numel() for p in policy.parameters() if p.requires_grad)
         lines.append(f"Total parameters: {total_params:,} (trainable: {trainable_params:,})")
+
+        # Check if this is a legacy checkpoint wrapped in adapter
+        from metta.agent.legacy_adapter import LegacyMettaAgentAdapter
+
+        if hasattr(policy, "policy") and isinstance(policy.policy, LegacyMettaAgentAdapter):
+            lines.append("\nNOTE: Legacy checkpoint loaded via LegacyMettaAgentAdapter for backwards compatibility")
 
         # Add module structure with detailed weight shapes
         lines.append("\nModule Structure with Weight Shapes:")

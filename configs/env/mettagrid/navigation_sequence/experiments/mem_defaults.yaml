@@ -24,18 +24,19 @@ game:
         battery_red: 0.1
         heart: 1
   map_builder:
-    _target_: metta.mettagrid.room.multi_room.MultiRoom
-    num_rooms: ${..num_agents}
+    _target_: metta.map.mapgen.MapGen
+    instances: ${..num_agents}
     border_width: 6
-    room:
-      _target_: metta.mettagrid.room.terrain_from_numpy.TerrainFromNumpy
-      border_width: 3
-      agents: 1
-      dir: ???
-      objects:
-        mine_red: 5
-        generator_red: 5
-        altar: 5
+    instance_border_width: 3
+    instance_map:
+      type: metta.map.terrain_from_numpy.TerrainFromNumpy
+      params:
+        agents: 1
+        dir: ???
+        objects:
+          mine_red: 5
+          generator_red: 5
+          altar: 5
   objects:
     altar:
       input_resources:

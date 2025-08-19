@@ -751,6 +751,7 @@ async function parseUrlParams() {
   if (replayUrl) {
     console.info('Loading replay from URL: ', replayUrl)
     await fetchReplay(replayUrl)
+
     focusFullMap(ui.mapPanel)
   } else if (wsUrl) {
     Common.showModal('info', 'Connecting to a websocket', 'Please wait a few seconds for the environment to load.')
@@ -975,6 +976,17 @@ if (localStorage.hasOwnProperty('showFogOfWar')) {
 }
 toggleOpacity(html.fogOfWarToggle, state.showFogOfWar)
 
+onEvent('click', '#heatmap-toggle', () => {
+  state.showHeatmap = !state.showHeatmap
+  localStorage.setItem('showHeatmap', state.showHeatmap.toString())
+  toggleOpacity(html.heatmapToggle, state.showHeatmap)
+  requestFrame()
+})
+if (localStorage.hasOwnProperty('showHeatmap')) {
+  state.showHeatmap = localStorage.getItem('showHeatmap') === 'true'
+}
+toggleOpacity(html.heatmapToggle, state.showHeatmap)
+
 onEvent('click', '#minimap-toggle', () => {
   state.showMiniMap = !state.showMiniMap
   localStorage.setItem('showMiniMap', state.showMiniMap.toString())
@@ -1072,6 +1084,13 @@ onEvent('click', '#action-buttons .close', () => {
   localStorage.setItem('showActionButtons', state.showActionButtons.toString())
   toggleOpacity(html.controlsToggle, state.showActionButtons)
   requestFrame()
+})
+
+onEvent('click', '#modal', () => {
+  // make error modal dismissable.
+  if (html.modal.classList.contains('error')) {
+    Common.closeModal()
+  }
 })
 
 initHighDpiMode()

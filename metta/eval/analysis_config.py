@@ -7,8 +7,6 @@ from metta.common.util.config import Config
 class AnalysisConfig(Config):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    __init__ = Config.__init__
-
     # Policy URI to analyze
     policy_uri: str | None = None
     policy_selector: PolicySelectorConfig = Field(default_factory=PolicySelectorConfig)

@@ -26,7 +26,7 @@ class InlineAscii(Scene[InlineAsciiParams]):
         if self.width < ascii_width + params.column or self.height < ascii_height + params.row:
             raise ValueError(
                 f"ASCII grid size {ascii_width}x{ascii_height} is too large"
-                f" for scene size {self.width}x{self.height} at "
+                f" for area size {self.width}x{self.height} at "
                 f"({params.column},{params.row})"
             )
 

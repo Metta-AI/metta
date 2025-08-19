@@ -9,10 +9,13 @@ Runs eval tasks inside a Docker container.
 """
 
 import asyncio
+import json
 import logging
 import os
 import subprocess
+import tempfile
 import uuid
+from abc import ABC, abstractmethod
 from datetime import datetime
 
 from devops.observatory_login import CLIAuthenticator
@@ -25,24 +28,23 @@ from metta.app_backend.routes.eval_task_routes import (
 )
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
+from metta.common.util.constants import SOFTMAX_S3_BASE
 from metta.common.util.git import METTA_API_REPO_URL
 from metta.common.util.logging_helpers import init_logging
 
 
-class EvalTaskWorker:
-    def __init__(self, backend_url: str, assignee: str, machine_token: str, logger: logging.Logger | None = None):
+class AbstractTaskExecutor(ABC):
+    @abstractmethod
+    async def execute_task(self, task: TaskResponse) -> None:
+        pass
+
+
+class SimTaskExecutor(AbstractTaskExecutor):
+    def __init__(self, backend_url: str, machine_token: str, logger: logging.Logger):
         self._backend_url = backend_url
-        self._assignee = assignee
-        CLIAuthenticator(self._backend_url).save_token(machine_token)
-        self._client = EvalTaskClient(backend_url)
-        self._logger = logger or logging.getLogger(__name__)
-        self._poll_interval = 5.0
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._client.close()
+        CLIAuthenticator(backend_url).save_token(machine_token)
+        self._logger = logger
+        self._logger.info(f"Backend URL: {self._backend_url}")
 
     def _run_cmd_from_versioned_checkout(
         self,
@@ -110,12 +112,10 @@ class EvalTaskWorker:
 
         self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
 
-    @trace("worker.run_sim_task")
-    async def _run_sim_task(
+    @trace("worker.execute_task")
+    async def execute_task(
         self,
         task: TaskResponse,
-        sim_suite: str,
-        env_overrides: dict,
     ) -> None:
         if not task.git_hash:
             raise RuntimeError(f"Git hash not found for task {task.id}")
@@ -125,29 +125,65 @@ class EvalTaskWorker:
         policy_name = task.policy_name
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
+
         cmd = [
             "uv",
             "run",
             "tools/sim.py",
             f"policy_uri=wandb://run/{policy_name}",
-            f"sim={sim_suite}",
+            f"sim={task.sim_suite}",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
             "device=cpu",
             "vectorization=serial",
+            "push_metrics_to_wandb=true",
+            f"sim_job.replay_dir={SOFTMAX_S3_BASE}/replays/" + "${run}",
         ]
 
-        for key, value in env_overrides.items():
-            cmd.append(f"env_overrides.{key}={value}")
+        with tempfile.TemporaryDirectory(prefix=f"metta-policy-evaluator-{task.id}", dir="/tmp") as task_tmp_dir:
+            if task.sim_suite_config:
+                path = os.path.join(task_tmp_dir, "sim_suite_config.json")
+                with open(path, "w") as f:
+                    json.dump(task.sim_suite_config, f)
+                cmd.append(f"sim_suite_config_path={path}")
 
-        self._logger.info(f"Running command: {' '.join(cmd)}")
+            if task.trainer_task:
+                path = os.path.join(task_tmp_dir, "trainer_task.json")
+                with open(path, "w") as f:
+                    json.dump(task.trainer_task, f)
+                cmd.append(f"trainer_task_path={path}")
 
-        result = self._run_cmd_from_versioned_checkout(
-            cmd,
-            "sim.py failed with exit code",
-        )
+            self._logger.info(f"Running command: {' '.join(cmd)}")
 
-        self._logger.info(f"Simulation completed successfully: {result.stdout}")
+            result = self._run_cmd_from_versioned_checkout(
+                cmd,
+                "sim.py failed with exit code",
+            )
+
+            self._logger.info(f"Simulation completed successfully: {result.stdout}")
+
+
+class EvalTaskWorker:
+    def __init__(
+        self,
+        client: EvalTaskClient,
+        task_executor: AbstractTaskExecutor,
+        assignee: str,
+        poll_interval: float = 5.0,
+        logger: logging.Logger | None = None,
+    ):
+        self._client = client
+        self._task_executor = task_executor
+        self._assignee = assignee
+
+        self._logger = logger or logging.getLogger(__name__)
+        self._poll_interval = poll_interval
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._client.close()
 
     @trace("worker.update_status")
     async def _update_task_status(
@@ -175,7 +211,6 @@ class EvalTaskWorker:
 
     async def run(self) -> None:
         self._logger.info("Starting eval worker")
-        self._logger.info(f"Backend URL: {self._backend_url}")
         self._logger.info(f"Worker id: {self._assignee}")
 
         self._logger.info("Worker running from main branch, sim.py will use git hash")
@@ -189,7 +224,7 @@ class EvalTaskWorker:
                     task: TaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
                     self._logger.info(f"Processing task {task.id}")
                     try:
-                        await self._run_sim_task(task, task.sim_suite, task.attributes.get("env_overrides", {}))
+                        await self._task_executor.execute_task(task)
                         self._logger.info(f"Task {task.id} completed successfully")
                         await self._update_task_status(task.id, "done")
                         self._logger.info(f"Task {task.id} updated to done")
@@ -220,7 +255,9 @@ async def main() -> None:
     assignee = os.environ["WORKER_ASSIGNEE"]
     machine_token = os.environ["MACHINE_TOKEN"]
 
-    async with EvalTaskWorker(backend_url, assignee, machine_token, logger) as worker:
+    client = EvalTaskClient(backend_url)
+    task_executor = SimTaskExecutor(backend_url, machine_token, logger)
+    async with EvalTaskWorker(client, task_executor, assignee, logger=logger) as worker:
         await worker.run()
 
 

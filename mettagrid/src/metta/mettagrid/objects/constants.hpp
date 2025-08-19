@@ -57,10 +57,12 @@ constexpr ObservationType LastActionArg = 10;
 constexpr ObservationType LastReward = 11;
 constexpr ObservationType Glyph = 12;
 constexpr ObservationType ResourceRewards = 13;
-constexpr ObservationType ObservationFeatureCount = 14;
+constexpr ObservationType VisitationCounts = 14;
+constexpr ObservationType ObservationFeatureCount = 15;
 }  // namespace ObservationFeature
 
 const ObservationType InventoryFeatureOffset = ObservationFeature::ObservationFeatureCount;
+
 
 // Use function-local statics to avoid global constructors and initialization order issues
 inline const std::map<ObservationType, std::string>& GetFeatureNames() {
@@ -78,7 +80,8 @@ inline const std::map<ObservationType, std::string>& GetFeatureNames() {
       {ObservationFeature::LastActionArg, "last_action_arg"},
       {ObservationFeature::LastReward, "last_reward"},
       {ObservationFeature::Glyph, "agent:glyph"},
-      {ObservationFeature::ResourceRewards, "resource_rewards"}};
+      {ObservationFeature::ResourceRewards, "resource_rewards"},
+      {ObservationFeature::VisitationCounts, "agent:visitation_counts"}};
   return feature_names;
 }
 
@@ -102,6 +105,7 @@ inline const std::map<ObservationType, float>& GetFeatureNormalizations() {
       {ObservationFeature::Swappable, 1.0},
       {ObservationFeature::Glyph, 255.0},
       {ObservationFeature::ResourceRewards, 255.0},
+      {ObservationFeature::VisitationCounts, 1000.0},
   };
   return feature_normalizations;
 }

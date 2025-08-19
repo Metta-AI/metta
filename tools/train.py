@@ -10,7 +10,6 @@ import torch
 from omegaconf import DictConfig, OmegaConf
 from torch.distributed.elastic.multiprocessing.errors import record
 
-from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.config import Config
 from metta.common.util.git import get_git_hash_for_remote_task
@@ -19,7 +18,7 @@ from metta.common.util.resolvers import oc_date_format
 from metta.common.util.stats_client_cfg import get_stats_client
 from metta.common.wandb.wandb_context import WandbContext, WandbRun
 from metta.core.distributed import setup_device_and_distributed
-from metta.rl.env_config import create_env_config
+from metta.rl.system_config import create_system_config
 from metta.rl.trainer import train
 from metta.rl.trainer_config import create_trainer_config
 from metta.sim.simulation_config import SimulationSuiteConfig
@@ -28,13 +27,13 @@ from tools.sweep_config_utils import (
     load_train_job_config_with_overrides,
     validate_train_job_config,
 )
+from tools.utils import get_policy_store_from_cfg
 
 logger = logging.getLogger(__name__)
 
 
 # TODO: populate this more
 class TrainJob(Config):
-    __init__ = Config.__init__
     evals: SimulationSuiteConfig
     map_preview_uri: str | None = None
 
@@ -64,33 +63,45 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
     cfg = load_train_job_config_with_overrides(cfg)
 
     # Create env config early to use it throughout
-    env_cfg = create_env_config(cfg)
+    system_cfg = create_system_config(cfg)
 
     # Validation must be done after merging
     # otherwise trainer's default num_workers: null will be override the values
     # set by _calculate_default_num_workers, and the validation will fail
     if not cfg.trainer.num_workers:
-        cfg.trainer.num_workers = _calculate_default_num_workers(env_cfg.vectorization == "serial")
+        cfg.trainer.num_workers = _calculate_default_num_workers(system_cfg.vectorization == "serial")
+
+    stats_client: StatsClient | None = get_stats_client(cfg, logger)
+    if stats_client is not None:
+        stats_client.validate_authenticated()
 
     # Determine git hash for remote simulations
-    if cfg.trainer.simulation.evaluate_remote and not cfg.trainer.simulation.git_hash:
-        cfg.trainer.simulation.git_hash = get_git_hash_for_remote_task(
-            skip_git_check=cfg.trainer.simulation.skip_git_check,
-            skip_cmd="trainer.simulation.skip_git_check=true",
-            logger=logger,
-        )
-        if cfg.trainer.simulation.git_hash:
-            logger.info(f"Git hash for remote evaluations: {cfg.trainer.simulation.git_hash}")
-        else:
-            logger.info("No git hash available for remote evaluations")
+    if cfg.trainer.simulation.evaluate_remote:
+        if not stats_client:
+            cfg.trainer.simulation.evaluate_remote = False
+            logger.info("Not connected to stats server, disabling remote evaluations")
+        elif not cfg.trainer.simulation.evaluate_interval:
+            cfg.trainer.simulation.evaluate_remote = False
+            logger.info("Evaluate interval set to 0, disabling remote evaluations")
+        elif not cfg.trainer.simulation.git_hash:
+            cfg.trainer.simulation.git_hash = get_git_hash_for_remote_task(
+                skip_git_check=cfg.trainer.simulation.skip_git_check,
+                skip_cmd="trainer.simulation.skip_git_check=true",
+                logger=logger,
+            )
+            if cfg.trainer.simulation.git_hash:
+                logger.info(f"Git hash for remote evaluations: {cfg.trainer.simulation.git_hash}")
+            else:
+                logger.info("No git hash available for remote evaluations")
 
     cfg = validate_train_job_config(cfg)
-    logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
 
-    if os.environ.get("RANK", "0") == "0":
+    if os.environ.get("RANK", "0") == "0":  # master only
+        logger.info("Trainer config after overrides:\n%s", OmegaConf.to_yaml(cfg.trainer, resolve=True))
         with open(os.path.join(cfg.run_dir, "config.yaml"), "w") as f:
             OmegaConf.save(cfg, f)
-    train_job = TrainJob(cfg.train_job)
+
+    train_job = TrainJob.model_validate(OmegaConf.to_container(cfg.train_job, resolve=True))
     if torch.distributed.is_initialized():
         world_size = torch.distributed.get_world_size()
         if cfg.trainer.scale_batches_by_world_size:
@@ -99,24 +110,38 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // world_size
 
-    policy_store = PolicyStore(cfg, wandb_run)  # type: ignore[reportArgumentType]
-    stats_client: StatsClient | None = get_stats_client(cfg, logger)
-    if stats_client is not None:
-        stats_client.validate_authenticated()
+    policy_store = get_policy_store_from_cfg(cfg, wandb_run)
 
-    # Use the functional train interface directly
-    train(
-        run=cfg.run,
-        run_dir=cfg.run_dir,
-        env_cfg=env_cfg,
-        agent_cfg=cfg.agent,
-        device=torch.device(env_cfg.device),
-        trainer_cfg=create_trainer_config(cfg),
-        wandb_run=wandb_run,
-        policy_store=policy_store,
-        sim_suite_config=train_job.evals,
-        stats_client=stats_client,
-    )
+    # Use the functional train interface directly with failure handling
+    try:
+        train(
+            run=cfg.run,
+            run_dir=cfg.run_dir,
+            system_cfg=system_cfg,
+            agent_cfg=cfg.agent,
+            device=torch.device(system_cfg.device),
+            trainer_cfg=create_trainer_config(cfg),
+            wandb_run=wandb_run,
+            policy_store=policy_store,
+            sim_suite_config=train_job.evals,
+            stats_client=stats_client,
+        )
+    except Exception as training_error:
+        # Training failed - check if we have stats info to update status
+        # If train() threw an exception before completing, we need to find the run ID some other way
+        # For now, this provides the framework for proper failure handling
+        logger.error(f"Training failed with error: {training_error}", exc_info=True)
+
+        # Attempt to find and update the most recent training run created by this process
+        if stats_client:
+            try:
+                # This would need implementation to query for the most recent run
+                # For demonstration, we log that we would update it
+                logger.info("Would attempt to find and update most recent training run status to 'failed'")
+            except Exception as e:
+                logger.warning(f"Could not update training run status after failure: {e}")
+
+        raise  # Re-raise the original exception
 
 
 def _set_min(cfg: DictConfig, path: str, value: float) -> None:
@@ -176,9 +201,6 @@ def main(cfg: DictConfig) -> int:
 
     logger.info(f"Training {cfg.run} on {cfg.device}")
     if is_master:
-        logger.info(f"Train job config: {OmegaConf.to_yaml(cfg, resolve=True)}")
-
-        # Initialize wandb using WandbContext
         with WandbContext(cfg.wandb, cfg) as wandb_run:
             handle_train(cfg, wandb_run, logger)
     else:

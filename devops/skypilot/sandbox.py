@@ -11,6 +11,7 @@ import yaml
 from devops.skypilot.utils import set_task_secrets
 from metta.common.util.cli import spinner
 from metta.common.util.cost_monitor import get_instance_cost
+from metta.common.util.git import GitError, get_current_branch
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 
@@ -40,18 +41,8 @@ def load_sandbox_config(config_path: str):
 def get_current_git_ref():
     """Get the current git branch or commit hash."""
     try:
-        # Try to get the current branch name
-        result = subprocess.run(
-            ["git", "rev-parse", "--abbrev-ref", "HEAD"], capture_output=True, text=True, check=True
-        )
-        branch = result.stdout.strip()
-        if branch != "HEAD":
-            return branch
-
-        # If in detached HEAD state, get the commit hash
-        result = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True)
-        return result.stdout.strip()[:8]  # First 8 chars of commit hash
-    except Exception:
+        return get_current_branch()
+    except (GitError, ValueError):
         return "main"  # Fallback to main
 
 

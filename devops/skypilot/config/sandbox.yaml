@@ -5,6 +5,14 @@ resources:
   cpus: 8+
   image_id: docker:metta:latest
 
+config:
+  docker:
+    run_options:
+      - --cap-add=IPC_LOCK
+      - --ulimit memlock=-1:-1
+      - --ipc=host
+      - --userns=host
+
 file_mounts:
   /mnt/s3/softmax-public:
     source: s3://softmax-public
@@ -14,24 +22,32 @@ file_mounts:
     mode: MOUNT_CACHED
 
 setup: |
-  set -e
-  cd /workspace/metta
-
-  git fetch --depth=1000 origin "$METTA_GIT_REF" || git fetch origin
-  git checkout "$METTA_GIT_REF"
-  echo "Checked out: $(git rev-parse HEAD)"
-
-  bash ./devops/skypilot/config/setup-common.sh
+  set -u
+  bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/sk_setup.sh")
 
 run: |
   set -e
-  echo "[RUN] Starting run..."
+  cd /workspace/metta
 
+  # Note that the docker image may start with its own venv - switch to metta venv
+  if [ -n "$VIRTUAL_ENV" ]; then
+      deactivate 2>/dev/null || true
+  fi
+  . .venv/bin/activate
+
+  echo "[SETUP] Setting up Python environment..."
+  uv sync
+
+  bash ./devops/skypilot/config/configure_environment.sh
+
+  METTA_ENV_FILE="$(uv run ./common/src/metta/common/util/constants.py METTA_ENV_FILE)"
+  source "$METTA_ENV_FILE"
+
+  echo "Starting bash shell..."
   exec bash
 
 envs:
-  METTA_GIT_REF: main
-  WANDB_DIR: ./wandb
+  GITHUB_REPOSITORY: Metta-AI/metta
 
   # username and password are acquired automatically by our skypilot-api-server patch, see skypilot-chart/files/ecr.patch
   SKYPILOT_DOCKER_USERNAME: ""

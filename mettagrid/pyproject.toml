@@ -41,8 +41,8 @@ dependencies = [
     "omegaconf>=2.4.0.dev3",
     "pandas>=2.3.0",
     "pettingzoo>=1.24.1,<1.25",
+    "pufferlib>=3.0.0,<3.1.0",
     "pydantic>=2.11.5",
-    "raylib>=5.5.0,<5.6",
     "pyyaml>=6.0.2",
     "rich>=13.9.4",
     "scipy>=1.15.3",
@@ -74,7 +74,7 @@ wheel.packages = ["src/metta"]
 # So for now we're recompiling the entire package on every C++ code change.
 
 [tool.pytest.ini_options]
-# Configuring pytest here causes us to ignore metta/conftest.py
+markers = ["slow: marks tests as slow (deselect with '-m \"not slow\"')"]
 testpaths = ["tests", "benchmarks"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
@@ -96,7 +96,6 @@ include = ["metta.mettagrid", "metta.mettagrid.*"]
 "metta.mettagrid" = ["py.typed"]
 
 [tool.uv.sources]
-pufferlib = { git = "https://github.com/Metta-AI/PufferLib.git", rev = "dcd597ef1a094cc2da886f5a4ab2c7f1b27d0183" }
 metta-common = { workspace = true }
 
 [tool.coverage.run]

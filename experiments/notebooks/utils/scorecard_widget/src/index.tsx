@@ -158,9 +158,12 @@ function ScorecardWidget({ model }: ScorecardWidgetProps) {
             padding: '0',
             border: '2px solid #007bff',
             borderRadius: '8px',
-            margin: '10px 0',
+            margin: '10px auto',
             backgroundColor: '#f8f9fa',
-            fontFamily: 'Arial, sans-serif'
+            fontFamily: 'Arial, sans-serif',
+            maxWidth: '1100px',
+            width: 'fit-content',
+            display: 'block'
         }}>
             <Scorecard
                 data={transformedData}

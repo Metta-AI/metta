@@ -1,4 +1,5 @@
 import logging
+import uuid
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
@@ -26,11 +27,17 @@ class PaginationRequest(BaseModel):
     page_size: int = Field(default=25, ge=1, le=100)
 
 
-class PoliciesRequest(BaseModel):
-    """Request body for getting policies and training runs."""
+class PoliciesSearchRequest(BaseModel):
+    """Search parameters for policies."""
 
-    search_text: Optional[str] = None
-    pagination: PaginationRequest = PaginationRequest()
+    search: Optional[str] = Field(default=None, description="Search term for policy names")
+    policy_type: Optional[str] = Field(default=None, description="Filter by policy type: 'training_run' or 'policy'")
+    tags: Optional[List[str]] = Field(
+        default=None, description="Filter by tags (policies must have at least one matching tag)"
+    )
+    user_id: Optional[str] = Field(default=None, description="Filter by user ID")
+    limit: int = Field(default=100, ge=1, le=1000, description="Maximum number of results")
+    offset: int = Field(default=0, ge=0, description="Number of results to skip")
 
 
 class UnifiedPolicyInfo(BaseModel):
@@ -48,9 +55,6 @@ class PoliciesResponse(BaseModel):
     """Response containing unified policies and training runs."""
 
     policies: List[UnifiedPolicyInfo]
-    total_count: int
-    page: int
-    page_size: int
 
 
 class EvalsRequest(BaseModel):
@@ -90,6 +94,7 @@ class ScorecardCell(BaseModel):
 
     evalName: str
     replayUrl: Optional[str]
+    thumbnailUrl: Optional[str]
     value: float
 
 
@@ -104,19 +109,28 @@ class ScorecardData(BaseModel):
     evalMaxScores: Dict[str, float]
 
 
+class LeaderboardScorecardRequest(BaseModel):
+    """Request body for generating leaderboard scorecard."""
+
+    leaderboard_id: uuid.UUID
+    selector: Literal["latest", "best"]
+    num_policies: int
+
+
 @dataclass
 class PolicyEvaluationResult:
     """Represents a single policy evaluation result for the new system."""
 
-    policy_id: str
+    policy_id: uuid.UUID
     policy_name: str
     eval_category: str
     env_name: str
     replay_url: Optional[str]
+    thumbnail_url: Optional[str]
     total_score: float
     num_agents: int
     episode_id: int
-    run_id: Optional[str] = None
+    run_id: Optional[uuid.UUID] = None
     epoch: Optional[int] = None
 
     @property
@@ -129,41 +143,19 @@ class PolicyEvaluationResult:
         """Combined evaluation name for display."""
         return f"{self.eval_category}/{self.env_name}"
 
+    @property
+    def unified_id(self) -> uuid.UUID:
+        """Unified ID."""
+        if self.run_id:
+            return self.run_id
+        return self.policy_id
+
 
 # ============================================================================
 # SQL Queries
 # ============================================================================
 
-UNIFIED_POLICIES_QUERY = """
-    WITH unified_policies AS (
-        SELECT
-          COALESCE(we.training_run_id, we.primary_policy_id) as id,
-          ANY_VALUE(CASE WHEN we.training_run_id IS NOT NULL THEN 'training_run' ELSE 'policy' END) as type,
-          ANY_VALUE(COALESCE(we.training_run_name, we.policy_name)) as name,
-          ANY_VALUE(we.training_run_user_id) as user_id,
-          ANY_VALUE(we.created_at) as created_at,
-          ANY_VALUE(we.training_run_tags) as tags
-        FROM wide_episodes we
-        GROUP BY COALESCE(we.training_run_id, we.primary_policy_id)
-    )
-"""
-
-GET_UNIFIED_POLICIES_QUERY = """
-    {unified_policies_query}
-
-    SELECT * FROM unified_policies up
-    {where_clause}
-
-    ORDER BY created_at DESC
-    LIMIT %s OFFSET %s
-"""
-
-COUNT_UNIFIED_POLICIES_QUERY = """
-    {unified_policies_query}
-
-    SELECT COUNT(*) FROM unified_policies up
-    {where_clause}
-"""
+UNIFIED_POLICIES_QUERY = """SELECT * FROM unified_training_runs ORDER BY created_at DESC"""
 
 GET_EVALS_QUERY = """
     SELECT DISTINCT eval_name
@@ -200,6 +192,7 @@ POLICY_SCORECARD_DATA_QUERY = """
         we.eval_category,
         we.env_name,
         ANY_VALUE(we.replay_url) as replay_url,
+        ANY_VALUE(we.thumbnail_url) as thumbnail_url,
         SUM(eam.value) as total_score,
         COUNT(eam.*) as num_agents,
         MAX(we.internal_id) as episode_id,
@@ -209,7 +202,7 @@ POLICY_SCORECARD_DATA_QUERY = """
     JOIN episode_agent_metrics eam ON we.internal_id = eam.episode_internal_id
     WHERE (
         we.training_run_id = ANY(%s) OR  -- Policies from selected training runs
-        (we.training_run_id IS NULL AND we.primary_policy_id = ANY(%s))  -- Selected run-free policies
+        (we.primary_policy_id = ANY(%s))  -- Selected policies
     )
     AND eam.metric = %s
     AND we.eval_name = ANY(%s)
@@ -224,36 +217,10 @@ POLICY_SCORECARD_DATA_QUERY = """
 # ============================================================================
 
 
-async def get_policies_and_training_runs(con: AsyncConnection, request: PoliciesRequest) -> PoliciesResponse:
+async def get_policies_and_training_runs(con: AsyncConnection) -> PoliciesResponse:
     """Get unified training runs and run-free policies with pagination and optional filtering."""
-    # Build where clauses for search filtering
-    search_where = ""
-    search_params = []
 
-    if request.search_text and request.search_text.strip():
-        search_pattern = f"%{request.search_text.strip()}%"
-        search_where = """
-            WHERE (
-                up.name ILIKE %s OR
-                COALESCE(up.user_id, '') ILIKE %s OR
-                up.created_at::text ILIKE %s OR
-                EXISTS (SELECT 1 FROM unnest(up.tags) AS tag WHERE tag ILIKE %s)
-            )
-        """
-
-        search_params = [search_pattern] * 4  # For training runs query (includes tags)
-
-    # Calculate pagination
-    offset = (request.pagination.page - 1) * request.pagination.page_size
-    limit = request.pagination.page_size
-
-    # Get unified policies and training runs
-    unified_query = GET_UNIFIED_POLICIES_QUERY.format(
-        unified_policies_query=UNIFIED_POLICIES_QUERY, where_clause=search_where
-    )
-    unified_params = search_params + [limit, offset]
-
-    unified_rows = await execute_query_and_log(con, unified_query, unified_params, "get_unified_policies")
+    unified_rows = await execute_query_and_log(con, UNIFIED_POLICIES_QUERY, (), "get_unified_policies")
 
     policies = [
         UnifiedPolicyInfo(
@@ -262,21 +229,57 @@ async def get_policies_and_training_runs(con: AsyncConnection, request: Policies
         for row in unified_rows
     ]
 
-    # Get total count
-    count_query = COUNT_UNIFIED_POLICIES_QUERY.format(
-        unified_policies_query=UNIFIED_POLICIES_QUERY, where_clause=search_where
-    )
-    count_params = search_params
+    return PoliciesResponse(policies=policies)
 
-    count_rows = await execute_query_and_log(con, count_query, count_params, "count_unified_policies")
-    total_count = count_rows[0][0]
 
-    return PoliciesResponse(
-        policies=policies,
-        total_count=total_count,
-        page=request.pagination.page,
-        page_size=request.pagination.page_size,
-    )
+async def search_policies_and_training_runs(
+    con: AsyncConnection, search_params: PoliciesSearchRequest
+) -> PoliciesResponse:
+    """Search unified training runs and run-free policies with filtering."""
+
+    # Build dynamic query based on search parameters
+    base_query = "SELECT * FROM unified_training_runs"
+    conditions = []
+    params = []
+
+    # Add search condition for name
+    if search_params.search:
+        conditions.append("LOWER(name) LIKE LOWER(%s)")
+        params.append(f"%{search_params.search}%")
+
+    # Add policy type filter
+    if search_params.policy_type:
+        conditions.append("type = %s")
+        params.append(search_params.policy_type)
+
+    # Add user_id filter
+    if search_params.user_id:
+        conditions.append("user_id = %s")
+        params.append(search_params.user_id)
+
+    # Add tag filter using array overlap
+    if search_params.tags:
+        conditions.append("tags && %s")
+        params.append(search_params.tags)
+
+    # Combine conditions
+    if conditions:
+        base_query += " WHERE " + " AND ".join(conditions)
+
+    # Add ordering and pagination
+    base_query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
+    params.extend([search_params.limit, search_params.offset])
+
+    unified_rows = await execute_query_and_log(con, base_query, tuple(params), "search_policies")
+
+    policies = [
+        UnifiedPolicyInfo(
+            id=str(row[0]), type=row[1], name=row[2], user_id=row[3], created_at=str(row[4]), tags=row[5] or []
+        )
+        for row in unified_rows
+    ]
+
+    return PoliciesResponse(policies=policies)
 
 
 async def get_evals_for_selection(
@@ -309,8 +312,8 @@ async def get_available_metrics_for_selection(
 
 async def fetch_policy_scorecard_data(
     con: AsyncConnection,
-    training_run_ids: List[str],
-    run_free_policy_ids: List[str],
+    training_run_ids: List[str] | List[uuid.UUID],
+    run_free_policy_ids: List[str] | List[uuid.UUID],
     eval_names: List[str],
     metric: str,
 ) -> List[PolicyEvaluationResult]:
@@ -428,7 +431,10 @@ def build_policy_scorecard(
         for eval_name in eval_names:
             eval = data_map.get((policy_name, eval_name))
             cells[policy_name][eval_name] = ScorecardCell(
-                evalName=eval_name, replayUrl=eval.replay_url if eval else None, value=eval.value if eval else 0.0
+                evalName=eval_name,
+                replayUrl=eval.replay_url if eval else None,
+                thumbnailUrl=eval.thumbnail_url if eval else None,
+                value=eval.value if eval else 0.0,
             )
 
     # Calculate averages
@@ -454,6 +460,74 @@ def build_policy_scorecard(
     )
 
 
+@dataclass
+class LeaderboardTrainingRunScore:
+    """Represents a training run score for a leaderboard."""
+
+    policy_id: uuid.UUID
+    score: float
+    selector_score: float
+
+
+async def get_leaderboard_training_run_scores(
+    con: AsyncConnection, leaderboard_id: uuid.UUID, selector: Literal["latest", "best"]
+) -> dict[uuid.UUID, LeaderboardTrainingRunScore]:
+    """Get the training run scores for a leaderboard."""
+
+    query = """
+      SELECT lps.policy_id, lps.score, e.run_id as training_run_id, e.end_training_epoch
+      FROM leaderboard_policy_scores lps
+      JOIN policies p ON p.id = lps.policy_id
+      JOIN epochs e ON p.epoch_id = e.id
+      WHERE lps.leaderboard_id = %s
+    """
+
+    @dataclass
+    class LeaderboardPolicyTrainingRunScore:
+        """Represents a policy score and its associated training run info"""
+
+        policy_id: uuid.UUID
+        score: float
+        training_run_id: uuid.UUID
+        end_training_epoch: int
+
+    async with con.cursor(row_factory=class_row(LeaderboardPolicyTrainingRunScore)) as cursor:
+        await cursor.execute(query, (leaderboard_id,))
+        rows = await cursor.fetchall()
+        rows_by_training_run_id: dict[uuid.UUID, LeaderboardTrainingRunScore] = {}
+        for row in rows:
+            selector_score = row.score if selector == "best" else row.end_training_epoch
+            cur_training_run_best = rows_by_training_run_id.get(row.training_run_id)
+            best_selector_score = cur_training_run_best.selector_score if cur_training_run_best else -1
+            if selector_score > best_selector_score:
+                rows_by_training_run_id[row.training_run_id] = LeaderboardTrainingRunScore(
+                    policy_id=row.policy_id, score=row.score, selector_score=selector_score
+                )
+
+        return rows_by_training_run_id
+
+
+async def get_leaderboard_free_policy_scores(con: AsyncConnection, leaderboard_id: uuid.UUID) -> dict[uuid.UUID, float]:
+    """Get the free policy scores for a leaderboard."""
+
+    query = """
+      SELECT lps.policy_id, lps.score
+      FROM leaderboard_policy_scores lps
+      JOIN policies p ON p.id = lps.policy_id
+      WHERE lps.leaderboard_id = %s AND p.epoch_id IS NULL
+    """
+
+    @dataclass
+    class QueryRow:
+        policy_id: uuid.UUID
+        score: float
+
+    async with con.cursor(row_factory=class_row(QueryRow)) as cursor:
+        await cursor.execute(query, (leaderboard_id,))
+        rows = await cursor.fetchall()
+        return {row.policy_id: row.score for row in rows}
+
+
 # ============================================================================
 # API Routes
 # ============================================================================
@@ -463,12 +537,19 @@ def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
     """Create FastAPI router for policy-based scorecard endpoints."""
     router = APIRouter(tags=["scorecard"])
 
-    @router.post("/policies")
+    @router.get("/policies")
     @timed_route("get_policies_and_training_runs")
-    async def get_policies(request: PoliciesRequest) -> PoliciesResponse:
-        """Get training runs and run-free policies with pagination and optional filtering."""
+    async def get_policies() -> PoliciesResponse:
+        """Get training runs and run-free policies."""
         async with metta_repo.connect() as con:
-            return await get_policies_and_training_runs(con, request)
+            return await get_policies_and_training_runs(con)
+
+    @router.post("/policies/search")
+    @timed_route("search_policies_and_training_runs")
+    async def search_policies(request: PoliciesSearchRequest) -> PoliciesResponse:
+        """Search training runs and run-free policies with filtering."""
+        async with metta_repo.connect() as con:
+            return await search_policies_and_training_runs(con, request)
 
     @router.post("/evals")
     @timed_route("get_evals")
@@ -552,5 +633,57 @@ def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
                     evalAverageScores={},
                     evalMaxScores={},
                 )
+
+    @router.post("/leaderboard")
+    @timed_route("generate_leaderboard_scorecard")
+    async def generate_leaderboard_scorecard_route(request: LeaderboardScorecardRequest) -> ScorecardData:
+        """Generate scorecard data for a leaderboard in the following way:
+
+        1. Use the leaderboard_policy_scores table to get either the 'latest' or 'best' policy_id for each training run
+        2. Use the leaderboard_policy_scores table to get the score for each policy that doesn't have a training run
+        3. Combine the lists from 1 and 2 and take the top {leaderboard.num_policies} policies by score
+        4. Now that we have top N policies, get the eval scores and replay urls and build the scorecard
+
+        """
+        async with metta_repo.connect() as con:
+            # Get leaderboard configuration
+            leaderboard = await metta_repo.get_leaderboard(request.leaderboard_id)
+            if not leaderboard:
+                raise HTTPException(status_code=404, detail="Leaderboard not found")
+
+            training_run_scores = await get_leaderboard_training_run_scores(
+                con, request.leaderboard_id, request.selector
+            )
+            free_policy_scores = await get_leaderboard_free_policy_scores(con, request.leaderboard_id)
+
+            @dataclass
+            class UnifiedScore:
+                id: uuid.UUID
+                score: float
+                type: Literal["training_run", "policy"]
+                policy_id: uuid.UUID
+
+            unified_scores: list[UnifiedScore] = []
+            for training_run_id, training_run_score in training_run_scores.items():
+                unified_scores.append(
+                    UnifiedScore(
+                        id=training_run_id,
+                        score=training_run_score.score,
+                        type="training_run",
+                        policy_id=training_run_score.policy_id,
+                    )
+                )
+            for policy_id, score in free_policy_scores.items():
+                unified_scores.append(UnifiedScore(id=policy_id, score=score, type="policy", policy_id=policy_id))
+            unified_scores.sort(key=lambda x: x.score, reverse=True)
+            top_n_scores = unified_scores[: request.num_policies]
+            top_n_policy_ids = [score.policy_id for score in top_n_scores]
+
+            # Fetch evaluation data for top policies
+            evaluations = await fetch_policy_scorecard_data(
+                con, [], top_n_policy_ids, leaderboard.evals, leaderboard.metric
+            )
+
+            return build_policy_scorecard(evaluations, leaderboard.evals)
 
     return router

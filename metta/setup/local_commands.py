@@ -153,7 +153,6 @@ class LocalCommands:
         """Load W&B artifacts as policies into stats database."""
         # Lazy imports
         import wandb
-        from omegaconf import DictConfig
 
         from metta.agent.policy_store import PolicyStore
         from metta.common.util.stats_client_cfg import get_stats_client_direct
@@ -209,19 +208,7 @@ class LocalCommands:
             limit=args.limit,
             run_names=[args.run_name] if args.run_name else None,
         )
-        policy_store = PolicyStore(
-            DictConfig(
-                dict(
-                    wandb=dict(
-                        enabled=True,
-                        project=project,
-                        entity=entity,
-                    ),
-                    device="cpu",
-                )
-            ),
-            wandb_run=None,
-        )
+        policy_store = PolicyStore(wandb_entity=entity, wandb_project=project)
         policy_records = []
         for run in runs:
             uri = f"wandb://run/{run.name}"

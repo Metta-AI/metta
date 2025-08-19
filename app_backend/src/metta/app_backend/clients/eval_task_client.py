@@ -4,9 +4,12 @@ from pydantic import BaseModel
 
 from metta.app_backend.clients.base_client import BaseAppBackendClient
 from metta.app_backend.routes.eval_task_routes import (
+    GitHashesRequest,
     GitHashesResponse,
+    TaskAvgRuntimeResponse,
     TaskClaimRequest,
     TaskClaimResponse,
+    TaskCountResponse,
     TaskCreateRequest,
     TaskFilterParams,
     TaskResponse,
@@ -38,9 +41,12 @@ class EvalTaskClient(BaseAppBackendClient):
         )
 
     async def get_git_hashes_for_workers(self, assignees: list[str]) -> GitHashesResponse:
-        return await self._make_request(GitHashesResponse, "GET", "/tasks/git-hashes", params={"assignees": assignees})
+        request = GitHashesRequest(assignees=assignees)
+        return await self._make_request(
+            GitHashesResponse, "POST", "/tasks/git-hashes", json=request.model_dump(mode="json")
+        )
 
-    async def get_latest_assigned_task_for_worker(self, assignee: str) -> TaskResponse:
+    async def get_latest_assigned_task_for_worker(self, assignee: str) -> TaskResponse | None:
         return await self._make_request(TaskResponse, "GET", "/tasks/latest", params={"assignee": assignee})
 
     async def get_all_tasks(self, filters: TaskFilterParams | None = None) -> TasksResponse:
@@ -48,4 +54,12 @@ class EvalTaskClient(BaseAppBackendClient):
             filters = TaskFilterParams()
         return await self._make_request(
             TasksResponse, "GET", "/tasks/all", params=filters.model_dump(mode="json", exclude_none=True)
+        )
+
+    async def count_tasks(self, where_clause: str) -> TaskCountResponse:
+        return await self._make_request(TaskCountResponse, "GET", "/tasks/count", params={"where_clause": where_clause})
+
+    async def get_avg_runtime(self, where_clause: str) -> TaskAvgRuntimeResponse:
+        return await self._make_request(
+            TaskAvgRuntimeResponse, "GET", "/tasks/avg-runtime", params={"where_clause": where_clause}
         )

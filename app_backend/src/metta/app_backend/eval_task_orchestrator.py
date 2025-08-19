@@ -11,66 +11,127 @@ This script:
 
 import asyncio
 import logging
+import math
 import os
+from abc import ABC, abstractmethod
 from datetime import datetime, timedelta, timezone
 
 from ddtrace.trace import tracer
+from pydantic import BaseModel
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
-from metta.app_backend.container_managers.base import AbstractContainerManager
 from metta.app_backend.container_managers.factory import create_container_manager
-from metta.app_backend.container_managers.models import WorkerInfo
 from metta.app_backend.routes.eval_task_routes import (
     TaskClaimRequest,
     TaskResponse,
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
+from metta.app_backend.worker_managers.base import AbstractWorkerManager
+from metta.app_backend.worker_managers.container_manager import ContainerWorkerManager
+from metta.app_backend.worker_managers.worker import Worker
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import group_by
 from metta.common.util.constants import DEV_STATS_SERVER_URI
 from metta.common.util.logging_helpers import init_logging
 
 
+class WorkerInfo(BaseModel):
+    worker: Worker
+    git_hashes: list[str] = []
+    assigned_task: TaskResponse | None = None
+
+
+class AbstractWorkerScaler(ABC):
+    @abstractmethod
+    async def get_desired_workers(self, num_workers: int) -> int:
+        pass
+
+
+class FixedScaler(AbstractWorkerScaler):
+    def __init__(self, num_workers: int):
+        self._num_workers = num_workers
+
+    async def get_desired_workers(self, num_workers: int) -> int:
+        return self._num_workers
+
+
+class AutoScaler(AbstractWorkerScaler):
+    CREATED_IN_LAST_DAY_FILTER = "created_at > NOW() - INTERVAL '1 day'"
+    DONE_FILTER = "status = 'done'"
+    UNPROCESSED_FILTER = "status = 'unprocessed'"
+
+    def __init__(self, task_client: EvalTaskClient, default_task_runtime: float, logger: logging.Logger):
+        self._task_client = task_client
+        self._default_task_runtime = default_task_runtime
+        self._logger = logger
+
+    async def _compute_desired_workers(self, avg_task_runtime: float) -> int:
+        num_tasks_per_day = (await self._task_client.count_tasks(self.CREATED_IN_LAST_DAY_FILTER)).count
+        total_work_time_seconds = num_tasks_per_day * avg_task_runtime
+        single_worker_work_time_seconds = 60 * 60 * 24
+        return math.ceil(total_work_time_seconds / single_worker_work_time_seconds * 1.2)  # 20% buffer
+
+    async def _get_avg_task_runtime(self) -> float:
+        avg_task_runtime = self._default_task_runtime
+        num_done_tasks_last_day = (
+            await self._task_client.count_tasks(f"{self.DONE_FILTER} AND {self.CREATED_IN_LAST_DAY_FILTER}")
+        ).count
+        if num_done_tasks_last_day > 20:
+            avg_runtime_last_day = (
+                await self._task_client.get_avg_runtime(f"{self.DONE_FILTER} AND {self.CREATED_IN_LAST_DAY_FILTER}")
+            ).avg_runtime
+            if avg_runtime_last_day is not None:
+                avg_task_runtime = avg_runtime_last_day
+        return avg_task_runtime
+
+    async def get_desired_workers(self, num_workers: int) -> int:
+        num_unclaimed_tasks = (await self._task_client.count_tasks(self.UNPROCESSED_FILTER)).count
+        avg_task_runtime = await self._get_avg_task_runtime()
+        num_desired_workers = await self._compute_desired_workers(avg_task_runtime)
+
+        if num_unclaimed_tasks > num_workers * 5:
+            # We have a big backlog of tasks.  Launch at least enough workers to work through the backlog in 1 hour
+            return max(num_desired_workers, math.ceil(num_unclaimed_tasks * avg_task_runtime / 3600))
+        else:
+            return num_desired_workers
+
+
 class EvalTaskOrchestrator:
     def __init__(
         self,
-        backend_url: str,
-        machine_token: str,
-        docker_image: str = "metta-policy-evaluator-local:latest",
+        task_client: EvalTaskClient,
+        worker_manager: AbstractWorkerManager,
+        worker_scaler: AbstractWorkerScaler,
         poll_interval: float = 5.0,
         worker_idle_timeout: float = 1200.0,
-        max_workers: int = 5,
-        container_manager: AbstractContainerManager | None = None,
+        default_avg_runtime: float = 200.0,
         logger: logging.Logger | None = None,
     ):
-        self._backend_url = backend_url
-        self._docker_image = docker_image
+        self._task_client = task_client
+        self._worker_manager = worker_manager
+        self._worker_scaler = worker_scaler
         self._poll_interval = poll_interval
         self._worker_idle_timeout = worker_idle_timeout
-        self._max_workers = max_workers
-        self._machine_token = machine_token
         self._logger = logger or logging.getLogger(__name__)
-        self._task_client = EvalTaskClient(backend_url)
-        self._container_manager = container_manager or create_container_manager()
 
     @trace("orchestrator.claim_task")
     async def _attempt_claim_task(self, task: TaskResponse, worker: WorkerInfo) -> bool:
-        claim_request = TaskClaimRequest(tasks=[task.id], assignee=worker.container_name)
+        claim_request = TaskClaimRequest(tasks=[task.id], assignee=worker.worker.name)
         claimed_ids = await self._task_client.claim_tasks(claim_request)
         if task.id in claimed_ids.claimed:
-            self._logger.info(f"Assigned task {task.id} to worker {worker.container_name}")
+            self._logger.info(f"Assigned task {task.id} to worker {worker.worker.name}")
             return True
         else:
             self._logger.debug("Failed to claim task; someone else must have it")
             return False
 
     async def _get_available_workers(self, claimed_tasks: list[TaskResponse]) -> dict[str, WorkerInfo]:
-        alive_workers = await self._container_manager.discover_alive_workers()
-        git_hashes_by_assignee = await self._task_client.get_git_hashes_for_workers(
-            [w.container_name for w in alive_workers]
-        )
-        alive_workers_by_name: dict[str, WorkerInfo] = {w.container_name: w for w in alive_workers}
+        alive_workers = await self._worker_manager.discover_alive_workers()
+
+        worker_names = [w.name for w in alive_workers]
+        git_hashes_by_assignee = await self._task_client.get_git_hashes_for_workers(worker_names)
+        alive_workers_by_name: dict[str, WorkerInfo] = {w.name: WorkerInfo(worker=w) for w in alive_workers}
 
         for task in claimed_tasks:
             if task.assignee and (worker := alive_workers_by_name.get(task.assignee)):
@@ -85,36 +146,41 @@ class EvalTaskOrchestrator:
     async def _kill_dead_workers_and_tasks(
         self, claimed_tasks: list[TaskResponse], alive_workers_by_name: dict[str, WorkerInfo]
     ) -> None:
-        for task in claimed_tasks:
-            # Unclaim all assigned tasks that are overdue and kill their workers
-            assigned_at = task.assigned_at.replace(tzinfo=timezone.utc) if task.assigned_at else None
-            if assigned_at and (assigned_at < datetime.now(timezone.utc) - timedelta(minutes=10)):
-                self._logger.info(f"Killing task {task.id} because it has been running for more than 10 minutes")
-                if task.retries < 3:
-                    await self._task_client.update_task_status(
-                        TaskUpdateRequest(
-                            updates={
-                                task.id: TaskStatusUpdate(
-                                    status="unprocessed",
-                                    clear_assignee=True,
-                                    attributes={f"unassign_reason_{task.retries}": "worker_timeout"},
-                                )
-                            },
-                        )
-                    )
+        try:
+            for task in claimed_tasks:
+                if task.assignee and task.assignee not in alive_workers_by_name:
+                    reason = "worker_dead"
+                elif task.assigned_at and task.assigned_at.replace(tzinfo=timezone.utc) < (
+                    datetime.now(timezone.utc) - timedelta(minutes=10)
+                ):
+                    reason = "worker_timeout"
                 else:
-                    await self._task_client.update_task_status(
-                        TaskUpdateRequest(
-                            updates={
-                                task.id: TaskStatusUpdate(status="error", attributes={"reason": "max_retries_exceeded"})
-                            },
-                        )
+                    continue
+
+                if task.retries < 3:
+                    status = "unprocessed"
+                else:
+                    status = "error"
+
+                self._logger.info(f"Unclaiming task {task.id} because {reason}. Setting status to {status}")
+                await self._task_client.update_task_status(
+                    TaskUpdateRequest(
+                        updates={
+                            task.id: TaskStatusUpdate(
+                                status=status,
+                                clear_assignee=True,
+                                attributes={f"unassign_reason_{task.retries}": reason},
+                            )
+                        }
                     )
-                    self._logger.info(f"Not retrying task {task.id} because it has exceeded max retries")
+                )
+
                 if task.assignee and (worker := alive_workers_by_name.get(task.assignee)):
                     self._logger.info(f"Killing worker {task.assignee} because it has been working too long")
-                    self._container_manager.cleanup_container(worker.container_id)
-                    del alive_workers_by_name[worker.container_name]
+                    self._worker_manager.cleanup_worker(worker.worker.name)
+                    del alive_workers_by_name[worker.worker.name]
+        except Exception as e:
+            self._logger.error(f"Error killing dead workers and tasks: {e}", exc_info=True)
 
     async def _assign_task_to_worker(
         self, worker: WorkerInfo, available_tasks_by_git_hash: dict[str | None, list[TaskResponse]]
@@ -143,17 +209,27 @@ class EvalTaskOrchestrator:
             available_tasks.tasks, key_fn=lambda t: t.git_hash
         )
         for worker in alive_workers_by_name.values():
-            if not worker.assigned_task:
+            # Only assign tasks to workers that are running and don't have an assigned task
+            if not worker.assigned_task and worker.worker.status == "Running":
                 await self._assign_task_to_worker(worker, available_tasks_by_git_hash)
 
-    async def _start_new_workers(self, alive_workers_by_name: dict[str, WorkerInfo]) -> None:
-        # Todo: start workers on demand.  For now just start fixed number of workers
-        for _ in range(self._max_workers - len(alive_workers_by_name)):
-            self._container_manager.start_worker_container(
-                backend_url=self._backend_url,
-                docker_image=self._docker_image,
-                machine_token=self._machine_token,
-            )
+    async def _scale_workers(self, alive_workers_by_name: dict[str, WorkerInfo]) -> None:
+        desired_workers = await self._worker_scaler.get_desired_workers(len(alive_workers_by_name))
+        if desired_workers > len(alive_workers_by_name):
+            self._logger.info(f"Launching {desired_workers - len(alive_workers_by_name)} extra workers")
+            for _ in range(desired_workers - len(alive_workers_by_name)):
+                self._worker_manager.start_worker()
+        elif desired_workers < len(alive_workers_by_name):
+            # If we have too many workers, kill some idle workers
+            idle_workers = [
+                w for w in alive_workers_by_name.values() if not w.assigned_task and w.worker.status == "Running"
+            ]
+            if idle_workers:
+                num_workers_to_kill = len(alive_workers_by_name) - desired_workers
+                self._logger.info(f"Killing {num_workers_to_kill} idle workers")
+                for worker in idle_workers[:num_workers_to_kill]:
+                    self._worker_manager.cleanup_worker(worker.worker.name)
+                    del alive_workers_by_name[worker.worker.name]
 
     @trace("orchestrator.run_cycle")
     async def run_cycle(self) -> None:
@@ -164,10 +240,10 @@ class EvalTaskOrchestrator:
 
         await self._assign_tasks_to_workers(alive_workers_by_name)
 
-        await self._start_new_workers(alive_workers_by_name)
+        await self._scale_workers(alive_workers_by_name)
 
     async def run(self) -> None:
-        self._logger.info(f"Backend URL: {self._backend_url}")
+        self._logger.info(f"Backend URL: {getattr(self._task_client, '_base_url', 'unknown')}")
         self._logger.info(f"Worker idle timeout: {self._worker_idle_timeout}s")
 
         with tracer.trace("orchestrator.startup"):
@@ -196,16 +272,24 @@ async def main() -> None:
     docker_image = os.environ.get("DOCKER_IMAGE", "metta-policy-evaluator-local:latest")
     poll_interval = float(os.environ.get("POLL_INTERVAL", "5"))
     worker_idle_timeout = float(os.environ.get("WORKER_IDLE_TIMEOUT", "1200"))
-    max_workers = int(os.environ.get("MAX_WORKERS", "5"))
     machine_token = os.environ["MACHINE_TOKEN"]
 
-    orchestrator = EvalTaskOrchestrator(
+    task_client = EvalTaskClient(backend_url)
+    container_manager = create_container_manager()
+    worker_manager = ContainerWorkerManager(
+        container_manager=container_manager,
         backend_url=backend_url,
-        machine_token=machine_token,
         docker_image=docker_image,
+        machine_token=machine_token,
+        logger=logger,
+    )
+    worker_scaler = AutoScaler(task_client, 120.0, logger)
+    orchestrator = EvalTaskOrchestrator(
+        task_client=task_client,
+        worker_manager=worker_manager,
+        worker_scaler=worker_scaler,
         poll_interval=poll_interval,
         worker_idle_timeout=worker_idle_timeout,
-        max_workers=max_workers,
         logger=logger,
     )
 
