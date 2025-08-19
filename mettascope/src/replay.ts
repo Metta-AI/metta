@@ -652,7 +652,6 @@ export function initWebSocket(wsUrl: string) {
   state.ws = new WebSocket(wsUrl)
   state.ws.onmessage = (event) => {
     const data = JSON.parse(event.data)
-    console.debug('WS message:', data.type, data)
     if (data.type === 'replay') {
       loadReplayJson(wsUrl, data.replay)
       Common.closeModal()

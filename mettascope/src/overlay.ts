@@ -113,9 +113,7 @@ export function drawObservationOverlay(): void {
     return
   }
   const g = state.visualGrid
-  if (g.values.length < g.width * g.height) {
-    return
-  }
+
   const aid = state.activeVisualAgentId
   if (aid == null || aid < 0 || aid >= state.replay.agents.length) {
     return
@@ -126,50 +124,41 @@ export function drawObservationOverlay(): void {
   const ay = loc[1]
   const halfW = Math.floor(g.width / 2)
   const halfH = Math.floor(g.height / 2)
-  ctx.save()
-  // Draw per‑tile pips (dots) representing small integer values from 1–9.
-  // The pips are placed on a 3×3 grid inside each tile and capped at 9.
+  // Draw per‑tile numeric text (0–255) using the atlas font.
   const tileSize = Common.TILE_SIZE
-  const pipGrid = 3
-  const inset = tileSize * 0.18
-  const cell = (tileSize - inset * 2) / (pipGrid - 1)
-  const pipSize = Math.max(2, Math.floor(tileSize * 0.08))
-  // Precompute relative offsets for the 3×3 pip grid within a tile centered at (0,0).
-  const offsets: [number, number][] = []
-  for (let gy = 0; gy < pipGrid; gy++) {
-    for (let gx = 0; gx < pipGrid; gx++) {
-      const ox = -tileSize / 2 + inset + gx * cell
-      const oy = -tileSize / 2 + inset + gy * cell
-      offsets.push([ox, oy])
-    }
+  const fontId = 'plexSans'
+  if (!ctx.atlasData || !(ctx.atlasData as any).fonts || !(ctx.atlasData as any).fonts[fontId]) {
+    return
   }
+  // Scale text to occupy about half of the tile height; fall back to font size 64 if metadata not ready.
+  const baseLineHeight: number = (ctx.atlasData as any)?.fonts?.[fontId]?.lineHeight ?? 64
+  const scale = (tileSize * 0.55) / baseLineHeight
+
   for (let r = 0; r < g.height; r++) {
     for (let c = 0; c < g.width; c++) {
       const idx = r * g.width + c
       if (idx < 0 || idx >= g.values.length) continue
-      const rawVal = (g.values as any)[idx] || 0
-      if (rawVal === 0) continue
-      const count = Math.max(0, Math.min(9, Number(rawVal)))
+      const rawVal = Number((g.values as any)[idx] ?? 0)
+      const value = Math.max(0, Math.min(255, Math.round(rawVal)))
+      const text = String(value)
+
       const wx = ax + (c - halfW)
       const wy = ay + (r - halfH)
       if (wx < 0 || wy < 0 || wx >= state.replay.mapSize[0] || wy >= state.replay.mapSize[1]) continue
+
       const alpha = g.valueRange && g.valueRange.max !== g.valueRange.min
         ? Math.min(1, Math.max(0, (rawVal - g.valueRange.min) / (g.valueRange.max - g.valueRange.min)))
         : 1
-      // Draw up to `count` pips inside this tile.
+
       const centerX = wx * tileSize
       const centerY = wy * tileSize
-      for (let i = 0; i < count; i++) {
-        const [ox, oy] = offsets[i]
-        const px = centerX + ox
-        const py = centerY + oy
-        // Try to use a round sprite if available; otherwise draw a small square.
-        if (ctx.hasImage('minimapPip.png')) {
-          ctx.drawSprite('minimapPip.png', px, py, [1, 1, 1, 0.5 + 0.5 * alpha], pipSize / 2)
-        } else {
-          ctx.drawSolidRect(px - pipSize / 2, py - pipSize / 2, pipSize, pipSize, [1, 1, 1, 0.5 + 0.5 * alpha])
-        }
-      }
+      const a = Math.max(0, Math.min(1, 0.5 + 0.5 * alpha))
+
+      ctx.save()
+      ctx.translate(centerX, centerY)
+      ctx.scale(scale, scale)
+      ctx.drawTextWorld(fontId, text, [1, 1, 1, a])
+      ctx.restore()
     }
   }
   ctx.restore()
