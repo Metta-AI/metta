@@ -71,33 +71,33 @@ build_command() {
     fi
 }
 
-# Test 1: 128 steps with varying BPTT horizons
-for bptt in 64 128 256; do
-    steps=128
-    # Using the actual existing curriculum file
-    curriculum="colortree_easy_${steps}step_${NUM_COLORS}colors"
-    run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_norm128_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
+# # Test 1: 128 steps with varying BPTT horizons
+# for bptt in 64 128 256; do
+#     steps=128
+#     # Using the actual existing curriculum file
+#     curriculum="colortree_easy_${steps}step_${NUM_COLORS}colors"
+#     run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_norm128_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
 
-    # Calculate LR for display
-    lr=$(python -c "import math; print(f'{$BASE_LR * math.sqrt(128) / math.sqrt($bptt):.8f}')")
+#     # Calculate LR for display
+#     lr=$(python -c "import math; print(f'{$BASE_LR * math.sqrt(128) / math.sqrt($bptt):.8f}')")
 
-    echo "Launching Test: 128 steps, BPTT=${bptt}, 1/sqrt(N) LR scaling"
-    echo "  Run name: $run_name"
-    echo "  Steps: ${steps}"
-    echo "  Colors: ${NUM_COLORS}"
-    echo "  BPTT Horizon: ${bptt}"
-    echo "  Learning Rate: ${lr} (${BASE_LR} * sqrt(128) / sqrt(${bptt}))"
-    echo "  Curriculum: ${curriculum}"
-    echo "  Seed: ${SEED}"
+#     echo "Launching Test: 128 steps, BPTT=${bptt}, 1/sqrt(N) LR scaling"
+#     echo "  Run name: $run_name"
+#     echo "  Steps: ${steps}"
+#     echo "  Colors: ${NUM_COLORS}"
+#     echo "  BPTT Horizon: ${bptt}"
+#     echo "  Learning Rate: ${lr} (${BASE_LR} * sqrt(128) / sqrt(${bptt}))"
+#     echo "  Curriculum: ${curriculum}"
+#     echo "  Seed: ${SEED}"
 
-    eval $(build_command "$run_name" "$curriculum" "$bptt")
+#     eval $(build_command "$run_name" "$curriculum" "$bptt")
 
-    echo "---"
-done
+#     echo "---"
+# done
 
 # Test 2: 64 steps with BPTT horizon of 128
 steps=64
-bptt=128
+bptt=64
 # For 64 steps, the curriculum file is just "colortree_easy_2colors"
 curriculum="colortree_easy_${NUM_COLORS}colors"
 run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_norm128_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
@@ -120,7 +120,7 @@ echo "---"
 
 # Test 3: 32 steps with BPTT horizon of 64
 steps=32
-bptt=64
+bptt=32
 # Using the actual existing curriculum file
 curriculum="colortree_easy_${steps}step_${NUM_COLORS}colors"
 run_name="${USER}.colortree_${steps}step_${NUM_COLORS}colors_bptt${bptt}_sqrtN_norm128_seed${SEED}.$(date +%Y%m%d_%H%M%S)"
@@ -141,8 +141,8 @@ eval $(build_command "$run_name" "$curriculum" "$bptt")
 
 echo "---"
 echo ""
-echo "=== All 5 experiments with 1/sqrt(N) LR scaling launched! ==="
+echo "=== Both 1:1 ratio experiments with 1/sqrt(N) LR scaling launched! ==="
 echo "Learning rates used (normalized to BPTT=128):"
-echo "  BPTT=64:  $(python -c "import math; print(f'{$BASE_LR * math.sqrt(128) / math.sqrt(64):.8f}')") (higher than baseline)"
-echo "  BPTT=128: $(python -c "import math; print(f'{$BASE_LR * math.sqrt(128) / math.sqrt(128):.8f}')") = ${BASE_LR} (baseline)"
-echo "  BPTT=256: $(python -c "import math; print(f'{$BASE_LR * math.sqrt(128) / math.sqrt(256):.8f}')") (lower than baseline)"
+echo "  BPTT=32:  $(python -c "import math; print(f'{$BASE_LR * math.sqrt(128) / math.sqrt(32):.8f}')") (2x higher than baseline)"
+echo "  BPTT=64:  $(python -c "import math; print(f'{$BASE_LR * math.sqrt(128) / math.sqrt(64):.8f}')") (√2 times higher than baseline)"
+echo "  BPTT=128: ${BASE_LR} (baseline - not run in this script)"
