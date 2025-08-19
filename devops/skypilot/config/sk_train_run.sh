@@ -233,8 +233,10 @@ else
   echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
 
   # Run the test and capture the exit code
+  set +e
   uv run python ./devops/skypilot/config/preflight/test_nccl.py
   NCCL_TEST_EXIT_CODE=$?
+  set -e
 
   # Wait a moment to ensure all output is flushed
   sleep 1
@@ -251,7 +253,7 @@ else
       local max_wait=30 # Maximum wait time in seconds
       local wait_count=0
       while [ $wait_count -lt $max_wait ]; do
-        if [ -s "$TERMINATION_REASON_FILE" ] && grep -q "nccl_test_failure" "$TERMINATION_REASON_FILE"; then
+        if grep -q "nccl_test_failure" "$TERMINATION_REASON_FILE"; then
           echo "Termination reason received: nccl_test_failure"
           break
         fi
