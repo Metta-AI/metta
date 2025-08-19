@@ -78,6 +78,7 @@ class SummarizeCommand(Command):
 
         # Create agent with structured result type
         summarizer = Agent(
+            "claude-3-5-sonnet-20241022",
             result_type=SummaryResult,
             system_prompt=self.prompt_template.format(token_limit=token_limit)
         )
@@ -209,6 +210,7 @@ class SummaryCache:
 
         # Create new summary using PydanticAI
         summarizer = Agent(
+            "claude-3-5-sonnet-20241022",
             result_type=SummaryResult,
             system_prompt=f"""Create a summary of the provided code that:
             1. Captures the essential functionality and structure

@@ -30,8 +30,7 @@ logger = logging.getLogger("codeclip.cli")
 def copy_to_clipboard(content: str) -> None:
     """Copy content to clipboard using pyperclip (cross-platform)."""
     try:
-        import pyperclip  # type: ignore
-
+        import pyperclip
         pyperclip.copy(content)
     except ImportError:
         click.echo("pyperclip not available - clipboard integration skipped", err=True)
@@ -142,7 +141,7 @@ def cli(
         click.echo(f"Error loading context: {e}", err=True)
         return
 
-    # Output content to stdout or clipboard (unless dry run)
+    # Output content to stdout or clipboard
     if stdout:
         # Output to stdout
         click.echo(output_content)
