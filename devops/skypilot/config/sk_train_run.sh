@@ -11,13 +11,14 @@ fi
 . .venv/bin/activate
 
 # Create IPC directory for this job instance
-
 export WRAPPER_PID=$BASHPID
-
-export IPC_DIR="/tmp/metta_job_$WRAPPER_PID"
+export IPC_DIR="/tmp/metta_job_ipc"
 mkdir -p "$IPC_DIR"
 export TERMINATION_REASON_FILE="$IPC_DIR/termination_reason"
-echo "TERMINATION_REASON_FILE: $TERMINATION_REASON_FILE"
+echo "[RUN] WRAPPER_PID: $WRAPPER_PID"
+echo "[RUN] IPC_DIR: $IPC_DIR"
+echo "[RUN] TERMINATION_REASON_FILE: $TERMINATION_REASON_FILE"
+touch $TERMINATION_REASON_FILE
 
 # Determine node role using SkyPilot environment variables
 export RANK=${SKYPILOT_NODE_RANK:-0}
@@ -245,18 +246,23 @@ else
     if [[ "$IS_MASTER" == "true" ]]; then
       echo "nccl_test_failure" > "$TERMINATION_REASON_FILE"
     else
-      # Workers wait for the termination reason file to be written
+      # Workers wait for the termination reason file to contain valid data
       echo "[WORKER] Waiting for master to write termination reason..."
       local max_wait=30 # Maximum wait time in seconds
       local wait_count=0
-      while [ ! -f "$TERMINATION_REASON_FILE" ] && [ $wait_count -lt $max_wait ]; do
+      while [ $wait_count -lt $max_wait ]; do
+        if [ -s "$TERMINATION_REASON_FILE" ] && grep -q "nccl_test_failure" "$TERMINATION_REASON_FILE"; then
+          echo "Termination reason received: nccl_test_failure"
+          break
+        fi
         sleep 1
         ((wait_count++))
       done
 
-      if [ ! -f "$TERMINATION_REASON_FILE" ]; then
-        echo "[WORKER] Warning: Termination reason file not found after ${max_wait}s"
+      if [ $wait_count -eq $max_wait ]; then
+        echo "[WORKER] Warning: Termination reason not received after ${max_wait}s"
       fi
+
       sleep 10                                         # wait for other nodes to complete tests
       kill -TERM "${WRAPPER_PID}" 2> /dev/null || true # initiate shutdown
     fi
