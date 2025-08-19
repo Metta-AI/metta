@@ -228,11 +228,11 @@ elif [ "${RESTART_COUNT:-0}" -ne 0 ]; then
 else
   echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
 
-  # Run the test and capture the exit code
-  set +e
-  uv run python ./devops/skypilot/config/preflight/test_nccl.py
-  NCCL_TEST_EXIT_CODE=$?
-  set -e
+  # Run the test in a subshell to isolate it
+  NCCL_TEST_EXIT_CODE=0
+  (
+    uv run python ./devops/skypilot/config/preflight/test_nccl.py
+  ) || NCCL_TEST_EXIT_CODE=$?
 
   sleep 20 # wait for other nodes to complete tests
 

@@ -901,10 +901,19 @@ def launch_distributed_test() -> int:
     print(f"Running command: {' '.join(cmd)}")
 
     try:
-        result = subprocess.run(cmd, check=True)
-        return result.returncode
-    except subprocess.CalledProcessError as e:
-        return e.returncode
+        # Use Popen to have more control over the process
+        process = subprocess.Popen(cmd)
+        returncode = process.wait()
+
+        if returncode != 0:
+            print(f"[WARNING] torch.distributed.run exited with code {returncode}")
+            # Give a grace period for cleanup
+            time.sleep(2)
+
+        return returncode
+    except Exception as e:
+        print(f"[ERROR] Failed to run distributed test: {e}")
+        return 1
 
 
 def extract_ip_from_interface(interface_info: str) -> str:
