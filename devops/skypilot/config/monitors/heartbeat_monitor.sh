@@ -38,6 +38,9 @@ while true; do
     CURRENT_MTIME=$(stat -c %Y "$HEARTBEAT_FILE" 2>/dev/null || stat -f %m "$HEARTBEAT_FILE" 2>/dev/null || echo 0)
 
     if [ "$CURRENT_MTIME" -gt "$LAST_HEARTBEAT_TIME" ]; then
+      stop_cluster "Test heartbeat termination"
+      break
+
       HEARTBEAT_COUNT=$((HEARTBEAT_COUNT + 1))
       LAST_HEARTBEAT_TIME=$CURRENT_MTIME
 

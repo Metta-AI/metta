@@ -10,7 +10,7 @@ set -euo pipefail
 : "${START_TIME:?Missing START_TIME}"
 : "${CLUSTER_STOP_FILE:?Missing CLUSTER_STOP_FILE}"
 
-TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-20}
+TIMEOUT_CHECK_INTERVAL=${TIMEOUT_CHECK_INTERVAL:-60}
 
 max_seconds=$(awk "BEGIN {print int(${MAX_RUNTIME_HOURS} * 3600)}")
 remaining_at_start=$((max_seconds - ACCUMULATED_RUNTIME))
