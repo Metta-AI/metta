@@ -29,6 +29,11 @@ function ensureObsOverlayMenu(): void {
     title.style.marginBottom = '6px'
     menu.appendChild(title)
 
+    const status = document.createElement('div')
+    status.id = 'obs-overlay-agent-status'
+    status.style.marginBottom = '6px'
+    menu.appendChild(status)
+
     const list = document.createElement('div')
     list.id = 'obs-overlay-menu-list'
     menu.appendChild(list)
@@ -59,8 +64,16 @@ export function updateObsOverlayMenu(): void {
   ensureObsOverlayMenu()
   const list = document.getElementById('obs-overlay-menu-list') as HTMLDivElement | null
   const menu = document.getElementById('obs-overlay-menu') as HTMLDivElement | null
-  if (!list || !menu) {
+  const status = document.getElementById('obs-overlay-agent-status') as HTMLDivElement | null
+  if (!list || !menu || !status) {
     return
+  }
+  // Update agent selection status line.
+  const sel = state.selectedGridObject
+  if (sel && sel.isAgent) {
+    status.textContent = `Selected agent: #${sel.agentId}`
+  } else {
+    status.textContent = 'No agent selected'
   }
   list.innerHTML = ''
   for (const layer of state.visualLayers) {

@@ -682,7 +682,6 @@ export function initWebSocket(wsUrl: string) {
   }
   state.ws.onopen = () => {
     Common.showModal('info', 'Starting environment', 'Please wait while live environment is starting...')
-    console.debug('WS open')
     // If overlay was requested before the socket opened, enable it now
     if (state.showObsOverlay) {
       sendVisualOverlayEnable(true)
@@ -695,11 +694,9 @@ export function initWebSocket(wsUrl: string) {
     }
   }
   state.ws.onclose = () => {
-    console.debug('WS close')
     Common.showModal('error', 'WebSocket closed', 'Please check your connection and refresh this page.')
   }
   state.ws.onerror = (event) => {
-    console.debug('WS error', event)
     Common.showModal('error', 'WebSocket error', `Websocket error: ${event}`)
   }
 }
@@ -736,7 +733,6 @@ export function sendAction(actionName: string, actionParam: number) {
   }
 }
 
-// ---- Play mode overlay controls ----
 export function sendVisualOverlayEnable(enabled: boolean) {
   if (state.ws === null) return
   const payload = { type: 'visual_overlay_enable', enabled }
