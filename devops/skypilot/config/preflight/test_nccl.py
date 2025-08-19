@@ -10,7 +10,6 @@ for distributed PyTorch training environments.
 
 import datetime
 import io
-import logging
 import os
 import subprocess
 import sys
@@ -19,10 +18,6 @@ from typing import Any, Optional
 
 import torch
 import torch.distributed as dist
-
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-logger = logging.getLogger(__name__)
 
 
 def measure_p2p_bandwidth(
@@ -116,7 +111,7 @@ def measure_allreduce_bandwidth(
 
             if free_memory < required_memory:
                 if rank == 0:
-                    logger.warning(f"Skipping size {size_mb}MB - insufficient memory")
+                    print(f"Skipping size {size_mb}MB - insufficient memory")
                 continue
 
             # Allocate tensor
@@ -152,7 +147,7 @@ def measure_allreduce_bandwidth(
 
             if rank == 0:
                 results.append(result)
-                logger.info(f"Allreduce {size_mb}MB: {algo_bandwidth_gbps:.2f} GB/s")
+                print(f"Allreduce {size_mb}MB: {algo_bandwidth_gbps:.2f} GB/s")
 
             # Clean up
             del tensor
@@ -160,11 +155,11 @@ def measure_allreduce_bandwidth(
 
         except torch.cuda.OutOfMemoryError:
             if rank == 0:
-                logger.warning(f"Out of memory at size {size_mb}MB")
+                print(f"Out of memory at size {size_mb}MB")
             break
         except Exception as e:
             if rank == 0:
-                logger.error(f"Error at size {size_mb}MB: {e}")
+                print(f"Error at size {size_mb}MB: {e}")
             break
 
     # Single barrier at end
@@ -179,14 +174,14 @@ def collect_nccl_benchmarks() -> dict[str, Any] | None:
         torch.cuda.set_device(local_rank)
         device = torch.device(f"cuda:{local_rank}")
         if not dist.is_initialized():
-            logger.error("Process group not initialized, cannot run benchmarks")
+            print("Process group not initialized, cannot run benchmarks")
             return None
 
         rank = dist.get_rank()
         world_size = dist.get_world_size()
 
         if rank == 0:
-            logger.info("Starting NCCL benchmarks...")
+            print("Starting NCCL benchmarks...")
 
         # Initial sync
         dist.barrier()
@@ -196,7 +191,7 @@ def collect_nccl_benchmarks() -> dict[str, Any] | None:
         # P2P Bandwidth Test
         if world_size >= 2:
             if rank == 0:
-                logger.info("Running P2P bandwidth test...")
+                print("Running P2P bandwidth test...")
 
             p2p_result = measure_p2p_bandwidth(device)  # Has its own barrier
 
@@ -216,7 +211,7 @@ def collect_nccl_benchmarks() -> dict[str, Any] | None:
 
         # Allreduce Bandwidth Test
         if rank == 0:
-            logger.info("Running allreduce bandwidth test...")
+            print("Running allreduce bandwidth test...")
 
         allreduce_results = measure_allreduce_bandwidth(device)  # Has its own barriers
         if rank == 0 and allreduce_results:
@@ -225,7 +220,7 @@ def collect_nccl_benchmarks() -> dict[str, Any] | None:
         return results if rank == 0 else None
 
     except Exception as e:
-        logger.error(f"Rank {rank}: Benchmark test failed: {e}", exc_info=True)
+        print(f"Rank {rank}: Benchmark test failed: {e}")
         return None
 
 
@@ -472,7 +467,7 @@ def get_gpu_diagnostics() -> dict[str, Any]:
     }
 
     # Get nvidia-smi output
-    logger.info("Running nvidia-smi...")
+    print("Running nvidia-smi...")
     code, stdout, stderr = run_command(["nvidia-smi"])
     if code == 0:
         diagnostics["nvidia_smi"] = stdout
@@ -485,7 +480,7 @@ def get_gpu_diagnostics() -> dict[str, Any]:
         diagnostics["errors"].append(f"nvidia-smi failed: {stderr}")
 
     if code == 0:  # If nvidia-smi worked
-        logger.info("Checking GPU topology...")
+        print("Checking GPU topology...")
         topo_code, topo_stdout, topo_stderr = run_command(["nvidia-smi", "topo", "-m"])
         if topo_code == 0:
             diagnostics["gpu_topology"] = parse_gpu_topology(topo_stdout)
@@ -493,7 +488,7 @@ def get_gpu_diagnostics() -> dict[str, Any]:
             diagnostics["errors"].append(f"Failed to get GPU topology: {topo_stderr}")
 
     # Get CUDA version from nvcc
-    logger.info("Checking CUDA version...")
+    print("Checking CUDA version...")
     code, stdout, stderr = run_command(["nvcc", "--version"])
     if code == 0:
         # Extract version from output
@@ -505,7 +500,7 @@ def get_gpu_diagnostics() -> dict[str, Any]:
         diagnostics["cuda_version"] = "nvcc not found"
 
     # Get NCCL version
-    logger.info("Checking NCCL version...")
+    print("Checking NCCL version...")
     nccl_paths = ["/usr/local/cuda/lib64/libnccl.so", "/usr/lib/x86_64-linux-gnu/libnccl.so", "/usr/lib64/libnccl.so"]
 
     for nccl_path in nccl_paths:
@@ -793,26 +788,26 @@ def setup_nccl_debug_env(master_addr: str | None = None) -> None:
     os.environ["TORCH_NCCL_ASYNC_ERROR_HANDLING"] = "1"
 
     # Log current NCCL settings
-    logger.info("NCCL Environment for testing:")
+    print("NCCL Environment for testing:")
     for key, value in sorted(os.environ.items()):
         if key.startswith("NCCL_"):
-            logger.info(f"{key}={value}")
+            print(f"{key}={value}")
 
-    logger.info(f"MASTER_ADDR={master_addr or os.environ.get('MASTER_ADDR', '<unset>')}")
+    print(f"MASTER_ADDR={master_addr or os.environ.get('MASTER_ADDR', '<unset>')}")
 
 
 def test_nccl_communication() -> bool:
     """Test NCCL communication in distributed setting."""
-    logger.info("Testing NCCL communication...")
+    print("Testing NCCL communication...")
 
     # Print diagnostic info before initialization
-    logger.info("Environment variables for initialization:")
-    logger.info(f"  RANK={os.environ.get('RANK', 'NOT SET')}")
-    logger.info(f"  WORLD_SIZE={os.environ.get('WORLD_SIZE', 'NOT SET')}")
-    logger.info(f"  LOCAL_RANK={os.environ.get('LOCAL_RANK', 'NOT SET')}")
-    logger.info(f"  MASTER_ADDR={os.environ.get('MASTER_ADDR', 'NOT SET')}")
-    logger.info(f"  MASTER_PORT={os.environ.get('MASTER_PORT', 'NOT SET')}")
-    logger.info(f"  NODE_RANK={os.environ.get('NODE_RANK', 'NOT SET')}")
+    print("Environment variables for initialization:")
+    print(f"  RANK={os.environ.get('RANK', 'NOT SET')}")
+    print(f"  WORLD_SIZE={os.environ.get('WORLD_SIZE', 'NOT SET')}")
+    print(f"  LOCAL_RANK={os.environ.get('LOCAL_RANK', 'NOT SET')}")
+    print(f"  MASTER_ADDR={os.environ.get('MASTER_ADDR', 'NOT SET')}")
+    print(f"  MASTER_PORT={os.environ.get('MASTER_PORT', 'NOT SET')}")
+    print(f"  NODE_RANK={os.environ.get('NODE_RANK', 'NOT SET')}")
 
     # Also check network connectivity to master
     master_addr = os.environ.get("MASTER_ADDR", "localhost")
@@ -827,93 +822,93 @@ def test_nccl_communication() -> bool:
         sock.close()
 
         if result == 0:
-            logger.info(f"Successfully connected to {master_addr}:{master_port}")
+            print(f"Successfully connected to {master_addr}:{master_port}")
         else:
-            logger.error(f"Failed to connect to {master_addr}:{master_port} - error code: {result}")
+            print(f"Failed to connect to {master_addr}:{master_port} - error code: {result}")
     except Exception as conn_error:
-        logger.error(f"Connection test failed: {conn_error}")
+        print(f"Connection test failed: {conn_error}")
 
     try:
         # Check if we're in a distributed environment
         if "RANK" not in os.environ:
-            logger.warning("RANK not set, skipping distributed NCCL test")
+            print("RANK not set, skipping distributed NCCL test")
             return True
 
         local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        logger.info(f"Setting device to local_rank = {local_rank}")
+        print(f"Setting device to local_rank = {local_rank}")
         torch.cuda.set_device(local_rank)
         device = torch.device(f"cuda:{local_rank}")
 
         # Initialize process group
-        logger.info("Initializing process group...")
+        print("Initializing process group...")
         dist.init_process_group(backend="nccl", timeout=datetime.timedelta(seconds=300))
 
         rank = dist.get_rank()
         world_size = dist.get_world_size()
-        logger.info(f"Rank {rank}/{world_size}: Process group initialized")
-        logger.info(f"Rank {rank}: Using device {device}")
+        print(f"Rank {rank}/{world_size}: Process group initialized")
+        print(f"Rank {rank}: Using device {device}")
 
         # Test 1: All-reduce
-        logger.info(f"Rank {rank}: Testing all-reduce...")
+        print(f"Rank {rank}: Testing all-reduce...")
         tensor = torch.ones(1).to(device) * (rank + 1)
         dist.all_reduce(tensor)
         expected = world_size * (world_size + 1) // 2
         if abs(tensor.item() - expected) > 1e-6:
             raise ValueError(f"All-reduce failed: expected {expected}, got {tensor.item()}")
-        logger.info(f"Rank {rank}: All-reduce test passed")
+        print(f"Rank {rank}: All-reduce test passed")
 
         # Test 2: Broadcast
-        logger.info(f"Rank {rank}: Testing broadcast...")
+        print(f"Rank {rank}: Testing broadcast...")
         tensor = torch.zeros(1).to(device)
         if rank == 0:
             tensor.fill_(42)
         dist.broadcast(tensor, 0)
         if abs(tensor.item() - 42) > 1e-6:
             raise ValueError(f"Broadcast failed: expected 42, got {tensor.item()}")
-        logger.info(f"Rank {rank}: Broadcast test passed")
+        print(f"Rank {rank}: Broadcast test passed")
 
         # Test 3: Barrier
-        logger.info(f"Rank {rank}: Testing barrier...")
+        print(f"Rank {rank}: Testing barrier...")
         dist.barrier()
-        logger.info(f"Rank {rank}: Barrier test passed")
+        print(f"Rank {rank}: Barrier test passed")
 
-        logger.info(f"Rank {rank}: NCCL tests completed successfully")
+        print(f"Rank {rank}: NCCL tests completed successfully")
         return True
 
     except Exception as e:
-        logger.error(f"NCCL test failed: {e}", exc_info=True)
+        print(f"NCCL test failed: {e}")
         return False
 
 
 def test_single_gpu() -> bool:
     """Test single GPU functionality."""
-    logger.info("Testing single GPU functionality...")
+    print("Testing single GPU functionality...")
 
     try:
         if not torch.cuda.is_available():
-            logger.error("CUDA is not available")
+            print("CUDA is not available")
             return False
 
         device = torch.device("cuda:0")
 
         # Test 1: Basic tensor operations
-        logger.info("Testing basic tensor operations...")
+        print("Testing basic tensor operations...")
         tensor = torch.ones(100, 100).to(device)
         result = torch.matmul(tensor, tensor)
         if result[0, 0].item() != 100:
             raise ValueError("Matrix multiplication failed")
 
         # Test 2: Memory allocation
-        logger.info("Testing memory allocation...")
+        print("Testing memory allocation...")
         large_tensor = torch.zeros(1000, 1000, 100).to(device)
         del large_tensor
         torch.cuda.empty_cache()
 
-        logger.info("Single GPU tests passed")
+        print("Single GPU tests passed")
         return True
 
     except Exception as e:
-        logger.error(f"Single GPU test failed: {e}", exc_info=True)
+        print(f"Single GPU test failed: {e}")
         return False
 
 
@@ -938,7 +933,7 @@ def launch_distributed_test() -> int:
     master_addr = os.environ.get("MASTER_ADDR", "localhost")
     master_port = os.environ.get("MASTER_PORT", "29500")
 
-    logger.info(f"Launching distributed test with {num_gpus} GPUs on {num_nodes} nodes")
+    print(f"Launching distributed test with {num_gpus} GPUs on {num_nodes} nodes")
 
     cmd = [
         sys.executable,
@@ -953,13 +948,13 @@ def launch_distributed_test() -> int:
         "--distributed-worker",
     ]
 
-    logger.info(f"Running command: {' '.join(cmd)}")
+    print(f"Running command: {' '.join(cmd)}")
 
     try:
         result = subprocess.run(cmd, check=True)
         return result.returncode
     except subprocess.CalledProcessError as e:
-        logger.error(f"Distributed test failed with return code {e.returncode}")
+        print(f"Distributed test failed with return code {e.returncode}")
         return e.returncode
 
 
@@ -998,11 +993,11 @@ def main():
     # Check if we're a distributed worker
     if "--distributed-worker" in sys.argv:
         # We're inside a torchrun worker, run the actual tests
-        logger.info("Running as distributed worker")
+        print("Running as distributed worker")
     else:
         # We're the main process, check if we need to launch distributed
         if is_distributed_environment():
-            logger.info("Detected distributed environment, launching with torchrun...")
+            print("Detected distributed environment, launching with torchrun...")
             return launch_distributed_test()
 
     # Determine our position in the cluster
@@ -1038,7 +1033,7 @@ def main():
     time.sleep(0.02 * rank)
 
     # Collect system diagnostics
-    logger.info("Collecting system diagnostics...")
+    print("Collecting system diagnostics...")
     system_diagnostics = get_system_diagnostics()
 
     # Cluster-wide configuration (master only)
@@ -1070,7 +1065,7 @@ def main():
 
     # GPU diagnostics - one per node (GPU 0 only)
     if IS_GPU0:
-        logger.info("Collecting GPU diagnostics...")
+        print("Collecting GPU diagnostics...")
         gpu_diagnostics = get_gpu_diagnostics()
         print()
         print_box_header(f"NODE {node_index} GPU DIAGNOSTICS", include_rank=False)
@@ -1129,7 +1124,7 @@ def main():
             if not IS_GPU0:  # Only print errors from non-GPU0 ranks
                 print(f"  ✗ Rank {rank}: Single GPU test failed")
     else:
-        logger.warning("Skipping GPU tests - CUDA not available")
+        print("Skipping GPU tests - CUDA not available")
         test_results.append(("Single GPU Test", "⚠ SKIPPED (No CUDA)"))
         all_passed = False
 
@@ -1145,7 +1140,7 @@ def main():
             if not IS_GPU0:  # Only print errors from non-GPU0 ranks
                 print(f"  ✗ Rank {rank}: NCCL test failed")
     else:
-        logger.info("Not in distributed environment, skipping NCCL communication test")
+        print("Not in distributed environment, skipping NCCL communication test")
         test_results.append(("NCCL Communication Test", "⚠ SKIPPED (Not distributed)"))
 
     # NCCL benchmarks
@@ -1178,7 +1173,7 @@ def main():
         else:
             # If process group was destroyed, we can't aggregate
             # In this case, we just report our local status
-            logger.warning("Process group not initialized for result aggregation")
+            print("Process group not initialized for result aggregation")
 
     # Summary - only from master
     if IS_MASTER and benchmark_results:
