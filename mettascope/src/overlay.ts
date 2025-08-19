@@ -130,9 +130,11 @@ export function drawObservationOverlay(): void {
   if (!ctx.atlasData || !(ctx.atlasData as any).fonts || !(ctx.atlasData as any).fonts[fontId]) {
     return
   }
+  const font = (ctx.atlasData as any).fonts[fontId]
   // Scale text to occupy about half of the tile height; fall back to font size 64 if metadata not ready.
   const baseLineHeight: number = (ctx.atlasData as any)?.fonts?.[fontId]?.lineHeight ?? 64
   const scale = (tileSize * 0.55) / baseLineHeight
+
 
   for (let r = 0; r < g.height; r++) {
     for (let c = 0; c < g.width; c++) {
@@ -140,6 +142,7 @@ export function drawObservationOverlay(): void {
       if (idx < 0 || idx >= g.values.length) continue
       const rawVal = Number((g.values as any)[idx] ?? 0)
       const value = Math.max(0, Math.min(255, Math.round(rawVal)))
+      if (value === 0) continue
       const text = String(value)
 
       const wx = ax + (c - halfW)
@@ -157,6 +160,11 @@ export function drawObservationOverlay(): void {
       ctx.save()
       ctx.translate(centerX, centerY)
       ctx.scale(scale, scale)
+      // Center text around the tile center using measured bounds.
+      const { width: textWidth, top, bottom } = ctx.measureTextBounds(fontId, text)
+      const textHeight = bottom - top
+      // Move origin so the visual bounds are centered.
+      ctx.translate(-textWidth / 2, -(top + textHeight / 2))
       ctx.drawTextWorld(fontId, text, [1, 1, 1, a])
       ctx.restore()
     }

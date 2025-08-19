@@ -701,6 +701,81 @@ export class Context3d {
     this.restore()
   }
 
+  /** Measure text bounds in font pixel units (before world scaling).
+   * Returns the logical width (advances+kerning) and vertical bounds relative to the baseline.
+   * Top and bottom include the atlas margin and glyph inner padding so centering matches draw.
+   */
+  measureTextBounds(
+    fontName: string,
+    text: string
+  ): { width: number; top: number; bottom: number } {
+    if (!this.ready) {
+      throw new Error('Drawer not initialized')
+    }
+    const fonts = this.atlasData!.fonts
+    const font = fonts[fontName]
+    const glyphInnerPadding = font.glyphInnerPadding
+    const mBase = this.atlasMargin
+
+    let width = 0
+    let prevLabel: string | null = null
+    let top = Number.POSITIVE_INFINITY
+    let bottom = Number.NEGATIVE_INFINITY
+
+    const toLabel = (cp: number): string => `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`
+
+    for (const ch of text) {
+      const cp = ch.codePointAt(0)!
+      const label = toLabel(cp)
+      const glyph = font.glyphs[label]
+
+      // Advance-only for spaces/tabs
+      if (ch === ' ') {
+        width += glyph ? glyph.advance : 0
+        prevLabel = label
+        continue
+      }
+      if (ch === '\t') {
+        const space = font.glyphs['U+0020']
+        const tabAdvance = (space ? space.advance : glyph ? glyph.advance : 0) * 4
+        width += tabAdvance
+        prevLabel = label
+        continue
+      }
+
+      if (!glyph || !glyph.rect) {
+        continue
+      }
+
+      // Kerning
+      if (prevLabel) {
+        const row = font.kerning[prevLabel]
+        if (row) {
+          const adjust = row[label]
+          if (adjust) {
+            width += adjust
+          }
+        }
+      }
+
+      const [,_sy, _sw, sh] = glyph.rect
+      const glyphTop = (glyph.bearingY - glyphInnerPadding - mBase)
+      const glyphBottom = glyphTop + (sh + 2 * mBase)
+      if (glyphTop < top) top = glyphTop
+      if (glyphBottom > bottom) bottom = glyphBottom
+
+      width += glyph.advance
+      prevLabel = label
+    }
+
+    if (top === Number.POSITIVE_INFINITY) {
+      top = 0
+      bottom = font.lineHeight
+    }
+
+    return { width, top, bottom }
+  }
+
   /**
    * Draw text in world space using sprites from the atlas.
    */
