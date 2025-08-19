@@ -1,6 +1,7 @@
 defaults:
   - common
   - wandb: metta_research
+  - agent: fast
   - sim: navigation
   - trainer: trainer
   - sweep: full
@@ -8,7 +9,6 @@ defaults:
 
 cmd: sweep
 sweep_name: ???  # Will be set via command line override
-agent: fast
 
 # Backend URL for centralized run assignment in Observatory
 sweep_server_uri: https://api.observatory.softmax-research.net
