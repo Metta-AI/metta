@@ -175,10 +175,8 @@ def test_new_checkpoint_format():
 
     agent = TempMettaAgent()
 
-    # Create a mock ComponentPolicy using Fast as concrete implementation
-    from metta.agent.component_policies.fast import Fast
-
-    policy = Fast.__new__(Fast)
+    # Create a mock ComponentPolicy
+    policy = ComponentPolicy.__new__(ComponentPolicy)
     nn.Module.__init__(policy)
     policy.components = ModuleDict()
     policy.components_with_memory = []

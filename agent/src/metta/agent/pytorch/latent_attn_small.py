@@ -92,13 +92,54 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
         # Decode actions and value
         logits_list, value = self.policy.decode_actions(flat_hidden)
 
-        # Use mixin for mode-specific processing
         if action is None:
-            # Mixin handles inference mode
-            td = self.forward_inference(td, logits_list, value)
+            # ---------- Inference Mode ----------
+            action_log_probs = F.log_softmax(logits_list, dim=-1)
+            action_probs = torch.exp(action_log_probs)
+
+            sampled_actions = torch.multinomial(action_probs, num_samples=1).view(-1)
+            batch_indices = torch.arange(sampled_actions.shape[0], device=sampled_actions.device)
+            full_log_probs = action_log_probs[batch_indices, sampled_actions]
+
+            converted_action = self._convert_logit_index_to_action(sampled_actions)
+
+            td["actions"] = converted_action.to(dtype=torch.int32)
+            td["act_log_prob"] = full_log_probs
+            td["values"] = value.flatten()
+            td["full_log_probs"] = action_log_probs
+
         else:
-            # Mixin handles training mode with proper reshaping
-            td = self.forward_training(td, action, logits_list, value)
+            # ---------- Training Mode ----------
+            # CRITICAL: ComponentPolicy expects the action to be flattened already during training
+            # The TD should be reshaped to match the flattened batch dimension
+            if action.dim() == 3:  # (B, T, A) -> (BT, A)
+                batch_size_orig, time_steps, A = action.shape
+                action = action.view(batch_size_orig * time_steps, A)
+                # Also flatten the TD to match
+                if td.batch_dims > 1:
+                    td = td.reshape(td.batch_size.numel())
+
+            action_log_probs = F.log_softmax(logits_list, dim=-1)
+            action_probs = torch.exp(action_log_probs)
+
+            action_logit_index = self._convert_action_to_logit_index(action)
+            batch_indices = torch.arange(action_logit_index.shape[0], device=action_logit_index.device)
+            full_log_probs = action_log_probs[batch_indices, action_logit_index]
+
+            entropy = -(action_probs * action_log_probs).sum(dim=-1)
+
+            # Store in flattened TD (will be reshaped by caller if needed)
+            td["act_log_prob"] = full_log_probs
+            td["entropy"] = entropy
+            td["full_log_probs"] = action_log_probs
+            td["value"] = value
+
+            # ComponentPolicy reshapes the TD after training forward based on td["batch"] and td["bptt"]
+            # The reshaping happens in ComponentPolicy.forward() after forward_training()
+            if "batch" in td.keys() and "bptt" in td.keys():
+                batch_size = td["batch"][0].item()
+                bptt_size = td["bptt"][0].item()
+                td = td.reshape(batch_size, bptt_size)
 
         return td
 
