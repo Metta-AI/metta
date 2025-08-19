@@ -24,6 +24,7 @@ mkdir -p "$JOB_METADATA_DIR"
 
 # Create IPC directory for this job instance
 IPC_DIR="/tmp/metta_job_$$"
+echo "IPC_DIR: $IPC_DIR"
 mkdir -p "$IPC_DIR"
 
 # Files to track
