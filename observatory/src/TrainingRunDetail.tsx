@@ -550,6 +550,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
   const selectedCellData = selectedCell ? scorecardData?.cells[selectedCell.policyUri]?.[selectedCell.evalName] : null
   const selectedEval = selectedCellData?.evalName ?? null
   const selectedReplayUrl = selectedCellData?.replayUrl ?? null
+  const selectedThumbnailUrl = selectedCellData?.thumbnailUrl ?? null
 
   if (loading.initial) {
     return (
@@ -687,6 +688,7 @@ export function TrainingRunDetail({ repo }: TrainingRunDetailProps) {
           selectedEval={selectedEval}
           isViewLocked={isViewLocked}
           selectedReplayUrl={selectedReplayUrl}
+          selectedThumbnailUrl={selectedThumbnailUrl}
           onToggleLock={toggleLock}
           onReplayClick={handleReplayClick}
         />
