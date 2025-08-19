@@ -153,9 +153,9 @@ class ObsLatentAttn(LayerBase):
         key_mask = None
         if self._use_mask:
             key_mask = td["obs_mask"]
-        BT = x_features.shape[0]
+        B_TT = td["_BxTT_"]
 
-        queries = self._q_token.expand(BT, -1, -1)
+        queries = self._q_token.expand(B_TT, -1, -1)
 
         kv_norm = self.norm_kv(x_features)
         k_p = self.k_proj(kv_norm)
