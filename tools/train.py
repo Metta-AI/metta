@@ -31,6 +31,10 @@ from tools.utils import get_policy_store_from_cfg
 
 logger = logging.getLogger(__name__)
 
+# TODO - app_backend stats uses httpx which manages it's own logs at INFO
+# consider where we really want to put this
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 
 # TODO: populate this more
 class TrainJob(Config):
