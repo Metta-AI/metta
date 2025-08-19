@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, TypeVar
 
-from metta.setup.config import SetupConfig
+from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import error
 
 T = TypeVar("T")
@@ -12,8 +12,7 @@ T = TypeVar("T")
 class SetupModule(ABC):
     install_once: bool = False
 
-    def __init__(self, config: SetupConfig):
-        self.config: SetupConfig = config
+    def __init__(self):
         self.repo_root: Path = Path(__file__).parent.parent.parent.parent
 
     @property
@@ -123,7 +122,7 @@ class SetupModule(ABC):
             The setting value or default
         """
         full_key = f"module_settings.{self.name}.{key}"
-        value = self.config.get(full_key, None)
+        value = get_saved_settings().get(full_key, None)
         # Only return saved value if it differs from default
         return value if value is not None else default
 
@@ -147,12 +146,13 @@ class SetupModule(ABC):
                 return
 
         full_key = f"module_settings.{self.name}.{key}"
-        self.config.set(full_key, value)
+        get_saved_settings().set(full_key, value)
 
     def _remove_setting(self, full_key: str) -> None:
         """Remove a setting from the configuration."""
         keys = full_key.split(".")
-        config = self.config._config
+        saved_settings = get_saved_settings()
+        config = saved_settings._config
         for k in keys[:-1]:
             if k not in config:
                 return  # Key doesn't exist
@@ -161,8 +161,8 @@ class SetupModule(ABC):
         # Remove the key if it exists
         if keys[-1] in config:
             del config[keys[-1]]
-            self.config.save()
-            self._cleanup_empty_dicts(self.config._config, keys[:-1])
+            saved_settings.save()
+            self._cleanup_empty_dicts(saved_settings._config, keys[:-1])
 
     def _cleanup_empty_dicts(self, config: dict, keys: list[str]) -> None:
         if not keys:
@@ -192,6 +192,6 @@ class SetupModule(ABC):
 
         installed = self.check_installed()
         connected_as = self.check_connected_as() if installed else None
-        expected = self.config.get_expected_connection(self.name)
+        expected = get_saved_settings().get_expected_connection(self.name)
 
         return {"installed": installed, "connected_as": connected_as, "expected": expected}

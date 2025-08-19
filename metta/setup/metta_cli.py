@@ -10,11 +10,11 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 # Minimal imports needed for all commands (or safe minimal imports tested for non-slowness)
 from metta.common.util.fs import get_repo_root
 from metta.setup.profiles import PROFILE_DEFINITIONS, UserType
+from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import error, header, import_all_modules_from_subpackage, info, prompt_choice, success
 
 # Type hints only
 if TYPE_CHECKING:
-    from metta.setup.config import SetupConfig
     from metta.setup.local_commands import LocalCommands
     from metta.setup.symlink_setup import PathSetup
     from metta.setup.tools.book import BookCommands
@@ -194,7 +194,6 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
 class MettaCLI:
     def __init__(self):
         self.repo_root: Path = get_repo_root()
-        self._config: Optional[SetupConfig] = None
         self._path_setup: Optional[PathSetup] = None
         self._local_commands: Optional[LocalCommands] = None
         self._book_commands: Optional[BookCommands] = None
@@ -210,22 +209,12 @@ class MettaCLI:
         import_all_modules_from_subpackage("metta.setup", "components")
 
         # Initialize core objects
-        from metta.setup.config import SetupConfig
         from metta.setup.local_commands import LocalCommands
         from metta.setup.symlink_setup import PathSetup
 
-        self._config = SetupConfig()
         self._path_setup = PathSetup(self.repo_root)
         self._local_commands = LocalCommands()
         self._components_initialized = True
-
-    @property
-    def config(self):
-        if self._config is None:
-            from metta.setup.config import SetupConfig
-
-            self._config = SetupConfig()
-        return self._config
 
     @property
     def path_setup(self):
@@ -252,17 +241,18 @@ class MettaCLI:
         return self._book_commands
 
     def setup_wizard(self) -> None:
-        from metta.setup.config import UserType
+        from metta.setup.profiles import UserType
 
         header("Welcome to Metta!\n\n")
         info("Note: You can run 'metta configure <component>' to change component-level settings later.\n")
 
-        if self.config.config_path.exists():
+        saved_settings = get_saved_settings()
+        if saved_settings.config_path.exists():
             info("Current configuration:")
-            info(f"Profile: {self.config.user_type.value}")
-            info(f"Mode: {'custom' if self.config.is_custom_config else 'profile'}")
+            info(f"Profile: {saved_settings.user_type.value}")
+            info(f"Mode: {'custom' if saved_settings.is_custom_config else 'profile'}")
             info("\nEnabled components:")
-            components = self.config.get_components()
+            components = saved_settings.get_components()
             for comp, settings in components.items():
                 if settings.get("enabled"):
                     success(f"  + {comp}")
@@ -272,18 +262,18 @@ class MettaCLI:
         choices = [(ut, ut.get_description()) for ut in UserType]
 
         # Current configuration
-        current_config = self.config.user_type if self.config.config_path.exists() else None
+        current_user_type = saved_settings.user_type if saved_settings.config_path.exists() else None
 
         result = prompt_choice(
             "Select configuration:",
             choices,
-            current=current_config,
+            current=current_user_type,
         )
 
         if result == UserType.CUSTOM:
             self._custom_setup()
         else:
-            self.config.apply_profile(result)
+            saved_settings.apply_profile(result)
             success(f"\nConfigured as {result.value} user.")
         info("\nRun 'metta install' to set up your environment.")
 
@@ -299,14 +289,15 @@ class MettaCLI:
             default=UserType.EXTERNAL,
         )
 
-        self.config.setup_custom_profile(user_type)
+        saved_settings = get_saved_settings()
+        saved_settings.setup_custom_profile(user_type)
 
         info("\nCustomize components:")
         # Get all registered components
-        all_modules = get_all_modules(self.config)
+        all_modules = get_all_modules()
 
         for module in all_modules:
-            current_enabled = self.config.is_component_enabled(module.name)
+            current_enabled = saved_settings.is_component_enabled(module.name)
 
             # Use prompt_choice for yes/no
             enabled = prompt_choice(
@@ -321,7 +312,7 @@ class MettaCLI:
                 PROFILE_DEFINITIONS.get(user_type, {}).get("components", {}).get(module.name, {}).get("enabled", False)
             )
             if enabled != profile_default:
-                self.config.set(f"components.{module.name}.enabled", enabled)
+                saved_settings.set(f"components.{module.name}.enabled", enabled)
 
         success("\nCustom configuration saved.")
         info("\nRun 'metta install' to set up your environment.")
@@ -332,7 +323,8 @@ class MettaCLI:
         elif args.profile:
             selected_user_type = UserType(args.profile)
             if selected_user_type in PROFILE_DEFINITIONS:
-                self.config.apply_profile(selected_user_type)
+                saved_settings = get_saved_settings()
+                saved_settings.apply_profile(selected_user_type)
                 success(f"Configured as {selected_user_type.value} user.")
                 info("\nRun 'metta install' to set up your environment.")
             else:
@@ -345,7 +337,7 @@ class MettaCLI:
         from metta.setup.registry import get_all_modules
         from metta.setup.utils import error, info
 
-        modules = get_all_modules(self.config)
+        modules = get_all_modules()
         module_map = {m.name: m for m in modules}
 
         if not (module := module_map.get(component_name)):
@@ -363,7 +355,7 @@ class MettaCLI:
         from metta.setup.registry import get_all_modules
         from metta.setup.utils import error, info
 
-        modules = get_all_modules(self.config)
+        modules = get_all_modules()
         module_map = {m.name: m for m in modules}
 
         if not (module := module_map.get(args.component)):
@@ -378,7 +370,8 @@ class MettaCLI:
         from metta.setup.registry import get_all_modules, get_applicable_modules
         from metta.setup.utils import error, info, success, warning
 
-        if not self.config.config_path.exists():
+        saved_settings = get_saved_settings()
+        if not saved_settings.config_path.exists():
             warning("No configuration found. Running setup wizard first...")
             self.setup_wizard()
 
@@ -389,9 +382,9 @@ class MettaCLI:
         # If specific components are requested, get all modules so we can install
         # even disabled ones (useful with --force)
         if args.components:
-            modules = get_all_modules(self.config)
+            modules = get_all_modules()
         else:
-            modules = get_applicable_modules(self.config)
+            modules = get_applicable_modules()
 
         if args.components:
             only_names = args.components
@@ -618,7 +611,7 @@ class MettaCLI:
         from metta.setup.utils import error, info, spinner, success, warning
 
         # Get all modules first
-        all_modules = get_all_modules(self.config)
+        all_modules = get_all_modules()
 
         # Filter by requested components if specified
         if args.components:
@@ -848,9 +841,10 @@ Examples:
             args = parser.parse_args()
             unknown_args = []
 
+        saved_settings = get_saved_settings()
         # Handle no command
         if not args.command:
-            if not self.config.config_path.exists():
+            if not saved_settings.config_path.exists():
                 print("No configuration found. Running setup wizard...\n")
                 self.setup_wizard()
                 return
@@ -862,15 +856,15 @@ Examples:
         if args.command in COMMAND_REGISTRY:
             cmd_config = COMMAND_REGISTRY[args.command]
             if cmd_config.needs_config and args.command not in ["configure", "symlink-setup"]:
-                if not self.config.config_path.exists():
+                if not saved_settings.config_path.exists():
                     print("Error: No configuration found. Please run 'metta configure' first.", file=sys.stderr)
                     sys.exit(1)
                 else:
-                    from metta.setup.config import CURRENT_CONFIG_VERSION
+                    from metta.setup.saved_settings import CURRENT_SAVED_SETTINGS_VERSION
 
-                    if self.config.config_version < CURRENT_CONFIG_VERSION:
+                    if saved_settings.config_version < CURRENT_SAVED_SETTINGS_VERSION:
                         print(
-                            f"Warning: Your configuration is from an older version (v{self.config.config_version}).",
+                            f"Warning: Your configuration is from an older version (v{saved_settings.config_version}).",
                             file=sys.stderr,
                         )
                         print("Please run 'metta configure' to update your configuration.", file=sys.stderr)
