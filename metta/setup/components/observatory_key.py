@@ -22,9 +22,6 @@ class ObservatoryKeySetup(SetupModule):
     def description(self) -> str:
         return "Observatory auth key"
 
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("observatory-key")
-
     def get_token(self, server_url: str | None = None) -> str | None:
         """Get token for specific server using the shared implementation"""
         return get_machine_token(server_url)
@@ -79,6 +76,3 @@ class ObservatoryKeyLocalSetup(ObservatoryKeySetup):
     @property
     def description(self) -> str:
         return "Observatory auth key (local development)"
-
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("observatory-key-local")

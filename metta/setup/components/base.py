@@ -28,13 +28,17 @@ class SetupModule(ABC):
     def setup_script_location(self) -> str | None:
         return None
 
-    @abstractmethod
-    def is_applicable(self) -> bool:
-        pass
+    def _is_applicable(self) -> bool:
+        return True
 
     @abstractmethod
     def check_installed(self) -> bool:
         pass
+
+    def is_enabled(self) -> bool:
+        return self._is_applicable() and all(
+            get_saved_settings().is_component_enabled(dep) for dep in ([self.name] + self.dependencies())
+        )
 
     def dependencies(self) -> list[str]:
         # Other components that must be installed before this one

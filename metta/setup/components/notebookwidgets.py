@@ -2,7 +2,6 @@ import subprocess
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import info, warning
 
 
@@ -26,9 +25,6 @@ class NotebookWidgetsSetup(SetupModule):
     def __init__(self):
         super().__init__()
         self.widget_root = self.repo_root / "experiments/notebooks/utils"
-
-    def is_applicable(self) -> bool:
-        return get_saved_settings().is_component_enabled("notebookwidgets")
 
     def should_install_widget(self, widget: str) -> bool:
         widget_path = self.widget_root / widget
