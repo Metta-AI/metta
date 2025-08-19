@@ -17,6 +17,7 @@ protein:
   seed_with_search_center: true
   # acquisition_fn: naive  # Options: naive (default), ei, ucb
   # ucb_beta: 2.0  # Only used when acquisition_fn is ucb
+  # randomize_acquisition: true  # Randomize acquisition parameters for diversity in parallel runs
 
 parameters:
   trainer:

@@ -324,6 +324,7 @@ class Protein:
         expansion_rate=0.25,
         acquisition_fn="naive",
         ucb_beta=2.0,
+        randomize_acquisition=False,
     ):
         self.hyperparameters = Hyperparameters(sweep_config)
         self.num_random_samples = num_random_samples
@@ -336,6 +337,7 @@ class Protein:
         self.expansion_rate = expansion_rate
         self.acquisition_fn = acquisition_fn
         self.ucb_beta = ucb_beta
+        self.randomize_acquisition = randomize_acquisition
         self.success_observations = []
         self.failure_observations = []
         self.suggestion_idx = 0
@@ -346,7 +348,7 @@ class Protein:
         if acquisition_fn not in ["naive", "ei", "ucb"]:
             raise ValueError(f"Invalid acquisition function: {acquisition_fn}. Must be one of: 'naive', 'ei', 'ucb'")
 
-    def _compute_ei(self, mean, std, best_value):
+    def _compute_ei(self, mean, std, best_value, temperature=1.0):
         """
         Compute Expected Improvement acquisition function.
 
@@ -354,6 +356,7 @@ class Protein:
             mean: Predicted mean from GP
             std: Predicted standard deviation from GP
             best_value: Best observed value so far
+            temperature: Temperature parameter for controlling exploration (higher = more exploration)
 
         Returns:
             Expected improvement values
@@ -367,9 +370,9 @@ class Protein:
         # Avoid division by zero
         std = np.maximum(std, 1e-9)
 
-        # Compute EI
-        z = improvement / std
-        ei = improvement * stats.norm.cdf(z) + std * stats.norm.pdf(z)
+        # Compute EI with temperature scaling
+        z = improvement / (std * temperature)
+        ei = improvement * stats.norm.cdf(z) + std * temperature * stats.norm.pdf(z)
 
         return ei
 
@@ -472,10 +475,29 @@ class Protein:
             else:
                 # Default when no observations (shouldn't happen but defensive)
                 best_observed = float("-inf") if self.hyperparameters.optimize_direction == 1 else float("inf")
+
+            # Add randomization to EI by jittering the best observed value
+            if self.randomize_acquisition:
+                # Sample jitter from exponential distribution with mean = 5% of score range
+                score_range = max_score - min_score if max_score != min_score else 1.0
+                jitter_scale = 0.05 * score_range
+                jitter = np.random.exponential(scale=jitter_scale)
+                # Apply jitter in the direction that makes exploration more likely
+                if self.hyperparameters.optimize_direction == 1:  # maximizing
+                    best_observed += jitter  # Higher threshold = more exploration
+                else:  # minimizing
+                    best_observed -= jitter  # Lower threshold = more exploration
+
             ei_scores = self._compute_ei(gp_y, gp_y_std, best_observed)
             suggestion_scores = max_c_mask * ei_scores
         elif self.acquisition_fn == "ucb":
-            ucb_scores = self._compute_ucb(gp_y, gp_y_std)
+            # Randomize beta parameter for UCB
+            if self.randomize_acquisition:
+                # Sample beta from exponential distribution with mean = self.ucb_beta
+                beta = np.random.exponential(scale=self.ucb_beta)
+                ucb_scores = self._compute_ucb(gp_y, gp_y_std, beta=beta)
+            else:
+                ucb_scores = self._compute_ucb(gp_y, gp_y_std)
             suggestion_scores = max_c_mask * self.hyperparameters.optimize_direction * ucb_scores
         else:  # naive
             suggestion_scores = self._compute_naive_acquisition(gp_y_norm, gp_log_c_norm, max_c_mask)
@@ -486,7 +508,16 @@ class Protein:
             score=gp_y[best_idx].item(),
             rating=suggestion_scores[best_idx].item(),
             acquisition_fn=self.acquisition_fn,
+            randomize_acquisition=self.randomize_acquisition,
         )
+
+        # Add randomized parameter values to info if randomization was used
+        if self.randomize_acquisition:
+            if self.acquisition_fn == "ucb" and "beta" in locals():
+                info["ucb_beta_used"] = beta
+            elif self.acquisition_fn == "ei" and "jitter" in locals():
+                info["ei_jitter"] = jitter
+                info["ei_best_observed"] = best_observed
         best = suggestions[best_idx].numpy()
         return self.hyperparameters.to_dict(best, fill), info
 

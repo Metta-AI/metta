@@ -10,6 +10,13 @@ logger = logging.getLogger("sweep")
 
 
 # 1 - Sweep utilities.
+def get_active_sweep_runs(sweep_name: str, entity: str, project: str) -> List[Any]:
+    """Get all active runs from a sweep (group)."""
+    api = wandb.Api()
+    runs = api.runs(f"{entity}/{project}", filters={"group": sweep_name, "state": "running"})
+    return runs
+
+
 def get_sweep_runs(sweep_name: str, entity: str, project: str) -> List[Any]:
     """Get all runs from a sweep (group) sorted by score."""
     api = wandb.Api()
