@@ -17,6 +17,13 @@ echo "[INFO] Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
 LAST_HEARTBEAT_TIME=$(date +%s)
 HEARTBEAT_COUNT=0
 
+stop_cluster() {
+  local msg="$1"
+  echo "[ERROR] Heartbeat timeout! $msg"
+  echo "heartbeat_timeout" > "$TERMINATION_REASON_FILE"
+  kill -TERM "${WRAPPER_PID}" 2>/dev/null || true
+}
+
 while true; do
   if [ -s "$CLUSTER_STOP_FILE" ]; then
     echo "[INFO] Cluster stop detected, heartbeat monitor exiting"
@@ -38,21 +45,24 @@ while true; do
       if [ $((HEARTBEAT_COUNT % 10)) -eq 0 ]; then
         echo "[INFO] Heartbeat received! (Total: $HEARTBEAT_COUNT heartbeat checks)"
       fi
+
+      # for testing, force exit at 20 beats
+      if [ $HEARTBEAT_COUNT -eq 20 ]; then
+        stop_cluster "Testing heartbeat exit"
+        break
+      fi
     fi
 
     # Check if timeout exceeded
     if [ $((CURRENT_TIME - LAST_HEARTBEAT_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
-      echo "[ERROR] Heartbeat timeout! No heartbeat for $HEARTBEAT_TIMEOUT seconds"
-      echo "heartbeat_timeout" > "$TERMINATION_REASON_FILE"
-      kill -TERM "${WRAPPER_PID}" 2>/dev/null || true
+
+      stop_cluster "No heartbeat for $HEARTBEAT_TIMEOUT seconds"
       break
     fi
   else
     # If the heartbeat file never appeared, enforce timeout from start
     if [ $((CURRENT_TIME - START_TIME)) -gt "$HEARTBEAT_TIMEOUT" ]; then
-      echo "[ERROR] Heartbeat timeout! Heartbeat file never appeared in $HEARTBEAT_TIMEOUT seconds"
-      echo "heartbeat_timeout" > "$TERMINATION_REASON_FILE"
-      kill -TERM "${WRAPPER_PID}" 2>/dev/null || true
+      stop_cluster "Heartbeat file never appeared in $HEARTBEAT_TIMEOUT seconds"
       break
     fi
   fi
