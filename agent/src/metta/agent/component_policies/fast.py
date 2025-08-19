@@ -2,7 +2,7 @@ import logging
 
 from omegaconf import DictConfig
 
-from metta.agent.component_policies.component_policy import ComponentPolicy
+from metta.agent.component_policy import ComponentPolicy
 from metta.agent.lib.action import ActionEmbedding
 from metta.agent.lib.actor import MettaActorSingleHead
 from metta.agent.lib.lstm import LSTM

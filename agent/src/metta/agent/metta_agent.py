@@ -10,8 +10,7 @@ from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.component_policies.agent_mapper import agent_classes as component_agent_classes
-from metta.agent.pytorch.agent_mapper import agent_classes as pytorch_agent_classes
+from metta.agent.agent_mapper import pytorch_agents, component_agents
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
@@ -109,17 +108,17 @@ class MettaAgent(nn.Module):
         if agent_name.startswith("pytorch/"):
             # Explicitly requested vanilla PyTorch model
             model_name = agent_name[8:]  # Remove "pytorch/" prefix
-            if model_name in pytorch_agent_classes:
-                AgentClass = pytorch_agent_classes[model_name]
+            if model_name in pytorch_agents:
+                AgentClass = pytorch_agents[model_name]
                 policy = AgentClass(env=env, **config_dict)
                 logger.info(f"Using PyTorch model: {model_name}")
             else:
                 raise ValueError(
-                    f"Unknown PyTorch model: '{model_name}'. Available: {list(pytorch_agent_classes.keys())}"
+                    f"Unknown PyTorch model: '{model_name}'. Available: {list(pytorch_agents.keys())}"
                 )
-        elif agent_name in component_agent_classes:
+        elif agent_name in component_agents:
             # Default to ComponentPolicy (no prefix needed)
-            AgentClass = component_agent_classes[agent_name]
+            AgentClass = component_agents[agent_name]
             policy = AgentClass(
                 obs_space=self.obs_space,
                 obs_width=self.obs_width,
@@ -131,7 +130,8 @@ class MettaAgent(nn.Module):
         else:
             raise ValueError(
                 f"Unknown agent: '{agent_name}'. "
-                f"Available ComponentPolicies: {list(component_agent_classes.keys())}. "
+                f"Available ComponentPolicies: {list(component_agents.keys())}, "
+                f"PyTorch models: {list(pytorch_agents.keys())}. "
                 f"For PyTorch models, use 'pytorch/' prefix (e.g., 'pytorch/fast')"
             )
 
