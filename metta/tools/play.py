@@ -4,8 +4,8 @@ import logging
 
 import mettascope.server as server
 from metta.agent.policy_store import PolicyStore
+from metta.common.config import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
-from metta.common.util.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig
 from metta.sim.simulation import Simulation
 from metta.sim.simulation_config import SimulationConfig
