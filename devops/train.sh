@@ -8,7 +8,7 @@ MASTER_PORT=${MASTER_PORT:-12345}
 NODE_INDEX=${NODE_INDEX:-0}
 
 # Display configuration
-echo "[CONFIG] Training configuration:"
+echo "[train.sh] Training configuration:"
 echo "  - GPUs: $NUM_GPUS"
 echo "  - Nodes: $NUM_NODES"
 echo "  - Master address: $MASTER_ADDR"
@@ -40,8 +40,8 @@ EXIT_CODE=$?
 set -e
 
 if [[ $EXIT_CODE -eq 0 ]]; then
-  echo "[SUCCESS] Training completed successfully"
+  echo "[train.sh] Training completed successfully"
 else
-  echo "[ERROR] Training failed with exit code $EXIT_CODE" >&2
+  echo "[train.sh] Training failed with exit code $EXIT_CODE" >&2
 fi
 exit "$EXIT_CODE"

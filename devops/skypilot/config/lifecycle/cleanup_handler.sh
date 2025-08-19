@@ -37,6 +37,7 @@ cleanup() {
 
   # Override the process exit code from within the EXIT trap.
   # Note: calling `exit` inside an EXIT trap does not recurse the trap.
+  echo "[FINAL] Exiting with code: ${FINAL_EXIT_CODE:-${CMD_EXIT:-1}}" >&2
   exit "${FINAL_EXIT_CODE:-${CMD_EXIT:-1}}"
 }
 

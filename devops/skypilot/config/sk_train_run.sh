@@ -59,8 +59,6 @@ if [[ -n "${MAX_RUNTIME_HOURS:-}" ]]; then
   fi
 fi
 
-
-
 # Print run configuration
 echo "[CONFIG] Run Configuration:"
 echo "  - NODE_RANK: ${RANK}"
@@ -221,14 +219,22 @@ if [[ "$TEST_NCCL" == "false" ]]; then
 elif [ "${RESTART_COUNT:-0}" -ne 0 ]; then
   echo "[SKIP] Skipping NCCL test on restarted job (RESTART_COUNT=${RESTART_COUNT})"
 else
-  echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
-  if ! uv run python ./devops/skypilot/config/preflight/test_nccl.py; then
-    echo "[ERROR] NCCL tests failed!"
-    echo "nccl_test_failure" > "$TERMINATION_REASON_FILE"
-    exit $EXIT_NCCL_TEST_FAILURE
-  else
-    echo "[SUCCESS] NCCL tests passed"
-  fi
+    echo "[RUN] Running GPU diagnostics and NCCL tests (node ${RANK})..."
+
+    # Run the test and capture the exit code
+    uv run python ./devops/skypilot/config/preflight/test_nccl.py
+    NCCL_TEST_EXIT_CODE=$?
+
+    # Wait a moment to ensure all output is flushed
+    sleep 1
+
+    if [ $NCCL_TEST_EXIT_CODE -ne 0 ]; then
+        echo "[ERROR] NCCL tests failed with exit code: $NCCL_TEST_EXIT_CODE"
+        echo "nccl_test_failure" > "$TERMINATION_REASON_FILE"
+        exit $EXIT_NCCL_TEST_FAILURE
+    else
+        echo "[SUCCESS] NCCL tests passed"
+    fi
 fi
 
 # Run the command
