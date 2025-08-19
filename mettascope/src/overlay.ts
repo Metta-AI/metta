@@ -2,7 +2,6 @@ import * as Common from './common.js'
 import { ctx, state, ui } from './common.js'
 import { sendVisualSetLayer } from './replay.js'
 
-/** Ensures the observation overlay menu exists in the DOM. */
 function ensureObsOverlayMenu(): void {
   let menu = document.getElementById('obs-overlay-menu') as HTMLDivElement | null
   if (!menu) {
@@ -61,13 +60,13 @@ export function updateObsOverlayMenu(): void {
   if (typeof document === 'undefined') {
     return
   }
+  // Setup the overlay menu and make sure it matches the current state.
   ensureObsOverlayMenu()
-  const list = document.getElementById('obs-overlay-menu-list') as HTMLDivElement | null
-  const menu = document.getElementById('obs-overlay-menu') as HTMLDivElement | null
-  const status = document.getElementById('obs-overlay-agent-status') as HTMLDivElement | null
-  if (!list || !menu || !status) {
-    return
-  }
+  const menu = document.getElementById('obs-overlay-menu') as HTMLDivElement
+  const list = document.getElementById('obs-overlay-menu-list') as HTMLDivElement
+  const status = document.getElementById('obs-overlay-agent-status') as HTMLDivElement
+  menu.style.display = state.ws !== null && state.showObsOverlay && state.visualLayers.length > 0 ? 'block' : 'none'
+
   // Update agent selection status line.
   const sel = state.selectedGridObject
   if (sel && sel.isAgent) {
@@ -98,26 +97,6 @@ export function updateObsOverlayMenu(): void {
   // Position near the map panel in case of resize.
   menu.style.top = `${ui.mapPanel.y + 8}px`
   menu.style.left = `${ui.mapPanel.x + 8}px`
-}
-
-/** Shows or hides the observation overlay menu based on state. */
-export function setObsOverlayMenuVisibility(): void {
-  if (typeof document === 'undefined') {
-    return
-  }
-  const menu = document.getElementById('obs-overlay-menu') as HTMLDivElement | null
-  if (!menu) {
-    ensureObsOverlayMenu()
-  }
-  const menu2 = document.getElementById('obs-overlay-menu') as HTMLDivElement | null
-  if (!menu2) {
-    return
-  }
-  const shouldShow = state.ws !== null && state.showObsOverlay && state.visualLayers.length > 0
-  menu2.style.display = shouldShow ? 'block' : 'none'
-  if (shouldShow) {
-    updateObsOverlayMenu()
-  }
 }
 
 /** Draws the observation tensor overlay around the selected agent (play mode only). */
@@ -182,6 +161,5 @@ export function drawObservationOverlay(): void {
       ctx.restore()
     }
   }
-  ctx.restore()
 }
 

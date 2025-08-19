@@ -30,7 +30,7 @@ import { initializeTooltips } from './tooltips.js'
 import { drawTrace, invalidateTrace } from './traces.js'
 import { Vec2f } from './vector_math.js'
 import { drawMap, focusFullMap } from './worldmap.js'
-import { setObsOverlayMenuVisibility } from './overlay.js'
+import { updateObsOverlayMenu } from './overlay.js'
 
 // Expose state to window for testing purposes (e.g., Playwright tests)
 if (typeof window !== 'undefined') {
@@ -724,7 +724,6 @@ export function onFrame() {
   } else {
     ui.miniMapPanel.div.classList.add('hidden')
   }
-  setObsOverlayMenuVisibility()
 
   if (state.showTraces) {
     ui.tracePanel.div.classList.remove('hidden')
@@ -752,11 +751,9 @@ export function onFrame() {
   } else {
     html.actionButtons.classList.add('hidden')
   }
-  // TODO why is this called twice in this file?
-  // Keep the overlay menu in sync.
-  setObsOverlayMenuVisibility()
 
   // TODO overlay toggle.
+  updateObsOverlayMenu()
 
   if (state.showAgentPanel) {
     ui.agentPanel.div.classList.remove('hidden')

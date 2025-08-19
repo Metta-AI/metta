@@ -682,7 +682,6 @@ export function initWebSocket(wsUrl: string) {
   }
   state.ws.onopen = () => {
     Common.showModal('info', 'Starting environment', 'Please wait while live environment is starting...')
-    // If overlay was requested before the socket opened, enable it now
     if (state.showObsOverlay) {
       sendVisualOverlayEnable(true)
       if (state.selectedGridObject && state.selectedGridObject.isAgent) {
