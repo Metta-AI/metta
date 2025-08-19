@@ -5,8 +5,7 @@ import os
 from pathlib import Path
 
 import torch
-from omegaconf import DictConfig
-
+from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
@@ -167,7 +166,7 @@ class CheckpointManager:
 
     def load_or_create_policy(
         self,
-        agent_cfg: DictConfig,
+        agent_cfg: AgentConfig,
         system_cfg: SystemConfig,
         trainer_cfg: TrainerConfig,
         checkpoint: TrainerCheckpoint | None,

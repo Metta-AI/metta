@@ -4,13 +4,12 @@ from typing import Any, Dict, Optional
 import gymnasium as gym
 import numpy as np
 import torch
-from omegaconf import DictConfig
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent import agent_config
+from metta.agent.agent_config import AgentConfig, create_agent
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
@@ -64,7 +63,7 @@ class MettaAgent(nn.Module):
         self,
         env,
         system_cfg: SystemConfig,
-        policy_architecture_cfg: DictConfig,
+        policy_architecture_cfg: AgentConfig,
         policy: Optional[nn.Module] = None,
     ):
         super().__init__()
@@ -99,33 +98,19 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
 
-    def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
+    def _create_policy(self, agent_cfg: AgentConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
-        # Extract agent name from the DictConfig
-        agent_name = agent_cfg.agent
+        # Use the create_agent factory function
+        policy = create_agent(
+            config=agent_cfg,
+            obs_space=self.obs_space,
+            obs_width=self.obs_width,
+            obs_height=self.obs_height,
+            feature_normalizations=self.feature_normalizations,
+            env=env,
+        )
         
-        # Convert agent name to function name (replace / with _)
-        factory_name = agent_name.replace("/", "_")
-        
-        # Get the factory function from agent_config module
-        if not hasattr(agent_config, factory_name):
-            available = [name for name in dir(agent_config) if not name.startswith("_") and callable(getattr(agent_config, name))]
-            raise ValueError(f"Unknown agent: '{agent_name}'. Available agents: {available}")
-        
-        factory_func = getattr(agent_config, factory_name)
-        
-        # PyTorch models use env, ComponentPolicies use structured parameters
-        if factory_name.startswith("pytorch_"):
-            policy = factory_func(env=env)
-        else:
-            policy = factory_func(
-                obs_space=self.obs_space,
-                obs_width=self.obs_width,
-                obs_height=self.obs_height,
-                feature_normalizations=self.feature_normalizations,
-            )
-        
-        logger.info(f"Using agent: {agent_name}")
+        logger.info(f"Using agent: {agent_cfg.name}")
         return policy
 
     def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
@@ -354,7 +339,7 @@ class MettaAgent(nn.Module):
             logger.info("Detected old checkpoint format - converting to new ComponentPolicy structure")
 
             # Extract the components and related attributes that belong in ComponentPolicy
-            from metta.agent import agent_config
+            from metta.agent.agent_config import AgentConfig, create_agent
 
             # First, break any circular references in the old state
             if "policy" in state and state.get("policy") is state:
