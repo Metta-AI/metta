@@ -105,14 +105,21 @@ class MettaAgent(nn.Module):
         agent_name = str(agent_cfg)  # Ensure it's a string
         config_dict = default_config
 
-        # Check if it's a vanilla PyTorch model or a ComponentPolicy
-        if agent_name in pytorch_agent_classes:
-            # Vanilla PyTorch model
-            AgentClass = pytorch_agent_classes[agent_name]
-            policy = AgentClass(env=env, **config_dict)
-            logger.info(f"Using PyTorch model: {agent_name}")
+        # Check if it's explicitly requesting a vanilla PyTorch model with "pytorch/" prefix
+        if agent_name.startswith("pytorch/"):
+            # Explicitly requested vanilla PyTorch model
+            model_name = agent_name[8:]  # Remove "pytorch/" prefix
+            if model_name in pytorch_agent_classes:
+                AgentClass = pytorch_agent_classes[model_name]
+                policy = AgentClass(env=env, **config_dict)
+                logger.info(f"Using PyTorch model: {model_name}")
+            else:
+                raise ValueError(
+                    f"Unknown PyTorch model: '{model_name}'. "
+                    f"Available: {list(pytorch_agent_classes.keys())}"
+                )
         elif agent_name in component_agent_classes:
-            # ComponentPolicy
+            # Default to ComponentPolicy (no prefix needed)
             AgentClass = component_agent_classes[agent_name]
             policy = AgentClass(
                 obs_space=self.obs_space,
@@ -127,8 +134,8 @@ class MettaAgent(nn.Module):
         else:
             raise ValueError(
                 f"Unknown agent: '{agent_name}'. "
-                f"Available PyTorch models: {list(pytorch_agent_classes.keys())}, "
-                f"ComponentPolicies: {list(component_agent_classes.keys())}"
+                f"Available ComponentPolicies: {list(component_agent_classes.keys())}. "
+                f"For PyTorch models, use 'pytorch/' prefix (e.g., 'pytorch/fast')"
             )
 
         return policy
