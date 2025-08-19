@@ -6,8 +6,10 @@ from metta.app_backend.clients.base_client import BaseAppBackendClient
 from metta.app_backend.routes.eval_task_routes import (
     GitHashesRequest,
     GitHashesResponse,
+    TaskAvgRuntimeResponse,
     TaskClaimRequest,
     TaskClaimResponse,
+    TaskCountResponse,
     TaskCreateRequest,
     TaskFilterParams,
     TaskResponse,
@@ -52,4 +54,12 @@ class EvalTaskClient(BaseAppBackendClient):
             filters = TaskFilterParams()
         return await self._make_request(
             TasksResponse, "GET", "/tasks/all", params=filters.model_dump(mode="json", exclude_none=True)
+        )
+
+    async def count_tasks(self, where_clause: str) -> TaskCountResponse:
+        return await self._make_request(TaskCountResponse, "GET", "/tasks/count", params={"where_clause": where_clause})
+
+    async def get_avg_runtime(self, where_clause: str) -> TaskAvgRuntimeResponse:
+        return await self._make_request(
+            TaskAvgRuntimeResponse, "GET", "/tasks/avg-runtime", params={"where_clause": where_clause}
         )
