@@ -1,15 +1,16 @@
 import hashlib
+import logging
 import secrets
 import uuid
 from collections import defaultdict
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Literal
 
-from psycopg import Connection
+from psycopg import AsyncConnection, Connection
 from psycopg.rows import class_row
 from psycopg.types.json import Jsonb
-from psycopg_pool import AsyncConnectionPool
+from psycopg_pool import AsyncConnectionPool, PoolTimeout
 from pydantic import BaseModel, Field
 
 from metta.app_backend.query_logger import execute_single_row_query_and_log
@@ -105,6 +106,29 @@ class SweepRow(BaseModel):
 class PolicyRow(BaseModel):
     id: uuid.UUID
     name: str
+
+
+class LeaderboardRow(BaseModel):
+    id: uuid.UUID
+    name: str
+    user_id: str
+    evals: list[str]
+    metric: str
+    start_date: date
+    latest_episode: int
+    created_at: datetime
+    updated_at: datetime
+
+
+class PolicyEval(BaseModel):
+    num_agents: int
+    total_score: float
+
+
+class LeaderboardPolicyScore(BaseModel):
+    leaderboard_id: uuid.UUID
+    policy_id: uuid.UUID
+    score: float
 
 
 # This is a list of migrations that will be applied to the eval database.
@@ -483,7 +507,146 @@ MIGRATIONS = [
             """CREATE INDEX IF NOT EXISTS idx_episodes_primary_policy_id ON episodes(primary_policy_id)""",
         ],
     ),
+    SqlMigration(
+        version=23,
+        description="Add leaderboards table",
+        sql_statements=[
+            """CREATE TABLE leaderboards (
+                id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+                name TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                evals TEXT[] NOT NULL,
+                metric TEXT NOT NULL,
+                start_date DATE NOT NULL,
+                latest_episode INTEGER NOT NULL DEFAULT 0,
+                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )""",
+            """CREATE TABLE leaderboard_policy_scores (
+                leaderboard_id UUID NOT NULL REFERENCES leaderboards(id) ON DELETE CASCADE,
+                policy_id UUID NOT NULL REFERENCES policies(id),
+                score FLOAT NOT NULL,
+                PRIMARY KEY (leaderboard_id, policy_id)
+              )""",
+            """CREATE OR REPLACE VIEW unified_training_runs AS
+                WITH good_policies AS (select distinct primary_policy_id FROM episodes),
+                my_training_runs AS (
+                  SELECT t.id AS id, 'training_run' AS type, t.name, t.user_id, t.created_at, t.tags
+                  FROM training_runs t JOIN epochs e ON t.id = e.run_id
+                  JOIN policies p ON p.epoch_id = e.id
+                  JOIN good_policies g ON p.id = g.primary_policy_id
+                ),
+                my_run_free_policies AS (
+                  SELECT p.id AS id, 'policy' AS type, p.name, NULL as user_id, p.created_at, NULL::text[] as tags
+                  FROM policies p
+                  JOIN good_policies g ON p.id = g.primary_policy_id
+                  WHERE p.epoch_id IS NULL
+                )
+                SELECT * FROM my_training_runs
+                UNION
+                SELECT * FROM my_run_free_policies;""",
+        ],
+    ),
+    SqlMigration(
+        version=24,
+        description="Convert training_runs.status from TEXT to ENUM",
+        sql_statements=[
+            # Step 1: Create the ENUM type
+            """CREATE TYPE training_run_status AS ENUM ('running', 'completed', 'failed')""",
+            # Step 2: Add new column with ENUM type and default
+            """ALTER TABLE training_runs ADD COLUMN status_new training_run_status DEFAULT 'running'""",
+            # Step 3: Migrate existing data (all should be 'running' currently, but handle edge cases)
+            """UPDATE training_runs SET status_new =
+                CASE
+                    WHEN LOWER(status) = 'running' THEN 'running'::training_run_status
+                    WHEN LOWER(status) = 'completed' THEN 'completed'::training_run_status
+                    WHEN LOWER(status) = 'failed' THEN 'failed'::training_run_status
+                    ELSE 'running'::training_run_status
+                END""",
+            # Step 4: Make the new column NOT NULL
+            """ALTER TABLE training_runs ALTER COLUMN status_new SET NOT NULL""",
+            # Step 5: Drop the view that depends on the status column
+            """DROP VIEW wide_episodes""",
+            # Step 6: Drop old column and rename new one
+            """ALTER TABLE training_runs DROP COLUMN status""",
+            """ALTER TABLE training_runs RENAME COLUMN status_new TO status""",
+            # Step 7: Recreate the view with the new ENUM column
+            """CREATE VIEW wide_episodes AS
+            SELECT
+                e.id,
+                e.internal_id,
+                e.created_at,
+                e.primary_policy_id,
+                e.stats_epoch,
+                e.replay_url,
+                e.eval_name,
+                e.simulation_suite,
+                e.eval_category,
+                e.env_name,
+                e.attributes,
+                e.eval_task_id,
+                p.name as policy_name,
+                p.description as policy_description,
+                p.url as policy_url,
+                ep.start_training_epoch as epoch_start_training_epoch,
+                ep.end_training_epoch as epoch_end_training_epoch,
+                tr.id as training_run_id,
+                tr.name as training_run_name,
+                tr.user_id as training_run_user_id,
+                tr.status as training_run_status,
+                tr.url as training_run_url,
+                tr.description as training_run_description,
+                tr.tags as training_run_tags
+            FROM episodes e
+            LEFT JOIN policies p ON e.primary_policy_id = p.id
+            LEFT JOIN epochs ep ON p.epoch_id = ep.id
+            LEFT JOIN training_runs tr ON ep.run_id = tr.id
+            """,
+        ],
+    ),
+    SqlMigration(
+        version=25,
+        description="Add thumbnail_url field to episodes table and update wide_episodes view",
+        sql_statements=[
+            """ALTER TABLE episodes ADD COLUMN thumbnail_url TEXT""",
+            """DROP VIEW wide_episodes""",
+            """CREATE VIEW wide_episodes AS
+            SELECT
+                e.id,
+                e.internal_id,
+                e.created_at,
+                e.primary_policy_id,
+                e.stats_epoch,
+                e.replay_url,
+                e.thumbnail_url,
+                e.eval_name,
+                e.simulation_suite,
+                e.eval_category,
+                e.env_name,
+                e.attributes,
+                e.eval_task_id,
+                p.name as policy_name,
+                p.description as policy_description,
+                p.url as policy_url,
+                ep.start_training_epoch as epoch_start_training_epoch,
+                ep.end_training_epoch as epoch_end_training_epoch,
+                tr.id as training_run_id,
+                tr.name as training_run_name,
+                tr.user_id as training_run_user_id,
+                tr.status as training_run_status,
+                tr.url as training_run_url,
+                tr.description as training_run_description,
+                tr.tags as training_run_tags
+            FROM episodes e
+            LEFT JOIN policies p ON e.primary_policy_id = p.id
+            LEFT JOIN epochs ep ON p.epoch_id = ep.id
+            LEFT JOIN training_runs tr ON ep.run_id = tr.id
+            """,
+        ],
+    ),
 ]
+
+logger = logging.getLogger(name="metta_repo")
 
 
 class MettaRepo:
@@ -503,8 +666,16 @@ class MettaRepo:
     @asynccontextmanager
     async def connect(self):
         pool = await self._ensure_pool()
-        async with pool.connection() as conn:
-            yield conn
+        try:
+            async with pool.connection(timeout=5) as conn:
+                yield conn
+        except PoolTimeout as e:
+            stats = pool.get_stats()
+            logger.error(f"Error connecting to database: {e}. Pool stats: {stats}")
+
+            await pool.check()
+            async with pool.connection() as conn:
+                yield conn
 
     async def close(self) -> None:
         if self._pool:
@@ -582,6 +753,19 @@ class MettaRepo:
                     raise RuntimeError("Failed to find existing training run")
             return row[0]
 
+    async def update_training_run_status(self, run_id: uuid.UUID, status: str) -> None:
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                UPDATE training_runs 
+                SET status = %s, finished_at = CASE WHEN %s != 'running' THEN CURRENT_TIMESTAMP ELSE finished_at END
+                WHERE id = %s
+                """,
+                (status, status, run_id),
+            )
+            if result.rowcount == 0:
+                raise ValueError(f"Training run with ID {run_id} not found")
+
     async def create_epoch(
         self,
         run_id: uuid.UUID,
@@ -635,6 +819,7 @@ class MettaRepo:
         attributes: dict[str, Any],
         eval_task_id: uuid.UUID | None = None,
         tags: list[str] | None = None,
+        thumbnail_url: str | None = None,
     ) -> uuid.UUID:
         async with self.connect() as con:
             # Parse eval_category and env_name from eval_name
@@ -653,9 +838,10 @@ class MettaRepo:
                     primary_policy_id,
                     stats_epoch,
                     attributes,
-                    eval_task_id
+                    eval_task_id,
+                    thumbnail_url
                 ) VALUES (
-                    %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                 ) RETURNING id, internal_id
                 """,
                 (
@@ -668,6 +854,7 @@ class MettaRepo:
                     stats_epoch,
                     Jsonb(attributes),
                     eval_task_id,
+                    thumbnail_url,
                 ),
             )
             row = await result.fetchone()
@@ -767,7 +954,7 @@ class MettaRepo:
             async with con.cursor(row_factory=class_row(TrainingRunRow)) as cur:
                 await cur.execute(
                     """
-                    SELECT id, name, created_at, user_id, finished_at, status, url, description, 
+                    SELECT id, name, created_at, user_id, finished_at, status, url, description,
                            COALESCE(tags, ARRAY[]::TEXT[]) as tags
                     FROM training_runs
                     ORDER BY created_at DESC
@@ -1030,7 +1217,7 @@ class MettaRepo:
                 await cur.execute(
                     """
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries, 
+                           et.assignee, et.created_at, et.attributes, et.retries,
                            p.name as policy_name, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
@@ -1073,7 +1260,7 @@ class MettaRepo:
                     await cur.execute(
                         """
                         SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                                et.assignee, et.created_at, et.attributes, et.retries, 
+                                et.assignee, et.created_at, et.attributes, et.retries,
                                 p.name as policy_name, et.user_id, et.updated_at
                         FROM eval_tasks et
                         JOIN policies p ON et.policy_id = p.id
@@ -1086,7 +1273,7 @@ class MettaRepo:
                     await cur.execute(
                         """
                         SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                                et.assignee, et.created_at, et.attributes, et.retries, 
+                                et.assignee, et.created_at, et.attributes, et.retries,
                                 p.name as policy_name, et.user_id, et.updated_at
                         FROM eval_tasks et
                         JOIN policies p ON et.policy_id = p.id
@@ -1135,6 +1322,26 @@ class MettaRepo:
                     updated[task_id] = update.status
 
         return updated
+
+    async def count_tasks(self, where_clause: str) -> int:
+        async with self.connect() as con:
+            result = await con.execute(
+                f"SELECT COUNT(*) FROM eval_tasks WHERE {where_clause}",  # type: ignore
+            )
+            res = await result.fetchone()
+            if res is None:
+                raise RuntimeError(f"Failed to count tasks with where clause {where_clause}")
+            return res[0]
+
+    async def get_avg_runtime(self, where_clause: str) -> float | None:
+        async with self.connect() as con:
+            result = await con.execute(
+                f"SELECT EXTRACT(EPOCH FROM AVG(updated_at - assigned_at)) FROM eval_tasks WHERE {where_clause}",  # type: ignore
+            )
+            res = await result.fetchone()
+            if res is None:
+                raise RuntimeError(f"Failed to get average runtime with where clause {where_clause}")
+            return res[0]
 
     async def add_episode_tags(self, episode_ids: list[uuid.UUID], tag: str) -> int:
         """Add a tag to multiple episodes by UUID. Returns number of episodes tagged."""
@@ -1266,7 +1473,7 @@ class MettaRepo:
                 await cur.execute(
                     """
                     SELECT et.id, et.policy_id, et.sim_suite, et.status, et.assigned_at,
-                           et.assignee, et.created_at, et.attributes, et.retries, 
+                           et.assignee, et.created_at, et.attributes, et.retries,
                            p.name as policy_name, et.user_id, et.updated_at
                     FROM eval_tasks et
                     JOIN policies p ON et.policy_id = p.id
@@ -1346,3 +1553,138 @@ class MettaRepo:
                 if row[1]:  # Only add non-null git hashes
                     res[row[0]].append(row[1])
             return res
+
+    async def create_leaderboard(
+        self,
+        name: str,
+        user_id: str,
+        evals: list[str],
+        metric: str,
+        start_date: str,
+    ) -> uuid.UUID:
+        """Create a new leaderboard."""
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                INSERT INTO leaderboards (
+                    name, user_id, evals, metric, start_date
+                ) VALUES (%s, %s, %s, %s, %s)
+                RETURNING id
+                """,
+                (
+                    name,
+                    user_id,
+                    evals,
+                    metric,
+                    start_date,
+                ),
+            )
+            row = await result.fetchone()
+            if row is None:
+                raise RuntimeError("Failed to create leaderboard")
+            return row[0]
+
+    async def update_leaderboard(
+        self,
+        leaderboard_id: uuid.UUID,
+        user_id: str,
+        name: str,
+        evals: list[str],
+        metric: str,
+        start_date: str,
+    ) -> LeaderboardRow:
+        """Update a leaderboard."""
+
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
+                cur_leaderboard_cursor = await cur.execute(
+                    "SELECT * FROM leaderboards WHERE id = %s AND user_id = %s",
+                    (leaderboard_id, user_id),
+                )
+                cur_leaderboard = await cur_leaderboard_cursor.fetchone()
+                if not cur_leaderboard:
+                    raise RuntimeError(f"Leaderboard {leaderboard_id} not found or not owned by user {user_id}")
+
+            if (
+                cur_leaderboard.name != name
+                or cur_leaderboard.evals != evals
+                or cur_leaderboard.metric != metric
+                or cur_leaderboard.start_date != start_date
+            ):
+                async with con.cursor(row_factory=class_row(LeaderboardRow)) as update_cur:
+                    query = """
+                    UPDATE leaderboards
+                    SET name = %s, evals = %s, metric = %s, start_date = %s, latest_episode = 0, updated_at = NOW()
+                    WHERE id = %s AND user_id = %s
+                    RETURNING *
+                  """
+                    params = (name, evals, metric, start_date, leaderboard_id, user_id)
+
+                    await update_cur.execute(query, params)
+                    updated_leaderboard = await update_cur.fetchone()
+                    if not updated_leaderboard:
+                        raise RuntimeError(f"Leaderboard {leaderboard_id} not found or not owned by user {user_id}")
+
+                    if (
+                        cur_leaderboard.evals != evals
+                        or cur_leaderboard.metric != metric
+                        or cur_leaderboard.start_date != start_date
+                    ):
+                        # TODO: Technically we shouldn't need to delete the scores if only start_date changes
+                        await con.execute(
+                            "DELETE FROM leaderboard_policy_scores WHERE leaderboard_id = %s",
+                            (leaderboard_id,),
+                        )
+                    return updated_leaderboard
+            else:
+                return cur_leaderboard
+
+    async def list_leaderboards(self) -> list[LeaderboardRow]:
+        """List all leaderboards for a user."""
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
+                await cur.execute(
+                    """
+                    SELECT id, name, user_id, evals, metric, start_date, latest_episode, created_at, updated_at
+                    FROM leaderboards
+                    ORDER BY updated_at DESC
+                    """,
+                )
+                rows = await cur.fetchall()
+                return rows
+
+    async def get_leaderboard(self, leaderboard_id: uuid.UUID) -> LeaderboardRow | None:
+        """Get a specific leaderboard by ID."""
+        async with self.connect() as con:
+            async with con.cursor(row_factory=class_row(LeaderboardRow)) as cur:
+                await cur.execute("SELECT * FROM leaderboards WHERE id = %s", (leaderboard_id,))
+                row = await cur.fetchone()
+                return row
+
+    async def delete_leaderboard(self, leaderboard_id: str, user_id: str) -> bool:
+        """Delete a leaderboard."""
+        try:
+            leaderboard_uuid = uuid.UUID(leaderboard_id)
+        except ValueError:
+            return False
+
+        async with self.connect() as con:
+            result = await con.execute(
+                """
+                DELETE FROM leaderboards
+                WHERE id = %s AND user_id = %s
+                """,
+                (leaderboard_uuid, user_id),
+            )
+            return result.rowcount > 0
+
+    async def update_leaderboard_latest_episode(
+        self, con: AsyncConnection, leaderboard_id: uuid.UUID, latest_episode: int
+    ) -> None:
+        """Update the latest episode for a leaderboard."""
+        await con.execute(
+            """
+            UPDATE leaderboards SET latest_episode = %s WHERE id = %s
+            """,
+            (latest_episode, leaderboard_id),
+        )

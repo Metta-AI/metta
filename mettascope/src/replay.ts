@@ -470,14 +470,21 @@ function convertReplayV1ToV2(replayData: any) {
 
     if (gridObject.agent_id != null) {
       object.agent_id = gridObject.agent_id
-      object.is_frozen = Boolean(gridObject['agent:frozen'])
+
+      const frozen = gridObject['agent:frozen']
+      if (frozen && Array.isArray(frozen)) {
+        object.is_frozen = frozen.map((pair: any) => [pair[0], Boolean(pair[1])])
+      } else {
+        object.is_frozen = Boolean(frozen)
+      }
+
       object.color = gridObject['agent:color']
       object.action_success = gridObject['action_success']
       object.group_id = gridObject['agent:group']
       object.orientation = gridObject['agent:orientation']
-      object.hp = gridObject['agent:hp']
-      object.current_reward = gridObject['agent:reward']
-      object.total_reward = gridObject['agent:total_reward']
+      object.hp = gridObject['hp']
+      object.current_reward = gridObject['reward']
+      object.total_reward = gridObject['total_reward']
 
       const action_id = []
       const action_param = []

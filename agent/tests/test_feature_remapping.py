@@ -93,7 +93,7 @@ def test_feature_remapping_in_agent():
     """Test that feature remapping is correctly set up in MettaAgent."""
     agent = MockAgent()
 
-    # Test _initialize_observations with original features
+    # Test activate_observations with original features
     original_features = {
         "type_id": {"id": 0, "type": "categorical"},
         "hp": {"id": 2, "type": "scalar", "normalization": 30.0},
@@ -102,7 +102,7 @@ def test_feature_remapping_in_agent():
 
     # Set training mode for first initialization
     agent.train()
-    agent._initialize_observations(original_features, "cpu")
+    agent.activate_observations(original_features, "cpu")
 
     # Verify original mapping stored
     assert agent.original_feature_mapping == {
@@ -122,7 +122,7 @@ def test_feature_remapping_in_agent():
     mock_obs = MockObsComponent()
     agent.components["_obs_"] = mock_obs
 
-    agent._initialize_observations(new_features, "cpu")
+    agent.activate_observations(new_features, "cpu")
 
     # Verify all remappings in a clear block
     assert agent.feature_id_remap[5] == 2  # hp: 5->2
@@ -147,7 +147,7 @@ def test_unknown_feature_handling():
 
     # Set training mode for first initialization
     agent.train()
-    agent._initialize_observations(original_features, "cpu")
+    agent.activate_observations(original_features, "cpu")
 
     # Add mock observation component
     mock_obs = MockObsComponent()
@@ -162,7 +162,7 @@ def test_unknown_feature_handling():
 
     # Initialize in evaluation mode
     agent.eval()
-    agent._initialize_observations(new_features_with_unknown, "cpu")
+    agent.activate_observations(new_features_with_unknown, "cpu")
 
     # Verify all remappings in a clear block
     # Known features should be remapped to their original IDs
@@ -194,7 +194,7 @@ def test_feature_mapping_persistence_via_metadata():
 
     # Initialize the agent
     agent.train()
-    agent._initialize_observations(original_features, "cpu")
+    agent.activate_observations(original_features, "cpu")
 
     # Get the original feature mapping
     original_mapping = agent.get_original_feature_mapping()
@@ -225,7 +225,7 @@ def test_feature_mapping_persistence_via_metadata():
 
     # Initialize in training mode - new features should be learned
     new_agent.train()
-    new_agent._initialize_observations(new_features, "cpu")
+    new_agent.activate_observations(new_features, "cpu")
 
     # Verify all remappings in a clear block
     assert new_agent.feature_id_remap[5] == 0  # type_id: 5->0
@@ -246,7 +246,7 @@ def test_feature_mapping_persistence_via_metadata():
 
     # Initialize in eval mode - new features should map to 255
     eval_agent.eval()
-    eval_agent._initialize_observations(new_features, "cpu")
+    eval_agent.activate_observations(new_features, "cpu")
 
     # Check the observation component's remap table
     obs_component = eval_agent.components["_obs_"]

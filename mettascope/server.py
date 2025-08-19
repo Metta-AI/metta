@@ -23,11 +23,12 @@ logger = logging.getLogger(__name__)
 
 
 class CustomStaticFiles(StaticFiles):
-    """StaticFiles that disables caching for specific file extensions and sets custom content types."""
+    """StaticFiles that disables caching for specific file extensions or filenames and sets custom content types."""
 
-    def __init__(self, *args, no_cache_extensions=None, custom_content_types=None, **kwargs):
+    def __init__(self, *args, no_cache_extensions=None, no_cache_filenames=None, custom_content_types=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.no_cache_extensions = no_cache_extensions or {".js", ".json"}
+        self.no_cache_filenames = no_cache_filenames or set()
         self.custom_content_types = custom_content_types or {}
 
     def file_response(
@@ -48,8 +49,8 @@ class CustomStaticFiles(StaticFiles):
         if file_ext in self.custom_content_types:
             response.headers["content-type"] = self.custom_content_types[file_ext]
 
-        # Handle caching
-        if file_ext in self.no_cache_extensions:
+        # Handle caching.
+        if file_ext in self.no_cache_extensions or file_path.name in self.no_cache_filenames:
             response.headers["Cache-Control"] = "no-store"
 
         return response
@@ -126,7 +127,11 @@ def make_app(cfg: DictConfig):
     app.mount("/data", StaticFiles(directory="mettascope/data"), name="data")
     app.mount(
         "/dist",
-        CustomStaticFiles(directory="mettascope/dist", no_cache_extensions={".js", ".json", ".css"}),
+        CustomStaticFiles(
+            directory="mettascope/dist",
+            no_cache_extensions={".js", ".json", ".css"},
+            no_cache_filenames={"atlas.png"},
+        ),
         name="dist",
     )
     app.mount(

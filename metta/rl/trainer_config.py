@@ -122,6 +122,14 @@ class TorchProfilerConfig(Config):
         return self
 
 
+class DualPolicyConfig(Config):
+    enabled: bool = False
+    # Reuse InitialPolicyConfig schema for selecting the NPC checkpoint
+    checkpoint_npc: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
+    # Fraction of agents controlled by the training policy vs the checkpoint NPC
+    training_agents_pct: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
 class TrainerConfig(Config):
     # Core training parameters
     # Total timesteps: Type 2 arbitrary default
@@ -183,6 +191,9 @@ class TrainerConfig(Config):
 
     # Kickstart
     kickstart: KickstartConfig = Field(default_factory=KickstartConfig)
+
+    # Dual-policy training (train against an NPC checkpoint policy)
+    dual_policy: DualPolicyConfig = Field(default_factory=DualPolicyConfig)
 
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware
@@ -287,11 +298,25 @@ def create_trainer_config(
         config_dict["zero_copy"] = False
 
     # Set default paths if not provided
-    if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):
-        config_dict["checkpoint"]["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
+    checkpoint_config = config_dict.setdefault("checkpoint", {})
+    if "checkpoint_dir" not in checkpoint_config:
+        checkpoint_config["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
 
-    if "replay_dir" not in config_dict.setdefault("simulation", {}):
-        config_dict["simulation"]["replay_dir"] = f"{cfg.run_dir}/replays/"
+    # If wandb_checkpoint_interval is None, default to checkpoint_interval
+    if checkpoint_config.get("wandb_checkpoint_interval") is None:
+        checkpoint_interval = checkpoint_config.get("checkpoint_interval", 60)
+        checkpoint_config["wandb_checkpoint_interval"] = checkpoint_interval
+
+    simulation_config = config_dict.setdefault("simulation", {})
+    if "replay_dir" not in simulation_config:
+        simulation_config["replay_dir"] = f"{cfg.run_dir}/replays/"
+
+    # If evaluate_interval is None, default to max of checkpoint intervals
+    # (must be at least as large as both checkpoint_interval and wandb_checkpoint_interval)
+    if simulation_config.get("evaluate_interval") is None:
+        checkpoint_interval = checkpoint_config.get("checkpoint_interval", 60)
+        wandb_checkpoint_interval = checkpoint_config.get("wandb_checkpoint_interval", checkpoint_interval)
+        simulation_config["evaluate_interval"] = max(checkpoint_interval, wandb_checkpoint_interval)
 
     if "profile_dir" not in config_dict.setdefault("profiler", {}):
         config_dict["profiler"]["profile_dir"] = f"{cfg.run_dir}/torch_traces"
