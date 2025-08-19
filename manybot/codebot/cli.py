@@ -44,7 +44,9 @@ def version_callback(value: bool):
 @app.callback()
 def main(
     verbose: Annotated[bool, typer.Option("--verbose", "-v", help="Enable verbose logging")] = False,
-    version: Annotated[Optional[bool], typer.Option("--version", callback=version_callback, help="Show version")] = None,
+    version: Annotated[
+        Optional[bool], typer.Option("--version", callback=version_callback, help="Show version")
+    ] = None,
 ):
     """Codebot - AI-Powered Development Assistant"""
     if verbose:

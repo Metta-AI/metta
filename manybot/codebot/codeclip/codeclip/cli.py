@@ -38,6 +38,7 @@ def copy_to_clipboard(content: str) -> None:
     """Copy content to clipboard using pyperclip (cross-platform)."""
     try:
         import pyperclip
+
         pyperclip.copy(content)
     except ImportError:
         typer.echo("pyperclip not available - clipboard integration skipped", err=True)
@@ -47,11 +48,21 @@ def copy_to_clipboard(content: str) -> None:
 def main(
     paths: Annotated[Optional[List[str]], typer.Argument(help="Paths to analyze")] = None,
     stdout: Annotated[bool, typer.Option("--stdout", "-s", help="Output to stdout instead of clipboard")] = False,
-    readmes: Annotated[bool, typer.Option("--readmes", "-r", help="Only include README.md files, including ancestor READMEs")] = False,
-    extension: Annotated[Optional[List[str]], typer.Option("--extension", "-e", help="File extensions to include (e.g. -e py -e js)")] = None,
-    profile: Annotated[bool, typer.Option("--profile", "-p", help="Show detailed token distribution analysis to stderr")] = False,
-    flamegraph: Annotated[bool, typer.Option("--flamegraph", "-f", help="Generate a flame graph HTML visualization of token distribution")] = False,
-    diff: Annotated[bool, typer.Option("--diff", "-d", help="Append git diff vs origin/main to the output as a single virtual file")] = False,
+    readmes: Annotated[
+        bool, typer.Option("--readmes", "-r", help="Only include README.md files, including ancestor READMEs")
+    ] = False,
+    extension: Annotated[
+        Optional[List[str]], typer.Option("--extension", "-e", help="File extensions to include (e.g. -e py -e js)")
+    ] = None,
+    profile: Annotated[
+        bool, typer.Option("--profile", "-p", help="Show detailed token distribution analysis to stderr")
+    ] = False,
+    flamegraph: Annotated[
+        bool, typer.Option("--flamegraph", "-f", help="Generate a flame graph HTML visualization of token distribution")
+    ] = False,
+    diff: Annotated[
+        bool, typer.Option("--diff", "-d", help="Append git diff vs origin/main to the output as a single virtual file")
+    ] = False,
 ) -> None:
     """
     Provide codebase context to LLMs with smart defaults.
@@ -89,7 +100,10 @@ def main(
         if profile or flamegraph:
             # This calls get_context internally and builds the full profile
             profile_report, profile_data = profile_code_context(
-                paths=[Path(p) for p in path_list], extensions=normalized_extensions, include_git_diff=diff, readmes_only=readmes
+                paths=[Path(p) for p in path_list],
+                extensions=normalized_extensions,
+                include_git_diff=diff,
+                readmes_only=readmes,
             )
             # Extract the content from the profile data
             output_content = profile_data.get("context", "")

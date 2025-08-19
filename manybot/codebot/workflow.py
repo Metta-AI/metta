@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class FileChange(BaseModel):
     """Atomic unit of code modification"""
+
     filepath: str
     content: str
     operation: Literal["write", "delete"] = "write"
@@ -36,7 +37,7 @@ class FileChange(BaseModel):
         if self.operation == "delete":
             return f"DELETE: {self.filepath}"
         else:
-            lines = self.content.split('\n')
+            lines = self.content.split("\n")
             preview_lines = lines[:10]
             if len(lines) > 10:
                 preview_lines.append(f"... ({len(lines) - 10} more lines)")
@@ -45,6 +46,7 @@ class FileChange(BaseModel):
 
 class ExecutionContext(BaseModel):
     """Context passed to commands"""
+
     git_diff: str = ""
     clipboard: str = ""
     files: Dict[str, str] = {}
@@ -54,16 +56,18 @@ class ExecutionContext(BaseModel):
 
 class CommandOutput(BaseModel):
     """Standard output from any command"""
+
     file_changes: List[FileChange] = Field(default_factory=list)
     summary: str = ""
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
-T = TypeVar('T', bound=BaseModel)
+T = TypeVar("T", bound=BaseModel)
 
 
 class Command(BaseModel):
     """Base class for AI-powered commands using PydanticAI agents"""
+
     name: str
     prompt_template: str
     default_paths: List[str] = Field(default_factory=list)
@@ -71,14 +75,9 @@ class Command(BaseModel):
 
     def build_agent(self) -> Agent[T]:
         """Build PydanticAI agent for this command"""
-        return Agent(
-            result_type=self.result_type,
-            system_prompt=self.prompt_template
-        )
+        return Agent(result_type=self.result_type, system_prompt=self.prompt_template)
 
-    async def execute(self,
-                     context: ExecutionContext,
-                     mode: Optional[str] = None) -> CommandOutput:
+    async def execute(self, context: ExecutionContext, mode: Optional[str] = None) -> CommandOutput:
         """Execute command using appropriate mode"""
 
         # Build agent
@@ -99,10 +98,7 @@ class Command(BaseModel):
 
     def _format_context(self, context: ExecutionContext) -> Dict[str, Any]:
         """Format context for agent consumption"""
-        formatted = {
-            "files": context.files,
-            "working_directory": str(context.working_directory)
-        }
+        formatted = {"files": context.files, "working_directory": str(context.working_directory)}
 
         if context.git_diff:
             formatted["git_diff"] = context.git_diff
@@ -118,10 +114,7 @@ class Command(BaseModel):
             return result
 
         # Default implementation - subclasses should override for custom result types
-        return CommandOutput(
-            summary=str(result),
-            metadata={"raw_result": result}
-        )
+        return CommandOutput(summary=str(result), metadata={"raw_result": result})
 
     async def _execute_interactive(self, agent_context: Dict[str, Any]) -> CommandOutput:
         """Execute in interactive mode (placeholder)"""
@@ -162,19 +155,16 @@ class ContextManager:
                 token_count=token_info["total_tokens"],
                 working_directory=Path.cwd(),
                 git_diff=self._get_git_diff(),
-                clipboard=self._get_clipboard()
+                clipboard=self._get_clipboard(),
             )
         except ImportError as e:
             logger.warning(f"Could not import codeclip: {e}")
-            return ExecutionContext(
-                files={},
-                token_count=0,
-                working_directory=Path.cwd()
-            )
+            return ExecutionContext(files={}, token_count=0, working_directory=Path.cwd())
 
     def _parse_files_from_content(self, content: str) -> Dict[str, str]:
         """Parse files from codeclip XML output"""
         import re
+
         files = {}
 
         # Parse XML format from codeclip
@@ -194,12 +184,8 @@ class ContextManager:
         """Get current git diff"""
         try:
             import subprocess
-            result = subprocess.run(
-                ["git", "diff", "--staged"],
-                capture_output=True,
-                text=True,
-                check=False
-            )
+
+            result = subprocess.run(["git", "diff", "--staged"], capture_output=True, text=True, check=False)
             return result.stdout
         except Exception:
             return ""
@@ -208,6 +194,7 @@ class ContextManager:
         """Get clipboard content if available"""
         try:
             import pyperclip
+
             return pyperclip.paste()
         except Exception:
             return ""
