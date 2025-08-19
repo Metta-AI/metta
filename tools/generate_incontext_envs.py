@@ -170,9 +170,9 @@ class InContextEnv:
         else:
             self.env_cfg["game"]["max_steps"] = 512
 
-        # Initialize with first resource in the chain
-        if self.use_initial_inventory:
-            self.env_cfg["game"]["objects"]["initial_inventory"] = {"input_resources": {resource_chain[1]: 1}}
+        # # Initialize with first resource in the chain
+        # if self.use_initial_inventory:
+        #     self.env_cfg["game"]["objects"]["initial_inventory"] = {"input_resources": {resource_chain[1]: 1}}
 
         print(f"Total objects created: {len(self.used_objects)}")
         print(f"Objects: {self.used_objects}")
