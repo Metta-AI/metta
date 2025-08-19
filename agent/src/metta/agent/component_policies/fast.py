@@ -64,19 +64,22 @@ class Fast(ComponentPolicy):
             ),
             "_core_": LSTM(
                 name="_core_",
-                nn_params=DictConfig({"hidden_size": 128, "num_layers": 1}),
+                nn_params=DictConfig({"hidden_size": 128, "num_layers": 2}),
                 sources=[{"name": "encoded_obs"}],
             ),
             "critic_1": Linear(
                 name="critic_1",
                 nn_params=DictConfig({"out_features": 1024}),
                 sources=[{"name": "_core_"}],
+                nonlinearity="nn.Tanh",
+                effective_rank=True,
                 **self.agent_attributes,
             ),
             "_value_": Linear(
                 name="_value_",
                 nn_params=DictConfig({"out_features": 1}),
                 sources=[{"name": "critic_1"}],
+                nonlinearity=None,
                 **self.agent_attributes,
             ),
             "actor_1": Linear(
