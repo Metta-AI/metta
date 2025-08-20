@@ -44,9 +44,6 @@ def load_file(run_dir, name):
 def main(cfg: DictConfig) -> int:
     simulation_suite_cfg = cfg.sim
 
-    # Create env config
-    system_config = cfg.system
-
     # Load run information from dist_cfg_path
     logger.info(f"Loaded run info from {cfg.dist_cfg_path}: run={cfg.run}")
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
@@ -99,7 +96,7 @@ def main(cfg: DictConfig) -> int:
                 policy_pr=policy_pr,
                 policy_store=policy_store,
                 device=cfg.device,
-                vectorization=system_config.vectorization,
+                vectorization=cfg.system.vectorization,
             )
 
             # Start evaluation process
