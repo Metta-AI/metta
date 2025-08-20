@@ -7,16 +7,17 @@ set -euo pipefail
 : "${HEARTBEAT_TIMEOUT:?Missing HEARTBEAT_TIMEOUT}"
 : "${TERMINATION_REASON_FILE:?Missing TERMINATION_REASON_FILE}"
 : "${CLUSTER_STOP_FILE:?Missing CLUSTER_STOP_FILE}"
+: "${START_TIME:?Missing START_TIME}"
 
 HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
 
 echo "[INFO] Heartbeat monitor started - timeout: ${HEARTBEAT_TIMEOUT}s, file: ${HEARTBEAT_FILE}"
 echo "[INFO] Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
 
-# Write initial heartbeat (matching Python pattern)
+# Write initial heartbeat using START_TIME
 mkdir -p "$(dirname "$HEARTBEAT_FILE")"
-echo "$(date +%s)" > "$HEARTBEAT_FILE"
-echo "[INFO] Initial heartbeat written"
+echo "$START_TIME" > "$HEARTBEAT_FILE"
+echo "[INFO] Initial heartbeat written with start time: $START_TIME"
 
 LAST_HEARTBEAT_TIME=$(stat -c %Y "$HEARTBEAT_FILE" 2> /dev/null || stat -f %m "$HEARTBEAT_FILE" 2> /dev/null)
 HEARTBEAT_COUNT=0
