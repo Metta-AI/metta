@@ -30,12 +30,13 @@ def load_config(config_path: str) -> configparser.ConfigParser:
 
 def collect_episode(
     env: MettaGridEnv, agent: ActorCriticAgent, device: str
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Collect a single episode of experience for actor-critic."""
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Collect a single episode of experience for GAE actor-critic."""
     observations = []
     actions = []
     rewards = []
     values = []
+    next_values = []
     log_probs = []
 
     obs, _ = env.reset()
@@ -74,9 +75,26 @@ def collect_episode(
         obs, reward, terminated, truncated, _ = env.step(actions_2d)
         rewards.append(reward.mean())  # Average reward across agents
 
-        done = terminated.any() or truncated.any()
+        # Get next state value for GAE (unless episode is done)
+        if not (terminated.any() or truncated.any()):
+            next_flat_obs = obs.flatten()
+            next_obs_tensor = torch.from_numpy(next_flat_obs).float().unsqueeze(0).to(device)
+            with torch.no_grad():
+                _, next_value = agent(next_obs_tensor)
+                next_values.append(next_value.item())
+        else:
+            # Terminal state has zero value
+            next_values.append(0.0)
+            done = True
 
-    return (np.array(observations), np.array(actions), np.array(rewards), np.array(values), np.array(log_probs))
+    return (
+        np.array(observations),
+        np.array(actions),
+        np.array(rewards),
+        np.array(values),
+        np.array(next_values),
+        np.array(log_probs),
+    )
 
 
 def create_agent(obs_dim: int, action_dim: int, device: str = "cpu") -> ActorCriticAgent:
@@ -95,12 +113,39 @@ def compute_returns(rewards: np.ndarray, gamma: float) -> np.ndarray:
     return returns
 
 
-def compute_advantages(rewards: np.ndarray, values: np.ndarray, gamma: float) -> tuple[np.ndarray, np.ndarray]:
-    """Compute advantages and returns for actor-critic."""
-    returns = compute_returns(rewards, gamma)
-    advantages = returns - values
+def compute_gae(
+    rewards: np.ndarray, values: np.ndarray, next_values: np.ndarray, gamma: float, gae_lambda: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Compute Generalized Advantage Estimation (GAE).
 
-    # Normalize advantages
+    Args:
+        rewards: Rewards for each timestep [T]
+        values: Value estimates for each state [T]
+        next_values: Value estimates for next states [T]
+        gamma: Discount factor
+        gae_lambda: GAE lambda parameter (bias-variance tradeoff)
+
+    Returns:
+        advantages: GAE advantages [T]
+        returns: Value targets (advantages + values) [T]
+    """
+    advantages = np.zeros_like(rewards)
+    gae = 0.0
+
+    # Compute GAE backwards through time
+    for t in reversed(range(len(rewards))):
+        # TD error: δ_t = r_t + γV(s_{t+1}) - V(s_t)
+        delta = rewards[t] + gamma * next_values[t] - values[t]
+
+        # GAE: A_t = δ_t + γλA_{t+1}
+        gae = delta + gamma * gae_lambda * gae
+        advantages[t] = gae
+
+    # Value targets: V_target = A_t + V(s_t)
+    returns = advantages + values
+
+    # Normalize advantages for stability
     if len(advantages) > 1:
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
@@ -139,6 +184,7 @@ def train() -> None:
     total_timesteps = config.getint("training", "total_timesteps")
     learning_rate = config.getfloat("training", "learning_rate")
     gamma = config.getfloat("training", "gamma")
+    gae_lambda = config.getfloat("training", "gae_lambda")
     device = config.get("training", "device")
 
     log_interval = config.getint("logging", "log_interval")
@@ -187,8 +233,8 @@ def train() -> None:
     start_time = time.time()
 
     while timestep < total_timesteps:
-        # Collect episode
-        observations, actions, rewards, values, log_probs = collect_episode(env, agent, device)
+        # Collect episode with next state values for GAE
+        observations, actions, rewards, values, next_values, log_probs = collect_episode(env, agent, device)
 
         episode_length = len(observations)
         episode_reward = rewards.sum()
@@ -198,8 +244,8 @@ def train() -> None:
         timestep += episode_length
         episode += 1
 
-        # Compute advantages and returns
-        advantages, returns = compute_advantages(rewards, values, gamma)
+        # Compute GAE advantages and returns
+        advantages, returns = compute_gae(rewards, values, next_values, gamma, gae_lambda)
 
         # Convert to tensors
         obs_tensor = torch.from_numpy(observations).float().to(device)
