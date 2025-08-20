@@ -62,10 +62,10 @@ from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampl
 try:
     from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
 except ImportError:
-    raise ImportError(
-        "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, "
-        "try installing with --no-build-isolation"
-    ) from None
+    # CPU-only mode for launching remote jobs
+    _C = None
+    import warnings
+    warnings.warn("PufferLib C extensions not available - running in CPU-only mode for remote job launching")
 
 torch.set_float32_matmul_precision("high")
 

@@ -4,7 +4,11 @@ from contextlib import nullcontext
 
 import einops
 import torch
-from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
+try:
+    from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib
+except ImportError:
+    # CPU-only mode for launching remote jobs
+    _C = None
 from torch import Tensor
 
 from metta.rl import mps
