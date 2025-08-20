@@ -44,6 +44,7 @@ def show_replay(
         url = f"{url}{separator}play=false"
 
     print(f"Loading MettaScope viewer for {run_name} at step {selected['step']:,}...")
+    print(f"\nDirect link: {url}")
     display(IFrame(src=url, width=width, height=height))
 
 
