@@ -54,12 +54,15 @@ class EpisodeCreate(BaseModel):
     primary_policy_id: uuid.UUID
     stats_epoch: uuid.UUID | None = None
     eval_name: str | None = None
-    simulation_suite: str | None = None
     replay_url: str | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
     eval_task_id: uuid.UUID | None = None
     tags: list[str] | None = None
     thumbnail_url: str | None = None
+
+    @property
+    def simulation_suite(self) -> str:
+        return self.eval_name or "unknown"
 
 
 class EpisodeResponse(BaseModel):
