@@ -80,12 +80,17 @@ if(BUILD_TESTS)
       mettagrid_all_flags           # Full flags including sanitizers
       mettagrid_test_suppressions   # Warning suppressions
       mettagrid_cuda_config         # CUDA configuration (includes CUDA_DISABLED macro if needed)
-      ${METTAGRID_EXTRA_LIBS}
     )
+
+    # Link raylib if available
+    if(raylib_FOUND)
+      target_link_libraries(${test_name} PRIVATE raylib)
+    endif()
 
     # If CUDA is available, configure CUDA properties
     if(METTAGRID_CUDA_AVAILABLE)
       configure_cuda_target(${test_name})
+      target_link_libraries(${test_name} PRIVATE mettagrid_cuda_runtime)
     endif()
 
     add_test(NAME ${test_name} COMMAND ${test_name} --gtest_color=yes)
@@ -135,12 +140,17 @@ if(BUILD_BENCHMARKS)
       mettagrid_common_flags        # Base flags WITHOUT sanitizers
       mettagrid_test_suppressions   # Warning suppressions
       mettagrid_cuda_config         # CUDA configuration
-      ${METTAGRID_EXTRA_LIBS}
     )
+
+    # Link raylib if available
+    if(raylib_FOUND)
+      target_link_libraries(${bench_name} PRIVATE raylib)
+    endif()
 
     # If CUDA is available, configure CUDA properties
     if(METTAGRID_CUDA_AVAILABLE)
       configure_cuda_target(${bench_name})
+      target_link_libraries(${bench_name} PRIVATE mettagrid_cuda_runtime)
     endif()
 
     # Explicitly disable sanitizers for benchmarks in all builds

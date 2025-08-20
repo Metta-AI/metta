@@ -44,7 +44,14 @@ find_package(
 
 set(NUMPY_INCLUDE_DIR ${Python3_NumPy_INCLUDE_DIRS})
 
+# ========================= RAYLIB SETUP =========================
 find_package(raylib QUIET)
+
+if(raylib_FOUND)
+  message(STATUS "Found raylib: ${raylib_VERSION}")
+else()
+  message(STATUS "raylib not found - visualization features will be disabled")
+endif()
 
 # ========================= METTAGRID LIBRARY =========================
 file(GLOB_RECURSE METTAGRID_SOURCES CONFIGURE_DEPENDS
@@ -59,7 +66,6 @@ add_library(mettagrid_obj OBJECT ${METTAGRID_SOURCES})
 target_link_libraries(mettagrid_obj PUBLIC pybind11::pybind11 Python3::Python)
 target_include_directories(mettagrid_obj PUBLIC
   ${NUMPY_INCLUDE_DIR}
-  ${raylib_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid
 )
 
@@ -79,18 +85,17 @@ if(METTAGRID_CUDA_AVAILABLE AND OpenMP_CXX_FOUND)
   target_link_libraries(mettagrid_obj PUBLIC OpenMP::OpenMP_CXX)
 endif()
 
+# Configure raylib if found
 if(raylib_FOUND)
-  target_compile_definitions(mettagrid_obj PRIVATE METTA_WITH_RAYLIB)
-  set(METTAGRID_EXTRA_LIBS raylib)
-else()
-  set(METTAGRID_EXTRA_LIBS "")
+  target_compile_definitions(mettagrid_obj PUBLIC METTA_WITH_RAYLIB)
+  target_link_libraries(mettagrid_obj PUBLIC raylib)
 endif()
 
 # ========================= PYTHON MODULE =========================
 pybind11_add_module(mettagrid_c $<TARGET_OBJECTS:mettagrid_obj>)
 
 # Python module needs sanitizer link flags in debug builds
-target_link_libraries(mettagrid_c PRIVATE mettagrid_sanitizers ${METTAGRID_EXTRA_LIBS})
+target_link_libraries(mettagrid_c PRIVATE mettagrid_sanitizers)
 
 # Link CUDA configuration to ensure macros are available
 target_link_libraries(mettagrid_c PRIVATE mettagrid_cuda_config)
@@ -98,6 +103,11 @@ target_link_libraries(mettagrid_c PRIVATE mettagrid_cuda_config)
 # If CUDA is available, link CUDA runtime to Python module
 if(METTAGRID_CUDA_AVAILABLE)
   target_link_libraries(mettagrid_c PRIVATE mettagrid_cuda_runtime)
+endif()
+
+# Link raylib to Python module if available
+if(raylib_FOUND)
+  target_link_libraries(mettagrid_c PRIVATE raylib)
 endif()
 
 install(TARGETS mettagrid_c DESTINATION "metta/mettagrid")
@@ -122,4 +132,5 @@ if(METTAGRID_CUDA_AVAILABLE)
 else()
   message(STATUS "  Behavioral Analysis: CPU")
 endif()
+message(STATUS "  Raylib Support: ${raylib_FOUND}")
 message(STATUS "")
