@@ -3,6 +3,7 @@ import "server-only";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import NextAuth, { NextAuthConfig, NextAuthResult, Session } from "next-auth";
 import { Provider } from "next-auth/providers";
+import Google from "next-auth/providers/google";
 import { redirect } from "next/navigation";
 
 import { prisma } from "./db/prisma";
@@ -21,9 +22,15 @@ function buildAuthConfig(): NextAuthConfig {
         console.log({ url });
       },
     });
+  } else {
+    // Google OAuth provider for production
+    providers.push(
+      Google({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      })
+    );
   }
-
-  // TODO: configure Google provider for production deployment.
 
   const config: NextAuthConfig = {
     adapter: PrismaAdapter(prisma),
@@ -64,4 +71,4 @@ export async function getSessionOrRedirect() {
     return session;
   }
   redirect("/api/auth/signin"); // TODO - callbackUrl
-} 
+}
