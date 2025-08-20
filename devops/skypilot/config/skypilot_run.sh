@@ -127,6 +127,7 @@ else
   export ENABLE_DISCORD=false
   export ENABLE_GITHUB_STATUS=false
 fi
+
 shutdown() {
   # Disable the trap to prevent re-entry
   trap '' INT TERM HUP
