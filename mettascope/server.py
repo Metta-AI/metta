@@ -14,6 +14,7 @@ from omegaconf import DictConfig
 import mettascope.replays as replays
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.mettagrid.grid_object_formatter import format_grid_object
+from metta.mettagrid.mettagrid_c import PackedCoordinate
 from metta.util.metta_script import metta_script
 
 # Set up logging
@@ -167,6 +168,64 @@ def make_app(cfg: DictConfig):
         actions = np.zeros((env.num_agents, 2))
         total_rewards = np.zeros(env.num_agents)
 
+        overlay_enabled: bool = False
+        overlay_agent_id: int = 0
+        overlay_layer_id: int = 0
+
+        # Tell the client what visible tensor layers are available.
+        feature_spec = env.get_observation_features()
+        layers = [{"id": int(spec["id"]), "name": str(name)} for name, spec in feature_spec.items() if "id" in spec]
+        layers.sort(key=lambda x: x["id"])
+        await send_message(type="visual_layers", layers=layers)
+
+        def extract_tensor_grid(agent_id: int, layer_id: int):
+            """
+            Extract a (height, width) grid for the given agent and feature layer from the observation buffer.
+            """
+            # The observation buffer has shape [num_agents, tokens_per_agent, 3] with dtype uint8.
+            obs = env.observations
+            height = int(env.obs_height)
+            width = int(env.obs_width)
+            grid = np.zeros((height, width), dtype=np.int32)
+
+            if agent_id < 0 or agent_id >= obs.shape[0]:
+                return grid, width, height, 0, 0
+
+            tokens = obs[agent_id]
+            # Tokens have shape [M, 3].
+            for token in tokens:
+                packed = int(token[0])
+                if PackedCoordinate.is_empty(packed):
+                    # Values beyond this token are padding.
+                    break
+                fid = int(token[1])
+                if fid != int(layer_id):
+                    continue
+                coords = PackedCoordinate.unpack(packed)
+                if coords is None:
+                    continue
+                row, col = int(coords[0]), int(coords[1])
+                if 0 <= row < height and 0 <= col < width:
+                    grid[row, col] = int(token[2])
+
+            nonzero = grid[grid != 0]
+            vmin = int(nonzero.min()) if nonzero.size > 0 else 0
+            vmax = int(nonzero.max()) if nonzero.size > 0 else 0
+            return grid, width, height, vmin, vmax
+
+        async def send_tensor_grid():
+            grid, width, height, vmin, vmax = extract_tensor_grid(overlay_agent_id, overlay_layer_id)
+            await send_message(
+                type="visual_grid",
+                agentId=int(overlay_agent_id),
+                layerId=int(overlay_layer_id),
+                width=int(width),
+                height=int(height),
+                values=grid.reshape(-1).tolist(),
+                valueRange={"min": int(vmin), "max": int(vmax)},
+                step=int(current_step),
+            )
+
         async def send_replay_step():
             grid_objects = []
             for i, grid_object in enumerate(env.grid_objects.values()):
@@ -182,6 +241,9 @@ def make_app(cfg: DictConfig):
                 grid_objects[i] = update_object
 
             await send_message(type="replay_step", replay_step={"step": current_step, "objects": grid_objects})
+
+            if overlay_enabled:
+                await send_tensor_grid()
 
         # Send the first replay step.
         await send_replay_step()
@@ -200,6 +262,24 @@ def make_app(cfg: DictConfig):
 
             elif message["type"] == "advance":
                 action_message = None
+
+            elif message["type"] == "visual_overlay_enable":
+                overlay_enabled = bool(message.get("enabled", False))
+                if overlay_enabled:
+                    await send_tensor_grid()
+                continue
+
+            elif message["type"] == "visual_set_agent":
+                overlay_agent_id = int(message.get("agent_id", 0))
+                if overlay_enabled:
+                    await send_tensor_grid()
+                continue
+
+            elif message["type"] == "visual_set_layer":
+                overlay_layer_id = int(message.get("layer_id", 0))
+                if overlay_enabled:
+                    await send_tensor_grid()
+                continue
 
             elif message["type"] == "clear_memory":
                 clear_memory(sim, message["what"], message["agent_id"])

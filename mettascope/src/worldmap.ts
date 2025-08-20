@@ -8,6 +8,7 @@ import { updateSelection } from './main.js'
 import { renderMinimapObjects, renderMinimapVisualRanges } from './minimap.js'
 import type { PanelInfo } from './panels.js'
 import { Entity, sendAction } from './replay.js'
+import { drawObservationOverlay } from './overlay.js'
 import { search, searchMatch } from './search.js'
 import { Vec2f } from './vector_math.js'
 
@@ -131,7 +132,7 @@ let wallMap: Grid | null = null
 
 /** Draws the walls, based on the adjacency map, and fills any holes. */
 function drawWalls() {
-  const width  = state.replay.mapSize[0]
+  const width = state.replay.mapSize[0]
   const height = state.replay.mapSize[1]
   const totalCells = width * height
 
@@ -173,7 +174,12 @@ function drawWalls() {
       wallFills![numFills++] = x
       wallFills![numFills++] = y
 
-      if ((tile & WallTile.NW) == WallTile.NW && wallMap!.get(x + 1, y - 1) && wallMap!.get(x - 1, y - 1) && wallMap!.get(x - 1, y + 1)) {
+      if (
+        (tile & WallTile.NW) == WallTile.NW &&
+        wallMap!.get(x + 1, y - 1) &&
+        wallMap!.get(x - 1, y - 1) &&
+        wallMap!.get(x - 1, y + 1)
+      ) {
         continue
       }
     }
@@ -186,7 +192,7 @@ function drawWalls() {
     const x = wallFills![i]
     const y = wallFills![i + 1]
     ctx.drawSprite(
-      "objects/wall.fill.png",
+      'objects/wall.fill.png',
       x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
       y * Common.TILE_SIZE + Common.TILE_SIZE / 2 - 42
     )
@@ -958,6 +964,7 @@ export function drawMap(panel: PanelInfo) {
     drawVisibility()
     drawGrid()
     drawThoughtBubbles()
+    drawObservationOverlay()
   }
 
   if (search.active) {
