@@ -7,6 +7,7 @@ from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 
@@ -117,6 +118,11 @@ def train_shaped(run: str, rewards: bool = True, converters: bool = True) -> Tra
 def play(env: Optional[EnvConfig] = None) -> PlayTool:
     eval_env = env or make_env()
     return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
+
+
+def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
+    eval_env = env or make_env()
+    return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena"))
 
 
 def evaluate(
