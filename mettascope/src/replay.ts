@@ -508,7 +508,7 @@ function convertReplayV1ToV2(replayData: any) {
 
   data.map_size = [maxX + 1, maxY + 1]
   data.env_config = {
-    label: 'Old Replay',
+    label: 'Unlabeled Replay',
   }
   return data
 }
@@ -539,6 +539,10 @@ function loadReplayJson(url: string, replayJson: any) {
   state.replay.mapSize = replayData.map_size
   state.replay.fileName = replayData.file_name
   state.replay.envConfig = replayData.env_config
+  if (state.replay.envConfig === undefined) {
+    state.replay.envConfig = new EnvConfig()
+    state.replay.envConfig.label = 'Unlabeled Replay'
+  }
 
   // Go through each grid object and expand its key sequence.
   for (const gridObject of replayData.objects) {
