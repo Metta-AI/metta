@@ -6,6 +6,7 @@ from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import ValueRange as vr
 from metta.map.mapgen import MapGen
 from metta.map.terrain_from_numpy import TerrainFromNumpy
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -37,21 +38,31 @@ def make_curriculum(nav_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     nav_env = nav_env or make_env()
 
     # make a set of training tasks for navigation
-    nav_tasks = cc.tasks(nav_env)
+    dense_tasks = cc.bucketed(nav_env)
 
     maps = ["terrain_maps_nohearts"]
     for size in ["large", "medium", "small"]:
         for terrain in ["balanced", "maze", "sparse", "dense", "cylinder-world"]:
             maps.append(f"varied_terrain/{terrain}_{size}")
 
-    nav_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
-    nav_tasks.add_bucket("game.map_builder.instance_map.objects.altar", [vr.vr(3, 50)])
+    dense_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
+    dense_tasks.add_bucket(
+        "game.map_builder.instance_map.objects.altar", [vr.vr(3, 50)]
+    )
 
-    # TODO #dehydration
-    # add /env/mettagrid/curriculum/navigation/subcurricula/sparse
-    # add /env/mettagrid/navigation/training/sparse_bucketed: 1
+    sparse_nav_env = nav_env.model_copy()
+    sparse_nav_env.game.map_builder = RandomMapBuilder.Config(
+        agents=4,
+        objects={"altar": 10},
+    )
+    sparse_tasks = cc.bucketed(sparse_nav_env)
+    sparse_tasks.add_bucket("game.map_builder.width", [vr.vr(60, 120)])
+    sparse_tasks.add_bucket("game.map_builder.height", [vr.vr(60, 120)])
+    sparse_tasks.add_bucket("game.map_builder.objects.altar", [vr.vr(1, 10)])
 
-    return cc.curriculum(nav_tasks, num_tasks=1000)
+    nav_tasks = cc.merge([dense_tasks, sparse_tasks])
+
+    return nav_tasks.to_curriculum()
 
 
 def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
