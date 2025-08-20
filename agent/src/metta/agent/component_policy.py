@@ -14,8 +14,6 @@ from metta.common.util.datastruct import duplicates
 
 logger = logging.getLogger(__name__)
 
-IS_MASTER = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
-
 
 class ComponentPolicy(nn.Module, ABC):
     """
@@ -77,7 +75,7 @@ class ComponentPolicy(nn.Module, ABC):
         if duplicate_names := duplicates(all_names):
             raise ValueError(f"Duplicate component names found: {duplicate_names}")
 
-        if IS_MASTER:
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
             logger.info(f"{self.__class__.__name__} policy components: {self.components}")
 
         # Initialize action conversion tensors (will be set by MettaAgent)
@@ -100,7 +98,8 @@ class ComponentPolicy(nn.Module, ABC):
         # Recursively setup all source components first
         if hasattr(component, "_sources") and component._sources is not None:
             for source in component._sources:
-                logger.info(f"setting up {component._name} with source {source['name']}")
+                if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+                    logger.info(f"setting up {component._name} with source {source['name']}")
                 self._setup_components(self.components[source["name"]])
 
         # Setup the current component and pass in the source components

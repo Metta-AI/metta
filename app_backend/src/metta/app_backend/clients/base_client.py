@@ -1,6 +1,8 @@
+from pathlib import Path
 from typing import Any, Type, TypeVar
 
 import httpx
+import yaml
 from pydantic import BaseModel
 
 from metta.app_backend.server import WhoAmIResponse
@@ -11,14 +13,55 @@ T = TypeVar("T", bound=BaseModel)
 ClientT = TypeVar("ClientT", bound="BaseAppBackendClient")
 
 
+class NotAuthenticatedError(Exception):
+    pass
+
+
+def get_machine_token(stats_server_uri: str | None = None) -> str | None:
+    """Get machine token for the given stats server.
+
+    Args:
+        stats_server_uri: The stats server URI to get token for.
+                         If None, returns token from env var or legacy location.
+
+    Returns:
+        The machine token or None if not found.
+    """
+    yaml_file = Path.home() / ".metta" / "observatory_tokens.yaml"
+    if yaml_file.exists():
+        with open(yaml_file) as f:
+            tokens = yaml.safe_load(f) or {}
+        if isinstance(tokens, dict) and stats_server_uri in tokens:
+            token = tokens[stats_server_uri].strip()
+        else:
+            return None
+    elif stats_server_uri is None or stats_server_uri in (
+        "https://observatory.softmax-research.net/api",
+        PROD_STATS_SERVER_URI,
+    ):
+        # Fall back to legacy token file, which is assumed to contain production
+        # server tokens if it exists
+        legacy_file = Path.home() / ".metta" / "observatory_token"
+        if legacy_file.exists():
+            with open(legacy_file) as f:
+                token = f.read().strip()
+        else:
+            return None
+    else:
+        return None
+
+    if not token or token.lower() == "none":
+        return None
+
+    return token
+
+
 class BaseAppBackendClient:
     def __init__(self, backend_url: str = PROD_STATS_SERVER_URI, machine_token: str | None = None) -> None:
         self._http_client = httpx.AsyncClient(
             base_url=backend_url,
             timeout=30.0,
         )
-
-        from metta.common.util.stats_client_cfg import get_machine_token
 
         self._machine_token = machine_token or get_machine_token(backend_url)
 
@@ -37,8 +80,8 @@ class BaseAppBackendClient:
         response.raise_for_status()
         return response_type.model_validate(response.json())
 
-    async def validate_authenticated(self) -> str:
+    async def _validate_authenticated(self) -> str:
         auth_user = await self._make_request(WhoAmIResponse, "GET", "/whoami")
         if auth_user.user_email in ["unknown", None]:
-            raise ConnectionError(f"Not authenticated. User: {auth_user.user_email}")
+            raise NotAuthenticatedError(f"Not authenticated. User: {auth_user.user_email}")
         return auth_user.user_email

@@ -4,7 +4,10 @@ from tests.map.scenes.utils import render_scene
 
 def test_basic():
     """Test basic functionality of RadialMaze scene."""
-    scene = render_scene(RadialMaze, {"arms": 4, "arm_width": 2, "arm_length": 5}, (15, 15))
+    scene = render_scene(
+        RadialMaze.factory(RadialMaze.Params(arms=4, arm_width=2, arm_length=5)),
+        (15, 15),
+    )
 
     # Center should be at the middle of the grid
     cx, cy = 7, 7  # center of 15x15 grid
@@ -25,7 +28,10 @@ def test_different_arm_counts():
     empty_counts = []
 
     for arms in [4, 6, 8]:
-        scene = render_scene(RadialMaze, {"arms": arms, "arm_width": 1, "arm_length": 4}, (13, 13))
+        scene = render_scene(
+            RadialMaze.factory(RadialMaze.Params(arms=arms, arm_width=1, arm_length=4)),
+            (13, 13),
+        )
 
         # Should have both walls and empty spaces
         wall_count = (scene.grid == "wall").sum()
@@ -50,7 +56,10 @@ def test_arm_width_variations():
 
     # Note: width=1 and width=2 (or 3 and 4) are the same.
     for arm_width in [2, 4, 6]:
-        scene = render_scene(RadialMaze, {"arms": 5, "arm_width": arm_width, "arm_length": 20}, (45, 45))
+        scene = render_scene(
+            RadialMaze.factory(RadialMaze.Params(arms=5, arm_width=arm_width, arm_length=20)),
+            (45, 45),
+        )
 
         empty_count = (scene.grid == "empty").sum()
         empty_counts.append(empty_count)
@@ -67,7 +76,10 @@ def test_arm_width_variations():
 
 def test_large_maze():
     """Test radial maze with larger dimensions."""
-    scene = render_scene(RadialMaze, {"arms": 6, "arm_width": 3, "arm_length": 8}, (25, 25))
+    scene = render_scene(
+        RadialMaze.factory(RadialMaze.Params(arms=6, arm_width=3, arm_length=8)),
+        (25, 25),
+    )
 
     # Should have reasonable proportion of walls and empty spaces
     total_cells = 25 * 25
@@ -86,12 +98,13 @@ def test_large_maze():
 def test_auto_arm_length():
     """Test radial maze with automatic arm length calculation."""
     scene = render_scene(
-        RadialMaze,
-        {
-            "arms": 4,
-            "arm_width": 1,
-            "arm_length": None,  # Should auto-calculate
-        },
+        RadialMaze.factory(
+            RadialMaze.Params(
+                arms=4,
+                arm_width=1,
+                arm_length=None,  # Should auto-calculate
+            )
+        ),
         (11, 11),
     )
 
@@ -107,12 +120,13 @@ def test_auto_arm_length():
 def test_minimum_arms():
     """Test with minimum number of arms."""
     scene = render_scene(
-        RadialMaze,
-        {
-            "arms": 4,  # minimum allowed
-            "arm_width": 1,
-            "arm_length": 3,
-        },
+        RadialMaze.factory(
+            RadialMaze.Params(
+                arms=4,  # minimum allowed
+                arm_width=1,
+                arm_length=3,
+            )
+        ),
         (9, 9),
     )
 
@@ -124,12 +138,13 @@ def test_minimum_arms():
 def test_maximum_arms():
     """Test with maximum number of arms."""
     scene = render_scene(
-        RadialMaze,
-        {
-            "arms": 12,  # maximum allowed
-            "arm_width": 1,
-            "arm_length": 4,
-        },
+        RadialMaze.factory(
+            RadialMaze.Params(
+                arms=12,  # maximum allowed
+                arm_width=1,
+                arm_length=4,
+            )
+        ),
         (17, 17),
     )
 
@@ -144,7 +159,10 @@ def test_maximum_arms():
 
 def test_small_grid():
     """Test radial maze on a small grid."""
-    scene = render_scene(RadialMaze, {"arms": 4, "arm_width": 1, "arm_length": 2}, (7, 7))
+    scene = render_scene(
+        RadialMaze.factory(RadialMaze.Params(arms=4, arm_width=1, arm_length=2)),
+        (7, 7),
+    )
 
     # Should still create some structure
     assert (scene.grid == "wall").sum() > 0
