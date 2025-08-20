@@ -6,6 +6,7 @@
   sim=operant_conditioning_incontext \
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
+  -hb=3600 \
   "$@"
 
 ./devops/skypilot/launch.py train \
@@ -14,6 +15,7 @@
   sim=operant_conditioning_incontext \
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
+  -hb=3600 \
   "$@"
 
 # 4 converters
@@ -23,6 +25,7 @@
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
   sim=operant_conditioning_incontext \
+  -hb=3600 \
   "$@"
 
 
@@ -32,6 +35,7 @@
   sim=operant_conditioning_incontext \
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
+  -hb=3600 \
   "$@"
 
 
@@ -43,6 +47,7 @@
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
   +trainer.env_overrides.game.resource_loss_prob=0.05 \
+  -hb=3600 \
   "$@"
 
 ./devops/skypilot/launch.py train \
@@ -52,6 +57,7 @@
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
   +trainer.env_overrides.game.resource_loss_prob=0.05 \
+  -hb=3600 \
   "$@"
 
 # 4 converters
@@ -62,6 +68,7 @@
   trainer.batch_size=2064384 \
   sim=operant_conditioning_incontext \
   +trainer.env_overrides.game.resource_loss_prob=0.05 \
+  -hb=3600 \
   "$@"
 
 
@@ -72,4 +79,5 @@
   trainer.bptt_horizon=256 \
   trainer.batch_size=2064384 \
   +trainer.env_overrides.game.resource_loss_prob=0.05 \
+  -hb=3600 \
   "$@"
