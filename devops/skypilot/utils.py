@@ -229,8 +229,13 @@ def set_task_secrets(task: sky.Task) -> None:
     if not observatory_token:
         observatory_token = ""  # we don't have a token in CI
 
+    wandb_api_key = os.environ.get("WANDB_API_KEY")
+    if not wandb_api_key:
+        raise ValueError("Failed to get wandb api key, run 'metta install' to fix")
+
     task.update_secrets(
         dict(
+            WANDB_API_KEY=wandb_api_key,
             WANDB_PASSWORD=wandb_password,
             OBSERVATORY_TOKEN=observatory_token,
         )

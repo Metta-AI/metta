@@ -130,44 +130,6 @@ def main():
                 print(f"⚠️  Failed to log to wandb: {e}", file=sys.stderr)
         else:
             print("ℹ️  Skipping wandb logging (no API key or .netrc found)")
-
-            # Debug: Print username and home directory contents
-            import getpass
-
-            # Get username
-            try:
-                username = getpass.getuser()
-                print(f"   DEBUG: Current user: {username}")
-            except Exception as e:
-                print(f"   DEBUG: Could not get username: {e}")
-
-            # Get home directory
-            home_dir = os.path.expanduser("~")
-            print(f"   DEBUG: Home directory: {home_dir}")
-
-            # List contents of home directory
-            try:
-                contents = os.listdir(home_dir)
-                print(f"   DEBUG: Home directory contents ({len(contents)} items):")
-                for item in sorted(contents):
-                    item_path = os.path.join(home_dir, item)
-                    if os.path.isdir(item_path):
-                        print(f"     [DIR]  {item}/")
-                    else:
-                        print(f"     [FILE] {item}")
-                        # Special case for .netrc - show if it exists but might not be readable
-                        if item == ".netrc":
-                            print(f"            Size: {os.path.getsize(item_path)} bytes")
-            except Exception as e:
-                print(f"   DEBUG: Could not list home directory: {e}")
-
-            # Check .netrc specifically
-            netrc_path = os.path.expanduser("~/.netrc")
-            print(f"   DEBUG: .netrc exists: {os.path.exists(netrc_path)}")
-            if os.path.exists(netrc_path):
-                print(f"   DEBUG: .netrc readable: {os.access(netrc_path, os.R_OK)}")
-                print(f"   DEBUG: .netrc size: {os.path.getsize(netrc_path)} bytes")
-
     else:
         print("ℹ️  Skipping wandb logging (METTA_RUN_ID not set)")
 
