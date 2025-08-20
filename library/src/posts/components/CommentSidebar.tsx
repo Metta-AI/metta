@@ -219,7 +219,10 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
         {/* Post Summary */}
         <div className="border-b border-gray-200 bg-gray-50 p-4">
           <div className="mb-2 flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
+            <div
+              className="flex h-6 w-6 items-center justify-center rounded-full text-sm"
+              style={{ backgroundColor: "#EFF3F9", color: "#131720" }}
+            >
               {getUserInitials(post.author.name, post.author.email)}
             </div>
             <span className="text-sm font-medium text-gray-900">
