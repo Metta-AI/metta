@@ -27,7 +27,6 @@ from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
-from metta.rl.dual_policy import _aggregate_dual_policy_stats, setup_dual_policy
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -323,15 +322,7 @@ def train(
                     policy.reset_memory()
                     buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
-                    # Dual-policy setup for the new epoch
-                    npc_policy, npc_mask_per_env, agents_per_env = setup_dual_policy(
-                        trainer_cfg.dual_policy,
-                        policy_store,
-                        metta_grid_env,
-                        device,
-                        epoch,
-                        stats_tracker.rollout_stats,
-                    )
+                    npc_policy, npc_mask_per_env, agents_per_env = None, None, 0
                     if npc_policy:
                         npc_policy.reset_memory()
 
@@ -520,10 +511,6 @@ def train(
 
                 agent_step += total_steps * world_size
             accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
-
-            # Aggregate dual_policy stats across all distributed nodes
-            if trainer_cfg.dual_policy.enabled and torch.distributed.is_initialized():
-                _aggregate_dual_policy_stats(stats_tracker.rollout_stats, device)
 
             # ---- TRAINING PHASE ----
             with timer("_train"):
