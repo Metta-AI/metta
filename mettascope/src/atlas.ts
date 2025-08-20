@@ -187,7 +187,7 @@ export async function loadAtlasImage(url: string): Promise<ImageBitmap | null> {
   }
 }
 
-/* Loads a complete texture atlas from JSON and image URLs. Texture settings are selected for pixel art. */
+/* Loads a complete texture atlas from JSON and image URLs. */
 export async function loadAtlas(
   gl: WebGLRenderingContext,
   jsonUrl: string,
@@ -211,7 +211,7 @@ export async function loadAtlas(
   gl.bindTexture(gl.TEXTURE_2D, texture)
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image)
 
-  // Generate mipmaps
+  // Generate mipmaps - Note that this requires image height and width to be a power of two.
   gl.generateMipmap(gl.TEXTURE_2D)
 
   // Set texture parameters
