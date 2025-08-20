@@ -84,7 +84,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         sim_name: str,
         sim_suite: str,
         policy_record: PolicyRecord,
-        env_label: str = "mettagrid",  # Default for backward compatibility
+        env_label: str,
     ) -> "SimulationStatsDB":
         dir_with_shards = Path(dir_with_shards).expanduser().resolve()
         merged_path = dir_with_shards / "merged.duckdb"

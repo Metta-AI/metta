@@ -1,3 +1,6 @@
+import os
+import uuid
+from datetime import datetime
 from typing import Optional
 
 import metta.cogworks.curriculum as cc
@@ -14,6 +17,29 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 
 from experiments.evals.navigation import make_navigation_eval_suite
+
+
+def _get_user_identifier() -> str:
+    """Get user identifier, trying multiple environment variables."""
+    # Try common user environment variables across platforms
+    for var in ["USER", "USERNAME", "LOGNAME"]:
+        user = os.getenv(var)
+        if user and user.strip():
+            return user.strip()
+    return "unknown"
+
+
+def _default_run_name() -> str:
+    """Generate a robust run name following the pattern: navigation.{user}.{date}.{unique_id}
+
+    Format: navigation.{username}.MMDD-HHMM.{uuid}
+    Example: navigation.alice.0820-1430.f4b2c8
+    """
+    user = _get_user_identifier()
+    now = datetime.now()
+    # Use 6-char UUID
+    unique_id = str(uuid.uuid4())[:6]
+    return f"navigation.{user}.{now.strftime('%m%d-%H%M')}.{unique_id}"
 
 
 def make_env(num_agents: int = 4) -> EnvConfig:
@@ -46,18 +72,20 @@ def make_curriculum(nav_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     nav_tasks.add_bucket("game.map_builder.instance_map.dir", maps)
     nav_tasks.add_bucket("game.map_builder.instance_map.objects.altar", [vr.vr(3, 50)])
 
-    # TODO #dehydration
-    # add /env/mettagrid/curriculum/navigation/subcurricula/sparse
-    # add /env/mettagrid/navigation/training/sparse_bucketed: 1
+    # Additional curriculum buckets from sparse and sparse_bucketed configurations
+    nav_tasks.add_bucket("game.max_steps", [vr.vr(100, 2000)])
+    nav_tasks.add_bucket("game.map_builder.width", [vr.vr(60, 300)])
+    nav_tasks.add_bucket("game.map_builder.height", [vr.vr(60, 300)])
 
     return cc.curriculum(nav_tasks, num_tasks=1000)
 
 
-def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
-    # Auto-generate run name - remove infrastructure concerns from experiment API
-    import time
-
-    run = f"navigation_{int(time.time())}"
+def train(
+    run: Optional[str] = None, curriculum: Optional[CurriculumConfig] = None
+) -> TrainTool:
+    # Generate structured run name if not provided
+    if run is None:
+        run = _default_run_name()
 
     trainer_cfg = TrainerConfig(
         curriculum=curriculum or make_curriculum(),
@@ -68,7 +96,7 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
     return TrainTool(
         trainer=trainer_cfg,
-        run=run,  # Internal implementation detail, not exposed to user
+        run=run,
     )
 
 
