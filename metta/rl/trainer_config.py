@@ -1,6 +1,5 @@
 from typing import Any, ClassVar, List, Literal, Optional
 
-from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
