@@ -3,6 +3,7 @@ from typing import Optional
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
+from .curriculum_env import CurriculumEnv
 from .task import Task
 from .task_generator import (
     BucketedTaskGenerator,
@@ -11,6 +12,7 @@ from .task_generator import (
     SingleTaskGeneratorConfig,
     TaskGenerator,
     TaskGeneratorConfig,
+    TaskGeneratorConfigUnion,
     TaskGeneratorSet,
     TaskGeneratorSetConfig,
     ValueRange,
@@ -32,6 +34,7 @@ __all__ = [
     "ValueRange",
     "tasks",
     "curriculum",
+    "CurriculumEnv",
 ]
 
 
@@ -40,7 +43,7 @@ def tasks(env_config: EnvConfig) -> BucketedTaskGeneratorConfig:
     return BucketedTaskGeneratorConfig.from_env_config(env_config)
 
 
-def curriculum(task_generator_config: TaskGeneratorConfig, num_tasks: Optional[int] = None) -> CurriculumConfig:
+def curriculum(task_generator_config: TaskGeneratorConfigUnion, num_tasks: Optional[int] = None) -> CurriculumConfig:
     """Create a random curriculum configuration."""
     cc = CurriculumConfig(task_generator_config=task_generator_config)
     if num_tasks is not None:
