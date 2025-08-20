@@ -18,14 +18,12 @@ obstacles_env.game.max_steps = 100
 
 
 def train() -> TrainTool:
-    env = navigation.make_env()
-    env.game.max_steps = 100
-    cfg = navigation.train(
+    # Use default TrainerConfig with its default arena curriculum
+    cfg = TrainTool(
         run="local.relh.dehydrate.1",
-        curriculum=navigation.make_curriculum(env),
+        # Using all defaults from TrainerConfig
     )
-    cfg.trainer.forward_pass_minibatch_target_size = 4096  # Larger minibatches
-    # Performance optimizations for faster training
+    cfg.trainer.forward_pass_minibatch_target_size = 4096  # Larger minibatches for better GPU utilization
     return cfg
 
 
