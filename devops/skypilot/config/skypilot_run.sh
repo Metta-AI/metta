@@ -211,12 +211,14 @@ run_cmd() {
 
   # Add --args if METTA_ARGS is not empty
   if [ -n "${METTA_ARGS:-}" ]; then
-    cmd+=(--args "${METTA_ARGS}")
+    cmd+=(--args)
+    cmd+=(${METTA_ARGS}) # split on spaces
   fi
 
   # Add --overrides if METTA_OVERRIDES is not empty
   if [ -n "${METTA_OVERRIDES:-}" ]; then
-    cmd+=(--overrides "${METTA_OVERRIDES}")
+    cmd+=(--overrides)
+    cmd+=(${METTA_OVERRIDES}) # split on spaces
   fi
 
   echo "[INFO] Running command: ${cmd[*]}"
