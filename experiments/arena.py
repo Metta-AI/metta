@@ -16,6 +16,7 @@ from metta.tools.train import TrainTool
 
 def make_env(num_agents: int = 24) -> EnvConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
+    arena_env.game.actions.swap.enabled = False
     return arena_env
 
 
@@ -81,25 +82,20 @@ def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     )
 
 
-def train_shaped(run: str, rewards: bool = True, converters: bool = True) -> TrainTool:
+def train_shaped_rewards(run: str) -> TrainTool:
     env_cfg = make_env()
+    env_cfg.game.agent.rewards.inventory.ore_red = 0.1
+    env_cfg.game.agent.rewards.inventory.ore_red_max = 1
+    env_cfg.game.agent.rewards.inventory.battery_red = 0.8
+    env_cfg.game.agent.rewards.inventory.battery_red_max = 1
+    env_cfg.game.agent.rewards.inventory.laser = 0.5
+    env_cfg.game.agent.rewards.inventory.laser_max = 1
+    env_cfg.game.agent.rewards.inventory.armor = 0.5
+    env_cfg.game.agent.rewards.inventory.armor_max = 1
+    env_cfg.game.agent.rewards.inventory.blueprint = 0.5
+    env_cfg.game.agent.rewards.inventory.blueprint_max = 1
     env_cfg.game.agent.rewards.inventory.heart = 1
     env_cfg.game.agent.rewards.inventory.heart_max = 100
-
-    if rewards:
-        env_cfg.game.agent.rewards.inventory.ore_red = 0.1
-        env_cfg.game.agent.rewards.inventory.ore_red_max = 1
-        env_cfg.game.agent.rewards.inventory.battery_red = 0.8
-        env_cfg.game.agent.rewards.inventory.battery_red_max = 1
-        env_cfg.game.agent.rewards.inventory.laser = 0.5
-        env_cfg.game.agent.rewards.inventory.laser_max = 1
-        env_cfg.game.agent.rewards.inventory.armor = 0.5
-        env_cfg.game.agent.rewards.inventory.armor_max = 1
-        env_cfg.game.agent.rewards.inventory.blueprint = 0.5
-        env_cfg.game.agent.rewards.inventory.blueprint_max = 1
-
-    if converters:
-        env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
 
     trainer_cfg = TrainerConfig(
         curriculum=cc.env_curriculum(env_cfg, num_tasks=1000),

@@ -57,13 +57,14 @@ def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
+            evaluate_remote=False,
+            evaluate_local=True,
             simulations=make_navigation_eval_suite(),
         ),
     )
 
     return TrainTool(
         trainer=trainer_cfg,
-        # TODO #dehydration - get rid of run in here
         run=run,
     )
 
