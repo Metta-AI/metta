@@ -290,7 +290,7 @@ async def get_eval_names_for_training_runs(
 
 
 @mcp.tool(
-    name="Execute SQL Query",
+    name="execute_sql_query",
     description="Execute a SQL query against the scorecard database API",
     tags={"database", "sql", "query"},
     annotations={
@@ -364,7 +364,7 @@ async def get_sql_table_schema(table_name: str, dev_mode: str = "false") -> Back
 
 
 @mcp.tool(
-    name="AI SQL Query Generator",
+    name="ai_sql_query_generator",
     description="Generate SQL queries using artificial intelligence based on natural language descriptions",
     tags={"database", "sql", "ai", "generation"},
     annotations={
@@ -497,7 +497,7 @@ async def get_scorecard_data(
 
 
 @mcp.tool(
-    name="Weights & Biases Runs",
+    name="weights_biases_runs",
     description="List recent training runs from Weights & Biases for a project",
     tags={"wandb", "training", "monitoring"},
     annotations={
@@ -817,7 +817,7 @@ async def list_saved_dashboards(dev_mode: bool = False) -> SavedDashboardListRes
 
 
 @mcp.tool(
-    name="Create Dashboard",
+    name="create_dashboard",
     description="Create a new saved dashboard with specified configuration",
     tags={"dashboard", "create", "visualization"},
     annotations={
@@ -876,7 +876,7 @@ async def get_saved_dashboard(
 
 
 @mcp.tool(
-    name="Update Dashboard",
+    name="update_dashboard",
     description="Update the configuration and state of an existing saved dashboard",
     tags={"dashboard", "update", "configuration"},
     annotations={
@@ -901,7 +901,7 @@ async def update_saved_dashboard(
 
 
 @mcp.tool(
-    name="Delete Dashboard",
+    name="delete_dashboard",
     description="Permanently delete a saved dashboard",
     tags={"dashboard", "delete", "remove"},
     annotations={
@@ -923,7 +923,7 @@ async def delete_saved_dashboard(dashboard_id: str, dev_mode: bool = False) -> S
 
 # Entity Routes (Training Runs)
 @mcp.tool(
-    name="Training Runs List",
+    name="training_runs_list",
     description="Complete list of all training runs with metadata, descriptions, and tags",
     tags={"training", "machine-learning", "runs"},
     annotations={
@@ -968,7 +968,7 @@ async def get_training_run(
 
 
 @mcp.tool(
-    name="Update Training Run Description",
+    name="update_training_run_description",
     description="Update the description text for a training run",
     tags={"training", "update", "description", "metadata"},
     annotations={
@@ -989,7 +989,7 @@ async def update_training_run_description(run_id: str, description: str, dev_mod
 
 
 @mcp.tool(
-    name="Update Training Run Tags",
+    name="update_training_run_tags",
     description="Update the tags associated with a training run for organization and filtering",
     tags={"training", "update", "tags", "organization"},
     annotations={
@@ -1034,7 +1034,7 @@ async def get_training_run_policies(run_id: str, dev_mode: bool = False) -> Trai
 
 # Task Management Tools
 @mcp.tool(
-    name="Create Evaluation Task",
+    name="create_evaluation_task",
     description="Create a new evaluation task for a policy with specified simulation suite and parameters",
     tags={"tasks", "evaluation", "create", "scheduling"},
     annotations={
@@ -1073,7 +1073,7 @@ async def create_task(
 
 
 @mcp.tool(
-    name="Get Latest Assigned Task",
+    name="get_latest_assigned_task",
     description="Get the most recent task assigned to a specific worker",
     tags={"tasks", "workers", "assignment", "latest"},
     annotations={
@@ -1095,7 +1095,7 @@ async def get_latest_assigned_task_for_worker(assignee: str, dev_mode: bool = Fa
 
 
 @mcp.tool(
-    name="Available Tasks",
+    name="available_tasks",
     description="List of evaluation tasks available for worker assignment",
     tags={"tasks", "evaluation", "workers", "queue"},
     annotations={
@@ -1119,7 +1119,7 @@ async def get_available_tasks(
 
 
 @mcp.tool(
-    name="Claim Evaluation Tasks",
+    name="claim_evaluation_tasks",
     description="Assign evaluation tasks to a worker for execution",
     tags={"tasks", "workers", "claim", "assignment"},
     annotations={
@@ -1149,7 +1149,7 @@ async def claim_tasks(
 
 
 @mcp.tool(
-    name="Claimed Tasks",
+    name="claimed_tasks",
     description="List of evaluation tasks currently claimed by workers",
     tags={"tasks", "evaluation", "workers", "assigned"},
     annotations={
@@ -1170,7 +1170,7 @@ async def get_claimed_tasks(assignee: str | None = None, dev_mode: bool = False)
 
 
 @mcp.tool(
-    name="Get Worker Git Hashes",
+    name="get_worker_git_hashes",
     description="Get git commit hashes for specified workers to track code version alignment",
     tags={"tasks", "workers", "git", "versioning"},
     annotations={
@@ -1193,7 +1193,7 @@ async def get_git_hashes_for_workers(assignees: list[str] | str, dev_mode: bool 
 
 
 @mcp.tool(
-    name="All Tasks",
+    name="all_tasks",
     description="Complete list of evaluation tasks with optional filtering by git hash, policies, and status",
     tags={"tasks", "evaluation", "filtering", "status"},
     annotations={
@@ -1233,7 +1233,7 @@ async def get_all_tasks(
 
 
 @mcp.tool(
-    name="Update Task Statuses",
+    name="update_task_statuses",
     description="Update the execution status and results for multiple evaluation tasks",
     tags={"tasks", "status", "update", "results"},
     annotations={
@@ -1267,7 +1267,7 @@ async def update_task_statuses(
 
 # Leaderboard Tools
 @mcp.tool(
-    name="Leaderboards List",
+    name="leaderboards_list",
     description="List all evaluation leaderboards with their configurations and metrics",
     tags={"leaderboards", "evaluation", "competition", "metrics"},
     annotations={
@@ -1288,7 +1288,7 @@ async def list_leaderboards(dev_mode: bool = False) -> LeaderboardListResponse:
 
 
 @mcp.tool(
-    name="Create Leaderboard",
+    name="create_leaderboard",
     description="Create a new evaluation leaderboard with specified metrics and evaluations",
     tags={"leaderboards", "evaluation", "create", "competition"},
     annotations={
@@ -1347,7 +1347,7 @@ async def get_leaderboard(leaderboard_id: str, dev_mode: bool = False) -> Leader
 
 
 @mcp.tool(
-    name="Update Leaderboard",
+    name="update_leaderboard",
     description="Update the configuration of an existing evaluation leaderboard",
     tags={"leaderboards", "evaluation", "update", "configuration"},
     annotations={
@@ -1385,7 +1385,7 @@ async def update_leaderboard(
 
 
 @mcp.tool(
-    name="Delete Leaderboard",
+    name="delete_leaderboard",
     description="Permanently delete an evaluation leaderboard",
     tags={"leaderboards", "evaluation", "delete", "remove"},
     annotations={
@@ -1433,7 +1433,7 @@ async def get_policy_ids(policy_names: list[str] | str, dev_mode: bool = False) 
 
 
 @mcp.tool(
-    name="Create Training Run",
+    name="create_training_run",
     description="Create a new training run record with metadata for tracking ML experiments",
     tags={"training", "create", "experiments", "tracking"},
     annotations={
@@ -1472,7 +1472,7 @@ async def create_training_run(
 
 
 @mcp.tool(
-    name="Create Training Epoch",
+    name="create_training_epoch",
     description="Create a new epoch record to track training progress within a run",
     tags={"training", "epochs", "create", "progress"},
     annotations={
@@ -1506,7 +1506,7 @@ async def create_epoch(
 
 
 @mcp.tool(
-    name="Create Policy",
+    name="create_policy",
     description="Create a new policy record for tracking trained models and their metadata",
     tags={"policies", "models", "create", "tracking"},
     annotations={
@@ -1539,7 +1539,11 @@ async def create_policy(
         return await client.create_policy(policy_data)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="record_episode",
+    description="Record a new episode with agent policies and metrics",
+    tags={"episodes", "recording", "metrics", "statistics"},
+)
 async def record_episode(
     agent_policies: dict[int, str],
     agent_metrics: dict[int, dict[str, float]],
@@ -1580,7 +1584,11 @@ async def record_episode(
 
 
 # Sweep Tools
-@mcp.tool()
+@mcp.tool(
+    name="create_sweep",
+    description="Initialize a new sweep (non-idempotent) or return existing sweep info (idempotent)",
+    tags={"sweep", "create", "wandb", "experiments"},
+)
 async def create_sweep(
     sweep_name: str,
     project: str,
@@ -1614,7 +1622,11 @@ async def get_sweep(sweep_name: str, dev_mode: bool = False) -> SweepInfo:
         return await client.get_sweep(sweep_name)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="get_next_run_id",
+    description="Get the next run ID for a sweep (atomic operation)",
+    tags={"sweep", "run-id", "sequence", "experiments"},
+)
 async def get_next_run_id(sweep_name: str, dev_mode: bool = False) -> RunIdResponse:
     """Get the next run ID for a sweep (atomic operation)."""
     async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
@@ -1623,7 +1635,7 @@ async def get_next_run_id(sweep_name: str, dev_mode: bool = False) -> RunIdRespo
 
 # Token Management Tools
 @mcp.tool(
-    name="User API Tokens",
+    name="user_api_tokens",
     description="List all machine tokens associated with the authenticated user",
     tags={"authentication", "tokens", "api", "security"},
     annotations={
@@ -1638,7 +1650,11 @@ async def list_tokens(dev_mode: bool = False) -> BackendTokenListResponse:
         return await client.list_tokens()
 
 
-@mcp.tool()
+@mcp.tool(
+    name="create_api_token",
+    description="Create a new machine token for the authenticated user",
+    tags={"authentication", "tokens", "api", "create"},
+)
 async def create_token(name: str, dev_mode: bool = False) -> TokenResponse:
     """Create a new machine token for the authenticated user."""
     from metta.app_backend.routes.token_routes import TokenCreate
@@ -1648,7 +1664,11 @@ async def create_token(name: str, dev_mode: bool = False) -> TokenResponse:
         return await client.create_token(token_data)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="delete_api_token",
+    description="Delete a machine token for the authenticated user",
+    tags={"authentication", "tokens", "api", "delete"},
+)
 async def delete_token(token_id: str, dev_mode: bool = False) -> dict[str, str]:
     """Delete a machine token for the authenticated user."""
     async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
@@ -1656,7 +1676,11 @@ async def delete_token(token_id: str, dev_mode: bool = False) -> dict[str, str]:
         return result
 
 
-@mcp.tool()
+@mcp.tool(
+    name="create_cli_token",
+    description="Create a machine token and redirect to callback URL with token parameter",
+    tags={"authentication", "cli", "tokens", "redirect"},
+)
 async def create_cli_token(callback: str, dev_mode: bool = False) -> dict[str, str | int | float | bool | None]:
     """Create a machine token and redirect to callback URL with token parameter.
 
@@ -1673,7 +1697,11 @@ async def create_cli_token(callback: str, dev_mode: bool = False) -> dict[str, s
 
 
 # Score Routes
-@mcp.tool()
+@mcp.tool(
+    name="get_policy_scores",
+    description="Get policy scores for given policies, evaluations and metrics",
+    tags={"policies", "scores", "evaluation", "metrics"},
+)
 async def get_policy_scores(
     policy_ids: list[str] | str,
     eval_names: list[str] | str,
@@ -1692,7 +1720,11 @@ async def get_policy_scores(
 
 
 # Enhanced Scorecard Generation
-@mcp.tool()
+@mcp.tool(
+    name="generate_policy_scorecard",
+    description="Generate scorecard data based on training run and policy selection",
+    tags={"scorecard", "policies", "evaluation", "comparison"},
+)
 async def generate_policy_scorecard(
     training_run_ids: list[str] | str,
     run_free_policy_ids: list[str] | str,
@@ -1717,7 +1749,11 @@ async def generate_policy_scorecard(
         return result
 
 
-@mcp.tool()
+@mcp.tool(
+    name="generate_heatmap_scorecard",
+    description="Generate heatmap scorecard data based on training run and policy selection",
+    tags={"scorecard", "heatmap", "visualization", "policies"},
+)
 async def generate_heatmap_scorecard(
     training_run_ids: list[str] | str,
     run_free_policy_ids: list[str] | str,
@@ -1742,7 +1778,11 @@ async def generate_heatmap_scorecard(
         return result
 
 
-@mcp.tool()
+@mcp.tool(
+    name="generate_training_run_scorecard",
+    description="Generate scorecard data for a specific training run showing ALL policies",
+    tags={"scorecard", "training", "policies", "overview"},
+)
 async def generate_training_run_scorecard(
     run_id: str,
     eval_names: list[str] | str,
@@ -1761,7 +1801,11 @@ async def generate_training_run_scorecard(
         return result
 
 
-@mcp.tool()
+@mcp.tool(
+    name="generate_leaderboard_scorecard",
+    description="Generate scorecard data for a leaderboard",
+    tags={"scorecard", "leaderboard", "competition", "ranking"},
+)
 async def generate_leaderboard_scorecard(
     leaderboard_id: str,
     selector: Literal["latest", "best"] = "latest",
@@ -1810,7 +1854,7 @@ async def list_training_runs_local() -> LocalTrainingRunList:
 
 
 @mcp.resource(
-    "metta://checkpoints/{checkpoint_path*}/info",
+    "metta://checkpoints/{checkpoint_path}/info",
     name="Checkpoint Information",
     description="Get metadata about model checkpoints without loading the full model",
     tags={"checkpoints", "models", "metadata", "inspection"},
@@ -1876,7 +1920,11 @@ async def get_training_status(run_name: str) -> TrainingStatus | TrainingUtilsEr
         )
 
 
-@mcp.tool()
+@mcp.tool(
+    name="generate_replay_summary",
+    description="Generate AI-powered summary of replay contents using statistical analysis",
+    tags={"replay", "analysis", "ai", "summary"},
+)
 async def generate_replay_summary(
     replay_path: str = Field(
         min_length=1, description="Path to replay file (supports .json, .json.z compressed format)"
