@@ -89,3 +89,6 @@ experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
 
 # checkpoints
 *.pt
+
+# Dominiks training
+Dominiks_training/wandb/
