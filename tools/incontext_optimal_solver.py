@@ -219,13 +219,13 @@ class InContextOptimalSolver:
             # Expected attempts = n + (n-1) + ... + 1 = n(n+1)/2
             expected_attempts = n * (n + 1) / 2
         else:
-            # With sinks: account for additional objects in the search space
+            # With sinks: at each step we need ONE SPECIFIC converter
+            # among the remaining objects (converters + sinks - already found)
             expected_attempts = 0.0
             for k in range(n):
-                remaining_converters = n - k
                 remaining_objects = total_objects - k
-                if remaining_converters > 0:
-                    expected_attempts += remaining_objects / remaining_converters
+                # Only ONE specific converter works at each step (not remaining_converters!)
+                expected_attempts += remaining_objects
 
         # Calculate expected sink discoveries (learning agent avoids after first hit)
         expected_sink_hits = 0.0
@@ -233,17 +233,16 @@ class InContextOptimalSolver:
             sinks_remaining = float(num_sinks)
 
             for k in range(n):
-                converters_needed = n - k
-                objects_remaining = n + num_sinks - k - expected_sink_hits
+                objects_remaining = total_objects - k - expected_sink_hits
 
-                if converters_needed > 0 and objects_remaining > converters_needed:
-                    trials_for_converter = objects_remaining / converters_needed
-
-                    if trials_for_converter > 1 and sinks_remaining > 0:
-                        p_sink_per_trial = sinks_remaining / objects_remaining
-                        expected_hits_this_step = p_sink_per_trial * (trials_for_converter - 1)
-                        expected_sink_hits += min(expected_hits_this_step, sinks_remaining)
-                        sinks_remaining -= expected_hits_this_step
+                if objects_remaining > 1 and sinks_remaining > 0:
+                    # Probability of hitting a sink before finding the specific converter
+                    p_sink_per_trial = sinks_remaining / objects_remaining
+                    # Expected attempts for this converter = objects_remaining
+                    # But only (objects_remaining - 1) are "wrong" attempts
+                    expected_hits_this_step = p_sink_per_trial * (objects_remaining - 1)
+                    expected_sink_hits += min(expected_hits_this_step, sinks_remaining)
+                    sinks_remaining -= expected_hits_this_step
 
         # Movement costs
         movement_cost = avg_from_agent  # Initial movement
@@ -657,18 +656,51 @@ def print_analysis(
         )
         print(f"  Random:    {rand_stats['random_mean']:6.1f} ± {rand_stats['random_std']:.1f} steps (baseline)")
 
-    # Show impact of sinks
+    # Show impact of sinks (using same converter positions for fair comparison)
     if num_sinks > 0:
-        # Get baseline without sinks
-        baseline = analyze_configuration(num_converters, 0, grid_size, num_samples=samples)
-        print(f"\nImpact of {num_sinks} sink(s):")
-        for movement_type in ["tank", "cardinal"]:
-            increase = (
-                (results[movement_type]["realistic_mean"] - baseline[movement_type]["realistic_mean"])
-                / baseline[movement_type]["realistic_mean"]
-                * 100
+        solver = InContextOptimalSolver(grid_size)
+
+        # Calculate impact using the same converter positions
+        impact_tank = []
+        impact_cardinal = []
+
+        for _ in range(min(samples, 20)):  # Use fewer samples for impact calculation
+            indices = np.random.choice(len(solver.edge_positions), num_converters, replace=False)
+            converter_positions = [solver.edge_positions[i] for i in indices]
+
+            # Calculate with and without sinks using SAME positions
+            tank_with = solver.calculate_expected_over_spawns(
+                converter_positions, use_tank_movement=True, num_sinks=num_sinks
             )
-            print(f"  {movement_type.capitalize()}: +{increase:.1f}% time increase")
+            tank_without = solver.calculate_expected_over_spawns(
+                converter_positions, use_tank_movement=True, num_sinks=0
+            )
+            cardinal_with = solver.calculate_expected_over_spawns(
+                converter_positions, use_tank_movement=False, num_sinks=num_sinks
+            )
+            cardinal_without = solver.calculate_expected_over_spawns(
+                converter_positions, use_tank_movement=False, num_sinks=0
+            )
+
+            # Calculate percentage increase
+            if tank_without["realistic_mean"] > 0:
+                impact_tank.append(
+                    (tank_with["realistic_mean"] - tank_without["realistic_mean"])
+                    / tank_without["realistic_mean"]
+                    * 100
+                )
+            if cardinal_without["realistic_mean"] > 0:
+                impact_cardinal.append(
+                    (cardinal_with["realistic_mean"] - cardinal_without["realistic_mean"])
+                    / cardinal_without["realistic_mean"]
+                    * 100
+                )
+
+        print(f"\nImpact of {num_sinks} sink(s):")
+        if impact_tank:
+            print(f"  Tank: +{np.mean(impact_tank):.1f}% time increase")
+        if impact_cardinal:
+            print(f"  Cardinal: +{np.mean(impact_cardinal):.1f}% time increase")
 
     # Expected reward section (optional)
     if steps_available is not None and steps_available > 0:
