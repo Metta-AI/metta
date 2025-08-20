@@ -18,12 +18,16 @@ obstacles_env.game.max_steps = 100
 
 
 def train(run: str = "local.relh.dehydrate.1") -> TrainTool:
-    # Use default TrainerConfig with its default arena curriculum
-    cfg = TrainTool(
+    # Use arena environment to match main branch defaults
+    env = arena.make_env()  # 24 agents by default
+    cfg = arena.train(
         run=run,  # Accept run parameter from launch script
-        # Using all defaults from TrainerConfig
+        curriculum=arena.make_curriculum(env),
     )
-    cfg.trainer.forward_pass_minibatch_target_size = 4096  # Larger minibatches for better GPU utilization
+    # Match main branch performance settings
+    cfg.trainer.forward_pass_minibatch_target_size = 4096  # From main's trainer.yaml
+    cfg.trainer.checkpoint.checkpoint_interval = 50  # From main's trainer.yaml
+    cfg.trainer.checkpoint.wandb_checkpoint_interval = 50  # Match checkpoint interval
     return cfg
 
 
