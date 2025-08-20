@@ -16,7 +16,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from env_config import create_simple_arena_config
 
-from agent import compute_policy_loss, create_agent
+from agent import ActorCriticAgent
 from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 
@@ -28,10 +28,12 @@ def load_config(config_path: str) -> configparser.ConfigParser:
 
 
 def collect_episode(env: MettaGridEnv, agent, device: str):
-    """Collect a single episode of experience."""
+    """Collect a single episode of experience for actor-critic."""
     observations = []
     actions = []
     rewards = []
+    values = []
+    log_probs = []
 
     obs, _ = env.reset()
     done = False
@@ -41,8 +43,18 @@ def collect_episode(env: MettaGridEnv, agent, device: str):
         flat_obs = obs.flatten()
         observations.append(flat_obs)
 
-        # Get action from agent
-        single_action = agent.get_action(flat_obs)[0]  # Get single action
+        # Get action and value from actor-critic agent
+        obs_tensor = torch.from_numpy(flat_obs).float().unsqueeze(0).to(device)
+        with torch.no_grad():
+            action_logits, value = agent(obs_tensor)
+            action_probs = torch.softmax(action_logits, dim=-1)
+            action = torch.multinomial(action_probs, 1).squeeze()
+            log_prob = torch.log(action_probs[0, action])
+
+        single_action = action.item()
+        actions.append(single_action)
+        values.append(value.item())
+        log_probs.append(log_prob.item())
 
         # Create proper 2D action array for multi-agent environment
         if hasattr(env.single_action_space, "nvec"):
@@ -55,15 +67,19 @@ def collect_episode(env: MettaGridEnv, agent, device: str):
             # Regular discrete action space - reshape to 2D
             actions_2d = np.full((env.num_agents, 1), single_action, dtype=np.int32)
 
-        actions.append(single_action)  # Store single action for training
-
         # Step environment
         obs, reward, terminated, truncated, _ = env.step(actions_2d)
         rewards.append(reward.mean())  # Average reward across agents
 
         done = terminated.any() or truncated.any()
 
-    return (np.array(observations), np.array(actions), np.array(rewards))
+    return (np.array(observations), np.array(actions), np.array(rewards), np.array(values), np.array(log_probs))
+
+
+def create_agent(obs_dim: int, action_dim: int, device: str = "cpu") -> ActorCriticAgent:
+    """Create and initialize an actor-critic agent."""
+    agent = ActorCriticAgent(obs_dim, action_dim)
+    return agent.to(device)
 
 
 def compute_returns(rewards: np.ndarray, gamma: float) -> np.ndarray:
@@ -73,12 +89,42 @@ def compute_returns(rewards: np.ndarray, gamma: float) -> np.ndarray:
     for t in reversed(range(len(rewards))):
         G = rewards[t] + gamma * G
         returns[t] = G
-
-    # Normalize returns
-    if len(returns) > 1:
-        returns = (returns - returns.mean()) / (returns.std() + 1e-8)
-
     return returns
+
+
+def compute_advantages(rewards: np.ndarray, values: np.ndarray, gamma: float) -> tuple[np.ndarray, np.ndarray]:
+    """Compute advantages and returns for actor-critic."""
+    returns = compute_returns(rewards, gamma)
+    advantages = returns - values
+
+    # Normalize advantages
+    if len(advantages) > 1:
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+    return advantages, returns
+
+
+def compute_actor_critic_loss(
+    agent: ActorCriticAgent,
+    obs: torch.Tensor,
+    actions: torch.Tensor,
+    advantages: torch.Tensor,
+    returns: torch.Tensor,
+    old_log_probs: torch.Tensor,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Compute actor-critic loss."""
+    # Forward pass
+    action_logits, values = agent(obs)
+    action_probs = torch.softmax(action_logits, dim=-1)
+
+    # Actor loss (policy gradient with advantages)
+    new_log_probs = torch.log(action_probs.gather(1, actions.unsqueeze(-1)).squeeze(-1) + 1e-8)
+    actor_loss = -(new_log_probs * advantages).mean()
+
+    # Critic loss (value function)
+    critic_loss = torch.nn.functional.mse_loss(values.squeeze(), returns)
+
+    return actor_loss, critic_loss
 
 
 def train():
@@ -136,7 +182,7 @@ def train():
 
     while timestep < total_timesteps:
         # Collect episode
-        observations, actions, rewards = collect_episode(env, agent, device)
+        observations, actions, rewards, values, log_probs = collect_episode(env, agent, device)
 
         episode_length = len(observations)
         episode_reward = rewards.sum()
@@ -146,18 +192,23 @@ def train():
         timestep += episode_length
         episode += 1
 
-        # Compute returns
-        returns = compute_returns(rewards, gamma)
+        # Compute advantages and returns
+        advantages, returns = compute_advantages(rewards, values, gamma)
 
         # Convert to tensors
         obs_tensor = torch.from_numpy(observations).float().to(device)
         actions_tensor = torch.from_numpy(actions).long().to(device)
+        advantages_tensor = torch.from_numpy(advantages).float().to(device)
         returns_tensor = torch.from_numpy(returns).float().to(device)
+        old_log_probs_tensor = torch.from_numpy(log_probs).float().to(device)
 
-        # Compute loss and update
+        # Compute actor-critic loss and update
         optimizer.zero_grad()
-        loss = compute_policy_loss(agent, obs_tensor, actions_tensor, returns_tensor)
-        loss.backward()
+        actor_loss, critic_loss = compute_actor_critic_loss(
+            agent, obs_tensor, actions_tensor, advantages_tensor, returns_tensor, old_log_probs_tensor
+        )
+        total_loss = actor_loss + 0.5 * critic_loss  # Combine losses
+        total_loss.backward()
         optimizer.step()
 
         # Logging
@@ -169,7 +220,9 @@ def train():
             print(f"Episode {episode}, Timestep {timestep}")
             print(f"  Avg Reward: {avg_reward:.3f}")
             print(f"  Avg Length: {avg_length:.1f}")
-            print(f"  Loss: {loss.item():.6f}")
+            print(f"  Actor Loss: {actor_loss.item():.6f}")
+            print(f"  Critic Loss: {critic_loss.item():.6f}")
+            print(f"  Total Loss: {total_loss.item():.6f}")
             print(f"  SPS (Steps/sec): {sps:.1f}")
             print(f"  Elapsed: {elapsed_time:.1f}s")
 
