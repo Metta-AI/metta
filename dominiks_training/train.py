@@ -185,7 +185,7 @@ def train() -> None:
     learning_rate = config.getfloat("training", "learning_rate")
     gamma = config.getfloat("training", "gamma")
     gae_lambda = config.getfloat("training", "gae_lambda")
-    device = config.get("training", "device")
+    device = "cuda" if torch.cuda.is_available() else "cpu"
 
     log_interval = config.getint("logging", "log_interval")
     checkpoint_interval = config.getint("logging", "checkpoint_interval")
@@ -227,6 +227,7 @@ def train() -> None:
     episode_lengths = []
 
     print("Starting training...")
+    print(f"Using device: {device}")
 
     episode = 0
     timestep = 0
