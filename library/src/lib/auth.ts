@@ -24,12 +24,19 @@ function buildAuthConfig(): NextAuthConfig {
     });
   } else {
     // Google OAuth provider for production
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      throw new Error(
+        "Missing Google OAuth credentials. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET when DEV_MODE is false."
+      );
+    }
+    
     providers.push(
       Google({
         clientId: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       })
     );
+
   }
 
   const config: NextAuthConfig = {
