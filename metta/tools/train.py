@@ -152,8 +152,10 @@ def _configure_vecenv_settings(cfg: TrainTool) -> None:
         cfg.trainer.async_factor = 1
         return
 
-    ideal_workers = (os.cpu_count() // 2) // torch.cuda.device_count()
-    cfg.trainer.rollout_workers = max(1, ideal_workers)
+    # Only set rollout_workers if not already configured
+    if cfg.trainer.rollout_workers == 1:  # Default value from TrainerConfig
+        # Use the number of CPUs as workers
+        cfg.trainer.rollout_workers = os.cpu_count()
 
 
 def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
