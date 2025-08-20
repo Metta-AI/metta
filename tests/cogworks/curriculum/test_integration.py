@@ -2,17 +2,14 @@
 """Test the integration of curriculum algorithms into the main curriculum system."""
 
 import numpy as np
+
 from metta.cogworks.curriculum.curriculum import (
-    Curriculum,
     CurriculumConfig,
-    CurriculumAlgorithm,
-    CurriculumAlgorithmHypers,
     DiscreteRandomCurriculum,
     DiscreteRandomHypers,
 )
 from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig
 from metta.mettagrid.config.envs import make_arena
-from metta.mettagrid.mettagrid_config import EnvConfig
 
 
 def test_curriculum_with_algorithm():

@@ -12,9 +12,9 @@ export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 export CUDA_VISIBLE_DEVICES=0
 
 # Configuration
-EXPERIMENT_NAME="arena_learning_progress_$(date +%Y%m%d_%H%M%S)"
+EXPERIMENT_NAME="msb_lpdehyd_001_$(date +%Y%m%d_%H%M%S)"
 OUTPUT_DIR="outputs/${EXPERIMENT_NAME}"
-WANDB_PROJECT="metta-arena-learning-progress"
+WANDB_PROJECT="metta"
 
 echo "📁 Output directory: ${OUTPUT_DIR}"
 mkdir -p "${OUTPUT_DIR}"
@@ -25,7 +25,7 @@ cat > "${OUTPUT_DIR}/arena_lp_config.py" << 'EOF'
 """Arena configuration with Learning Progress Curriculum."""
 
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.config.builder as eb
+import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.task_generator import ValueRange as vr
 from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressHypers
 
@@ -33,7 +33,7 @@ def create_arena_learning_progress_config():
     """Create arena configuration with learning progress curriculum."""
 
     # Create arena environment
-    arena = eb.arena(num_agents=24)
+    arena = eb.make_arena(num_agents=24)
 
     # Disable swap action for simplicity
     arena.game.actions.swap.enabled = False
@@ -152,7 +152,8 @@ def train_with_learning_progress():
 
     # Initialize wandb
     wandb.init(
-        project="metta-arena-learning-progress",
+        project="metta",
+        name="msb_lpdehyd_001",
         config={
             "curriculum_type": "learning_progress",
             "num_tasks": curriculum._config.num_active_tasks,
@@ -207,9 +208,7 @@ chmod +x "${OUTPUT_DIR}/train_arena_lp.py"
 
 # Run integration test first
 echo "🧪 Running integration test..."
-cd metta/cogworks/curriculum
-python -m pytest test_comprehensive.py test_integration.py -v
-cd ../../..
+python -m pytest tests/cogworks/curriculum/test_comprehensive.py tests/cogworks/curriculum/test_integration.py -v
 
 echo "✅ Integration test passed!"
 
