@@ -53,7 +53,12 @@ def make_curriculum(nav_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     return cc.curriculum(nav_tasks, num_tasks=1000)
 
 
-def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+    # Auto-generate run name - remove infrastructure concerns from experiment API
+    import time
+
+    run = f"navigation_{int(time.time())}"
+
     trainer_cfg = TrainerConfig(
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
@@ -63,8 +68,7 @@ def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
     return TrainTool(
         trainer=trainer_cfg,
-        # TODO #dehydration - get rid of run in here
-        run=run,
+        run=run,  # Internal implementation detail, not exposed to user
     )
 
 
