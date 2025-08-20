@@ -25,7 +25,6 @@ class TestScoreRoutes:
             primary_policy_id=policies[0].id,
             stats_epoch=epochs[0].id,
             eval_name=eval_name,
-            simulation_suite="agg_suite",
             replay_url="https://example.com/replay/p0_e1",
         )
         stats_client.record_episode(
@@ -34,7 +33,6 @@ class TestScoreRoutes:
             primary_policy_id=policies[0].id,
             stats_epoch=epochs[0].id,
             eval_name=eval_name,
-            simulation_suite="agg_suite",
             replay_url="https://example.com/replay/p0_e2",
         )
 
@@ -45,7 +43,6 @@ class TestScoreRoutes:
             primary_policy_id=policies[1].id,
             stats_epoch=epochs[1].id,
             eval_name=eval_name,
-            simulation_suite="agg_suite",
             replay_url="https://example.com/replay/p1_e1",
         )
         stats_client.record_episode(
@@ -54,7 +51,6 @@ class TestScoreRoutes:
             primary_policy_id=policies[1].id,
             stats_epoch=epochs[1].id,
             eval_name=eval_name,
-            simulation_suite="agg_suite",
             replay_url="https://example.com/replay/p1_e2",
         )
 
