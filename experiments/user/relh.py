@@ -17,22 +17,13 @@ obstacles_env.game.map_builder = AsciiMapBuilder.Config.from_uri(
 obstacles_env.game.max_steps = 100
 
 
-def train(run: str = "relh.mb.1") -> TrainTool:
-    """
-    Training configuration that accepts run name as parameter.
-    
-    Usage:
-        ./tools/run.py experiments.user.relh.train --args run=relh.mb.1
-        ./tools/run.py experiments.user.relh.train --args run=relh.test.2
-    """
+def train() -> TrainTool:
     env = navigation.make_env()
     env.game.max_steps = 100
     cfg = navigation.train(
-        run=run,  # Now uses the parameter instead of hardcoded value
+        run="local.relh.1",
         curriculum=navigation.make_curriculum(env),
     )
-    # Set workers to match CPU count for optimal performance
-    cfg.trainer.rollout_workers = 16
     return cfg
 
 
@@ -44,13 +35,9 @@ def play() -> PlayTool:
     return cfg
 
 
-def evaluate(policy_uri: str = "file://./train_dir/relh.mb.1/checkpoints") -> SimTool:
-    """
-    Evaluation configuration that accepts policy URI as parameter.
-    
-    Usage:
-        ./tools/run.py experiments.user.relh.evaluate --args policy_uri=file://./train_dir/relh.mb.1/checkpoints
-        ./tools/run.py experiments.user.relh.evaluate --args policy_uri=wandb://run/relh.mb.1
-    """
-    cfg = arena.evaluate(policy_uri=policy_uri)
+def evaluate() -> SimTool:
+    cfg = arena.evaluate(policy_uri="wandb://run/local.relh.1")
+
+    # If your run doesn't exist, try this:
+    # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
     return cfg
