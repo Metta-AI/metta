@@ -178,12 +178,33 @@ class InContextOptimalSolver:
             total += movement_func(a, b)
         return float(total)
 
+    def validate_calculations(self, n_converters: int, n_sinks: int, expected_attempts: float) -> bool:
+        """
+        Validate that calculations are mathematically sensible.
+
+        Returns True if valid, raises ValueError if not.
+        """
+        if expected_attempts < n_converters:
+            raise ValueError(
+                f"Expected attempts ({expected_attempts:.1f}) cannot be less than number of converters ({n_converters})"
+            )
+
+        if n_sinks == 0 and expected_attempts > n_converters * (n_converters + 1):
+            # Without sinks, worst case is trying all converters for each position
+            raise ValueError(
+                f"Expected attempts ({expected_attempts:.1f}) unreasonably high "
+                f"for {n_converters} converters with no sinks"
+            )
+
+        return True
+
     def solve_realistic(
         self,
         agent_pos: Tuple[int, int],
         converter_positions: List[Tuple[int, int]],
         use_tank_movement: bool = True,
         num_sinks: int = 0,
+        memory_failure_rate: float = 0.0,
     ) -> Dict:
         """
         Calculate expected cost with discovery process using clean probability theory.
@@ -191,13 +212,14 @@ class InContextOptimalSolver:
         Models a learning agent that:
         - Must discover the conversion sequence through trial and error
         - Experiences chain restarts when hitting sinks
-        - Uses expected value calculations without arbitrary heuristics
+        - May forget learned information with some probability
 
         Args:
             agent_pos: Starting position of the agent
             converter_positions: List of converter positions
             use_tank_movement: If True, use tank movement; else use cardinal
             num_sinks: Number of sinks in the environment
+            memory_failure_rate: Probability [0,1] of forgetting and acting randomly
 
         Returns:
             Dict with movement_cost, action_cost, failed_attempts,
@@ -214,35 +236,65 @@ class InContextOptimalSolver:
         total_objects = n + num_sinks
 
         # Calculate expected attempts to complete the chain
-        if num_sinks == 0:
-            # Without sinks: finding n specific converters in sequence
+        if num_sinks == 0 and memory_failure_rate == 0:
+            # Without sinks or memory issues: finding n specific converters in sequence
             # Expected attempts = n + (n-1) + ... + 1 = n(n+1)/2
             expected_attempts = n * (n + 1) / 2
         else:
-            # With sinks: at each step we need ONE SPECIFIC converter
-            # among the remaining objects (converters + sinks - already found)
-            expected_attempts = 0.0
-            for k in range(n):
-                remaining_objects = total_objects - k
-                # Only ONE specific converter works at each step (not remaining_converters!)
-                expected_attempts += remaining_objects
+            # Simple model: at each step, agent either acts optimally or randomly
+            # P(optimal) = 1 - memory_failure_rate
+            # P(random) = memory_failure_rate
 
-        # Calculate expected sink discoveries (learning agent avoids after first hit)
+            if memory_failure_rate == 0:
+                # No memory failures, just account for sinks
+                expected_attempts = 0.0
+                for k in range(n):
+                    remaining_objects = total_objects - k
+                    expected_attempts += remaining_objects
+            else:
+                # Mix of optimal and random behavior
+                # When acting randomly, expected attempts much higher
+                optimal_attempts = 0.0
+                random_attempts = 0.0
+
+                for k in range(n):
+                    if num_sinks == 0:
+                        optimal_step = n - k
+                        random_step = n - k  # Still need to find from remaining
+                    else:
+                        optimal_step = total_objects - k
+                        # Random doesn't learn, so always searches full space
+                        random_step = total_objects
+
+                    optimal_attempts += optimal_step
+                    random_attempts += random_step
+
+                # Weighted average based on memory failure rate
+                expected_attempts = (1 - memory_failure_rate) * optimal_attempts + memory_failure_rate * random_attempts
+
+        # Calculate expected sink discoveries
         expected_sink_hits = 0.0
         if num_sinks > 0:
-            sinks_remaining = float(num_sinks)
+            # Simple model for sink hits
+            discovered_sinks = 0.0
 
             for k in range(n):
-                objects_remaining = total_objects - k - expected_sink_hits
+                known_objects = k + discovered_sinks
+                unknown_objects = total_objects - known_objects
+                unknown_sinks = num_sinks - discovered_sinks
 
-                if objects_remaining > 1 and sinks_remaining > 0:
-                    # Probability of hitting a sink before finding the specific converter
-                    p_sink_per_trial = sinks_remaining / objects_remaining
-                    # Expected attempts for this converter = objects_remaining
-                    # But only (objects_remaining - 1) are "wrong" attempts
-                    expected_hits_this_step = p_sink_per_trial * (objects_remaining - 1)
-                    expected_sink_hits += min(expected_hits_this_step, sinks_remaining)
-                    sinks_remaining -= expected_hits_this_step
+                if unknown_objects > 1 and unknown_sinks > 0:
+                    p_sink_per_trial = unknown_sinks / unknown_objects
+                    expected_new_sinks = p_sink_per_trial * (unknown_objects - 1)
+                    expected_new_sinks = min(expected_new_sinks, unknown_sinks)
+
+                    if memory_failure_rate > 0:
+                        # With memory failures, might re-hit sinks
+                        # Simple model: increase sink hits proportionally
+                        expected_new_sinks *= 1 + memory_failure_rate
+
+                    expected_sink_hits += expected_new_sinks
+                    discovered_sinks += min(expected_new_sinks, unknown_sinks)
 
         # Movement costs
         movement_cost = avg_from_agent  # Initial movement
@@ -264,6 +316,13 @@ class InContextOptimalSolver:
         )
 
         total_cost = movement_cost + action_cost
+
+        # Validate the calculations make sense
+        try:
+            self.validate_calculations(n, num_sinks, expected_attempts)
+        except ValueError as e:
+            # Log warning but don't fail - might be edge case
+            print(f"Warning: {e}")
 
         return {
             "movement_cost": movement_cost,
@@ -354,6 +413,7 @@ class InContextOptimalSolver:
         use_tank_movement: bool = True,
         spawn_positions: Optional[List[Tuple[int, int]]] = None,
         num_sinks: int = 0,
+        memory_failure_rate: float = 0.0,
     ) -> Dict:
         """
         Calculate expected values over different agent spawn positions.
@@ -377,7 +437,9 @@ class InContextOptimalSolver:
 
         for agent_pos in spawn_positions:
             optimal = self.solve_optimal(agent_pos, converter_positions, use_tank_movement)
-            realistic = self.solve_realistic(agent_pos, converter_positions, use_tank_movement, num_sinks)
+            realistic = self.solve_realistic(
+                agent_pos, converter_positions, use_tank_movement, num_sinks, memory_failure_rate
+            )
 
             optimal_results.append(optimal["total_cost"])
             realistic_results.append(realistic["total_cost"])
@@ -565,6 +627,7 @@ def analyze_configuration(
     num_sinks: int = 0,
     grid_size: int = 6,
     num_samples: int = 100,
+    memory_failure_rate: float = 0.0,
 ) -> Dict:
     """
     Analyze a configuration with given converters and sinks.
@@ -598,7 +661,10 @@ def analyze_configuration(
         # Calculate for both movement types
         for use_tank, key in [(True, "tank"), (False, "cardinal")]:
             result = solver.calculate_expected_over_spawns(
-                converter_positions, use_tank_movement=use_tank, num_sinks=num_sinks
+                converter_positions,
+                use_tank_movement=use_tank,
+                num_sinks=num_sinks,
+                memory_failure_rate=memory_failure_rate,
             )
             all_results[key].append(result)
 
@@ -624,6 +690,7 @@ def print_analysis(
     steps_available: Optional[int] = None,
     samples: int = 100,
     reward_per_completion: float = 1.0,
+    memory_failure_rate: float = 0.0,
 ):
     """
     Print a formatted analysis for a given configuration.
@@ -635,9 +702,13 @@ def print_analysis(
     """
     print(f"\n{'=' * 60}")
     print(f"Configuration: {num_converters} converters, {num_sinks} sinks on {grid_size}x{grid_size} grid")
+    if memory_failure_rate > 0:
+        print(f"Memory failure rate: {memory_failure_rate:.1%}")
     print(f"{'=' * 60}")
 
-    results = analyze_configuration(num_converters, num_sinks, grid_size, num_samples=samples)
+    results = analyze_configuration(
+        num_converters, num_sinks, grid_size, num_samples=samples, memory_failure_rate=memory_failure_rate
+    )
 
     for movement_type in ["tank", "cardinal"]:
         r = results[movement_type]
@@ -822,6 +893,8 @@ def main():
 
     parser.add_argument("--demo", action="store_true", help="Run demonstration with default configurations")
 
+    parser.add_argument("--memory-failure", type=float, default=0.0, help="Memory failure rate [0-1] (default: 0)")
+
     parser.add_argument(
         "--steps",
         type=int,
@@ -870,7 +943,9 @@ def main():
         config_key = f"{n_conv}_converters_{n_sinks}_sinks"
 
         try:
-            result = analyze_configuration(n_conv, n_sinks, args.grid_size, args.samples)
+            result = analyze_configuration(
+                n_conv, n_sinks, args.grid_size, args.samples, memory_failure_rate=args.memory_failure
+            )
             results[config_key] = result
 
             if not args.json:
@@ -880,6 +955,7 @@ def main():
                     args.grid_size,
                     steps_available=args.steps,
                     samples=args.samples,
+                    memory_failure_rate=args.memory_failure,
                 )
 
                 if args.compare_movement:
