@@ -66,12 +66,20 @@ __all__ = [
 
 def tasks(env_config: EnvConfig) -> BucketedTaskGeneratorConfig:
     """Create a BucketedTaskGeneratorConfig from an EnvConfig."""
-    return BucketedTaskGeneratorConfig.from_env_config(env_config)
+    return BucketedTaskGeneratorConfig.from_env_config(env_config.model_copy(deep=True))
 
 
-def curriculum(task_generator_config: TaskGeneratorConfigUnion, num_tasks: Optional[int] = None) -> CurriculumConfig:
+def curriculum(task_generator: TaskGeneratorConfigUnion, num_tasks: Optional[int] = None) -> CurriculumConfig:
     """Create a random curriculum configuration."""
-    cc = CurriculumConfig(task_generator_config=task_generator_config)
+    cc = CurriculumConfig(task_generator=task_generator)
+    if num_tasks is not None:
+        cc.num_active_tasks = num_tasks
+    return cc
+
+
+def env_curriculum(env_config: EnvConfig, num_tasks: Optional[int] = None) -> CurriculumConfig:
+    """Create a curriculum configuration from an EnvConfig."""
+    cc = CurriculumConfig(task_generator=SingleTaskGeneratorConfig(env=env_config))
     if num_tasks is not None:
         cc.num_active_tasks = num_tasks
     return cc

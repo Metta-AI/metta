@@ -1,7 +1,6 @@
-from metta.common.util.config import Config
-from metta.map.scene import Scene
+from metta.common.config import Config
+from metta.map.scene import ChildrenAction, Scene
 from metta.map.scenes.inline_ascii import InlineAscii
-from metta.map.types import ChildrenAction
 from metta.map.utils.ascii_grid import char_grid_to_lines
 
 
@@ -18,7 +17,7 @@ class Ascii(Scene[AsciiParams]):
         # Delegate rendering to the inline ascii scene.
         return [
             ChildrenAction(
-                scene=InlineAscii.factory({"data": self.ascii_data}),
+                scene=InlineAscii.factory(InlineAscii.Params(data=self.ascii_data)),
                 where="full",
             ),
             *self.children_actions,

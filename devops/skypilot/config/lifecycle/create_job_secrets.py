@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import subprocess
 
 
 def main():
@@ -13,7 +14,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--wandb-password", type=str, required=True)
     parser.add_argument("--observatory-token", type=str)
+    parser.add_argument("--profile", type=str)
     args = parser.parse_args()
+
+    if args.profile:
+        subprocess.run(["uv", "run", "metta", "configure", "--profile", args.profile])
 
     if args.wandb_password:
         if os.path.exists(os.path.expanduser("~/.netrc")):
@@ -22,7 +27,6 @@ def main():
             with open(os.path.expanduser("~/.netrc"), "w") as f:
                 f.write(f"machine api.wandb.ai\n  login user\n  password {args.wandb_password}\n")
             os.chmod(os.path.expanduser("~/.netrc"), 0o600)  # Restrict to owner read/write only
-            print("~/.netrc created")
 
     if args.observatory_token:
         if os.path.exists(os.path.expanduser("~/.metta/observatory_tokens.yaml")):

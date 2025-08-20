@@ -54,8 +54,9 @@ class LearningProgressCurriculumTask(CurriculumTask):
         self._outcomes.append(clipped_score)
 
         # Respect memory limit
-        if len(self._outcomes) > self._config.memory:
-            self._outcomes = self._outcomes[-self._config.memory :]
+        memory_limit = self._config.memory
+        if len(self._outcomes) > memory_limit:
+            self._outcomes = self._outcomes[-memory_limit:]
 
         # Update learning progress trackers
         self._update_learning_progress()
@@ -67,15 +68,17 @@ class LearningProgressCurriculumTask(CurriculumTask):
 
         success_rate = float(np.mean(self._outcomes))
 
+        # Initialize on first completion
         if not self._initialized:
             self._p_fast = success_rate
             self._p_slow = success_rate
             self._initialized = True
-        else:
-            # Update EMA trackers
-            ema_timescale = self._config.ema_timescale
-            self._p_fast = float(success_rate * ema_timescale + self._p_fast * (1.0 - ema_timescale))
-            self._p_slow = float(self._p_fast * ema_timescale + self._p_slow * (1.0 - ema_timescale))
+            return
+
+        # Update EMA trackers
+        ema_timescale = self._config.ema_timescale
+        self._p_fast = float(success_rate * ema_timescale + self._p_fast * (1.0 - ema_timescale))
+        self._p_slow = float(self._p_fast * ema_timescale + self._p_slow * (1.0 - ema_timescale))
 
     def get_learning_progress(self) -> float:
         """Calculate and return current learning progress for this task."""
