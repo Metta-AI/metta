@@ -95,7 +95,7 @@ echo "  - ACCUMULATED_RUNTIME: ${ACCUMULATED_RUNTIME:-'NOT SET'}"
 echo "  - RESTART_COUNT: ${RESTART_COUNT}"
 echo "  - TEST_JOB_RESTART: ${TEST_JOB_RESTART:-false}" # used in timeout_monitor
 [[ ${force_restart_seconds} -gt 0 ]] && echo "     ↳ job restart test delay: ${force_restart_seconds}"
-echo " - TEST_NCCL: ${TEST_NCCL:-false}"
+echo "  - TEST_NCCL: ${TEST_NCCL:-false}"
 [[ "${TEST_NCCL:-false}" == "true" ]] && [[ "${RESTART_COUNT:-0}" -eq 0 ]] && echo " ↳ will run"
 [[ "${TEST_NCCL:-false}" == "true" ]] && [[ "${RESTART_COUNT:-0}" -gt 0 ]] && echo " ↳ skipping on restart #${RESTART_COUNT}"
 echo "  - JOB_METADATA_DIR: $JOB_METADATA_DIR"

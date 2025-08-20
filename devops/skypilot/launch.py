@@ -119,7 +119,7 @@ def main():
         "-hb",
         "--heartbeat-timeout-seconds",
         type=int,
-        default=300,
+        default=99999,  # Disabled - #TODO(robb) #dehydration
         help="Automatically terminate the job if no heartbeat signal is received for this many seconds",
     )
     parser.add_argument(
