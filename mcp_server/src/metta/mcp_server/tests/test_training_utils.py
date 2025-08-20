@@ -60,7 +60,7 @@ class TestEnhancedReplayAnalysis:
             assert "building_efficiency_analysis" in stats_analysis
             assert "strategic_phase_analysis" in stats_analysis
 
-            # Verify WandB training context
+            # Verify Wandb training context
             wandb_context = result["wandb_training_context"]
             assert "training_progression_analysis" in wandb_context
             assert "context_metadata" in wandb_context
@@ -115,10 +115,10 @@ class TestEnhancedReplayAnalysis:
             Path(replay_path).unlink()
 
     def test_wandb_integration_failure_raises_error(self, temp_replay_file, sample_episode_stats):
-        """Test that WandB integration failure raises error (no graceful degradation)"""
+        """Test that Wandb integration failure raises error (no graceful degradation)"""
         # Create failing MCP client
         failing_client = Mock()
-        failing_client.side_effect = Exception("WandB API unavailable")
+        failing_client.side_effect = Exception("Wandb API unavailable")
 
         # Create complete replay file
         replay_data = {"version": "1.0", "max_steps": 1000, "episode_stats": sample_episode_stats, "objects": []}
@@ -423,7 +423,7 @@ class TestBackwardCompatibility:
             # Test with minimal parameters (backward compatible)
             # Should work but may have limited insights
             analyze_replay_with_enhanced_stats(replay_path, None, None)
-            # Should fail hard since we require WandB data (no graceful degradation)
+            # Should fail hard since we require Wandb data (no graceful degradation)
             # This is expected behavior per requirements
 
         except ValueError:

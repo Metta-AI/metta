@@ -14,7 +14,7 @@ from typing import Any, Dict
 import pytest
 
 from metta.mcp_server.stats_analysis import AgentStats, BuildingStats
-from metta.mcp_server.wandb_integration import LearningProgression, WandBTrainingContext
+from metta.mcp_server.wandb_integration import LearningProgression, WandbTrainingContext
 
 # Set test API key for modules that require it during import
 os.environ["ANTHROPIC_API_KEY"] = "test"
@@ -250,8 +250,8 @@ def sample_building_stats() -> list[BuildingStats]:
 
 
 @pytest.fixture
-def sample_wandb_context() -> WandBTrainingContext:
-    """Create sample WandB training context for testing"""
+def sample_wandb_context() -> WandbTrainingContext:
+    """Create sample Wandb training context for testing"""
     reward_progression = LearningProgression(
         metric_name="env_agent/reward",
         trend="improving",
@@ -261,7 +261,7 @@ def sample_wandb_context() -> WandBTrainingContext:
         progression_rate=0.12,
     )
 
-    return WandBTrainingContext(
+    return WandbTrainingContext(
         run_name="test_run_123",
         run_url="https://wandb.ai/test/project/runs/test_run_123",
         replay_timestamp_step=8000,
@@ -323,7 +323,7 @@ def temp_replay_file(sample_replay_data) -> Path:
 
 @pytest.fixture
 def mock_mcp_client():
-    """Create mock MCP client for testing WandB integration"""
+    """Create mock MCP client for testing Wandb integration"""
 
     class MockMCPClient:
         def __init__(self):
@@ -371,9 +371,9 @@ def assert_required_stats_present(stats_data: dict, required_fields: list[str]):
         assert stats_data[field] is not None, f"Required field '{field}' is None"
 
 
-def assert_wandb_data_complete(wandb_context: WandBTrainingContext):
-    """Assert that WandB context contains all required data"""
-    assert wandb_context.run_name, "WandB run name is required"
+def assert_wandb_data_complete(wandb_context: WandbTrainingContext):
+    """Assert that Wandb context contains all required data"""
+    assert wandb_context.run_name, "Wandb run name is required"
     assert wandb_context.replay_timestamp_step > 0, "Replay timestamp step must be positive"
     assert wandb_context.reward_progression is not None, "Reward progression is required"
     assert wandb_context.training_stage in ["early", "mid", "late"], (

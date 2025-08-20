@@ -1,5 +1,5 @@
 """
-WandB Training Context Integration Module
+Wandb Training Context Integration Module
 
 This module provides integration with Weights & Biases to collect training context
 around replay timestamps, including:
@@ -38,8 +38,8 @@ class LearningProgression:
 
 
 @dataclass
-class WandBTrainingContext:
-    """Complete training context analysis from WandB data"""
+class WandbTrainingContext:
+    """Complete training context analysis from Wandb data"""
 
     run_name: str
     run_url: Optional[str]
@@ -63,15 +63,15 @@ class WandBTrainingContext:
     critical_learning_moments: List[Dict[str, Any]]
 
 
-class WandBMetricsCollector:
-    """Collects and analyzes WandB training metrics around replay timestamps"""
+class WandbMetricsCollector:
+    """Collects and analyzes Wandb training metrics around replay timestamps"""
 
     def __init__(self, mcp_client):
         """
-        Initialize with MCP client for WandB API access
+        Initialize with MCP client for Wandb API access
 
         Args:
-            mcp_client: MCP client instance with WandB function access
+            mcp_client: MCP client instance with Wandb function access
         """
         self.mcp_client = mcp_client
         self.priority_metrics = [
@@ -96,12 +96,12 @@ class WandBMetricsCollector:
 
     def collect_training_context(
         self, run_name: str, replay_timestamp_step: int, context_window: int = 1000
-    ) -> WandBTrainingContext:
+    ) -> WandbTrainingContext:
         """
         Collect training context around replay timestamp
 
         Args:
-            run_name: WandB run name to analyze
+            run_name: Wandb run name to analyze
             replay_timestamp_step: Step number when replay was captured
             context_window: Steps before/after timestamp to analyze (default: ±1000)
 
@@ -109,14 +109,14 @@ class WandBMetricsCollector:
             Complete training context analysis
 
         Raises:
-            ValueError: If WandB data is unavailable or insufficient
+            ValueError: If Wandb data is unavailable or insufficient
         """
         # Get run data and URL
         run_data = self._get_wandb_run_data(run_name)
         run_url = self._get_wandb_run_url(run_name)
 
         if not run_data:
-            raise ValueError(f"WandB run data unavailable for run: {run_name}")
+            raise ValueError(f"Wandb run data unavailable for run: {run_name}")
 
         # Extract metrics samples around timestamp
         metrics_samples = self._extract_metrics_samples(run_data, replay_timestamp_step, context_window)
@@ -128,7 +128,7 @@ class WandBMetricsCollector:
         learning_progressions = self._analyze_learning_progressions(metrics_samples)
 
         # Build training context
-        context = WandBTrainingContext(
+        context = WandbTrainingContext(
             run_name=run_name,
             run_url=run_url,
             replay_timestamp_step=replay_timestamp_step,
@@ -148,18 +148,18 @@ class WandBMetricsCollector:
         return context
 
     def _get_wandb_run_data(self, run_name: str) -> Optional[Dict[str, Any]]:
-        """Get WandB run data using MCP client"""
+        """Get Wandb run data using MCP client"""
         try:
-            # Use existing MCP WandB function
+            # Use existing MCP Wandb function
             result = self.mcp_client("mcp__metta__get_wandb_run", {"run_name": run_name})
             return result if isinstance(result, dict) else None
         except Exception:
             return None
 
     def _get_wandb_run_url(self, run_name: str) -> Optional[str]:
-        """Get WandB run URL using MCP client"""
+        """Get Wandb run URL using MCP client"""
         try:
-            # Use existing MCP WandB function
+            # Use existing MCP Wandb function
             result = self.mcp_client("mcp__metta__get_wandb_run_url", {"run_name": run_name})
             return result if isinstance(result, str) else None
         except Exception:
@@ -171,11 +171,11 @@ class WandBMetricsCollector:
         """Extract training metrics samples around center step"""
         samples = []
 
-        # In a real implementation, this would parse the WandB run data structure
+        # In a real implementation, this would parse the Wandb run data structure
         # and extract metric values at different training steps
         # For now, we'll create a placeholder structure
 
-        # Simulate extracting samples from WandB history
+        # Simulate extracting samples from Wandb history
         start_step = max(0, center_step - window)
         end_step = center_step + window
 
@@ -196,7 +196,7 @@ class WandBMetricsCollector:
 
     def _simulate_metrics_at_step(self, run_data: Dict[str, Any], step: int, center_step: int) -> Dict[str, float]:
         """Simulate extracting metrics at a specific step (placeholder)"""
-        # In real implementation, this would extract actual metric values from WandB data
+        # In real implementation, this would extract actual metric values from Wandb data
         # For now, simulate realistic training progression patterns
 
         progress = step / max(center_step, 1000)  # Normalize progress
@@ -550,13 +550,13 @@ class TrainingProgressionAnalyzer:
     """Analyzes training progression and correlates with replay behaviors"""
 
     def analyze_training_progression(
-        self, wandb_context: WandBTrainingContext, replay_behaviors: Dict[str, Any]
+        self, wandb_context: WandbTrainingContext, replay_behaviors: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         Analyze training progression and correlate with replay behaviors
 
         Args:
-            wandb_context: Training context from WandB
+            wandb_context: Training context from Wandb
             replay_behaviors: Behavioral analysis from replay
 
         Returns:
@@ -566,7 +566,7 @@ class TrainingProgressionAnalyzer:
             ValueError: If insufficient data for progression analysis
         """
         if not wandb_context:
-            raise ValueError("No WandB training context provided")
+            raise ValueError("No Wandb training context provided")
 
         analysis = {
             "progression_summary": self._summarize_progression(wandb_context),
@@ -578,7 +578,7 @@ class TrainingProgressionAnalyzer:
 
         return analysis
 
-    def _summarize_progression(self, context: WandBTrainingContext) -> Dict[str, Any]:
+    def _summarize_progression(self, context: WandbTrainingContext) -> Dict[str, Any]:
         """Summarize key training progression insights"""
         summary = {
             "training_stage": context.training_stage,
@@ -614,7 +614,7 @@ class TrainingProgressionAnalyzer:
 
         return summary
 
-    def _determine_overall_trend(self, context: WandBTrainingContext) -> str:
+    def _determine_overall_trend(self, context: WandbTrainingContext) -> str:
         """Determine overall learning trend across all metrics"""
         improving_count = 0
         declining_count = 0
@@ -653,7 +653,7 @@ class TrainingProgressionAnalyzer:
         else:
             return "stable"
 
-    def _generate_learning_insights(self, context: WandBTrainingContext) -> List[str]:
+    def _generate_learning_insights(self, context: WandbTrainingContext) -> List[str]:
         """Generate insights about learning patterns"""
         insights = []
 
@@ -682,7 +682,7 @@ class TrainingProgressionAnalyzer:
         return insights
 
     def _correlate_with_replay_behaviors(
-        self, context: WandBTrainingContext, replay_behaviors: Dict[str, Any]
+        self, context: WandbTrainingContext, replay_behaviors: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Correlate training metrics with replay behaviors"""
         correlations = {
@@ -698,7 +698,7 @@ class TrainingProgressionAnalyzer:
 
         return correlations
 
-    def _generate_training_recommendations(self, context: WandBTrainingContext) -> List[str]:
+    def _generate_training_recommendations(self, context: WandbTrainingContext) -> List[str]:
         """Generate training recommendations based on progression analysis"""
         recommendations = []
 
@@ -718,7 +718,7 @@ class TrainingProgressionAnalyzer:
 
         return recommendations
 
-    def _analyze_performance_context(self, context: WandBTrainingContext) -> Dict[str, Any]:
+    def _analyze_performance_context(self, context: WandbTrainingContext) -> Dict[str, Any]:
         """Analyze performance in context of training progression"""
         performance_context = {
             "expected_performance_level": "unknown",

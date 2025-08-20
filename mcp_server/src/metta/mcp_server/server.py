@@ -11,8 +11,7 @@ import boto3
 
 # from mcp.server import FastMCP
 from fastmcp import Context, FastMCP
-from omegaconf import DictConfig, ListConfig, OmegaConf
-from pydantic import BaseModel, Field
+from pydantic import Field
 from pydantic.types import Json
 from wandb.apis.public.api import Api as WandbApi
 
@@ -40,8 +39,7 @@ from metta.app_backend.routes.leaderboard_routes import (
     LeaderboardResponse,
 )
 from metta.app_backend.routes.score_routes import PolicyScoresData
-from metta.app_backend.routes.scorecard_routes import PoliciesResponse
-from metta.app_backend.routes.scorecard_routes import ScorecardData as BackendScorecardData
+from metta.app_backend.routes.scorecard_routes import PoliciesResponse, ScorecardData
 from metta.app_backend.routes.sql_routes import (
     AIQueryResponse,
     TableInfo,
@@ -71,17 +69,11 @@ from metta.app_backend.routes.token_routes import (
 from metta.app_backend.routes.token_routes import (
     TokenResponse,
 )
-from metta.mcp_server.config_utils import (
-    get_available_config_types,
-    list_configs_for_type,
-)
-from metta.mcp_server.config_utils import (
-    get_config_schema as get_config_schema_func,
-)
-from metta.mcp_server.config_utils import (
-    validate_config as validate_config_func,
-)
 from metta.mcp_server.training_utils import (
+    ReplaySummaryError,
+    ReplaySummarySuccess,
+    TrainingStatus,
+    TrainingUtilsError,
     generate_replay_summary_with_llm,
     list_training_runs,
 )
@@ -90,6 +82,27 @@ from metta.mcp_server.training_utils import (
 )
 from metta.mcp_server.training_utils import (
     get_training_status as get_training_status_func,
+)
+
+# Import models from organized modules
+from .base_models import (
+    UserInfo,
+)
+from .cloud_models import (
+    S3ObjectList,
+    S3ObjectMetadata,
+    S3PrefixList,
+    SkypilotStatus,
+    WandbError,
+    WandbRun,
+    WandbRunList,
+)
+from .ml_models import (
+    CheckpointInfo,
+    CheckpointInfoError,
+    LocalTrainingRunList,
+    PolicyIdMapping,
+    ScorecardDataWithMetadata,
 )
 
 backend_url = os.environ.get("METTA_MCP_BACKEND_URL", "http://localhost:8000")
@@ -116,351 +129,16 @@ except Exception:
 mcp = FastMCP("metta")
 
 
-# Pydantic models for type safety
-class ReplaySummarySuccess(BaseModel):
-    """Successful replay summary response."""
-
-    replay_path: str = Field(description="Path to the replay file that was analyzed")
-    file_size: int = Field(description="Size of the replay file in bytes")
-    summary: str = Field(description="AI-generated summary of the replay analysis")
-    llm_used: bool = Field(description="Whether LLM was successfully used for summary generation")
-
-
-class ReplaySummaryError(BaseModel):
-    """Error response for replay summary."""
-
-    error: str = Field(description="Error message describing what went wrong")
-    path: str = Field(description="Path to the replay file that failed to analyze")
-
-
-ReplaySummaryResponse = ReplaySummarySuccess | ReplaySummaryError
-
-
-# Common response models for MCP tools
-class GenericSuccess(BaseModel):
-    """Generic successful response."""
-
-    success: bool = Field(default=True, description="Operation completed successfully")
-    data: dict[str, str | int | float | bool] = Field(description="Response data")
-
-
-class GenericError(BaseModel):
-    """Generic error response."""
-
-    success: bool = Field(default=False, description="Operation failed")
-    error: str = Field(description="Error message describing what went wrong")
-
-
-class SearchResult(BaseModel):
-    """Search result with pagination."""
-
-    results: list[dict[str, str | int | float | bool | None]] = Field(description="List of search results")
-    total: int = Field(description="Total number of results available")
-    limit: int = Field(description="Number of results per page")
-    offset: int = Field(description="Offset into the result set")
-
-
-class TrainingRunList(BaseModel):
-    """List of training runs."""
-
-    training_runs: list[dict[str, str | int | float | bool | None]] = Field(description="List of training run objects")
-    total_count: int = Field(description="Total number of training runs")
-
-
-class TableMetadata(BaseModel):
-    """Database table metadata."""
-
-    name: str = Field(description="Table name")
-    column_count: int = Field(description="Number of columns in the table")
-    row_count: int = Field(description="Number of rows in the table")
-
-
-class TableList(BaseModel):
-    """List of database tables."""
-
-    tables: list[TableMetadata] = Field(description="List of table metadata objects")
-
-
-class SQLQueryResult(BaseModel):
-    """SQL query execution result."""
-
-    rows: list[dict[str, str | int | float | bool | None]] = Field(description="Query result rows")
-    columns: list[str] = Field(description="Column names in the result")
-    row_count: int = Field(description="Number of rows returned")
-    execution_time_ms: float = Field(default=0.0, description="Query execution time in milliseconds")
-
-
-class ConfigList(BaseModel):
-    """List of configuration options."""
-
-    configs: list[str] = Field(description="List of available configuration names")
-    config_type: str = Field(description="Type of configurations listed")
-
-
-class CheckpointInfo(BaseModel):
-    """Training checkpoint information."""
-
-    checkpoint_path: str = Field(description="Path to the checkpoint file")
-    file_size: int = Field(description="Size of checkpoint file in bytes")
-    modified_time: str = Field(description="ISO timestamp when checkpoint was last modified")
-    model_metadata: dict[str, str | int | float | bool | None] = Field(description="Model configuration and metadata")
-
-
-class TrainingStatus(BaseModel):
-    """Training run status information."""
-
-    run_name: str = Field(description="Name of the training run")
-    status: str = Field(description="Current status (running, completed, failed, etc.)")
-    progress: dict[str, str | int | float | bool | None] = Field(description="Training progress metrics")
-    logs: list[str] = Field(description="Recent log entries")
-    checkpoints: list[str] = Field(description="Available checkpoint files")
-
-
-class EvalNamesResult(BaseModel):
-    """Result of eval names lookup."""
-
-    eval_names_mapping: dict[str, list[str]] = Field(
-        description="Mapping of run/policy IDs to their associated eval names"
-    )
-
-
-class SQLQueryError(BaseModel):
-    """SQL query execution error."""
-
-    error: str = Field(description="Error message describing why the query failed")
-    sql_statement: str = Field(description="The SQL statement that caused the error")
-
-
-class AIQueryResult(BaseModel):
-    """AI-generated SQL query result."""
-
-    generated_query: str = Field(description="AI-generated SQL query")
-    explanation: str = Field(description="Explanation of what the query does")
-    confidence: float = Field(description="AI confidence in the generated query (0.0-1.0)")
-
-
-class MetricsList(BaseModel):
-    """List of available metrics."""
-
-    metrics: list[str] = Field(description="List of metric names available for the specified training runs")
-    training_run_count: int = Field(description="Number of training runs included in the analysis")
-    eval_count: int = Field(description="Number of evaluations considered")
-
-
-class ScorecardDataWithMetadata(BaseModel):
-    """Scorecard data for training runs and policies with metadata."""
-
-    primary_metric: str = Field(description="Primary metric used for scoring")
-    valid_metrics: list[str] = Field(description="List of all valid metrics available")
-    scorecard_data: BackendScorecardData = Field(description="Backend scorecard data structure")
-
-
-class TrainingRunDetail(BaseModel):
-    """Detailed training run information."""
-
-    id: str = Field(description="Training run identifier")
-    name: str = Field(description="Training run name")
-    description: str | None = Field(description="Training run description")
-    tags: list[str] = Field(description="List of tags associated with the run")
-    url: str | None = Field(description="URL to the training run")
-    created_at: str = Field(description="ISO timestamp when run was created")
-    attributes: dict[str, str | int | float | bool | None] = Field(description="Additional run attributes")
-
-
-class PolicyIdMapping(BaseModel):
-    """Policy name to ID mapping."""
-
-    policy_mapping: dict[str, str] = Field(description="Dictionary mapping policy names to their IDs")
-
-
-class WandBRunList(BaseModel):
-    """List of Weights & Biases runs."""
-
-    runs: list[dict[str, str | int | float | bool | None]] = Field(description="List of W&B run objects")
-    project: str = Field(description="W&B project name")
-    entity: str = Field(description="W&B entity/organization name")
-
-
-class TaskList(BaseModel):
-    """List of tasks."""
-
-    tasks: list[dict[str, str | int | float | bool | None]] = Field(description="List of task objects")
-    total_count: int = Field(description="Total number of tasks")
-
-
-class LeaderboardList(BaseModel):
-    """List of leaderboards."""
-
-    leaderboards: list[dict[str, str | int | float | bool | None]] = Field(description="List of leaderboard objects")
-
-
-class Leaderboard(BaseModel):
-    """Single leaderboard object."""
-
-    id: str = Field(description="Leaderboard identifier")
-    name: str = Field(description="Leaderboard name")
-    evals: list[str] = Field(description="List of evaluation names included")
-    metric: str = Field(description="Primary metric for ranking")
-    start_date: str = Field(description="ISO date when leaderboard period starts")
-    created_at: str = Field(description="ISO timestamp when leaderboard was created")
-
-
-class WandBRun(BaseModel):
-    """Single Weights & Biases run object."""
-
-    id: str = Field(description="W&B run ID")
-    name: str = Field(description="W&B run name")
-    state: str = Field(description="Run state (running, finished, failed, etc.)")
-    url: str = Field(description="URL to the W&B run page")
-
-
-class S3ObjectList(BaseModel):
-    """List of S3 objects."""
-
-    objects: list[str] = Field(description="List of S3 object keys")
-    bucket: str = Field(description="S3 bucket name")
-    prefix: str | None = Field(description="Prefix used to filter objects")
-
-
-class S3PrefixList(BaseModel):
-    """List of S3 prefixes (directories)."""
-
-    prefixes: list[str] = Field(description="List of S3 common prefixes ending with '/'")
-    bucket: str = Field(description="S3 bucket name")
-    parent_prefix: str | None = Field(description="Parent prefix searched under")
-
-
-class S3ObjectMetadata(BaseModel):
-    """S3 object metadata."""
-
-    content_length: int = Field(description="Size of the object in bytes")
-    content_type: str = Field(description="MIME type of the object")
-    etag: str = Field(description="Entity tag of the object")
-    last_modified: str = Field(description="ISO timestamp when object was last modified")
-    storage_class: str | None = Field(description="S3 storage class")
-    metadata: dict[str, str] = Field(description="Custom metadata key-value pairs")
-
-
-class SkypilotStatus(BaseModel):
-    """Skypilot job status information."""
-
-    status_output: str = Field(description="Raw output from 'sky status --verbose' command")
-    success: bool = Field(description="Whether the command executed successfully")
-
-
-class UserInfo(BaseModel):
-    """Current user information."""
-
-    email: str = Field(description="User's email address")
-    authenticated: bool = Field(description="Whether user is properly authenticated")
-
-
-class GenericOperationResult(BaseModel):
-    """Generic operation result."""
-
-    success: bool = Field(description="Whether the operation succeeded")
-    message: str = Field(description="Result message or confirmation")
-    data: dict[str, str | int | float | bool | None] = Field(description="Additional result data")
-
-
-class TokenCreationResult(BaseModel):
-    """Result of token creation."""
-
-    token_id: str = Field(description="Unique identifier for the created token")
-    token_value: str = Field(description="The actual token string (only shown once)")
-    name: str = Field(description="Human-readable name for the token")
-    created_at: str = Field(description="ISO timestamp when token was created")
-
-
-class CliTokenResult(BaseModel):
-    """CLI token creation with redirect."""
-
-    redirect_url: str = Field(description="URL to redirect to with token parameter")
-    token_id: str = Field(description="Unique identifier for the created token")
-
-
-class HydraConfigTypes(BaseModel):
-    """Available Hydra configuration types."""
-
-    config_types: list[str] = Field(description="List of available configuration types")
-    total_types: int = Field(description="Total number of configuration types")
-
-
-class HydraConfigList(BaseModel):
-    """List of configurations for a specific type."""
-
-    config_type: str = Field(description="Configuration type (agent, sim, trainer, etc.)")
-    configs: list[str] = Field(description="List of configuration names")
-    total_configs: int = Field(description="Total number of configurations")
-
-
-class HydraConfigSchema(BaseModel):
-    """Schema information for a configuration type."""
-
-    config_type: str = Field(description="Configuration type analyzed")
-    schema_info: dict[str, str | int | float | bool | list | dict | None] = Field(
-        description="Schema structure with field types and descriptions"
-    )
-
-
-class LocalTrainingRunList(BaseModel):
-    """List of local training runs."""
-
-    training_runs: list[dict[str, str | int | float | bool | None]] = Field(
-        description="List of local training run objects"
-    )
-    total_runs: int = Field(description="Total number of local training runs")
-
-
-class ValidationResult(BaseModel):
-    """Configuration validation result with detailed info."""
-
-    valid: bool = Field(description="Whether the configuration is valid")
-    config_data: dict[str, Any] | list[Any] | None = Field(description="Parsed configuration data if valid")
-    errors: list[str] = Field(description="List of validation errors if invalid")
-    config_path: str = Field(description="Path to the configuration file validated")
-
-
-class TaskCreationResult(BaseModel):
-    """Result of task creation."""
-
-    task_id: str = Field(description="Unique identifier for the created task")
-    policy_id: str = Field(description="Policy ID associated with the task")
-    sim_suite: str = Field(description="Simulation suite for the task")
-    status: str = Field(description="Initial task status")
-    created_at: str = Field(description="ISO timestamp when task was created")
-
-
-class TaskAssignment(BaseModel):
-    """Task assignment information."""
-
-    task_id: str = Field(description="Unique task identifier")
-    assignee: str = Field(description="Worker/assignee identifier")
-    assigned_at: str = Field(description="ISO timestamp when task was assigned")
-    policy_id: str = Field(description="Policy ID for the assigned task")
-    status: str = Field(description="Current task status")
-
-
-class TaskClaimResult(BaseModel):
-    """Result of claiming tasks."""
-
-    claimed_tasks: list[str] = Field(description="List of successfully claimed task IDs")
-    assignee: str = Field(description="Worker who claimed the tasks")
-    total_claimed: int = Field(description="Number of tasks successfully claimed")
-
-
-class WorkerGitInfo(BaseModel):
-    """Git hash information for workers."""
-
-    worker_git_hashes: dict[str, str] = Field(description="Mapping of worker names to their git commit hashes")
-
-
-class TaskUpdateResult(BaseModel):
-    """Result of task status updates."""
-
-    updated_tasks: list[str] = Field(description="List of task IDs that were successfully updated")
-    total_updated: int = Field(description="Number of tasks successfully updated")
-    errors: list[str] = Field(description="List of any errors encountered during updates")
+def _parse_dev_mode(dev_mode_str: str) -> bool:
+    """Convert string dev_mode parameter to boolean.
+
+    Args:
+        dev_mode_str: String representation of dev_mode ("true", "1", "yes" -> True)
+
+    Returns:
+        Boolean value for dev_mode
+    """
+    return dev_mode_str.lower() in ("true", "1", "yes")
 
 
 def _get_backend_url(dev_mode: bool) -> str:
@@ -529,15 +207,25 @@ def _parse_optional_str_or_list(value: str | list[str] | None) -> list[str] | No
     return [p.strip() for p in value.split(",") if p.strip()]
 
 
-@mcp.tool()
+@mcp.resource(
+    "metta://training-runs/{dev_mode}",
+    name="Training Runs",
+    description="Search and list training runs and policies with filtering and pagination",
+    tags={"training", "search", "machine-learning"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+    meta={"version": "1.0", "team": "ml-platform"},
+)
 async def search_training_runs(
+    dev_mode: str = "false",
     search: str | None = None,
     policy_type: str | None = None,
     tags: list[str] | str | None = None,
     user_id: str | None = None,
-    limit: int = 100,
-    offset: int = 0,
-    dev_mode: bool = False,
+    limit: int = Field(default=100, ge=1, le=1000, description="Maximum number of results to return"),
+    offset: int = Field(default=0, ge=0, description="Offset into the result set for pagination"),
 ) -> PoliciesResponse:
     """Search training runs for policies with pagination support.
 
@@ -554,7 +242,7 @@ async def search_training_runs(
         PoliciesResponse: Backend response containing paginated search results
             with matching policy objects, total count, and pagination metadata.
     """
-    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+    async with ScorecardClient(backend_url=_get_backend_url(_parse_dev_mode(dev_mode))) as client:
         return await client.search_policies(
             search=search,
             policy_type=policy_type,
@@ -565,11 +253,20 @@ async def search_training_runs(
         )
 
 
-@mcp.tool()
+@mcp.resource(
+    "metta://evaluations/names/{dev_mode}",
+    name="Evaluation Names",
+    description="Available evaluation names for training runs and policies",
+    tags={"training", "evaluation", "metadata"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+)
 async def get_eval_names_for_training_runs(
+    dev_mode: str = "false",
     training_run_ids: list[str] | str | None = None,
     run_free_policy_ids: list[str] | str | None = None,
-    dev_mode: bool = False,
 ) -> list[str]:
     """Lookup eval names referenced by the given training runs.
 
@@ -585,14 +282,23 @@ async def get_eval_names_for_training_runs(
     training_run_ids_list = _parse_str_or_list(training_run_ids)
     run_free_policy_ids_list = _parse_str_or_list(run_free_policy_ids)
 
-    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+    async with ScorecardClient(backend_url=_get_backend_url(_parse_dev_mode(dev_mode))) as client:
         return await client.get_eval_names(
             training_run_ids=training_run_ids_list,
             run_free_policy_ids=run_free_policy_ids_list,
         )
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Execute SQL Query",
+    description="Execute a SQL query against the scorecard database API",
+    tags={"database", "sql", "query"},
+    annotations={
+        "readOnlyHint": False,  # SQL can modify data
+        "destructiveHint": True,  # Could be destructive
+        "idempotentHint": True,
+    },
+)
 async def run_sql_query(sql: str, dev_mode: bool = False) -> BackendSQLQueryResponse:
     """Execute a SQL query against the scorecard database API.
 
@@ -608,8 +314,17 @@ async def run_sql_query(sql: str, dev_mode: bool = False) -> BackendSQLQueryResp
         return await client.sql_query(sql)
 
 
-@mcp.tool()
-async def list_sql_tables(dev_mode: bool = False) -> list[TableInfo]:
+@mcp.resource(
+    "metta://database/tables/{dev_mode}",
+    name="Database Tables",
+    description="List all available database tables with metadata",
+    tags={"database", "schema", "metadata"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+)
+async def list_sql_tables(dev_mode: str = "false") -> list[TableInfo]:
     """List all available tables in the database (excluding migrations).
 
     Args:
@@ -619,12 +334,21 @@ async def list_sql_tables(dev_mode: bool = False) -> list[TableInfo]:
         list[TableInfo]: Backend response containing list of table metadata objects
             with names, column counts, and row counts.
     """
-    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+    async with ScorecardClient(backend_url=_get_backend_url(_parse_dev_mode(dev_mode))) as client:
         return await client.list_tables()
 
 
-@mcp.tool()
-async def get_sql_table_schema(table_name: str, dev_mode: bool = False) -> BackendTableSchema:
+@mcp.resource(
+    "metta://database/schema/{table_name}/{dev_mode}",
+    name="Table Schema",
+    description="Get detailed schema information for a specific database table",
+    tags={"database", "schema", "metadata"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,  # Table schema is stable
+    },
+)
+async def get_sql_table_schema(table_name: str, dev_mode: str = "false") -> BackendTableSchema:
     """Get the schema for a specific table.
 
     Args:
@@ -635,11 +359,19 @@ async def get_sql_table_schema(table_name: str, dev_mode: bool = False) -> Backe
         BackendTableSchema: Backend response containing table schema information
             with table name, column definitions with types and constraints, and table-level constraints.
     """
-    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+    async with ScorecardClient(backend_url=_get_backend_url(_parse_dev_mode(dev_mode))) as client:
         return await client.get_table_schema(table_name)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="AI SQL Query Generator",
+    description="Generate SQL queries using artificial intelligence based on natural language descriptions",
+    tags={"database", "sql", "ai", "generation"},
+    annotations={
+        "readOnlyHint": True,  # Just generates
+        "idempotentHint": True,  # Generate as many as you like
+    },
+)
 async def artificial_intelligence_sql_query_generation(sql: str, dev_mode: bool = False) -> AIQueryResponse:
     """Generate an SQL query using artificial intelligence according to the
     schema of the database. Very useful for when you get errors or don't know
@@ -657,12 +389,21 @@ async def artificial_intelligence_sql_query_generation(sql: str, dev_mode: bool 
         return await client.generate_ai_query(sql)
 
 
-@mcp.tool()
+@mcp.resource(
+    "metta://metrics/available/{dev_mode}",
+    name="Available Training Metrics",
+    description="Enumerate metrics available for specified training runs, policies, and evaluations",
+    tags={"training", "metrics", "evaluation"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+)
 async def get_available_metrics_for_training_runs(
-    training_run_ids: list[str] | str,
-    run_free_policy_ids: list[str] | str,
-    eval_names: list[str] | str,
-    dev_mode: bool = False,
+    dev_mode: str = "false",
+    training_run_ids: list[str] | str | None = None,
+    run_free_policy_ids: list[str] | str | None = None,
+    eval_names: list[str] | str | None = None,
 ) -> list[str]:
     """Enumerate available metrics for the provided training runs and policies.
 
@@ -676,11 +417,11 @@ async def get_available_metrics_for_training_runs(
         list[str]: List of metric names available across all specified training runs,
             policies, and evaluations as returned by the backend.
     """
-    training_run_ids_list = _parse_str_or_list(training_run_ids)
-    run_free_policy_ids_list = _parse_str_or_list(run_free_policy_ids)
-    eval_names_list = _parse_str_or_list(eval_names)
+    training_run_ids_list = _parse_str_or_list(training_run_ids) if training_run_ids else []
+    run_free_policy_ids_list = _parse_str_or_list(run_free_policy_ids) if run_free_policy_ids else []
+    eval_names_list = _parse_str_or_list(eval_names) if eval_names else []
 
-    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+    async with ScorecardClient(backend_url=_get_backend_url(_parse_dev_mode(dev_mode))) as client:
         return await client.get_available_metrics(
             training_run_ids=training_run_ids_list,
             run_free_policy_ids=run_free_policy_ids_list,
@@ -688,8 +429,18 @@ async def get_available_metrics_for_training_runs(
         )
 
 
-@mcp.tool()
+@mcp.resource(
+    "metta://scorecard/data/{dev_mode}",
+    name="Training Scorecard Data",
+    description="Retrieve comprehensive scorecard data for training runs and policies with filtering",
+    tags={"training", "scorecard", "evaluation", "metrics"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+)
 async def get_scorecard_data(
+    dev_mode: str = "false",
     search_term: str | None = None,
     restrict_to_policy_ids: list[str] | str | None = None,
     restrict_to_metrics: list[str] | str | None = None,
@@ -698,7 +449,6 @@ async def get_scorecard_data(
     policy_selector: Literal["best", "latest"] = "best",
     max_policies: int = 20,
     include_run_free_policies: bool = False,
-    dev_mode: bool = False,
 ) -> ScorecardDataWithMetadata | None:
     """Retrieve a scorecard for the specified training runs and policies
 
@@ -725,7 +475,7 @@ async def get_scorecard_data(
     restrict_to_policy_names_list = _parse_optional_str_or_list(restrict_to_policy_names)
     restrict_to_eval_names_list = _parse_optional_str_or_list(restrict_to_eval_names)
 
-    async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
+    async with ScorecardClient(backend_url=_get_backend_url(_parse_dev_mode(dev_mode))) as client:
         result = await client.get_scorecard_data(
             search_term=search_term,
             restrict_to_policy_ids=restrict_to_policy_ids_list,
@@ -746,12 +496,21 @@ async def get_scorecard_data(
         )
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Weights & Biases Runs",
+    description="List recent training runs from Weights & Biases for a project",
+    tags={"wandb", "training", "monitoring"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+        "openWorldHint": True,  # Connects to external W&B service
+    },
+)
 async def list_wandb_runs(
     project: str | None = None,
     entity: str | None = None,
-    limit: int = 50,
-) -> WandBRunList:
+    limit: int = Field(default=50, ge=1, le=100, description="Maximum number of runs to return"),
+) -> WandbRunList | WandbError:
     """List recent Weights & Biases runs for the configured project.
 
     Args:
@@ -766,18 +525,30 @@ async def list_wandb_runs(
     cfg = CONFIG["resources"]["wandb"]
     entity = entity or cfg["entity"]
     project = project or cfg["project"]
+    if not entity or not project:
+        return WandbError(error="Entity and project must be provided", status="error")
     wandb_api = WandbApi()
     runs = wandb_api.runs(f"{entity}/{project}")[:limit]
     run_data = [{"id": run.id, "name": run.name, "state": run.state} for run in runs]
-    return WandBRunList(runs=run_data, project=project, entity=entity)
+    return WandbRunList(runs=run_data, project=project, entity=entity)
 
 
-@mcp.tool()
+@mcp.resource(
+    "metta://wandb/runs/{run_name}",
+    name="Weights & Biases Run Details",
+    description="Get detailed information about a specific W&B training run",
+    tags={"wandb", "training", "monitoring"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+        "openWorldHint": True,  # Connects to external W&B service
+    },
+)
 async def get_wandb_run(
-    run_name: str,
+    run_name: str = Field(min_length=1, max_length=255, description="The run name or id to fetch"),
     project: str | None = None,
     entity: str | None = None,
-) -> WandBRun:
+) -> WandbRun:
     """Get a specific Weights & Biases run by name.
 
     Args:
@@ -794,19 +565,29 @@ async def get_wandb_run(
     project = project or cfg["project"]
     wandb_api = WandbApi()
     run = wandb_api.runs(f"{entity}/{project}/runs/${run_name}")
-    return WandBRun(id=run.id, name=run.name, state=run.state, url=run.url)
+    return WandbRun(id=run.id, name=run.name, state=run.state, url=run.url)
 
 
-@mcp.tool()
+@mcp.resource(
+    "metta://s3/objects/{bucket_name}",
+    name="S3 Bucket Objects",
+    description="List objects in an AWS S3 bucket with optional prefix filtering",
+    tags={"aws", "s3", "storage", "files"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+        "openWorldHint": True,  # Connects to external AWS service
+    },
+)
 async def list_s3_objects(
-    bucket: str | None = None,
+    bucket_name: str = "default",
     prefix: str | None = None,
-    limit: int = 100,
+    limit: int = Field(default=100, ge=1, le=1000, description="Maximum number of objects to return"),
 ) -> S3ObjectList:
     """List objects from a configured AWS S3 bucket.
 
     Args:
-        bucket (str | None): Bucket name. Uses the first configured bucket when None.
+        bucket_name (str): Bucket name. Uses the first configured bucket when "default".
         prefix (str | None): Key prefix to filter objects.
         limit (int): Maximum number of objects to return. Defaults to 100.
 
@@ -815,7 +596,7 @@ async def list_s3_objects(
             Contains object keys, bucket name, and the prefix used for filtering.
     """
     cfg = CONFIG["resources"]["aws_s3"]
-    bucket_name = bucket or cfg["buckets"][0]
+    bucket_name = bucket_name if bucket_name != "default" else cfg["buckets"][0]
     s3 = boto3.client("s3", region_name=cfg.get("region"))
     paginator = s3.get_paginator("list_objects_v2")
     page_iterator = paginator.paginate(
@@ -830,11 +611,21 @@ async def list_s3_objects(
     return S3ObjectList(objects=keys, bucket=bucket_name, prefix=prefix)
 
 
-@mcp.tool()
+@mcp.resource(
+    "metta://s3/prefixes/{bucket}",
+    name="S3 Bucket Prefixes",
+    description="List directory-like prefixes in an AWS S3 bucket",
+    tags={"aws", "s3", "storage", "directories"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+        "openWorldHint": True,  # Connects to external AWS service
+    },
+)
 async def list_s3_prefixes(
     bucket: str | None = None,
     prefix: str | None = None,
-    limit: int = 100,
+    limit: int = Field(default=100, ge=1, le=1000, description="Maximum number of results to return"),
 ) -> S3PrefixList:
     """List common prefixes ("directories") in an S3 bucket under a prefix.
 
@@ -866,10 +657,20 @@ async def list_s3_prefixes(
     return S3PrefixList(prefixes=prefixes, bucket=bucket_name, parent_prefix=prefix)
 
 
-@mcp.tool()
+@mcp.resource(
+    "metta://s3/objects/{key}/metadata",
+    name="S3 Object Metadata",
+    description="Get metadata for a specific S3 object without downloading the content",
+    tags={"aws", "s3", "storage", "metadata"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,  # Object metadata is static
+        "openWorldHint": True,  # Connects to external AWS service
+    },
+)
 async def get_s3_object_head(
-    bucket: str | None,
     key: str,
+    bucket: str | None = None,
 ) -> S3ObjectMetadata:
     """Fetch S3 object metadata (HEAD) without downloading the body.
 
@@ -905,7 +706,17 @@ async def get_s3_object_head(
     )
 
 
-@mcp.tool()
+@mcp.resource(
+    "metta://skypilot/jobs/status",
+    name="Skypilot Job Status",
+    description="List active Skypilot jobs and cluster information for the logged in user",
+    tags={"skypilot", "cloud", "jobs", "clusters"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+        "openWorldHint": True,  # Connects to external cloud services
+    },
+)
 async def list_skypilot_jobs() -> SkypilotStatus:
     """List active Skypilot jobs for the logged in user.
 
@@ -923,8 +734,22 @@ async def list_skypilot_jobs() -> SkypilotStatus:
         )
 
 
-@mcp.tool()
-async def get_wandb_run_url(run_name: str, project: str | None = None, entity: str | None = None) -> str:
+@mcp.resource(
+    "metta://wandb/runs/{run_name}/url",
+    name="W&B Run URL",
+    description="Get the direct dashboard URL for a specific Weights & Biases run",
+    tags={"wandb", "training", "url"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+        "openWorldHint": True,  # Connects to external W&B service
+    },
+)
+async def get_wandb_run_url(
+    run_name: str = Field(min_length=1, max_length=255, description="The run name or id to fetch"),
+    project: str | None = None,
+    entity: str | None = None,
+) -> str:
     """Get the URL for a specific Weights & Biases run by name.
 
     Args:
@@ -944,7 +769,16 @@ async def get_wandb_run_url(run_name: str, project: str | None = None, entity: s
     return run.url
 
 
-@mcp.tool()
+@mcp.resource(
+    "metta://user/profile/{dev_mode}",
+    name="Current User Info",
+    description="Get the current user's authentication status and profile information",
+    tags={"authentication", "user", "profile"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+)
 async def whoami(dev_mode: bool = False) -> UserInfo:
     """Get the current user's email and authentication status.
 
@@ -961,7 +795,16 @@ async def whoami(dev_mode: bool = False) -> UserInfo:
 
 
 # Dashboard Tools
-@mcp.tool()
+@mcp.resource(
+    "metta://dashboards/{dev_mode}",
+    name="Saved Dashboards",
+    description="List all saved dashboards with metadata and configurations",
+    tags={"dashboard", "visualization", "saved-state"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+)
 async def list_saved_dashboards(dev_mode: bool = False) -> SavedDashboardListResponse:
     """List all saved dashboards.
 
@@ -973,7 +816,16 @@ async def list_saved_dashboards(dev_mode: bool = False) -> SavedDashboardListRes
         return await client.list_saved_dashboards()
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Create Dashboard",
+    description="Create a new saved dashboard with specified configuration",
+    tags={"dashboard", "create", "visualization"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,
+    },
+)
 async def create_saved_dashboard(
     name: str,
     type: str,
@@ -999,8 +851,20 @@ async def create_saved_dashboard(
         return await client.create_saved_dashboard(dashboard_data)
 
 
-@mcp.tool()
-async def get_saved_dashboard(dashboard_id: str, dev_mode: bool = False) -> SavedDashboardResponse:
+@mcp.resource(
+    "metta://dashboards/{dashboard_id}",
+    name="Saved Dashboard Details",
+    description="Get complete configuration and metadata for a specific saved dashboard",
+    tags={"dashboard", "visualization", "configuration"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+)
+async def get_saved_dashboard(
+    dashboard_id: str = Field(min_length=1, max_length=100, description="Dashboard ID to retrieve"),
+    dev_mode: bool = False,
+) -> SavedDashboardResponse:
     """Get a specific saved dashboard by ID.
 
     Returns:
@@ -1011,7 +875,16 @@ async def get_saved_dashboard(dashboard_id: str, dev_mode: bool = False) -> Save
         return await client.get_saved_dashboard(dashboard_id)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Update Dashboard",
+    description="Update the configuration and state of an existing saved dashboard",
+    tags={"dashboard", "update", "configuration"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,  # Same update produces same result
+    },
+)
 async def update_saved_dashboard(
     dashboard_id: str,
     dashboard_state: dict[str, Any],
@@ -1027,7 +900,16 @@ async def update_saved_dashboard(
         return await client.update_saved_dashboard(dashboard_id, dashboard_state)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Delete Dashboard",
+    description="Permanently delete a saved dashboard",
+    tags={"dashboard", "delete", "remove"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,  # Permanently deletes data
+        "idempotentHint": True,  # Multiple deletes of same ID have same effect
+    },
+)
 async def delete_saved_dashboard(dashboard_id: str, dev_mode: bool = False) -> SavedDashboardDeleteResponse:
     """Delete a saved dashboard.
 
@@ -1040,7 +922,16 @@ async def delete_saved_dashboard(dashboard_id: str, dev_mode: bool = False) -> S
 
 
 # Entity Routes (Training Runs)
-@mcp.tool()
+@mcp.tool(
+    name="Training Runs List",
+    description="Complete list of all training runs with metadata, descriptions, and tags",
+    tags={"training", "machine-learning", "runs"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+    meta={"version": "1.0", "team": "ml-platform"},
+)
 async def get_training_runs(dev_mode: bool = False) -> TrainingRunListResponse:
     """Get all training runs.
 
@@ -1052,8 +943,20 @@ async def get_training_runs(dev_mode: bool = False) -> TrainingRunListResponse:
         return await client.get_training_runs()
 
 
-@mcp.tool()
-async def get_training_run(run_id: str, dev_mode: bool = False) -> TrainingRunResponse:
+@mcp.resource(
+    "metta://training-runs/{run_id}",
+    name="Training Run Details",
+    description="Detailed information about a specific training run including metadata and attributes",
+    tags={"training", "machine-learning", "details"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+    meta={"version": "1.0", "team": "ml-platform"},
+)
+async def get_training_run(
+    run_id: str = Field(min_length=1, max_length=100, description="Training run ID to retrieve"), dev_mode: bool = False
+) -> TrainingRunResponse:
     """Get a specific training run by ID.
 
     Returns:
@@ -1064,7 +967,16 @@ async def get_training_run(run_id: str, dev_mode: bool = False) -> TrainingRunRe
         return await client.get_training_run(run_id)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Update Training Run Description",
+    description="Update the description text for a training run",
+    tags={"training", "update", "description", "metadata"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,  # Only updates metadata
+        "idempotentHint": True,
+    },
+)
 async def update_training_run_description(run_id: str, description: str, dev_mode: bool = False) -> TrainingRunResponse:
     """Update the description of a training run.
 
@@ -1076,7 +988,16 @@ async def update_training_run_description(run_id: str, description: str, dev_mod
         return await client.update_training_run_description(run_id, description)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Update Training Run Tags",
+    description="Update the tags associated with a training run for organization and filtering",
+    tags={"training", "update", "tags", "organization"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,  # Only updates metadata
+        "idempotentHint": True,
+    },
+)
 async def update_training_run_tags(run_id: str, tags: list[str] | str, dev_mode: bool = False) -> TrainingRunResponse:
     """Update the tags of a training run.
 
@@ -1089,7 +1010,17 @@ async def update_training_run_tags(run_id: str, tags: list[str] | str, dev_mode:
         return await client.update_training_run_tags(run_id, tags_list)
 
 
-@mcp.tool()
+@mcp.resource(
+    "metta://training-runs/{run_id}/policies",
+    name="Training Run Policies",
+    description="List all policies associated with a training run including epoch and performance data",
+    tags={"training", "policies", "epochs", "performance"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+    meta={"version": "1.0", "team": "ml-platform"},
+)
 async def get_training_run_policies(run_id: str, dev_mode: bool = False) -> TrainingRunPolicyListResponse:
     """Get policies for a training run with epoch information.
 
@@ -1102,7 +1033,16 @@ async def get_training_run_policies(run_id: str, dev_mode: bool = False) -> Trai
 
 
 # Task Management Tools
-@mcp.tool()
+@mcp.tool(
+    name="Create Evaluation Task",
+    description="Create a new evaluation task for a policy with specified simulation suite and parameters",
+    tags={"tasks", "evaluation", "create", "scheduling"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,  # Creates new resources
+    },
+)
 async def create_task(
     policy_id: str,
     sim_suite: str,
@@ -1132,7 +1072,16 @@ async def create_task(
         return await client.create_task(task_data)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Get Latest Assigned Task",
+    description="Get the most recent task assigned to a specific worker",
+    tags={"tasks", "workers", "assignment", "latest"},
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+)
 async def get_latest_assigned_task_for_worker(assignee: str, dev_mode: bool = False) -> TaskResponse | None:
     """Get Latest Assigned Task For Worker
 
@@ -1145,8 +1094,20 @@ async def get_latest_assigned_task_for_worker(assignee: str, dev_mode: bool = Fa
         return await client.get_latest_assigned_task_for_worker(assignee)
 
 
-@mcp.tool()
-async def get_available_tasks(limit: int = 200, dev_mode: bool = False) -> TasksResponse:
+@mcp.tool(
+    name="Available Tasks",
+    description="List of evaluation tasks available for worker assignment",
+    tags={"tasks", "evaluation", "workers", "queue"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+    meta={"version": "1.0", "team": "evaluation"},
+)
+async def get_available_tasks(
+    limit: int = Field(default=200, ge=1, le=1000, description="Maximum number of tasks to return"),
+    dev_mode: bool = False,
+) -> TasksResponse:
     """Get Available Tasks
 
     Returns:
@@ -1157,7 +1118,16 @@ async def get_available_tasks(limit: int = 200, dev_mode: bool = False) -> Tasks
         return await client.get_available_tasks(limit=limit)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Claim Evaluation Tasks",
+    description="Assign evaluation tasks to a worker for execution",
+    tags={"tasks", "workers", "claim", "assignment"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,  # Changes task ownership
+    },
+)
 async def claim_tasks(
     tasks: list[str] | str,
     assignee: str,
@@ -1178,7 +1148,16 @@ async def claim_tasks(
         return await client.claim_tasks(task_uuids, assignee)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Claimed Tasks",
+    description="List of evaluation tasks currently claimed by workers",
+    tags={"tasks", "evaluation", "workers", "assigned"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+    meta={"version": "1.0", "team": "evaluation"},
+)
 async def get_claimed_tasks(assignee: str | None = None, dev_mode: bool = False) -> TasksResponse:
     """Get Claimed Tasks
 
@@ -1190,7 +1169,16 @@ async def get_claimed_tasks(assignee: str | None = None, dev_mode: bool = False)
         return await client.get_claimed_tasks(assignee)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Get Worker Git Hashes",
+    description="Get git commit hashes for specified workers to track code version alignment",
+    tags={"tasks", "workers", "git", "versioning"},
+    annotations={
+        "readOnlyHint": True,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+)
 async def get_git_hashes_for_workers(assignees: list[str] | str, dev_mode: bool = False) -> GitHashesResponse:
     """Get Git Hashes For Workers
 
@@ -1204,9 +1192,18 @@ async def get_git_hashes_for_workers(assignees: list[str] | str, dev_mode: bool 
         return await client.get_git_hashes_for_workers(assignee_list)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="All Tasks",
+    description="Complete list of evaluation tasks with optional filtering by git hash, policies, and status",
+    tags={"tasks", "evaluation", "filtering", "status"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+    meta={"version": "1.0", "team": "evaluation"},
+)
 async def get_all_tasks(
-    limit: int = 500,
+    limit: int = Field(default=500, ge=1, le=2000, description="Maximum number of tasks to return"),
     git_hash: str | None = None,
     policy_ids: list[str] | str | None = None,
     sim_suites: list[str] | str | None = None,
@@ -1235,7 +1232,16 @@ async def get_all_tasks(
         )
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Update Task Statuses",
+    description="Update the execution status and results for multiple evaluation tasks",
+    tags={"tasks", "status", "update", "results"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,
+    },
+)
 async def update_task_statuses(
     updates: dict[str, dict[str, Any]],
     require_assignee: str | None = None,
@@ -1260,7 +1266,16 @@ async def update_task_statuses(
 
 
 # Leaderboard Tools
-@mcp.tool()
+@mcp.tool(
+    name="Leaderboards List",
+    description="List all evaluation leaderboards with their configurations and metrics",
+    tags={"leaderboards", "evaluation", "competition", "metrics"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": False,  # Leaderboards can be added or modified
+    },
+    meta={"version": "1.0", "team": "evaluation"},
+)
 async def list_leaderboards(dev_mode: bool = False) -> LeaderboardListResponse:
     """List all leaderboards for the current user.
 
@@ -1272,7 +1287,16 @@ async def list_leaderboards(dev_mode: bool = False) -> LeaderboardListResponse:
         return await client.list_leaderboards()
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Create Leaderboard",
+    description="Create a new evaluation leaderboard with specified metrics and evaluations",
+    tags={"leaderboards", "evaluation", "create", "competition"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,  # Creates new resources
+    },
+)
 async def create_leaderboard(
     name: str,
     evals: list[str] | str,
@@ -1300,7 +1324,17 @@ async def create_leaderboard(
         return await client.create_leaderboard(leaderboard_data)
 
 
-@mcp.tool()
+@mcp.resource(
+    "metta://leaderboards/{leaderboard_id}",
+    name="Leaderboard Details",
+    description="Complete configuration and metadata for a specific evaluation leaderboard",
+    tags={"leaderboards", "evaluation", "configuration"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+    meta={"version": "1.0", "team": "evaluation"},
+)
 async def get_leaderboard(leaderboard_id: str, dev_mode: bool = False) -> LeaderboardResponse:
     """Get a specific leaderboard by ID.
 
@@ -1312,7 +1346,16 @@ async def get_leaderboard(leaderboard_id: str, dev_mode: bool = False) -> Leader
         return await client.get_leaderboard(leaderboard_id)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Update Leaderboard",
+    description="Update the configuration of an existing evaluation leaderboard",
+    tags={"leaderboards", "evaluation", "update", "configuration"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": True,  # Same update produces same result
+    },
+)
 async def update_leaderboard(
     leaderboard_id: str,
     name: str,
@@ -1341,7 +1384,16 @@ async def update_leaderboard(
         return await client.update_leaderboard(leaderboard_id, leaderboard_data)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Delete Leaderboard",
+    description="Permanently delete an evaluation leaderboard",
+    tags={"leaderboards", "evaluation", "delete", "remove"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": True,  # Permanently deletes data
+        "idempotentHint": True,  # Multiple deletes have same effect
+    },
+)
 async def delete_leaderboard(leaderboard_id: str, dev_mode: bool = False) -> LeaderboardDeleteResponse:
     """Delete a leaderboard.
 
@@ -1354,7 +1406,17 @@ async def delete_leaderboard(leaderboard_id: str, dev_mode: bool = False) -> Lea
 
 
 # Stats and Metrics Tools
-@mcp.tool()
+@mcp.resource(
+    "metta://policies/mapping/{dev_mode}/{policy_names}",
+    name="Policy Name to ID Mapping",
+    description="Look up policy UUIDs by their human-readable names",
+    tags={"policies", "mapping", "lookup", "uuid"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+    meta={"version": "1.0", "team": "ml-platform"},
+)
 async def get_policy_ids(policy_names: list[str] | str, dev_mode: bool = False) -> PolicyIdMapping:
     """Get policy IDs for given policy names.
 
@@ -1370,7 +1432,16 @@ async def get_policy_ids(policy_names: list[str] | str, dev_mode: bool = False) 
         return PolicyIdMapping(policy_mapping=raw_data.get("policy_mapping", {}))
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Create Training Run",
+    description="Create a new training run record with metadata for tracking ML experiments",
+    tags={"training", "create", "experiments", "tracking"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,  # Creates new resources
+    },
+)
 async def create_training_run(
     name: str,
     attributes: dict[str, str] | None = None,
@@ -1400,7 +1471,16 @@ async def create_training_run(
         return await client.create_training_run(training_run_data)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Create Training Epoch",
+    description="Create a new epoch record to track training progress within a run",
+    tags={"training", "epochs", "create", "progress"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,  # Creates new resources
+    },
+)
 async def create_epoch(
     run_id: str,
     start_training_epoch: int,
@@ -1425,7 +1505,16 @@ async def create_epoch(
         return await client.create_epoch(run_id, epoch_data)
 
 
-@mcp.tool()
+@mcp.tool(
+    name="Create Policy",
+    description="Create a new policy record for tracking trained models and their metadata",
+    tags={"policies", "models", "create", "tracking"},
+    annotations={
+        "readOnlyHint": False,
+        "destructiveHint": False,
+        "idempotentHint": False,  # Creates new resources
+    },
+)
 async def create_policy(
     name: str,
     description: str | None = None,
@@ -1511,7 +1600,14 @@ async def create_sweep(
         return await client.create_sweep(sweep_name, request_data)
 
 
-@mcp.tool()
+@mcp.resource(
+    "resource://sweeps/{sweep_name}",
+    name="Sweep Information",
+    description="Get configuration and status information for a specific hyperparameter sweep",
+    tags={"sweeps", "hyperparameter", "optimization", "wandb"},
+    annotations={"readOnlyHint": True, "idempotentHint": True},
+    meta={"version": "1.0", "team": "ml-platform"},
+)
 async def get_sweep(sweep_name: str, dev_mode: bool = False) -> SweepInfo:
     """Get sweep information by name."""
     async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
@@ -1526,7 +1622,16 @@ async def get_next_run_id(sweep_name: str, dev_mode: bool = False) -> RunIdRespo
 
 
 # Token Management Tools
-@mcp.tool()
+@mcp.tool(
+    name="User API Tokens",
+    description="List all machine tokens associated with the authenticated user",
+    tags={"authentication", "tokens", "api", "security"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+    meta={"version": "1.0", "team": "auth"},
+)
 async def list_tokens(dev_mode: bool = False) -> BackendTokenListResponse:
     """List all machine tokens for the authenticated user."""
     async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
@@ -1595,7 +1700,7 @@ async def generate_policy_scorecard(
     metric: str,
     training_run_policy_selector: Literal["best", "latest"] = "latest",
     dev_mode: bool = False,
-) -> BackendScorecardData:
+) -> ScorecardData:
     """Generate scorecard data based on training run and policy selection."""
     training_run_ids_list = _parse_str_or_list(training_run_ids)
     run_free_policy_ids_list = _parse_str_or_list(run_free_policy_ids)
@@ -1620,7 +1725,7 @@ async def generate_heatmap_scorecard(
     metric: str,
     training_run_policy_selector: Literal["best", "latest"] = "latest",
     dev_mode: bool = False,
-) -> BackendScorecardData:
+) -> ScorecardData:
     """Generate heatmap scorecard data based on training run and policy selection."""
     training_run_ids_list = _parse_str_or_list(training_run_ids)
     run_free_policy_ids_list = _parse_str_or_list(run_free_policy_ids)
@@ -1643,7 +1748,7 @@ async def generate_training_run_scorecard(
     eval_names: list[str] | str,
     metric: str,
     dev_mode: bool = False,
-) -> BackendScorecardData:
+) -> ScorecardData:
     """Generate scorecard data for a specific training run showing ALL policies."""
     eval_names_list = _parse_str_or_list(eval_names)
 
@@ -1660,9 +1765,9 @@ async def generate_training_run_scorecard(
 async def generate_leaderboard_scorecard(
     leaderboard_id: str,
     selector: Literal["latest", "best"] = "latest",
-    num_policies: int = 10,
+    num_policies: int = Field(default=10, ge=1, le=100, description="Number of policies to include in leaderboard"),
     dev_mode: bool = False,
-) -> BackendScorecardData:
+) -> ScorecardData:
     """Generate scorecard data for a leaderboard."""
     async with ScorecardClient(backend_url=_get_backend_url(dev_mode)) as client:
         result = await client.generate_leaderboard_scorecard(
@@ -1673,117 +1778,18 @@ async def generate_leaderboard_scorecard(
         return result
 
 
-# Configuration Management Tools
-@mcp.tool()
-async def list_hydra_configs(config_type: str | None = None) -> HydraConfigList:
-    """Browse available Hydra configurations.
-
-    Args:
-        config_type (str | None): Configuration type to list (agent, sim, trainer, user, wandb, sweep).
-                                 If None, returns all available config types.
-
-    Returns:
-        HydraConfigList: Available configurations or config types.
-    """
-    try:
-        if config_type is None:
-            # Return all available config types as configs
-            config_types = get_available_config_types()
-            return HydraConfigList(
-                config_type="all_types",
-                configs=config_types,
-                total_configs=len(config_types),
-            )
-        else:
-            # Return configs for specific type
-            configs_data = list_configs_for_type(config_type)
-            config_names = [config["name"] for config in configs_data]
-            return HydraConfigList(
-                config_type=config_type,
-                configs=config_names,
-                total_configs=len(config_names),
-            )
-    except Exception as e:
-        return HydraConfigList(
-            config_type=config_type or "error",
-            configs=[f"Error: {str(e)}"],
-            total_configs=0,
-        )
-
-
-@mcp.tool()
-async def validate_config(
-    config_path: str,
-    overrides: list[str] | str | None = None,
-) -> ValidationResult:
-    """Validate a Hydra configuration with optional overrides.
-
-    Args:
-        config_path (str): Path to configuration file (relative to configs/ or absolute).
-        overrides (list[str] | str | None): List of Hydra override strings (key=value, +key=value, ++key=value).
-
-    Returns:
-        ValidationResult: Validation result with config data or error information.
-    """
-    try:
-        # Parse overrides if provided as string
-        override_list = []
-        if overrides:
-            if isinstance(overrides, str):
-                override_list = [overrides]
-            else:
-                override_list = overrides
-
-        result = validate_config_func(config_path, override_list)
-
-        # Convert OmegaConf objects to regular Python objects for Pydantic serialization
-        config_data = None
-        if result.config_data is not None:
-            if isinstance(result.config_data, (DictConfig, ListConfig)):
-                config_data = OmegaConf.to_container(result.config_data, resolve=True)
-            else:
-                config_data = result.config_data
-
-        return ValidationResult(
-            valid=result.valid,
-            config_data=config_data,
-            errors=result.errors,
-            config_path=result.config_path,
-        )
-    except Exception as e:
-        return ValidationResult(
-            valid=False,
-            config_data=None,
-            errors=[str(e)],
-            config_path=config_path,
-        )
-
-
-@mcp.tool()
-async def get_config_schema(config_type: str) -> HydraConfigSchema:
-    """Get schema information for a configuration type.
-
-    Args:
-        config_type (str): Configuration type to analyze (agent, sim, trainer, etc.).
-
-    Returns:
-        HydraConfigSchema: Schema information including field types and structure.
-    """
-    try:
-        result = get_config_schema_func(config_type)
-        return HydraConfigSchema(
-            config_type=result.get("config_type", config_type),
-            schema_info=result.get("schema", {}),
-        )
-    except Exception:
-        return HydraConfigSchema(
-            config_type=config_type,
-            schema_info={},
-        )
-
-
 # Training and Evaluation Management Tools
-@mcp.tool()
+@mcp.resource(
+    "metta://training-runs/local/list",
+    name="Local Training Runs",
+    description="List training runs stored locally in train_dir with status and checkpoint information",
+    tags={"training", "local", "filesystem", "checkpoints"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+    meta={"version": "1.0", "team": "training"},
+)
 async def list_training_runs_local() -> LocalTrainingRunList:
     """List local training runs in train_dir with metadata.
 
@@ -1803,8 +1809,22 @@ async def list_training_runs_local() -> LocalTrainingRunList:
         )
 
 
-@mcp.tool()
-async def get_checkpoint_info(checkpoint_path: str) -> CheckpointInfo:
+@mcp.resource(
+    "metta://checkpoints/{checkpoint_path*}/info",
+    name="Checkpoint Information",
+    description="Get metadata about model checkpoints without loading the full model",
+    tags={"checkpoints", "models", "metadata", "inspection"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": True,
+    },
+    meta={"version": "1.0", "team": "training"},
+)
+async def get_checkpoint_info(
+    checkpoint_path: str = Field(
+        min_length=1, description="Path to checkpoint file or directory. Supports policy URIs (file://)"
+    ),
+) -> CheckpointInfo | CheckpointInfoError:
     """Inspect checkpoint metadata without loading the full model.
 
     Args:
@@ -1824,8 +1844,18 @@ async def get_checkpoint_info(checkpoint_path: str) -> CheckpointInfo:
         )
 
 
-@mcp.tool()
-async def get_training_status(run_name: str) -> TrainingStatus:
+@mcp.resource(
+    "metta://training/{run_name}/status",
+    name="Training Status",
+    description="Get detailed status information for a training run including process state and logs",
+    tags={"training", "status", "monitoring", "processes"},
+    annotations={
+        "readOnlyHint": True,
+        "idempotentHint": False,  # Status changes over time
+    },
+    meta={"version": "1.0", "team": "training"},
+)
+async def get_training_status(run_name: str) -> TrainingStatus | TrainingUtilsError:
     """Check if training is running/completed with detailed status information.
 
     Args:
@@ -1848,8 +1878,12 @@ async def get_training_status(run_name: str) -> TrainingStatus:
 
 @mcp.tool()
 async def generate_replay_summary(
-    replay_path: str, policy_uri: str | None = None, ctx: Context = None
-) -> ReplaySummaryResponse:
+    replay_path: str = Field(
+        min_length=1, description="Path to replay file (supports .json, .json.z compressed format)"
+    ),
+    policy_uri: str | None = None,
+    ctx: Context | None = None,
+) -> ReplaySummarySuccess | ReplaySummaryError:
     """Generate AI-powered summary of replay contents using statistical analysis.
 
     This function performs comprehensive analysis of a replay file including:

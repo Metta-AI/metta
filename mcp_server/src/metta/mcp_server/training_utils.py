@@ -17,6 +17,9 @@ import requests
 import torch
 from fastmcp import Context
 from omegaconf import OmegaConf
+from pydantic import BaseModel, Field
+
+from .ml_models import CheckpointInfo, CheckpointInfoError
 
 # Enhanced analysis modules
 from .stats_analysis import (
@@ -29,7 +32,27 @@ from .stats_analysis import (
     StatsExtractor,
     StrategicPhaseDetector,
 )
-from .wandb_integration import TrainingProgressionAnalyzer, WandBMetricsCollector
+from .wandb_integration import TrainingProgressionAnalyzer, WandbMetricsCollector
+
+
+# Replay Analysis Models
+class ReplaySummarySuccess(BaseModel):
+    """Successful replay summary response."""
+
+    replay_path: str = Field(description="Path to the replay file that was analyzed")
+    file_size: int = Field(description="Size of the replay file in bytes")
+    summary: str = Field(description="AI-generated summary of the replay analysis")
+    llm_used: bool = Field(description="Whether LLM was successfully used for summary generation")
+
+
+class ReplaySummaryError(BaseModel):
+    """Error response for replay summary."""
+
+    error: str = Field(description="Error message describing what went wrong")
+    path: str = Field(description="Path to the replay file that failed to analyze")
+
+
+ReplaySummaryResponse = ReplaySummarySuccess | ReplaySummaryError
 
 # Simple ASCII rendering without complex dependencies
 ASCII_RENDERING_AVAILABLE = True
@@ -54,6 +77,24 @@ OBJECT_CHAR_MAP = {
     "temple": "T",
     "block": "s",
 }
+
+
+class TrainingUtilsError(BaseModel):
+    run_name: str = Field(description="The name of the training run")
+    error: str = Field(description="The error message")
+    status: str = Field(description="The status of the analysis or error")
+
+
+class TrainingStatus(BaseModel):
+    """Training run status information."""
+
+    run_name: str = Field(description="Name of the training run")
+    status: str = Field(description="Current status (running, completed, failed, etc.)")
+    progress: dict[str, str | int | float | bool | None] = Field(description="Training progress metrics")
+    logs: list[str] = Field(description="Recent log entries")
+    checkpoints: list[str] = Field(description="Available checkpoint files")
+    wandb_runs: list[str] = Field(description="Available wandb runs", default=[])
+    latest_wandb: str = Field(description="Latest wandb run", default="")
 
 
 def _simple_grid_to_lines(grid, border=False):
@@ -773,7 +814,7 @@ def _is_training_running(run_name: str) -> bool:
         return False
 
 
-def get_checkpoint_info(checkpoint_path: str) -> Dict[str, Any]:
+def get_checkpoint_info(checkpoint_path: str) -> CheckpointInfo | CheckpointInfoError:
     """Get detailed information about a checkpoint file."""
     try:
         path = Path(checkpoint_path)
@@ -786,7 +827,7 @@ def get_checkpoint_info(checkpoint_path: str) -> Dict[str, Any]:
         if path.is_dir():
             checkpoints = list(path.glob("*.pt"))
             if not checkpoints:
-                return {"error": "No checkpoint files found in directory", "path": str(path)}
+                return CheckpointInfoError(error="No checkpoint files found in directory", path=str(path))
 
             # Get the latest checkpoint by name (assumes model_XXXX.pt format)
             checkpoints.sort(key=lambda x: x.name)
@@ -845,14 +886,14 @@ def get_checkpoint_info(checkpoint_path: str) -> Dict[str, Any]:
         return {"error": str(e), "path": checkpoint_path}
 
 
-def get_training_status(run_name: str) -> Dict[str, Any]:
+def get_training_status(run_name: str) -> TrainingStatus | TrainingUtilsError:
     """Get detailed status of a specific training run."""
     try:
         train_dir = get_train_dir()
         run_dir = train_dir / run_name
 
         if not run_dir.exists():
-            return {"error": f"Training run not found: {run_name}", "status": "not_found"}
+            return TrainingUtilsError(error="Training run not found", run_name=run_name, status="not_found")
 
         # Get basic run info
         run_info = _analyze_training_run(run_dir)
@@ -901,10 +942,10 @@ def get_training_status(run_name: str) -> Dict[str, Any]:
         if run_info:
             status_info.update(run_info)
 
-        return status_info
+        return TrainingStatus(**status_info)
 
     except Exception as e:
-        return {"error": str(e), "run_name": run_name}
+        return TrainingUtilsError(error=str(e), run_name=run_name, status="error")
 
 
 async def generate_replay_summary_with_llm(
@@ -1202,7 +1243,7 @@ def _extract_policy_training_info(policy_uri: Optional[str]) -> Dict[str, Any]:
     }
 
     try:
-        # WandB URIs with version numbers indicate trained policies
+        # Wandb URIs with version numbers indicate trained policies
         if "wandb://" in policy_uri:
             policy_info["policy_source"] = "wandb_artifact"
 
@@ -1217,22 +1258,22 @@ def _extract_policy_training_info(policy_uri: Optional[str]) -> Dict[str, Any]:
                     if version_num > 5:  # Arbitrary threshold for "trained"
                         policy_info["is_trained"] = True
                         policy_info["training_confidence"] = "high"
-                        policy_info["reasoning"] = f"WandB artifact with high version number ({version_part})"
+                        policy_info["reasoning"] = f"Wandb artifact with high version number ({version_part})"
                     else:
                         policy_info["is_trained"] = False
                         policy_info["training_confidence"] = "medium"
                         policy_info["reasoning"] = (
-                            f"WandB artifact with low version number ({version_part}), likely early training"
+                            f"Wandb artifact with low version number ({version_part}), likely early training"
                         )
                 else:
-                    policy_info["is_trained"] = True  # Default assumption for versioned WandB artifacts
+                    policy_info["is_trained"] = True  # Default assumption for versioned Wandb artifacts
                     policy_info["training_confidence"] = "medium"
-                    policy_info["reasoning"] = f"WandB artifact with version ({version_part})"
+                    policy_info["reasoning"] = f"Wandb artifact with version ({version_part})"
             else:
                 # No version info, assume trained
                 policy_info["is_trained"] = True
                 policy_info["training_confidence"] = "low"
-                policy_info["reasoning"] = "WandB artifact without explicit version"
+                policy_info["reasoning"] = "Wandb artifact without explicit version"
 
         # File URIs - check path for indicators
         elif "file://" in policy_uri or policy_uri.startswith("./") or "/" in policy_uri:
@@ -3410,11 +3451,11 @@ def analyze_replay_with_enhanced_stats(
     replay_path: str, run_name: Optional[str] = None, mcp_client=None
 ) -> Dict[str, Any]:
     """
-    Analyze replay with enhanced game statistics and WandB training context.
+    Analyze replay with enhanced game statistics and Wandb training context.
 
     This function provides comprehensive analysis including:
     - Rich game statistics from mettagrid's StatsTracker system
-    - WandB training context around replay timestamp
+    - Wandb training context around replay timestamp
     - Behavioral analysis with statistical methods
     - Resource flow and building efficiency analysis
     - Combat interaction matrices
@@ -3422,8 +3463,8 @@ def analyze_replay_with_enhanced_stats(
 
     Args:
         replay_path: Path to the replay file
-        run_name: Optional WandB run name for training context
-        mcp_client: MCP client for WandB API access
+        run_name: Optional Wandb run name for training context
+        mcp_client: MCP client for Wandb API access
 
     Returns:
         Complete enhanced analysis including game stats and training context
@@ -3498,10 +3539,10 @@ def analyze_replay_with_enhanced_stats(
         strategic_phases = phase_detector.detect_strategic_phases(agent_stats, episode_length)
         enhanced_analysis["strategic_phases"] = strategic_phases
 
-        # WandB training context (if run_name provided and mcp_client available)
+        # Wandb training context (if run_name provided and mcp_client available)
         if run_name and mcp_client:
             try:
-                wandb_collector = WandBMetricsCollector(mcp_client)
+                wandb_collector = WandbMetricsCollector(mcp_client)
                 # Estimate replay timestamp (use 80% of episode length)
                 replay_timestamp_step = int(episode_length * 0.8)
 
@@ -3516,8 +3557,8 @@ def analyze_replay_with_enhanced_stats(
                 enhanced_analysis["training_progression_analysis"] = training_analysis
 
             except Exception as e:
-                # Log WandB analysis failure but continue with game stats analysis
-                enhanced_analysis["wandb_error"] = f"WandB analysis failed: {str(e)}"
+                # Log Wandb analysis failure but continue with game stats analysis
+                enhanced_analysis["wandb_error"] = f"Wandb analysis failed: {str(e)}"
 
     except Exception as e:
         raise ValueError(f"Enhanced analysis failed: {str(e)}") from e

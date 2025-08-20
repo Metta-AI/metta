@@ -1,7 +1,7 @@
 import logging
 import uuid
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, HTTPException
 from psycopg import AsyncConnection
@@ -92,21 +92,25 @@ class TrainingRunScorecardRequest(BaseModel):
 class ScorecardCell(BaseModel):
     """Single cell in the policy scorecard grid."""
 
-    evalName: str
-    replayUrl: Optional[str]
-    thumbnailUrl: Optional[str]
-    value: float
+    evalName: str = Field(description="Name of the evaluation")
+    replayUrl: str | None = Field(description="URL to the replay file")
+    thumbnailUrl: str | None = Field(description="URL to the replay thumbnail image")
+    value: float = Field(description="Score value for this policy-evaluation combination")
 
 
 class ScorecardData(BaseModel):
     """Complete policy scorecard data structure."""
 
-    evalNames: List[str]
-    policyNames: List[str]
-    cells: Dict[str, Dict[str, ScorecardCell]]
-    policyAverageScores: Dict[str, float]
-    evalAverageScores: Dict[str, float]
-    evalMaxScores: Dict[str, float]
+    evalNames: list[str] = Field(description="List of evaluation names included in the scorecard")
+    policyNames: list[str] = Field(description="List of policy names included in the scorecard")
+    cells: dict[str, dict[str, ScorecardCell]] = Field(
+        description="Nested dictionary mapping policy names to eval names to scorecard cells"
+    )
+    policyAverageScores: dict[str, float] = Field(description="Average scores for each policy across all evaluations")
+    evalAverageScores: dict[str, float] = Field(description="Average scores for each evaluation across all policies")
+    evalMaxScores: dict[str, float] = Field(
+        description="Maximum scores achieved for each evaluation across all policies"
+    )
 
 
 class LeaderboardScorecardRequest(BaseModel):

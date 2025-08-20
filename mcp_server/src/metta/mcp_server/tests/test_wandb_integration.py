@@ -1,8 +1,8 @@
 """
 Test suite for wandb_integration module - Priority 2 components.
 
-Tests all WandB training context integration functionality with hard failure enforcement.
-No graceful degradation - tests fail when required WandB data is missing.
+Tests all Wandb training context integration functionality with hard failure enforcement.
+No graceful degradation - tests fail when required Wandb data is missing.
 """
 
 from unittest.mock import Mock, patch
@@ -13,22 +13,22 @@ from metta.mcp_server.wandb_integration import (
     LearningProgression,
     TrainingMetricsSample,
     TrainingProgressionAnalyzer,
-    WandBMetricsCollector,
-    WandBTrainingContext,
+    WandbMetricsCollector,
+    WandbTrainingContext,
 )
 
 
-class TestWandBMetricsCollector:
-    """Test WandBMetricsCollector functionality"""
+class TestWandbMetricsCollector:
+    """Test WandbMetricsCollector functionality"""
 
     def test_collect_training_context_success(self, mock_mcp_client):
         """Test successful training context collection"""
-        collector = WandBMetricsCollector(mock_mcp_client)
+        collector = WandbMetricsCollector(mock_mcp_client)
 
         result = collector.collect_training_context("test_run_123", 8000, 1000)
 
         # Verify structure
-        assert isinstance(result, WandBTrainingContext)
+        assert isinstance(result, WandbTrainingContext)
         assert result.run_name == "test_run_123"
         assert result.replay_timestamp_step == 8000
         assert result.context_window_steps == 2000  # ±1000
@@ -51,14 +51,14 @@ class TestWandBMetricsCollector:
         assert isinstance(result.critical_learning_moments, list)
 
     def test_missing_wandb_run_data_raises_error(self):
-        """Test that missing WandB run data raises ValueError (hard failure)"""
-        # Mock client that returns None for WandB data
+        """Test that missing Wandb run data raises ValueError (hard failure)"""
+        # Mock client that returns None for Wandb data
         mock_client = Mock()
         mock_client.side_effect = lambda fname, params: None
 
-        collector = WandBMetricsCollector(mock_client)
+        collector = WandbMetricsCollector(mock_client)
 
-        with pytest.raises(ValueError, match="WandB run data unavailable"):
+        with pytest.raises(ValueError, match="Wandb run data unavailable"):
             collector.collect_training_context("nonexistent_run", 8000, 1000)
 
     def test_no_training_metrics_raises_error(self, mock_mcp_client):
@@ -71,7 +71,7 @@ class TestWandBMetricsCollector:
             else "http://example.com"
         )
 
-        collector = WandBMetricsCollector(mock_client)
+        collector = WandbMetricsCollector(mock_client)
 
         # Mock _extract_metrics_samples to return empty list
         with patch.object(collector, "_extract_metrics_samples", return_value=[]):
@@ -79,8 +79,8 @@ class TestWandBMetricsCollector:
                 collector.collect_training_context("test_run", 8000, 1000)
 
     def test_get_wandb_run_data(self, mock_mcp_client):
-        """Test WandB run data retrieval"""
-        collector = WandBMetricsCollector(mock_mcp_client)
+        """Test Wandb run data retrieval"""
+        collector = WandbMetricsCollector(mock_mcp_client)
 
         result = collector._get_wandb_run_data("test_run_123")
 
@@ -92,8 +92,8 @@ class TestWandBMetricsCollector:
         assert result["name"] == "test_run_123"
 
     def test_get_wandb_run_url(self, mock_mcp_client):
-        """Test WandB run URL retrieval"""
-        collector = WandBMetricsCollector(mock_mcp_client)
+        """Test Wandb run URL retrieval"""
+        collector = WandbMetricsCollector(mock_mcp_client)
 
         result = collector._get_wandb_run_url("test_run_123")
 
@@ -107,7 +107,7 @@ class TestWandBMetricsCollector:
 
     def test_extract_metrics_samples(self, mock_mcp_client):
         """Test metrics samples extraction around center step"""
-        collector = WandBMetricsCollector(mock_mcp_client)
+        collector = WandbMetricsCollector(mock_mcp_client)
 
         run_data = {"name": "test_run", "summary": {"best_reward": 2.1}}
         samples = collector._extract_metrics_samples(run_data, 8000, 1000)
@@ -124,7 +124,7 @@ class TestWandBMetricsCollector:
 
     def test_analyze_learning_progressions(self, mock_mcp_client):
         """Test learning progression analysis from samples"""
-        collector = WandBMetricsCollector(mock_mcp_client)
+        collector = WandbMetricsCollector(mock_mcp_client)
 
         # Create sample metrics data
         samples = [
@@ -155,7 +155,7 @@ class TestWandBMetricsCollector:
 
     def test_determine_training_stage(self, mock_mcp_client):
         """Test training stage determination"""
-        collector = WandBMetricsCollector(mock_mcp_client)
+        collector = WandbMetricsCollector(mock_mcp_client)
 
         # Test early stage
         early_samples = [TrainingMetricsSample(step=5000, timestamp=None, metrics={"env_agent/reward": 0.1})]
@@ -177,7 +177,7 @@ class TestWandBMetricsCollector:
 
     def test_calculate_learning_velocity(self, mock_mcp_client):
         """Test learning velocity calculation"""
-        collector = WandBMetricsCollector(mock_mcp_client)
+        collector = WandbMetricsCollector(mock_mcp_client)
 
         # Create samples with improving metrics
         samples = [
@@ -218,7 +218,7 @@ class TestWandBMetricsCollector:
 
     def test_calculate_performance_stability(self, mock_mcp_client):
         """Test performance stability calculation"""
-        collector = WandBMetricsCollector(mock_mcp_client)
+        collector = WandbMetricsCollector(mock_mcp_client)
 
         # Create samples with stable rewards
         stable_samples = [
@@ -246,7 +246,7 @@ class TestWandBMetricsCollector:
 
     def test_identify_critical_moments(self, mock_mcp_client):
         """Test identification of critical learning moments"""
-        collector = WandBMetricsCollector(mock_mcp_client)
+        collector = WandbMetricsCollector(mock_mcp_client)
 
         # Create samples with sudden improvement
         samples = [
@@ -270,7 +270,7 @@ class TestWandBMetricsCollector:
 
     def test_pearson_correlation_calculation(self, mock_mcp_client):
         """Test Pearson correlation coefficient calculation"""
-        collector = WandBMetricsCollector(mock_mcp_client)
+        collector = WandbMetricsCollector(mock_mcp_client)
 
         # Test perfect positive correlation
         x = [1, 2, 3, 4, 5]
@@ -320,11 +320,11 @@ class TestTrainingProgressionAnalyzer:
         assert all(isinstance(insight, str) for insight in insights)
 
     def test_missing_wandb_context_raises_error(self):
-        """Test that missing WandB context raises ValueError (hard failure)"""
+        """Test that missing Wandb context raises ValueError (hard failure)"""
         analyzer = TrainingProgressionAnalyzer()
         replay_behaviors = {"cooperation_score": 0.8}
 
-        with pytest.raises(ValueError, match="No WandB training context provided"):
+        with pytest.raises(ValueError, match="No Wandb training context provided"):
             analyzer.analyze_training_progression(None, replay_behaviors)
 
     def test_summarize_progression(self, sample_wandb_context):
@@ -446,11 +446,11 @@ class TestLearningProgression:
             assert progression.trend == trend
 
 
-class TestWandBTrainingContext:
-    """Test WandBTrainingContext data structure"""
+class TestWandbTrainingContext:
+    """Test WandbTrainingContext data structure"""
 
     def test_training_context_creation(self, sample_wandb_context):
-        """Test WandBTrainingContext object creation"""
+        """Test WandbTrainingContext object creation"""
         context = sample_wandb_context
 
         # Verify required fields
@@ -479,9 +479,9 @@ class TestIntegrationScenarios:
     """Test integration scenarios and edge cases"""
 
     def test_full_wandb_analysis_pipeline(self, mock_mcp_client):
-        """Test complete WandB analysis pipeline"""
+        """Test complete Wandb analysis pipeline"""
         # Create collector and analyzer
-        collector = WandBMetricsCollector(mock_mcp_client)
+        collector = WandbMetricsCollector(mock_mcp_client)
         analyzer = TrainingProgressionAnalyzer()
 
         # Collect training context
@@ -505,7 +505,7 @@ class TestIntegrationScenarios:
             assert len(component) > 0
 
     def test_hard_failure_enforcement_with_missing_wandb_data(self):
-        """Test that missing WandB data causes hard failures (no graceful degradation)"""
+        """Test that missing Wandb data causes hard failures (no graceful degradation)"""
         import os
 
         # Ensure we're in strict test mode
@@ -513,11 +513,11 @@ class TestIntegrationScenarios:
 
         # Mock client that fails to provide data
         failing_client = Mock()
-        failing_client.side_effect = Exception("WandB API unavailable")
+        failing_client.side_effect = Exception("Wandb API unavailable")
 
-        collector = WandBMetricsCollector(failing_client)
+        collector = WandbMetricsCollector(failing_client)
 
-        # Should fail hard when WandB data is unavailable
+        # Should fail hard when Wandb data is unavailable
         with pytest.raises((ValueError, Exception)):
             collector.collect_training_context("nonexistent_run", 8000, 1000)
 
@@ -530,7 +530,7 @@ class TestIntegrationScenarios:
         """Test performance with large training metric datasets"""
         import time
 
-        collector = WandBMetricsCollector(mock_mcp_client)
+        collector = WandbMetricsCollector(mock_mcp_client)
 
         # Create large metrics dataset (simulate long training run)
         large_samples = []
@@ -554,7 +554,7 @@ class TestIntegrationScenarios:
         analysis_time = end_time - start_time
 
         # Should complete within reasonable time
-        assert analysis_time < 5.0, f"WandB analysis took too long: {analysis_time:.2f} seconds"
+        assert analysis_time < 5.0, f"Wandb analysis took too long: {analysis_time:.2f} seconds"
 
         # Verify analyses completed correctly
         assert len(progressions) > 0
@@ -563,7 +563,7 @@ class TestIntegrationScenarios:
 
     def test_correlation_analysis_edge_cases(self, mock_mcp_client):
         """Test correlation analysis with edge cases"""
-        collector = WandBMetricsCollector(mock_mcp_client)
+        collector = WandbMetricsCollector(mock_mcp_client)
 
         # Test with constant values (no variance)
         constant_samples = [
