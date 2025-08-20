@@ -230,6 +230,23 @@ class EvalStatsDB(SimulationStatsDB):
             q += f" AND sim_env   = '{sim_env}'"
         return int(self.query(q)["cnt"].iloc[0])
 
+    def simulation_scores(self, policy_record: PolicyRecord, metric: str) -> Dict[tuple[str, str], float]:
+        """Return { (name,env) : normalized mean(metric) }."""
+        pk, pv = self.key_and_version(policy_record)
+        sim_rows = self.query(f"""
+            SELECT DISTINCT sim_suite, sim_name, sim_env
+              FROM policy_simulation_agent_samples
+             WHERE policy_key     = '{pk}'
+               AND policy_version =  {pv}
+        """)
+        scores: Dict[tuple[str, str], float] = {}
+        for _, row in sim_rows.iterrows():
+            cond = f"sim_name  = '{row.sim_name}'  AND sim_env   = '{row.sim_env}'"
+            val = self._normalized_value(pk, pv, metric, "AVG", cond)
+            if val is not None:
+                scores[(row.sim_name, row.sim_env)] = val
+        return scores
+
     def key_and_version(self, pr: PolicyRecord) -> tuple[str, int]:
         if pr.uri is None:
             raise ValueError("PolicyRecord must have a URI to be used in EvalStatsDB queries.")

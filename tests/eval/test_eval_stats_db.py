@@ -110,6 +110,26 @@ def test_metrics_normalization(test_db):
     assert db.get_average_metric_by_filter("hearts_collected", policy_record, "sim_suite = 'none'") is None
 
 
+def test_simulation_scores_normalization(test_db):
+    db, _, _ = test_db
+    policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
+
+    scores = db.simulation_scores(policy_record, "hearts_collected")
+    assert len(scores) == 1
+
+    key = next(iter(scores))
+    exp = scores[key]
+    assert key == ("test_sim", "test_env")
+    assert 1.15 <= exp <= 1.25
+
+    # Compare to raw (non‑normalized) mean
+    raw = db.query("""
+        SELECT AVG(value) AS a FROM policy_simulation_agent_metrics
+         WHERE policy_key='test_policy' AND policy_version=1 AND metric='hearts_collected'
+    """)["a"][0]
+    assert 2.9 <= raw <= 3.1  # expected ≈3
+
+
 def test_sum_metric_normalization(test_db):
     db, _, _ = test_db
     policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
