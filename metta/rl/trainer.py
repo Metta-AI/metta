@@ -131,11 +131,13 @@ def train(
         # Warn about extreme training_agents_pct values
         if trainer_cfg.dual_policy.training_agents_pct <= 0.1:
             logger.warning(
-                f"Very low training_agents_pct ({trainer_cfg.dual_policy.training_agents_pct}) - most agents will be NPCs"
+                f"Very low training_agents_pct ({trainer_cfg.dual_policy.training_agents_pct}) "
+                "- most agents will be NPCs"
             )
         elif trainer_cfg.dual_policy.training_agents_pct >= 0.9:
             logger.warning(
-                f"Very high training_agents_pct ({trainer_cfg.dual_policy.training_agents_pct}) - few agents will be NPCs"
+                f"Very high training_agents_pct ({trainer_cfg.dual_policy.training_agents_pct}) "
+                "- few agents will be NPCs"
             )
 
     # Create vectorized environment

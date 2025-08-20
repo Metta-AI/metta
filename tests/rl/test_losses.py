@@ -125,3 +125,124 @@ class TestLosses:
         ]
         for key in expected_keys:
             assert key in stats
+
+
+def test_masking_vs_slicing_equivalence_for_ppo_loss():
+    import torch
+    from tensordict import TensorDict
+
+    from metta.rl.ppo import compute_ppo_losses
+    from metta.rl.trainer_config import (
+        CheckpointConfig,
+        PPOConfig,
+        SimulationConfig,
+        TorchProfilerConfig,
+        TrainerConfig,
+    )
+
+    # Simulate a batch of 6 agents: 4 students, 2 NPCs
+    batch_size = 6
+    num_students = 4
+    is_student_agent = torch.tensor([1, 1, 1, 1, 0, 0], dtype=torch.float32)
+    student_indices = is_student_agent.nonzero(as_tuple=True)[0]
+
+    # Create dummy minibatch
+    minibatch = TensorDict(
+        {
+            "returns": torch.tensor([1.5, 2.5, 2.5, 3.5, 100.0, 200.0]),
+            "values": torch.tensor([1.0, 2.0, 3.0, 4.0, 10.0, 20.0], requires_grad=True),
+            "act_log_prob": torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5, 0.6]),
+        },
+        batch_size=[batch_size],
+    )
+    new_logprob = torch.tensor([0.15, 0.25, 0.35, 0.45, 0.55, 0.65], requires_grad=True)
+    entropy = torch.tensor([0.5, 0.6, 0.7, 0.8, 0.9, 1.0], requires_grad=True)
+    newvalue = minibatch["values"]  # Use same tensor for simplicity
+    importance_sampling_ratio = torch.tensor([1.0, 1.1, 0.9, 1.05, 1.0, 1.0], requires_grad=True)
+    adv = torch.tensor([0.2, 0.3, 0.1, 0.4, 0.0, 0.0], requires_grad=True)
+
+    # Trainer config (provide required fields)
+    trainer_cfg = TrainerConfig(
+        ppo=PPOConfig(),
+        num_workers=1,
+        profiler=TorchProfilerConfig(profile_dir="/tmp"),
+        checkpoint=CheckpointConfig(checkpoint_dir="/tmp"),
+        simulation=SimulationConfig(replay_dir="/tmp"),
+    )
+
+    # --- Masking approach ---
+    masked_new_logprob = new_logprob * is_student_agent
+    masked_entropy = entropy * is_student_agent
+    masked_adv = adv * is_student_agent
+    masked_importance_ratio = importance_sampling_ratio * is_student_agent + (1 - is_student_agent)
+    # Add mask to minibatch for completeness
+    minibatch_masked = minibatch.clone()
+    minibatch_masked["is_student_agent"] = is_student_agent
+
+    # Compute losses as usual
+    pg_loss_mask, v_loss_mask, entropy_loss_mask, approx_kl_mask, clipfrac_mask = compute_ppo_losses(
+        minibatch_masked,
+        masked_new_logprob,
+        masked_entropy,
+        newvalue,
+        masked_importance_ratio,
+        masked_adv,
+        trainer_cfg,
+    )
+    # Correct the mean: sum over students / num_students
+    pg_loss_mask = (pg_loss_mask * is_student_agent).sum() / num_students
+    v_loss_mask = (v_loss_mask * is_student_agent).sum() / num_students
+    entropy_loss_mask = (entropy_loss_mask * is_student_agent).sum() / num_students
+    total_loss_mask = pg_loss_mask + v_loss_mask + entropy_loss_mask
+    total_loss_mask.backward()
+    grads_mask = newvalue.grad.clone() if newvalue.grad is not None else None
+    # Reset grads
+    if newvalue.grad is not None:
+        newvalue.grad.zero_()
+    if new_logprob.grad is not None:
+        new_logprob.grad.zero_()
+    if entropy.grad is not None:
+        entropy.grad.zero_()
+    if adv.grad is not None:
+        adv.grad.zero_()
+    if importance_sampling_ratio.grad is not None:
+        importance_sampling_ratio.grad.zero_()
+
+    # --- Slicing approach ---
+    sliced_new_logprob = new_logprob[student_indices]
+    sliced_entropy = entropy[student_indices]
+    sliced_adv = adv[student_indices]
+    sliced_importance_ratio = importance_sampling_ratio[student_indices]
+    sliced_newvalue = newvalue[student_indices]
+    sliced_minibatch = TensorDict(
+        {
+            "returns": minibatch["returns"][student_indices],
+            "values": minibatch["values"][student_indices],
+            "act_log_prob": minibatch["act_log_prob"][student_indices],
+        },
+        batch_size=[num_students],
+    )
+
+    pg_loss_slice, v_loss_slice, entropy_loss_slice, approx_kl_slice, clipfrac_slice = compute_ppo_losses(
+        sliced_minibatch,
+        sliced_new_logprob,
+        sliced_entropy,
+        sliced_newvalue,
+        sliced_importance_ratio,
+        sliced_adv,
+        trainer_cfg,
+    )
+    total_loss_slice = pg_loss_slice + v_loss_slice + entropy_loss_slice
+    total_loss_slice.backward()
+    grads_slice = newvalue.grad.clone() if newvalue.grad is not None else None
+
+    # --- Compare results ---
+    assert torch.allclose(pg_loss_mask, pg_loss_slice, atol=1e-6)
+    assert torch.allclose(v_loss_mask, v_loss_slice, atol=1e-6)
+    assert torch.allclose(entropy_loss_mask, entropy_loss_slice, atol=1e-6)
+    assert torch.allclose(total_loss_mask, total_loss_slice, atol=1e-6)
+    # Gradients for NPC entries should be zero
+    assert grads_mask is not None and grads_slice is not None
+    assert torch.allclose(grads_mask[:num_students], grads_slice[:num_students], atol=1e-6)
+    assert torch.all(grads_mask[num_students:] == 0)
+    assert torch.all(grads_slice[num_students:] == 0)

@@ -141,6 +141,12 @@ def process_minibatch_update(
         masked_adv,
         trainer_cfg,
     )
+    # Correct the mean: sum over students / num_students
+    num_students = is_student.sum()
+    if num_students > 0:
+        pg_loss = (pg_loss * is_student).sum() / num_students
+        v_loss = (v_loss * is_student).sum() / num_students
+        entropy_loss = (entropy_loss * is_student).sum() / num_students
 
     # Kickstarter losses
     ks_action_loss, ks_value_loss = kickstarter.loss(
