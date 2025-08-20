@@ -1,0 +1,110 @@
+defaults:
+  - common
+  - wandb: metta_research
+  - sweep: reduced
+  - sim: sweep_eval # Load sweep evaluation sim config
+  - _self_
+
+sweep_name: ??? # Will be set via command line override
+
+settings:
+  max_consecutive_failures: 5
+  rollout_retry_delay: 5
+  max_observations_to_load: 250
+  sweep_server_uri: https://api.observatory.softmax-research.net
+
+# Base sim configuration for sweep evaluations (dry run - minimal time)
+sim:
+  num_episodes: 2 # Minimal episodes for dry run
+  max_time_s: 45 # 45 seconds per simulation max
+
+schedule:
+  phases:
+    - name: "explore_cheap"
+      num_runs: 3 # Just a few runs for testing
+      overrides:
+        sweep:
+          protein:
+            max_suggestion_cost: 300 # 5 minutes max per run
+            num_random_samples: 3  # Minimal for dry run
+            random_suggestions: 2
+            resample_frequency: 3
+            global_search_scale: 1.2  # Wider search in early phase
+            expansion_rate: 0.18
+            seed_with_search_center: false  # Pure exploration
+            randomize_acquisition: true  # Randomize for diversity in parallel runs
+            # Use UCB with high beta for broad exploration in early phase
+            acquisition_fn: ucb
+            ucb_beta: 2.5 # High value encourages exploration of uncertain regions
+          parameters:
+            trainer:
+              total_timesteps: { mean: 10000000 } # 10M - minimal for dry run
+              batch_size: { mean: 65536 } # 2^16 - smaller for faster iteration
+              minibatch_size: { mean: 4096 } # 2^12
+        sim:
+          num_episodes: 2 # Minimal evaluation for dry run
+
+    - name: "exploit_medium"
+      num_runs: 2 # Even fewer for later phases
+      overrides:
+        sweep:
+          protein:
+            max_suggestion_cost: 600 # 10 minutes max
+            num_random_samples: 2  # Minimal
+            random_suggestions: 2
+            suggestions_per_pareto: 8
+            resample_frequency: 4
+            global_search_scale: 1.0  # Standard search scale
+            expansion_rate: 0.10
+            seed_with_search_center: true  # Start leveraging good regions
+            randomize_acquisition: true
+            # Use EI for balanced exploration/exploitation in middle phase
+            acquisition_fn: ei  # EI naturally balances exploration and exploitation
+          parameters:
+            trainer:
+              total_timesteps: { mean: 15000000 } # 15M
+              batch_size: { mean: 131072 } # 2^17
+              minibatch_size: { mean: 8192 } # 2^13
+        sim:
+          num_episodes: 3 # Slightly more for phase 2
+
+    - name: "peak_expensive"
+      num_runs: 1 # Just one run for final phase
+      overrides:
+        sweep:
+          protein:
+            max_suggestion_cost: 900 # 15 minutes max
+            num_random_samples: 1  # Minimal
+            random_suggestions: 1
+            suggestions_per_pareto: 4
+            resample_frequency: 5
+            global_search_scale: 0.8  # Narrower search, focus on best regions
+            expansion_rate: 0.06
+            seed_with_search_center: true  # Definitely use best known regions
+            randomize_acquisition: true
+            # Use UCB with low beta for exploitation in final phase
+            acquisition_fn: ucb
+            ucb_beta: 1.0  # Low value focuses on exploitation of promising regions
+          parameters:
+            trainer:
+              total_timesteps: { mean: 20000000 } # 20M
+              batch_size: { mean: 131072 } # 2^17
+              minibatch_size: { mean: 8192 } # 2^13
+        sim:
+          num_episodes: 4 # Still minimal for dry run
+
+# Otherwise common will mess with us
+run: null
+
+sweep_job_overrides:
+  trainer:
+    curriculum: /env/mettagrid/arena/basic_easy_shaped
+    simulation:
+      evaluate_remote: false
+      evaluate_local: true
+      replay_dir: "" # No replays for sweeps
+    # Additional overrides for dry run
+    checkpoint:
+      checkpoint_interval: 5000000 # Checkpoint every 5M steps for dry run
+
+cmd: sweep

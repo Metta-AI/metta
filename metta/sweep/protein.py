@@ -324,6 +324,7 @@ class Protein:
         expansion_rate=0.25,
         acquisition_fn="naive",
         ucb_beta=2.0,
+        randomize_acquisition=False,
     ):
         self.hyperparameters = Hyperparameters(sweep_config)
         self.num_random_samples = num_random_samples
@@ -336,6 +337,7 @@ class Protein:
         self.expansion_rate = expansion_rate
         self.acquisition_fn = acquisition_fn
         self.ucb_beta = ucb_beta
+        self.randomize_acquisition = randomize_acquisition
         self.success_observations = []
         self.failure_observations = []
         self.suggestion_idx = 0
@@ -346,7 +348,7 @@ class Protein:
         if acquisition_fn not in ["naive", "ei", "ucb"]:
             raise ValueError(f"Invalid acquisition function: {acquisition_fn}. Must be one of: 'naive', 'ei', 'ucb'")
 
-    def _compute_ei(self, mean, std, best_value):
+    def _compute_ei(self, mean, std, best_value, temperature=1.0):
         """
         Compute Expected Improvement acquisition function.
 
@@ -354,6 +356,7 @@ class Protein:
             mean: Predicted mean from GP
             std: Predicted standard deviation from GP
             best_value: Best observed value so far
+            temperature: Temperature parameter for controlling exploration (higher = more exploration)
 
         Returns:
             Expected improvement values
@@ -367,9 +370,9 @@ class Protein:
         # Avoid division by zero
         std = np.maximum(std, 1e-9)
 
-        # Compute EI
-        z = improvement / std
-        ei = improvement * stats.norm.cdf(z) + std * stats.norm.pdf(z)
+        # Compute EI with temperature scaling
+        z = improvement / (std * temperature)
+        ei = improvement * stats.norm.cdf(z) + std * temperature * stats.norm.pdf(z)
 
         return ei
 
@@ -414,6 +417,17 @@ class Protein:
     def suggest(self, fill):
         info = {}
         self.suggestion_idx += 1
+
+        # Set random seed for diversity in parallel runs
+        if self.randomize_acquisition:
+            import time
+
+            # Use current time plus suggestion index for unique seed
+            seed = int((time.time() * 1000000 + self.suggestion_idx) % 2**32)
+            np.random.seed(seed)
+            random.seed(seed)
+            info["random_seed"] = seed
+
         if len(self.success_observations) == 0 and self.seed_with_search_center:
             best = self.hyperparameters.search_centers
             return self.hyperparameters.to_dict(best, fill), info
@@ -428,12 +442,12 @@ class Protein:
             best = suggestions[best_idx]
             return self.hyperparameters.to_dict(best, fill), info
         params = np.array([e["input"] for e in self.success_observations])
-        params = torch.from_numpy(params)
+        params = torch.from_numpy(params).float()  # Convert to float32
         y = np.array([e["output"] for e in self.success_observations])
         min_score = np.min(y)
         max_score = np.max(y)
         y_norm = (y - min_score) / (np.abs(max_score - min_score) + 1e-6)
-        self.gp_score.set_data(params, torch.from_numpy(y_norm))
+        self.gp_score.set_data(params, torch.from_numpy(y_norm).float())  # Convert to float32
         self.gp_score.train()
         gp.util.train(self.gp_score, self.score_opt)
         self.gp_score.eval()
@@ -443,14 +457,14 @@ class Protein:
         log_c_max = np.max(log_c)
         log_c_norm = (log_c - log_c_min) / (log_c_max - log_c_min + 1e-6)
         self.gp_cost.mean_function = lambda x: 1
-        self.gp_cost.set_data(params, torch.from_numpy(log_c_norm))
+        self.gp_cost.set_data(params, torch.from_numpy(log_c_norm).float())  # Convert to float32
         self.gp_cost.train()
         gp.util.train(self.gp_cost, self.cost_opt)
         self.gp_cost.eval()
         candidates, pareto_idxs = pareto_points(self.success_observations)
         search_centers = np.stack([e["input"] for e in candidates])
         suggestions = self.hyperparameters.sample(len(candidates) * self.suggestions_per_pareto, mu=search_centers)
-        suggestions = torch.from_numpy(suggestions)
+        suggestions = torch.from_numpy(suggestions).float()  # Convert to float32
         with torch.no_grad():
             gp_y_norm, gp_y_norm_var = self.gp_score(suggestions)
             gp_log_c_norm, _ = self.gp_cost(suggestions)
@@ -472,10 +486,29 @@ class Protein:
             else:
                 # Default when no observations (shouldn't happen but defensive)
                 best_observed = float("-inf") if self.hyperparameters.optimize_direction == 1 else float("inf")
+
+            # Add randomization to EI by jittering the best observed value
+            if self.randomize_acquisition:
+                # Sample jitter from exponential distribution with mean = 5% of score range
+                score_range = max_score - min_score if max_score != min_score else 1.0
+                jitter_scale = 0.05 * score_range
+                jitter = np.random.exponential(scale=jitter_scale)
+                # Apply jitter in the direction that makes exploration more likely
+                if self.hyperparameters.optimize_direction == 1:  # maximizing
+                    best_observed += jitter  # Higher threshold = more exploration
+                else:  # minimizing
+                    best_observed -= jitter  # Lower threshold = more exploration
+
             ei_scores = self._compute_ei(gp_y, gp_y_std, best_observed)
             suggestion_scores = max_c_mask * ei_scores
         elif self.acquisition_fn == "ucb":
-            ucb_scores = self._compute_ucb(gp_y, gp_y_std)
+            # Randomize beta parameter for UCB
+            if self.randomize_acquisition:
+                # Sample beta from exponential distribution with mean = self.ucb_beta
+                beta = np.random.exponential(scale=self.ucb_beta)
+                ucb_scores = self._compute_ucb(gp_y, gp_y_std, beta=beta)
+            else:
+                ucb_scores = self._compute_ucb(gp_y, gp_y_std)
             suggestion_scores = max_c_mask * self.hyperparameters.optimize_direction * ucb_scores
         else:  # naive
             suggestion_scores = self._compute_naive_acquisition(gp_y_norm, gp_log_c_norm, max_c_mask)
@@ -486,7 +519,16 @@ class Protein:
             score=gp_y[best_idx].item(),
             rating=suggestion_scores[best_idx].item(),
             acquisition_fn=self.acquisition_fn,
+            randomize_acquisition=self.randomize_acquisition,
         )
+
+        # Add randomized parameter values to info if randomization was used
+        if self.randomize_acquisition:
+            if self.acquisition_fn == "ucb" and "beta" in locals():
+                info["ucb_beta_used"] = beta
+            elif self.acquisition_fn == "ei" and "jitter" in locals():
+                info["ei_jitter"] = jitter
+                info["ei_best_observed"] = best_observed
         best = suggestions[best_idx].numpy()
         return self.hyperparameters.to_dict(best, fill), info
 

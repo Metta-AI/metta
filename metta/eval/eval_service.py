@@ -6,6 +6,7 @@ import torch
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.curriculum.core import Curriculum
@@ -42,6 +43,10 @@ def evaluate_policy(
 
     # For each checkpoint of the policy, simulate
     logger.info(f"Evaluating policy {pr.uri}")
+
+    # Record heartbeat at start of evaluation
+    record_heartbeat()
+
     if training_curriculum:
         logger.info(f"Adding training task to simulation suite: {training_curriculum}")
         task_cfg = training_curriculum.get_task().env_cfg()
@@ -70,6 +75,9 @@ def evaluate_policy(
 
     eval_stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
     logger.info("Evaluation complete for policy %s", pr.uri)
+
+    # Record heartbeat after evaluation completes
+    record_heartbeat()
     scores = extract_scores(policy_record, simulation_suite, eval_stats_db, logger)
 
     if export_stats_db_uri is not None:
