@@ -9,13 +9,12 @@ ASCII rendering, alignment, and NetHack-style conversion functionality.
 from unittest.mock import patch
 
 import pytest
-from omegaconf import OmegaConf
 
 from metta.mettagrid.char_encoder import CHAR_TO_NAME
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.config.envs import make_arena
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.renderer.nethack import NethackRenderer
-from metta.mettagrid.util.hydra import get_cfg
 
 
 class TestNethackRenderer:
@@ -203,6 +202,16 @@ class TestNethackRenderer:
         assert all(len(line) == 10 for line in lines)
         assert "0" in result  # Agent should be present
 
+    def test_get_buffer_returns_string(self, basic_renderer, sample_grid_objects):
+        """Exercise the get_buffer path without printing to stdout."""
+        buf = basic_renderer.get_buffer(sample_grid_objects)
+        assert isinstance(buf, str)
+        lines = buf.split("\n")
+        assert len(lines) == 3
+        assert all(len(line) == 3 for line in lines)
+        # Basic content checks
+        assert "#" in buf or "." in buf
+
 
 class TestRendererIntegration:
     """Test renderer integration with MettaGridEnv and tools.sim style setup."""
@@ -211,22 +220,17 @@ class TestRendererIntegration:
     def test_environment_rendering_workflow(self, mock_print):
         """Test complete rendering workflow with environment."""
         # Use the working approach from our demo scripts
-        cfg = get_cfg("benchmark")
-        cfg.game.num_agents = 1
+        cfg = make_arena(num_agents=1)
         cfg.game.max_steps = 5
-        cfg.game.map_builder = OmegaConf.create(
-            {
-                "_target_": "metta.mettagrid.room.random.Random",
-                "width": 5,
-                "height": 5,
-                "agents": 1,
-                "border_width": 1,
-                "objects": {},
-            }
+        cfg.game.map_builder = RandomMapBuilder.Config(
+            width=5,
+            height=5,
+            agents=1,
+            border_width=1,
+            objects={},
         )
 
-        curriculum = SingleTaskCurriculum("test", cfg)
-        env = MettaGridEnv(curriculum, render_mode="human")
+        env = MettaGridEnv(cfg, render_mode="human")
 
         # Reset and render
         obs, info = env.reset()
@@ -252,24 +256,19 @@ class TestRendererIntegration:
     @patch("builtins.print")
     def test_multiple_render_calls(self, mock_print):
         """Test multiple render calls for consistency."""
-        cfg = get_cfg("benchmark")
-        cfg.game.num_agents = 1
+        cfg = make_arena(num_agents=1)
         cfg.game.max_steps = 5
 
         # Override map builder to ensure agent count matches
-        cfg.game.map_builder = OmegaConf.create(
-            {
-                "_target_": "metta.mettagrid.room.random.Random",
-                "width": 5,
-                "height": 5,
-                "agents": 1,
-                "border_width": 1,
-                "objects": {},
-            }
+        cfg.game.map_builder = RandomMapBuilder.Config(
+            width=5,
+            height=5,
+            agents=1,
+            border_width=1,
+            objects={},
         )
 
-        curriculum = SingleTaskCurriculum("test", cfg)
-        env = MettaGridEnv(curriculum, render_mode="human")
+        env = MettaGridEnv(cfg, render_mode="human")
 
         obs, info = env.reset()
 
@@ -293,27 +292,21 @@ class TestRendererIntegration:
     def test_tools_sim_style_integration(self):
         """Test tools.sim style integration approach."""
         # Get benchmark config (like tools.sim would)
-        cfg = get_cfg("benchmark")
-        cfg.game.num_agents = 1
+        cfg = make_arena(num_agents=1)
         cfg.game.max_steps = 5
 
         # Override map builder to ensure agent count matches
-        cfg.game.map_builder = OmegaConf.create(
-            {
-                "_target_": "metta.mettagrid.room.random.Random",
-                "width": 5,
-                "height": 5,
-                "agents": 1,
-                "border_width": 1,
-                "objects": {},
-            }
+        cfg.game.map_builder = RandomMapBuilder.Config(
+            width=5,
+            height=5,
+            agents=1,
+            border_width=1,
+            objects={},
         )
-
-        curriculum = SingleTaskCurriculum("test", cfg)
 
         # The key: render_mode="human" enables NethackRenderer
         with patch("builtins.print"):
-            env = MettaGridEnv(curriculum, render_mode="human")
+            env = MettaGridEnv(cfg, render_mode="human")
             assert env._renderer is not None
             assert env._renderer.__class__.__name__ == "NethackRenderer"
 

@@ -1,18 +1,46 @@
+import os
+import platform
+import random
 from typing import ClassVar, Literal
 
 import numpy as np
-from omegaconf import DictConfig
+import torch
 from pydantic import ConfigDict, Field
 
-from metta.common.util.collections import remove_none_values
-from metta.common.util.config import Config
+from metta.common.config import Config
+
+
+def guess_device() -> str:
+    if platform.system() == "Darwin":
+        return "mps"
+    if not torch.cuda.is_available():
+        return "cpu"
+
+    local_rank = 0
+    if "LOCAL_RANK" in os.environ:
+        local_rank = int(os.environ["LOCAL_RANK"])
+
+    return f"cuda:{local_rank}"
+
+
+def guess_vectorization() -> Literal["serial", "multiprocessing"]:
+    if platform.system() == "Darwin":
+        return "serial"
+    return "multiprocessing"
+
+
+def guess_data_dir() -> str:
+    if os.environ.get("DATA_DIR"):
+        return os.environ["DATA_DIR"]  # type: ignore
+    return "./train_dir"
 
 
 class SystemConfig(Config):
-    vectorization: Literal["serial", "multiprocessing"] = "multiprocessing"
+    vectorization: Literal["serial", "multiprocessing"] = Field(default_factory=guess_vectorization)
     seed: int = Field(default_factory=lambda: np.random.randint(0, 1000000))
     torch_deterministic: bool = Field(default=True)
-    device: str = "cuda"
+    device: str = Field(default_factory=guess_device)
+    data_dir: str = Field(default_factory=guess_data_dir)
 
     model_config: ClassVar[ConfigDict] = ConfigDict(
         extra="forbid",
@@ -21,19 +49,32 @@ class SystemConfig(Config):
     )
 
 
-def create_system_config(cfg: DictConfig) -> SystemConfig:
-    """Create system config from Hydra config.
+def seed_everything(system_cfg: SystemConfig):
+    # Despite these efforts, we still don't get deterministic behavior. But presumably
+    # this is better than nothing.
+    # https://docs.pytorch.org/docs/stable/notes/randomness.html#reproducibility
+    rank = int(os.environ.get("RANK", 0))
 
-    Args:
-        cfg: The complete Hydra config
-    """
-    config_dict = remove_none_values(
-        {
-            "vectorization": cfg.get("vectorization"),
-            "seed": cfg.get("seed"),
-            "torch_deterministic": cfg.get("torch_deterministic"),
-            "device": cfg.get("device"),
-        }
-    )
+    seed = system_cfg.seed
+    torch_deterministic = system_cfg.torch_deterministic
 
-    return SystemConfig.model_validate(config_dict)
+    # Add rank offset to base seed for distributed training to ensure different
+    # processes generate uncorrelated random sequences
+    if seed is not None:
+        rank_specific_seed = seed + rank
+    else:
+        rank_specific_seed = rank
+
+    random.seed(rank_specific_seed)
+    np.random.seed(rank_specific_seed)
+    if seed is not None:
+        torch.manual_seed(rank_specific_seed)
+        torch.cuda.manual_seed_all(rank_specific_seed)
+    torch.backends.cudnn.deterministic = torch_deterministic
+    torch.backends.cudnn.benchmark = not torch_deterministic
+    torch.use_deterministic_algorithms(torch_deterministic)
+
+    if torch_deterministic:
+        # Set CuBLAS workspace config for deterministic behavior on CUDA >= 10.2
+        # https://docs.nvidia.com/cuda/cublas/index.html#results-reproducibility
+        os.environ["CUBLAS_WORKSPACE_CONFIG"] = ":4096:8"

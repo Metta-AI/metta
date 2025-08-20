@@ -50,7 +50,9 @@ class EvalFinderWidget(anywidget.AnyWidget):
     category_filter = traitlets.List([]).tag(sync=True)  # Empty means all categories
 
     # UI state
-    view_mode = traitlets.Unicode("tree").tag(sync=True)  # "tree", "list", "category"
+    view_mode = traitlets.Unicode("category").tag(
+        sync=True
+    )  # "tree", "list", "category"
     search_term = traitlets.Unicode("").tag(sync=True)
     show_prerequisites = traitlets.Bool(True).tag(sync=True)
 

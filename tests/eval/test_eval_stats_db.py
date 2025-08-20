@@ -32,7 +32,7 @@ def _create_test_db_with_missing_metrics(db_path: Path) -> Tuple[EvalStatsDB, Li
         sim_id=sim_id,
         name="test_sim",
         suite="test_suite",
-        env="env_test",
+        env_name="env_test",
         policy_key=pk,
         policy_version=pv,
     )

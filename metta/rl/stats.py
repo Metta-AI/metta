@@ -9,8 +9,8 @@ from typing import Any
 import numpy as np
 import torch
 import wandb
-from omegaconf import DictConfig
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyRecord
 from metta.common.profiling.memory_monitor import MemoryMonitor
@@ -342,7 +342,7 @@ def process_stats(
     policy: PolicyAgent,
     timer: Stopwatch,
     trainer_cfg: TrainerConfig,
-    agent_cfg: DictConfig,
+    agent_cfg: AgentConfig,
     agent_step: int,
     epoch: int,
     wandb_run: WandbRun | None,
@@ -430,6 +430,12 @@ def process_policy_evaluator_stats(
         f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
         for k, v in eval_results.scores.to_wandb_metrics_format().items()
     }
+    metrics_to_log.update(
+        {
+            f"overview/{POLICY_EVALUATOR_METRIC_PREFIX}/{category}_score": score
+            for category, score in eval_results.scores.category_scores.items()
+        }
+    )
     if not metrics_to_log:
         logger.warning("No metrics to log for policy evaluator")
         return

@@ -7,7 +7,6 @@ import os
 import sys
 from typing import Any, Dict, List, Optional
 
-import hydra
 from omegaconf import DictConfig
 
 from metta.sweep.wandb_utils import get_sweep_runs, sweep_id_from_name
@@ -155,7 +154,6 @@ def parse_args():
 PARSED_ARGS: Optional[argparse.Namespace] = None
 
 
-@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
 def main(cfg: DictConfig) -> int:
     global PARSED_ARGS
     args = PARSED_ARGS

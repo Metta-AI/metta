@@ -1,8 +1,15 @@
-import { drizzle } from "drizzle-orm/node-postgres";
+import * as dotenv from "dotenv";
+dotenv.config({ path: ".env.local", quiet: true }); // ← load variables first
 
-import * as authSchema from "./schema/auth";
-import * as postSchema from "./schema/post";
+import { PrismaClient } from "@prisma/client";
 
-export const db = drizzle(process.env.DATABASE_URL, {
-  schema: { ...authSchema, ...postSchema },
-});
+// Create a singleton Prisma client instance
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const db = globalForPrisma.prisma ?? new PrismaClient();
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = db;
+}

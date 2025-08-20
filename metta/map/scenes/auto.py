@@ -1,9 +1,9 @@
 import numpy as np
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.map.random.float import FloatDistribution
 from metta.map.random.int import IntDistribution
-from metta.map.scene import Scene
+from metta.map.scene import ChildrenAction, Scene
 from metta.map.scenes.bsp import BSPLayout
 from metta.map.scenes.make_connected import MakeConnected
 from metta.map.scenes.mirror import Mirror
@@ -11,7 +11,7 @@ from metta.map.scenes.random import Random
 from metta.map.scenes.random_objects import RandomObjects
 from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate
 from metta.map.scenes.room_grid import RoomGrid
-from metta.map.types import AreaWhere, ChildrenAction
+from metta.map.types import AreaWhere
 
 
 class AutoParamsLayout(Config):
@@ -54,15 +54,15 @@ class Auto(Scene[AutoParams]):
                 where="full",
             ),
             ChildrenAction(
-                scene=RandomObjects.factory({"object_ranges": self.params.objects}),
+                scene=RandomObjects.factory(RandomObjects.Params(object_ranges=self.params.objects)),
                 where="full",
             ),
             ChildrenAction(
-                scene=MakeConnected.factory({}),
+                scene=MakeConnected.factory(),
                 where="full",
             ),
             ChildrenAction(
-                scene=Random.factory({"agents": self.params.num_agents}),
+                scene=Random.factory(Random.Params(agents=self.params.num_agents)),
                 where="full",
             ),
         ]
@@ -84,7 +84,7 @@ class AutoLayout(Scene[AutoParams]):
                     where=AreaWhere(tags=[tag]),
                 ),
                 ChildrenAction(
-                    scene=RandomObjects.factory({"object_ranges": self.params.room_objects}),
+                    scene=RandomObjects.factory(RandomObjects.Params(object_ranges=self.params.room_objects)),
                     where=AreaWhere(tags=[tag]),
                 ),
             ]
@@ -96,11 +96,11 @@ class AutoLayout(Scene[AutoParams]):
             return [
                 ChildrenAction(
                     scene=RoomGrid.factory(
-                        {
-                            "rows": rows,
-                            "columns": columns,
-                            "border_width": 0,  # randomize? probably not very useful
-                        },
+                        RoomGrid.Params(
+                            rows=rows,
+                            columns=columns,
+                            border_width=0,  # randomize? probably not very useful
+                        ),
                         children_actions=children_actions_for_tag("room"),
                     ),
                     where="full",
@@ -112,7 +112,7 @@ class AutoLayout(Scene[AutoParams]):
             return [
                 ChildrenAction(
                     scene=BSPLayout.factory(
-                        {"area_count": area_count},
+                        BSPLayout.Params(area_count=area_count),
                         children_actions=children_actions_for_tag("zone"),
                     ),
                     where="full",
@@ -139,9 +139,9 @@ class AutoSymmetry(Scene[AutoParams]):
         weights /= weights.sum()
         symmetry = self.rng.choice(["none", "horizontal", "vertical", "x4"], p=weights)
 
-        scene = RandomScene.factory({"candidates": self.params.content})
+        scene = RandomScene.factory(RandomScene.Params(candidates=self.params.content))
         if symmetry != "none":
-            scene = Mirror.factory({"scene": scene, "symmetry": symmetry})
+            scene = Mirror.factory(Mirror.Params(scene=scene, symmetry=symmetry))
 
         return [ChildrenAction(scene=scene, where="full")]
 

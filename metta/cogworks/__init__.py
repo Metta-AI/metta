@@ -1,1 +1,0 @@
-"""Cogworks package."""

@@ -20,11 +20,16 @@ logger = logging.getLogger(__name__)
 class PolicyRecord:
     """A record containing a policy and its metadata."""
 
-    def __init__(self, policy_store: "PolicyStore", run_name: str, uri: str | None, metadata: PolicyMetadata):
+    def __init__(
+        self,
+        policy_store: "PolicyStore",
+        run_name: str,
+        uri: str | None,
+        metadata: PolicyMetadata | None = None,
+    ):
         self._policy_store = policy_store
         self.run_name = run_name  # Human-readable identifier (e.g., from wandb). Can include version
         self.uri: str | None = uri
-        # Use the setter to ensure proper type
         self.metadata = metadata
         self._cached_policy_value: "PolicyAgent | None" = None
 
