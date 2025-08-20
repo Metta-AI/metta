@@ -272,10 +272,8 @@ def train() -> None:
     # Environment parameters
     num_envs = config.getint("environment", "num_envs")
     num_workers = config.getint("environment", "num_workers")
+    vectorization = config.get("environment", "vectorization")
     rollout_steps = 128  # Number of steps to collect per rollout
-
-    # Use multiprocessing on CUDA (Linux) for best performance, serial otherwise (macOS)
-    vectorization = "multiprocessing" if torch.cuda.is_available() else "serial"
 
     log_interval = config.getint("logging", "log_interval")
     checkpoint_interval = config.getint("logging", "checkpoint_interval")
