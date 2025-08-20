@@ -2,6 +2,7 @@
 
 import argparse
 import os
+import subprocess
 
 
 def main():
@@ -13,7 +14,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--wandb-password", type=str, required=True)
     parser.add_argument("--observatory-token", type=str)
+    parser.add_argument("--metta-profile", type=str)
     args = parser.parse_args()
+
+    if args.metta_profile:
+        subprocess.run(["metta", "configure", "--profile", args.metta_profile])
 
     if args.wandb_password:
         if os.path.exists(os.path.expanduser("~/.netrc")):

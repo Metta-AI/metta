@@ -17,8 +17,7 @@ from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
 from metta.core.distributed import TorchDistributedConfig, setup_torch_distributed
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
-from metta.tools.utils.auto_config import auto_stats_server_uri
-from softmax import softmax
+from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +59,7 @@ class TrainTool(Tool):
             self.policy_architecture = AgentConfig()
 
         if self.wandb == WandbConfig.Unconfigured():
-            # TODO(nishad) #dehydration
-            # make sure it works with skypilot
-            self.wandb = softmax.wandb_config(self.run)
+            self.wandb = auto_wandb_config(self.run)
 
     def invoke(self) -> int:
         assert self.run_dir is not None

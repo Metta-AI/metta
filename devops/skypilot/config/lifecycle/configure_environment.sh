@@ -112,7 +112,7 @@ fi
 echo "Creating/updating job secrets..."
 
 # Build command - wandb-password is always included
-CMD="uv run ./devops/skypilot/config/lifecycle/create_job_secrets.py --wandb-password \"$WANDB_PASSWORD\""
+CMD="uv run ./devops/skypilot/config/lifecycle/create_job_secrets.py --profile softmax-docker --wandb-password \"$WANDB_PASSWORD\""
 
 
 # Add observatory-token only if it's set
