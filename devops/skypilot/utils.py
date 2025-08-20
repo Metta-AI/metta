@@ -6,6 +6,7 @@ from pathlib import Path
 import sky
 import sky.jobs
 import sky.server.common
+import wandb
 
 from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
@@ -229,9 +230,12 @@ def set_task_secrets(task: sky.Task) -> None:
     if not observatory_token:
         observatory_token = ""  # we don't have a token in CI
 
+    if not wandb.api.api_key:
+        raise ValueError("Failed to get wandb api key, run 'metta install' to fix")
+
     task.update_secrets(
         dict(
-            WANDB_API_KEY=wandb_password,
+            WANDB_API_KEY=wandb.api.api_key,
             WANDB_PASSWORD=wandb_password,
             OBSERVATORY_TOKEN=observatory_token,
         )
