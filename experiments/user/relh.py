@@ -31,6 +31,8 @@ def train(run: str = "relh.mb.1") -> TrainTool:
         run=run,  # Now uses the parameter instead of hardcoded value
         curriculum=navigation.make_curriculum(env),
     )
+    # Set workers to match CPU count for optimal performance
+    cfg.trainer.rollout_workers = 16
     return cfg
 
 
