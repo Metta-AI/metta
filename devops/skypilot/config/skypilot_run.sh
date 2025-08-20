@@ -103,8 +103,6 @@ echo "     ↳ TERMINATION_REASON_FILE: $TERMINATION_REASON_FILE"
 echo "     ↳ CLUSTER_STOP_FILE: $CLUSTER_STOP_FILE"
 echo "     ↳ HEARTBEAT_FILE: $HEARTBEAT_FILE"
 echo "     ↳ ACCUMULATED_RUNTIME_FILE: $ACCUMULATED_RUNTIME_FILE"
-echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
-echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
 
 if [[ "$IS_MASTER" == "true" ]]; then
   if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
@@ -224,11 +222,8 @@ run_cmd() {
   echo "[INFO] Running command: $cmd"
 
   # Start training in its own process group; tee output for postmortem
-  cmd=(./devops/"${METTA_CMD:?missing METTA_CMD}".sh "run=${METTA_RUN_ID:?missing METTA_RUN_ID}")
-  if [ -n "${METTA_CMD_ARGS:-}" ]; then
-    extra_args=(${METTA_CMD_ARGS})
-    cmd+=("${extra_args[@]}")
-  fi
+  cmd="./devops/run.sh"
+
   # Use process substitution so $! is the trainer (not tee)
   setsid "${cmd[@]}" &
   export CMD_PID=$!
