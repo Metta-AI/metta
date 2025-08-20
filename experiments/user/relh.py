@@ -25,7 +25,6 @@ def train() -> TrainTool:
         curriculum=navigation.make_curriculum(env),
     )
     # Performance optimizations for faster training
-    cfg.trainer.rollout_workers = 16
     cfg.trainer.compile = True  # Enable torch compilation for speedup
     cfg.trainer.forward_pass_minibatch_target_size = 4096  # Larger minibatches
     return cfg
