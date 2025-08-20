@@ -103,7 +103,7 @@ valid_trainer_config = {
         "filters": {},
     },
     "checkpoint": {
-        "checkpoint_interval": 60,
+        "checkpoint_interval": 50,
         "wandb_checkpoint_interval": 300,
     },
     "simulation": {},
@@ -176,7 +176,7 @@ class TestTypedConfigs:
         assert trainer_config.optimizer.beta2 == 0.999
         assert trainer_config.optimizer.eps == 1e-12
         assert trainer_config.optimizer.weight_decay == 0
-        # evaluate_interval defaults to max(checkpoint_interval, wandb_checkpoint_interval) = max(60, 300) = 300
+        # evaluate_interval defaults to max(checkpoint_interval, wandb_checkpoint_interval) = max(50, 300) = 300
         assert trainer_config.simulation.evaluate_interval == 300
 
     def test_trainer_config_to_dictconfig_conversion(self):
@@ -234,7 +234,7 @@ class TestTypedConfigs:
         # Test 1: evaluate_interval < checkpoint_interval should fail
         config_with_bad_intervals = valid_trainer_config.copy()
         config_with_bad_intervals["simulation"]["evaluate_interval"] = 30
-        config_with_bad_intervals["checkpoint"]["checkpoint_interval"] = 60
+        config_with_bad_intervals["checkpoint"]["checkpoint_interval"] = 50
 
         with pytest.raises(ValueError) as err:
             create_trainer_config(make_cfg(config_with_bad_intervals))
@@ -242,7 +242,7 @@ class TestTypedConfigs:
 
         # Test 2: evaluate_interval < wandb_checkpoint_interval should fail
         config_with_bad_intervals = valid_trainer_config.copy()
-        config_with_bad_intervals["simulation"]["evaluate_interval"] = 60
+        config_with_bad_intervals["simulation"]["evaluate_interval"] = 50
         config_with_bad_intervals["checkpoint"]["checkpoint_interval"] = 30  # Lower than evaluate_interval
         config_with_bad_intervals["checkpoint"]["wandb_checkpoint_interval"] = 90  # Higher than evaluate_interval
 
@@ -252,7 +252,7 @@ class TestTypedConfigs:
 
         # Test 3: wandb_checkpoint_interval < checkpoint_interval should fail
         config_with_bad_intervals = valid_trainer_config.copy()
-        config_with_bad_intervals["checkpoint"]["checkpoint_interval"] = 60
+        config_with_bad_intervals["checkpoint"]["checkpoint_interval"] = 50
         config_with_bad_intervals["checkpoint"]["wandb_checkpoint_interval"] = 30
 
         with pytest.raises(ValueError) as err:
@@ -261,20 +261,20 @@ class TestTypedConfigs:
 
         # Test 4: Valid configuration where evaluate_interval >= both checkpoint intervals
         config_with_good_intervals = valid_trainer_config.copy()
-        config_with_good_intervals["checkpoint"]["checkpoint_interval"] = 60
+        config_with_good_intervals["checkpoint"]["checkpoint_interval"] = 50
         config_with_good_intervals["checkpoint"]["wandb_checkpoint_interval"] = 120
         config_with_good_intervals["simulation"]["evaluate_interval"] = 120
 
         # This should not raise
         trainer_config = create_trainer_config(make_cfg(config_with_good_intervals))
         assert trainer_config.simulation.evaluate_interval == 120
-        assert trainer_config.checkpoint.checkpoint_interval == 60
+        assert trainer_config.checkpoint.checkpoint_interval == 50
         assert trainer_config.checkpoint.wandb_checkpoint_interval == 120
 
         # Test 5: evaluate_interval = 0 (disabled) should always pass
         config_with_disabled_eval = valid_trainer_config.copy()
         config_with_disabled_eval["simulation"]["evaluate_interval"] = 0
-        config_with_disabled_eval["checkpoint"]["checkpoint_interval"] = 60
+        config_with_disabled_eval["checkpoint"]["checkpoint_interval"] = 50
         config_with_disabled_eval["checkpoint"]["wandb_checkpoint_interval"] = 300
 
         # This should not raise
