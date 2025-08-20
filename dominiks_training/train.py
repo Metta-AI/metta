@@ -276,9 +276,9 @@ def train() -> None:
     rollout_steps = 128  # Number of steps to collect per rollout
 
     log_interval = config.getint("logging", "log_interval")
-    checkpoint_interval = config.getint("logging", "checkpoint_interval")
+    checkpoint_frequency = config.getint("logging", "checkpoint_frequency")
 
-    print(f"Checkpoint interval: {checkpoint_interval} timesteps")
+    print(f"Logging every {log_interval} rollouts, checkpointing every {checkpoint_frequency} log prints")
 
     # Set random seeds
     random.seed(42)
@@ -352,7 +352,7 @@ def train() -> None:
 
     rollout = 0
     timestep = 0
-    last_checkpoint_timestep = 0
+    log_count = 0
     start_time = time.time()
 
     while timestep < total_timesteps:
@@ -389,36 +389,40 @@ def train() -> None:
         episode_rewards.append(rollout_reward)
         episode_lengths.append(rollout_steps)
 
-        # Checkpoint - only check at rollout boundaries
-        if timestep - last_checkpoint_timestep >= checkpoint_interval:
-            checkpoint_path = Path(__file__).parent / f"checkpoint_{timestep}.pt"
-            torch.save(
-                {
-                    "agent_state_dict": agent.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "rollout": rollout,
-                    "timestep": timestep,
-                },
-                checkpoint_path,
-            )
-            steps_since_last = timestep - last_checkpoint_timestep
-            print(f"Saved checkpoint: {checkpoint_path} (after {steps_since_last} steps)")
-            last_checkpoint_timestep = timestep
-
-        # Logging
+        # Logging with single line overwrite
         if rollout % log_interval == 0:
+            log_count += 1
             elapsed_time = time.time() - start_time
             sps = timestep / elapsed_time if elapsed_time > 0 else 0
             avg_reward = float(np.mean(episode_rewards[-log_interval:]))
             avg_length = float(np.mean(episode_lengths[-log_interval:]))
-            print(f"Rollout {rollout}, Timestep {timestep}")
-            print(f"  Avg Reward: {avg_reward:.3f}")
-            print(f"  Avg Length: {avg_length:.1f}")
-            print(f"  Actor Loss: {actor_loss.item():.6f}")
-            print(f"  Critic Loss: {critic_loss.item():.6f}")
-            print(f"  Total Loss: {total_loss.item():.6f}")
-            print(f"  SPS (Steps/sec): {sps:.1f}")
-            print(f"  Elapsed: {elapsed_time:.1f}s")
+
+            # Check if we should create a checkpoint
+            checkpoint_indicator = ""
+            if log_count % checkpoint_frequency == 0:
+                checkpoint_path = Path(__file__).parent / f"checkpoint_rollout_{rollout}.pt"
+                torch.save(
+                    {
+                        "agent_state_dict": agent.state_dict(),
+                        "optimizer_state_dict": optimizer.state_dict(),
+                        "rollout": rollout,
+                        "timestep": timestep,
+                    },
+                    checkpoint_path,
+                )
+                checkpoint_indicator = " [CHECKPOINT]"
+
+            # Single line log with overwrite
+            print(
+                f"\rRollout {rollout:4d} | Timestep {timestep:6d} | "
+                f"Reward {avg_reward:6.3f} | "
+                f"Actor {actor_loss.item():8.6f} | "
+                f"Critic {critic_loss.item():8.6f} | "
+                f"SPS {sps:6.1f} | "
+                f"Elapsed {elapsed_time:5.1f}s{checkpoint_indicator}",
+                end="",
+                flush=True,
+            )
 
             # Log to wandb
             log_wandb_metrics(
@@ -432,7 +436,7 @@ def train() -> None:
                 sps=sps,
             )
 
-    print("Training completed!")
+    print("\nTraining completed!")
 
     # Save final model
     final_path = Path(__file__).parent / "final_model.pt"
