@@ -13,7 +13,3 @@ game:
     _target_: metta.map.mapgen_ascii.MapGenAscii
     border_width: 1
     uri: "configs/env/mettagrid/maps/navigation/obstacles1.map"
-
-  objects:
-    altar:
-      cooldown: 255

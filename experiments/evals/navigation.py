@@ -3,12 +3,10 @@ from typing import Callable
 from metta.map.mapgen import MapGen
 from metta.map.random.int import IntConstantDistribution
 from metta.map.scene import ChildrenAction
-from metta.map.scenes.ascii import Ascii
 from metta.map.scenes.inline_ascii import InlineAscii
 from metta.map.scenes.layout import Layout, LayoutArea
 from metta.map.scenes.maze import Maze
 from metta.map.scenes.mean_distance import MeanDistance
-from metta.map.scenes.radial_maze import RadialMaze
 from metta.map.scenes.random import Random
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.types import AreaWhere
@@ -23,6 +21,7 @@ def make_ascii_env(max_steps: int, ascii_map: str, border_width: int = 1) -> Env
     env.game.map_builder = MapGen.Config.with_ascii_uri(
         ascii_map, border_width=border_width
     )
+    env.game.agent.rewards.inventory.heart = 0.333
     return env
 
 
@@ -77,20 +76,10 @@ def make_obstacles0_env() -> EnvConfig:
 
 
 def make_obstacles1_env() -> EnvConfig:
-    env = make_navigation(num_agents=1)
-    env.game.max_steps = 300
-    # Make a copy of the altar config before modifying
-    env.game.objects["altar"] = env.game.objects["altar"].model_copy()
-    env.game.objects["altar"].cooldown = 255
-    env.game.map_builder = MapGen.Config(
-        border_width=1,
-        root=Ascii.factory(
-            params=Ascii.Params(
-                uri="configs/env/mettagrid/maps/navigation/obstacles1.map",
-            ),
-        ),
+    return make_ascii_env(
+        max_steps=300,
+        ascii_map="configs/env/mettagrid/maps/navigation/obstacles1.map",
     )
-    return env
 
 
 def make_obstacles2_env() -> EnvConfig:
@@ -129,38 +118,10 @@ def make_radial_small_env() -> EnvConfig:
 
 
 def make_radialmaze_env() -> EnvConfig:
-    env = make_navigation(num_agents=1)
-    env.game.max_steps = 200
-    env.game.map_builder = MapGen.Config(
-        width=20,
-        height=20,
-        border_width=1,
-        root=RadialMaze.factory(
-            params=RadialMaze.Params(
-                arms=4,
-                arm_length=8,
-            ),
-            children_actions=[
-                # put agent at the center
-                ChildrenAction(
-                    where=AreaWhere(tags=["center"]),
-                    scene=InlineAscii.factory(
-                        params=InlineAscii.Params(data="@"),
-                    ),
-                ),
-                # put altars at the first 3 endpoints
-                ChildrenAction(
-                    where=AreaWhere(tags=["endpoint"]),
-                    limit=3,
-                    order_by="first",
-                    scene=InlineAscii.factory(
-                        params=InlineAscii.Params(data="_"),
-                    ),
-                ),
-            ],
-        ),
+    return make_ascii_env(
+        max_steps=200,
+        ascii_map="configs/env/mettagrid/maps/navigation/radial_maze.map",
     )
-    return env
 
 
 def make_swirls_env() -> EnvConfig:
@@ -198,6 +159,7 @@ def make_walls_outofsight_env() -> EnvConfig:
             )
         ),
     )
+    env.game.agent.rewards.inventory.heart = 0.333
     return env
 
 
@@ -215,6 +177,7 @@ def make_walls_sparse_env() -> EnvConfig:
             )
         ),
     )
+    env.game.agent.rewards.inventory.heart = 0.333
     return env
 
 
@@ -232,6 +195,7 @@ def make_walls_withinsight_env() -> EnvConfig:
             )
         ),
     )
+    env.game.agent.rewards.inventory.heart = 0.333
     return env
 
 
@@ -256,6 +220,7 @@ def make_emptyspace_outofsight_env() -> EnvConfig:
             )
         ),
     )
+    env.game.agent.rewards.inventory.heart = 0.333
     return env
 
 
@@ -273,6 +238,7 @@ def make_emptyspace_withinsight_env() -> EnvConfig:
             )
         ),
     )
+    env.game.agent.rewards.inventory.heart = 0.333
     return env
 
 
@@ -314,6 +280,7 @@ def make_emptyspace_sparse_medium_env() -> EnvConfig:
             ],
         ),
     )
+    env.game.agent.rewards.inventory.heart = 0.333
     return env
 
 
@@ -331,6 +298,7 @@ def make_emptyspace_sparse_env() -> EnvConfig:
             )
         ),
     )
+    env.game.agent.rewards.inventory.heart = 0.333
     return env
 
 
@@ -393,6 +361,7 @@ def make_labyrinth_env() -> EnvConfig:
             ],
         ),
     )
+    env.game.agent.rewards.inventory.heart = 0.333
     return env
 
 
