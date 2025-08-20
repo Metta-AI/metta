@@ -2,6 +2,7 @@ import metta.map.scenes.random
 from metta.map.mapgen import MapGen
 from metta.mettagrid.config import building
 from metta.mettagrid.map_builder.map_builder import MapBuilderConfig
+from metta.mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
@@ -135,5 +136,30 @@ def make_navigation(num_agents: int) -> EnvConfig:
                 border_width=1,
             ),
         )
+    )
+    return cfg
+
+
+def make_in_context_resource_chains(num_agents: int) -> EnvConfig:
+    cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=num_agents,
+        ),
+        actions=ActionsConfig(
+            move=ActionConfig(),
+            rotate=ActionConfig(),
+            get_items=ActionConfig(),
+            put_items=ActionConfig(),
+        ),
+        agent=AgentConfig(
+            rewards=AgentRewards(
+                inventory=InventoryRewards(
+                    heart=1,
+                ),
+            ),
+            default_resource_limit=1,
+            resource_limits={"heart": 15},
+        ),
+        map_builder=PerimeterInContextMapBuilder.Config(width=7, height=7, objects={}),
     )
     return cfg
