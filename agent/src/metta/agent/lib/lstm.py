@@ -58,6 +58,8 @@ class LSTM(LayerBase):
 
     def on_mb_start(self):
         if self.reset_in_training:
+            # If ^ true then you want to save state across mbs so don't reset memory here.
+            # Resetting is only when a done or truncated is encountered and that's handled in _forward_train_step.
             pass
         else:
             self.reset_memory()
@@ -148,6 +150,7 @@ class LSTM(LayerBase):
         return td
 
     def _forward_train_step(self, latent, h_t, c_t, reset_mask, B, TT):
+        """Only run when self.reset_in_training is true ie you're asking to unroll the LSTM in time."""
         # latent is (B * TT, input_size)
         # h_0 is (num_layers, B, input_size)
         # c_0 is (num_layers, B, input_size)
