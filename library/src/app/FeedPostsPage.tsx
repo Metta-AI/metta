@@ -127,22 +127,24 @@ export const FeedPostsPage: FC<{
       {/* Post Composition */}
       <NewPostForm />
       {/* Feed with Infinite Scroll */}
-      <div ref={feedRef} className="mx-auto max-w-2xl">
+      <div ref={feedRef} className="mx-auto mt-6 max-w-2xl">
         {page.items.length > 0 ? (
           <InfiniteScroll
             loadNext={page.loadNext!}
             hasMore={!!page.loadNext}
             loading={page.loading}
           >
-            {page.items.map((post) => (
-              <FeedPost
-                key={post.id}
-                post={post}
-                onPaperClick={handlePaperClick}
-                onUserClick={handleUserClick}
-                currentUser={currentUser}
-              />
-            ))}
+            <div className="flex flex-col gap-4">
+              {page.items.map((post) => (
+                <FeedPost
+                  key={post.id}
+                  post={post}
+                  onPaperClick={handlePaperClick}
+                  onUserClick={handleUserClick}
+                  currentUser={currentUser}
+                />
+              ))}
+            </div>
           </InfiniteScroll>
         ) : (
           <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">

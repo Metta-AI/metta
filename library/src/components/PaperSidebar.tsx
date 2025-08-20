@@ -2,10 +2,13 @@
 
 import { FC, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Download } from "lucide-react";
 import { FeedPostDTO } from "@/posts/data/feed";
 import { LLMAbstract } from "@/lib/llm-abstract-generator-clean";
 import { useOverlayNavigation } from "@/components/OverlayStack";
 import { StarWidgetQuery } from "@/components/StarWidgetQuery";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/Button";
 
 interface PaperSidebarProps {
   paper: FeedPostDTO["paper"];
@@ -27,32 +30,6 @@ interface LLMAbstractViewProps {
  * - Authors and institutions
  * - Tags and external link
  */
-const InstitutionsSection: FC<{ institutions: string[] }> = ({
-  institutions,
-}) => {
-  const { openInstitution } = useOverlayNavigation();
-
-  const handleInstitutionClick = (institutionName: string) => {
-    openInstitution(institutionName, [], []);
-  };
-
-  return (
-    <div className="mb-6">
-      <h4 className="mb-3 font-semibold text-gray-900">Institutions</h4>
-      <div className="space-y-1">
-        {institutions.map((institution, index) => (
-          <button
-            key={index}
-            onClick={() => handleInstitutionClick(institution)}
-            className="cursor-pointer text-left text-sm text-blue-600 underline hover:text-blue-700"
-          >
-            {institution}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
 
 export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
   const router = useRouter();
@@ -66,161 +43,205 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
 
   if (!paper) {
     return (
-      <div className="h-full w-full overflow-y-auto border-l border-gray-200 bg-gray-50 p-6">
-        <div className="text-center text-gray-500">
-          <p className="text-sm">No paper associated with this post</p>
+      <div className="w-[360px] shrink-0 border-l bg-neutral-50">
+        <div className="sticky top-0 h-screen overflow-y-auto">
+          <div className="px-4 py-4">
+            <div className="text-center text-neutral-500">
+              <p className="text-sm">No paper associated with this post</p>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full w-full overflow-y-auto border-l border-gray-200 bg-white p-6">
-      {/* Paper Header */}
-      <div className="mb-6">
-        {/* Paper Title with Star Widget */}
-        <div className="mb-4 flex items-start gap-2">
-          <div className="mt-1 flex-shrink-0">
-            <StarWidgetQuery
-              paperId={paper.id}
-              initialTotalStars={paper.stars}
-              initialIsStarredByCurrentUser={paper.starred}
-              size="md"
-            />
-          </div>
-          <h3 className="flex-1 text-xl leading-tight font-bold text-gray-900">
-            {paper.source === "arxiv" && paper.externalId ? (
-              <a
-                href={`https://arxiv.org/abs/${paper.externalId}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 underline transition-colors hover:text-blue-700"
-              >
-                {paper.title}
-              </a>
-            ) : (
-              paper.title
-            )}
-          </h3>
-          {/* Compact Download Button */}
-          {(paper.source === "arxiv" && paper.externalId) || paper.link ? (
-            <button
-              onClick={() => {
-                const pdfUrl =
-                  paper.source === "arxiv" && paper.externalId
-                    ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
-                    : paper.link;
-                if (pdfUrl) {
-                  const filename =
-                    paper.source === "arxiv" && paper.externalId
-                      ? `${paper.externalId}.pdf`
-                      : `${paper.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`;
-
-                  // Use our API endpoint to proxy the PDF download
-                  const downloadUrl = `/api/download-pdf?url=${encodeURIComponent(pdfUrl)}&filename=${encodeURIComponent(filename)}`;
-
-                  // Create a temporary anchor element to trigger download
-                  const link = document.createElement("a");
-                  link.href = downloadUrl;
-                  link.download = filename;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                }
-              }}
-              className="mt-1 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded bg-gray-100 text-sm transition-colors hover:bg-gray-200"
-              title="Download PDF"
-            >
-              ⬇️
-            </button>
-          ) : null}
-        </div>
-      </div>
-
-      {/* Authors */}
-      {paper.authors && paper.authors.length > 0 && (
-        <div className="mb-6">
-          <h4 className="mb-3 font-semibold text-gray-900">Authors</h4>
-          <div className="space-y-2">
-            {paper.authors.map((author) => (
-              <div key={author.id} className="text-sm">
-                <div className="font-medium text-gray-900">{author.name}</div>
-                {author.institution && (
-                  <div className="text-xs text-gray-600">
-                    {author.institution}
-                  </div>
-                )}
-                {author.orcid && (
-                  <div className="font-mono text-xs text-gray-500">
-                    ORCID: {author.orcid}
-                  </div>
+    <div className="w-[360px] shrink-0 border-l bg-white">
+      <div className="sticky top-0 h-screen overflow-y-auto">
+        <div className="space-y-4 px-4 py-4">
+          {/* Header row: star + title + download */}
+          <div className="flex items-start gap-2.5">
+            <div className="mt-0.5">
+              <StarWidgetQuery
+                paperId={paper.id}
+                initialTotalStars={paper.stars}
+                initialIsStarredByCurrentUser={paper.starred}
+                size="sm"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              {paper.source === "arxiv" && paper.externalId ? (
+                <a
+                  href={`https://arxiv.org/abs/${paper.externalId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[15.5px] leading-[1.3] font-semibold tracking-tight text-neutral-900 hover:underline"
+                >
+                  {paper.title}
+                </a>
+              ) : (
+                <div className="text-[15.5px] leading-[1.3] font-semibold tracking-tight text-neutral-900">
+                  {paper.title}
+                </div>
+              )}
+              <div className="mt-1 flex items-center gap-2 text-[12.5px] text-neutral-600">
+                {paper.source === "arxiv" && paper.externalId ? (
+                  <a
+                    href={`https://arxiv.org/abs/${paper.externalId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline"
+                  >
+                    arXiv
+                  </a>
+                ) : (
+                  "Unknown Venue"
                 )}
               </div>
-            ))}
-          </div>
-        </div>
-      )}
+            </div>
+            <div className="pl-2">
+              {(paper.source === "arxiv" && paper.externalId) || paper.link ? (
+                <Button
+                  size="small"
+                  theme="default"
+                  onClick={() => {
+                    const pdfUrl =
+                      paper.source === "arxiv" && paper.externalId
+                        ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
+                        : paper.link;
+                    if (pdfUrl) {
+                      const filename =
+                        paper.source === "arxiv" && paper.externalId
+                          ? `${paper.externalId}.pdf`
+                          : `${paper.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`;
 
-      {/* Institutions */}
-      {paper.institutions && paper.institutions.length > 0 && (
-        <InstitutionsSection institutions={paper.institutions} />
-      )}
+                      // Use our API endpoint to proxy the PDF download
+                      const downloadUrl = `/api/download-pdf?url=${encodeURIComponent(pdfUrl)}&filename=${encodeURIComponent(filename)}`;
 
-      {/* Tags */}
-      {paper.tags && paper.tags.length > 0 && (
-        <div className="mb-6">
-          <h4 className="mb-3 font-semibold text-gray-900">Tags</h4>
-          <div className="flex flex-wrap gap-2">
-            {paper.tags.map((tag, index) => (
-              <button
-                key={index}
-                onClick={() => handleTagClick(tag)}
-                className="inline-block cursor-pointer rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800 transition-colors hover:bg-blue-200"
-                title={`Click to view all papers tagged with "${tag}"`}
-              >
-                {tag}
-              </button>
-            ))}
+                      // Create a temporary anchor element to trigger download
+                      const link = document.createElement("a");
+                      link.href = downloadUrl;
+                      link.download = filename;
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }
+                  }}
+                  type="button"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              ) : null}
+            </div>
           </div>
-        </div>
-      )}
 
-      {/* Enhanced Abstract or Original Abstract */}
-      {paper.llmAbstract ? (
-        <LLMAbstractView
-          llmAbstract={paper.llmAbstract as LLMAbstract}
-          originalAbstract={paper.abstract}
-          pdfUrl={
-            paper.source === "arxiv" && paper.externalId
-              ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
-              : paper.link || undefined
-          }
-          homepageUrl={
-            paper.source === "arxiv" && paper.externalId
-              ? `https://arxiv.org/abs/${paper.externalId}`
-              : undefined
-          }
-        />
-      ) : paper.abstract ? (
-        <div className="mb-6">
-          <h4 className="mb-3 font-semibold text-gray-900">Abstract</h4>
-          <div className="text-sm leading-relaxed whitespace-pre-wrap text-gray-700">
-            {paper.abstract}
-          </div>
-        </div>
-      ) : null}
+          <hr className="border-neutral-200" />
 
-      {/* Timestamps */}
-      <div className="mt-6 border-t border-gray-200 pt-4">
-        <div className="space-y-1 text-xs text-gray-500">
-          <div>
-            <span className="font-medium">Created:</span>{" "}
-            {new Date(paper.createdAt).toLocaleDateString()}
+          {/* Authors as clickable chips */}
+          {paper.authors && paper.authors.length > 0 && (
+            <section>
+              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
+                Authors
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {paper.authors.map((author) => (
+                  <a key={author.id} href="#" className="inline-block">
+                    <Badge variant="secondary" className="rounded-md">
+                      {author.name}
+                    </Badge>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Institutions as clickable chips */}
+          {paper.institutions && paper.institutions.length > 0 && (
+            <section>
+              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
+                Institutions
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {paper.institutions.map((institution, index) => (
+                  <a key={index} href="#" className="inline-block">
+                    <Badge variant="secondary" className="rounded-md">
+                      {institution}
+                    </Badge>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Topic tags */}
+          {paper.tags && paper.tags.length > 0 && (
+            <section>
+              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
+                Tags
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {paper.tags.map((tag, index) => (
+                  <a
+                    key={index}
+                    href="#"
+                    className="inline-block"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleTagClick(tag);
+                    }}
+                  >
+                    <Badge variant="secondary" className="rounded-md">
+                      {tag}
+                    </Badge>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Enhanced Abstract or Original Abstract */}
+          {paper.llmAbstract ? (
+            <LLMAbstractView
+              llmAbstract={paper.llmAbstract as LLMAbstract}
+              originalAbstract={paper.abstract}
+              pdfUrl={
+                paper.source === "arxiv" && paper.externalId
+                  ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
+                  : paper.link || undefined
+              }
+              homepageUrl={
+                paper.source === "arxiv" && paper.externalId
+                  ? `https://arxiv.org/abs/${paper.externalId}`
+                  : undefined
+              }
+            />
+          ) : paper.abstract ? (
+            <section>
+              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
+                Abstract
+              </div>
+              <div className="text-[13.5px] leading-[1.6] whitespace-pre-wrap text-neutral-800">
+                {paper.abstract}
+              </div>
+            </section>
+          ) : null}
+
+          {/* Timestamps */}
+          <div className="mt-6 border-t border-neutral-200 pt-4">
+            <div className="space-y-1 text-xs text-neutral-500">
+              <div>
+                <span className="font-medium">Created:</span>{" "}
+                {new Date(paper.createdAt).toLocaleDateString()}
+              </div>
+              <div>
+                <span className="font-medium">Updated:</span>{" "}
+                {new Date(paper.updatedAt).toLocaleDateString()}
+              </div>
+            </div>
           </div>
-          <div>
-            <span className="font-medium">Updated:</span>{" "}
-            {new Date(paper.updatedAt).toLocaleDateString()}
-          </div>
+
+          {/* Spacer to ensure last content isn't flush to bottom */}
+          <div className="h-8" />
         </div>
       </div>
     </div>
@@ -241,89 +262,83 @@ const LLMAbstractView: FC<LLMAbstractViewProps> = ({
   );
 
   return (
-    <div className="mb-6">
-      {/* Tab Navigation */}
-      <div className="mb-4 border-b border-gray-200">
-        <div className="flex space-x-4">
+    <div>
+      {/* Tabs */}
+      <nav className="text-[12.5px]">
+        <div
+          role="tablist"
+          className="flex items-center gap-6 border-b border-neutral-200"
+        >
           <button
-            onClick={() => setActiveTab("summary")}
-            className={`border-b-2 pb-2 text-sm font-medium transition-colors ${
+            role="tab"
+            aria-selected={activeTab === "summary"}
+            className={
               activeTab === "summary"
-                ? "border-blue-500 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+                ? "-mb-px border-b-2 border-neutral-900 pb-2 font-medium text-neutral-900"
+                : "-mb-px border-b-2 border-transparent pb-2 text-neutral-600 hover:text-neutral-800"
+            }
+            onClick={() => setActiveTab("summary")}
           >
             AI Summary
           </button>
           {originalAbstract && (
             <button
-              onClick={() => setActiveTab("abstract")}
-              className={`border-b-2 pb-2 text-sm font-medium transition-colors ${
+              role="tab"
+              aria-selected={activeTab === "abstract"}
+              className={
                 activeTab === "abstract"
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
-              }`}
+                  ? "-mb-px border-b-2 border-neutral-900 pb-2 font-medium text-neutral-900"
+                  : "-mb-px border-b-2 border-transparent pb-2 text-neutral-600 hover:text-neutral-800"
+              }
+              onClick={() => setActiveTab("abstract")}
             >
               Original Abstract
             </button>
           )}
         </div>
-      </div>
+      </nav>
 
-      {/* Tab Content */}
-      {activeTab === "summary" && (
-        <div className="space-y-6">
-          {/* Overview (formerly Paper Summary) */}
+      {/* Content */}
+      {activeTab === "summary" ? (
+        <section className="mt-4 space-y-3">
+          {/* Overview */}
           <div>
-            <h5 className="mb-2 text-sm font-medium text-gray-900">Overview</h5>
-            <div className="rounded bg-gray-50 p-3 text-sm leading-relaxed text-gray-700">
-              {llmAbstract.summary}
+            <div className="mb-1 text-[12px] font-semibold text-neutral-700">
+              Overview
             </div>
+            <p className="text-[13.5px] leading-[1.6] text-neutral-800">
+              {llmAbstract.summary}
+            </p>
           </div>
 
-          {/* Key Figures with Images */}
+          {/* Key Figures */}
           {llmAbstract.figuresWithImages.length > 0 && (
             <div>
-              <h5 className="mb-3 text-sm font-medium text-gray-900">
+              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
                 Key Figures ({llmAbstract.figuresWithImages.length})
-              </h5>
-              <div className="space-y-6">
+              </div>
+              <div className="space-y-3">
                 {llmAbstract.figuresWithImages.map((figure, index) => (
-                  <div key={index} className="border-l-4 border-blue-200 pl-4">
-                    <div className="mb-2 flex items-start justify-between gap-2">
-                      <div>
-                        <h6 className="text-sm font-medium text-gray-900">
-                          {figure.figureNumber}
-                        </h6>
-                        <div className="text-xs text-gray-500">
-                          Page {figure.pageNumber} • Confidence:{" "}
-                          {(figure.confidence * 100).toFixed(0)}%
-                        </div>
-                      </div>
+                  <figure key={index} className="rounded-xl border p-3">
+                    <div className="flex items-center gap-2 text-[12px] text-neutral-700">
+                      <span className="font-semibold">
+                        {figure.figureNumber}
+                      </span>
+                      <span>• Page {figure.pageNumber}</span>
+                      <span>
+                        • Confidence: {Math.round(figure.confidence * 100)}%
+                      </span>
                     </div>
-
-                    <div className="mb-2 text-sm font-medium text-gray-800">
+                    <div className="mt-2 text-[13px] font-medium text-neutral-900">
                       {figure.caption}
                     </div>
-
-                    <div className="mb-3 text-sm text-gray-700">
-                      {figure.explanation}
-                    </div>
-
-                    {figure.significance && (
-                      <div className="mb-3 rounded bg-blue-50 p-2 text-xs text-blue-800">
-                        <strong>Why it's important:</strong>{" "}
-                        {figure.significance}
-                      </div>
-                    )}
-
-                    {figure.imageData && (
-                      <div className="mt-3">
+                    {/* Preview placeholder or actual image */}
+                    {figure.imageData ? (
+                      <div className="mt-2">
                         <img
                           src={`data:image/${figure.imageType || "png"};base64,${figure.imageData}`}
                           alt={figure.caption}
-                          className="h-auto max-w-full cursor-pointer rounded border border-gray-200 shadow-sm transition-shadow hover:shadow-md"
-                          style={{ maxHeight: "400px" }}
+                          className="h-24 w-full cursor-pointer rounded-lg object-cover"
                           onClick={(e) => {
                             // Create a downloadable blob URL for better viewing
                             const byteCharacters = atob(figure.imageData!);
@@ -344,41 +359,38 @@ const LLMAbstractView: FC<LLMAbstractViewProps> = ({
                           }}
                           title="Click to open in new tab"
                         />
-                        <div className="mt-1 text-xs text-gray-500">
-                          Click to view full size •{" "}
-                          {figure.imageType?.toUpperCase() || "PNG"}
-                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 grid h-24 place-content-center rounded-lg bg-neutral-100 text-[12px] text-neutral-500">
+                        preview
                       </div>
                     )}
-                  </div>
+                    <figcaption className="mt-2 text-[13px] text-neutral-900">
+                      {figure.explanation}
+                    </figcaption>
+                    {figure.significance && (
+                      <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-2 text-[12.5px] text-blue-900">
+                        <span className="font-semibold">
+                          Why it's important:{" "}
+                        </span>
+                        {figure.significance}
+                      </div>
+                    )}
+                  </figure>
                 ))}
               </div>
             </div>
           )}
-
-          {/* Page Count */}
-          <div className="text-xs text-gray-500">
-            Total pages: {llmAbstract.pageCount}
-          </div>
-        </div>
-      )}
-
-      {activeTab === "abstract" && originalAbstract && (
-        <div className="space-y-4">
-          <div>
-            <h5 className="mb-2 text-sm font-medium text-gray-900">
-              Original Abstract
-            </h5>
-            <div className="text-sm leading-relaxed whitespace-pre-wrap text-gray-700">
-              {originalAbstract}
-            </div>
-          </div>
-        </div>
+        </section>
+      ) : (
+        <section className="mt-4 text-[13.5px] leading-[1.6] text-neutral-800">
+          {originalAbstract}
+        </section>
       )}
 
       {/* Generation Info */}
-      <div className="mt-4 border-t border-gray-200 pt-4">
-        <div className="text-xs text-gray-500">
+      <div className="mt-4 border-t border-neutral-200 pt-4">
+        <div className="text-xs text-neutral-500">
           AI summary generated using GPT-4 Vision from full PDF analysis on{" "}
           {new Date(llmAbstract.generatedAt).toLocaleDateString()}
         </div>
