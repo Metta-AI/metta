@@ -69,7 +69,7 @@ def create_arena_learning_progress_config():
 
     # Create curriculum with integrated learning progress algorithm
     curriculum_cfg = cc.CurriculumConfig(
-        task_generator_config=arena_tasks,
+        task_generator=arena_tasks,
         num_active_tasks=8,
         algorithm_hypers=lp_hypers,
     )

@@ -3,13 +3,13 @@
 
 import numpy as np
 
-from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
-from .learning_progress import (
+from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig, CurriculumTask
+from metta.cogworks.curriculum.learning_progress import (
     LearningProgressCurriculum,
     LearningProgressCurriculumConfig,
     LearningProgressCurriculumTask,
 )
-from .learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressHypers
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressAlgorithm, LearningProgressHypers
 
 
 def test_learning_progress_inheritance():
@@ -143,7 +143,7 @@ def test_curriculum_algorithm_classes():
     print("Testing curriculum algorithm classes...")
 
     # Import the classes (now integrated into curriculum.py)
-    from .curriculum import (
+    from metta.cogworks.curriculum.curriculum import (
         CurriculumAlgorithm,
         CurriculumAlgorithmHypers,
         DiscreteRandomCurriculum,
