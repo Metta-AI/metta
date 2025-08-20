@@ -58,8 +58,16 @@ def main(cfg: DictConfig) -> int:
                 device=cfg.device,
                 wandb_run=wandb_run,
                 data_dir=getattr(cfg, "data_dir", None),
-                wandb_entity=cfg.wandb.entity if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "entity") else None,
-                wandb_project=cfg.wandb.project if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "project") else None,
+                wandb_entity=(
+                    cfg.wandb.entity
+                    if hasattr(cfg, "wandb") and cfg.wandb is not None and hasattr(cfg.wandb, "entity")
+                    else None
+                ),
+                wandb_project=(
+                    cfg.wandb.project
+                    if hasattr(cfg, "wandb") and cfg.wandb is not None and hasattr(cfg.wandb, "project")
+                    else None
+                ),
                 pytorch_cfg=getattr(cfg, "pytorch", None),
             )
             try:
@@ -96,7 +104,7 @@ def main(cfg: DictConfig) -> int:
                 policy_pr=policy_pr,
                 policy_store=policy_store,
                 device=cfg.device,
-                vectorization=cfg.system.vectorization,
+                vectorization=getattr(cfg.system, "vectorization", 1) if hasattr(cfg, "system") else 1,
             )
 
             # Start evaluation process
