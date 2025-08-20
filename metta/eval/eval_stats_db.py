@@ -234,7 +234,7 @@ class EvalStatsDB(SimulationStatsDB):
         """Return { (name,env) : normalized mean(metric) }."""
         pk, pv = self.key_and_version(policy_record)
         sim_rows = self.query(f"""
-            SELECT DISTINCT sim_suite, sim_name, sim_env
+            SELECT DISTINCT sim_name, sim_env
               FROM policy_simulation_agent_samples
              WHERE policy_key     = '{pk}'
                AND policy_version =  {pv}
