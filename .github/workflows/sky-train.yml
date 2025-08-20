@@ -140,7 +140,7 @@ jobs:
         id: skylaunch
         uses: ./.github/actions/launch-skypilot-job
         with:
-          module_name: ${{ github.event.inputs.module_name || env.DEFAULT_MODULE }}
+          module_name: ${{ github.event.inputs.module_name || env.DEFAULT_MODULE_NAME }}
           timeout_hours: ${{ github.event_name == 'push' && env.DEFAULT_TIMEOUT_HOURS || github.event.inputs.timeout_hours || env.DEFAULT_TIMEOUT_HOURS }}
           num_gpus: ${{ github.event_name == 'push' && env.DEFAULT_NUM_GPUS || github.event.inputs.num_gpus || '' }}
           num_nodes: ${{ github.event_name == 'push' && env.DEFAULT_NUM_NODES || github.event.inputs.num_nodes || '' }}
