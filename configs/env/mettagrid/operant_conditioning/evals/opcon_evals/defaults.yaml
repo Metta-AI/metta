@@ -1,0 +1,10 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - _self_
+
+game:
+  num_agents: 1
+  max_steps: 300
+  map_builder:
+    _target_: metta.map.mapgen_ascii.MapGenAscii
+    border_width: 1

@@ -1,0 +1,34 @@
+defaults:
+  - /env/mettagrid/mettagrid@
+  - /env/mettagrid/game/objects/in_context_learning@game.objects
+  - _self_
+
+desync_episodes: false
+
+game:
+  num_agents: 24
+  max_steps: 512
+  actions:
+    attack:
+      enabled: false
+    swap:
+      enabled: false
+    change_color:
+      enabled: false
+  agent:
+    default_resource_limit: 1
+    resource_limits:
+      heart: 15
+    rewards:
+      inventory:
+        heart: 1.0
+  map_builder:
+    _target_: metta.map.mapgen.MapGen
+    instances: ${..num_agents}
+    width: 6
+    height: 6
+    root:
+      type: metta.map.scenes.perimeter.Perimeter
+      params:
+        agents: 1
+        objects: ??

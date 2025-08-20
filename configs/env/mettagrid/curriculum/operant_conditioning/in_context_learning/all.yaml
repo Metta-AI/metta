@@ -1,0 +1,5 @@
+_target_: metta.mettagrid.curriculum.learning_progress.LearningProgressCurriculum
+
+tasks:
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/all_chains_no_sinks: 1
+  /env/mettagrid/curriculum/operant_conditioning/in_context_learning/all_chains_one_sink: 1

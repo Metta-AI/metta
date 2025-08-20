@@ -1,0 +1,105 @@
+defaults:
+  - /env/mettagrid/evals/opcon_evals/defaults@
+  - _self_
+
+game:
+  map_builder:
+    uri: "configs/env/mettagrid/maps/opcon_evals/4chain0sink.map"
+  agent:
+    rewards:
+      inventory:
+        heart: 1
+  objects:
+    # Chain: factory -> lasery -> temple -> generator_blue -> heart
+    factory:
+      input_resources:
+        ore_red: 0
+        ore_blue: 0
+        ore_green: 0
+        battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        heart: 0
+        armor: 0
+        laser: 0
+        blueprint: 0
+      output_resources:
+        ore_red: 1
+        ore_blue: 0
+        ore_green: 0
+        battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        heart: 0
+        armor: 0
+        laser: 0
+        blueprint: 0
+      max_output: 1
+      cooldown: 20
+    lasery:
+      input_resources:
+        ore_red: 1
+        ore_blue: 0
+        ore_green: 0
+        battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        heart: 0
+        armor: 0
+        laser: 0
+        blueprint: 0
+      output_resources:
+        ore_red: 0
+        ore_blue: 0
+        ore_green: 0
+        battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        heart: 0
+        armor: 0
+        laser: 0
+        blueprint: 1
+      max_output: 1
+      cooldown: 20
+    temple:
+      input_resources:
+        blueprint: 1
+        heart: 0
+      output_resources:
+        ore_red: 0
+        ore_blue: 1
+        ore_green: 0
+        battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        heart: 0
+        armor: 0
+        laser: 0
+        blueprint: 0
+      max_output: 1
+      cooldown: 20
+    generator_blue:
+      input_resources:
+        ore_blue: 1
+        ore_red: 0
+        ore_green: 0
+        battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        heart: 0
+        armor: 0
+        laser: 0
+        blueprint: 0
+      output_resources:
+        heart: 1
+        ore_red: 0
+        ore_blue: 0
+        ore_green: 0
+        battery_red: 0
+        battery_blue: 0
+        battery_green: 0
+        armor: 0
+        laser: 0
+        blueprint: 0
+      max_output: 1
+      cooldown: 20

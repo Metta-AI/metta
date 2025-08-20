@@ -1,0 +1,26 @@
+_target_: metta.mettagrid.curriculum.random.RandomCurriculum
+
+tasks:
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/battery_red-ore_blue-ore_red-ore_green: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/battery_red-ore_green-ore_blue-ore_red: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/battery_red-ore_green-ore_red-ore_blue: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/battery_red-ore_red-ore_blue-ore_green: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/battery_red-ore_red-ore_green-ore_blue: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_blue-battery_red-ore_green-ore_red: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_blue-battery_red-ore_red-ore_green: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_blue-ore_green-battery_red-ore_red: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_blue-ore_green-ore_red-battery_red: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_blue-ore_red-battery_red-ore_green: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_blue-ore_red-ore_green-battery_red: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_green-battery_red-ore_blue-ore_red: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_green-battery_red-ore_red-ore_blue: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_green-ore_blue-battery_red-ore_red: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_green-ore_blue-ore_red-battery_red: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_green-ore_red-battery_red-ore_blue: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_green-ore_red-ore_blue-battery_red: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_red-battery_red-ore_blue-ore_green: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_red-battery_red-ore_green-ore_blue: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_red-ore_blue-battery_red-ore_green: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_red-ore_blue-ore_green-battery_red: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_red-ore_green-battery_red-ore_blue: 1
+  /env/mettagrid/operant_conditioning/in_context_learning/chain_length_5/1_sinks/ore_red-ore_green-ore_blue-battery_red: 1
