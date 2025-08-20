@@ -21,7 +21,7 @@ def train() -> TrainTool:
     env = navigation.make_env()
     env.game.max_steps = 100
     cfg = navigation.train(
-        run="local.relh.1",
+        run="local.relh.dehydrate.1",
         curriculum=navigation.make_curriculum(env),
     )
     # Override worker count to match physical cores (16) instead of default (32)
@@ -38,7 +38,7 @@ def play() -> PlayTool:
 
 
 def evaluate() -> SimTool:
-    cfg = arena.evaluate(policy_uri="wandb://run/local.relh.1")
+    cfg = arena.evaluate(policy_uri="wandb://run/local.relh.dehydrate.1")
 
     # If your run doesn't exist, try this:
     # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
