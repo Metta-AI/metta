@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = "==3.11.7"
 resolution-markers = [
     "sys_platform == 'linux'",
@@ -707,12 +707,14 @@ name = "experiments"
 version = "0.1.0"
 source = { editable = "experiments" }
 dependencies = [
+    { name = "ipython" },
     { name = "jupytext" },
     { name = "moutils" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "ipython", specifier = ">=9.4.0" },
     { name = "jupytext", specifier = ">=1.17.2" },
     { name = "moutils", specifier = ">=0.3.12" },
 ]
@@ -1736,6 +1738,7 @@ dependencies = [
     { name = "httpx" },
     { name = "hydra-core" },
     { name = "imageio" },
+    { name = "ipython" },
     { name = "ipywidgets" },
     { name = "jmespath" },
     { name = "jupyterlab" },
@@ -1818,6 +1821,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "hydra-core", specifier = ">=1.4.0.dev1" },
     { name = "imageio", specifier = ">=2.37.0" },
+    { name = "ipython", specifier = ">=9.4.0" },
     { name = "ipywidgets", specifier = ">=8.1.7" },
     { name = "jmespath", specifier = ">=1.0.1" },
     { name = "jupyterlab", specifier = ">=4.4.4" },
