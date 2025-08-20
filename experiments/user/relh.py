@@ -24,6 +24,8 @@ def train() -> TrainTool:
         run="local.relh.1",
         curriculum=navigation.make_curriculum(env),
     )
+    # Override worker count to match physical cores (16) instead of default (32)
+    cfg.trainer.rollout_workers = 16
     return cfg
 
 
