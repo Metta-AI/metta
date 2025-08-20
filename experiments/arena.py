@@ -24,7 +24,7 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     arena_env = arena_env or make_env()
 
     # make a set of training tasks for the arena
-    arena_tasks = cc.tasks(arena_env)
+    arena_tasks = cc.bucketed(arena_env)
 
     # arena_tasks.add_bucket("game.map_builder.root.params.agents", [1, 2, 3, 4, 6])
     # arena_tasks.add_bucket("game.map_builder.width", [10, 20, 30, 40])
@@ -45,7 +45,7 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    return cc.curriculum(arena_tasks, num_tasks=1000)
+    return arena_tasks.to_curriculum()
 
 
 def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
