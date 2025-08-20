@@ -2,7 +2,7 @@
 # Optimizes action.use.altar metric with comprehensive parameter search
 
 # Sweep metadata for Protein optimizer
-metric: action.use.altar
+metric: env_agent/action.use.altar
 goal: maximize
 method: bayes
 

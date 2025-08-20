@@ -6,7 +6,8 @@ import torch
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
-from metta.app_backend.stats_client import StatsClient
+from metta.app_backend.clients.stats_client import StatsClient
+from metta.common.util.heartbeat import record_heartbeat
 from metta.sim.simulation import Simulation, SimulationCompatibilityError, SimulationResults
 from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -56,6 +57,9 @@ class SimulationSuite:
 
         for name, sim_config in self._config.simulations.items():
             try:
+                # Record heartbeat before starting each simulation
+                record_heartbeat()
+
                 # merge global simulation suite overrides with simulation-specific overrides
                 sim_config.env_overrides = {**self._config.env_overrides, **sim_config.env_overrides}
                 sim = Simulation(
@@ -77,6 +81,9 @@ class SimulationSuite:
                 logger.info("=== Simulation '%s' ===", name)
                 sim_result = sim.simulate()
                 merged_db.merge_in(sim_result.stats_db)
+
+                # Record heartbeat after completing each simulation
+                record_heartbeat()
 
                 # Collect replay URLs if available
                 if self._replay_dir is not None:

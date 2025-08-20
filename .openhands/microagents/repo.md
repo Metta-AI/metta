@@ -49,13 +49,12 @@ Note: The project requires Python 3.11.7 specifically, as specified in the pypro
 To train a model:
 
 ```bash
-./tools/train.py run=my_experiment +hardware=macbook wandb=off
+./tools/train.py run=my_experiment wandb=off
 ```
 
 Parameters:
 
 - `run`: Names your experiment and controls where checkpoints are saved under `train_dir/<run>`
-- `+hardware=<preset>`: Tunes the trainer for your machine (options include macbook, desktop, etc.)
 - `+user=<n>`: Loads defaults from `configs/user/<n>.yaml`
 - `wandb=off`: Disables Weights & Biases logging if you don't have access
 
@@ -64,7 +63,7 @@ Parameters:
 To run the interactive simulation:
 
 ```bash
-./tools/play.py run=my_experiment +hardware=macbook wandb=off
+./tools/play.py run=my_experiment wandb=off
 ```
 
 This launches a human-controlled session using the same configuration flags as training. It's useful for quickly testing

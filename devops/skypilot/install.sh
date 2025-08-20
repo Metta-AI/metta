@@ -1,11 +1,16 @@
 #! /bin/bash -e
 
-# Obtain the API server URL with credentials
-SERVER=$(AWS_PROFILE=softmax aws ssm get-parameter --name /skypilot/api_url --query Parameter.Value --output text || true)
+# temporary fix until https://github.com/skypilot-org/skypilot/pull/6698 is published on pypi
+curl https://raw.githubusercontent.com/skypilot-org/skypilot/b653d6ac428ebcecfc50a809ba7d61f93cdaf12c/sky/server/common.py > .venv/lib/python3.11/site-packages/sky/server/common.py
 
-if [ -z "$SERVER" ]; then
-  echo "Failed to get Skypilot API server URL from SSM. Have you ran ./devops/aws/setup_aws_profiles.sh?"
-  exit 1
-fi
+SERVER=https://skypilot-api.softmax-research.net
+
+echo "Logging in to Skypilot API server at $SERVER"
+
+echo "Skypilot might ask you to copy the token. What you need to do is:
+1. Copy the token in browser
+2. Press Ctrl+C once
+3. Paste it into the terminal
+"
 
 uv run sky api login -e "$SERVER"

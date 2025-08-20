@@ -11,7 +11,7 @@ import subprocess
 from pathlib import Path
 
 from devops.skypilot.utils import get_jobs_controller_name
-from metta.common.util.colorama import bold, green, yellow
+from metta.common.util.text_styles import bold, green, yellow
 
 
 def main():

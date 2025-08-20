@@ -42,8 +42,8 @@ jobs:
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha
-            type=sha,format=long
+            type=sha,format=long,priority=1000
+            type=sha,priority=999
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Set up Docker Buildx

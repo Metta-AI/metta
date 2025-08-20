@@ -14,8 +14,9 @@ brew "withgraphite/tap/graphite"
 brew "spacelift-io/spacelift/spacectl"
 brew "uv"
 brew "node@24"
-brew "npm"
 brew "gh"
+brew "pnpm"
+brew "jq"
 
 # Kubernetes local testing tools
 brew "kubectl"

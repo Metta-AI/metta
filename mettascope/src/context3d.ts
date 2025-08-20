@@ -1,21 +1,22 @@
-import { Vec2f, Mat3f } from './vector_math.js'
+import { Mesh } from './mesh.js'
+import { Mat3f, Vec2f } from './vector_math.js'
 
 const VERTEX_SHADER_SOURCE = `
   attribute vec2 a_position;
   attribute vec2 a_texcoord;
   attribute vec4 a_color;
-  
+
   uniform vec2 u_canvasSize;
-  
+
   varying vec2 v_texcoord;
   varying vec4 v_color;
-  
+
   void main() {
     vec2 zeroToOne = a_position / u_canvasSize;
     vec2 zeroToTwo = zeroToOne * 2.0;
     vec2 clipSpace = zeroToTwo - vec2(1.0, 1.0);
     gl_Position = vec4(clipSpace.x, -clipSpace.y, 0.0, 1.0);
-    
+
     v_texcoord = a_texcoord;
     v_color = a_color;
   }
@@ -23,12 +24,12 @@ const VERTEX_SHADER_SOURCE = `
 
 const FRAGMENT_SHADER_SOURCE = `
   precision mediump float;
-  
+
   uniform sampler2D u_sampler;
-  
+
   varying vec2 v_texcoord;
   varying vec4 v_color;
-  
+
   void main() {
     vec4 texColor = texture2D(u_sampler, v_texcoord);
     // Do the premultiplied alpha conversion.
@@ -37,9 +38,38 @@ const FRAGMENT_SHADER_SOURCE = `
   }
 `
 
+// Font atlas metadata types
+interface Glyph {
+  rect: [number, number, number, number]
+  advance: number
+  bearingX: number
+  bearingY: number
+}
+
+interface FontKerningRow {
+  [rightLabel: string]: number
+}
+
+interface Font {
+  ascent: number
+  descent: number
+  lineHeight: number
+  glyphs: { [label: string]: Glyph }
+  kerning: { [leftLabel: string]: FontKerningRow }
+  fontName: string
+  fontPath: string
+  fontSize: number
+  fontCharset: string
+  glyphInnerPadding: number
+  fontPathMtime: number | null
+  fontPathSize: number | null
+  fontConfigHash: string
+}
+
 /** Type definition for atlas data. */
 interface AtlasData {
-  [key: string]: [number, number, number, number] // [x, y, width, height]
+  images: { [key: string]: [number, number, number, number] }
+  fonts: { [fontName: string]: Font }
 }
 
 /** Clamp a value between a minimum and maximum. */
@@ -47,246 +77,31 @@ export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max))
 }
 
-/** Mesh class responsible for managing vertex data. */
-class Mesh {
-  private name: string
-  private gl: WebGLRenderingContext
-  private vertexBuffer: WebGLBuffer | null = null
-  private indexBuffer: WebGLBuffer | null = null
-
-  // Buffer management
-  private maxQuads: number
-  private vertexCapacity: number
-  private indexCapacity: number
-  private vertexData: Float32Array
-  private indexData: Uint32Array
-  private currentQuad: number = 0
-  private currentVertex: number = 0
-
-  // Scissor properties
-  public scissorEnabled: boolean = false
-  public scissorRect: [number, number, number, number] = [0, 0, 0, 0] // x, y, width, height
-
-  constructor(name: string, gl: WebGLRenderingContext, maxQuads: number = 1024 * 8) {
-    this.name = name
-    this.gl = gl
-    this.maxQuads = maxQuads
-
-    // Pre-allocated buffers for better performance
-    this.vertexCapacity = this.maxQuads * 4 // 4 vertices per quad
-    this.indexCapacity = this.maxQuads * 6 // 6 indices per quad (2 triangles)
-
-    // Pre-allocated CPU-side buffers
-    this.vertexData = new Float32Array(this.vertexCapacity * 8) // 8 floats per vertex (pos*2, uv*2, color*4)
-    this.indexData = new Uint32Array(this.indexCapacity)
-
-    // Create the index pattern once (it's always the same for quads)
-    this.setupIndexPattern()
-  }
-
-  /** Set up the index buffer pattern once. */
-  setupIndexPattern() {
-    // For each quad: triangles are formed by indices
-    // 0-1-2 (top-left, bottom-left, top-right)
-    // 2-1-3 (top-right, bottom-left, bottom-right)
-    for (let i = 0; i < this.maxQuads; i++) {
-      const baseVertex = i * 4
-      const baseIndex = i * 6
-
-      // [Top-left, Bottom-left, Top-right, Top-right, Bottom-left, Bottom-right]
-      const indexPattern = [0, 1, 2, 2, 1, 3]
-      for (let j = 0; j < 6; j++) {
-        this.indexData[baseIndex + j] = baseVertex + indexPattern[j]
-      }
-    }
-  }
-
-  /** Create WebGL buffers. */
-  createBuffers() {
-    if (!this.gl) return
-
-    // Create vertex buffer
-    this.vertexBuffer = this.gl.createBuffer()
-    if (this.vertexBuffer) {
-      this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer)
-      this.gl.bufferData(this.gl.ARRAY_BUFFER, this.vertexData, this.gl.DYNAMIC_DRAW)
-    }
-
-    // Create index buffer
-    this.indexBuffer = this.gl.createBuffer()
-    if (this.indexBuffer) {
-      this.gl.bindBuffer(this.gl.ELEMENT_ARRAY_BUFFER, this.indexBuffer)
-      this.gl.bufferData(this.gl.ELEMENT_ARRAY_BUFFER, this.indexData, this.gl.STATIC_DRAW)
-    }
-  }
-
-  /** Resize the maximum number of quads the mesh can hold. */
-  resizeMaxQuads(newMaxQuads: number) {
-    console.info('Resizing max ', this.name, ' quads from', this.maxQuads, 'to', newMaxQuads)
-
-    if (newMaxQuads <= this.maxQuads) {
-      console.warn('New max quads must be larger than current max quads')
-      return
-    }
-
-    // Store the current data and state
-    const oldVertexData = this.vertexData
-    const currentVertexCount = this.currentVertex
-
-    // Update capacities
-    this.maxQuads = newMaxQuads
-    this.vertexCapacity = this.maxQuads * 4 // 4 vertices per quad
-    this.indexCapacity = this.maxQuads * 6 // 6 indices per quad (2 triangles)
-
-    // Create new CPU-side arrays with increased capacity
-    this.vertexData = new Float32Array(this.vertexCapacity * 8) // 8 floats per vertex
-    this.indexData = new Uint32Array(this.indexCapacity)
-
-    // Copy existing vertex data to the new array
-    this.vertexData.set(oldVertexData.subarray(0, currentVertexCount * 8))
-
-    // Rebuild index data (includes the new pattern for additional quads)
-    this.setupIndexPattern()
-
-    // If we already have WebGL buffers, we need to recreate them
-    if (this.vertexBuffer && this.indexBuffer && this.gl) {
-      // Delete old buffers
-      this.gl.deleteBuffer(this.vertexBuffer)
-      this.gl.deleteBuffer(this.indexBuffer)
-
-      // Create new buffers with increased capacity
-      this.createBuffers()
-
-      // Write the existing vertex data to the new vertex buffer
-      if (currentVertexCount > 0) {
-        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.vertexBuffer)
-        this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, this.vertexData.subarray(0, currentVertexCount * 8))
-      }
-    }
-  }
-
-  /** Clear the mesh for a new frame. */
-  clear() {
-    // Reset counters instead of recreating arrays
-    this.currentQuad = 0
-    this.currentVertex = 0
-
-    // Reset scissor settings
-    this.scissorEnabled = false
-    this.scissorRect = [0, 0, 0, 0]
-  }
-
-  /** Draws a pre-transformed textured rectangle. */
-  drawRectWithTransform(
-    topLeft: Vec2f,
-    bottomLeft: Vec2f,
-    topRight: Vec2f,
-    bottomRight: Vec2f,
-    u0: number,
-    v0: number,
-    u1: number,
-    v1: number,
-    color: number[] = [1, 1, 1, 1]
-  ) {
-    // Check if we need to resize before adding more vertices
-    if (this.currentQuad >= this.maxQuads) {
-      this.resizeMaxQuads(this.maxQuads * 2)
-    }
-
-    // Calculate base offset for this quad in the vertex data array
-    const baseVertex = this.currentVertex
-    const baseOffset = baseVertex * 8 // Each vertex has 8 floats
-
-    // Define the vertex attributes for each corner
-    const corners = [
-      { pos: topLeft, uv: [u0, v0] }, // Top-left
-      { pos: bottomLeft, uv: [u0, v1] }, // Bottom-left
-      { pos: topRight, uv: [u1, v0] }, // Top-right
-      { pos: bottomRight, uv: [u1, v1] }, // Bottom-right
-    ]
-
-    // Loop through each corner and set its vertex data
-    for (let i = 0; i < 4; i++) {
-      const offset = baseOffset + i * 8
-      const corner = corners[i]
-
-      // Position
-      this.vertexData[offset + 0] = corner.pos.x()
-      this.vertexData[offset + 1] = corner.pos.y()
-
-      // Texture coordinates
-      this.vertexData[offset + 2] = corner.uv[0]
-      this.vertexData[offset + 3] = corner.uv[1]
-
-      // Color (same for all vertices)
-      this.vertexData[offset + 4] = color[0]
-      this.vertexData[offset + 5] = color[1]
-      this.vertexData[offset + 6] = color[2]
-      this.vertexData[offset + 7] = color[3]
-    }
-
-    // Update counters
-    this.currentVertex += 4
-    this.currentQuad += 1
-  }
-
-  /** Get the number of quads in the mesh. */
-  getQuadCount(): number {
-    return this.currentQuad
-  }
-
-  /** Get the vertex data. */
-  getVertexData(): Float32Array {
-    return this.vertexData
-  }
-
-  /** Get the current vertex count. */
-  getCurrentVertexCount(): number {
-    return this.currentVertex
-  }
-
-  /** Get the vertex buffer. */
-  getVertexBuffer(): WebGLBuffer | null {
-    return this.vertexBuffer
-  }
-
-  /** Get the index buffer. */
-  getIndexBuffer(): WebGLBuffer | null {
-    return this.indexBuffer
-  }
-
-  /** Reset the counters. */
-  resetCounters() {
-    this.currentQuad = 0
-    this.currentVertex = 0
-  }
-}
-
 /** Context3d class responsible for managing the WebGL context. */
 export class Context3d {
   public canvas: HTMLCanvasElement
   public gl: WebGLRenderingContext
-  public ready: boolean = false
-  public dpr: number = 1
+  public ready = false
+  public dpr = 1
   public atlasData: AtlasData | null = null
 
   // WebGL rendering state
   private shaderProgram: WebGLProgram | null = null
   private atlasTexture: WebGLTexture | null = null
   private textureSize: Vec2f = new Vec2f(0, 0)
-  private atlasMargin: number = 4
+  private atlasMargin = 4
 
   // Shader locations
-  private positionLocation: number = -1
-  private texcoordLocation: number = -1
-  private colorLocation: number = -1
+  private positionLocation = -1
+  private texcoordLocation = -1
+  private colorLocation = -1
   private canvasSizeLocation: WebGLUniformLocation | null = null
   private samplerLocation: WebGLUniformLocation | null = null
 
   // Mesh management
   private meshes: Map<string, Mesh> = new Map()
   private currentMesh: Mesh | null = null
-  private currentMeshName: string = ''
+  public currentMeshName = ''
 
   // Transformation state
   private currentTransform: Mat3f
@@ -343,6 +158,18 @@ export class Context3d {
   disableScissor() {
     this.ensureMeshSelected()
     this.currentMesh!.scissorEnabled = false
+  }
+
+  /** Set whether the current mesh should be cached between frames. */
+  setCacheable(cacheable: boolean) {
+    this.ensureMeshSelected()
+    this.currentMesh!.cacheable = cacheable
+  }
+
+  /** Clear the current mesh even if it's cacheable. */
+  clearMesh() {
+    this.ensureMeshSelected()
+    this.currentMesh?.forceClear()
   }
 
   /** Helper method to ensure a mesh is selected before drawing. */
@@ -519,7 +346,9 @@ export class Context3d {
   /** Create and compile a shader. */
   private createShader(type: number, source: string): WebGLShader | null {
     const shader = this.gl.createShader(type)
-    if (!shader) return null
+    if (!shader) {
+      return null
+    }
 
     this.gl.shaderSource(shader, source)
     this.gl.compileShader(shader)
@@ -536,7 +365,9 @@ export class Context3d {
   /** Create and link a shader program. */
   private createProgram(vertexShader: WebGLShader, fragmentShader: WebGLShader): WebGLProgram | null {
     const program = this.gl.createProgram()
-    if (!program) return null
+    if (!program) {
+      return null
+    }
 
     this.gl.attachShader(program, vertexShader)
     this.gl.attachShader(program, fragmentShader)
@@ -553,7 +384,9 @@ export class Context3d {
 
   /** Clears all meshes for a new frame. */
   clear() {
-    if (!this.ready) return
+    if (!this.ready) {
+      return
+    }
 
     // Clear all meshes in the map
     for (const mesh of this.meshes.values()) {
@@ -599,12 +432,12 @@ export class Context3d {
     const bottomRight = this.currentTransform.transform(untransformedBottomRight)
 
     // Send pre-transformed vertices to the mesh
-    this.currentMesh!.drawRectWithTransform(topLeft, bottomLeft, topRight, bottomRight, u0, v0, u1, v1, color)
+    this.currentMesh?.drawRectWithTransform(topLeft, bottomLeft, topRight, bottomRight, u0, v0, u1, v1, color)
   }
 
   /** Check if the image is in the atlas. */
   hasImage(imageName: string): boolean {
-    return this.atlasData?.[imageName] !== undefined
+    return this.atlasData?.images[imageName] !== undefined
   }
 
   /** Draws an image from the atlas with its top-right corner at (x, y). */
@@ -615,12 +448,13 @@ export class Context3d {
 
     this.ensureMeshSelected()
 
-    if (!this.atlasData?.[imageName]) {
+    const rect = this.atlasData?.images[imageName]
+    if (!rect) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
     }
 
-    const [sx, sy, sw, sh] = this.atlasData[imageName]
+    const [sx, sy, sw, sh] = rect
     const m = this.atlasMargin
 
     // Calculate UV coordinates (normalized 0.0 to 1.0).
@@ -645,39 +479,73 @@ export class Context3d {
     )
   }
 
-  /** Draws an image from the atlas centered at (x, y). */
-  drawSprite(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1, rotation = 0) {
+  /*
+   * Draws a sprite from the texture atlas centered at the specified position.
+   *
+   * @param imageName - Name of the image in the atlas (e.g., 'player.png')
+   * @param x - X coordinate of the sprite's center
+   * @param y - Y coordinate of the sprite's center
+   * @param color - RGBA color multiplier [r, g, b, a] where each component is 0.0-1.0
+   * @param scale - Uniform scale (number) or non-uniform scale [scaleX, scaleY]
+   * @param rotation - Rotation angle in radians (positive = clockwise)
+   *
+   * @example
+   * // Draw at original size
+   * ctx.drawSprite('player.png', 100, 200)
+   *
+   * // Draw with uniform scale
+   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 2)
+   *
+   * // Draw mirrored horizontally
+   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], [-1, 1])
+   *
+   * // Draw with rotation (45 degrees)
+   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 1, Math.PI / 4)
+   */
+  drawSprite(
+    imageName: string,
+    x: number,
+    y: number,
+    color: number[] = [1, 1, 1, 1],
+    scale: number | [number, number] = 1,
+    rotation = 0
+  ) {
     if (!this.ready) {
       throw new Error('Drawer not initialized')
     }
 
     this.ensureMeshSelected()
 
-    if (!this.atlasData?.[imageName]) {
+    const rect = this.atlasData?.images[imageName]
+    if (!rect) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
     }
 
-    const [sx, sy, sw, sh] = this.atlasData[imageName]
+    const [sx, sy, sw, sh] = rect
     const m = this.atlasMargin
 
-    // Calculate UV coordinates (normalized 0.0 to 1.0).
-    // Add the margin to allow texture filtering to handle edge anti-aliasing.
+    // Calculate UV coordinates for the sprite in the texture atlas.
+    // The margin (m) is added to prevent texture bleeding at sprite edges.
     const u0 = (sx - m) / this.textureSize.x()
     const v0 = (sy - m) / this.textureSize.y()
     const u1 = (sx + sw + m) / this.textureSize.x()
     const v1 = (sy + sh + m) / this.textureSize.y()
 
-    if (scale != 1 || rotation != 0) {
+    // Parse scale parameter - convert uniform scale to [scaleX, scaleY]
+    const [scaleX, scaleY] = typeof scale === 'number' ? [scale, scale] : scale
+
+    // Apply transformations if needed (scale or rotation)
+    if (scaleX !== 1 || scaleY !== 1 || rotation !== 0) {
       this.save()
-      this.translate(x, y)
-      this.rotate(rotation)
-      this.scale(scale, scale)
+      this.translate(x, y) // Move origin to sprite center
+      this.rotate(rotation) // Apply rotation
+      this.scale(scaleX, scaleY) // Apply scaling
       this.drawRect(
-        -sw / 2 - m, // Center horizontally with margin adjustment.
-        -sh / 2 - m, // Center vertically with margin adjustment.
-        sw + 2 * m, // Reduce width by twice the margin.
-        sh + 2 * m, // Reduce height by twice the margin.
+        -sw / 2 - m, // Left edge: center minus half width minus margin
+        -sh / 2 - m, // Top edge: center minus half height minus margin
+        sw + 2 * m, // Total width including margins on both sides
+        sh + 2 * m, // Total height including margins on both sides
         u0,
         v0,
         u1,
@@ -686,13 +554,12 @@ export class Context3d {
       )
       this.restore()
     } else {
-      // Draw the rectangle with the image's texture coordinates.
-      // For centered drawing, we need to account for the reduced size.
+      // Fast path: no transformations needed, draw directly
       this.drawRect(
-        x - sw / 2 - m, // Center horizontally with margin adjustment.
-        y - sh / 2 - m, // Center vertically with margin adjustment.
-        sw + 2 * m, // Reduce width by twice the margin.
-        sh + 2 * m, // Reduce height by twice the margin.
+        x - sw / 2 - m, // Left edge position
+        y - sh / 2 - m, // Top edge position
+        sw + 2 * m, // Total width including margins
+        sh + 2 * m, // Total height including margins
         u0,
         v0,
         u1,
@@ -711,12 +578,13 @@ export class Context3d {
     this.ensureMeshSelected()
 
     const imageName = 'white.png'
-    if (!this.atlasData?.[imageName]) {
+    const rect = this.atlasData?.images[imageName]
+    if (!rect) {
       throw new Error(`Image "${imageName}" not found in atlas`)
     }
 
     // Get the middle of the white texture.
-    const [sx, sy, sw, sh] = this.atlasData[imageName]
+    const [sx, sy, sw, sh] = rect
     const uvx = (sx + sw / 2) / this.textureSize.x()
     const uvy = (sy + sh / 2) / this.textureSize.y()
     this.drawRect(x, y, width, height, uvx, uvy, uvx, uvy, color)
@@ -733,6 +601,104 @@ export class Context3d {
     this.drawSolidRect(x, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color)
     // Right border.
     this.drawSolidRect(x + width - strokeWidth, y + strokeWidth, strokeWidth, height - 2 * strokeWidth, color)
+  }
+
+  /**
+   * Draw text using sprites from the atlas.
+   *
+   * x,y specify the baseline origin of the first line (top-left origin screen coordinates).
+   * fonts are generated by gen_atlas.py.
+   */
+  drawText(fontName: string, text: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1) {
+    if (!this.ready) {
+      throw new Error('Drawer not initialized')
+    }
+    this.ensureMeshSelected()
+
+    const fonts = this.atlasData!.fonts
+    const font = fonts[fontName]
+    const glyphInnerPadding = font.glyphInnerPadding
+    const mBase = this.atlasMargin
+
+    // Draw relative to (0,0) under a local transform anchored at (x,y)
+    this.save()
+    this.translate(x, y)
+    if (scale !== 1) {
+      this.scale(scale, scale)
+    }
+
+    let penX = 0
+    let penY = 0
+    let prevLabel: string | null = null
+
+    const toLabel = (cp: number): string => `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`
+
+    for (const ch of text) {
+      if (ch === '\n') {
+        penX = 0
+        penY += font.lineHeight
+        prevLabel = null
+        continue
+      }
+
+      const cp = ch.codePointAt(0)!
+      const label = toLabel(cp)
+      const glyph = font.glyphs[label]
+
+      // Special handling: advance for spaces/tabs without rendering a quad.
+      if (ch === ' ') {
+        penX += glyph ? glyph.advance : 0
+        prevLabel = label
+        continue
+      }
+      if (ch === '\t') {
+        const space = font.glyphs['U+0020']
+        const tabAdvance = (space ? space.advance : glyph ? glyph.advance : 0) * 4
+        penX += tabAdvance
+        prevLabel = label
+        continue
+      }
+
+      if (!glyph) {
+        throw new Error(`Glyph "${label}" not found in font "${fontName}"`)
+      }
+      if (!glyph.rect) {
+        throw new Error(`Glyph "${label}" has no rect in font "${fontName}"`)
+      }
+
+      // Kerning adjustment from previous glyph (already in pixels at atlas size).
+      if (prevLabel) {
+        const row = font.kerning[prevLabel]
+        if (row) {
+          const adjust = row[label]
+          if (adjust) {
+            penX += adjust
+          }
+        }
+      }
+
+      const [sx, sy, sw, sh] = glyph.rect
+      const m = mBase
+      const u0 = (sx - mBase) / this.textureSize.x()
+      const v0 = (sy - mBase) / this.textureSize.y()
+      const u1 = (sx + sw + mBase) / this.textureSize.x()
+      const v1 = (sy + sh + mBase) / this.textureSize.y()
+
+      // Position the glyph image so that its baseline aligns at (penX, penY).
+      const drawX = penX + glyph.bearingX - glyphInnerPadding - m
+      const drawY = penY + glyph.bearingY - glyphInnerPadding - m
+      const drawW = sw + 2 * m
+      const drawH = sh + 2 * m
+
+      // Main glyph.
+      this.drawRect(drawX, drawY, drawW, drawH, u0, v0, u1, v1, color)
+
+      // Advance pen position (already in pixels at atlas size).
+      penX += glyph.advance
+      prevLabel = label
+    }
+
+    this.restore()
   }
 
   /** Flushes all non-empty meshes to the screen. */
@@ -776,21 +742,28 @@ export class Context3d {
 
     // Draw each mesh that has quads
     for (const mesh of this.meshes.values()) {
-      const quadCount = mesh.getQuadCount()
-      if (quadCount === 0) continue
+      const quadCount = mesh.currentQuad
+      if (quadCount === 0) {
+        continue
+      }
 
-      const vertexBuffer = mesh.getVertexBuffer()
-      const indexBuffer = mesh.getIndexBuffer()
+      const vertexBuffer = mesh.vertexBuffer
+      const indexBuffer = mesh.indexBuffer
 
-      if (!vertexBuffer || !indexBuffer) continue
+      if (!vertexBuffer || !indexBuffer) {
+        continue
+      }
 
       // Calculate data sizes
-      const vertexDataCount = mesh.getCurrentVertexCount() * 8 // 8 floats per vertex
+      const vertexDataCount = mesh.currentVertex * 8 // 8 floats per vertex
       const indexDataCount = quadCount * 6 // 6 indices per quad
 
-      // Update vertex buffer with current data
+      // Update vertex buffer with current data only if dirty
       this.gl.bindBuffer(this.gl.ARRAY_BUFFER, vertexBuffer)
-      this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, mesh.getVertexData().subarray(0, vertexDataCount))
+      if (mesh.isDirty) {
+        this.gl.bufferSubData(this.gl.ARRAY_BUFFER, 0, mesh.vertexData.subarray(0, vertexDataCount))
+        mesh.isDirty = false
+      }
 
       // Set up attributes
       this.gl.enableVertexAttribArray(this.positionLocation)
@@ -850,8 +823,8 @@ export class Context3d {
     y1: number,
     spacing: number,
     color: number[],
-    skipStart: number = 0,
-    skipEnd: number = 0
+    skipStart = 0,
+    skipEnd = 0
   ) {
     // Compute the angle of the line.
     const angle = Math.atan2(y1 - y0, x1 - x0)

@@ -1,6 +1,5 @@
 import math
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from hydra import compose, initialize_config_dir
@@ -20,7 +19,6 @@ valid_optimizer_config = {
 
 # Complete valid trainer config with all required fields
 valid_trainer_config = {
-    "_target_": "metta.rl.trainer.MettaTrainer",
     "total_timesteps": 1000000,
     "batch_size": 1024,
     "minibatch_size": 256,
@@ -55,12 +53,6 @@ valid_trainer_config = {
         "target_kl": None,
     },
     "optimizer": valid_optimizer_config,
-    "lr_scheduler": {
-        "enabled": False,
-        "anneal_lr": False,
-        "warmup_steps": None,
-        "schedule_type": None,
-    },
     "prioritized_experience_replay": {
         "prio_alpha": 0.0,
         "prio_beta0": 0.6,
@@ -114,25 +106,8 @@ valid_trainer_config = {
         "checkpoint_interval": 60,
         "wandb_checkpoint_interval": 300,
     },
-    "simulation": {
-        "evaluate_interval": 300,
-    },
+    "simulation": {},
 }
-
-
-@patch("metta.common.util.script_decorators.setup_mettagrid_environment", return_value=None)
-@patch("metta.common.util.script_decorators.torch.cuda.is_available", return_value=True)
-@patch("metta.common.util.script_decorators.is_multiprocessing_available", return_value=True)
-def process_cfg_like_metta_script_main(cfg: DictConfig, *_mocks) -> DictConfig:
-    from metta.common.util.script_decorators import metta_script
-
-    # Use the metta_script decorator, which validates/modifies the config
-    # Mock out setup_mettagrid_environment; not necessary for testing trainer config parsing
-    @metta_script
-    def _process_config(cfg: DictConfig) -> DictConfig:
-        return cfg
-
-    return _process_config(cfg)
 
 
 def make_cfg(trainer_cfg: dict) -> DictConfig:
@@ -158,11 +133,11 @@ class TestTypedConfigs:
 
         # Test that runtime paths are set correctly
         assert trainer_config.checkpoint.checkpoint_dir == "/tmp/test_run/checkpoints"
-        assert trainer_config.simulation.replay_dir == "s3://softmax-public/replays/test_run"
+        assert trainer_config.simulation.replay_dir == "/tmp/test_run/replays/"
 
     def test_config_field_validation(self):
         # invalid field
-        with pytest.raises(ValidationError) as err:
+        with pytest.raises(ValidationError, match="learning_rate") as err:
             _ = OptimizerConfig.model_validate({**valid_optimizer_config, "learning_rate": -1.0})
         assert "learning_rate" in str(err)
 
@@ -201,6 +176,8 @@ class TestTypedConfigs:
         assert trainer_config.optimizer.beta2 == 0.999
         assert trainer_config.optimizer.eps == 1e-12
         assert trainer_config.optimizer.weight_decay == 0
+        # evaluate_interval defaults to max(checkpoint_interval, wandb_checkpoint_interval) = max(60, 300) = 300
+        assert trainer_config.simulation.evaluate_interval == 300
 
     def test_trainer_config_to_dictconfig_conversion(self):
         """Test that TrainerConfig fields can be converted back to DictConfig without issues.
@@ -237,7 +214,6 @@ class TestTypedConfigs:
 
         # Test that we can convert the entire config back to dict for hydra.utils.instantiate
         config_dict = validated_config.model_dump(by_alias=True)
-        assert config_dict["_target_"] == "metta.rl.trainer.MettaTrainer"
         assert config_dict["batch_size"] == 1024
         assert config_dict["env_overrides"]["max_steps"] == 1000
 
@@ -323,7 +299,7 @@ def load_config_with_hydra(trainer_name: str, overrides: list[str] | None = None
             overrides=default_overrides + (overrides or []),
         )
 
-        return process_cfg_like_metta_script_main(cfg)
+        return cfg
 
 
 class TestRealTypedConfigs:
@@ -347,17 +323,13 @@ class TestRealTypedConfigs:
                 print(f"Error loading config {config_name}: {e}")
                 raise e
 
+    @pytest.mark.slow
     def test_all_config_overrides_comprehensive(self):
-        """Test all config files that override trainer settings (hardware and user configs)."""
+        """Test all config files that override trainer settings (user configs)."""
         configs_root = Path(__file__).parent.parent.parent / "configs"
 
         # Collect all config files that might have trainer overrides
         config_files_to_test: list[tuple[str, str, str]] = []
-
-        # Hardware configs
-        hardware_configs = list((configs_root / "hardware").glob("*.yaml"))
-        for config in hardware_configs:
-            config_files_to_test.append(("hardware", config.stem, f"+hardware={config.stem}"))
 
         # User configs
         user_configs = list((configs_root / "user").glob("*.yaml"))
@@ -375,14 +347,27 @@ class TestRealTypedConfigs:
                 if "trainer:" not in content:
                     continue  # Skip configs without trainer overrides
 
+                # Skip configs that reference agent configs (which are now Python-based)
+                if "- /agent/" in content:
+                    print(f"Skipping {config_type} config {config_name}: references agent config")
+                    continue
+
             print(f"Testing {config_type} config: {config_name}")
 
             try:
-                # For hardware/user configs, apply them as overrides
+                # For user configs, apply them as overrides
                 overrides_list = [override, "trainer.num_workers=1"]
                 cfg = load_config_with_hydra("trainer", overrides=overrides_list)
                 create_trainer_config(cfg)
 
             except Exception as e:
+                # Check if it's a missing agent config error (expected during dehydration)
+                error_msg = str(e)
+                if "Could not load 'agent/" in error_msg or ("Cannot find" in error_msg and "/agent/" in error_msg):
+                    # This is expected on the dehydration branch where agent YAML configs have been removed
+                    # in favor of Python-based ComponentPolicy classes
+                    print(f"INFO: Skipping {config_type} config '{config_name}' - references agent YAML configs")
+                    continue
+
                 print(f"Error loading {config_type} config {config_name}: {e}")
                 raise AssertionError(f"Failed to load {config_type} config {config_name}: {e}") from e

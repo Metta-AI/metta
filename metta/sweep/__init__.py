@@ -2,6 +2,5 @@
 
 from .protein import Protein
 from .protein_metta import MettaProtein
-from .protein_wandb import WandbProtein
 
-__all__ = ["Protein", "MettaProtein", "WandbProtein"]
+__all__ = ["Protein", "MettaProtein"]

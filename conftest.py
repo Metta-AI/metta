@@ -1,23 +1,13 @@
-import sys
-from pathlib import Path
-
 import pytest
 
-print(f"\n===== applying conftest from {Path(__file__)} =====")
-
-# Add dependencies to sys.path if not already present
-base_dir = Path(__file__).resolve().parent
-
-print("\n===== DEBUG: Python sys.path =====")
-for i, path in enumerate(sys.path):
-    print(f"{i}: {path}")
-print("===== END DEBUG: Python sys.path =====\n")
+from metta.common.test_support import docker_client_fixture
 
 
 def pytest_configure(config):
     # Add multiple markers correctly
     config.addinivalue_line("markers", "benchmark: mark a test as a benchmark test")
     config.addinivalue_line("markers", "verbose: mark a test to display verbose output")
+    config.addinivalue_line("markers", "slow: mark a test as slow (runs in second phase)")
 
 
 @pytest.fixture
@@ -46,3 +36,6 @@ def pytest_runtest_makereport(item, call):
                 print("--- STDERR ---")
                 print(report.capstderr)
             print(f"===== END VERBOSE OUTPUT FOR: {item.name} =====\n")
+
+
+docker_client = docker_client_fixture()

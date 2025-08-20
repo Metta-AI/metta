@@ -1,9 +1,114 @@
-import { Vec2f } from './vector_math.js'
 import * as Common from './common.js'
-import { ui, state, ctx } from './common.js'
-import { getAttr } from './replay.js'
-import { PanelInfo } from './panels.js'
+import { ctx, state, ui } from './common.js'
+import { renderHeatmapTiles } from './heatmap.js'
+import { Grid } from './grid.js'
 import { parseHtmlColor } from './htmlutils.js'
+import type { PanelInfo } from './panels.js'
+import { Vec2f } from './vector_math.js'
+
+/** Core minimap rendering logic that can be shared between minimap and macromap rendering. */
+export function renderMinimapObjects(offset: Vec2f) {
+  if (state.replay === null || ctx === null || ctx.ready === false) {
+    return
+  }
+
+  // Draw a background rect that's the size of the map.
+  ctx.drawSolidRect(offset.x(), offset.y(), state.replay.mapSize[0], state.replay.mapSize[1], parseHtmlColor('#E7D4B7'))
+
+  // Draw the heatmap background if enabled.
+  if (state.showHeatmap) {
+    renderHeatmapTiles(state.step, (x: number, y: number, color: [number, number, number, number]) => {
+      ctx.drawSolidRect(x + offset.x(), y + offset.y(), 1, 1, color)
+    })
+  }
+
+  // Draw the grid objects on the minimap.
+  for (const gridObject of state.replay.objects) {
+    const location = gridObject.location.get()
+    const x = location[0]
+    const y = location[1]
+    const type = gridObject.typeId
+    const typeName = state.replay.typeNames[type]
+    let color = parseHtmlColor('#FFFFFF')
+    if (typeName === 'wall') {
+      color = parseHtmlColor('#61574B')
+    } else if (typeName === 'agent') {
+      continue // Draw agents separately on top.
+    }
+    ctx.drawSolidRect(x + offset.x(), y + offset.y(), 1, 1, color)
+  }
+
+  // Draw the agent pips on top.
+  for (const gridObject of state.replay.objects) {
+    const location = gridObject.location.get()
+    const x = location[0]
+    const y = location[1]
+    const type = gridObject.typeId
+    const typeName = state.replay.typeNames[type]
+    const pipScale = 0.3
+    if (typeName === 'agent') {
+      const agentId = gridObject.agentId
+      ctx.drawSprite(
+        'minimapPip.png',
+        x + offset.x() + 0.5,
+        y + offset.y() + 0.5,
+        Common.colorFromId(agentId),
+        pipScale,
+        0
+      )
+    }
+  }
+}
+
+/** Renders visual ranges on the minimap. */
+export function renderMinimapVisualRanges(offset: Vec2f) {
+  if (state.replay === null || ctx === null || ctx.ready === false) {
+    return
+  }
+
+  if (state.showVisualRanges || state.showFogOfWar) {
+    // Compute the visibility map; each agent contributes to the visibility map.
+    const visibilityMap = new Grid(state.replay.mapSize[0], state.replay.mapSize[1])
+
+    // Update the visibility map for a grid object.
+    function updateVisibilityMap(gridObject: any) {
+      const location = gridObject.location.get()
+      const x = location[0]
+      const y = location[1]
+      const visionSize = Math.floor(gridObject.visionSize / 2)
+      for (let dx = -visionSize; dx <= visionSize; dx++) {
+        for (let dy = -visionSize; dy <= visionSize; dy++) {
+          visibilityMap.set(x + dx, y + dy, true)
+        }
+      }
+    }
+
+    if (state.selectedGridObject !== null && state.selectedGridObject.agentId !== undefined) {
+      // When there is a selected grid object, only update its visibility.
+      updateVisibilityMap(state.selectedGridObject)
+    } else {
+      // When there is no selected grid object, update the visibility map for all agents.
+      for (const gridObject of state.replay.objects) {
+        const typeName = state.replay.typeNames[gridObject.typeId]
+        if (typeName === 'agent') {
+          updateVisibilityMap(gridObject)
+        }
+      }
+    }
+
+    let color = [0, 0, 0, 0.25]
+    if (state.showFogOfWar) {
+      color = [0, 0, 0, 1]
+    }
+    for (let x = 0; x < state.replay.mapSize[0]; x++) {
+      for (let y = 0; y < state.replay.mapSize[1]; y++) {
+        if (!visibilityMap.get(x, y)) {
+          ctx.drawSolidRect(x + offset.x(), y + offset.y(), 1, 1, color)
+        }
+      }
+    }
+  }
+}
 
 /** Draws the minimap. */
 export function drawMiniMap(panel: PanelInfo) {
@@ -29,54 +134,10 @@ export function drawMiniMap(panel: PanelInfo) {
   ctx.translate(rect.x, rect.y)
   ctx.scale(ui.dpr, ui.dpr)
 
-  // Draw a background rect that's the size of the map.
-  ctx.drawSolidRect(
-    0,
-    0,
-    state.replay.map_size[0] * Common.MINI_MAP_TILE_SIZE,
-    state.replay.map_size[1] * Common.MINI_MAP_TILE_SIZE,
-    parseHtmlColor('#E7D4B7')
-  )
-
-  // Draw the grid objects on the minimap.
-  for (const gridObject of state.replay.grid_objects) {
-    const x = getAttr(gridObject, 'c')
-    const y = getAttr(gridObject, 'r')
-    const type = getAttr(gridObject, 'type')
-    const typeName = state.replay.object_types[type]
-    var color = parseHtmlColor('#FFFFFF')
-    if (typeName === 'wall') {
-      color = parseHtmlColor('#61574B')
-    } else if (typeName === 'agent') {
-      continue
-    }
-    ctx.drawSolidRect(
-      x * Common.MINI_MAP_TILE_SIZE,
-      y * Common.MINI_MAP_TILE_SIZE,
-      Common.MINI_MAP_TILE_SIZE,
-      Common.MINI_MAP_TILE_SIZE,
-      color
-    )
-  }
-
-  // Draw the agent pips on top.
-  for (const gridObject of state.replay.grid_objects) {
-    const x = getAttr(gridObject, 'c')
-    const y = getAttr(gridObject, 'r')
-    const type = getAttr(gridObject, 'type')
-    const typeName = state.replay.object_types[type]
-    if (typeName === 'agent') {
-      ctx.drawSprite(
-        'minimapPip.png',
-        x * Common.MINI_MAP_TILE_SIZE + 1,
-        y * Common.MINI_MAP_TILE_SIZE + 1,
-        [1, 0, 0, 1],
-        1,
-        0
-      )
-      continue
-    }
-  }
+  // Use the shared rendering logic.
+  ctx.scale(Common.MINI_MAP_TILE_SIZE, Common.MINI_MAP_TILE_SIZE)
+  renderMinimapObjects(new Vec2f(0, 0))
+  renderMinimapVisualRanges(new Vec2f(0, 0))
 
   // Draw where the screen is on the minimap.
   const pos = new Vec2f(

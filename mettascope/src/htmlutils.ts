@@ -1,9 +1,9 @@
 /** Parses a hex color string into a float array. */
 export function parseHtmlColor(color: string): [number, number, number, number] {
   return [
-    parseInt(color.slice(1, 3), 16) / 255,
-    parseInt(color.slice(3, 5), 16) / 255,
-    parseInt(color.slice(5, 7), 16) / 255,
+    Number.parseInt(color.slice(1, 3), 16) / 255,
+    Number.parseInt(color.slice(3, 5), 16) / 255,
+    Number.parseInt(color.slice(5, 7), 16) / 255,
     1.0,
   ]
 }
@@ -13,7 +13,8 @@ export function findIn(parent: HTMLElement, selector: string): HTMLElement {
   const elements = parent.querySelectorAll(selector)
   if (elements.length === 0) {
     throw new Error(`Element with selector "${selector}" not found`)
-  } else if (elements.length > 1) {
+  }
+  if (elements.length > 1) {
     throw new Error(`Multiple elements with selector "${selector}" found`)
   }
   return elements[0] as HTMLElement
@@ -38,8 +39,8 @@ export function removeChildren(element: HTMLElement) {
 
 /** Walks up the DOM tree and finds the given attribute. */
 export function findAttr(element: HTMLElement, attribute: string): string {
-  var e = element
-  while (e != null && e != document.body) {
+  let e = element
+  while (e != null && e !== document.body) {
     if (e.hasAttribute(attribute)) {
       return e.getAttribute(attribute) as string
     }
@@ -70,10 +71,10 @@ type Handler = {
   callback: (target: HTMLElement, event: Event) => void
 }
 
-var globalHandlers: Map<string, Handler[]> = new Map()
+const globalHandlers: Map<string, Handler[]> = new Map()
 
 export function onEvent(event: string, selector: string, callback: (target: HTMLElement, event: Event) => void) {
-  let handler: Handler = {
+  const handler: Handler = {
     selector: selector,
     event: event,
     callback: callback,
@@ -83,16 +84,16 @@ export function onEvent(event: string, selector: string, callback: (target: HTML
     window.addEventListener(
       event,
       (e: Event) => {
-        if (event == 'click') {
+        if (event === 'click') {
           hideMenu()
         }
-        let handlers = globalHandlers.get(event)
+        const handlers = globalHandlers.get(event)
         if (handlers) {
-          var target = e.target as HTMLElement
+          let target = e.target as HTMLElement
           while (target != null) {
-            for (let handler of handlers) {
+            for (const handler of handlers) {
               // target.matches may be null if the mouse leaves the browser window
-              if (target.matches && target.matches(handler.selector)) {
+              if (target.matches?.(handler.selector)) {
                 handler.callback(target, e)
                 return
               }
@@ -114,8 +115,8 @@ export function onEvent(event: string, selector: string, callback: (target: HTML
  * through, as they have a scrim.
  */
 
-var openMenuTarget: HTMLElement | null = null
-var openMenu: HTMLElement | null = null
+let openMenuTarget: HTMLElement | null = null
+let openMenu: HTMLElement | null = null
 
 /** Shows a menu and sets the "scrim" target to the menu. */
 export function showMenu(target: HTMLElement, menu: HTMLElement) {
@@ -126,9 +127,9 @@ export function showMenu(target: HTMLElement, menu: HTMLElement) {
   openMenuTarget = target
   openMenu = menu
   openMenuTarget.classList.add('selected')
-  let rect = openMenuTarget.getBoundingClientRect()
-  openMenu.style.left = rect.left + 'px'
-  openMenu.style.top = rect.bottom + 2 + 'px'
+  const rect = openMenuTarget.getBoundingClientRect()
+  openMenu.style.left = `${rect.left}px`
+  openMenu.style.top = `${rect.bottom + 2}px`
   openMenu.classList.remove('hidden')
   // Bring the menu to the front (move it to the end of the sibling list).
   openMenu.parentElement?.appendChild(openMenu)
@@ -146,13 +147,13 @@ export function hideMenu() {
   }
 }
 
-var openDropdownTarget: HTMLElement | null = null
-var openDropdown: HTMLElement | null = null
-var scrim = find('#scrim') as HTMLDivElement
-var scrimTarget: HTMLElement | null = null
+let openDropdownTarget: HTMLElement | null = null
+let openDropdown: HTMLElement | null = null
+const scrim = find('#scrim') as HTMLDivElement
+const _scrimTarget: HTMLElement | null = null
 scrim.classList.add('hidden')
 
-onEvent('click', '#scrim', (target: HTMLElement, event: Event) => {
+onEvent('click', '#scrim', (_target: HTMLElement, _e: Event) => {
   hideMenu()
   hideDropdown()
 })
@@ -162,9 +163,9 @@ export function showDropdown(target: HTMLElement, dropdown: HTMLElement) {
   hideDropdown()
   openDropdown = dropdown
   openDropdownTarget = target
-  let rect = openDropdownTarget.getBoundingClientRect()
-  openDropdown.style.left = rect.left + 'px'
-  openDropdown.style.top = rect.bottom + 2 + 'px'
+  const rect = openDropdownTarget.getBoundingClientRect()
+  openDropdown.style.left = `${rect.left}px`
+  openDropdown.style.top = `${rect.bottom + 2}px`
   openDropdown.classList.remove('hidden')
   scrim.classList.remove('hidden')
 }
@@ -184,11 +185,11 @@ export function hideDropdown() {
 
 /** Gets a number from local storage with a default value. */
 export function localStorageGetNumber(key: string, defaultValue: number): number {
-  let value = localStorage.getItem(key)
+  const value = localStorage.getItem(key)
   if (value == null) {
     return defaultValue
   }
-  return parseFloat(value)
+  return Number.parseFloat(value)
 }
 
 /** Sets a number in local storage. */
@@ -198,7 +199,7 @@ export function localStorageSetNumber(key: string, value: number) {
 
 /** Gets a whole data structure from local storage. */
 export function localStorageGetObject<T>(key: string, defaultValue: T): T {
-  let value = localStorage.getItem(key)
+  const value = localStorage.getItem(key)
   if (value == null) {
     return defaultValue
   }
@@ -240,7 +241,7 @@ export function initHighDpiMode() {
           if (node instanceof HTMLImageElement) {
             swapToHighDpiImage(node)
           } else if (node.nodeType === Node.ELEMENT_NODE) {
-            let e = node as HTMLElement
+            const e = node as HTMLElement
             e.querySelectorAll('img').forEach((img) => swapToHighDpiImage(img as HTMLImageElement))
           }
         }

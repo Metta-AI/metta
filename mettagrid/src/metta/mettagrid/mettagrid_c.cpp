@@ -7,6 +7,7 @@
 #include <cmath>
 #include <numeric>
 #include <random>
+#include <iostream>
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
@@ -14,8 +15,11 @@
 #include "actions/change_glyph.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
+#include "actions/move_cardinal.hpp"
+#include "actions/move_8way.hpp"
 #include "actions/noop.hpp"
 #include "actions/put_recipe_items.hpp"
+#include "actions/place_box.hpp"
 #include "actions/rotate.hpp"
 #include "actions/swap.hpp"
 #include "event.hpp"
@@ -26,8 +30,10 @@
 #include "objects/converter.hpp"
 #include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
+#include "objects/box.hpp"
 #include "observation_encoder.hpp"
 #include "packed_coordinate.hpp"
+#include "renderer/hermes.hpp"
 #include "stats_tracker.hpp"
 #include "types.hpp"
 
@@ -39,14 +45,17 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       max_steps(cfg.max_steps),
       episode_truncates(cfg.episode_truncates),
       inventory_item_names(cfg.inventory_item_names),
+      _global_obs_config(cfg.global_obs),
       _num_observation_tokens(cfg.num_observation_tokens),
-      _global_obs_config(cfg.global_obs) {
+      _track_movement_metrics(cfg.track_movement_metrics),
+      _no_agent_interference(cfg.no_agent_interference),
+      _resource_loss_prob(cfg.resource_loss_prob) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
   // `map` is a list of lists of strings, which are the map cells.
 
-  unsigned int num_agents = cfg.num_agents;
+  unsigned int num_agents = static_cast<unsigned int>(cfg.num_agents);
 
   current_step = 0;
 
@@ -62,7 +71,6 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
   _grid = std::make_unique<Grid>(height, width);
   _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names, cfg.recipe_details_obs);
-  _feature_normalizations = _obs_encoder->feature_normalizations();
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
@@ -80,14 +88,27 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
     if (action_name_str == "put_items") {
       _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
+    } else if (action_name_str == "place_box") {
+      // Pass in resources to create box from box config so that we know how many resources to take away
+      for (const auto& [key, object_cfg] : cfg.objects) {
+        const BoxConfig* box_cfg = dynamic_cast<const BoxConfig*>(object_cfg.get());
+        if (box_cfg) {
+          _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config, box_cfg->resources_to_create));
+          break;
+        }
+      }
     } else if (action_name_str == "get_items") {
       _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
     } else if (action_name_str == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(*action_config));
+      _action_handlers.push_back(std::make_unique<Move>(*action_config, _track_movement_metrics, _no_agent_interference));
+    } else if (action_name_str == "move_8way") {
+      _action_handlers.push_back(std::make_unique<Move8Way>(*action_config, _no_agent_interference));
+    } else if (action_name_str == "move_cardinal") {
+      _action_handlers.push_back(std::make_unique<MoveCardinal>(*action_config));
     } else if (action_name_str == "rotate") {
-      _action_handlers.push_back(std::make_unique<Rotate>(*action_config));
+      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, _track_movement_metrics));
     } else if (action_name_str == "attack") {
       const AttackActionConfig* attack_config = dynamic_cast<const AttackActionConfig*>(action_config.get());
       if (!attack_config) {
@@ -169,22 +190,20 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
         continue;
       }
 
+      const BoxConfig* box_config = dynamic_cast<const BoxConfig*>(object_cfg);
+      if (box_config) {
+        Box* box = new Box(r, c, *box_config, 255, 255);  // Default creator values
+        _grid->add_object(box);
+        _stats->incr("objects." + cell);
+        continue;
+      }
+
       const ConverterConfig* converter_config = dynamic_cast<const ConverterConfig*>(object_cfg);
       if (converter_config) {
         // Create a new ConverterConfig with the recipe offsets from the observation encoder
-        ConverterConfig config_with_offsets(
-            converter_config->type_id,
-            converter_config->type_name,
-            converter_config->input_resources,
-            converter_config->output_resources,
-            converter_config->max_output,
-            converter_config->conversion_ticks,
-            converter_config->cooldown,
-            converter_config->initial_resource_count,
-            converter_config->color,
-            converter_config->recipe_details_obs,
-            _obs_encoder->get_input_recipe_offset(),
-            _obs_encoder->get_output_recipe_offset());
+        ConverterConfig config_with_offsets(*converter_config);
+        config_with_offsets.input_recipe_offset = _obs_encoder->get_input_recipe_offset();
+        config_with_offsets.output_recipe_offset = _obs_encoder->get_output_recipe_offset();
 
         Converter* converter = new Converter(r, c, config_with_offsets);
         _grid->add_object(converter);
@@ -197,12 +216,28 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       const AgentConfig* agent_config = dynamic_cast<const AgentConfig*>(object_cfg);
       if (agent_config) {
         Agent* agent = new Agent(r, c, *agent_config);
-        _grid->add_object(agent);
+        if (_no_agent_interference) {
+          _grid->ghost_add_object(agent);
+        } else {
+          _grid->add_object(agent);
+        }
         if (_agents.size() > std::numeric_limits<decltype(agent->agent_id)>::max()) {
           throw std::runtime_error("Too many agents for agent_id type");
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         agent->stats.set_environment(this);
+        // Only initialize visitation grid if visitation counts are enabled
+        if (_global_obs_config.visitation_counts) {
+          agent->init_visitation_grid(height, width);
+        }
+        // add agent box
+        if (cfg.objects.contains("box")) {
+          const BoxConfig* local_box_cfg = dynamic_cast<const BoxConfig*>(cfg.objects.at("box").get());
+          if (local_box_cfg) {
+            agent->box = new Box(0, 0, *local_box_cfg, agent->id, static_cast<unsigned char>(agent->agent_id));
+            _grid->ghost_add_object(agent->box);
+          }
+        }
         add_agent(agent);
         _group_sizes[agent->group] += 1;
         continue;
@@ -229,10 +264,11 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
     for (size_t i = 0; i < num_items; i++) {
       // Check if this item has a reward configured
-      if (agent->resource_rewards.count(i) && agent->resource_rewards[i] > 0) {
+      auto item = static_cast<InventoryItem>(i);
+      if (agent->resource_rewards.count(item) && agent->resource_rewards[item] > 0) {
         // Set bit at position (7 - i) to 1
         // Item 0 goes to bit 7, item 1 to bit 6, etc.
-        packed |= (1 << (7 - i));
+        packed |= static_cast<uint8_t>(1 << (7 - item));
       }
     }
 
@@ -279,8 +315,6 @@ void MettaGrid::add_agent(Agent* agent) {
   _agents.push_back(agent);
 }
 
-
-
 void MettaGrid::_compute_observation(GridCoord observer_row,
                                      GridCoord observer_col,
                                      ObservationCoord observable_width,
@@ -318,8 +352,9 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   if (_global_obs_config.episode_completion_pct) {
     ObservationType episode_completion_pct = 0;
     if (max_steps > 0) {
-      episode_completion_pct = static_cast<ObservationType>(
-          std::round((static_cast<float>(current_step) / max_steps) * std::numeric_limits<ObservationType>::max()));
+      float fraction = (static_cast<float>(current_step) / static_cast<float>(max_steps));
+      episode_completion_pct =
+          static_cast<ObservationType>(std::round(fraction * std::numeric_limits<ObservationType>::max()));
     }
     global_tokens.push_back({ObservationFeature::EpisodeCompletionPct, episode_completion_pct});
   }
@@ -337,6 +372,15 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   // Add inventory rewards for this agent
   if (_global_obs_config.resource_rewards && !_resource_rewards.empty()) {
     global_tokens.push_back({ObservationFeature::ResourceRewards, _resource_rewards[agent_idx]});
+  }
+
+  // Add visitation counts for this agent
+  if (_global_obs_config.visitation_counts) {
+    auto& agent = _agents[agent_idx];
+    auto visitation_counts = agent->get_visitation_counts();
+    for (size_t i = 0; i < 5; i++) {
+      global_tokens.push_back({ObservationFeature::VisitationCounts, static_cast<ObservationType>(visitation_counts[i])});
+    }
   }
 
   // Global tokens are always at the center of the observation.
@@ -361,7 +405,26 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     for (Layer layer = 0; layer < GridLayer::GridLayerCount; layer++) {
       GridLocation object_loc(static_cast<GridCoord>(r), static_cast<GridCoord>(c), layer);
       auto obj = _grid->object_at(object_loc);
-      if (!obj) continue;
+      if (_no_agent_interference) {
+        if (layer == GridLayer::ObjectLayer) {
+          if (!obj) {
+            continue;
+          }
+        }
+        if (layer == GridLayer::AgentLayer) {
+          // IN AGENT agent_idx's observation ONLY INCLUDE agent idx's features and not any other agents
+          if (r_offset == 0 && c_offset == 0) {
+            obj = _agents[agent_idx];
+          } else {
+            // Skip all other agent positions when no_agent_interference is enabled
+            continue;
+          }
+        }
+      } else {
+        if (!obj) {
+          continue;
+        }
+      }
 
       // Prepare observation buffer for this object
       ObservationToken* obs_ptr =
@@ -405,7 +468,8 @@ void MettaGrid::_handle_invalid_action(size_t agent_idx, const std::string& stat
   *agent->reward -= agent->action_failure_penalty;
 }
 
-void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
+void MettaGrid::_step(Actions actions) {
+  _actions = actions;
   auto actions_view = actions.unchecked<2>();
 
   // Reset rewards and observations
@@ -461,6 +525,29 @@ void MettaGrid::_step(py::array_t<ActionType, py::array::c_style> actions) {
     }
   }
 
+     // Handle resource loss
+   for (auto& agent : _agents) {
+     if (_resource_loss_prob > 0.0f) {
+       // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
+       // Make a real copy of the agent's inventory map to avoid iterator invalidation
+       const auto inventory_copy = agent->inventory;
+       for (const auto& [item, qty] : inventory_copy) {
+         if (qty > 0) {
+           double loss = _resource_loss_prob * qty;
+           int lost = static_cast<int>(std::floor(loss));
+           // With probability equal to the fractional part, lose one more
+           if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
+             lost += 1;
+           }
+
+           if (lost > 0) {
+            agent->update_inventory(item, -static_cast<InventoryDelta>(lost));
+           }
+         }
+       }
+     }
+   }
+
   // Compute observations for next step
   _compute_observations(actions);
 
@@ -494,6 +581,13 @@ py::tuple MettaGrid::reset() {
     throw std::runtime_error("Cannot reset after stepping");
   }
 
+  // Reset visitation counts for all agents (only if enabled)
+  if (_global_obs_config.visitation_counts) {
+    for (auto& agent : _agents) {
+      agent->reset_visitation_counts();
+    }
+  }
+
   // Reset all buffers
   // Views are created only for validating types; actual clearing is done via
   // direct memory operations for speed.
@@ -521,6 +615,7 @@ py::tuple MettaGrid::reset() {
   std::fill(static_cast<ActionType*>(zero_actions.request().ptr),
             static_cast<ActionType*>(zero_actions.request().ptr) + zero_actions.size(),
             static_cast<ActionType>(0));
+
   _compute_observations(zero_actions);
 
   return py::make_tuple(_observations, py::dict());
@@ -629,10 +724,15 @@ py::dict MettaGrid::grid_objects() {
     py::dict obj_dict;
     obj_dict["id"] = obj_id;
     obj_dict["type"] = obj->type_id;
-    obj_dict["type_name"] = obj->type_name;
-    obj_dict["r"] = obj->location.r;
-    obj_dict["c"] = obj->location.c;
-    obj_dict["layer"] = obj->location.layer;
+    // Location here is defined as XYZ coordinates specifically to be used by MettaScope.
+    // We define that for location: x is column, y is row, and z is layer.
+    // Note: it might be different for matrix computations.
+    obj_dict["location"] = py::make_tuple(obj->location.c, obj->location.r, obj->location.layer);
+    obj_dict["is_swappable"] = obj->swappable();
+
+    obj_dict["r"] = obj->location.r;          // To remove
+    obj_dict["c"] = obj->location.c;          // To remove
+    obj_dict["layer"] = obj->location.layer;  // To remove
 
     // Inject observation features
     auto features = obj->obs_features();
@@ -643,15 +743,47 @@ py::dict MettaGrid::grid_objects() {
     // Inject agent-specific info
     if (auto* agent = dynamic_cast<Agent*>(obj)) {
       obj_dict["orientation"] = static_cast<int>(agent->orientation);
-      obj_dict["group_name"] = agent->group_name;
-      obj_dict["frozen"] = agent->frozen;
+      obj_dict["group_id"] = agent->group;
+      obj_dict["is_frozen"] = !!agent->frozen;
+      obj_dict["freeze_remaining"] = agent->frozen;
+      obj_dict["freeze_duration"] = agent->freeze_duration;
+      obj_dict["color"] = agent->color;
 
       py::dict inventory_dict;
-      for (const auto& [item, quantity] : agent->inventory) {
-        inventory_dict[py::int_(item)] = quantity;
+      for (const auto& [resource, quantity] : agent->inventory) {
+        inventory_dict[py::int_(resource)] = quantity;
       }
       obj_dict["inventory"] = inventory_dict;
+      py::dict resource_limits_dict;
+      for (const auto& [resource, quantity] : agent->resource_limits) {
+        resource_limits_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["resource_limits"] = resource_limits_dict;
       obj_dict["agent_id"] = agent->agent_id;
+    }
+
+    if (auto* converter = dynamic_cast<Converter*>(obj)) {
+      py::dict inventory_dict;
+      for (const auto& [resource, quantity] : converter->inventory) {
+        inventory_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["inventory"] = inventory_dict;
+      obj_dict["is_converting"] = converter->converting;
+      obj_dict["is_cooling_down"] = converter->cooling_down;
+      obj_dict["conversion_duration"] = converter->conversion_ticks;
+      obj_dict["cooldown_duration"] = converter->cooldown;
+      obj_dict["output_limit"] = converter->max_output;
+      obj_dict["color"] = converter->color;
+      py::dict input_resources_dict;
+      for (const auto& [resource, quantity] : converter->input_resources) {
+        input_resources_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["input_resources"] = input_resources_dict;
+      py::dict output_resources_dict;
+      for (const auto& [resource, quantity] : converter->output_resources) {
+        output_resources_dict[py::int_(resource)] = quantity;
+      }
+      obj_dict["output_resources"] = output_resources_dict;
     }
 
     objects[py::int_(obj_id)] = obj_dict;
@@ -678,22 +810,21 @@ GridCoord MettaGrid::map_height() {
 
 // These should correspond to the features we emit in the observations -- either
 // the channel or the feature_id.
-py::dict MettaGrid::feature_normalizations() {
-  return py::cast(_feature_normalizations);
-}
-
 py::dict MettaGrid::feature_spec() {
   py::dict feature_spec;
-  for (const auto& feature : _obs_encoder->feature_names()) {
-    py::str feature_name = feature.second;
-    feature_spec[feature_name] = py::dict();
-    feature_spec[feature_name]["normalization"] = py::float_(_feature_normalizations[feature.first]);
-    feature_spec[feature_name]["id"] = py::int_(feature.first);
+  const auto& names = _obs_encoder->feature_names();
+  const auto& normalizations = _obs_encoder->feature_normalizations();
+
+  for (const auto& [feature_id, feature_name] : names) {
+    py::dict spec;
+    spec["normalization"] = py::float_(normalizations.at(feature_id));
+    spec["id"] = py::int_(feature_id);
+    feature_spec[py::str(feature_name)] = spec;
   }
   return feature_spec;
 }
 
-size_t MettaGrid::num_agents() {
+size_t MettaGrid::num_agents() const {
   return _agents.size();
 }
 
@@ -772,7 +903,7 @@ py::object MettaGrid::observation_space() {
   return spaces.attr("Box")(min_value, max_value, space_shape, py::arg("dtype") = dtype_observations());
 }
 
-py::list MettaGrid::action_success() {
+py::list MettaGrid::action_success_py() {
   return py::cast(_action_success);
 }
 
@@ -788,15 +919,6 @@ py::list MettaGrid::inventory_item_names_py() {
   return py::cast(inventory_item_names);
 }
 
-py::array_t<unsigned int> MettaGrid::get_agent_groups() const {
-  py::array_t<unsigned int> groups(static_cast<ssize_t>(_agents.size()));
-  auto groups_view = groups.mutable_unchecked<1>();
-  for (size_t i = 0; i < _agents.size(); i++) {
-    groups_view(i) = _agents[i]->group;
-  }
-  return groups;
-}
-
 // StatsTracker implementation that needs complete MettaGrid definition
 unsigned int StatsTracker::get_current_step() const {
   if (!_env) return 0;
@@ -804,7 +926,7 @@ unsigned int StatsTracker::get_current_step() const {
 }
 
 const std::string& StatsTracker::inventory_item_name(InventoryItem item) const {
-  if (!_env) return StatsTracker::NO_ENV_INVENTORY_ITEM_NAME;
+  if (!_env) return get_no_env_inventory_item_name();
   return _env->inventory_item_names[item];
 }
 
@@ -849,13 +971,12 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def("action_names", &MettaGrid::action_names)
       .def_property_readonly("map_width", &MettaGrid::map_width)
       .def_property_readonly("map_height", &MettaGrid::map_height)
-      .def("feature_normalizations", &MettaGrid::feature_normalizations)
       .def_property_readonly("num_agents", &MettaGrid::num_agents)
       .def("get_episode_rewards", &MettaGrid::get_episode_rewards)
       .def("get_episode_stats", &MettaGrid::get_episode_stats)
       .def_property_readonly("action_space", &MettaGrid::action_space)
       .def_property_readonly("observation_space", &MettaGrid::observation_space)
-      .def("action_success", &MettaGrid::action_success)
+      .def("action_success", &MettaGrid::action_success_py)
       .def("max_action_args", &MettaGrid::max_action_args)
       .def("object_type_names", &MettaGrid::object_type_names_py)
       .def("feature_spec", &MettaGrid::feature_spec)
@@ -864,7 +985,6 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readonly("max_steps", &MettaGrid::max_steps)
       .def_readonly("current_step", &MettaGrid::current_step)
       .def("inventory_item_names", &MettaGrid::inventory_item_names_py)
-      .def("get_agent_groups", &MettaGrid::get_agent_groups)
       .def_readonly("initial_grid_hash", &MettaGrid::initial_grid_hash);
 
   // Expose this so we can cast python WallConfig / AgentConfig / ConverterConfig to a common GridConfig cpp object.
@@ -875,6 +995,17 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("type_id", &WallConfig::type_id)
       .def_readwrite("type_name", &WallConfig::type_name)
       .def_readwrite("swappable", &WallConfig::swappable);
+
+  py::class_<BoxConfig, GridObjectConfig, std::shared_ptr<BoxConfig>>(m, "BoxConfig")
+      .def(py::init<TypeId,
+                    const std::string&,
+                    const std::map<InventoryItem, InventoryQuantity>&>(),
+           py::arg("type_id"),
+           py::arg("type_name") = "box",
+           py::arg("resources_to_create"))
+      .def_readwrite("type_id", &BoxConfig::type_id)
+      .def_readwrite("type_name", &BoxConfig::type_name)
+      .def_readwrite("resources_to_create", &BoxConfig::resources_to_create);
 
   // ##MettagridConfig
   // We expose these as much as we can to Python. Defining the initializer (and the object's constructor) means
@@ -896,7 +1027,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const std::map<InventoryItem, RewardType>&,
                     const std::map<std::string, RewardType>&,
                     const std::map<std::string, RewardType>&,
-                    float>(),
+                    float,
+                    const std::map<InventoryItem, InventoryQuantity>&>(),
            py::arg("type_id"),
            py::arg("type_name") = "agent",
            py::arg("group_id"),
@@ -908,7 +1040,8 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("resource_reward_max") = std::map<InventoryItem, RewardType>(),
            py::arg("stat_rewards") = std::map<std::string, RewardType>(),
            py::arg("stat_reward_max") = std::map<std::string, RewardType>(),
-           py::arg("group_reward_pct") = 0)
+           py::arg("group_reward_pct") = 0,
+           py::arg("initial_inventory") = std::map<InventoryItem, InventoryQuantity>())
       .def_readwrite("type_id", &AgentConfig::type_id)
       .def_readwrite("type_name", &AgentConfig::type_name)
       .def_readwrite("group_name", &AgentConfig::group_name)
@@ -920,13 +1053,15 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("resource_reward_max", &AgentConfig::resource_reward_max)
       .def_readwrite("stat_rewards", &AgentConfig::stat_rewards)
       .def_readwrite("stat_reward_max", &AgentConfig::stat_reward_max)
-      .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct);
+      .def_readwrite("group_reward_pct", &AgentConfig::group_reward_pct)
+      .def_readwrite("initial_inventory", &AgentConfig::initial_inventory);
 
   py::class_<ConverterConfig, GridObjectConfig, std::shared_ptr<ConverterConfig>>(m, "ConverterConfig")
       .def(py::init<TypeId,
                     const std::string&,
                     const std::map<InventoryItem, InventoryQuantity>&,
                     const std::map<InventoryItem, InventoryQuantity>&,
+                    short,
                     short,
                     unsigned short,
                     unsigned short,
@@ -938,6 +1073,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("input_resources"),
            py::arg("output_resources"),
            py::arg("max_output"),
+           py::arg("max_conversions"),
            py::arg("conversion_ticks"),
            py::arg("cooldown"),
            py::arg("initial_resource_count") = 0,
@@ -948,6 +1084,7 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("input_resources", &ConverterConfig::input_resources)
       .def_readwrite("output_resources", &ConverterConfig::output_resources)
       .def_readwrite("max_output", &ConverterConfig::max_output)
+      .def_readwrite("max_conversions", &ConverterConfig::max_conversions)
       .def_readwrite("conversion_ticks", &ConverterConfig::conversion_ticks)
       .def_readwrite("cooldown", &ConverterConfig::cooldown)
       .def_readwrite("initial_resource_count", &ConverterConfig::initial_resource_count)
@@ -983,15 +1120,17 @@ PYBIND11_MODULE(mettagrid_c, m) {
 
   py::class_<GlobalObsConfig>(m, "GlobalObsConfig")
       .def(py::init<>())
-      .def(py::init<bool, bool, bool, bool>(),
+      .def(py::init<bool, bool, bool, bool, bool>(),
            py::arg("episode_completion_pct") = true,
            py::arg("last_action") = true,
            py::arg("last_reward") = true,
-           py::arg("resource_rewards") = false)
+           py::arg("resource_rewards") = false,
+           py::arg("visitation_counts") = false)
       .def_readwrite("episode_completion_pct", &GlobalObsConfig::episode_completion_pct)
       .def_readwrite("last_action", &GlobalObsConfig::last_action)
       .def_readwrite("last_reward", &GlobalObsConfig::last_reward)
-      .def_readwrite("resource_rewards", &GlobalObsConfig::resource_rewards);
+      .def_readwrite("resource_rewards", &GlobalObsConfig::resource_rewards)
+      .def_readwrite("visitation_counts", &GlobalObsConfig::visitation_counts);
 
   py::class_<GameConfig>(m, "GameConfig")
       .def(py::init<unsigned int,
@@ -1004,6 +1143,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
                     const GlobalObsConfig&,
                     const std::map<std::string, std::shared_ptr<ActionConfig>>&,
                     const std::map<std::string, std::shared_ptr<GridObjectConfig>>&,
+                    bool,
+                    bool,
+                    float,
                     bool>(),
            py::arg("num_agents"),
            py::arg("max_steps"),
@@ -1015,6 +1157,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
            py::arg("global_obs"),
            py::arg("actions"),
            py::arg("objects"),
+           py::arg("track_movement_metrics"),
+           py::arg("no_agent_interference") = false,
+           py::arg("resource_loss_prob") = 0.0f,
            py::arg("recipe_details_obs") = false)
       .def_readwrite("num_agents", &GameConfig::num_agents)
       .def_readwrite("max_steps", &GameConfig::max_steps)
@@ -1024,10 +1169,29 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("inventory_item_names", &GameConfig::inventory_item_names)
       .def_readwrite("num_observation_tokens", &GameConfig::num_observation_tokens)
       .def_readwrite("global_obs", &GameConfig::global_obs)
+      .def_readwrite("track_movement_metrics", &GameConfig::track_movement_metrics)
+      .def_readwrite("no_agent_interference", &GameConfig::no_agent_interference)
+      .def_readwrite("resource_loss_prob", &GameConfig::resource_loss_prob)
       .def_readwrite("recipe_details_obs", &GameConfig::recipe_details_obs);
   // We don't expose these since they're copied on read, and this means that mutations
   // to the dictionaries don't impact the underlying cpp objects. This is confusing!
   // This can be fixed, but until we do that, we're not exposing these.
   // .def_readwrite("actions", &GameConfig::actions)
   // .def_readwrite("objects", &GameConfig::objects);
+
+  // Export data types from types.hpp
+  m.attr("dtype_observations") = dtype_observations();
+  m.attr("dtype_terminals") = dtype_terminals();
+  m.attr("dtype_truncations") = dtype_truncations();
+  m.attr("dtype_rewards") = dtype_rewards();
+  m.attr("dtype_actions") = dtype_actions();
+  m.attr("dtype_masks") = dtype_masks();
+  m.attr("dtype_success") = dtype_success();
+
+  #ifdef METTA_WITH_RAYLIB
+  py::class_<HermesPy>(m, "Hermes")
+      .def(py::init<>())
+      .def("update", &HermesPy::update, py::arg("env"))
+      .def("render", &HermesPy::render);
+  #endif
 }

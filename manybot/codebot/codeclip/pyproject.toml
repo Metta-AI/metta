@@ -1,0 +1,23 @@
+[project]
+name = "codeclip"
+version = "0.1.0"
+description = "Copy subsets of code for LLM contexts"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "click>=8.0",
+    "tiktoken>=0.9.0",
+]
+
+[project.scripts]
+codeclip = "codeclip.cli:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+packages = ["codeclip"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["codeclip"]

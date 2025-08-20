@@ -29,7 +29,7 @@ class RandomObjects(Scene[RandomObjectsParams]):
                 scene=Random.factory(params={"objects": objects}),
                 where="full",
             ),
-            *self.children,
+            *self.children_actions,
         ]
 
     def render(self):

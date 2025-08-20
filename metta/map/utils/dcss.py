@@ -12,11 +12,11 @@ from metta.map.utils.make_scene_config import (
     make_convchain_config_from_pattern,
     make_wfc_config_from_pattern,
 )
+from metta.util.metta_script import hydraless_metta_script
 
 # This script extracts maps from Dungeon Crawl Stone Soup into individual yaml scene files.
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
 
 
 def fetch_simple():
@@ -118,5 +118,4 @@ def generate_scenes_from_dcss_maps():
         pool.map(process_map_entry, maps)
 
 
-if __name__ == "__main__":
-    generate_scenes_from_dcss_maps()
+hydraless_metta_script(generate_scenes_from_dcss_maps)

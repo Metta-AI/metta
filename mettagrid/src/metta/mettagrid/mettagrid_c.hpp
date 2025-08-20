@@ -35,6 +35,7 @@ class GridObject;
 struct GridObjectConfig;
 struct ConverterConfig;
 struct WallConfig;
+struct BoxConfig;
 struct AgentConfig;
 struct GameConfig;
 struct ActionConfig;
@@ -48,6 +49,7 @@ struct GlobalObsConfig {
   bool last_action = true;  // Controls both last_action and last_action_arg
   bool last_reward = true;
   bool resource_rewards = false;  // Controls whether resource rewards are included in observations
+  bool visitation_counts = false;  // Controls whether visitation counts are included in observations
 };
 
 struct GameConfig {
@@ -61,6 +63,9 @@ struct GameConfig {
   GlobalObsConfig global_obs;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
+  bool track_movement_metrics;
+  bool no_agent_interference = false;
+  float resource_loss_prob = 0.0;
   bool recipe_details_obs = false;
 };
 
@@ -95,18 +100,28 @@ public:
   GridCoord map_height();
   py::dict feature_normalizations();
   py::dict feature_spec();
-  size_t num_agents();
+  size_t num_agents() const;
   py::array_t<float> get_episode_rewards();
   py::dict get_episode_stats();
   py::object action_space();
   py::object observation_space();
-  py::list action_success();
+  py::list action_success_py();
   py::list max_action_args();
   py::list object_type_names_py();
   py::list inventory_item_names_py();
-  py::array_t<unsigned int> get_agent_groups() const;
 
   uint64_t initial_grid_hash;
+
+  using Actions = py::array_t<ActionType, py::array::c_style>;
+  using ActionSuccess = std::vector<bool>;
+  using ActionHandlers = std::vector<std::unique_ptr<ActionHandler>>;
+
+  const Grid& grid() const { return *_grid; }
+  const Actions& actions() const { return _actions; }
+  const ActionSuccess& action_success() const { return _action_success; }
+  const ActionHandlers& action_handlers() const { return _action_handlers; }
+
+  const Agent* agent(uint32_t agent_id) const { return _agents[agent_id]; }
 
 private:
   // Member variables
@@ -119,7 +134,8 @@ private:
   std::unique_ptr<Grid> _grid;
   std::unique_ptr<EventManager> _event_manager;
 
-  std::vector<std::unique_ptr<ActionHandler>> _action_handlers;
+  Actions _actions;
+  ActionHandlers _action_handlers;
   size_t _num_action_handlers;
   std::vector<unsigned char> _max_action_args;
   unsigned char _max_action_arg;
@@ -144,10 +160,15 @@ private:
 
   std::map<uint8_t, float> _feature_normalizations;
 
-  std::vector<bool> _action_success;
+  ActionSuccess _action_success;
 
   std::mt19937 _rng;
   unsigned int _seed;
+
+  // Movement tracking
+  bool _track_movement_metrics;
+  float _resource_loss_prob;
+  bool _no_agent_interference;
 
   void init_action_handlers();
   void add_agent(Agent* agent);
@@ -165,6 +186,7 @@ private:
   AgentConfig _create_agent_config(const py::dict& agent_group_cfg_py);
   ConverterConfig _create_converter_config(const py::dict& converter_cfg_py);
   WallConfig _create_wall_config(const py::dict& wall_cfg_py);
+  BoxConfig _create_box_config(const py::dict& box_cfg_py);
 };
 
 #endif  // METTAGRID_C_HPP_

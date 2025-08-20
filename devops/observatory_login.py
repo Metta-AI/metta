@@ -14,8 +14,14 @@ import yaml
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 
+from metta.common.util.constants import (
+    DEV_STATS_SERVER_URI,
+    PROD_OBSERVATORY_FRONTEND_URL,
+    PROD_STATS_SERVER_URI,
+)
+
 _EXTRA_URIS: dict[str, list[str]] = {
-    "https://observatory.softmax-research.net/api": ["https://api.observatory.softmax-research.net"],
+    f"{PROD_OBSERVATORY_FRONTEND_URL}/api": [PROD_STATS_SERVER_URI],
 }
 
 
@@ -140,7 +146,7 @@ class CLIAuthenticator:
             print("Failed to open browser automatically")
             print(f"Please manually visit: {url}")
 
-    def _save_token(self, token: str) -> None:
+    def save_token(self, token: str) -> None:
         """Save the token to a YAML file with secure permissions"""
         try:
             # Read existing tokens
@@ -237,7 +243,7 @@ class CLIAuthenticator:
                 raise Exception("No token received")
 
             # Save token
-            self._save_token(self.token)
+            self.save_token(self.token)
 
             return True
 
@@ -269,7 +275,7 @@ def migrate_legacy_token(authenticator: CLIAuthenticator) -> None:
 
             if token:
                 # Assume it's for production server by default
-                production_url = "https://observatory.softmax-research.net/api"
+                production_url = f"{PROD_OBSERVATORY_FRONTEND_URL}/api"
 
                 # Write in new YAML format
                 tokens = {production_url: token}
@@ -290,7 +296,7 @@ def main():
     parser = argparse.ArgumentParser(description="Authenticate with Observatory")
     parser.add_argument(
         "auth_server_url",
-        help="OAuth2-proxy protected route URL (e.g., https://observatory.softmax-research.net/api or http://localhost:8000)",
+        help=f"Stats server API URI (e.g., {PROD_STATS_SERVER_URI} or {DEV_STATS_SERVER_URI})",
     )
     parser.add_argument("--timeout", type=int, default=300, help="Authentication timeout in seconds (default: 300)")
 

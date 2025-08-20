@@ -39,16 +39,20 @@ COPY --from=ghcr.io/astral-sh/uv:0.7.2 /uv /uvx /bin/
 WORKDIR /workspace/metta
 
 # Install dependencies
-ADD .python-version pyproject.toml uv.lock .
-ADD mettagrid/pyproject.toml mettagrid/
+COPY .python-version pyproject.toml uv.lock ./
+COPY mettagrid/pyproject.toml mettagrid/
+COPY app_backend/pyproject.toml app_backend/
+COPY common/pyproject.toml common/
+COPY agent/pyproject.toml agent/
+COPY experiments/pyproject.toml experiments/
 
 ENV UV_LINK_MODE=copy
 ARG TARGETPLATFORM
 RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
-    uv sync --no-install-workspace
+    uv sync --no-install-workspace --frozen
 
 # Install sources
-ADD . .
+COPY . .
 
 # When building in CI, actions/checkout stores an auth token in .git/config that we need to remove
 RUN git config --remove-section http."https://github.com/" || true
@@ -63,8 +67,12 @@ RUN --mount=type=cache,target=/root/.cache/uv,id=uv-cache/${TARGETPLATFORM} \
     uv sync --locked
 
 ENV PATH="/workspace/metta/.venv/bin:$PATH"
+ENV VIRTUAL_ENV="/workspace/metta/.venv"
 
 RUN sed -i '\#cd /puffertank/pufferlib#d' /root/.bashrc \
  && echo 'cd /workspace/metta' >> /root/.bashrc
+
+RUN echo 'if [ -n "$VIRTUAL_ENV" ]; then deactivate 2>/dev/null || true; fi' >> /root/.bashrc && \
+    echo 'source /workspace/metta/.venv/bin/activate' >> /root/.bashrc
 
 ENTRYPOINT ["/bin/bash", "-c"]

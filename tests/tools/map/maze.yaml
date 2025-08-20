@@ -20,7 +20,7 @@ root:
             scene:
               type: metta.map.scenes.inline_ascii.InlineAscii
               params:
-                data: '@'
+                data: "@"
           - where:
               tags:
                 - bottom-right

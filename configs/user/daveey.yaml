@@ -22,7 +22,6 @@ trainer:
   # optimizer:
   #   type: muon
   # env_overrides:
-  #   sampling: 0.7
   #   game:
   #     num_agents: 36
   #     max_steps: 1000
@@ -36,8 +35,9 @@ trainer:
 # policy_uri: wandb://run/b.daveey.dr9.muon.latest
 # policy_uri: wandb://run/b.daveey.t.1.lra.dr.muon
 # policy_uri: pytorch:///tmp/puffer_metta.pt
-policy_uri: wandb://run/george.deane.navigation.baseline.06-19.2
+# policy_uri: pytorch:///tmp/puffer_metta.pt
 # policy_uri: wandb://run/daveey.lp.16x4.muon.lr3
+policy_uri: null
 # policy_uri: pytorch://${data_dir}/puffer/puffer_metta.pt
 
 # policy_uri: ${trained_policy_uri}
@@ -54,10 +54,10 @@ analyzer:
       - metric: episode_reward
       - metric: "heart.get"
 
-# replay_job:
-#   sim:
-#     env:
-#       /env/mettagrid/arena/combat
+replay_job:
+  sim:
+    env:
+      /env/mettagrid/arena/tag
 # env_overrides:
 # game:
 #   max_steps: 5000
@@ -75,7 +75,6 @@ analyzer:
 
 # env: /env/mettagrid/reward_dr
 # env_overrides:
-#   # sampling: 0.7
 #   game:
 #     num_agents: 16
 #     max_steps: 1000
@@ -84,7 +83,7 @@ analyzer:
 #         agents: 4
 #       num_rooms: 4
 
-run_id: 1.8
+run_id: 2.0
 run: ${oc.env:USER}.local.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 

@@ -1,12 +1,13 @@
 """Tests for sweep coordination routes."""
 
 import uuid
+from datetime import datetime
 from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
 
-from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.metta_repo import MettaRepo, SweepRow
 from metta.app_backend.server import create_app
 
 
@@ -56,13 +57,18 @@ def test_create_sweep_creates_new(test_client, mock_metta_repo, auth_headers):
 def test_create_sweep_returns_existing(test_client, mock_metta_repo, auth_headers):
     """Test returning existing sweep info (idempotent)."""
     existing_sweep_id = uuid.uuid4()
-    existing_sweep = {
-        "id": str(existing_sweep_id),  # Convert to string since the route expects string
-        "name": "test_sweep",
-        "project": "test_project",
-        "entity": "test_entity",
-        "wandb_sweep_id": "wandb_123",
-    }
+    existing_sweep = SweepRow(
+        id=existing_sweep_id,
+        name="test_sweep",
+        project="test_project",
+        entity="test_entity",
+        wandb_sweep_id="wandb_123",
+        state="running",
+        run_counter=0,
+        user_id="test@example.com",
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
     mock_metta_repo.get_sweep_by_name.return_value = existing_sweep
 
     response = test_client.post(
@@ -105,11 +111,19 @@ def test_create_sweep_with_machine_token(test_client, mock_metta_repo):
 
 def test_get_sweep_exists(test_client, mock_metta_repo, auth_headers):
     """Test getting an existing sweep."""
-    mock_metta_repo.get_sweep_by_name.return_value = {
-        "id": str(uuid.uuid4()),
-        "name": "test_sweep",
-        "wandb_sweep_id": "wandb_123",
-    }
+    sweep_id = uuid.uuid4()
+    mock_metta_repo.get_sweep_by_name.return_value = SweepRow(
+        id=sweep_id,
+        name="test_sweep",
+        project="test_project",
+        entity="test_entity",
+        wandb_sweep_id="wandb_123",
+        state="running",
+        run_counter=0,
+        user_id="test@example.com",
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
 
     response = test_client.get("/sweeps/test_sweep", headers=auth_headers)
 
@@ -133,11 +147,19 @@ def test_get_sweep_not_exists(test_client, mock_metta_repo, auth_headers):
 
 def test_get_next_run_id(test_client, mock_metta_repo, auth_headers):
     """Test getting the next run ID (atomic counter)."""
-    sweep_id = str(uuid.uuid4())
-    mock_metta_repo.get_sweep_by_name.return_value = {
-        "id": sweep_id,
-        "name": "test_sweep",
-    }
+    sweep_id = uuid.uuid4()
+    mock_metta_repo.get_sweep_by_name.return_value = SweepRow(
+        id=sweep_id,
+        name="test_sweep",
+        project="test_project",
+        entity="test_entity",
+        wandb_sweep_id="wandb_123",
+        state="running",
+        run_counter=41,  # Will be incremented to 42
+        user_id="test@example.com",
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
     mock_metta_repo.get_next_sweep_run_counter.return_value = 42
 
     response = test_client.post("/sweeps/test_sweep/runs/next", headers=auth_headers)
@@ -148,7 +170,7 @@ def test_get_next_run_id(test_client, mock_metta_repo, auth_headers):
 
     # Verify the repo was called correctly
     mock_metta_repo.get_sweep_by_name.assert_called_once_with("test_sweep")
-    mock_metta_repo.get_next_sweep_run_counter.assert_called_once_with(uuid.UUID(sweep_id))
+    mock_metta_repo.get_next_sweep_run_counter.assert_called_once_with(sweep_id)
 
 
 def test_get_next_run_id_sweep_not_found(test_client, mock_metta_repo, auth_headers):

@@ -3,12 +3,12 @@ from typing import Any, ClassVar, Literal
 from omegaconf import DictConfig, OmegaConf
 from pydantic import ConfigDict, Field, model_validator
 
-from metta.common.util.typed_config import BaseModelWithForbidExtra
+from metta.common.util.config import Config
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
 from metta.rl.kickstarter_config import KickstartConfig
 
 
-class OptimizerConfig(BaseModelWithForbidExtra):
+class OptimizerConfig(Config):
     type: Literal["adam", "muon"] = "adam"
     # Learning rate: Type 2 default chosen by sweep
     learning_rate: float = Field(default=0.0004573146765703167, gt=0, le=1.0)
@@ -22,32 +22,21 @@ class OptimizerConfig(BaseModelWithForbidExtra):
     weight_decay: float = Field(default=0, ge=0)
 
 
-class LRSchedulerConfig(BaseModelWithForbidExtra):
-    # LR scheduling disabled by default: Fixed LR often works well in RL
-    enabled: bool = False
-    # Annealing disabled: Common to use fixed LR for PPO
-    anneal_lr: bool = False
-    # No warmup by default: RL typically doesn't need warmup like supervised learning
-    warmup_steps: int | None = None
-    # Schedule type unset: Various options available when enabled
-    schedule_type: Literal["linear", "cosine", "exponential"] | None = None
-
-
-class PrioritizedExperienceReplayConfig(BaseModelWithForbidExtra):
+class PrioritizedExperienceReplayConfig(Config):
     # Alpha=0 disables prioritization (uniform sampling), Type 2 default to be updated by sweep
     prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
     # Beta0=0.6: From Schaul et al. (2016) "Prioritized Experience Replay" paper
     prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
 
 
-class VTraceConfig(BaseModelWithForbidExtra):
+class VTraceConfig(Config):
     # V-trace rho clipping at 1.0: From IMPALA paper (Espeholt et al., 2018), standard for on-policy
     vtrace_rho_clip: float = Field(default=1.0, gt=0)
     # V-trace c clipping at 1.0: From IMPALA paper (Espeholt et al., 2018), standard for on-policy
     vtrace_c_clip: float = Field(default=1.0, gt=0)
 
 
-class InitialPolicyConfig(BaseModelWithForbidExtra):
+class InitialPolicyConfig(Config):
     uri: str | None = None
     # Type="top": Empirical best performing
     type: Literal["top", "latest", "specific"] = "top"
@@ -58,7 +47,7 @@ class InitialPolicyConfig(BaseModelWithForbidExtra):
     filters: dict[str, Any] = Field(default_factory=dict)
 
 
-class CheckpointConfig(BaseModelWithForbidExtra):
+class CheckpointConfig(Config):
     # Checkpoint every 60s: Balance between recovery granularity and I/O overhead
     checkpoint_interval: int = Field(default=60, gt=0)
     # W&B every 5 min: Less frequent due to network overhead and storage costs
@@ -71,10 +60,14 @@ class CheckpointConfig(BaseModelWithForbidExtra):
         return self
 
 
-class SimulationConfig(BaseModelWithForbidExtra):
+class SimulationConfig(Config):
     # Interval at which to evaluate and generate replays: Type 2 arbitrary default
     evaluate_interval: int = Field(default=300, ge=0)  # 0 to disable
     replay_dir: str = Field(default="")
+    evaluate_remote: bool = Field(default=True)
+    evaluate_local: bool = Field(default=True)
+    skip_git_check: bool = Field(default=False)
+    git_hash: str | None = Field(default=None)
 
     @model_validator(mode="after")
     def validate_fields(self) -> "SimulationConfig":
@@ -82,7 +75,7 @@ class SimulationConfig(BaseModelWithForbidExtra):
         return self
 
 
-class PPOConfig(BaseModelWithForbidExtra):
+class PPOConfig(Config):
     # PPO hyperparameters
     # Clip coefficient: 0.1 is conservative, common range 0.1-0.3 from PPO paper (Schulman et al., 2017)
     clip_coef: float = Field(default=0.1, gt=0, le=1.0)
@@ -114,7 +107,7 @@ class PPOConfig(BaseModelWithForbidExtra):
     target_kl: float | None = None
 
 
-class TorchProfilerConfig(BaseModelWithForbidExtra):
+class TorchProfilerConfig(Config):
     interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable
     # Upload location: None disables uploads, supports s3:// or local paths
     profile_dir: str = Field(default="")
@@ -129,10 +122,15 @@ class TorchProfilerConfig(BaseModelWithForbidExtra):
         return self
 
 
-class TrainerConfig(BaseModelWithForbidExtra):
-    # Target for hydra instantiation
-    target: str = Field(default="metta.rl.trainer.MettaTrainer", alias="_target_")
+class DualPolicyConfig(Config):
+    enabled: bool = False
+    # Reuse InitialPolicyConfig schema for selecting the NPC checkpoint
+    checkpoint_npc: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
+    # Fraction of agents controlled by the training policy vs the checkpoint NPC
+    training_agents_pct: float = Field(default=0.5, ge=0.0, le=1.0)
 
+
+class TrainerConfig(Config):
     # Core training parameters
     # Total timesteps: Type 2 arbitrary default
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
@@ -142,7 +140,6 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
     # Optimizer and scheduler
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
-    lr_scheduler: LRSchedulerConfig = Field(default_factory=LRSchedulerConfig)
 
     # Experience replay
     prioritized_experience_replay: PrioritizedExperienceReplayConfig = Field(
@@ -194,6 +191,9 @@ class TrainerConfig(BaseModelWithForbidExtra):
 
     # Kickstart
     kickstart: KickstartConfig = Field(default_factory=KickstartConfig)
+
+    # Dual-policy training (train against an NPC checkpoint policy)
+    dual_policy: DualPolicyConfig = Field(default_factory=DualPolicyConfig)
 
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware
@@ -286,26 +286,37 @@ def create_trainer_config(
     if not isinstance(trainer_cfg, DictConfig):
         raise ValueError("ListConfig is not supported")
 
-    if _target_ := trainer_cfg.get("_target_"):
-        if _target_ != "metta.rl.trainer.MettaTrainer":
-            raise ValueError(f"Unsupported trainer config: {_target_}")
-
     # Convert to dict and let OmegaConf handle all interpolations
     config_dict = OmegaConf.to_container(trainer_cfg, resolve=True)
     if not isinstance(config_dict, dict):
         raise ValueError("trainer config must be a dict")
 
     # Some keys' defaults in TrainerConfig that are appropriate for multiprocessing but not serial
-    if cfg.vectorization == "serial":
+    # TODO: This should be handled via EnvConfig instead
+    if cfg.get("vectorization") == "serial":
         config_dict["async_factor"] = 1
         config_dict["zero_copy"] = False
 
     # Set default paths if not provided
-    if "checkpoint_dir" not in config_dict.setdefault("checkpoint", {}):
-        config_dict["checkpoint"]["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
+    checkpoint_config = config_dict.setdefault("checkpoint", {})
+    if "checkpoint_dir" not in checkpoint_config:
+        checkpoint_config["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
 
-    if "replay_dir" not in config_dict.setdefault("simulation", {}):
-        config_dict["simulation"]["replay_dir"] = f"s3://softmax-public/replays/{cfg.run}"
+    # If wandb_checkpoint_interval is None, default to checkpoint_interval
+    if checkpoint_config.get("wandb_checkpoint_interval") is None:
+        checkpoint_interval = checkpoint_config.get("checkpoint_interval", 60)
+        checkpoint_config["wandb_checkpoint_interval"] = checkpoint_interval
+
+    simulation_config = config_dict.setdefault("simulation", {})
+    if "replay_dir" not in simulation_config:
+        simulation_config["replay_dir"] = f"{cfg.run_dir}/replays/"
+
+    # If evaluate_interval is None, default to max of checkpoint intervals
+    # (must be at least as large as both checkpoint_interval and wandb_checkpoint_interval)
+    if simulation_config.get("evaluate_interval") is None:
+        checkpoint_interval = checkpoint_config.get("checkpoint_interval", 60)
+        wandb_checkpoint_interval = checkpoint_config.get("wandb_checkpoint_interval", checkpoint_interval)
+        simulation_config["evaluate_interval"] = max(checkpoint_interval, wandb_checkpoint_interval)
 
     if "profile_dir" not in config_dict.setdefault("profiler", {}):
         config_dict["profiler"]["profile_dir"] = f"{cfg.run_dir}/torch_traces"

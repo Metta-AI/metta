@@ -1,330 +1,569 @@
+"""
+MettaGridEnv - Training-specific Python environment class.
+
+This class provides Metta's custom training environment, built on PufferLib
+for high-performance vectorized training. Includes stats writing, replay writing,
+and episode tracking functionality.
+"""
+
 from __future__ import annotations
 
 import datetime
 import logging
 import time
 import uuid
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, List, Mapping, Optional, Tuple, cast
 
 import numpy as np
-from gymnasium import Env as GymEnv
-from gymnasium import spaces
+import torch
 from omegaconf import OmegaConf
-from pufferlib import PufferEnv
 from pydantic import validate_call
 from typing_extensions import override
 
 from metta.common.profiling.stopwatch import Stopwatch, with_instance_timer
-from metta.common.util.instantiate import instantiate
 from metta.mettagrid.curriculum.core import Curriculum
 from metta.mettagrid.level_builder import Level
-from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
+from metta.mettagrid.puffer_base import MettaGridPufferBase
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 from metta.mettagrid.util.dict_utils import unroll_nested_dict
 
-# These data types must match PufferLib -- see pufferlib/vector.py
-#
-# Important:
-#
-# In PufferLib's class Multiprocessing, the data type for actions will be set to int32
-# whenever the action space is Discrete or Multidiscrete. If we do not match the data type
-# here in our child class, then we will experience extra data conversions in the background.
-# Additionally the actions that are sent to the C environment will be int32 (because PufferEnv
-# controls the type of self.actions) -- creating an opportunity for type confusion.
-
-dtype_observations = np.dtype(np.uint8)
-dtype_terminals = np.dtype(bool)
-dtype_truncations = np.dtype(bool)
-dtype_rewards = np.dtype(np.float32)
-dtype_actions = np.dtype(np.int32)  # must be int32!
-dtype_masks = np.dtype(bool)
-dtype_success = np.dtype(bool)
-
 logger = logging.getLogger("MettaGridEnv")
 
 
-def required(func):
-    """Marks methods that PufferEnv requires but does not implement for override."""
-    return func
+class MettaGridEnv(MettaGridPufferBase):
+    """
+    Main MettaGrid environment class for training.
 
-
-class MettaGridEnv(PufferEnv, GymEnv):
-    # Type hints for attributes defined in the C++ extension to help Pylance
-    observations: np.ndarray
-    terminals: np.ndarray
-    truncations: np.ndarray
-    rewards: np.ndarray
-    actions: np.ndarray
+    Inherits from MettaGridCore and PufferEnv, adding training-specific features like stats writing,
+    replay writing, and episode tracking. This class is tightly coupled to PufferLib for
+    vectorization support in the training system.
+    """
 
     @validate_call(config={"arbitrary_types_allowed": True})
     def __init__(
         self,
         curriculum: Curriculum,
-        render_mode: Optional[str],
+        render_mode: Optional[str] = None,
         level: Optional[Level] = None,
-        buf=None,
+        buf: Optional[Any] = None,
         stats_writer: Optional[StatsWriter] = None,
         replay_writer: Optional[ReplayWriter] = None,
         is_training: bool = False,
-        **kwargs,
+        **kwargs: Any,
     ):
+        """
+        Initialize MettaGridEnv for training.
+
+        Args:
+            curriculum: Curriculum for task management
+            render_mode: Rendering mode (None, "human", "miniscope", "raylib")
+            level: Optional pre-built level
+            buf: PufferLib buffer object
+            stats_writer: Optional stats writer
+            replay_writer: Optional replay writer
+            is_training: Whether this is for training
+            **kwargs: Additional arguments
+        """
+        # Add training-specific attributes first (needed by MettaGridCore)
         self.timer = Stopwatch(logger)
         self.timer.start()
         self.timer.start("thread_idle")
         self._steps = 0
         self._resets = 0
-
-        self._render_mode = render_mode
-        self._curriculum = curriculum
-        self._task = self._curriculum.get_task()
-        self._level = level
-        self._renderer = None
-        self._map_labels: list[str] = []
         self._stats_writer = stats_writer
         self._replay_writer = replay_writer
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
-        self._current_seed: int = 0  # must be unsigned
-
-        self.labels: list[str] = self._task.env_cfg().get("labels", [])
-        self._should_reset = False
-
         self._is_training = is_training
+        # Dual-policy flags/overrides (can be set by trainer or via kwargs)
+        self._dual_policy_enabled: bool = bool(kwargs.pop("dual_policy_enabled", False))
+        self._dual_policy_training_agents_pct: float = float(kwargs.pop("dual_policy_training_agents_pct", 0.5))
+        self._dual_policy_agent_groups: Optional[list[list[int]]] = None
 
-        self._initialize_c_env()
-        super().__init__(buf)
+        # Log dual policy configuration for debugging
+        if self._dual_policy_enabled:
+            logger.debug(f"Dual policy ENABLED with training_agents_pct={self._dual_policy_training_agents_pct}")
 
-        if self._render_mode is not None:
-            if self._render_mode == "human":
-                from metta.mettagrid.renderer.nethack import NethackRenderer
-
-                self._renderer = NethackRenderer(self.object_type_names)
-            elif self._render_mode == "miniscope":
-                from metta.mettagrid.renderer.miniscope import MiniscopeRenderer
-
-                self._renderer = MiniscopeRenderer(self.object_type_names)
-
-    def _make_episode_id(self):
-        return str(uuid.uuid4())
-
-    @with_instance_timer("_initialize_c_env")
-    def _initialize_c_env(self) -> None:
-        """Initialize the C++ environment."""
-        task = self._task
-        level = self._level
-
-        if level is None:
-            map_builder_config = task.env_cfg().game.map_builder
-            with self.timer("_initialize_c_env.build_map"):
-                map_builder = instantiate(map_builder_config, _recursive_=True)
-                level = map_builder.build()
-
-        # Validate the level
-        level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
-        assert task.env_cfg().game.num_agents == level_agents, (
-            f"Number of agents {task.env_cfg().game.num_agents} does not match number of agents in map {level_agents}"
+        # Initialize with base PufferLib functionality
+        super().__init__(
+            curriculum=curriculum,
+            render_mode=render_mode,
+            level=level,
+            buf=buf,
+            **kwargs,
         )
 
-        game_config_dict = OmegaConf.to_container(task.env_cfg().game, resolve=True)
-        assert isinstance(game_config_dict, dict), "No valid game config dictionary in the environment config"
-        game_config_dict = cast(Dict[str, Any], game_config_dict)
+        # Environment metadata (self._task is set by base class)
+        self._cfg_labels: List[str] = self._task.env_cfg().get("labels", [])
 
-        # During training, we run a lot of envs in parallel, and it's better if they are not
-        # all synced together. The desync_episodes flag is used to desync the episodes.
-        # Ideally vecenv would have a way to desync the episodes, but it doesn't.
-        if isinstance(game_config_dict, dict) and self._is_training and self._resets == 0:
-            max_steps = game_config_dict["max_steps"]
-            game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
-            # logger.info(f"Desync episode with max_steps {game_config_dict['max_steps']}")
+    def _make_episode_id(self) -> str:
+        """Generate unique episode ID."""
+        return str(uuid.uuid4())
 
-        self._map_labels = level.labels
+    def _get_game_config_for_new_task(self) -> Dict[str, Any]:
+        """Fetch a new task from the curriculum, sync level and labels, and return game config dict."""
+        self._task = self._curriculum.get_task()
+        task_cfg = self._task.env_cfg()
+        game_config_dict = cast(Dict[str, Any], OmegaConf.to_container(task_cfg.game))
+        assert isinstance(game_config_dict, dict), "Game config must be a dictionary"
+        # Sync level with task config
+        self._level = task_cfg.game.map_builder.build()
+        self._map_labels = self._level.labels
+        return game_config_dict
 
-        # Convert string array to list of strings for C++ compatibility
-        # TODO: push the not-numpy-array higher up the stack, and consider pushing not-a-sparse-list lower.
-        with self.timer("_initialize_c_env.make_c_env"):
-            c_cfg = None
-            try:
-                c_cfg = from_mettagrid_config(game_config_dict)
-            except Exception as e:
-                logger.error(f"Error initializing C++ environment: {e}")
-                logger.error(f"Game config: {game_config_dict}")
-                raise e
+    def _bind_shared_buffers(self) -> None:
+        """Bind shared buffers to the C++ environment if available (required for performance)."""
+        if hasattr(self, "observations") and self._c_env_instance:
+            self._c_env_instance.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
 
-            self._c_env = MettaGrid(c_cfg, level.grid.tolist(), self._current_seed)
+    def _create_and_bind_c_env(self, game_config_dict: Dict[str, Any], seed: Optional[int]) -> MettaGridCpp:
+        """Create a C++ env and immediately bind shared buffers."""
+        self._c_env_instance = self._create_c_env(game_config_dict, seed)
+        self._bind_shared_buffers()
+        return self._c_env_instance
 
-        self._grid_env = self._c_env
+    def _resolve_dual_policy_groups(self, ensure_each: bool) -> list[list[int]]:
+        """Resolve or synthesize dual-policy agent groups.
 
-    @override  # pufferlib.PufferEnv.reset
+        If grid-provided groups are missing or incomplete, generate NPC-first and trained-second groups.
+        When ensure_each is True, guarantee at least one agent in each group (if possible).
+        """
+        # Prefer groups from grid objects
+        agent_groups = self._get_agent_groups()
+        if agent_groups and len(agent_groups) >= 2:
+            self._dual_policy_agent_groups = agent_groups
+            return agent_groups
+
+        # Fall back to cached or synthesized groups
+        if hasattr(self, "_dual_policy_agent_groups") and self._dual_policy_agent_groups:
+            return self._dual_policy_agent_groups
+
+        if self._c_env_instance is None:
+            return []
+
+        num_agents = self._c_env_instance.num_agents
+        num_trained = int(round(num_agents * self._dual_policy_training_agents_pct))
+        if ensure_each:
+            num_trained = max(1, min(num_agents - 1, num_trained))
+        else:
+            num_trained = max(0, min(num_agents, num_trained))
+
+        trained_ids = list(range(num_trained))
+        npc_ids = list(range(num_trained, num_agents))
+        agent_groups = [npc_ids, trained_ids]
+        self._dual_policy_agent_groups = agent_groups
+        return agent_groups
+
+    def _reset_trial(self) -> None:
+        """Reset the environment for a new trial within the same episode."""
+        # Get new task and create new C++ environment for new trial
+        game_config_dict = self._get_game_config_for_new_task()
+        self._create_and_bind_c_env(game_config_dict, self._current_seed)
+
+        # Reset counters for new trial
+        self._steps = 0
+
+        # Set up new trial tracking
+        self._trial_id = self._make_episode_id()
+        self._reset_at = datetime.datetime.now()
+
+        # Start replay recording for new trial if enabled
+        if self._replay_writer and self._trial_id:
+            self._replay_writer.start_episode(self._trial_id, self)
+
+        # Get initial observations for new trial
+        if self._c_env_instance is None:
+            raise RuntimeError("Core environment not initialized")
+        self._c_env_instance.reset()
+
+    @override
     @with_instance_timer("reset")
-    def reset(self, seed: int | None = None) -> tuple[np.ndarray, dict]:
+    def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
+        """
+        Reset the environment for training.
+
+        Args:
+            seed: Random seed
+
+        Returns:
+            Tuple of (observations, info)
+        """
         self.timer.stop("thread_idle")
 
-        self._task = self._curriculum.get_task()
+        # Get new task and synced level
+        game_config_dict = self._get_game_config_for_new_task()
 
-        self._initialize_c_env()
+        # Recreate C++ environment for new task (after first reset)
+        if self._resets > 0:
+            self._create_and_bind_c_env(game_config_dict, seed)
+
+        # Reset counters
         self._steps = 0
         self._resets += 1
 
-        assert self.observations.dtype == dtype_observations
-        assert self.terminals.dtype == dtype_terminals
-        assert self.truncations.dtype == dtype_truncations
-        assert self.rewards.dtype == dtype_rewards
-
-        self._c_env.set_buffers(self.observations, self.terminals, self.truncations, self.rewards)
-
+        # Set up episode tracking
         self._episode_id = self._make_episode_id()
+        self._trial_id = self._episode_id  # For compatibility with trial-based logic
         self._current_seed = seed or 0
         self._reset_at = datetime.datetime.now()
-        if self._replay_writer:
+
+        # Start replay recording if enabled
+        if self._replay_writer and self._episode_id:
             self._replay_writer.start_episode(self._episode_id, self)
 
-        obs, infos = self._c_env.reset()
+        # Reset flags
         self._should_reset = False
 
+        # Create initial C++ environment if this is the first reset
+        if self._resets == 1:
+            self._create_and_bind_c_env(game_config_dict, seed)
+
+        # Get initial observations from core environment
+        if self._c_env_instance is None:
+            raise RuntimeError("Core environment not initialized")
+        observations, info = self._c_env_instance.reset()
+
+        # If dual-policy is enabled and no core groups are defined, synthesize groups per-env
+        if self._dual_policy_enabled and not self._get_agent_groups():
+            agent_groups = self._resolve_dual_policy_groups(ensure_each=False)
+            if len(agent_groups) >= 2:
+                npc_ids, trained_ids = agent_groups[0], agent_groups[1]
+                logger.debug(
+                    f"Dual policy groups set in reset: NPC={len(npc_ids)} agents, Trained={len(trained_ids)} agents"
+                )
+
         self.timer.start("thread_idle")
-        return obs, infos
+        return observations, info
 
-    @override  # pufferlib.PufferEnv.step
+    def _compute_dual_policy_stats(self) -> dict:
+        """Compute dual policy stats for current step (not just episode end)."""
+        stats = {}
+        if not self._dual_policy_enabled or self._c_env_instance is None:
+            return stats
+
+        # Resolve or synthesize agent groups
+        agent_groups = self._resolve_dual_policy_groups(ensure_each=True)
+
+        if len(agent_groups) >= 2:
+            npc_group = agent_groups[0]
+            trained_group = agent_groups[1]
+
+            # Get rewards (use episode rewards as proxy for per-step tracking)
+            try:
+                # Use cumulative episode rewards divided by steps as a proxy for step rewards
+                step_rewards = self._c_env_instance.get_episode_rewards()
+                if self._steps > 0:
+                    # Average reward per step so far
+                    step_rewards = step_rewards / max(1, self._steps)
+            except Exception as e:
+                # If we can't get rewards, just return empty stats
+                logger.warning(f"[MettaGridEnv] Could not get rewards for dual policy stats: {e}")
+                return stats
+
+            if step_rewards is not None and len(step_rewards) > 0:
+                # Safely gather rewards for each group with bounds validation
+                is_torch_tensor = torch.is_tensor(step_rewards)
+                total_agents = len(step_rewards)
+
+                def _safe_group_rewards(group: list[int]):
+                    if not group:
+                        if is_torch_tensor:
+                            sr_t = cast(torch.Tensor, step_rewards)
+                            return torch.zeros_like(sr_t[:1])
+                        else:
+                            sr_np = cast(np.ndarray, step_rewards)
+                            return np.zeros(1, dtype=sr_np.dtype)
+
+                    valid_indices = [
+                        idx for idx in group if isinstance(idx, (int, np.integer)) and 0 <= idx < total_agents
+                    ]
+
+                    if not valid_indices:
+                        if is_torch_tensor:
+                            sr_t = cast(torch.Tensor, step_rewards)
+                            return torch.zeros_like(sr_t[:1])
+                        else:
+                            sr_np = cast(np.ndarray, step_rewards)
+                            return np.zeros(1, dtype=sr_np.dtype)
+
+                    try:
+                        return step_rewards[valid_indices]
+                    except Exception as e:
+                        logger.warning(
+                            (f"[MettaGridEnv] Failed to index step_rewards with indices {valid_indices}: {e}")
+                        )
+                        if is_torch_tensor:
+                            sr_t = cast(torch.Tensor, step_rewards)
+                            return torch.zeros_like(sr_t[:1])
+                        else:
+                            sr_np = cast(np.ndarray, step_rewards)
+                            return np.zeros(1, dtype=sr_np.dtype)
+
+                # NPC group stats
+                npc_rewards = _safe_group_rewards(npc_group)
+                stats["dual_policy/npc/step_reward_mean"] = npc_rewards.mean().item()
+                stats["dual_policy/npc/step_reward_sum"] = npc_rewards.sum().item()
+
+                # Trained policy group stats
+                trained_rewards = _safe_group_rewards(trained_group)
+                stats["dual_policy/trained/step_reward_mean"] = trained_rewards.mean().item()
+                stats["dual_policy/trained/step_reward_sum"] = trained_rewards.sum().item()
+
+                # Combined stats
+                stats["dual_policy/combined/step_reward_mean"] = step_rewards.mean().item()
+                stats["dual_policy/combined/step_reward_sum"] = step_rewards.sum().item()
+
+        return stats
+
+    @override
     @with_instance_timer("step")
-    def step(self, actions: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, dict]:
+    def step(self, actions: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, Dict[str, Any]]:
         """
-        Execute one timestep of the environment dynamics with the given actions.
-
-        IMPORTANT: In training mode, the `actions` parameter and `self.actions` may be the same
-        object, but in simulation mode they are independent. Always use the passed-in `actions`
-        parameter to ensure correct behavior in all contexts.
+        Execute one timestep for training.
 
         Args:
-            actions: A numpy array of shape (num_agents, 2) with dtype np.int32
+            actions: Array of actions
 
         Returns:
             Tuple of (observations, rewards, terminals, truncations, infos)
-
         """
         self.timer.stop("thread_idle")
 
-        # Note: We explicitly allow invalid actions to be used. The environment will
-        # penalize the agent for attempting invalid actions as a side effect of ActionHandler::handle_action()
+        if self._c_env_instance is None:
+            raise RuntimeError("Environment not initialized. Call reset() first.")
 
+        # Execute step directly on C++ environment to maintain buffer sharing
+        # This is critical for PufferEnv performance - we must use the shared buffers
         with self.timer("_c_env.step"):
-            self._c_env.step(actions)
+            self._c_env_instance.step(actions)
             self._steps += 1
 
+        # Record step for replay (use shared PufferEnv buffers)
         if self._replay_writer and self._episode_id:
             with self.timer("_replay_writer.log_step"):
-                self._replay_writer.log_step(self._episode_id, actions, self.rewards)
+                self._replay_writer.log_step(self._trial_id, actions, self.rewards)
 
+        # Check for episode completion (use shared PufferEnv buffers)
         infos = {}
+
+        # Add dual policy stats for every step (not just episode completion)
+        dual_policy_step_stats = self._compute_dual_policy_stats()
+        infos.update(dual_policy_step_stats)
+
         if self.terminals.all() or self.truncations.all():
-            # TODO: re-enable diversity bonus
-            # if self._task.env_cfg().game.diversity_bonus.enabled:
-            #     self.rewards *= calculate_diversity_bonus(
-            #         self._c_env.get_episode_rewards(),
-            #         self._c_env.get_agent_groups(),
-            #         self._task.env_cfg().game.diversity_bonus.similarity_coef,
-            #         self._task.env_cfg().game.diversity_bonus.diversity_coef,
-            #     )
-
-            self.process_episode_stats(infos)
-            self._should_reset = True
-            self._task.complete(self._c_env.get_episode_rewards().mean())
-
-            # Add curriculum task probabilities to infos for distributed logging
-            infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
+            self._process_episode_completion(infos)
+            # Note: _process_episode_completion already calls complete_trial()
+            if self._task.is_complete():
+                self._should_reset = True
+                # Add curriculum task probabilities to infos for distributed logging
+                infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
+            else:
+                # Continue with new trial in same episode (like upstream)
+                self._reset_trial()
 
         self.timer.start("thread_idle")
         return self.observations, self.rewards, self.terminals, self.truncations, infos
 
-    @override
-    def close(self):
-        pass
+    def _create_c_env(self, game_config_dict: Dict[str, Any], seed: Optional[int] = None) -> MettaGridCpp:
+        """
+        Create a new MettaGridCpp instance with training-specific features.
 
-    def process_episode_stats(self, infos: Dict[str, Any]):
+        Args:
+            game_config_dict: Game configuration dictionary
+            seed: Random seed for environment
+
+        Returns:
+            New MettaGridCpp instance
+        """
+        # Handle episode desyncing for training
+        if self._task.env_cfg().get("desync_episodes", True) and self._is_training and self._resets == 0:
+            max_steps = game_config_dict["max_steps"]
+            # Recreate with random max_steps
+            game_config_dict = game_config_dict.copy()  # Don't modify original
+            game_config_dict["max_steps"] = int(np.random.randint(1, max_steps + 1))
+
+        return super()._create_c_env(game_config_dict, seed)
+
+    def _process_episode_completion(self, infos: Dict[str, Any]) -> None:
+        """Process episode completion - stats, curriculum, etc."""
+        if self._c_env_instance is None:
+            return
+
         self.timer.start("process_episode_stats")
 
+        # Clear any existing infos
         infos.clear()
 
-        episode_rewards = self._c_env.get_episode_rewards()
+        # Get episode rewards and stats
+        episode_rewards = self._c_env_instance.get_episode_rewards()
         episode_rewards_sum = episode_rewards.sum()
-        episode_rewards_mean = episode_rewards_sum / self._c_env.num_agents
+        episode_rewards_mean = episode_rewards_sum / self._c_env_instance.num_agents
 
-        for label in self._map_labels + self.labels:
+        # Add map and label rewards
+        for label in self._map_labels + self._cfg_labels:
             infos[f"map_reward/{label}"] = episode_rewards_mean
 
+        # Add curriculum stats
         infos.update(self._curriculum.get_completion_rates())
-
-        # Add curriculum-specific stats
         curriculum_stats = self._curriculum.get_curriculum_stats()
         for key, value in curriculum_stats.items():
             infos[f"curriculum/{key}"] = value
 
+        # Get episode stats from core environment
         with self.timer("_c_env.get_episode_stats"):
-            stats = self._c_env.get_episode_stats()
+            stats = self._c_env_instance.get_episode_stats()
 
+        # Process agent stats
         infos["game"] = stats["game"]
         infos["agent"] = {}
         for agent_stats in stats["agent"]:
             for n, v in agent_stats.items():
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
         for n, v in infos["agent"].items():
-            infos["agent"][n] = v / self._c_env.num_agents
+            infos["agent"][n] = v / self._c_env_instance.num_agents
 
-        attributes: dict[str, int] = {
+        # Add dual-policy specific logging if enabled
+        if self._dual_policy_enabled:
+            agent_groups = self._resolve_dual_policy_groups(ensure_each=True)
+
+            if len(agent_groups) >= 2:
+                npc_group = agent_groups[0]  # First group is NPC
+                trained_group = agent_groups[1]  # Second group is trained policy
+
+                # NPC group stats
+                npc_rewards = episode_rewards[npc_group]
+                npc_hearts = self._get_agent_hearts(npc_group)
+                infos["dual_policy/npc/reward_mean"] = npc_rewards.mean().item()
+                infos["dual_policy/npc/reward_sum"] = npc_rewards.sum().item()
+                infos["dual_policy/npc/hearts_mean"] = npc_hearts.mean().item()
+                infos["dual_policy/npc/hearts_sum"] = npc_hearts.sum().item()
+                infos["dual_policy/npc/num_agents"] = len(npc_group)
+
+                # Trained policy group stats
+                trained_rewards = episode_rewards[trained_group]
+                trained_hearts = self._get_agent_hearts(trained_group)
+                infos["dual_policy/trained/reward_mean"] = trained_rewards.mean().item()
+                infos["dual_policy/trained/reward_sum"] = trained_rewards.sum().item()
+                infos["dual_policy/trained/hearts_mean"] = trained_hearts.mean().item()
+                infos["dual_policy/trained/hearts_sum"] = trained_hearts.sum().item()
+                infos["dual_policy/trained/num_agents"] = len(trained_group)
+
+                # Combined stats
+                infos["dual_policy/combined/reward_mean"] = episode_rewards_mean
+                infos["dual_policy/combined/reward_sum"] = episode_rewards_sum
+                infos["dual_policy/combined/hearts_mean"] = self._get_agent_hearts().mean().item()
+                infos["dual_policy/combined/hearts_sum"] = self._get_agent_hearts().sum().item()
+                infos["dual_policy/combined/num_agents"] = self._c_env_instance.num_agents
+
+                # Aliases for external dashboards (policy_a = trained, policy_b = npc)
+                # Reward totals
+                infos["dual_policy/policy_a_reward_total"] = trained_rewards.sum().item()
+                infos["dual_policy/policy_b_reward_total"] = npc_rewards.sum().item()
+                infos["dual_policy/combined_reward_total"] = episode_rewards_sum
+                # Reward means
+                infos["dual_policy/policy_a_reward_mean"] = trained_rewards.mean().item()
+                infos["dual_policy/policy_b_reward_mean"] = npc_rewards.mean().item()
+                infos["dual_policy/combined_reward_mean"] = episode_rewards_mean
+                # Hearts totals and means
+                infos["dual_policy/policy_a_hearts_total"] = trained_hearts.sum().item()
+                infos["dual_policy/policy_b_hearts_total"] = npc_hearts.sum().item()
+                infos["dual_policy/policy_a_hearts_mean"] = trained_hearts.mean().item()
+                infos["dual_policy/policy_b_hearts_mean"] = npc_hearts.mean().item()
+                infos["dual_policy/combined_hearts_total"] = self._get_agent_hearts().sum().item()
+                infos["dual_policy/combined_hearts_mean"] = self._get_agent_hearts().mean().item()
+                # Agent counts
+                infos["dual_policy/policy_a_num_agents"] = len(trained_group)
+                infos["dual_policy/policy_b_num_agents"] = len(npc_group)
+
+        attributes: Dict[str, Any] = {
             "seed": self._current_seed,
-            "map_w": self.map_width,
-            "map_h": self.map_height,
-            "initial_grid_hash": self.initial_grid_hash,
+            "map_w": self._c_env_instance.map_width,
+            "map_h": self._c_env_instance.map_height,
+            "initial_grid_hash": self._c_env_instance.initial_grid_hash,
             "steps": self._steps,
             "resets": self._resets,
-            "max_steps": self.max_steps,
-            "completion_time": int(time.time()),
+            "max_steps": self._c_env_instance.max_steps,
+            "completion_time": time.time(),
         }
         infos["attributes"] = attributes
 
+        # Handle replay writing
         replay_url = None
-
         with self.timer("_replay_writer"):
-            if self._replay_writer:
-                assert self._episode_id is not None, "Episode ID must be set before writing a replay"
+            if self._replay_writer and self._episode_id:
                 replay_url = self._replay_writer.write_replay(self._episode_id)
                 infos["replay_url"] = replay_url
 
+        # Handle stats writing
         with self.timer("_stats_writer"):
-            if self._stats_writer:
-                assert self._episode_id is not None, "Episode ID must be set before writing stats"
+            if self._stats_writer and self._episode_id:
+                self._write_episode_stats(stats, episode_rewards, replay_url)
 
-                env_cfg_flattened: dict[str, str] = {}
-                env_cfg = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
-                for k, v in unroll_nested_dict(cast(dict[str, Any], env_cfg)):
-                    env_cfg_flattened[f"config.{str(k).replace('/', '.')}"] = str(v)
+        # Update curriculum
+        self._task.complete_trial(episode_rewards_mean)
 
-                agent_metrics = {}
-                for agent_idx, agent_stats in enumerate(stats["agent"]):
-                    agent_metrics[agent_idx] = {}
-                    agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
-                    for k, v in agent_stats.items():
-                        agent_metrics[agent_idx][k] = float(v)
+        # Add curriculum task probabilities
+        infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
 
-                grid_objects: Dict[int, Any] = self._c_env.grid_objects()
-                # iterate over grid_object values
-                agent_groups: Dict[int, int] = {
-                    v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
-                }
+        # Add timing information
+        self._add_timing_info(infos)
 
-                self._stats_writer.record_episode(
-                    self._episode_id,
-                    env_cfg_flattened,
-                    agent_metrics,
-                    agent_groups,
-                    self.max_steps,
-                    replay_url,
-                    self._reset_at,
-                )
+        # Add task-specific info
+        task_init_time_msec = self.timer.lap_all().get("_create_c_env", 0) * 1000
+        infos.update(
+            {
+                f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
+                f"task_timing/{self._task.short_name()}/init_time_msec": task_init_time_msec,
+            }
+        )
+
+        # Clear episode ID
+        self._episode_id = None
 
         self.timer.stop("process_episode_stats")
 
+    def _write_episode_stats(
+        self, stats: Mapping[str, Any], episode_rewards: np.ndarray, replay_url: Optional[str]
+    ) -> None:
+        """Write episode statistics to stats writer."""
+        if not self._stats_writer or not self._episode_id or not self._c_env_instance:
+            return
+
+        # Flatten environment config
+        env_cfg_flattened: Dict[str, str] = {}
+        env_cfg = OmegaConf.to_container(self._task.env_cfg(), resolve=False)
+        for k, v in unroll_nested_dict(cast(Dict[str, Any], env_cfg)):
+            env_cfg_flattened[f"config.{str(k).replace('/', '.')}"] = str(v)
+
+        # Prepare agent metrics
+        agent_metrics = {}
+        for agent_idx, agent_stats in enumerate(stats["agent"]):
+            agent_metrics[agent_idx] = {}
+            agent_metrics[agent_idx]["reward"] = float(episode_rewards[agent_idx])
+            for k, v in agent_stats.items():
+                agent_metrics[agent_idx][k] = float(v)
+
+        # Get agent groups
+        grid_objects = self._c_env_instance.grid_objects()
+        agent_groups: Dict[int, int] = {
+            v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
+        }
+
+        # Record episode
+        self._stats_writer.record_episode(
+            self._episode_id,
+            env_cfg_flattened,
+            agent_metrics,
+            agent_groups,
+            self._c_env_instance.max_steps,
+            replay_url,
+            self._reset_at,
+        )
+
+    def _add_timing_info(self, infos: Dict[str, Any]) -> None:
+        """Add timing information to infos."""
         elapsed_times = self.timer.get_all_elapsed()
         thread_idle_time = elapsed_times.pop("thread_idle", 0)
 
@@ -333,7 +572,8 @@ class MettaGridEnv(PufferEnv, GymEnv):
 
         lap_times = self.timer.lap_all(exclude_global=False)
         lap_thread_idle_time = lap_times.pop("thread_idle", 0)
-        wall_time_for_lap = lap_times.pop("global", 0)
+
+        wall_time_for_lap = sum(lap_times.values()) + lap_thread_idle_time
         adjusted_lap_time = wall_time_for_lap - lap_thread_idle_time
 
         infos["timing_per_epoch"] = {
@@ -344,6 +584,7 @@ class MettaGridEnv(PufferEnv, GymEnv):
             **{f"msec/{op}": lap_elapsed * 1000 for op, lap_elapsed in lap_times.items()},
             "frac/thread_idle": lap_thread_idle_time / wall_time_for_lap,
         }
+
         infos["timing_cumulative"] = {
             **{
                 f"active_frac/{op}": elapsed / adjusted_wall_time if adjusted_wall_time > 0 else 0
@@ -352,149 +593,64 @@ class MettaGridEnv(PufferEnv, GymEnv):
             "frac/thread_idle": thread_idle_time / wall_time,
         }
 
-        task_init_time_msec = lap_times.get("_initialize_c_env", 0) * 1000
-        infos.update(
-            {
-                f"task_reward/{self._task.short_name()}/rewards.mean": episode_rewards_mean,
-                f"task_timing/{self._task.short_name()}/init_time_msec": task_init_time_msec,
-            }
-        )
+    # PufferLib compatibility properties provided by base class (no overrides here)
 
-        self._episode_id = None
+    # Use base class properties for observation/action spaces, dimensions, names, and feature metadata
 
-    @property
-    def max_steps(self) -> int:
-        return self._c_env.max_steps
-
-    @property
-    @required
-    def single_observation_space(self) -> spaces.Box:
-        """
-        Return the observation space for a single agent.
-        Returns:
-            Box: A Box space with shape (num_agents, num_observation_tokens, 3)
-        """
-        return self._c_env.observation_space
-
-    @property
-    @required
-    def single_action_space(self) -> spaces.MultiDiscrete:
-        """
-        Return the action space for a single agent.
-        Returns:
-            MultiDiscrete: A MultiDiscrete space with shape (num_actions, max_action_arg + 1)
-        """
-        return self._c_env.action_space
-
-    @property
-    def obs_width(self):
-        return self._c_env.obs_width
-
-    @property
-    def obs_height(self):
-        return self._c_env.obs_height
-
-    @property
-    def action_names(self) -> list[str]:
-        return self._c_env.action_names()
-
-    @property
-    @required
-    def num_agents(self) -> int:
-        return self._c_env.num_agents
-
-    def render(self) -> str | None:
-        if self._renderer is None:
-            return None
-
-        return self._renderer.render(self._c_env.current_step, self._c_env.grid_objects())
-
-    @property
-    @override
-    def done(self):
-        return self._should_reset
-
-    @property
-    def feature_normalizations(self) -> dict[int, float]:
-        return self._c_env.feature_normalizations()
-
-    def get_observation_features(self) -> dict[str, dict[str, int | float]]:
-        """
-        Build the features dictionary for initialize_to_environment.
+    def _get_agent_groups(self) -> list[list[int]]:
+        """Get agent groups for dual-policy logging.
 
         Returns:
-            Dictionary mapping feature names to their properties
+            List of agent groups, where each group is a list of agent IDs.
+            First group is assumed to be NPC, second group is trained policy.
         """
-        # Get feature spec from C++ environment
-        feature_spec = self._c_env.feature_spec()
+        # Get agent groups from grid objects
+        grid_objects: Dict[int, Any] = self.c_env.grid_objects()
+        agent_groups: Dict[int, int] = {
+            v["agent_id"]: v["agent:group"] for v in grid_objects.values() if v["type"] == 0
+        }
 
-        features = {}
-        for feature_name, feature_info in feature_spec.items():
-            feature_dict: dict[str, int | float] = {"id": feature_info["id"]}
+        if not agent_groups:
+            return []
 
-            # Add normalization if present
-            if "normalization" in feature_info:
-                feature_dict["normalization"] = feature_info["normalization"]
+        # Group agents by their group ID
+        group_agent_ids = {}
+        for agent_id, group_id in agent_groups.items():
+            if group_id not in group_agent_ids:
+                group_agent_ids[group_id] = []
+            group_agent_ids[group_id].append(agent_id)
 
-            features[feature_name] = feature_dict
+        # Return groups sorted by group ID
+        return [group_agent_ids[group_id] for group_id in sorted(group_agent_ids.keys())]
 
-        return features
+    def _get_agent_hearts(self, agent_ids: Optional[list[int]] = None) -> np.ndarray:
+        """Get hearts for specified agents or all agents.
 
-    @property
-    def global_features(self):
-        return []
-
-    @property
-    @override
-    def render_mode(self):
-        return self._render_mode
-
-    @property
-    def map_width(self) -> int:
-        return self._c_env.map_width
-
-    @property
-    def map_height(self) -> int:
-        return self._c_env.map_height
-
-    @property
-    def grid_objects(self) -> dict[int, dict[str, Any]]:
-        """
-        Get information about all grid objects that are present in our map.
-
-        It is important to keep in mind the difference between grid_objects, which are things
-        like "walls" or "agents", and grid_features which is the encoded representation of all possible
-        observations of grid_objects that is provided to the policy.
+        Args:
+            agent_ids: List of agent IDs to get hearts for. If None, gets all agents.
 
         Returns:
-            A dictionary mapping object IDs to their properties.
+            Array of heart counts for the specified agents.
         """
-        return self._c_env.grid_objects()
+        # Get agent stats
+        # Pull per-agent stats from episode stats dict (agent list of dicts)
+        stats = self.c_env.get_episode_stats()
+        agent_stats = stats.get("agent", [])
 
-    @property
-    def max_action_args(self) -> list[int]:
-        """
-        Get the maximum argument variant for each action type.
-        Returns:
-            List of integers representing max parameters for each action type
-        """
-        action_args_array = self._c_env.max_action_args()
-        return [int(x) for x in action_args_array]
+        if agent_ids is None:
+            # Get hearts for all agents
+            hearts = []
+            for agent_stat in agent_stats:
+                hearts.append(agent_stat.get("inventory.heart", 0))
+            return np.array(hearts)
+        else:
+            # Get hearts for specified agents
+            hearts = []
+            for agent_id in agent_ids:
+                if agent_id < len(agent_stats):
+                    hearts.append(agent_stats[agent_id].get("inventory.heart", 0))
+                else:
+                    hearts.append(0)
+            return np.array(hearts)
 
-    @property
-    def action_success(self) -> list[bool]:
-        action_success_array = self._c_env.action_success()
-        return [bool(x) for x in action_success_array]
-
-    @property
-    def object_type_names(self) -> list[str]:
-        return self._c_env.object_type_names()
-
-    @property
-    def inventory_item_names(self) -> list[str]:
-        return self._c_env.inventory_item_names()
-
-    @property
-    def initial_grid_hash(self) -> int:
-        """Returns the hash of the initial grid configuration."""
-        return self._c_env.initial_grid_hash
+    # Base class already defines `emulated` property

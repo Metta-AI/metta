@@ -22,28 +22,31 @@ struct ConverterConfig : public GridObjectConfig {
                   const std::map<InventoryItem, InventoryQuantity>& input_resources,
                   const std::map<InventoryItem, InventoryQuantity>& output_resources,
                   short max_output,
+                  short max_conversions,
                   unsigned short conversion_ticks,
                   unsigned short cooldown,
                   InventoryQuantity initial_resource_count,
                   ObservationType color,
-                  bool recipe_details_obs = false,
-                  ObservationType input_recipe_offset = 0,
-                  ObservationType output_recipe_offset = 0)
+                  bool recipe_details_obs)
       : GridObjectConfig(type_id, type_name),
         input_resources(input_resources),
         output_resources(output_resources),
         max_output(max_output),
+        max_conversions(max_conversions),
         conversion_ticks(conversion_ticks),
         cooldown(cooldown),
         initial_resource_count(initial_resource_count),
         color(color),
         recipe_details_obs(recipe_details_obs),
-        input_recipe_offset(input_recipe_offset),
-        output_recipe_offset(output_recipe_offset) {}
+        // These are always 0 when this is created, since we want a single constructor, and these
+        // shouldn't be provided by Python.
+        input_recipe_offset(0),
+        output_recipe_offset(0) {}
 
   std::map<InventoryItem, InventoryQuantity> input_resources;
   std::map<InventoryItem, InventoryQuantity> output_resources;
   short max_output;
+  short max_conversions;
   unsigned short conversion_ticks;
   unsigned short cooldown;
   InventoryQuantity initial_resource_count;
@@ -65,6 +68,11 @@ private:
     // is zero, we probably haven't been added to the grid yet.
     assert(this->id != 0);
     if (this->converting || this->cooling_down) {
+      return;
+    }
+    // Check if the converter has reached max conversions
+    if (this->max_conversions >= 0 && this->conversions_completed >= this->max_conversions) {
+      stats.incr("conversions.permanent_stop");
       return;
     }
     // Check if the converter is already at max output.
@@ -117,6 +125,7 @@ public:
   // is to make Mines (etc) have a maximum output.
   // -1 means no limit
   short max_output;
+  short max_conversions;
   unsigned short conversion_ticks;  // Time to produce output
   unsigned short cooldown;          // Time to wait after producing before starting again
   bool converting;                  // Currently in production phase
@@ -127,20 +136,23 @@ public:
   StatsTracker stats;
   ObservationType input_recipe_offset;
   ObservationType output_recipe_offset;
+  unsigned short conversions_completed;
 
   Converter(GridCoord r, GridCoord c, const ConverterConfig& cfg)
       : input_resources(cfg.input_resources),
         output_resources(cfg.output_resources),
         max_output(cfg.max_output),
+        max_conversions(cfg.max_conversions),
         conversion_ticks(cfg.conversion_ticks),
         cooldown(cfg.cooldown),
+        converting(false),
+        cooling_down(false),
         color(cfg.color),
         recipe_details_obs(cfg.recipe_details_obs),
         event_manager(nullptr),
-        converting(false),
-        cooling_down(false),
         input_recipe_offset(cfg.input_recipe_offset),
-        output_recipe_offset(cfg.output_recipe_offset) {
+        output_recipe_offset(cfg.output_recipe_offset),
+        conversions_completed(0) {
     GridObject::init(cfg.type_id, cfg.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
 
     // Initialize inventory with initial_resource_count for all output types
@@ -156,7 +168,13 @@ public:
 
   void finish_converting() {
     this->converting = false;
+    // Increment the stat unconditionally
     stats.incr("conversions.completed");
+
+    // Only increment the counter when tracking conversion limits
+    if (this->max_conversions >= 0) {
+      this->conversions_completed++;
+    }
 
     // Add output to inventory
     for (const auto& [item, amount] : this->output_resources) {
@@ -172,10 +190,6 @@ public:
     } else if (this->cooldown == 0) {
       // No cooldown, try to start converting again immediately
       this->maybe_start_converting();
-    } else if (this->cooldown < 0) {
-      // Negative cooldown means never convert again
-      this->cooling_down = true;
-      stats.incr("conversions.permanent_stop");
     }
   }
 
@@ -227,14 +241,16 @@ public:
       // Add recipe inputs (input:resource) - only non-zero values
       for (const auto& [item, amount] : this->input_resources) {
         if (amount > 0) {
-          features.push_back({static_cast<ObservationType>(input_recipe_offset + item), static_cast<ObservationType>(amount)});
+          features.push_back(
+              {static_cast<ObservationType>(input_recipe_offset + item), static_cast<ObservationType>(amount)});
         }
       }
 
       // Add recipe outputs (output:resource) - only non-zero values
       for (const auto& [item, amount] : this->output_resources) {
         if (amount > 0) {
-          features.push_back({static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
+          features.push_back(
+              {static_cast<ObservationType>(output_recipe_offset + item), static_cast<ObservationType>(amount)});
         }
       }
     }
