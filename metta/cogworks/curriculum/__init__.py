@@ -4,6 +4,11 @@ from metta.mettagrid.mettagrid_config import EnvConfig
 
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
 from .curriculum_env import CurriculumEnv
+from .learning_progress import (
+    LearningProgressCurriculum,
+    LearningProgressCurriculumConfig,
+    LearningProgressCurriculumTask,
+)
 from .task import Task
 from .task_generator import (
     BucketedTaskGenerator,
@@ -22,6 +27,9 @@ __all__ = [
     "Curriculum",
     "CurriculumConfig",
     "CurriculumTask",
+    "LearningProgressCurriculum",
+    "LearningProgressCurriculumConfig",
+    "LearningProgressCurriculumTask",
     "Task",
     "TaskGenerator",
     "TaskGeneratorConfig",
