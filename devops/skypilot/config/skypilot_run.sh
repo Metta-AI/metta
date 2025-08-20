@@ -17,25 +17,6 @@ export RANK=${SKYPILOT_NODE_RANK:-0}
 export IS_MASTER=$([[ "$RANK" == "0" ]] && echo "true" || echo "false")
 TOTAL_NODES=${SKYPILOT_NUM_NODES:-1}
 
-DEBUG=${DEBUG:-0}
-
-EXIT_SUCCESS=0
-EXIT_FAILURE=1
-EXIT_NCCL_TEST_FAILURE=42
-
-echo "[CONFIG] Run Configuration:"
-echo "  - NODE_RANK: ${RANK}"
-echo "  - IS_MASTER: ${IS_MASTER}"
-echo "  - TOTAL_NODES: ${TOTAL_NODES}"
-echo "  - METTA_RUN_ID: ${METTA_RUN_ID:-}"
-echo "  - SKYPILOT_TASK_ID: ${SKYPILOT_TASK_ID:-}"
-echo "  - HEARTBEAT_TIMEOUT: ${HEARTBEAT_TIMEOUT:-'NOT SET'}"
-echo "  - MAX_RUNTIME_HOURS: ${MAX_RUNTIME_HOURS:-'NOT SET'}"
-echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
-echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
-echo "  - METTA_OVERRIDES: ${METTA_OVERRIDES:-'NOT SET'}"
-[ "$DEBUG" = "1" ] && echo "  - DEBUG: ENABLED"
-
 # Master-only: Collect SkyPilot latency
 if [[ "$IS_MASTER" == "true" ]]; then
   if [ -f common/src/metta/common/util/skypilot_latency.py ]; then
@@ -103,8 +84,10 @@ echo "     ↳ TERMINATION_REASON_FILE: $TERMINATION_REASON_FILE"
 echo "     ↳ CLUSTER_STOP_FILE: $CLUSTER_STOP_FILE"
 echo "     ↳ HEARTBEAT_FILE: $HEARTBEAT_FILE"
 echo "     ↳ ACCUMULATED_RUNTIME_FILE: $ACCUMULATED_RUNTIME_FILE"
-echo "  - METTA_CMD: ${METTA_CMD:-'NOT SET'}"
-echo "  - METTA_CMD_ARGS: ${METTA_CMD_ARGS:-'NOT SET'}"
+echo "  - METTA_MODULE_PATH: ${METTA_MODULE_PATH:-'NOT SET'}"
+echo "  - METTA_ARGS: ${METTA_ARGS:-'NOT SET'}"
+echo "  - METTA_OVERRIDES: ${METTA_OVERRIDES:-'NOT SET'}"
+
 
 if [[ "$IS_MASTER" == "true" ]]; then
   if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
@@ -213,22 +196,18 @@ run_cmd() {
 
   # Add --args if METTA_ARGS is not empty (run= is now included in METTA_ARGS)
   if [ -n "${METTA_ARGS:-}" ]; then
-    cmd="$cmd --args ${METTA_ARGS}"
+    args_array=(--args ${METTA_ARGS})
+    cmd+=("${args_array[@]}")
   fi
 
   # Add --overrides if METTA_OVERRIDES is not empty
   if [ -n "${METTA_OVERRIDES:-}" ]; then
-    cmd="$cmd --overrides ${METTA_OVERRIDES}"
+    overrides_array=(--overrides ${METTA_OVERRIDES})
+    cmd+=("${overrides_array[@]}")
   fi
 
   echo "[INFO] Running command: $cmd"
 
-  # Start training in its own process group; tee output for postmortem
-  cmd=(./devops/"${METTA_CMD:?missing METTA_CMD}".sh "run=${METTA_RUN_ID:?missing METTA_RUN_ID}")
-  if [ -n "${METTA_CMD_ARGS:-}" ]; then
-    extra_args=(${METTA_CMD_ARGS})
-    cmd+=("${extra_args[@]}")
-  fi
   # Use process substitution so $! is the trainer (not tee)
   setsid "${cmd[@]}" &
   export CMD_PID=$!

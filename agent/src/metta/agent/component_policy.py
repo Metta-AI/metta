@@ -16,6 +16,11 @@ from metta.common.util.instantiate import instantiate
 logger = logging.getLogger("component_policy")
 
 
+def log_on_master(*args, **argv):
+    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+        logger.info(*args, **argv)
+
+
 class ComponentPolicy(nn.Module):
     # ============================================================================
     # Initialization and Setup
@@ -84,7 +89,7 @@ class ComponentPolicy(nn.Module):
 
         self.components = self.components.to(device)
 
-        logger.info(f"ComponentPolicy components: {self.components}")
+        log_on_master(f"ComponentPolicy components: {self.components}")
 
         # Initialize action conversion tensors (will be set by MettaAgent)
         self.cum_action_max_params = None
@@ -103,7 +108,7 @@ class ComponentPolicy(nn.Module):
         # recursively setup all source components first
         if hasattr(component, "_sources") and component._sources is not None:
             for source in component._sources:
-                logger.info(f"setting up {component._name} with source {source['name']}")
+                log_on_master(f"setting up {component._name} with source {source['name']}")
                 self._setup_components(self.components[source["name"]])
 
         # setup the current component and pass in the source components
