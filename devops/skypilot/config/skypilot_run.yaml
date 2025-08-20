@@ -29,6 +29,7 @@ resources:
 
 config:
   docker:
+    pull_before_run: false
     run_options:
       - --cap-add=IPC_LOCK
       - --ulimit memlock=-1:-1
