@@ -302,8 +302,7 @@ def create_trainer_config(
     if "checkpoint_dir" not in checkpoint_config:
         checkpoint_config["checkpoint_dir"] = f"{cfg.run_dir}/checkpoints"
 
-    # If wandb_checkpoint_interval is None, default to checkpoint_interval
-
+    # wandb_checkpoint_interval defaults to checkpoint_interval, which defaults to 50
     if checkpoint_config.get("wandb_checkpoint_interval") is None:
         checkpoint_config["wandb_checkpoint_interval"] = checkpoint_config.setdefault("checkpoint_interval", 50)
 
@@ -311,8 +310,7 @@ def create_trainer_config(
     if "replay_dir" not in simulation_config:
         simulation_config["replay_dir"] = f"{cfg.run_dir}/replays/"
 
-    # If evaluate_interval is None, default to max of checkpoint intervals
-    # (must be at least as large as both checkpoint_interval and wandb_checkpoint_interval)
+    # evaluate_interval defaults to max of checkpoint intervals
     if simulation_config.get("evaluate_interval") is None:
         simulation_config["evaluate_interval"] = max(
             checkpoint_config["checkpoint_interval"], checkpoint_config["wandb_checkpoint_interval"]
