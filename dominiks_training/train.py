@@ -5,18 +5,19 @@ import random
 import sys
 import time
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import torch
 import torch.optim as optim
-from omegaconf import OmegaConf
+from gymnasium.spaces import Discrete, MultiDiscrete
+from omegaconf import DictConfig, OmegaConf
 
 # Add the parent directory to path so we can import from metta
 sys.path.append(str(Path(__file__).parent.parent))
 
-from env_config import create_simple_arena_config
-
-from agent import ActorCriticAgent
+from dominiks_training.agent import ActorCriticAgent
+from dominiks_training.env_config import create_simple_arena_config
 from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 
@@ -27,7 +28,9 @@ def load_config(config_path: str) -> configparser.ConfigParser:
     return config
 
 
-def collect_episode(env: MettaGridEnv, agent, device: str):
+def collect_episode(
+    env: MettaGridEnv, agent: ActorCriticAgent, device: str
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Collect a single episode of experience for actor-critic."""
     observations = []
     actions = []
@@ -127,7 +130,7 @@ def compute_actor_critic_loss(
     return actor_loss, critic_loss
 
 
-def train():
+def train() -> None:
     # Load configuration
     config_path = Path(__file__).parent / "config.ini"
     config = load_config(str(config_path))
@@ -147,8 +150,8 @@ def train():
     torch.manual_seed(42)
 
     # Create environment
-    env_config = OmegaConf.create(create_simple_arena_config())
-    curriculum = SingleTaskCurriculum("arena_simple", env_config)
+    task_cfg: DictConfig = cast(DictConfig, OmegaConf.create(create_simple_arena_config()))
+    curriculum = SingleTaskCurriculum("arena_simple", task_cfg)
     env = MettaGridEnv(curriculum=curriculum)
 
     # Get observation and action dimensions
@@ -156,10 +159,13 @@ def train():
     obs_dim = obs.flatten().shape[0]
 
     # Handle MultiDiscrete action space
-    if hasattr(env.single_action_space, "nvec"):
-        action_dim = env.single_action_space.nvec[0]  # Use first action dimension
+    space = env.single_action_space
+    if isinstance(space, MultiDiscrete):
+        action_dim = int(space.nvec[0])  # Use first action dimension
+    elif isinstance(space, Discrete):
+        action_dim = int(space.n)
     else:
-        action_dim = env.single_action_space.n
+        raise TypeError("Unsupported action space type")
 
     print(f"Observation dimension: {obs_dim}")
     print(f"Action dimension: {action_dim}")
