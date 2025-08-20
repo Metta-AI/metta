@@ -75,8 +75,6 @@ class ComponentPolicy(nn.Module, ABC):
         if duplicate_names := duplicates(all_names):
             raise ValueError(f"Duplicate component names found: {duplicate_names}")
 
-        # Move to device
-        self.components = self.components.to(device)
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
             logger.info(f"{self.__class__.__name__} policy components: {self.components}")
 
