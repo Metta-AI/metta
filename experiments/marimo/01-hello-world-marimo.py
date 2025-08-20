@@ -118,7 +118,7 @@ def _():
         policy_uri: str | None = None
         num_steps: int = 50000
         num_agents: int = 1
-        max_steps: int = 10000
+        max_steps: int = 100000
         sleep_time: float = 0.0
         renderer_type: str = "human"
 
@@ -343,7 +343,7 @@ def _(RendererToolConfig):
     env_config.game.map_builder = AsciiMapBuilder.Config(map_data=map_data)
 
     # Simple customizations
-    env_config.game.max_steps = 1000
+    env_config.game.max_steps = 5000
     env_config.game.obs_width = 11
     env_config.game.obs_height = 11
 
@@ -371,7 +371,7 @@ def _(RendererToolConfig):
     )
 
     print("✅ Simple hallway environment: start with arena, add custom map")
-    return env_config, renderer_config
+    return AsciiMapBuilder, env_config, make_arena, renderer_config, textwrap
 
 
 @app.cell(hide_code=True)
@@ -999,6 +999,91 @@ def _(run_name, traceback):
             )
 
     _display_by_wandb_path(f"metta-research/metta/runs/{run_name}", height=600)
+    return
+
+
+@app.cell
+def _(AsciiMapBuilder, RendererToolConfig, make_arena, textwrap):
+    hallway_map2 = textwrap.dedent("""
+        ###########
+        #R...@...m#
+        ###########
+    """).strip()
+
+    # Start with working arena config for 1 agent, then customize
+    env_config2 = make_arena(num_agents=1)
+
+    # Replace with our simple hallway map
+    map_data2 = [list(line) for line in hallway_map2.splitlines()]
+    env_config2.game.map_builder = AsciiMapBuilder.Config(map_data=map_data2)
+
+    renderer_config2 = RendererToolConfig(
+        policy_type="opportunistic",
+        num_steps=3000,
+        sleep_time=0.005,
+        renderer_type="human",
+    )
+    return env_config2, renderer_config2
+
+
+@app.cell
+def _(mo):
+    observe_button2 = mo.ui.run_button(label="Click to run observation below")
+    observe_button2
+    return (observe_button2,)
+
+
+@app.cell
+def _(
+    MettaGridEnv,
+    contextlib,
+    display,
+    env_config2,
+    get_policy,
+    io,
+    mo,
+    observe_button2,
+    renderer_config2,
+    time,
+    widgets,
+):
+    mo.stop(not observe_button2.value)
+
+    def _():
+        # Create environment with proper EnvConfig
+        env = MettaGridEnv(env_config2, render_mode="human")
+        policy = get_policy(renderer_config2.policy_type, env, renderer_config2)
+
+        header = widgets.HTML()
+        map_box = widgets.HTML()
+        display(header, map_box)
+        _obs, info = env.reset()
+
+        # steps = renderer_config.num_steps
+        steps = renderer_config2.num_steps
+        for _step in range(steps):
+            _actions = policy.predict(_obs)
+            _obs, rewards, terminals, truncations, info = env.step(_actions)
+            _agent_obj = next(
+                (o for o in env.grid_objects.values() if o.get("agent_id") == 0)
+            )
+            _inv = {
+                env.inventory_item_names[idx]: count
+                for idx, count in _agent_obj.get("inventory", {}).items()
+            }
+            header.value = "<br />".join(
+                [
+                    f"<b>Step:</b> {_step + 1}/{steps}",
+                    f"<b>Inventory:</b> ore={_inv.get('ore_red', 0)} batteries={_inv.get('battery_red', 0)}",
+                ]
+            )
+            with contextlib.redirect_stdout(io.StringIO()):
+                buffer_str = env.render()
+            map_box.value = f"<pre>{buffer_str}</pre>"
+            time.sleep(renderer_config2.sleep_time)
+        env.close()
+
+    _()
     return
 
 
