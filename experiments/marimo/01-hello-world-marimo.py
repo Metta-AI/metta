@@ -108,7 +108,7 @@ def _():
         policy_type: str = "random"
         policy_uri: str | None = None
         num_steps: int = 50000
-        num_agents: int = 2
+        num_agents: int = 1
         max_steps: int = 10000
         sleep_time: float = 0.0
         renderer_type: str = "human"
@@ -184,7 +184,7 @@ def _():
                 self.pickup_idx = 2
 
         def predict(self, obs: np.ndarray) -> np.ndarray:
-            """Decide a step action following opportunistic rules."""
+            """Wander randomly and get ore if next to a mine."""
             grid_objects = self.env.grid_objects
             agent = next(
                 (o for o in grid_objects.values() if o.get("agent_id") == 0), None
@@ -195,56 +195,39 @@ def _():
             ar, ac = agent["r"], agent["c"]
             agent_ori = int(agent.get("agent:orientation", 0))
 
-            # Adjacent resource? pick up if front, else rotate toward it
+            # Check if next to a mine with ore - if so, pick up
             for orient, (dr, dc) in self.ORIENT_TO_DELTA.items():
                 tr, tc = ar + dr, ac + dc
                 for obj in grid_objects.values():
                     if obj.get("r") == tr and obj.get("c") == tc:
-                        base = self.env.object_type_names[obj["type"]].split(".")[0]
-                        if base.startswith(("mine", "generator", "converter")):
-                            inv = obj.get("inventory", {})
-                            total = sum(inv.values()) if isinstance(inv, dict) else 0
-                            if total > 0:
-                                action_type, action_arg = (
-                                    (self.pickup_idx, 0)
-                                    if orient == agent_ori
-                                    else (self.rotate_idx, orient)
+                        obj_type_id = obj.get("type")
+                        if obj_type_id is not None and obj_type_id < len(
+                            self.env.object_type_names
+                        ):
+                            obj_type_name = self.env.object_type_names[obj_type_id]
+                            if "mine" in obj_type_name:
+                                inv = obj.get("inventory", {})
+                                total = (
+                                    sum(inv.values()) if isinstance(inv, dict) else 0
                                 )
-                                return generate_valid_random_actions(
-                                    self.env,
-                                    self.num_agents,
-                                    force_action_type=action_type,
-                                    force_action_arg=action_arg,
-                                )
+                                if total > 0:
+                                    # If facing the mine, pick up; otherwise rotate toward it
+                                    if orient == agent_ori:
+                                        action_type, action_arg = self.pickup_idx, 0
+                                    else:
+                                        action_type, action_arg = (
+                                            self.rotate_idx,
+                                            orient,
+                                        )
+                                    return generate_valid_random_actions(
+                                        self.env,
+                                        self.num_agents,
+                                        force_action_type=action_type,
+                                        force_action_arg=action_arg,
+                                    )
 
-            # Roam
-            occupied = {
-                (o["r"], o["c"]) for o in grid_objects.values() if o.get("layer") == 1
-            }
-            candidates = [(-1, 0), (1, 0), (0, -1), (0, 1)]
-            moves = [
-                (dr, dc) for dr, dc in candidates if (ar + dr, ac + dc) not in occupied
-            ]
-            if moves:
-                dr, dc = moves[np.random.randint(len(moves))]
-                desired_ori = self.DELTA_TO_ORIENT[(dr, dc)]
-                action_type, action_arg = (
-                    (self.rotate_idx, desired_ori)
-                    if agent_ori != desired_ori
-                    else (self.move_idx, 0)
-                )
-            else:
-                action_type, action_arg = (
-                    self.rotate_idx,
-                    int(np.random.choice(self.rotation_orientations)),
-                )
-
-            return generate_valid_random_actions(
-                self.env,
-                self.num_agents,
-                force_action_type=action_type,
-                force_action_arg=action_arg,
-            )
+            # Otherwise, wander randomly
+            return generate_valid_random_actions(self.env, self.num_agents)
 
     def get_policy(
         policy_type: str, env: MettaGridEnv, cfg: RendererToolConfig
@@ -370,7 +353,7 @@ def _(RendererToolConfig):
     # Create a proper RendererToolConfig for policy creation
     renderer_config = RendererToolConfig(
         policy_type="opportunistic",
-        num_steps=100,
+        num_steps=1000,
         sleep_time=0.010,
         renderer_type="human",
     )
@@ -421,8 +404,6 @@ def _(
 ):
     mo.stop(not observe_button.value)
 
-    import re
-
     def _():
         # Create environment with proper EnvConfig
         env = MettaGridEnv(env_config, render_mode="human")
@@ -446,11 +427,9 @@ def _(
                 for idx, count in _agent_obj.get("inventory", {}).items()
             }
             header.value = f"<b>Step:</b> {_step + 1}/{steps} <br/> <b>Inventory:</b> {_inv.get('ore_red', 0)}"
-            # Get rendered output directly
-            buffer_str = env.render()
-            # Clean ANSI escape codes for web display
-            clean_buffer = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", buffer_str)
-            map_box.value = f"<pre>{clean_buffer}</pre>"
+            with contextlib.redirect_stdout(io.StringIO()) as buffer:
+                buffer_str = env.render()
+            map_box.value = f"<pre>{buffer_str}</pre>"
             if renderer_config.sleep_time:
                 time.sleep(renderer_config.sleep_time)
         env.close()
