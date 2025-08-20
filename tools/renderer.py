@@ -421,4 +421,3 @@
 #     print(f"\n🎯 Final Results: {total_reward:.3f} reward over {step_count:,} steps")
 
 
-# pydantic_metta_script(main)

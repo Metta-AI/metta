@@ -1,6 +1,5 @@
 #!/usr/bin/env -S uv run
 import argparse
-import importlib
 import logging
 import os
 import signal
@@ -16,6 +15,7 @@ from metta.common.config.config import Config
 from metta.common.config.tool import Tool
 from metta.common.util.logging_helpers import init_logging
 from metta.rl.system_config import seed_everything
+from metta.utils.module import load_function
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ def main():
 
     # Create the tool config object
     module_name, func_name = args.make_tool_cfg_path.rsplit(".", 1)
-    make_tool_cfg = importlib.import_module(module_name).__getattribute__(func_name)
+    make_tool_cfg = load_function(args.make_tool_cfg_path)
 
     if issubclass(make_tool_cfg, Tool):
         # tool config constructor
