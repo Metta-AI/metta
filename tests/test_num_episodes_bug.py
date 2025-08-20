@@ -22,7 +22,7 @@ def create_test_database(db_path: Path, num_episodes_requested: int, num_episode
     db.con.execute(
         """
         INSERT INTO simulations (id, name, env, policy_key, policy_version)
-        VALUES (?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?)
     """,
         (sim_id, "test_sim", "test_env", "test_policy", 1),
     )
