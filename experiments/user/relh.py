@@ -24,9 +24,8 @@ def train() -> TrainTool:
         run="local.relh.dehydrate.1",
         curriculum=navigation.make_curriculum(env),
     )
-    # Performance optimizations for faster training
-    cfg.trainer.compile = True  # Enable torch compilation for speedup
     cfg.trainer.forward_pass_minibatch_target_size = 4096  # Larger minibatches
+    # Performance optimizations for faster training
     return cfg
 
 
