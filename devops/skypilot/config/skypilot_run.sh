@@ -224,7 +224,7 @@ run_cmd() {
   echo "[INFO] Running command: ${cmd[*]}"
 
   # Use process substitution so $! is the trainer (not tee)
-  setsid "${cmd[@]}" &
+  setsid $cmd &
   export CMD_PID=$!
 
   sleep 1
