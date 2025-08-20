@@ -23,6 +23,11 @@ from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_conf
 logger = logging.getLogger(__name__)
 
 
+def log_on_master(*args, **argv):
+    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+        logger.info(*args, **argv)
+
+
 class TrainTool(Tool):
     trainer: TrainerConfig = TrainerConfig()
     wandb: WandbConfig = WandbConfig.Unconfigured()
@@ -72,13 +77,13 @@ class TrainTool(Tool):
         if not self.trainer.checkpoint.checkpoint_dir:
             self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
 
-        logger.info(
+        log_on_master(
             f"Training {self.run} on "
             + f"{os.environ.get('NODE_INDEX', '0')}: "
             + f"{os.environ.get('LOCAL_RANK', '0')} ({self.system.device})"
         )
 
-        logger.info(f"Training {self.run} on {self.system.device}")
+        log_on_master(f"Training {self.run} on {self.system.device}")
         if torch_dist_cfg.is_master:
             with WandbContext(self.wandb, self) as wandb_run:
                 handle_train(self, torch_dist_cfg, wandb_run, logger)
@@ -122,7 +127,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
     if torch_dist_cfg.is_master:
         with open(os.path.join(run_dir, "config.json"), "w") as f:
             f.write(cfg.model_dump_json(indent=2))
-            logger.info(f"Config saved to {os.path.join(run_dir, 'config.json')}")
+            log_on_master(f"Config saved to {os.path.join(run_dir, 'config.json')}")
 
     # Use the functional train interface directly
     train(
@@ -151,18 +156,25 @@ def _configure_vecenv_settings(cfg: TrainTool) -> None:
 
 
 def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
+    if cfg.trainer.evaluation is None:
+        return None
+
+    if cfg.trainer.evaluation.replay_dir is None:
+        log_on_master(f"Setting replay_dir to s3://softmax-public/replays/{cfg.run}")
+        cfg.trainer.evaluation.replay_dir = f"s3://softmax-public/replays/{cfg.run}"
+
     stats_client: StatsClient | None = None
     if cfg.stats_server_uri is not None:
         stats_client = StatsClient.create(cfg.stats_server_uri)
 
     # Determine git hash for remote simulations
-    if cfg.trainer.evaluation and cfg.trainer.evaluation.evaluate_remote:
+    if cfg.trainer.evaluation.evaluate_remote:
         if not stats_client:
             cfg.trainer.evaluation.evaluate_remote = False
-            logger.info("Not connected to stats server, disabling remote evaluations")
+            log_on_master("Not connected to stats server, disabling remote evaluations")
         elif not cfg.trainer.evaluation.evaluate_interval:
             cfg.trainer.evaluation.evaluate_remote = False
-            logger.info("Evaluate interval set to 0, disabling remote evaluations")
+            log_on_master("Evaluate interval set to 0, disabling remote evaluations")
         elif not cfg.trainer.evaluation.git_hash:
             cfg.trainer.evaluation.git_hash = get_git_hash_for_remote_task(
                 skip_git_check=cfg.trainer.evaluation.skip_git_check,
@@ -170,9 +182,9 @@ def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
                 logger=logger,
             )
             if cfg.trainer.evaluation.git_hash:
-                logger.info(f"Git hash for remote evaluations: {cfg.trainer.evaluation.git_hash}")
+                log_on_master(f"Git hash for remote evaluations: {cfg.trainer.evaluation.git_hash}")
             else:
-                logger.info("No git hash available for remote evaluations")
+                log_on_master("No git hash available for remote evaluations")
 
     return stats_client
 

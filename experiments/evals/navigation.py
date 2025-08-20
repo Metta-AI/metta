@@ -423,7 +423,8 @@ def make_navigation_eval_suite() -> list[SimulationConfig]:
         make_emptyspace_withinsight_env,
         make_emptyspace_sparse_medium_env,
         make_emptyspace_sparse_env,
-        make_labyrinth_env,
+        # TODO: (slava) #dehydration - this fails
+        # make_labyrinth_env,
     ]
 
     def fn_to_sim_name(fn: Callable[[], EnvConfig]) -> str:

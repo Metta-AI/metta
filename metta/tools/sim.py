@@ -131,9 +131,7 @@ class SimTool(Tool):
                             "reward_avg_category_normalized": eval_results.scores.avg_category_score,
                             "detailed": eval_results.scores.to_wandb_metrics_format(),
                         },
-                        "replay_url": next(iter(eval_results.replay_urls.values()))
-                        if eval_results.replay_urls
-                        else None,
+                        "replay_url": eval_results.replay_urls,
                     }
                 )
             all_results["policies"].append(results)
