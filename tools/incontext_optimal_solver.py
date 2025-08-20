@@ -157,39 +157,14 @@ class InContextOptimalSolver:
         assert best_result is not None
         return best_result
 
-    def calculate_sink_discovery(self, n_converters: int, n_sinks: int) -> float:
-        """
-        Calculate expected number of sinks discovered during chain completion.
-
-        Uses probability theory to estimate how many sinks will be found
-        while searching for converters in sequence.
-        """
-        if n_sinks == 0 or n_converters == 0:
-            return 0
-
-        total_objects = n_converters + n_sinks
-        expected_discovered = 0
-        unknown_sinks = n_sinks
-        unknown_objects = total_objects
-
-        for step in range(n_converters):
-            remaining_converters = n_converters - step
-            if unknown_sinks > 0 and unknown_objects > 0:
-                prob_sink = unknown_sinks / unknown_objects
-                expected_attempts = unknown_objects / remaining_converters
-                sinks_in_step = prob_sink * (expected_attempts - 1)
-                expected_discovered += sinks_in_step
-                unknown_sinks -= sinks_in_step
-                unknown_objects = remaining_converters - 1 + unknown_sinks
-
-        return min(expected_discovered, n_sinks)  # Can't discover more than exist
-
     def compute_cycle_movement_cost(
         self, converter_positions: List[Tuple[int, int]], use_tank_movement: bool = True
     ) -> float:
         """
-        Compute movement cost for one full cycle through the fixed converter sequence,
-        including the wrap-around from last back to first.
+        Compute movement cost for one complete cycle through the converter sequence.
+        Complete cycle: conv[0] → conv[1] → ... → conv[n-1] → conv[0] (wrap-around)
+
+        This represents the optimal path once the sequence is known.
         """
         n = len(converter_positions)
         if n <= 1:
@@ -211,12 +186,12 @@ class InContextOptimalSolver:
         num_sinks: int = 0,
     ) -> Dict:
         """
-        Calculate expected cost with discovery process.
+        Calculate expected cost with discovery process using clean probability theory.
 
         Models a learning agent that:
         - Must discover the conversion sequence through trial and error
-        - Learns and avoids sinks after losing an item to them
-        - Searches efficiently among remaining unknown objects
+        - Experiences chain restarts when hitting sinks
+        - Uses expected value calculations without arbitrary heuristics
 
         Args:
             agent_pos: Starting position of the agent
@@ -235,62 +210,58 @@ class InContextOptimalSolver:
         # Calculate average distances
         avg_from_agent, avg_inter = self.calculate_average_distances(agent_pos, converter_positions, use_tank_movement)
 
-        # Calculate expected sink discoveries
-        expected_sinks_discovered = self.calculate_sink_discovery(n, num_sinks)
-
-        # Initialize cost accumulators
-        movement_cost = 0
-        failed_attempts = 0
-
-        # Model the discovery process
+        # Total objects in environment
         total_objects = n + num_sinks
-        discovered_sinks = 0
 
-        # Phase 1: Find first converter
+        # Calculate expected attempts to complete the chain
         if num_sinks == 0:
-            expected_first_attempts = (n + 1) / 2
+            # Without sinks: finding n specific converters in sequence
+            # Expected attempts = n + (n-1) + ... + 1 = n(n+1)/2
+            expected_attempts = n * (n + 1) / 2
         else:
-            expected_first_attempts = total_objects / n
-            # Assume ~30% of sinks discovered in first phase
-            discovered_in_phase1 = min(expected_sinks_discovered * 0.3, num_sinks * 0.3)
-            discovered_sinks = discovered_in_phase1
+            # With sinks: account for additional objects in the search space
+            expected_attempts = 0.0
+            for k in range(n):
+                remaining_converters = n - k
+                remaining_objects = total_objects - k
+                if remaining_converters > 0:
+                    expected_attempts += remaining_objects / remaining_converters
 
-        movement_cost += avg_from_agent * expected_first_attempts
-        failed_attempts += expected_first_attempts - 1
+        # Calculate expected sink discoveries (learning agent avoids after first hit)
+        expected_sink_hits = 0.0
+        if num_sinks > 0:
+            sinks_remaining = float(num_sinks)
 
-        # Phase 2: Find remaining converters in sequence
-        for step in range(1, n):
-            remaining_converters = n - step
-            remaining_unknown_sinks = max(0, num_sinks - discovered_sinks)
-            effective_unknown_objects = remaining_converters + remaining_unknown_sinks
+            for k in range(n):
+                converters_needed = n - k
+                objects_remaining = n + num_sinks - k - expected_sink_hits
 
-            if remaining_unknown_sinks == 0:
-                # All sinks discovered, search only converters
-                expected_attempts = (remaining_converters + 1) / 2
-            else:
-                # Still have unknown sinks in the mix
-                expected_attempts = effective_unknown_objects / remaining_converters
-                # Discover more sinks as we go (distribute remaining 70%)
-                if n > 1:
-                    discovered_in_step = min(remaining_unknown_sinks * 0.2, expected_sinks_discovered * (0.7 / (n - 1)))
-                    discovered_sinks += discovered_in_step
+                if converters_needed > 0 and objects_remaining > converters_needed:
+                    trials_for_converter = objects_remaining / converters_needed
 
-            movement_cost += avg_inter * expected_attempts
-            failed_attempts += expected_attempts - 1
+                    if trials_for_converter > 1 and sinks_remaining > 0:
+                        p_sink_per_trial = sinks_remaining / objects_remaining
+                        expected_hits_this_step = p_sink_per_trial * (trials_for_converter - 1)
+                        expected_sink_hits += min(expected_hits_this_step, sinks_remaining)
+                        sinks_remaining -= expected_hits_this_step
 
-        # Cost of restarting after each sink discovery
-        sink_restart_cost = expected_sinks_discovered * (
-            avg_from_agent + 2  # Move to first converter + get first item
-        )
-        movement_cost += sink_restart_cost
+        # Movement costs
+        movement_cost = avg_from_agent  # Initial movement
+        if expected_attempts > 1:
+            movement_cost += (expected_attempts - 1) * avg_inter  # Inter-object movements
 
-        # Calculate total action costs
+        # Add restart movement costs for sink hits
+        if expected_sink_hits > 0:
+            restart_movement = expected_sink_hits * avg_from_agent
+            movement_cost += restart_movement
+
+        # Calculate action costs
         successful_conversions = n
+        failed_attempts = expected_attempts - n - expected_sink_hits
         action_cost = (
-            successful_conversions * 2  # Put + get for each conversion
-            + failed_attempts * 1  # Failed put attempts
-            + expected_sinks_discovered * 1  # Putting items into sinks
-            + expected_sinks_discovered * 2  # Restarting chain after sink loss
+            successful_conversions * 2  # Put + get for each converter
+            + failed_attempts  # Failed attempts
+            + expected_sink_hits * 3  # Sink hit + restart actions
         )
 
         total_cost = movement_cost + action_cost
@@ -299,7 +270,82 @@ class InContextOptimalSolver:
             "movement_cost": movement_cost,
             "action_cost": action_cost,
             "failed_attempts": failed_attempts,
-            "sinks_discovered": expected_sinks_discovered,
+            "sinks_discovered": expected_sink_hits,  # For backwards compatibility
+            "total_cost": total_cost,
+        }
+
+    def solve_random_policy(
+        self,
+        agent_pos: Tuple[int, int],
+        converter_positions: List[Tuple[int, int]],
+        use_tank_movement: bool = True,
+        num_sinks: int = 0,
+    ) -> Dict:
+        """
+        Random policy with no memory - agent never learns from mistakes.
+
+        Key behaviors:
+        - Picks uniformly from all objects (excluding current location)
+        - Sinks cause full restart to state 0
+        - No learning: can hit same sink repeatedly
+
+        Uses Markov chain analysis to calculate expected completion time.
+        """
+        n = len(converter_positions)
+        m = int(num_sinks)
+        if n == 0:
+            return {"movement_cost": 0.0, "action_cost": 0.0, "attempts": 0.0, "total_cost": 0.0}
+
+        # Markov chain setup
+        if n + m == 0:
+            return {"movement_cost": 0.0, "action_cost": 0.0, "attempts": 0.0, "total_cost": 0.0}
+
+        # Transition probabilities
+        p0 = 1.0 / (n + m)  # From state 0: probability of correct converter
+
+        if n + m > 1:
+            p = 1.0 / (n + m - 1)  # From state k>0: probability of correct next
+            s = m / (n + m - 1)  # From state k>0: probability of sink
+        else:
+            p = 0.0
+            s = 0.0
+
+        # Solve system of linear equations for expected attempts
+        # E[k] = A[k] + B[k]*E[0] decomposition
+        A = [0.0] * (n + 1)
+        B = [0.0] * (n + 1)
+
+        # Terminal state
+        A[n] = 0.0
+        B[n] = 0.0
+
+        # Backward recursion
+        if p + s > 1e-10:
+            for k in range(n - 1, 0, -1):
+                A[k] = (1.0 + p * A[k + 1]) / (p + s)
+                B[k] = (p * B[k + 1] + s) / (p + s)
+        else:
+            for k in range(1, n):
+                A[k] = 1e6
+                B[k] = 0.0
+
+        # Solve for E[0]
+        if abs(1.0 - B[1]) > 1e-10 and p0 > 1e-10:
+            E0 = (1.0 + p0 * A[1]) / (p0 * (1.0 - B[1]))
+        else:
+            E0 = 1e6
+
+        attempts = E0
+
+        # Calculate costs
+        avg_from_agent, avg_inter = self.calculate_average_distances(agent_pos, converter_positions, use_tank_movement)
+        movement_cost = float(avg_from_agent + max(0.0, attempts - 1.0) * avg_inter)
+        action_cost = float(attempts + n)  # Failed attempts + successful conversions
+        total_cost = movement_cost + action_cost
+        return {
+            "movement_cost": movement_cost,
+            "action_cost": action_cost,
+            "attempts": attempts,
             "total_cost": total_cost,
         }
 
@@ -348,6 +394,87 @@ class InContextOptimalSolver:
             "realistic_min": np.min(realistic_results),
             "realistic_max": np.max(realistic_results),
             "sinks_discovered_mean": np.mean(sinks_discovered_results),
+            "movement_type": "tank" if use_tank_movement else "cardinal",
+        }
+
+    def calculate_random_over_spawns(
+        self,
+        converter_positions: List[Tuple[int, int]],
+        use_tank_movement: bool = True,
+        spawn_positions: Optional[List[Tuple[int, int]]] = None,
+        num_sinks: int = 0,
+    ) -> Dict:
+        """
+        Expected cost for fully random policy over spawn distribution.
+        """
+        if spawn_positions is None:
+            spawn_positions = self.central_positions
+
+        totals = []
+        for agent_pos in spawn_positions:
+            r = self.solve_random_policy(agent_pos, converter_positions, use_tank_movement, num_sinks)
+            totals.append(r["total_cost"])
+        return {
+            "random_mean": float(np.mean(totals)) if totals else 0.0,
+            "random_std": float(np.std(totals)) if totals else 0.0,
+            "movement_type": "tank" if use_tank_movement else "cardinal",
+        }
+
+    def expected_reward_random(
+        self,
+        agent_pos: Tuple[int, int],
+        converter_positions: List[Tuple[int, int]],
+        use_tank_movement: bool = True,
+        num_sinks: int = 0,
+        total_steps: int = 256,
+    ) -> Dict:
+        """
+        Calculate expected reward under random policy within step budget.
+        Unlike the smart policy, random doesn't improve after first completion.
+        """
+        n = len(converter_positions)
+        if n == 0:
+            return {"completions": 0.0, "reward": 0.0}
+
+        # Get expected cost for one completion under random policy
+        random_result = self.solve_random_policy(agent_pos, converter_positions, use_tank_movement, num_sinks)
+        cost_per_completion = random_result["total_cost"]
+
+        if cost_per_completion <= 0 or cost_per_completion >= 1e6:
+            return {"completions": 0.0, "reward": 0.0}
+
+        # Simple model: how many completions fit in budget?
+        expected_completions = total_steps / cost_per_completion
+
+        return {
+            "completions": expected_completions,
+            "reward": expected_completions,  # 1 reward per completion
+        }
+
+    def expected_reward_random_over_spawns(
+        self,
+        converter_positions: List[Tuple[int, int]],
+        use_tank_movement: bool = True,
+        spawn_positions: Optional[List[Tuple[int, int]]] = None,
+        num_sinks: int = 0,
+        total_steps: int = 256,
+    ) -> Dict:
+        """
+        Expected reward under random policy averaged over spawn positions.
+        """
+        if spawn_positions is None:
+            spawn_positions = self.central_positions
+
+        rewards = []
+        for agent_pos in spawn_positions:
+            result = self.expected_reward_random(
+                agent_pos, converter_positions, use_tank_movement, num_sinks, total_steps
+            )
+            rewards.append(result["reward"])
+
+        return {
+            "reward_mean": float(np.mean(rewards)) if rewards else 0.0,
+            "reward_std": float(np.std(rewards)) if rewards else 0.0,
             "movement_type": "tank" if use_tank_movement else "cardinal",
         }
 
@@ -520,6 +647,15 @@ def print_analysis(
         print(f"  Realistic: {r['realistic_mean']:6.1f} ± {r['realistic_std']:.1f} steps")
         if num_sinks > 0:
             print(f"    Sinks discovered: {r['sinks_discovered_mean']:.2f} on average")
+        # Random policy baseline
+        solver = InContextOptimalSolver(grid_size)
+        # sample one placement for readability
+        idx = np.random.choice(len(solver.edge_positions), num_converters, replace=False)
+        conv_pos = [solver.edge_positions[i] for i in idx]
+        rand_stats = solver.calculate_random_over_spawns(
+            conv_pos, use_tank_movement=(movement_type == "tank"), num_sinks=num_sinks
+        )
+        print(f"  Random:    {rand_stats['random_mean']:6.1f} ± {rand_stats['random_std']:.1f} steps (baseline)")
 
     # Show impact of sinks
     if num_sinks > 0:
@@ -565,14 +701,35 @@ def print_analysis(
             def _mean(xs: List[float]) -> float:
                 return float(np.mean(xs)) if xs else 0.0
 
+            # Also calculate random policy rewards
+            tank_random_rewards = []
+            card_random_rewards = []
+            for _ in range(min(10, samples)):  # Use fewer samples for random since it's expensive
+                indices = np.random.choice(len(solver.edge_positions), num_converters, replace=False)
+                converter_positions = [solver.edge_positions[i] for i in indices]
+                tank_rand = solver.expected_reward_random_over_spawns(
+                    converter_positions,
+                    total_steps=steps_available,
+                    use_tank_movement=True,
+                    num_sinks=num_sinks,
+                )
+                card_rand = solver.expected_reward_random_over_spawns(
+                    converter_positions,
+                    total_steps=steps_available,
+                    use_tank_movement=False,
+                    num_sinks=num_sinks,
+                )
+                tank_random_rewards.append(tank_rand["reward_mean"])
+                card_random_rewards.append(card_rand["reward_mean"])
+
             print(f"\nExpected reward with budget: {steps_available} steps")
             print(
-                f"  Tank     - completions: {_mean([r['expected_completions_mean'] for r in tank_rewards]):.2f}, "
-                f"reward: {_mean([r['expected_reward_mean'] for r in tank_rewards]):.2f}"
+                f"  Tank     - Smart: {_mean([r['expected_completions_mean'] for r in tank_rewards]):.2f} completions, "
+                f"Random: {_mean(tank_random_rewards):.2f} completions"
             )
             print(
-                f"  Cardinal - completions: {_mean([r['expected_completions_mean'] for r in card_rewards]):.2f}, "
-                f"reward: {_mean([r['expected_reward_mean'] for r in card_rewards]):.2f}"
+                f"  Cardinal - Smart: {_mean([r['expected_completions_mean'] for r in card_rewards]):.2f} completions, "
+                f"Random: {_mean(card_random_rewards):.2f} completions"
             )
 
 
