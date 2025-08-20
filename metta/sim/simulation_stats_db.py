@@ -84,6 +84,7 @@ class SimulationStatsDB(EpisodeStatsDB):
         sim_name: str,
         sim_suite: str,
         policy_record: PolicyRecord,
+        env_label: str = "mettagrid",  # Default for backward compatibility
     ) -> "SimulationStatsDB":
         dir_with_shards = Path(dir_with_shards).expanduser().resolve()
         merged_path = dir_with_shards / "merged.duckdb"
@@ -103,9 +104,8 @@ class SimulationStatsDB(EpisodeStatsDB):
         merged = SimulationStatsDB(merged_path)
 
         policy_key, policy_version = merged.key_and_version(policy_record)
-        # TODO: #dehydration we no-longer have env-name but we still use it. swapping
-        # out to sim_name for now.
-        merged._insert_simulation(sim_id, sim_name, sim_suite, sim_name, policy_key, policy_version)
+        # Use the env_label from EnvConfig to identify the environment configuration
+        merged._insert_simulation(sim_id, sim_name, sim_suite, env_label, policy_key, policy_version)
 
         # Merge each shard
         for shard_path in shards:

@@ -284,6 +284,7 @@ def test_from_shards_and_context(tmp_path: Path):
         "test_sim",
         "test_suite",
         cast(PolicyRecord, MockPolicyRecord.from_key_and_version("test_policy", 1)),
+        env_label="test_env",
     )
 
     # Verify merged database was created
