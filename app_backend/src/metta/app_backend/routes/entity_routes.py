@@ -57,6 +57,12 @@ class TrainingRunPolicy(BaseModel):
     epoch_end: Optional[int]
 
 
+class TrainingRunPolicyListResponse(BaseModel):
+    """Response model for a list of training run policies."""
+
+    policies: List[TrainingRunPolicy]
+
+
 async def get_training_run_policies(con: AsyncConnection, training_run_id: str) -> List[TrainingRunPolicy]:
     """Get policies for a training run with epoch information."""
     query = """
@@ -149,11 +155,12 @@ def create_entity_router(metta_repo: MettaRepo) -> APIRouter:
 
         return TrainingRunResponse.from_db(training_run)
 
-    @router.get("/training-runs/{run_id}/policies")
+    @router.get("/training-runs/{run_id}/policies", response_model=TrainingRunPolicyListResponse)
     @timed_route("get_training_run_policies")
-    async def get_training_run_policies_endpoint(run_id: str) -> List[TrainingRunPolicy]:
+    async def get_training_run_policies_endpoint(run_id: str) -> TrainingRunPolicyListResponse:
         """Get policies for a training run with epoch information."""
         async with metta_repo.connect() as con:
-            return await get_training_run_policies(con, run_id)
+            policies = await get_training_run_policies(con, run_id)
+            return TrainingRunPolicyListResponse(policies=policies)
 
     return router

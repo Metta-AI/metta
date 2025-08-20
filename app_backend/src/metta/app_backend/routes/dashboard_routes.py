@@ -48,6 +48,10 @@ class SavedDashboardListResponse(BaseModel):
     dashboards: List[SavedDashboardResponse]
 
 
+class SavedDashboardDeleteResponse(BaseModel):
+    message: str
+
+
 def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     """Create a dashboard router with the given StatsRepo instance."""
     router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -124,11 +128,11 @@ def create_dashboard_router(metta_repo: MettaRepo) -> APIRouter:
     @timed_route("delete_saved_dashboard")
     async def delete_saved_dashboard(  # type: ignore[reportUnusedFunction]
         dashboard_id: str, user_or_token: str = user_or_token
-    ) -> Dict[str, str]:
+    ) -> SavedDashboardDeleteResponse:
         """Delete a saved dashboard."""
         success = await metta_repo.delete_saved_dashboard(user_or_token, dashboard_id)
         if not success:
             raise HTTPException(status_code=404, detail="Dashboard not found")
-        return {"message": "Dashboard deleted successfully"}
+        return SavedDashboardDeleteResponse(message="Dashboard deleted successfully")
 
     return router

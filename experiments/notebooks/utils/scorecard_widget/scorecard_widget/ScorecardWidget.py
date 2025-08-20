@@ -6,13 +6,11 @@ Provides interactive policy evaluation scorecards with hover and click functiona
 """
 
 import pathlib
-from logging import warning
 from typing import Any, Callable, Dict, List, Literal
 
 import anywidget
 import traitlets
 from metta.app_backend.clients.scorecard_client import ScorecardClient
-from metta.app_backend.routes.scorecard_routes import ScorecardData
 
 # FIXME: we need something like `dotenv` and `.env.local` files up in here.
 _DEV = False
@@ -222,197 +220,36 @@ class ScorecardWidget(anywidget.AnyWidget):
         max_policies: int = 30,
         primary_metric: str | None = None,
         include_run_free_policies: bool = False,
+        ignore_missing_policies: bool = False,
     ):
-        """
-        Fetch real evaluation data using the metta HTTP API (same as repo.ts).
+        if self.client is None:
+            raise ValueError("Client not set")
 
-        Args:
-            client: ScorecardClient instance
-            search_term: Search term to filter policies by name
-            restrict_to_policy_ids: List of policy IDs to include (e.g., ["123", "456"])
-            restrict_to_metrics: List of metrics to include (e.g., ["reward", "heart.get"])
-            restrict_to_policy_names: List of policy name filters (e.g., ["relh.skypilot", "daveey.arena.rnd"])
-            restrict_to_eval_names: List of specific evaluation names to include (e.g., ["navigation/labyrinth", "memory/easy"])
-            policy_selector: "best" or "latest" policy selection strategy
-            max_policies: Maximum number of policies to display
-            include_run_free_policies: Whether to include standalone policies
-
-        Returns:
-            ScorecardWidget with real data
-        """
-        if (
-            restrict_to_policy_ids == []
-            or restrict_to_metrics == []
-            or restrict_to_policy_names == []
-            or restrict_to_eval_names == []
-        ):
-            return
-
-        if not primary_metric:
-            if restrict_to_metrics:
-                primary_metric = restrict_to_metrics[0]
-            else:
-                primary_metric = "reward"
-        if restrict_to_metrics and primary_metric not in restrict_to_metrics:
-            raise ValueError(
-                f"Primary metric {primary_metric} not found in restrict_to_metrics {restrict_to_metrics}"
-            )
-
-        if not self.client:
-            raise ValueError("client is required to fetch scorecard data")
-
-        if search_term:
-            policies_data = await self.client.search_policies(search=search_term)
-        else:
-            policies_data = await self.client.get_policies()
-
-        # Find training run IDs that match our training run names
-        training_run_ids = []
-        run_free_policy_ids = []
-        for policy in policies_data.policies:
-            if policy.type == "training_run" and (
-                not restrict_to_policy_names
-                or any(
-                    filter_policy_name in policy.name
-                    for filter_policy_name in restrict_to_policy_names
-                )
-            ):
-                training_run_ids.append(policy.id)
-            elif policy.type == "policy" and include_run_free_policies:
-                run_free_policy_ids.append(policy.id)
-
-        if restrict_to_policy_ids:
-            training_run_ids = [
-                policy_id
-                for policy_id in restrict_to_policy_ids
-                if policy_id in training_run_ids
-            ]
-            run_free_policy_ids = [
-                policy_id
-                for policy_id in restrict_to_policy_ids
-                if policy_id in run_free_policy_ids
-            ]
-
-        if not training_run_ids:
-            raise Exception("No training runs found")
-
-        if restrict_to_eval_names:
-            # Use the specific eval names provided
-            eval_names = restrict_to_eval_names
-        else:
-            # Get all available evaluations for these policies
-            eval_names = await self.client.get_eval_names(
-                training_run_ids, run_free_policy_ids
-            )
-            if not eval_names:
-                raise Exception("No evaluations found for selected training runs")
-            print(f"Found {len(eval_names)} available evaluations")
-
-        available_metrics = await self.client.get_available_metrics(
-            training_run_ids, run_free_policy_ids, eval_names
-        )
-        if not available_metrics:
-            raise Exception("No metrics found for selected policies and evaluations")
-
-        # Filter to requested metrics that actually exist
-        valid_metrics = list(
-            filter(
-                lambda m: (not restrict_to_metrics or m in restrict_to_metrics),
-                available_metrics,
-            )
-        )
-        if not valid_metrics:
-            print(f"Available metrics: {sorted(available_metrics)}")
-            if restrict_to_metrics:
-                warning(
-                    f"None of the requested metrics {restrict_to_metrics} are available"
-                )
-            warning(f"Available metrics are: {sorted(available_metrics)}")
-            raise Exception("No valid metrics found")
-
-        scorecard_data: ScorecardData = await self.client.generate_scorecard(
-            training_run_ids=training_run_ids,
-            run_free_policy_ids=run_free_policy_ids,
-            eval_names=eval_names,
-            metric=primary_metric,
+        result = await self.client.get_scorecard_data(
+            search_term=search_term,
+            restrict_to_policy_ids=restrict_to_policy_ids,
+            restrict_to_metrics=restrict_to_metrics,
+            restrict_to_policy_names=restrict_to_policy_names,
+            restrict_to_eval_names=restrict_to_eval_names,
             policy_selector=policy_selector,
-        )
-
-        all_policies = training_run_ids + run_free_policy_ids
-        if len(all_policies) != len(scorecard_data.policyNames):
-            warning(
-                f"Number of policies in scorecard data ({len(scorecard_data.policyNames)}) does not match number of policies in your query ({len(training_run_ids) + len(run_free_policy_ids)})"
-            )
-            raise Exception(
-                "Number of policies in scorecard data does not match number of policies in your query"
-            )
-
-        if not scorecard_data.policyNames:
-            warning("No scorecard data found in the database for your query:")
-            warning(f"  training_run_ids={training_run_ids}")
-            warning(f"  run_free_policy_ids={run_free_policy_ids}")
-            warning(f"  eval_names={eval_names}")
-            warning(f"  primary_metric={primary_metric}")
-            raise Exception("No scorecard data found in database for your query")
-
-        cells = self._make_cells_from_scorecard_data(
-            scorecard_data=scorecard_data,
             max_policies=max_policies,
             primary_metric=primary_metric,
+            include_run_free_policies=include_run_free_policies,
+            ignore_missing_policies=ignore_missing_policies,
         )
+        if result is None:
+            return
+
+        cells, scorecard_data, valid_metrics, primary_metric = result
+        print("RESULT", scorecard_data)
 
         self.set_multi_metric_data(
             cells=cells,
-            eval_names=scorecard_data.evalNames,
             policy_names=scorecard_data.policyNames,
+            eval_names=scorecard_data.evalNames,
             metrics=valid_metrics,  # Use only the valid metrics that were found
             selected_metric=primary_metric,
         )
-
-    def _make_cells_from_scorecard_data(
-        self,
-        scorecard_data: ScorecardData,
-        max_policies: int,
-        primary_metric: str,
-    ) -> Dict[str, Dict[str, Dict[str, Any]]]:
-        policy_names = list(scorecard_data.policyNames)
-        if len(policy_names) > max_policies:
-            # Sort by average score and take top N
-            avg_scores = scorecard_data.policyAverageScores
-            top_policies = sorted(
-                avg_scores.keys(), key=lambda p: avg_scores[p], reverse=True
-            )[:max_policies]
-
-            filtered_cells = {
-                p: scorecard_data.cells[p]
-                for p in top_policies
-                if p in scorecard_data.cells
-            }
-            scorecard_data.policyNames = top_policies
-            scorecard_data.cells = filtered_cells
-            scorecard_data.policyAverageScores = {
-                p: avg_scores[p] for p in top_policies if p in avg_scores
-            }
-
-        cells = {}
-        for policy_name in scorecard_data.policyNames:
-            cells[policy_name] = {}
-            for eval_name in scorecard_data.evalNames:
-                cell = scorecard_data.cells.get(policy_name, {}).get(eval_name)
-                if cell:
-                    cells[policy_name][eval_name] = {
-                        "metrics": {primary_metric: cell.value},
-                        "replayUrl": cell.replayUrl,
-                        "evalName": eval_name,
-                    }
-                else:
-                    cells[policy_name][eval_name] = {
-                        "metrics": {primary_metric: 0.0},
-                        "replayUrl": None,
-                        "evalName": eval_name,
-                    }
-
-        return cells
 
 
 def create_scorecard_widget(**kwargs) -> ScorecardWidget:

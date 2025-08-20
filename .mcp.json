@@ -1,0 +1,34 @@
+{
+  "mcpServers": {
+    "metta": {
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "-m",
+        "metta.mcp_server.server"
+      ],
+      "env": {
+        "AWS_PROFILE": "softmax",
+        "METTA_MCP_BACKEND_URL": "https://api.observatory.softmax-research.net"
+      },
+      "transport": "stdio"
+    },
+    "metta-observatory": {
+      "command": "uv",
+      "args": [
+        "run",
+        "python",
+        "-m",
+        "metta.app_backend.mcp_stdio_server"
+      ],
+      "env": {
+        "FASTMCP_EXPERIMENTAL_ENABLE_NEW_OPENAPI_PARSER": "true",
+        "ANTHROPIC_API_KEY": null,
+        "METTA_MPC_BACKEND_URL": "https://observatory.softmax-research.net/api",
+        "AWS_PROFILE": "softmax"
+      },
+      "transport": "stdio"
+    }
+  }
+}

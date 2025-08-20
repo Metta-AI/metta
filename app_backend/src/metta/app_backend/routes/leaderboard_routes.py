@@ -1,6 +1,6 @@
 import logging
 import uuid
-from typing import Dict, List
+from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
@@ -49,6 +49,10 @@ class LeaderboardResponse(BaseModel):
 
 class LeaderboardListResponse(BaseModel):
     leaderboards: List[LeaderboardResponse]
+
+
+class LeaderboardDeleteResponse(BaseModel):
+    message: str
 
 
 def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
@@ -119,11 +123,11 @@ def create_leaderboard_router(metta_repo: MettaRepo) -> APIRouter:
     @timed_route("delete_leaderboard")
     async def delete_leaderboard(  # type: ignore[reportUnusedFunction]
         leaderboard_id: str, user_id: str = user_or_token
-    ) -> Dict[str, str]:
+    ) -> LeaderboardDeleteResponse:
         """Delete a leaderboard."""
         success = await metta_repo.delete_leaderboard(leaderboard_id, user_id)
         if not success:
             raise HTTPException(status_code=404, detail="Leaderboard not found")
-        return {"message": "Leaderboard deleted successfully"}
+        return LeaderboardDeleteResponse(message="Leaderboard deleted successfully")
 
     return router
