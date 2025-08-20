@@ -283,7 +283,6 @@ def test_from_shards_and_context(tmp_path: Path):
         cast(dict[int, PolicyRecord], agent_map),
         "test_sim",
         "test_suite",
-        "env_test",
         cast(PolicyRecord, MockPolicyRecord.from_key_and_version("test_policy", 1)),
     )
 
@@ -329,7 +328,8 @@ def test_from_shards_and_context(tmp_path: Path):
             sim_found = True
             assert sim[1] == "test_sim", f"sim_name should be test_sim, got {sim[1]}"
             assert sim[2] == "test_suite", f"sim_suite should be test_suite, got {sim[2]}"
-            assert sim[3] == "env_test", f"sim_env should be env_test, got {sim[3]}"
+            # TODO(nishad): #dehydration
+            # assert sim[3] == "env_test", f"sim_env should be env_test, got {sim[3]}"
             break
 
     assert sim_found, "Expected simulation with id=sim_id not found"

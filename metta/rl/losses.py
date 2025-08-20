@@ -58,7 +58,7 @@ class Losses:
 
 
 def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dtype) -> Composite:
-    scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
+    scalar_f32 = UnboundedContinuous(shape=(), dtype=torch.float32)
 
     return Composite(
         rewards=scalar_f32,
@@ -71,9 +71,6 @@ def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dt
         act_log_prob=scalar_f32,
         values=scalar_f32,
         returns=scalar_f32,
-        is_student_agent=UnboundedContinuous(
-            shape=torch.Size([]), dtype=torch.float32
-        ),  # Track which agents are student-controlled (1.0 for student, 0.0 for NPC)
     )
 
 
@@ -99,10 +96,6 @@ def process_minibatch_update(
     newvalue = policy_td["value"]
     full_logprobs = policy_td["full_log_probs"]
 
-    # Get student agent mask (1 for student agents, 0 for NPCs)
-    is_student = minibatch.get("is_student_agent", torch.ones_like(old_act_log_prob))
-    is_student = is_student.reshape(old_act_log_prob.shape)
-
     logratio = new_logprob - old_act_log_prob
     importance_sampling_ratio = logratio.exp()
 
@@ -124,10 +117,9 @@ def process_minibatch_update(
     adv = normalize_advantage_distributed(adv, trainer_cfg.ppo.norm_adv)
     adv = prio_weights * adv
 
-    # If dual-policy is enabled, slice to get only student agent data
-    if trainer_cfg.dual_policy.enabled and not torch.all(is_student):
-        # Find indices of student agents (assuming contiguous arrangement)
-        student_indices_tensor = torch.nonzero(is_student.flatten())
+    # Dual-policy: separate student agents from NPCs for loss calculation
+    if trainer_cfg.dual_policy.enabled and "is_student_agent" in minibatch:
+        student_indices_tensor = torch.where(minibatch["is_student_agent"].bool())[0]
 
         # Check if there are any student agents
         if student_indices_tensor.numel() == 0:
@@ -175,8 +167,8 @@ def process_minibatch_update(
         student_full_logprobs = full_logprobs.flatten()[student_indices]
 
         # Safe indexing for env_obs with proper shape handling and bounds checks
-        if policy_td["env_obs"].ndim > 1:
-            env_obs = policy_td["env_obs"]
+        if policy_td.get("latent_obs", policy_td.get("env_obs", None)).ndim > 1:
+            env_obs = policy_td.get("latent_obs", policy_td.get("env_obs", None))
             # Choose an indexable view: original if indices fit first dim, otherwise flatten leading dims
             if student_indices.numel() > 0 and student_indices.max() < env_obs.shape[0]:
                 env_obs_indexable = env_obs
@@ -244,7 +236,7 @@ def process_minibatch_update(
     )
     experience.update(indices, update_td)
 
-    # Update loss tracking (using appropriate metrics tensors)
+    # Update loss tracking
     losses.policy_loss_sum += pg_loss.item()
     losses.value_loss_sum += v_loss.item()
     losses.entropy_sum += entropy_loss.item()

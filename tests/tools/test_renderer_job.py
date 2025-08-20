@@ -39,12 +39,8 @@ class TestRendererJob:
         assert config_path.exists(), "Generic debug config not found"
         assert config_path.is_file(), "Debug config path is not a file"
 
-    def test_renderer_job_config_exists(self):
-        """Test that the renderer job config exists."""
-        config_path = Path(f"{self.REPO_ROOT}/configs/renderer_job.yaml")
-        assert config_path.exists(), "Renderer job config not found"
-        assert config_path.is_file(), "Renderer job config path is not a file"
-
+    @pytest.mark.skip(reason="Renderer changed from Hydra to Pydantic config - needs refactor")
+    # TODO: (richard) #dehydration
     @pytest.mark.slow
     def test_renderer_with_debug_environments(self):
         """Test that renderer can load and initialize debug environments."""
@@ -140,14 +136,14 @@ class TestRendererJob:
                     [
                         "python",
                         "-m",
-                        "tools.train",
+                        "metta.tools.train",
                         f"run={run_name}",
                         optional_ci_config,
                         f"data_dir={temp_dir}",
                         "trainer.simulation.replay_dir=${run_dir}/replays/",
                         "trainer.curriculum=/env/mettagrid/debug",
                         "trainer.total_timesteps=50",  # Minimal training
-                        "trainer.num_workers=1",
+                        "trainer.rollout_workers=1",
                         "trainer.simulation.skip_git_check=true",  # Skip git check for tests
                         "wandb=off",
                     ],

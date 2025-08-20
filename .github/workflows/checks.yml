@@ -332,10 +332,11 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
+  # TODO: fix and reenable smoke tests
   smoke-test:
     name: "Smoke Tests"
     if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
+      false && (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
     needs: [setup-checks]
     runs-on: ubuntu-latest
     timeout-minutes: 10

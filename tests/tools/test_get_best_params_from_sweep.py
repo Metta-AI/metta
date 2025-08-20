@@ -173,9 +173,3 @@ class TestGenerateOverrideArgs:
         args = generate_override_args(params, prefix="model")
 
         assert "model.learning_rate=1.00e-03" in args  # Scientific notation
-
-
-# Note: Testing the main() function directly is challenging because it's decorated
-# with @hydra.main and @metta_script, which require specific configuration setup.
-# The individual functions are thoroughly tested above, which provides good coverage
-# of the actual logic in the script.
