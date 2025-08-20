@@ -4,5 +4,5 @@ env_cfg_template_path: /env/mettagrid/arena/coop_rewardsharing_simple
 
 # Only vary map size
 buckets:
-  game.map_builder.width: [7, 10, 15, 20]
-  game.map_builder.height: [7, 10, 15, 20]
+  game.map_builder.width: [7, 10, 15]
+  game.map_builder.height: [7, 10, 15]

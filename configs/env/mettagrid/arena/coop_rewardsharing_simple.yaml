@@ -7,7 +7,9 @@ defaults:
   - _self_
 
 game:
-  num_agents: 2
+  # previous (no tiling):
+  # num_agents: 2
+  num_agents: 16
   max_steps: 500
 
   # BOTH agents in team_1 for reward sharing!
@@ -23,10 +25,23 @@ game:
 
   # Simple random placement
   map_builder:
+    # previous (no tiling):
+    # _target_: metta.map.mapgen.MapGen
+    # width: 10
+    # height: 10
+    # border_width: 1
+    # root:
+    #   type: metta.map.scenes.coop_divided.CoopDivided
+    #   params:
+    #     agents_top: 1
+    #     agents_bottom: 1
     _target_: metta.map.mapgen.MapGen
     width: 10
     height: 10
     border_width: 1
+    # Tile: 2 agents per tile (CoopDivided), total tiles = num_agents / 2
+    instances: ${div:${..num_agents},2}
+    instance_border_width: 1
 
     root:
       type: metta.map.scenes.coop_divided.CoopDivided

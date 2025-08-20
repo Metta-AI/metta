@@ -1,9 +1,9 @@
 _target_: metta.mettagrid.curriculum.random.RandomCurriculum
 
 tasks:
-  /env/mettagrid/curriculum/coop_rewardsharing/bucketed: 4
-  /env/mettagrid/arena/coop_rewardsharing: 1
+  /env/mettagrid/curriculum/coop_rewardsharing/bucketed: 3
   /env/mettagrid/arena/coop_rewardsharing_ascii_alt: 1
+  /env/mettagrid/arena/coop_rewardsharing_ascii_alt1: 1
 
 env_overrides:
   game:
