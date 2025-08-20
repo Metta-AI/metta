@@ -29,7 +29,7 @@ total_timesteps: 10_000_000_000
 # World model pre-training configuration  
 world_model_pretraining:
   enabled: true  # Pre-train world model before agent training
-  steps: 100000000  # 100 million steps of world model pre-training
+  steps: 1000000000  # 1 billion steps of world model pre-training
 
 optimizer:
   type: adam

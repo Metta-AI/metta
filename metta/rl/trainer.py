@@ -350,13 +350,18 @@ def train(
                         f"rewards expected [B], got {tuple(r.shape)} with B={o.shape[0]}"
                     )
 
-                    # supervised training of the world model
-                    # Cast obs to float for world model supervision to avoid dtype mismatch
-                    reconstructed_obs = world_model(o)
-                    world_model_loss = torch.nn.functional.mse_loss(reconstructed_obs, o.float())
-                    world_model_optimizer.zero_grad()
-                    world_model_loss.backward()
-                    world_model_optimizer.step()
+                    # supervised training of the world model (only during pre-training)
+                    world_model_loss = None
+                    if (
+                        trainer_cfg.world_model_pretraining.enabled
+                        and world_model_pretraining_steps < trainer_cfg.world_model_pretraining.steps
+                    ):
+                        # Cast obs to float for world model supervision to avoid dtype mismatch
+                        reconstructed_obs = world_model(o)
+                        world_model_loss = torch.nn.functional.mse_loss(reconstructed_obs, o.float())
+                        world_model_optimizer.zero_grad()
+                        world_model_loss.backward()
+                        world_model_optimizer.step()
 
                     # World model pre-training phase logging and control
                     if (
@@ -366,7 +371,12 @@ def train(
                         world_model_pretraining_steps += num_steps
 
                         # Log to wandb every 100 steps during pre-training
-                        if wandb_run and is_master and world_model_pretraining_steps % 100 == 0:
+                        if (
+                            wandb_run
+                            and is_master
+                            and world_model_pretraining_steps % 100 == 0
+                            and world_model_loss is not None
+                        ):
                             wandb_run.log(
                                 {
                                     "world_model/reconstruction_loss": world_model_loss.item(),
@@ -379,10 +389,10 @@ def train(
                             world_model_pretraining_steps % 1000 == 0
                             or world_model_pretraining_steps >= trainer_cfg.world_model_pretraining.steps
                         ):
+                            loss_str = f", loss: {world_model_loss.item():.6f}" if world_model_loss is not None else ""
                             logger.info(
                                 f"World model pre-training: {world_model_pretraining_steps}/"
-                                f"{trainer_cfg.world_model_pretraining.steps} steps, "
-                                f"loss: {world_model_loss.item():.6f}"
+                                f"{trainer_cfg.world_model_pretraining.steps} steps{loss_str}"
                             )
 
                         # During pre-training, skip agent training and continue rollout for more world model data
@@ -406,6 +416,10 @@ def train(
 
                         else:
                             logger.info("World model pre-training completed, starting agent training")
+                            # Freeze world model parameters after pre-training
+                            for param in world_model.parameters():
+                                param.requires_grad = False
+                            logger.info("World model parameters frozen")
 
                     # compute latent encoding (detached); keep raw obs for env_obs
                     with torch.no_grad():
