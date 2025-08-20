@@ -13,7 +13,6 @@
 #include "objects/box.hpp"
 #include "types.hpp"
 
-// #MettagridConfig
 struct AgentConfig : public GridObjectConfig {
   AgentConfig(TypeId type_id,
               const std::string& type_name,
@@ -27,6 +26,7 @@ struct AgentConfig : public GridObjectConfig {
               const std::map<std::string, RewardType>& stat_rewards,
               const std::map<std::string, RewardType>& stat_reward_max,
               float group_reward_pct,
+              ObservationType glyph,
               const std::map<InventoryItem, InventoryQuantity>& initial_inventory)
       : GridObjectConfig(type_id, type_name),
         group_id(group_id),
@@ -39,6 +39,7 @@ struct AgentConfig : public GridObjectConfig {
         stat_rewards(stat_rewards),
         stat_reward_max(stat_reward_max),
         group_reward_pct(group_reward_pct),
+        glyph(glyph),
         initial_inventory(initial_inventory) {}
   unsigned char group_id;
   std::string group_name;
@@ -50,6 +51,7 @@ struct AgentConfig : public GridObjectConfig {
   std::map<std::string, RewardType> stat_rewards;
   std::map<std::string, RewardType> stat_reward_max;
   float group_reward_pct;
+  ObservationType glyph;
   std::map<InventoryItem, InventoryQuantity> initial_inventory;
 };
 
@@ -100,6 +102,7 @@ public:
         action_failure_penalty(config.action_failure_penalty),
         group_name(config.group_name),
         color(0),
+        glyph(config.glyph),
         agent_id(0),
         stats(),  // default constructor
         current_stat_reward(0),
@@ -280,5 +283,4 @@ private:
     return visitation_grid[r][c];
   }
 };
-
 #endif  // OBJECTS_AGENT_HPP_

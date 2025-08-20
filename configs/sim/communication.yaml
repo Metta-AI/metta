@@ -1,0 +1,16 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: communication
+
+simulations:
+  communication/up:
+    env: /env/mettagrid/communication/evals/up
+  communication/down:
+    env: /env/mettagrid/communication/evals/down
+  communication/left:
+    env: /env/mettagrid/communication/evals/left
+  communication/right:
+    env: /env/mettagrid/communication/evals/right
+

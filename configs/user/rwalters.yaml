@@ -1,22 +1,41 @@
 # @package __global__
 
-seed: null
-
 defaults:
+  - override /agent: fast
+  - override /sim: communication
   - _self_
 
+seed: null
+
+# multicore training
+device: cuda
+vectorization: multiprocessing
+
 trainer:
-  env: /env/mettagrid/arena/advanced
+  # multicore training
+  num_workers: ${if:${eq:..device4,cpu},4,null}
+  batch_size: ${if:${eq:..device4,cpu},4096,524288}
+  minibatch_size:  ${if:${eq:..device4,cpu},1024,16384}
+  forward_pass_minibatch_target_size: ${if:${eq:..device4,cpu},512,4096}
+  async_factor: ${if:${eq:..device4,cpu},1,2}
+  checkpoint:
+    checkpoint_interval: 20
+    wandb_checkpoint_interval: ${.checkpoint_interval}
+  bptt_horizon: 8
+
+  curriculum: /env/mettagrid/curriculum/communication
+
   simulation:
-    evaluate_interval: 300
+    evaluate_interval: 100
+
+env_overrides:
+  game:
+    max_steps: 200
+
 
 policy_uri: null
 npc_policy_uri: null
 eval_db_uri: null
-
-env_overrides:
-  game:
-    max_steps: 1000
 
 eval:
   policy_uri: ${..policy_uri}
@@ -31,11 +50,13 @@ analyzer:
 sweep:
   metric: "action.use.altar.agent"
 
-run_id: 6
-run: ${oc.env:USER}.local.${now:MMDD}.${run_id}
+run_id: 1
+run: ${oc.env:USER}.sandbox.${now:MMDD}.${run_id}
 trained_policy_uri: ${run_dir}/checkpoints
 sweep_name: "${oc.env:USER}.local.sweep.${run_id}"
 
 replay_job:
+  sim:
+    env: /env/mettagrid/communication/training/up_ising_corridor
   open_browser_on_start: false
   policy_uri: "wandb://run/${..run}"

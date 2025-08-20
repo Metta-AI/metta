@@ -90,6 +90,7 @@ class AgentConfig(Config):
     freeze_duration: Optional[int] = Field(default=10, ge=-1)
     rewards: Optional[AgentRewards] = Field(default_factory=AgentRewards)
     action_failure_penalty: Optional[float] = Field(default=0, ge=0)
+    glyph: Optional[int] = Field(default=0, ge=0, le=255)
     initial_inventory: Optional[dict[str, int]] = Field(default_factory=dict)
 
 
