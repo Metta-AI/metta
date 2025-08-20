@@ -140,7 +140,7 @@ shutdown() {
     echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
 
     # Only master coordinates multi-node shutdown
-    if [[ "$IS_MASTER" == "true" ]] && [[ "$TOTAL_NODES" -gt 1 ]]; then
+    if [[ "$IS_MASTER" == "true" ]]; then
       echo "$termination_reason" > "$CLUSTER_STOP_FILE"
       echo "[SHUTDOWN] Master node signaled all nodes to begin shutdown"
 
@@ -148,7 +148,7 @@ shutdown() {
       echo "[SHUTDOWN] Waiting for worker nodes to begin shutdown..."
       sleep 20
 
-    elif [[ "$IS_MASTER" != "true" ]] && [[ "$TOTAL_NODES" -gt 1 ]]; then
+    elif [[ "$IS_MASTER" != "true" ]]; then
       # Worker waits for cluster-wide shutdown signal
       echo "[SHUTDOWN] Worker node checking for cluster-wide shutdown signal..."
       count=0
