@@ -208,7 +208,7 @@ run_cmd() {
 
   echo "[INFO] Running command: $cmd"
 
-  # Use process substitution so $! is the trainer (not tee)
+  # Use process substitution so $! is the trainer
   setsid "${cmd[@]}" &
   export CMD_PID=$!
 
