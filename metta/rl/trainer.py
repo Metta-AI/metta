@@ -415,49 +415,9 @@ def train(
     world_model_optimizer = torch.optim.Adam(world_model.parameters(), lr=0.001)
 
     # World model pre-training phase
+    world_model_pretraining_steps = 0
     if trainer_cfg.world_model_pretraining.enabled and agent_step == 0:
         logger.info(f"Starting world model pre-training for {trainer_cfg.world_model_pretraining.steps} steps")
-        world_model_steps = 0
-
-        while world_model_steps < trainer_cfg.world_model_pretraining.steps:
-            # Record heartbeat during pre-training
-            record_heartbeat()
-
-            # Get observation for world model training
-            o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
-            world_model_steps += num_steps
-
-            # Train world model on raw observations
-            assert o.ndim == 3 and o.shape[1:] == (200, 3), f"env_obs expected [B,200,3], got {tuple(o.shape)}"
-
-            reconstructed_obs = world_model(o)
-            world_model_loss = torch.nn.functional.mse_loss(reconstructed_obs, o.float())
-            world_model_optimizer.zero_grad()
-            world_model_loss.backward()
-            world_model_optimizer.step()
-
-            # Log to wandb every 100 steps
-            if wandb_run and is_master and world_model_steps % 100 == 0:
-                wandb_run.log(
-                    {
-                        "world_model/reconstruction_loss": world_model_loss.item(),
-                        "world_model/pretraining_steps": world_model_steps,
-                    }
-                )
-
-            # Log progress every 1000 steps
-            if world_model_steps % 1000 == 0 or world_model_steps >= trainer_cfg.world_model_pretraining.steps:
-                logger.info(
-                    f"World model pre-training: {world_model_steps}/"
-                    f"{trainer_cfg.world_model_pretraining.steps} steps, "
-                    f"loss: {world_model_loss.item():.6f}"
-                )
-
-            # During pre-training, just get next observation without agent action
-            # The world model training only needs observation pairs, not actions
-            pass
-
-        logger.info("World model pre-training completed")
 
     # Main training loop
     while agent_step < trainer_cfg.total_timesteps:
@@ -528,6 +488,55 @@ def train(
                     world_model_optimizer.zero_grad()
                     world_model_loss.backward()
                     world_model_optimizer.step()
+
+                    # World model pre-training phase logging and control
+                    if (
+                        trainer_cfg.world_model_pretraining.enabled
+                        and world_model_pretraining_steps < trainer_cfg.world_model_pretraining.steps
+                    ):
+                        world_model_pretraining_steps += num_steps
+
+                        # Log to wandb every 100 steps during pre-training
+                        if wandb_run and is_master and world_model_pretraining_steps % 100 == 0:
+                            wandb_run.log(
+                                {
+                                    "world_model/reconstruction_loss": world_model_loss.item(),
+                                    "world_model/pretraining_steps": world_model_pretraining_steps,
+                                }
+                            )
+
+                        # Log progress every 1000 steps during pre-training
+                        if (
+                            world_model_pretraining_steps % 1000 == 0
+                            or world_model_pretraining_steps >= trainer_cfg.world_model_pretraining.steps
+                        ):
+                            logger.info(
+                                f"World model pre-training: {world_model_pretraining_steps}/"
+                                f"{trainer_cfg.world_model_pretraining.steps} steps, "
+                                f"loss: {world_model_loss.item():.6f}"
+                            )
+
+                        # During pre-training, skip agent training and continue rollout for more world model data
+                        if world_model_pretraining_steps < trainer_cfg.world_model_pretraining.steps:
+                            # Record heartbeat during pre-training to prevent timeouts
+                            record_heartbeat()
+
+                            # Create TensorDict for agent to generate valid actions during pre-training
+                            td = buffer_step[training_env_id].clone()
+                            td["latent_obs"] = world_model.encode(o).detach()  # Use latent obs for action generation
+                            # Remove raw observations to force latent path
+                            if "env_obs" in td:
+                                del td["env_obs"]
+
+                            # Generate actions using the agent (random behavior during pre-training is fine)
+                            with torch.no_grad():
+                                policy(td)
+
+                            send_observation(vecenv, td["actions"], dtype_actions, timer)
+                            continue  # Skip agent inference and training during pre-training
+
+                        else:
+                            logger.info("World model pre-training completed, starting agent training")
 
                     # compute latent encoding (detached); keep raw obs for env_obs
                     with torch.no_grad():
