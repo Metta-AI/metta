@@ -184,6 +184,25 @@ class InContextOptimalSolver:
 
         return min(expected_discovered, n_sinks)  # Can't discover more than exist
 
+    def compute_cycle_movement_cost(
+        self, converter_positions: List[Tuple[int, int]], use_tank_movement: bool = True
+    ) -> float:
+        """
+        Compute movement cost for one full cycle through the fixed converter sequence,
+        including the wrap-around from last back to first.
+        """
+        n = len(converter_positions)
+        if n <= 1:
+            return 0.0
+
+        movement_func = self.tank_movement_cost if use_tank_movement else self.manhattan_distance
+        total = 0.0
+        for i in range(n):
+            a = converter_positions[i]
+            b = converter_positions[(i + 1) % n]
+            total += movement_func(a, b)
+        return float(total)
+
     def solve_realistic(
         self,
         agent_pos: Tuple[int, int],
@@ -332,6 +351,88 @@ class InContextOptimalSolver:
             "movement_type": "tank" if use_tank_movement else "cardinal",
         }
 
+    def expected_reward(
+        self,
+        agent_pos: Tuple[int, int],
+        converter_positions: List[Tuple[int, int]],
+        steps_available: int,
+        use_tank_movement: bool = True,
+        num_sinks: int = 0,
+        reward_per_completion: float = 1.0,
+    ) -> Dict:
+        """
+        Expected reward with finite budget of steps, assuming:
+        - First completion follows discovery model (realistic)
+        - Subsequent completions repeat optimally as a steady-state cycle
+        - Next cycle starts at the end of the chain (wrap-around included)
+        """
+        n = len(converter_positions)
+        if steps_available <= 0 or n == 0:
+            return {"expected_completions": 0.0, "expected_reward": 0.0, "leftover_steps": float(steps_available)}
+
+        # First completion (discovery)
+        first = self.solve_realistic(agent_pos, converter_positions, use_tank_movement, num_sinks)
+        first_cost = first["total_cost"]
+
+        # Per-cycle optimal steady-state cost (movement + actions)
+        cycle_movement = self.compute_cycle_movement_cost(converter_positions, use_tank_movement)
+        cycle_actions = 2 * n
+        cycle_cost = cycle_movement + cycle_actions
+
+        # Compute expected completions within budget
+        if first_cost > steps_available:
+            completions = 0
+            leftover = float(steps_available)
+        else:
+            remaining = steps_available - first_cost
+            extra = int(remaining // cycle_cost) if cycle_cost > 0 else 0
+            completions = 1 + extra
+            leftover = float(remaining - extra * cycle_cost)
+
+        return {
+            "expected_completions": float(completions),
+            "expected_reward": float(completions) * reward_per_completion,
+            "leftover_steps": leftover,
+            "first_completion_cost": float(first_cost),
+            "cycle_cost": float(cycle_cost),
+        }
+
+    def expected_reward_over_spawns(
+        self,
+        converter_positions: List[Tuple[int, int]],
+        steps_available: int,
+        use_tank_movement: bool = True,
+        spawn_positions: Optional[List[Tuple[int, int]]] = None,
+        num_sinks: int = 0,
+        reward_per_completion: float = 1.0,
+    ) -> Dict:
+        """
+        Average expected completions/reward over a set of spawn positions.
+        """
+        if spawn_positions is None:
+            spawn_positions = self.central_positions
+
+        completions = []
+        rewards = []
+
+        for agent_pos in spawn_positions:
+            er = self.expected_reward(
+                agent_pos,
+                converter_positions,
+                steps_available,
+                use_tank_movement=use_tank_movement,
+                num_sinks=num_sinks,
+                reward_per_completion=reward_per_completion,
+            )
+            completions.append(er["expected_completions"])
+            rewards.append(er["expected_reward"])
+
+        return {
+            "expected_completions_mean": float(np.mean(completions)) if completions else 0.0,
+            "expected_reward_mean": float(np.mean(rewards)) if rewards else 0.0,
+            "movement_type": "tank" if use_tank_movement else "cardinal",
+        }
+
 
 def analyze_configuration(
     num_converters: int,
@@ -390,7 +491,14 @@ def analyze_configuration(
     return final_results
 
 
-def print_analysis(num_converters: int, num_sinks: int = 0, grid_size: int = 6):
+def print_analysis(
+    num_converters: int,
+    num_sinks: int = 0,
+    grid_size: int = 6,
+    steps_available: Optional[int] = None,
+    samples: int = 100,
+    reward_per_completion: float = 1.0,
+):
     """
     Print a formatted analysis for a given configuration.
 
@@ -403,7 +511,7 @@ def print_analysis(num_converters: int, num_sinks: int = 0, grid_size: int = 6):
     print(f"Configuration: {num_converters} converters, {num_sinks} sinks on {grid_size}x{grid_size} grid")
     print(f"{'=' * 60}")
 
-    results = analyze_configuration(num_converters, num_sinks, grid_size)
+    results = analyze_configuration(num_converters, num_sinks, grid_size, num_samples=samples)
 
     for movement_type in ["tank", "cardinal"]:
         r = results[movement_type]
@@ -416,7 +524,7 @@ def print_analysis(num_converters: int, num_sinks: int = 0, grid_size: int = 6):
     # Show impact of sinks
     if num_sinks > 0:
         # Get baseline without sinks
-        baseline = analyze_configuration(num_converters, 0, grid_size)
+        baseline = analyze_configuration(num_converters, 0, grid_size, num_samples=samples)
         print(f"\nImpact of {num_sinks} sink(s):")
         for movement_type in ["tank", "cardinal"]:
             increase = (
@@ -425,6 +533,47 @@ def print_analysis(num_converters: int, num_sinks: int = 0, grid_size: int = 6):
                 * 100
             )
             print(f"  {movement_type.capitalize()}: +{increase:.1f}% time increase")
+
+    # Expected reward section (optional)
+    if steps_available is not None and steps_available > 0:
+        solver = InContextOptimalSolver(grid_size)
+        # sample placements similarly to analyze_configuration
+        max_objects = len(solver.edge_positions)
+        if num_converters + num_sinks <= max_objects:
+            tank_rewards = []
+            card_rewards = []
+            for _ in range(samples):
+                indices = np.random.choice(len(solver.edge_positions), num_converters, replace=False)
+                converter_positions = [solver.edge_positions[i] for i in indices]
+                tank = solver.expected_reward_over_spawns(
+                    converter_positions,
+                    steps_available=steps_available,
+                    use_tank_movement=True,
+                    num_sinks=num_sinks,
+                    reward_per_completion=reward_per_completion,
+                )
+                card = solver.expected_reward_over_spawns(
+                    converter_positions,
+                    steps_available=steps_available,
+                    use_tank_movement=False,
+                    num_sinks=num_sinks,
+                    reward_per_completion=reward_per_completion,
+                )
+                tank_rewards.append(tank)
+                card_rewards.append(card)
+
+            def _mean(xs: List[float]) -> float:
+                return float(np.mean(xs)) if xs else 0.0
+
+            print(f"\nExpected reward with budget: {steps_available} steps")
+            print(
+                f"  Tank     - completions: {_mean([r['expected_completions_mean'] for r in tank_rewards]):.2f}, "
+                f"reward: {_mean([r['expected_reward_mean'] for r in tank_rewards]):.2f}"
+            )
+            print(
+                f"  Cardinal - completions: {_mean([r['expected_completions_mean'] for r in card_rewards]):.2f}, "
+                f"reward: {_mean([r['expected_reward_mean'] for r in card_rewards]):.2f}"
+            )
 
 
 def parse_int_list(value: str) -> List[int]:
@@ -484,7 +633,16 @@ def main():
 
     parser.add_argument("--demo", action="store_true", help="Run demonstration with default configurations")
 
+    parser.add_argument(
+        "--steps",
+        type=int,
+        default=256,
+        help="Compute expected reward under this step budget (default: 256)",
+    )
+
     args = parser.parse_args()
+
+    # args.steps already defaults to 256 to report expected reward by default
 
     # If no converters specified, run demo
     if args.converters is None or args.demo:
@@ -502,7 +660,7 @@ def main():
         ]
 
         for n_conv, n_sinks in configurations:
-            print_analysis(n_conv, n_sinks, args.grid_size)
+            print_analysis(n_conv, n_sinks, args.grid_size, steps_available=args.steps, samples=args.samples)
 
         print("\n" + "=" * 60)
         print("Analysis complete!")
@@ -527,7 +685,13 @@ def main():
             results[config_key] = result
 
             if not args.json:
-                print_analysis(n_conv, n_sinks, args.grid_size)
+                print_analysis(
+                    n_conv,
+                    n_sinks,
+                    args.grid_size,
+                    steps_available=args.steps,
+                    samples=args.samples,
+                )
 
                 if args.compare_movement:
                     print("\nMovement Comparison:")
