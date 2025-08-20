@@ -26,7 +26,7 @@ game:
           scene:
             type: metta.map.scenes.inline_ascii.InlineAscii
             params:
-              data: '@'
+              data: "@"
               # room center (for 3x3 rooms)
               row: 1
               column: 1

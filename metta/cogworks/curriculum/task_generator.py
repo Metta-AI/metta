@@ -3,12 +3,11 @@ from __future__ import annotations
 import logging
 import random
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, ClassVar, Literal, Union
+from typing import Annotated, Any, ClassVar, Literal, Optional, Sequence, Union
 
-from omegaconf import OmegaConf
 from pydantic import ConfigDict, Field, field_validator
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 logger = logging.getLogger(__name__)
@@ -23,6 +22,7 @@ class TaskGeneratorConfig(Config):
         validate_assignment=True,
         populate_by_name=True,
     )
+    label: Optional[str] = Field(default=None, description="Label for the task generator")
 
     overrides: dict[str, Any] = Field(
         default_factory=dict, description="Overrides to apply as dict with dot-separated keys"
@@ -74,27 +74,18 @@ class TaskGenerator(ABC):
         if not overrides:
             return env_config
 
-        # Convert to dict, apply overrides using OmegaConf
-        config_dict = OmegaConf.create(env_config.model_dump())
-
-        for key, value in overrides.items():
-            OmegaConf.update(config_dict, key, value, merge=True)
-
-        config_dict = OmegaConf.to_container(config_dict)
-
-        return EnvConfig.model_validate(config_dict)
+        env_config.update(overrides)
+        return env_config
 
 
 ################################################################################
 # SingleTaskGenerator
 ################################################################################
-
-
 class SingleTaskGeneratorConfig(TaskGeneratorConfig):
     """Configuration for SingleTaskGenerator."""
 
     type: Literal["single"] = Field(default="single", description="Type discriminator for SingleTaskGenerator")
-    env_config: EnvConfig = Field(description="The environment configuration to always return")
+    env: EnvConfig = Field(description="The environment configuration to always return")
 
     def create(self) -> "SingleTaskGenerator":
         """Create a SingleTaskGenerator from this configuration."""
@@ -110,7 +101,7 @@ class SingleTaskGenerator(TaskGenerator):
 
     def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
         """Always return the same EnvConfig."""
-        return self._config.env_config
+        return self._config.env.model_copy(deep=True)
 
 
 ################################################################################
@@ -122,7 +113,7 @@ class TaskGeneratorSetConfig(TaskGeneratorConfig):
     """Configuration for TaskGeneratorSet."""
 
     type: Literal["set"] = Field(default="set", description="Type discriminator for TaskGeneratorSet")
-    task_generator_configs: list[
+    task_generators: list[
         Annotated[
             Union["SingleTaskGeneratorConfig", "TaskGeneratorSetConfig", "BucketedTaskGeneratorConfig"],
             Field(discriminator="type"),
@@ -136,7 +127,7 @@ class TaskGeneratorSetConfig(TaskGeneratorConfig):
         """Ensure weights are positive."""
         if any(w <= 0 for w in v):
             raise ValueError("All weights must be positive")
-        if len(v) != len(info.data.get("task_generator_configs", [])):
+        if len(v) != len(info.data.get("task_generators", [])):
             raise ValueError("Number of weights must match number of task generator configs")
         return v
 
@@ -157,7 +148,7 @@ class TaskGeneratorSet(TaskGenerator):
 
         self._config: TaskGeneratorSetConfig = config
 
-        self._sub_task_generators = [config.create() for config in self._config.task_generator_configs]
+        self._sub_task_generators = [config.create() for config in self._config.task_generators]
         self._weights = self._config.weights
 
     def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
@@ -189,6 +180,9 @@ class ValueRange(Config):
         """Create a ValueRange from a range_min and range_max."""
         return cls(range_min=range_min, range_max=range_max)
 
+    def __str__(self) -> str:
+        return f"{self.range_min}-{self.range_max}"
+
 
 class BucketedTaskGeneratorConfig(TaskGeneratorConfig):
     """Configuration for BucketedTaskGenerator."""
@@ -198,11 +192,11 @@ class BucketedTaskGeneratorConfig(TaskGeneratorConfig):
         Union["SingleTaskGeneratorConfig", "TaskGeneratorSetConfig", "BucketedTaskGeneratorConfig"],
         Field(discriminator="type", description="Child task generator configuration"),
     ]
-    buckets: dict[str, list[int | float | str | ValueRange]] = Field(
+    buckets: dict[str, Sequence[int | float | str | ValueRange]] = Field(
         default_factory=dict, description="Buckets for sampling, keys are config paths"
     )
 
-    def add_bucket(self, path: str, values: list[int | float | str | ValueRange]) -> "BucketedTaskGeneratorConfig":
+    def add_bucket(self, path: str, values: Sequence[int | float | str | ValueRange]) -> "BucketedTaskGeneratorConfig":
         """Add a bucket of values for a specific configuration path."""
         assert path not in self.buckets, f"Bucket {path} already exists"
         self.buckets[path] = values
@@ -215,7 +209,7 @@ class BucketedTaskGeneratorConfig(TaskGeneratorConfig):
     @classmethod
     def from_env_config(cls, env_config: EnvConfig) -> BucketedTaskGeneratorConfig:
         """Create a BucketedTaskGeneratorConfig from an EnvConfig."""
-        return cls(child_generator_config=SingleTaskGeneratorConfig(env_config=env_config))
+        return cls(child_generator_config=SingleTaskGeneratorConfig(env=env_config))
 
 
 class BucketedTaskGenerator(TaskGenerator):
@@ -233,7 +227,7 @@ class BucketedTaskGenerator(TaskGenerator):
         assert config.buckets, "Buckets must be non-empty"
         self._child_generator = config.child_generator_config.create()
 
-    def _get_bucket_value(self, bucket_values: list[int | float | str | ValueRange], rng: random.Random) -> Any:
+    def _get_bucket_value(self, bucket_values: Sequence[int | float | str | ValueRange], rng: random.Random) -> Any:
         bucket_value = rng.choice(bucket_values)
 
         if isinstance(bucket_value, ValueRange):
@@ -253,6 +247,8 @@ class BucketedTaskGenerator(TaskGenerator):
 
         # Get task from the child generator
         env_config = self._child_generator.get_task(task_id)
+        if self._config.label is not None:
+            env_config.label += "|" + self._config.label
 
         # Apply the sampled bucket values as overrides
         return self._apply_overrides(env_config, overrides)

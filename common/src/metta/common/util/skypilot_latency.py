@@ -102,15 +102,6 @@ def main():
                     # Export for other scripts to use via environment
                     os.environ["SKYPILOT_QUEUE_LATENCY_S"] = str(latency_sec)
 
-                    # Log the latency metrics
-                    wandb.log(
-                        {
-                            "skypilot/queue_latency_s": latency_sec,
-                            "skypilot/task_id": task_id,
-                        },
-                        step=0,
-                    )
-
                     # Also add to summary for easy access
                     run.summary["skypilot/queue_latency_s"] = latency_sec
                     run.summary["skypilot/task_id"] = task_id

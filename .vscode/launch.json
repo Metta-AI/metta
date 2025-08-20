@@ -6,51 +6,43 @@
       "name": "Train Metta",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.train",
-      "args": [
-        "+user=${env:USER}"
-      ],
+      "module": "tools.run",
+      "args": ["experiments.user.${env:USER}.train"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Sweep: Init",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.sweep_init",
-      "args": [
-        "+user=${env:USER}",
-        "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"
-      ],
+      "args": ["+user=${env:USER}", "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Sweep: Eval",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.sweep_eval",
-      "args": [
-        "+user=${env:USER}",
-        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
-      ],
+      "args": ["+user=${env:USER}", "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Sweep: Train",
@@ -60,115 +52,99 @@
       "args": [
         "+user=${env:USER}",
         "data_dir=./train_dir/sweep/${sweep_name}/runs",
-        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
+        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
       ],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Evaluate",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.sim",
-      "args": [
-        "+user=${env:USER}",
-        "cmd=sim"
-      ],
+      "module": "tools.run",
+      "args": ["experiments.user.${env:USER}.evaluate"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Dashboard",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.dashboard",
-      "args": [
-        "+user=${env:USER}",
-      ],
+      "args": ["+user=${env:USER}"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Analyze",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.analyze",
-      "args": [
-        "+user=${env:USER}",
-        "cmd=analyze"
-      ],
+      "module": "tools.run",
+      "args": ["experiments.user.${env:USER}.analyze"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Generate Replay",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.replay",
-      "args": [
-        "+user=${env:USER}",
-      ],
+      "module": "tools.run",
+      "args": ["experiments.user.${env:USER}.replay"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Play Metta",
       "type": "debugpy",
       "request": "launch",
-      "module": "tools.play",
-      "args": [
-        "+user=${env:USER}",
-      ],
+      "module": "tools.run",
+      "args": ["experiments.user.${env:USER}.play"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Test",
       "type": "debugpy",
       "request": "launch",
       "module": "pytest",
-      "args": [
-        "-v",
-        "-s",
-        "./tests"
-      ],
+      "args": ["-v", "-s", "./tests"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "MettaGridTest",
@@ -179,32 +155,28 @@
       "cwd": "${workspaceFolder}/mettagrid",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "C++ Debug: Train Metta",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/.venv/bin/python",
-      "args": [
-        "-m", "tools.train",
-        "+hardware=macbook",
-        "+user=${env:USER}"
-      ],
+      "args": ["-m", "tools.train", "+hardware=macbook", "+user=${env:USER}"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "environment": [
         {
           "name": "PYTHONPATH",
-          "value": "${workspaceFolder}"
+          "value": "${workspaceFolder}",
         },
         {
           "name": "UV_PROJECT_ENVIRONMENT",
-          "value": "${env:VIRTUAL_ENV}"
-        }
+          "value": "${env:VIRTUAL_ENV}",
+        },
       ],
       "externalConsole": false,
       "MIMode": "gdb",
@@ -212,36 +184,32 @@
         {
           "description": "Enable pretty-printing for gdb",
           "text": "-enable-pretty-printing",
-          "ignoreFailures": true
+          "ignoreFailures": true,
         },
         {
           "description": "Set breakpoint pending",
-          "text": "set breakpoint pending on"
-        }
+          "text": "set breakpoint pending on",
+        },
       ],
-      "preLaunchTask": "install-debug"
+      "preLaunchTask": "install-debug",
     },
     {
       "name": "C++ Debug: Test",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/.venv/bin/python",
-      "args": [
-        "-m", "pytest",
-        "-v", "-s",
-        "./tests"
-      ],
+      "args": ["-m", "pytest", "-v", "-s", "./tests"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "environment": [
         {
           "name": "PYTHONPATH",
-          "value": "${workspaceFolder}"
+          "value": "${workspaceFolder}",
         },
         {
           "name": "UV_PROJECT_ENVIRONMENT",
-          "value": "${env:VIRTUAL_ENV}"
-        }
+          "value": "${env:VIRTUAL_ENV}",
+        },
       ],
       "externalConsole": false,
       "MIMode": "gdb",
@@ -249,36 +217,32 @@
         {
           "description": "Enable pretty-printing for gdb",
           "text": "-enable-pretty-printing",
-          "ignoreFailures": true
+          "ignoreFailures": true,
         },
         {
           "description": "Set breakpoint pending",
-          "text": "set breakpoint pending on"
-        }
+          "text": "set breakpoint pending on",
+        },
       ],
-      "preLaunchTask": "install-debug"
+      "preLaunchTask": "install-debug",
     },
     {
       "name": "C++ Debug: Play Metta",
       "type": "cppdbg",
       "request": "launch",
       "program": "${workspaceFolder}/.venv/bin/python",
-      "args": [
-        "-m", "tools.play",
-        "+user=${env:USER}",
-        "+hardware=macbook"
-      ],
+      "args": ["-m", "tools.play", "+user=${env:USER}", "+hardware=macbook"],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}",
       "environment": [
         {
           "name": "PYTHONPATH",
-          "value": "${workspaceFolder}"
+          "value": "${workspaceFolder}",
         },
         {
           "name": "UV_PROJECT_ENVIRONMENT",
-          "value": "${env:VIRTUAL_ENV}"
-        }
+          "value": "${env:VIRTUAL_ENV}",
+        },
       ],
       "externalConsole": false,
       "MIMode": "gdb",
@@ -286,14 +250,14 @@
         {
           "description": "Enable pretty-printing for gdb",
           "text": "-enable-pretty-printing",
-          "ignoreFailures": true
+          "ignoreFailures": true,
         },
         {
           "description": "Set breakpoint pending",
-          "text": "set breakpoint pending on"
-        }
+          "text": "set breakpoint pending on",
+        },
       ],
-      "preLaunchTask": "install-debug"
-    }
-  ]
+      "preLaunchTask": "install-debug",
+    },
+  ],
 }

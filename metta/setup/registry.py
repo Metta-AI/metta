@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING, Type
 
+from metta.common.util.collections import find_first
+
 if TYPE_CHECKING:
     from metta.setup.components.base import SetupModule
 
@@ -11,8 +13,8 @@ def register_module(cls: Type["SetupModule"]) -> Type["SetupModule"]:
     return cls
 
 
-def get_all_modules(config) -> list["SetupModule"]:
-    all_modules = [cls(config) for cls in _REGISTRY]
+def get_all_modules() -> list["SetupModule"]:
+    all_modules = [cls() for cls in _REGISTRY]
 
     # Create a mapping from name to module for easy lookup
     name_to_module = {m.name: m for m in all_modules}
@@ -47,5 +49,9 @@ def get_all_modules(config) -> list["SetupModule"]:
     return result
 
 
-def get_applicable_modules(config) -> list["SetupModule"]:
-    return [m for m in get_all_modules(config) if m.is_applicable()]
+def get_enabled_setup_modules() -> list["SetupModule"]:
+    return [m for m in get_all_modules() if m.is_enabled()]
+
+
+def get_enabled_setup_module_by_name(name: str) -> "SetupModule | None":
+    return find_first(get_enabled_setup_modules(), lambda m: m.name == name)
