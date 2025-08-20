@@ -12,7 +12,8 @@ import { linkifyText } from "@/lib/utils/linkify";
 import { deletePostAction } from "@/posts/actions/deletePostAction";
 import { toggleQueueAction } from "@/posts/actions/toggleQueueAction";
 import { SilentArxivRefresh } from "@/components/SilentArxivRefresh";
-import { ChevronRight } from "lucide-react";
+import { InPostComments } from "@/components/InPostComments";
+import { ChevronRight, MessageSquare } from "lucide-react";
 
 /**
  * FeedPost Component
@@ -33,7 +34,16 @@ export const FeedPost: FC<{
     name?: string | null;
     email?: string | null;
   } | null;
-}> = ({ post, onPaperClick, onUserClick, currentUser }) => {
+  isCommentsExpanded: boolean;
+  onCommentToggle: () => void;
+}> = ({
+  post,
+  onPaperClick,
+  onUserClick,
+  currentUser,
+  isCommentsExpanded,
+  onCommentToggle,
+}) => {
   const router = useRouter();
 
   // Local state for paper data that can be updated when institutions are added
@@ -166,7 +176,11 @@ export const FeedPost: FC<{
     executeQueue(formData);
   };
 
-  const handleReply = () => {
+  const handlePostClick = () => {
+    onCommentToggle();
+  };
+
+  const handleOpenFullView = () => {
     router.push(`/posts/${post.id}`);
   };
 
@@ -189,14 +203,27 @@ export const FeedPost: FC<{
   if (post.postType === "pure-paper" && post.paper) {
     return (
       <div
-        className="group relative cursor-pointer overflow-hidden rounded-2xl border border-neutral-200 bg-white px-6 pt-6 shadow-sm transition-all duration-200 before:absolute before:top-0 before:bottom-0 before:left-0 before:w-1 before:bg-transparent before:content-[''] hover:border-neutral-300 hover:bg-neutral-50 hover:shadow-md hover:before:bg-neutral-900/70"
-        style={{ paddingBottom: "2px" }}
+        role="button"
+        onClick={handlePostClick}
+        className={`group relative cursor-pointer overflow-hidden rounded-2xl border-neutral-200 shadow-sm transition before:absolute before:top-0 before:bottom-0 before:left-0 before:w-1 before:bg-transparent before:content-[''] hover:before:bg-neutral-900/70 ${
+          isCommentsExpanded
+            ? "border bg-white ring-2 ring-neutral-900/10"
+            : "border bg-white hover:border-neutral-300 hover:bg-neutral-50"
+        }`}
+        style={{
+          paddingBottom: "2px",
+          paddingLeft: "24px",
+          paddingTop: "24px",
+        }}
       >
         {/* Header with user info */}
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => onUserClick?.(post.author.id)}
+              onClick={(e) => {
+                e.stopPropagation();
+                onUserClick?.(post.author.id);
+              }}
               className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-sm font-semibold transition-colors hover:bg-gray-200"
               style={{ backgroundColor: "#EFF3F9", color: "#131720" }}
             >
@@ -204,7 +231,10 @@ export const FeedPost: FC<{
             </button>
             <div className="flex items-center gap-2 text-[12.5px] leading-5 text-neutral-600">
               <button
-                onClick={() => onUserClick?.(post.author.id)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onUserClick?.(post.author.id);
+                }}
                 className="cursor-pointer font-medium text-neutral-900 transition-colors hover:text-blue-600"
               >
                 {post.author.name ||
@@ -221,7 +251,10 @@ export const FeedPost: FC<{
             {/* Queue button - only show for posts with papers */}
             {paperData && (
               <button
-                onClick={handleQueue}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleQueue();
+                }}
                 disabled={isQueueing}
                 className={`rounded-full p-1 transition-colors disabled:opacity-50 ${
                   optimisticQueued
@@ -250,7 +283,10 @@ export const FeedPost: FC<{
             {/* Delete button - only show for post author */}
             {canDelete && (
               <button
-                onClick={handleDelete}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete();
+                }}
                 disabled={isDeleting}
                 className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-red-500 disabled:opacity-50"
                 title="Delete post"
@@ -272,31 +308,27 @@ export const FeedPost: FC<{
               </button>
             )}
 
-            {/* Reply button - hidden on hover, rightmost when visible */}
+            {/* Comment button - hidden on hover, rightmost when visible */}
             <button
-              onClick={handleReply}
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePostClick();
+              }}
               className="rounded-full p-1 text-neutral-400 transition-colors group-hover:hidden hover:bg-neutral-100 hover:text-blue-500"
               title={`${post.replies} comments`}
             >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-                suppressHydrationWarning
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                />
-              </svg>
+              <div className="flex items-center gap-1">
+                <MessageSquare className="h-4 w-4" />
+                <span className="text-[11px] tabular-nums">{post.replies}</span>
+              </div>
             </button>
 
-            {/* Open button - shown on hover to replace reply button */}
+            {/* Open button - shown on hover to replace comment button */}
             <button
-              onClick={handleReply}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenFullView();
+              }}
               className="hidden cursor-pointer items-center gap-1 rounded-full border bg-white/80 px-2 py-1 text-[11px] text-neutral-700 backdrop-blur transition-colors group-hover:flex hover:bg-white"
               title="Open post"
             >
@@ -306,8 +338,18 @@ export const FeedPost: FC<{
         </div>
 
         {/* Paper card */}
-        <div className="px-4 pb-4">
+        <div className="px-4 pb-4" onClick={(e) => e.stopPropagation()}>
           <PaperCard paper={post.paper} onPaperClick={onPaperClick} />
+        </div>
+
+        {/* In-post comments */}
+        <div onClick={(e) => e.stopPropagation()}>
+          <InPostComments
+            post={post}
+            isExpanded={isCommentsExpanded}
+            onToggle={onCommentToggle}
+            currentUser={currentUser}
+          />
         </div>
 
         {/* Delete Post Modal */}
@@ -325,30 +367,42 @@ export const FeedPost: FC<{
 
   // Handle user posts and paper posts with commentary
   return (
-    <div className="group relative cursor-pointer overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm transition-all duration-200 before:absolute before:top-0 before:bottom-0 before:left-0 before:w-1 before:bg-transparent before:content-[''] hover:border-neutral-300 hover:bg-neutral-50 hover:shadow-md hover:before:bg-neutral-900/70">
+    <div
+      role="button"
+      onClick={handlePostClick}
+      className={`group relative cursor-pointer overflow-hidden rounded-2xl shadow-sm transition before:absolute before:top-0 before:bottom-0 before:left-0 before:w-1 before:bg-transparent before:content-[''] hover:before:bg-neutral-900/70 ${
+        isCommentsExpanded
+          ? "border border-neutral-200 bg-white ring-2 ring-neutral-900/10"
+          : "border border-neutral-200 bg-white hover:border-neutral-300 hover:bg-neutral-50"
+      }`}
+    >
       {/* Post header with user info */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => onUserClick?.(post.author.id)}
+            onClick={(e) => {
+              e.stopPropagation();
+              onUserClick?.(post.author.id);
+            }}
             className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full text-sm font-medium transition-colors hover:bg-neutral-100"
             style={{ backgroundColor: "#EFF3F9", color: "#131720" }}
           >
             {getUserInitials(post.author.name, post.author.email)}
           </button>
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-[12.5px] leading-5 text-neutral-600">
             <button
-              onClick={() => onUserClick?.(post.author.id)}
-              className="cursor-pointer font-semibold text-gray-900 transition-colors hover:text-blue-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                onUserClick?.(post.author.id);
+              }}
+              className="cursor-pointer font-medium text-neutral-900 transition-colors hover:text-blue-600"
             >
               {post.author.name ||
                 post.author.email?.split("@")[0] ||
                 "Unknown User"}
             </button>
-            <span className="text-gray-500">·</span>
-            <span className="text-gray-500">
-              {formatRelativeTime(post.createdAt)}
-            </span>
+            <span>•</span>
+            <span>{formatRelativeTime(post.createdAt)}</span>
           </div>
         </div>
 
@@ -357,7 +411,10 @@ export const FeedPost: FC<{
           {/* Queue button - only show for posts with papers */}
           {paperData && (
             <button
-              onClick={handleQueue}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleQueue();
+              }}
               disabled={isQueueing}
               className={`rounded-full p-1 transition-colors disabled:opacity-50 ${
                 optimisticQueued
@@ -386,7 +443,10 @@ export const FeedPost: FC<{
           {/* Delete button - only show for post author */}
           {canDelete && (
             <button
-              onClick={handleDelete}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDelete();
+              }}
               disabled={isDeleting}
               className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-red-500 disabled:opacity-50"
               title="Delete post"
@@ -408,31 +468,27 @@ export const FeedPost: FC<{
             </button>
           )}
 
-          {/* Reply button - hidden on hover, rightmost when visible */}
+          {/* Comment button - hidden on hover, rightmost when visible */}
           <button
-            onClick={handleReply}
+            onClick={(e) => {
+              e.stopPropagation();
+              handlePostClick();
+            }}
             className="rounded-full p-1 text-neutral-400 transition-colors group-hover:hidden hover:bg-neutral-100 hover:text-blue-500"
             title={`${post.replies} comments`}
           >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              suppressHydrationWarning
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-              />
-            </svg>
+            <div className="flex items-center gap-1">
+              <MessageSquare className="h-4 w-4" />
+              <span className="text-[11px] tabular-nums">{post.replies}</span>
+            </div>
           </button>
 
-          {/* Open button - shown on hover to replace reply button */}
+          {/* Open button - shown on hover to replace comment button */}
           <button
-            onClick={handleReply}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleOpenFullView();
+            }}
             className="hidden cursor-pointer items-center gap-1 rounded-full border bg-white/80 px-2 py-1 text-[11px] text-neutral-700 backdrop-blur transition-colors group-hover:flex hover:bg-white"
             title="Open post"
           >
@@ -450,7 +506,7 @@ export const FeedPost: FC<{
 
       {/* Embedded paper card for paper posts */}
       {post.postType === "paper-post" && paperData && (
-        <div className="px-4 pb-4">
+        <div className="px-4 pb-4" onClick={(e) => e.stopPropagation()}>
           <PaperCard paper={paperData} onPaperClick={onPaperClick} />
         </div>
       )}
@@ -463,6 +519,16 @@ export const FeedPost: FC<{
           onInstitutionsAdded={handleInstitutionsAdded}
         />
       )}
+
+      {/* In-post comments */}
+      <div onClick={(e) => e.stopPropagation()}>
+        <InPostComments
+          post={post}
+          isExpanded={isCommentsExpanded}
+          onToggle={onCommentToggle}
+          currentUser={currentUser}
+        />
+      </div>
 
       {/* Delete Post Modal */}
       <DeleteConfirmationModal
