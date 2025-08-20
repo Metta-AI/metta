@@ -1,5 +1,4 @@
 import os
-import uuid
 from datetime import datetime
 from typing import Optional
 
@@ -32,14 +31,22 @@ def _get_user_identifier() -> str:
 def _default_run_name() -> str:
     """Generate a robust run name following the pattern: navigation.{user}.{date}.{unique_id}
 
-    Format: navigation.{username}.MMDD-HHMM.{uuid}
-    Example: navigation.alice.0820-1430.f4b2c8
+    Format: navigation.{username}.MMDD-HHMMSS.{git_hash_short} or navigation.{username}.MMDD-HHMMSS
+    Example: navigation.alice.0820-143052.a1b2c3d or navigation.alice.0820-143052
     """
     user = _get_user_identifier()
     now = datetime.now()
-    # Use 6-char UUID
-    unique_id = str(uuid.uuid4())[:6]
-    return f"navigation.{user}.{now.strftime('%m%d-%H%M')}.{unique_id}"
+    timestamp = now.strftime("%m%d-%H%M%S")
+
+    # Try to get git hash (7 chars like CI) for better tracking
+    try:
+        from metta.common.util.git import get_current_commit
+
+        git_hash = get_current_commit()[:7]
+        return f"navigation.{user}.{timestamp}.{git_hash}"
+    except Exception:
+        # Fallback: use timestamp
+        return f"navigation.{user}.{timestamp}"
 
 
 def make_env(num_agents: int = 4) -> EnvConfig:
