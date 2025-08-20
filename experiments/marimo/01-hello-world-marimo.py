@@ -66,6 +66,15 @@ def _():
     from IPython.display import display
     from metta.mettagrid import MettaGridEnv
 
+    # Import MettaScope replay viewer
+    try:
+        from experiments.notebooks.utils.replays import show_replay
+
+        replay_available = True
+    except ImportError:
+        replay_available = False
+        print("⚠️ MettaScope replay viewer not available")
+
     # Define a minimal HTML widget using anywidget so we can drop ipywidgets
     class HTMLWidget(anywidget.AnyWidget):
         """A simple widget that renders arbitrary HTML content.
@@ -252,7 +261,10 @@ def _():
         io,
         mo,
         np,
+        os,
         pd,
+        replay_available,
+        show_replay,
         time,
         widgets,
     )
@@ -617,7 +629,7 @@ def _(mo):
 
 
 @app.cell
-def _(datetime, env_config, mo, train_button):
+def _(datetime, env_config, mo, os, train_button):
     mo.stop(not train_button.value)
 
     # Import training modules
@@ -632,8 +644,12 @@ def _(datetime, env_config, mo, train_button):
     # from metta.common.wandb.wandb_context import WandbConfigOff
     from metta.cogworks.curriculum import env_curriculum
 
+    username = os.environ.get("USER", "metta_user")
+
     # Unique run name (so multiple notebook runs don't collide)
-    run_name = f"hello_world_train.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_name = (
+        f"{username}.hello_world_train.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    )
 
     print(f"🚀 Starting training run: {run_name}")
 
@@ -643,7 +659,7 @@ def _(datetime, env_config, mo, train_button):
     # Create trainer configuration with small settings for demo
     trainer_config = TrainerConfig(
         curriculum=curriculum,
-        total_timesteps=20000,  # Small demo run
+        total_timesteps=5000,  # Small demo run
         # total_timesteps=1000,  # DEBUG run
         batch_size=256,
         minibatch_size=256,
@@ -652,10 +668,12 @@ def _(datetime, env_config, mo, train_button):
             checkpoint_interval=50,  # Checkpoint every 50 steps for demo
             wandb_checkpoint_interval=50,
         ),
-        # Disable evaluations for simplicity
+        # Enable replay generation for MettaScope visualization
         evaluation=EvaluationConfig(
-            evaluate_interval=0,  # Disable evaluations
-            evaluate_remote=False,
+            evaluate_interval=50,  # Generate replays every 50 steps (matches checkpoint interval)
+            evaluate_remote=False,  # Run locally
+            evaluate_local=True,
+            replay_dir=f"s3://softmax-public/replays/{run_name}",  # Store replays on S3
             simulations=[],  # Empty list instead of None
         ),
     )
@@ -734,11 +752,19 @@ def _(
     mo,
     np,
     pd,
+    renderer_config,
     run_name,
     time,
     widgets,
 ):
-    mo.stop(not eval_trained_button.value)
+    mo.stop(not eval_trained_button.value or not run_name)
+
+    # Load trained policy using repo's PolicyStore approach (like tools/sim.py)
+    from metta.agent.policy_store import PolicyStore
+
+    from metta.common.wandb.wandb_context import WandbConfig
+    from metta.rl.policy_management import initialize_policy_for_environment
+    import torch
 
     def _():
         # Find the latest checkpoint
@@ -746,13 +772,6 @@ def _(
         latest_ckpt = max(ckpt_dir.glob("*.pt"), key=lambda p: p.stat().st_mtime)
 
         print(f"Evaluating checkpoint: {latest_ckpt.name}")
-
-        # Load trained policy using repo's PolicyStore approach (like tools/sim.py)
-        from metta.agent.policy_store import PolicyStore
-
-        from metta.common.wandb.wandb_context import WandbConfig
-        from metta.rl.policy_management import initialize_policy_for_environment
-        import torch
 
         # Create policy store (same as tools/sim.py:65-70)
         policy_store = PolicyStore.create(
@@ -824,30 +843,26 @@ def _(
                 obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
 
                 # Update display every few steps to show animation
-                if _step % 3 == 0:  # Update every 3 steps for smooth animation
-                    _agent_obj = next(
-                        (
-                            o
-                            for o in eval_env.grid_objects.values()
-                            if o.get("agent_id") == 0
-                        )
+                _agent_obj = next(
+                    (
+                        o
+                        for o in eval_env.grid_objects.values()
+                        if o.get("agent_id") == 0
                     )
-                    _inv = {
-                        eval_env.inventory_item_names[idx]: cnt
-                        for idx, cnt in _agent_obj.get("inventory", {}).items()
-                    }
-                    header.value = (
-                        f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/{steps} - "
-                        f"<b>Ore collected:</b> {_inv.get('ore_red', 0)}"
-                    )
-                    # Get rendered output directly
+                )
+                _inv = {
+                    eval_env.inventory_item_names[idx]: cnt
+                    for idx, cnt in _agent_obj.get("inventory", {}).items()
+                }
+                header.value = (
+                    f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/{steps} - "
+                    f"<br />"
+                    f"<b>Ore collected:</b> {_inv.get('ore_red', 0)}"
+                )
+                with contextlib.redirect_stdout(io.StringIO()) as buffer:
                     buffer_str = eval_env.render()
-                    # Clean ANSI escape codes for web display
-                    import re
-
-                    clean_buffer = re.sub(r"\x1b\[[0-9;]*[a-zA-Z]", "", buffer_str)
-                    map_box.value = f"<pre>{clean_buffer}</pre>"
-                    time.sleep(0.02)  # Small delay for animation
+                map_box.value = f"<pre>{buffer_str}</pre>"
+                time.sleep(renderer_config.sleep_time)  # Small delay for animation
 
             # Final inventory count for this episode
             _agent_obj = next(
@@ -901,8 +916,62 @@ def _(
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(
+        r"""
+    ## 8. Visualizing Agent Behavior with MettaScope
+
+    Now let's view a replay of our trained agent using MettaScope - an interactive visualization tool that shows:
+
+    - **Agent movement and behavior** over time
+    - **Resource collection events** as they happen
+    - **Environment state changes** step by step
+    - **Interactive timeline** to scrub through the episode
+
+    MettaScope provides a much richer view than the ASCII rendering, showing the full strategic behavior of our trained agent.
+
+    **Note**: Replays are generated during training evaluation. If no replays appear, the training may not have completed the evaluation phase yet.
+    """
+    )
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    replay_button = mo.ui.run_button(label="Click to view MettaScope replay")
+    replay_button
+    return (replay_button,)
+
+
 @app.cell
-def _(traceback):
+def _(mo, replay_available, replay_button, run_name, show_replay):
+    mo.stop(not replay_button.value or not run_name)
+
+    if not replay_available:
+        print("❌ MettaScope replay viewer is not available")
+        print("Make sure you're running from the experiments/marimo directory")
+    else:
+        print(f"🎬 Loading MettaScope replay for training run: {run_name}")
+        print("This will display an interactive visualization of the trained agent...")
+
+        try:
+            # Show the latest replay from the training run
+            show_replay(run_name, step="last", width=950, height=400, autoplay=True)
+        except Exception as e:
+            print(f"❌ Error loading replay: {e}")
+            print("This could mean:")
+            print("- Training hasn't generated replays yet (evaluation incomplete)")
+            print("- Run not found in W&B (check run name)")
+            print("- Network connectivity issues")
+            print(
+                f"\nReplays are stored on S3 at: s3://softmax-public/replays/{run_name}/"
+            )
+    return
+
+
+@app.cell
+def _(run_name, traceback):
     import wandb
     import IPython
 
@@ -929,7 +998,7 @@ def _(traceback):
                 raw=True,
             )
 
-    _display_by_wandb_path("metta-research/metta", height=600)
+    _display_by_wandb_path(f"metta-research/metta/runs/{run_name}", height=600)
     return
 
 
