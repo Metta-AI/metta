@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import cast
 
 import numpy as np
+import pufferlib
+import pufferlib.vector
 import torch
 import torch.optim as optim
 from gymnasium.spaces import Discrete, MultiDiscrete
@@ -34,10 +36,11 @@ def load_config(config_path: str) -> configparser.ConfigParser:
     return config
 
 
-def collect_episode(
-    env: MettaGridEnv, agent: ActorCriticAgent, device: str
+def collect_rollout(
+    vecenv, agent: ActorCriticAgent, num_steps: int, device: str
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Collect a single episode of experience for GAE actor-critic."""
+    """Collect rollout experience from vectorized environments for GAE actor-critic."""
+    total_agents = vecenv.num_agents  # This is num_envs * agents_per_env
     observations = []
     actions = []
     rewards = []
@@ -45,68 +48,79 @@ def collect_episode(
     next_values = []
     log_probs = []
 
-    obs, _ = env.reset()
-    done = False
+    # Get initial observations
+    obs, _ = vecenv.reset()
 
-    while not done:
-        # Flatten observation for the agent
-        flat_obs = obs.flatten()
-        observations.append(flat_obs)
+    for _ in range(num_steps):
+        # obs shape: (total_agents, *obs_shape)
+        # Flatten each agent's observation independently
+        flat_obs = obs.reshape(total_agents, -1)  # Shape: (total_agents, obs_dim)
+        observations.append(flat_obs.copy())
 
-        # Get action and value from actor-critic agent
-        obs_tensor = torch.from_numpy(flat_obs).float().unsqueeze(0).to(device)
+        # Get actions and values from actor-critic agent
+        obs_tensor = torch.from_numpy(flat_obs).float().to(device)
         with torch.no_grad():
             action_logits, value = agent(obs_tensor)
             action_probs = torch.softmax(action_logits, dim=-1)
-            action = torch.multinomial(action_probs, 1).squeeze()
-            log_prob = torch.log(action_probs[0, action])
+            action = torch.multinomial(action_probs, 1).squeeze(-1)
+            log_prob = torch.log(action_probs.gather(1, action.unsqueeze(-1)).squeeze(-1) + 1e-8)
 
-        single_action = action.item()
-        actions.append(single_action)
-        values.append(value.item())
-        log_probs.append(log_prob.item())
+        actions.append(action.cpu().numpy())
+        values.append(value.squeeze().cpu().numpy())
+        log_probs.append(log_prob.cpu().numpy())
 
-        # Create proper 2D action array for multi-agent environment
-        if hasattr(env.single_action_space, "nvec"):
-            # MultiDiscrete action space - shape should be (num_agents, num_action_dims)
-            num_action_dims = len(env.single_action_space.nvec)
-            actions_2d = np.zeros((env.num_agents, num_action_dims), dtype=np.int32)
-            for i in range(env.num_agents):
-                actions_2d[i, 0] = single_action  # Same action for all agents, first action dimension
+        # PufferLib expects actions in format: (total_agents, action_dims)
+        action_array = action.cpu().numpy()
+        if hasattr(vecenv.single_action_space, "nvec"):
+            # MultiDiscrete action space
+            num_action_dims = len(vecenv.single_action_space.nvec)
+            actions_2d = np.zeros((total_agents, num_action_dims), dtype=np.int32)
+            actions_2d[:, 0] = action_array  # Use first action dimension
         else:
-            # Regular discrete action space - reshape to 2D
-            actions_2d = np.full((env.num_agents, 1), single_action, dtype=np.int32)
+            # Discrete action space
+            actions_2d = action_array.reshape(-1, 1).astype(np.int32)
 
-        # Step environment
-        obs, reward, terminated, truncated, _ = env.step(actions_2d)
-        rewards.append(reward.mean())  # Average reward across agents
+        # Step environments
+        obs, reward, terminated, truncated, info = vecenv.step(actions_2d)
 
-        # Get next state value for GAE (unless episode is done)
-        if not (terminated.any() or truncated.any()):
-            next_flat_obs = obs.flatten()
-            next_obs_tensor = torch.from_numpy(next_flat_obs).float().unsqueeze(0).to(device)
-            with torch.no_grad():
-                _, next_value = agent(next_obs_tensor)
-                next_values.append(next_value.item())
-        else:
-            # Terminal state has zero value
-            next_values.append(0.0)
-            done = True
+        # reward shape: (total_agents,)
+        rewards.append(reward.copy())
 
-    return (
-        np.array(observations),
-        np.array(actions),
-        np.array(rewards),
-        np.array(values),
-        np.array(next_values),
-        np.array(log_probs),
-    )
+        # Get next state values for GAE
+        next_flat_obs = obs.reshape(total_agents, -1)
+        next_obs_tensor = torch.from_numpy(next_flat_obs).float().to(device)
+        with torch.no_grad():
+            _, next_value = agent(next_obs_tensor)
+            next_values.append(next_value.squeeze().cpu().numpy())
+
+    # Convert lists to arrays and reshape for processing
+    observations = np.array(observations).swapaxes(0, 1)  # (total_agents, num_steps, obs_dim)
+    actions = np.array(actions).swapaxes(0, 1)  # (total_agents, num_steps)
+    rewards = np.array(rewards).swapaxes(0, 1)  # (total_agents, num_steps)
+    values = np.array(values).swapaxes(0, 1)  # (total_agents, num_steps)
+    next_values = np.array(next_values).swapaxes(0, 1)  # (total_agents, num_steps)
+    log_probs = np.array(log_probs).swapaxes(0, 1)  # (total_agents, num_steps)
+
+    # Flatten all arrays for batch processing
+    observations = observations.reshape(-1, observations.shape[-1])
+    actions = actions.flatten()
+    rewards = rewards.flatten()
+    values = values.flatten()
+    next_values = next_values.flatten()
+    log_probs = log_probs.flatten()
+
+    return observations, actions, rewards, values, next_values, log_probs
 
 
 def create_agent(obs_dim: int, action_dim: int, device: str = "cpu") -> ActorCriticAgent:
     """Create and initialize an actor-critic agent."""
     agent = ActorCriticAgent(obs_dim, action_dim)
     return agent.to(device)
+
+
+def make_env_func(curriculum, **kwargs):
+    """Simple environment creation function for PufferLib vectorization."""
+    return MettaGridEnv(curriculum=curriculum)
 
 
 def compute_returns(rewards: np.ndarray, gamma: float) -> np.ndarray:
@@ -255,6 +269,14 @@ def train() -> None:
     gae_lambda = config.getfloat("training", "gae_lambda")
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
+    # Environment parameters
+    num_envs = config.getint("environment", "num_envs")
+    num_workers = config.getint("environment", "num_workers")
+    rollout_steps = 128  # Number of steps to collect per rollout
+
+    # Use multiprocessing on CUDA (Linux) for best performance, serial otherwise (macOS)
+    vectorization = "multiprocessing" if torch.cuda.is_available() else "serial"
+
     log_interval = config.getint("logging", "log_interval")
     checkpoint_interval = config.getint("logging", "checkpoint_interval")
 
@@ -263,17 +285,39 @@ def train() -> None:
     np.random.seed(42)
     torch.manual_seed(42)
 
-    # Create environment
+    # Create vectorized environment
     task_cfg: DictConfig = cast(DictConfig, OmegaConf.create(create_simple_arena_config()))
     curriculum = SingleTaskCurriculum("arena_simple", task_cfg)
-    env = MettaGridEnv(curriculum=curriculum)
 
-    # Get observation and action dimensions
-    obs, _ = env.reset()
-    obs_dim = obs.flatten().shape[0]
+    # Determine vectorization backend
+    if vectorization == "serial" or num_workers == 1:
+        backend = pufferlib.vector.Serial
+    elif vectorization == "multiprocessing":
+        backend = pufferlib.vector.Multiprocessing
+    else:
+        backend = pufferlib.vector.Serial  # Default to serial
+
+    # Create vectorized environment
+    vecenv = pufferlib.vector.make(
+        make_env_func,
+        env_kwargs={"curriculum": curriculum},
+        backend=backend,
+        num_envs=num_envs,
+        num_workers=num_workers,
+        batch_size=num_envs,
+    )
+
+    # Get observation and action dimensions from a single environment
+    sample_obs, _ = vecenv.reset()
+    print(f"Sample obs shape: {sample_obs.shape}")
+    # For vectorized multi-agent environments, PufferLib gives us (total_agents, *obs_shape)
+    # where total_agents = num_envs * agents_per_env
+    # Each agent gets its own observation, so obs_dim is the flattened single agent obs
+    single_agent_obs = sample_obs[0]  # Take first agent
+    obs_dim = single_agent_obs.flatten().shape[0]  # Flatten single agent observation
 
     # Handle MultiDiscrete action space
-    space = env.single_action_space
+    space = vecenv.single_action_space
     if isinstance(space, MultiDiscrete):
         action_dim = int(space.nvec[0])  # Use first action dimension
     elif isinstance(space, Discrete):
@@ -281,10 +325,12 @@ def train() -> None:
     else:
         raise TypeError("Unsupported action space type")
 
+    print(f"Number of environments: {num_envs}")
     print(f"Observation dimension: {obs_dim}")
     print(f"Action dimension: {action_dim}")
-    print(f"Action space: {env.action_space}")
-    print(f"Single action space: {env.single_action_space}")
+    print(f"Vectorization: {vectorization}")
+    print(f"Action space: {vecenv.action_space}")
+    print(f"Single action space: {vecenv.single_action_space}")
 
     # Create agent and optimizer
     agent = create_agent(obs_dim, action_dim, device)
@@ -304,21 +350,19 @@ def train() -> None:
     print("Starting training...")
     print(f"Using device: {device}")
 
-    episode = 0
+    rollout = 0
     timestep = 0
     start_time = time.time()
 
     while timestep < total_timesteps:
-        # Collect episode with next state values for GAE
-        observations, actions, rewards, values, next_values, log_probs = collect_episode(env, agent, device)
+        # Collect rollout with vectorized environments
+        observations, actions, rewards, values, next_values, log_probs = collect_rollout(
+            vecenv, agent, rollout_steps, device
+        )
 
-        episode_length = len(observations)
-        episode_reward = rewards.sum()
-        episode_rewards.append(episode_reward)
-        episode_lengths.append(episode_length)
-
-        timestep += episode_length
-        episode += 1
+        rollout_timesteps = len(observations)
+        timestep += rollout_timesteps
+        rollout += 1
 
         # Compute GAE advantages and returns
         advantages, returns = compute_gae(rewards, values, next_values, gamma, gae_lambda)
@@ -339,13 +383,18 @@ def train() -> None:
         total_loss.backward()
         optimizer.step()
 
+        # Store metrics for logging
+        rollout_reward = rewards.mean()
+        episode_rewards.append(rollout_reward)
+        episode_lengths.append(rollout_steps)
+
         # Logging
-        if episode % log_interval == 0:
+        if rollout % log_interval == 0:
             elapsed_time = time.time() - start_time
             sps = timestep / elapsed_time if elapsed_time > 0 else 0
             avg_reward = float(np.mean(episode_rewards[-log_interval:]))
             avg_length = float(np.mean(episode_lengths[-log_interval:]))
-            print(f"Episode {episode}, Timestep {timestep}")
+            print(f"Rollout {rollout}, Timestep {timestep}")
             print(f"  Avg Reward: {avg_reward:.3f}")
             print(f"  Avg Length: {avg_length:.1f}")
             print(f"  Actor Loss: {actor_loss.item():.6f}")
@@ -356,7 +405,7 @@ def train() -> None:
 
             # Log to wandb
             log_wandb_metrics(
-                episode=episode,
+                episode=rollout,
                 timestep=timestep,
                 episode_reward=avg_reward,
                 episode_length=avg_length,
@@ -367,13 +416,13 @@ def train() -> None:
             )
 
         # Checkpoint
-        if episode % checkpoint_interval == 0:
-            checkpoint_path = Path(__file__).parent / f"checkpoint_{episode}.pt"
+        if rollout * rollout_steps >= checkpoint_interval:
+            checkpoint_path = Path(__file__).parent / f"checkpoint_{rollout}.pt"
             torch.save(
                 {
                     "agent_state_dict": agent.state_dict(),
                     "optimizer_state_dict": optimizer.state_dict(),
-                    "episode": episode,
+                    "rollout": rollout,
                     "timestep": timestep,
                 },
                 checkpoint_path,
