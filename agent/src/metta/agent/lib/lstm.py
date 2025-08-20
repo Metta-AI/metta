@@ -159,9 +159,9 @@ class LSTM(LayerBase):
 
         for t in range(TT):
             latent_t = latent[t, :, :].unsqueeze(0)
-            reset_mask_t = reset_mask[0, :, t, :]
-            h_t = h_t.masked_fill(reset_mask_t, 0)
-            c_t = c_t.masked_fill(reset_mask_t, 0)
+            # reset_mask_t = reset_mask[0, :, t, :]
+            # h_t = h_t.masked_fill(reset_mask_t, 0)
+            # c_t = c_t.masked_fill(reset_mask_t, 0)
             hidden_t, (h_t, c_t) = self.lstm(latent_t, (h_t, c_t))  # one time step
             # stack hidden
             if hidden is None:
