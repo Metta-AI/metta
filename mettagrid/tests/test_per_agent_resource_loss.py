@@ -1,7 +1,7 @@
 import numpy as np
 
-from metta.mettagrid.mettagrid_c import dtype_actions
-from metta.mettagrid.test_support import TestEnvironmentBuilder
+from metta.mettagrid.mettagrid_c import MettaGrid, dtype_actions
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 
 
 class TestPerAgentResourceLoss:
@@ -9,8 +9,6 @@ class TestPerAgentResourceLoss:
 
     def test_different_agents_have_different_loss_rates(self):
         """Test that different agents can have different resource loss probabilities."""
-        builder = TestEnvironmentBuilder()
-
         # Create a simple 3x3 grid with two agents
         game_map = [
             ["wall", "wall", "wall"],
@@ -18,20 +16,25 @@ class TestPerAgentResourceLoss:
             ["wall", "wall", "wall"],
         ]
 
-        # Create environment with different per-agent resource loss rates
-        env = builder.create_environment(
-            game_map=game_map,
-            num_agents=2,
-            inventory_item_names=["heart", "battery_blue", "laser", "armor"],
-            obs_width=3,
-            obs_height=3,
-            num_observation_tokens=50,
-            actions={"attack": {"enabled": False}},  # Disable attack action to avoid resource conflicts
-            agent={
-                "initial_inventory": {"heart": 5, "battery_blue": 3},
-                "resource_loss_probs": {"heart": 0.0, "battery_blue": 0.0},  # No loss for default agent
+        # Create environment configuration with different per-agent resource loss rates
+        game_config = {
+            "max_steps": 100,
+            "num_agents": 2,
+            "obs_width": 3,
+            "obs_height": 3,
+            "num_observation_tokens": 50,
+            "inventory_item_names": ["heart", "battery_blue", "laser", "armor"],
+            "actions": {
+                "noop": {"enabled": True},
+                "move": {"enabled": True},
+                "rotate": {"enabled": True},
+                "attack": {"enabled": False},  # Disable attack action to avoid resource conflicts
+                "put_items": {"enabled": True},
+                "get_items": {"enabled": True},
+                "swap": {"enabled": True},
+                "change_color": {"enabled": True},
             },
-            groups={
+            "groups": {
                 "player": {
                     "id": 0,
                     "sprite": 0,
@@ -41,7 +44,16 @@ class TestPerAgentResourceLoss:
                     },
                 }
             },
-        )
+            "objects": {
+                "wall": {"type_id": 1},
+            },
+            "agent": {
+                "initial_inventory": {"heart": 5, "battery_blue": 3},
+                "resource_loss_probs": {"heart": 0.0, "battery_blue": 0.0},  # No loss for default agent
+            },
+        }
+
+        env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 
         # Reset environment
         obs, info = env.reset()
@@ -86,8 +98,6 @@ class TestPerAgentResourceLoss:
 
     def test_agent_with_no_loss_keeps_items(self):
         """Test that an agent with no resource loss keeps its items."""
-        builder = TestEnvironmentBuilder()
-
         # Create a simple 3x3 grid with one agent
         game_map = [
             ["wall", "wall", "wall"],
@@ -95,20 +105,41 @@ class TestPerAgentResourceLoss:
             ["wall", "wall", "wall"],
         ]
 
-        # Create environment with no resource loss for the agent
-        env = builder.create_environment(
-            game_map=game_map,
-            num_agents=1,
-            inventory_item_names=["heart", "battery_blue", "laser", "armor"],
-            obs_width=3,
-            obs_height=3,
-            num_observation_tokens=50,
-            actions={"attack": {"enabled": False}},  # Disable attack action to avoid resource conflicts
-            agent={
+        # Create environment configuration with no resource loss for the agent
+        game_config = {
+            "max_steps": 100,
+            "num_agents": 1,
+            "obs_width": 3,
+            "obs_height": 3,
+            "num_observation_tokens": 50,
+            "inventory_item_names": ["heart", "battery_blue", "laser", "armor"],
+            "actions": {
+                "noop": {"enabled": True},
+                "move": {"enabled": True},
+                "rotate": {"enabled": True},
+                "attack": {"enabled": False},  # Disable attack action to avoid resource conflicts
+                "put_items": {"enabled": True},
+                "get_items": {"enabled": True},
+                "swap": {"enabled": True},
+                "change_color": {"enabled": True},
+            },
+            "groups": {
+                "player": {
+                    "id": 0,
+                    "sprite": 0,
+                    "props": {},
+                }
+            },
+            "objects": {
+                "wall": {"type_id": 1},
+            },
+            "agent": {
                 "initial_inventory": {"heart": 5, "battery_blue": 3},
                 "resource_loss_probs": {},  # No resource loss configured
             },
-        )
+        }
+
+        env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 
         # Reset environment
         obs, info = env.reset()
