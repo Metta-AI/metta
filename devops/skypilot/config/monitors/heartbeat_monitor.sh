@@ -11,7 +11,10 @@ set -euo pipefail
 
 HEARTBEAT_CHECK_INTERVAL=${HEARTBEAT_CHECK_INTERVAL:-30}
 
-echo "[INFO] Heartbeat monitor started - timeout: ${HEARTBEAT_TIMEOUT}s, file: ${HEARTBEAT_FILE}"
+echo "[INFO] Heartbeat monitor started!"
+echo "     ↳ heartbeat file: ${HEARTBEAT_FILE}"
+echo "     ↳ heartbeat timeout: ${HEARTBEAT_TIMEOUT} seconds"
+echo "     ↳ start time: ${START_TIME}"
 echo "[INFO] Checking every ${HEARTBEAT_CHECK_INTERVAL} seconds"
 
 # Write initial heartbeat using START_TIME
