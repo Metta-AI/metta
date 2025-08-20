@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Tuple
 
 import torch
 import torch.nn as nn
@@ -6,6 +6,37 @@ from einops import rearrange
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
+
+
+class LstmTrainStep(nn.Module):
+    def __init__(self, lstm: nn.LSTM):
+        super().__init__()
+        self.lstm = lstm
+
+    def forward(
+        self,
+        latent: torch.Tensor,
+        h_t: torch.Tensor,
+        c_t: torch.Tensor,
+        reset_mask: torch.Tensor,
+    ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Only run when self.reset_in_training is true ie you're asking to unroll the LSTM in time."""
+        # latent is (TT, B, input_size)
+        # h_0 is (num_layers, B, input_size)
+        # c_0 is (num_layers, B, input_size)
+        # reset_mask is (1, B, TT, 1)
+
+        outputs = []
+        for t in range(latent.size(0)):
+            latent_t = latent[t].unsqueeze(0)
+            reset_mask_t = reset_mask[0, :, t, :]
+            h_t = h_t.masked_fill(reset_mask_t, 0)
+            c_t = c_t.masked_fill(reset_mask_t, 0)
+            hidden_t, (h_t, c_t) = self.lstm(latent_t, (h_t, c_t))  # one time step
+            outputs.append(hidden_t)
+
+        hidden = torch.cat(outputs, dim=0)
+        return hidden, (h_t, c_t)
 
 
 class LSTM(LayerBase):
@@ -34,6 +65,7 @@ class LSTM(LayerBase):
         self.hidden_size = self._nn_params["hidden_size"]
         self.num_layers = self._nn_params["num_layers"]
         self.reset_in_training = cfg.get("reset_in_training", False)
+        self.lstm_train_step = None
 
         self.lstm_h: Dict[int, torch.Tensor] = {}
         self.lstm_c: Dict[int, torch.Tensor] = {}
@@ -92,6 +124,8 @@ class LSTM(LayerBase):
         self._out_tensor_shape = [hidden_size]
 
         self.lstm = nn.LSTM(self._in_tensor_shapes[0][0], **self._nn_params)
+        if self.reset_in_training:
+            self.lstm_train_step = torch.jit.script(LstmTrainStep(self.lstm))
 
         for name, param in self.lstm.named_parameters():
             if "bias" in name:
@@ -136,7 +170,7 @@ class LSTM(LayerBase):
 
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
         if self.reset_in_training and TT != 1:
-            hidden, (h_n, c_n) = self._forward_train_step(latent, h_0, c_0, reset_mask, B, TT)
+            hidden, (h_n, c_n) = self._forward_train_step(latent, h_0, c_0, reset_mask)
         else:
             hidden, (h_n, c_n) = self.lstm(latent, (h_0, c_0))
 
@@ -149,26 +183,7 @@ class LSTM(LayerBase):
 
         return td
 
-    def _forward_train_step(self, latent, h_t, c_t, reset_mask, B, TT):
-        """Only run when self.reset_in_training is true ie you're asking to unroll the LSTM in time."""
-        # latent is (B * TT, input_size)
-        # h_0 is (num_layers, B, input_size)
-        # c_0 is (num_layers, B, input_size)
-        # reset_mask is (1, B * TT, 1)
-
-        reset_mask = reset_mask.view(1, B, TT, 1)
-        hidden = None
-
-        for t in range(TT):
-            latent_t = latent[t, :, :].unsqueeze(0)
-            reset_mask_t = reset_mask[0, :, t, :]
-            h_t = h_t.masked_fill(reset_mask_t, 0)
-            c_t = c_t.masked_fill(reset_mask_t, 0)
-            hidden_t, (h_t, c_t) = self.lstm(latent_t, (h_t, c_t))  # one time step
-            # stack hidden
-            if hidden is None:
-                hidden = hidden_t
-            else:
-                hidden = torch.cat([hidden, hidden_t], dim=0)
-
-        return hidden, (h_t, c_t)
+    def _forward_train_step(self, latent, h_t, c_t, reset_mask):
+        """Run the JIT-scripted LSTM training step."""
+        reset_mask = reset_mask.view(1, latent.size(1), -1, 1)  # Shape: [1, B, TT, 1]
+        return self.lstm_train_step(latent, h_t, c_t, reset_mask)
