@@ -86,15 +86,24 @@ def accumulate_rollout_stats(
             v = v.tolist()
 
         if isinstance(v, list):
-            stats.setdefault(k, []).extend(v)
+            # Ensure stats[k] is a list before extending
+            if k not in stats:
+                stats[k] = []
+            elif not isinstance(stats[k], list):
+                stats[k] = [stats[k]]
+            stats[k].extend(v)
         else:
             if k not in stats:
                 stats[k] = v
             else:
-                try:
-                    stats[k] += v
-                except TypeError:
-                    stats[k] = [stats[k], v]  # fallback: bundle as list
+                # Try to accumulate or convert to list
+                if isinstance(stats[k], list):
+                    stats[k].append(v)
+                else:
+                    try:
+                        stats[k] += v
+                    except TypeError:
+                        stats[k] = [stats[k], v]  # fallback: bundle as list
 
 
 def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
@@ -175,9 +184,16 @@ def process_training_stats(
         losses_stats.pop("ks_value_loss", None)
 
     # Calculate environment statistics
-    environment_stats = {
-        f"env_{k.split('/')[0]}/{'/'.join(k.split('/')[1:])}": v for k, v in mean_stats.items() if "/" in k
-    }
+    environment_stats: dict[str, Any] = {}
+    for k, v in mean_stats.items():
+        if "/" not in k:
+            continue
+        # Keep dual_policy/* as-is (no env_ prefix)
+        if k.startswith("dual_policy/"):
+            environment_stats[k] = v
+        else:
+            head, *rest = k.split("/")
+            environment_stats[f"env_{head}/{'/'.join(rest)}"] = v
 
     # Filter movement metrics to only keep core values
     environment_stats = filter_movement_metrics(environment_stats)
@@ -430,6 +446,12 @@ def process_policy_evaluator_stats(
         f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
         for k, v in eval_results.scores.to_wandb_metrics_format().items()
     }
+    metrics_to_log.update(
+        {
+            f"overview/{POLICY_EVALUATOR_METRIC_PREFIX}/{category}_score": score
+            for category, score in eval_results.scores.category_scores.items()
+        }
+    )
     if not metrics_to_log:
         logger.warning("No metrics to log for policy evaluator")
         return

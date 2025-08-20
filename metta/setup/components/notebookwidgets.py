@@ -10,7 +10,11 @@ from metta.setup.utils import info, warning
 class NotebookWidgetsSetup(SetupModule):
     install_once = False
 
-    _widgets = ["scorecard_widget", "eval_finder_widget"]
+    _widgets = [
+        "scorecard_widget",
+        "eval_finder_widget",
+        "policy_selector_widget",
+    ]
 
     def dependencies(self) -> list[str]:
         return ["nodejs"]
