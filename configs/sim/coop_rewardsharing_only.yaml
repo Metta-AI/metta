@@ -9,4 +9,4 @@ simulations:
     env: /env/mettagrid/arena/coop_rewardsharing
 
   coop/rewardsharing_alt1:
-    env: /env/mettagrid/arena/coop_rewardsharing_alt1
+    env: /env/mettagrid/arena/coop_rewardsharing_ascii_alt1
