@@ -39,9 +39,16 @@ This guide walks you through setting up Google OAuth authentication for your Lib
 2. Click "+ Create Credentials" → "OAuth client ID"
 3. Choose "Web application"
 4. Set the name (e.g., "Library App Web Client")
-5. Add authorized redirect URIs:
+5. Add authorized origins and redirect URIs:
+
+   **Authorized JavaScript origins:**
+   - For development: `http://localhost:3001`
+   - For production: `https://your-domain.com`
+
+   **Authorized redirect URIs:**
    - For development: `http://localhost:3001/api/auth/callback/google`
    - For production: `https://your-domain.com/api/auth/callback/google`
+
 6. Click "Create"
 7. **IMPORTANT**: Copy the Client ID and Client Secret immediately!
 
