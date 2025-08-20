@@ -16,8 +16,8 @@ WANDB_IPC_FILENAME = "wandb_ipc.json"
 
 def record_heartbeat() -> None:
     """Record a heartbeat timestamp to the globally configured file path."""
-
     heartbeat_file_path = os.environ.get("HEARTBEAT_FILE")
+
     if heartbeat_file_path:
         try:
             # Ensure the directory for the heartbeat file exists
