@@ -1,0 +1,15 @@
+# Example configuration for world model data collection workflow
+
+trainer:
+  total_timesteps: 100000  # Small number for testing
+  observation_collection:
+    enabled: true
+    dataset_path: "test_observations.h5"
+    max_observations: 1000  # Small for testing
+    collection_interval: 1  # Collect every step
+  
+  world_model:
+    checkpoint_path: null  # No checkpoint initially
+    latent_dim: 64  # Smaller for testing
+
+# Use default settings for other configs

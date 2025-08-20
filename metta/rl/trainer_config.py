@@ -126,9 +126,16 @@ class DualPolicyConfig(Config):
     training_agents_pct: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
-class WorldModelPretrainingConfig(Config):
-    enabled: bool = True
-    steps: int = Field(default=100000000, gt=0)
+class ObservationCollectionConfig(Config):
+    enabled: bool = False
+    dataset_path: str = "observations_dataset.h5"
+    max_observations: int = Field(default=1_000_000, gt=0)
+    collection_interval: int = Field(default=1, gt=0)  # Collect every N steps
+
+
+class WorldModelConfig(Config):
+    checkpoint_path: str | None = None
+    latent_dim: int = 128
 
 
 class TrainerConfig(Config):
@@ -195,8 +202,11 @@ class TrainerConfig(Config):
     # Dual-policy training (train against an NPC checkpoint policy)
     dual_policy: DualPolicyConfig = Field(default_factory=DualPolicyConfig)
 
-    # World model pre-training configuration
-    world_model_pretraining: WorldModelPretrainingConfig = Field(default_factory=WorldModelPretrainingConfig)
+    # Observation collection for offline world model training
+    observation_collection: ObservationCollectionConfig = Field(default_factory=ObservationCollectionConfig)
+
+    # World model configuration
+    world_model: WorldModelConfig = Field(default_factory=WorldModelConfig)
 
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware

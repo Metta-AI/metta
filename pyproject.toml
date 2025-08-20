@@ -67,6 +67,7 @@ dependencies = [
   "altair>=5.5.0",
   "pyarrow>=21.0.0",
   "typer>=0.16.0",
+  "h5py>=3.14.0",
 ]
 name = "metta"
 version = "0.1"

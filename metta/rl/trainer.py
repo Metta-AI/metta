@@ -3,6 +3,7 @@ import os
 from collections import defaultdict
 from typing import cast
 
+import h5py
 import numpy as np
 import torch
 import torch.distributed
@@ -297,14 +298,43 @@ def train(
         logger.info(f"Training on {device}")
     wandb_policy_name: str | None = None
 
-    # Instantiate world model used during rollout encoding/training
-    world_model = WorldModel().to(device)
-    world_model_optimizer = torch.optim.Adam(world_model.parameters(), lr=0.001)
+    # Load pre-trained world model for encoding observations
+    world_model = WorldModel(latent_dim=trainer_cfg.world_model.latent_dim).to(device)
 
-    # World model pre-training phase
-    world_model_pretraining_steps = 0
-    if trainer_cfg.world_model_pretraining.enabled and agent_step == 0:
-        logger.info(f"Starting world model pre-training for {trainer_cfg.world_model_pretraining.steps} steps")
+    # Load pre-trained weights if checkpoint path is provided
+    if trainer_cfg.world_model.checkpoint_path:
+        checkpoint_path = trainer_cfg.world_model.checkpoint_path
+        if os.path.exists(checkpoint_path):
+            logger.info(f"Loading world model from: {checkpoint_path}")
+            checkpoint = torch.load(checkpoint_path, map_location=device)
+            world_model.load_state_dict(checkpoint["model_state_dict"])
+            logger.info(f"World model loaded (latent_dim={checkpoint.get('latent_dim', 'unknown')})")
+        else:
+            logger.warning(f"World model checkpoint not found: {checkpoint_path}")
+    else:
+        logger.info("No world model checkpoint specified - using random initialization")
+
+    world_model.eval()  # Set to evaluation mode
+
+    # Initialize observation collection
+    obs_dataset_file = None
+    obs_dataset = None
+    obs_collected = 0
+    collection_step = 0
+    if trainer_cfg.observation_collection.enabled and is_master:
+        dataset_path = os.path.join(run_dir, trainer_cfg.observation_collection.dataset_path)
+        logger.info(f"Initializing observation collection: {dataset_path}")
+        obs_dataset_file = h5py.File(dataset_path, "w")
+        # Pre-allocate dataset for observations [N, 200, 3]
+        obs_dataset = obs_dataset_file.create_dataset(
+            "observations",
+            shape=(trainer_cfg.observation_collection.max_observations, 200, 3),
+            dtype=np.float32,
+            chunks=True,
+            compression="gzip",
+        )
+        obs_dataset_file.attrs["max_observations"] = trainer_cfg.observation_collection.max_observations
+        obs_dataset_file.attrs["collection_interval"] = trainer_cfg.observation_collection.collection_interval
 
     # Main training loop
     try:
@@ -350,62 +380,38 @@ def train(
                         f"rewards expected [B], got {tuple(r.shape)} with B={o.shape[0]}"
                     )
 
-                    # supervised training of the world model
-                    # Cast obs to float for world model supervision to avoid dtype mismatch
-                    reconstructed_obs = world_model(o)
-                    world_model_loss = torch.nn.functional.mse_loss(reconstructed_obs, o.float())
-                    world_model_optimizer.zero_grad()
-                    world_model_loss.backward()
-                    world_model_optimizer.step()
-
-                    # World model pre-training phase logging and control
+                    # Collect observations for offline world model training
                     if (
-                        trainer_cfg.world_model_pretraining.enabled
-                        and world_model_pretraining_steps < trainer_cfg.world_model_pretraining.steps
+                        trainer_cfg.observation_collection.enabled
+                        and obs_dataset is not None
+                        and obs_collected < trainer_cfg.observation_collection.max_observations
+                        and collection_step % trainer_cfg.observation_collection.collection_interval == 0
                     ):
-                        world_model_pretraining_steps += num_steps
+                        # Save a batch of observations to the dataset
+                        batch_size = min(
+                            o.shape[0], trainer_cfg.observation_collection.max_observations - obs_collected
+                        )
+                        if batch_size > 0:
+                            obs_numpy = o[:batch_size].cpu().numpy().astype(np.float32)
+                            obs_dataset[obs_collected : obs_collected + batch_size] = obs_numpy
+                            obs_collected += batch_size
 
-                        # Log to wandb every 100 steps during pre-training
-                        if wandb_run and is_master and world_model_pretraining_steps % 100 == 0:
-                            wandb_run.log(
-                                {
-                                    "world_model/reconstruction_loss": world_model_loss.item(),
-                                    "world_model/pretraining_steps": world_model_pretraining_steps,
-                                }
-                            )
+                            # Log progress occasionally
+                            if (
+                                obs_collected % 10000 == 0
+                                or obs_collected >= trainer_cfg.observation_collection.max_observations
+                            ):
+                                logger.info(
+                                    f"Collected {obs_collected}/"
+                                    f"{trainer_cfg.observation_collection.max_observations} observations"
+                                )
 
-                        # Log progress every 1000 steps during pre-training
-                        if (
-                            world_model_pretraining_steps % 1000 == 0
-                            or world_model_pretraining_steps >= trainer_cfg.world_model_pretraining.steps
-                        ):
-                            logger.info(
-                                f"World model pre-training: {world_model_pretraining_steps}/"
-                                f"{trainer_cfg.world_model_pretraining.steps} steps, "
-                                f"loss: {world_model_loss.item():.6f}"
-                            )
+                            # Close dataset when full
+                            if obs_collected >= trainer_cfg.observation_collection.max_observations:
+                                logger.info("Observation collection complete, closing dataset")
+                                obs_dataset_file.flush()
 
-                        # During pre-training, skip agent training and continue rollout for more world model data
-                        if world_model_pretraining_steps < trainer_cfg.world_model_pretraining.steps:
-                            # Record heartbeat during pre-training to prevent timeouts
-                            record_heartbeat()
-
-                            # Create TensorDict for agent to generate valid actions during pre-training
-                            td = buffer_step[training_env_id].clone()
-                            td["latent_obs"] = world_model.encode(o).detach()  # Use latent obs for action generation
-                            # Remove raw observations to force latent path
-                            if "env_obs" in td:
-                                del td["env_obs"]
-
-                            # Generate actions using the agent (random behavior during pre-training is fine)
-                            with torch.no_grad():
-                                policy(td)
-
-                            send_observation(vecenv, td["actions"], dtype_actions, timer)
-                            continue  # Skip agent inference and training during pre-training
-
-                        else:
-                            logger.info("World model pre-training completed, starting agent training")
+                    collection_step += 1
 
                     # compute latent encoding (detached); keep raw obs for env_obs
                     with torch.no_grad():
@@ -754,6 +760,11 @@ def train(
     except Exception as e:
         _update_training_status_on_failure(stats_client, stats_tracker.stats_run_id, logger)
         raise e
+
+    # Close observation dataset
+    if obs_dataset_file is not None:
+        obs_dataset_file.close()
+        logger.info("Observation dataset closed")
 
     vecenv.close()
 
