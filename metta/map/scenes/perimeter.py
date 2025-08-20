@@ -45,41 +45,58 @@ class Perimeter(Scene[PerimeterParams]):
             perimeter_mask[height - 1, 0] = False
             perimeter_mask[height - 1, width - 1] = False
 
-        # Find empty perimeter cells
+        # Find empty perimeter cells for objects
         empty_perimeter_mask = (self.grid == "empty") & perimeter_mask
         empty_perimeter_count = np.sum(empty_perimeter_mask)
         empty_perimeter_indices = np.where(empty_perimeter_mask.flatten())[0]
 
-        # Add all objects in the proper amounts to a single large array
-        symbols = []
-        for obj_name, count in params.objects.items():
-            symbols.extend([obj_name] * count)
-        symbols.extend(agents)
+        # Find center cells for agents
+        center_mask = np.zeros((height, width), dtype=bool)
+        # Define center region (excluding perimeter)
+        if height > 2 and width > 2:
+            center_mask[1 : height - 1, 1 : width - 1] = True
 
-        if not params.too_many_is_ok and len(symbols) > empty_perimeter_count:
+        empty_center_mask = (self.grid == "empty") & center_mask
+        empty_center_count = np.sum(empty_center_mask)
+        empty_center_indices = np.where(empty_center_mask.flatten())[0]
+
+        # Prepare objects for perimeter placement
+        object_symbols = []
+        for obj_name, count in params.objects.items():
+            object_symbols.extend([obj_name] * count)
+
+        # Check if objects fit on perimeter
+        if not params.too_many_is_ok and len(object_symbols) > empty_perimeter_count:
             raise ValueError(
-                f"Too many objects for available perimeter cells: {len(symbols)} > {empty_perimeter_count}"
+                f"Too many objects for available perimeter cells: {len(object_symbols)} > {empty_perimeter_count}"
             )
         else:
-            # everything will be filled with symbols, oh well
-            symbols = symbols[:empty_perimeter_count]
+            object_symbols = object_symbols[:empty_perimeter_count]
 
-        if not symbols:
-            return
-
-        # Shuffle the symbols
-        symbols = np.array(symbols).astype(str)
-        self.rng.shuffle(symbols)
-
-        # Shuffle the indices of empty perimeter cells
-        self.rng.shuffle(empty_perimeter_indices)
-
-        # Take only as many indices as we have symbols
-        selected_indices = empty_perimeter_indices[: len(symbols)]
+        # Check if agents fit in center
+        if not params.too_many_is_ok and len(agents) > empty_center_count:
+            raise ValueError(f"Too many agents for available center cells: {len(agents)} > {empty_center_count}")
+        else:
+            agents = agents[:empty_center_count]
 
         # Create a flat copy of the grid
         flat_grid = self.grid.flatten()
-        # Place symbols at the selected empty perimeter positions
-        flat_grid[selected_indices] = symbols
+
+        # Place objects on perimeter
+        if object_symbols:
+            object_symbols = np.array(object_symbols).astype(str)
+            self.rng.shuffle(object_symbols)
+            self.rng.shuffle(empty_perimeter_indices)
+            selected_perimeter_indices = empty_perimeter_indices[: len(object_symbols)]
+            flat_grid[selected_perimeter_indices] = object_symbols
+
+        # Place agents in center
+        if agents:
+            agents = np.array(agents).astype(str)
+            self.rng.shuffle(agents)
+            self.rng.shuffle(empty_center_indices)
+            selected_center_indices = empty_center_indices[: len(agents)]
+            flat_grid[selected_center_indices] = agents
+
         # Reshape back to original dimensions
         self.grid[:] = flat_grid.reshape(height, width)
