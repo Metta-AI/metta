@@ -212,7 +212,7 @@ def log_wandb_metrics(
     episode: int,
     timestep: int,
     episode_reward: float,
-    episode_length: int,
+    episode_length: float,
     actor_loss: float,
     critic_loss: float,
     total_loss: float,
@@ -343,8 +343,8 @@ def train() -> None:
         if episode % log_interval == 0:
             elapsed_time = time.time() - start_time
             sps = timestep / elapsed_time if elapsed_time > 0 else 0
-            avg_reward = np.mean(episode_rewards[-log_interval:])
-            avg_length = np.mean(episode_lengths[-log_interval:])
+            avg_reward = float(np.mean(episode_rewards[-log_interval:]))
+            avg_length = float(np.mean(episode_lengths[-log_interval:]))
             print(f"Episode {episode}, Timestep {timestep}")
             print(f"  Avg Reward: {avg_reward:.3f}")
             print(f"  Avg Length: {avg_length:.1f}")
