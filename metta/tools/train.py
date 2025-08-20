@@ -2,10 +2,9 @@ import logging
 import os
 import platform
 from logging import Logger
-from typing import Any, Optional
+from typing import Optional
 
 import torch
-from omegaconf import OmegaConf
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.policy_store import PolicyStore

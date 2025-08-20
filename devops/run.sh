@@ -19,7 +19,6 @@ echo "  - Arguments: $*"
 export PYTHONUNBUFFERED=1
 export PYTHONPATH=${PYTHONPATH:-}:$(pwd)
 export PYTHONOPTIMIZE=1
-export HYDRA_FULL_ERROR=1
 export WANDB_DIR="./wandb"
 export DATA_DIR=${DATA_DIR:-./train_dir}
 

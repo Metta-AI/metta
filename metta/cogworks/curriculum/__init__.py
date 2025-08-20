@@ -40,7 +40,7 @@ __all__ = [
 
 def tasks(env_config: EnvConfig) -> BucketedTaskGeneratorConfig:
     """Create a BucketedTaskGeneratorConfig from an EnvConfig."""
-    return BucketedTaskGeneratorConfig.from_env_config(env_config)
+    return BucketedTaskGeneratorConfig.from_env_config(env_config.model_copy(deep=True))
 
 
 def curriculum(task_generator: TaskGeneratorConfigUnion, num_tasks: Optional[int] = None) -> CurriculumConfig:

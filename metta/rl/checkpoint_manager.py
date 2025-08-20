@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 import torch
+
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
 from metta.agent.policy_record import PolicyRecord

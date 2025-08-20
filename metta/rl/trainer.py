@@ -1,15 +1,15 @@
 import logging
 import os
 from collections import defaultdict
-from typing import Any, Dict, cast
+from typing import cast
 
 import numpy as np
 import torch
 import torch.distributed
 from heavyball import ForeachMuon
-from metta.agent.agent_config import AgentConfig
 from torchrl.data import Composite
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
@@ -563,6 +563,9 @@ def train(
                                 agent_step=agent_step,
                                 epoch=epoch,
                                 wandb_run=wandb_run,
+                                metric_prefix="training_eval",
+                                step_metric_key="metric/agent_step",
+                                epoch_metric_key="metric/epoch",
                             )
 
                     stats_tracker.update_epoch_tracking(epoch + 1)
