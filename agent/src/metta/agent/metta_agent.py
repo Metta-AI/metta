@@ -109,7 +109,7 @@ class MettaAgent(nn.Module):
             feature_normalizations=self.feature_normalizations,
             env=env,
         )
-        
+
         logger.info(f"Using agent: {agent_cfg.name}")
         return policy
 
@@ -339,7 +339,6 @@ class MettaAgent(nn.Module):
             logger.info("Detected old checkpoint format - converting to new ComponentPolicy structure")
 
             # Extract the components and related attributes that belong in ComponentPolicy
-            from metta.agent.agent_config import AgentConfig, create_agent
 
             # First, break any circular references in the old state
             if "policy" in state and state.get("policy") is state:
