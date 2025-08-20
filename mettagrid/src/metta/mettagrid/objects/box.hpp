@@ -8,9 +8,15 @@
 
 // #MettagridConfig
 struct BoxConfig : public GridObjectConfig {
-    BoxConfig(TypeId type_id, const std::string& type_name, std::map<InventoryItem, InventoryQuantity> resources_to_create)
-        : GridObjectConfig(type_id, type_name), resources_to_create(resources_to_create) {}
+    BoxConfig(TypeId type_id,
+              const std::string& type_name,
+              std::map<InventoryItem, InventoryQuantity> resources_to_create,
+              std::map<InventoryItem, InventoryQuantity> resources_to_pick_up)
+        : GridObjectConfig(type_id, type_name),
+          resources_to_create(resources_to_create),
+          resources_to_pick_up(resources_to_pick_up) {}
     std::map<InventoryItem, InventoryQuantity> resources_to_create;
+    std::map<InventoryItem, InventoryQuantity> resources_to_pick_up;
   };
 
 class Box : public HasInventory {
@@ -18,6 +24,7 @@ public:
     GridObjectId creator_agent_object_id;
     unsigned char creator_agent_id;
     std::map<InventoryItem, InventoryQuantity> resources_to_create;
+    std::map<InventoryItem, InventoryQuantity> resources_to_pick_up;
 
     Box(GridCoord r,
         GridCoord c,
@@ -26,7 +33,8 @@ public:
         unsigned char creator_agent_id)
         : creator_agent_object_id(creator_agent_object_id),
           creator_agent_id(creator_agent_id),
-          resources_to_create(config.resources_to_create) {
+          resources_to_create(config.resources_to_create),
+          resources_to_pick_up(config.resources_to_pick_up) {
         GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::ObjectLayer));
     }
 

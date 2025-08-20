@@ -22,6 +22,7 @@ NAME_TO_CHAR: dict[str, list[str]] = {
     "generator_green": ["G"],
     # other objects
     "altar": ["_", "a"],
+    "box": ["B"],
     "armory": ["o"],
     "lasery": ["S"],
     "lab": ["L"],
