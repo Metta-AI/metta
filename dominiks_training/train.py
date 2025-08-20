@@ -4,6 +4,7 @@ import configparser
 import random
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 from typing import cast
 
@@ -12,6 +13,11 @@ import torch
 import torch.optim as optim
 from gymnasium.spaces import Discrete, MultiDiscrete
 from omegaconf import DictConfig, OmegaConf
+
+try:
+    import wandb
+except ImportError:
+    wandb = None
 
 # Add the parent directory to path so we can import from metta
 sys.path.append(str(Path(__file__).parent.parent))
@@ -175,6 +181,68 @@ def compute_actor_critic_loss(
     return actor_loss, critic_loss
 
 
+def init_wandb(config: configparser.ConfigParser) -> bool:
+    """Initialize wandb if enabled and available."""
+    if not config.getboolean("wandb", "enabled", fallback=False):
+        return False
+
+    if wandb is None:
+        print("Warning: wandb is not installed. Logging disabled.")
+        return False
+
+    # Generate run name with dff_ prefix and timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_name = f"dff_{timestamp}"
+
+    wandb.init(
+        project=config.get("wandb", "project"),
+        entity=config.get("wandb", "entity"),
+        name=run_name,
+        config={
+            "total_timesteps": config.getint("training", "total_timesteps"),
+            "learning_rate": config.getfloat("training", "learning_rate"),
+            "gamma": config.getfloat("training", "gamma"),
+            "gae_lambda": config.getfloat("training", "gae_lambda"),
+        },
+    )
+    return True
+
+
+def log_wandb_metrics(
+    episode: int,
+    timestep: int,
+    episode_reward: float,
+    episode_length: int,
+    actor_loss: float,
+    critic_loss: float,
+    total_loss: float,
+    sps: float,
+) -> None:
+    """Log metrics to wandb if initialized."""
+    if wandb is None or wandb.run is None:
+        return
+
+    wandb.log(
+        {
+            "episode": episode,
+            "timestep": timestep,
+            "episode_reward": episode_reward,
+            "episode_length": episode_length,
+            "actor_loss": actor_loss,
+            "critic_loss": critic_loss,
+            "total_loss": total_loss,
+            "sps": sps,
+        },
+        step=timestep,
+    )
+
+
+def finish_wandb() -> None:
+    """Finish wandb run if active."""
+    if wandb is not None and wandb.run is not None:
+        wandb.finish()
+
+
 def train() -> None:
     # Load configuration
     config_path = Path(__file__).parent / "config.ini"
@@ -225,6 +293,13 @@ def train() -> None:
     # Training storage
     episode_rewards = []
     episode_lengths = []
+
+    # Initialize wandb
+    wandb_enabled = init_wandb(config)
+    if wandb_enabled:
+        print("WandB logging enabled")
+    else:
+        print("WandB logging disabled")
 
     print("Starting training...")
     print(f"Using device: {device}")
@@ -279,6 +354,18 @@ def train() -> None:
             print(f"  SPS (Steps/sec): {sps:.1f}")
             print(f"  Elapsed: {elapsed_time:.1f}s")
 
+            # Log to wandb
+            log_wandb_metrics(
+                episode=episode,
+                timestep=timestep,
+                episode_reward=avg_reward,
+                episode_length=avg_length,
+                actor_loss=actor_loss.item(),
+                critic_loss=critic_loss.item(),
+                total_loss=total_loss.item(),
+                sps=sps,
+            )
+
         # Checkpoint
         if episode % checkpoint_interval == 0:
             checkpoint_path = Path(__file__).parent / f"checkpoint_{episode}.pt"
@@ -299,6 +386,9 @@ def train() -> None:
     final_path = Path(__file__).parent / "final_model.pt"
     torch.save(agent.state_dict(), final_path)
     print(f"Saved final model: {final_path}")
+
+    # Finish wandb
+    finish_wandb()
 
 
 if __name__ == "__main__":
