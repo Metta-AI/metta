@@ -94,88 +94,66 @@ class LearningProgressCurriculum(Curriculum):
     """LearningProgressCurriculum samples tasks based on learning progress stored in each task."""
 
     def __init__(self, config: LearningProgressCurriculumConfig, seed: int = 0):
+        # Create learning progress algorithm hypers
+        from .learning_progress_algorithm import LearningProgressHypers
+
+        lp_hypers = LearningProgressHypers(
+            ema_timescale=config.ema_timescale,
+            progress_smoothing=config.progress_smoothing,
+            num_active_tasks=config.num_active_tasks,
+            rand_task_rate=config.rand_task_rate,
+            sample_threshold=10,  # Default value
+            memory=config.memory,
+        )
+
+        # Update config to include algorithm hypers
+        config.algorithm_hypers = lp_hypers
+
         super().__init__(config, seed)
         self._config: LearningProgressCurriculumConfig = config
-        self._learning_progress_tasks: List[LearningProgressCurriculumTask] = []
-        self._task_weights: List[float] = []
 
     def _create_task(self) -> LearningProgressCurriculumTask:
         """Create a new LearningProgressCurriculumTask."""
-        # Use base class _create_task to get basic task creation
-        base_task = super()._create_task()
+        # Generate task_id and env_cfg using base class logic
+        task_id = self._rng.randint(0, self._config.max_task_id)
+        while task_id in self._task_ids:
+            task_id = self._rng.randint(0, self._config.max_task_id)
+        self._task_ids.add(task_id)
+        env_cfg = self._task_generator.get_task(task_id)
 
-        # Create LearningProgressCurriculumTask with same parameters
-        lp_task = LearningProgressCurriculumTask(self._config, base_task._task_id, base_task._env_cfg)
+        # Create LearningProgressCurriculumTask
+        task = LearningProgressCurriculumTask(self._config, task_id, env_cfg)
+        self._tasks[task_id] = task
+        self._num_created += 1
+        return task
 
-        # Add to our learning progress task list
-        self._learning_progress_tasks.append(lp_task)
-
-        # Remove the base task from the tasks dict since we're using our own list
-        del self._tasks[base_task._task_id]
-
-        return lp_task
-
-    def _choose_task(self) -> LearningProgressCurriculumTask:
-        """Choose a task based on learning progress."""
-        self._update_task_weights()
-
-        if not self._learning_progress_tasks:
-            # If no tasks, create one
-            return self._create_task()
-
-        # Simple weighted sampling based on learning progress
-        if self._task_weights:
-            task_idx = self._rng.choices(range(len(self._learning_progress_tasks)), weights=self._task_weights)[0]
-            return self._learning_progress_tasks[task_idx]
-        else:
-            return self._learning_progress_tasks[self._rng.randint(0, len(self._learning_progress_tasks))]
+    def _choose_task(self) -> CurriculumTask:
+        """Choose a task based on learning progress using the integrated algorithm."""
+        # Use the base class _choose_task which now uses the algorithm
+        return super()._choose_task()
 
     def _evict_task(self):
-        """Evict a learning progress task from the population."""
-        if not self._learning_progress_tasks:
-            return
-
-        # Choose task to evict
-        task_to_evict = self._rng.choice(self._learning_progress_tasks)
-
-        # Remove from our list
-        self._learning_progress_tasks.remove(task_to_evict)
-
-        # Remove from task_ids tracking set
-        if task_to_evict._task_id in self._task_ids:
-            self._task_ids.remove(task_to_evict._task_id)
-
-        self._num_evicted += 1
-
-    def _update_task_weights(self):
-        """Update task weights based on learning progress of each task."""
-        if not self._learning_progress_tasks:
-            self._task_weights = []
-            return
-
-        # Get learning progress for each task
-        learning_progress = [task.get_learning_progress() for task in self._learning_progress_tasks]
-
-        # Simple normalization
-        total = sum(learning_progress) + 1e-6
-        self._task_weights = [lp / total for lp in learning_progress]
+        """Evict a task from the population."""
+        # Use base class eviction logic
+        super()._evict_task()
 
     def get_curriculum_stats(self) -> dict[str, float]:
         """Return learning progress statistics."""
-        if not self._learning_progress_tasks:
+        if not self._tasks:
             return {"lp/num_active_tasks": 0.0}
 
         # Collect learning progress and success rates from tasks
-        learning_progress = [task.get_learning_progress() for task in self._learning_progress_tasks]
-        success_rates = [task.get_success_rate() for task in self._learning_progress_tasks]
+        learning_progress = []
+        success_rates = []
+
+        for task in self._tasks.values():
+            if isinstance(task, LearningProgressCurriculumTask):
+                learning_progress.append(task.get_learning_progress())
+                success_rates.append(task.get_success_rate())
 
         stats: dict[str, float] = {
-            "lp/num_active_tasks": float(len(self._learning_progress_tasks)),
+            "lp/num_active_tasks": float(len(self._tasks)),
         }
-
-        if self._task_weights:
-            stats["lp/mean_task_weight"] = float(np.mean(self._task_weights))
-            stats["lp/num_zero_weight_tasks"] = int(np.sum(np.array(self._task_weights) == 0))
 
         if learning_progress:
             stats["lp/mean_learning_progress"] = float(np.mean(learning_progress))
@@ -188,3 +166,9 @@ class LearningProgressCurriculum(Curriculum):
             stats["lp/max_success_rate"] = float(np.max(success_rates))
 
         return stats
+
+    def stats(self) -> dict:
+        """Override base stats method to include learning progress statistics."""
+        base_stats = super().stats()
+        lp_stats = self.get_curriculum_stats()
+        return {**base_stats, **lp_stats}

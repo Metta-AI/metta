@@ -2,12 +2,24 @@ from typing import Optional
 
 from metta.mettagrid.mettagrid_config import EnvConfig
 
-from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
+from .curriculum import (
+    Curriculum,
+    CurriculumAlgorithm,
+    CurriculumAlgorithmHypers,
+    CurriculumConfig,
+    CurriculumTask,
+    DiscreteRandomCurriculum,
+    DiscreteRandomHypers,
+)
 from .curriculum_env import CurriculumEnv
 from .learning_progress import (
     LearningProgressCurriculum,
     LearningProgressCurriculumConfig,
     LearningProgressCurriculumTask,
+)
+from .learning_progress_algorithm import (
+    LearningProgressAlgorithm,
+    LearningProgressHypers,
 )
 from .task import Task
 from .task_generator import (
@@ -27,9 +39,15 @@ __all__ = [
     "Curriculum",
     "CurriculumConfig",
     "CurriculumTask",
+    "CurriculumAlgorithm",
+    "CurriculumAlgorithmHypers",
+    "DiscreteRandomCurriculum",
+    "DiscreteRandomHypers",
     "LearningProgressCurriculum",
     "LearningProgressCurriculumConfig",
     "LearningProgressCurriculumTask",
+    "LearningProgressAlgorithm",
+    "LearningProgressHypers",
     "Task",
     "TaskGenerator",
     "TaskGeneratorConfig",
