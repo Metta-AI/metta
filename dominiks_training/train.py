@@ -278,6 +278,8 @@ def train() -> None:
     log_interval = config.getint("logging", "log_interval")
     checkpoint_interval = config.getint("logging", "checkpoint_interval")
 
+    print(f"Checkpoint interval: {checkpoint_interval} timesteps")
+
     # Set random seeds
     random.seed(42)
     np.random.seed(42)
@@ -387,6 +389,22 @@ def train() -> None:
         episode_rewards.append(rollout_reward)
         episode_lengths.append(rollout_steps)
 
+        # Checkpoint - only check at rollout boundaries
+        if timestep - last_checkpoint_timestep >= checkpoint_interval:
+            checkpoint_path = Path(__file__).parent / f"checkpoint_{timestep}.pt"
+            torch.save(
+                {
+                    "agent_state_dict": agent.state_dict(),
+                    "optimizer_state_dict": optimizer.state_dict(),
+                    "rollout": rollout,
+                    "timestep": timestep,
+                },
+                checkpoint_path,
+            )
+            steps_since_last = timestep - last_checkpoint_timestep
+            print(f"Saved checkpoint: {checkpoint_path} (after {steps_since_last} steps)")
+            last_checkpoint_timestep = timestep
+
         # Logging
         if rollout % log_interval == 0:
             elapsed_time = time.time() - start_time
@@ -413,21 +431,6 @@ def train() -> None:
                 total_loss=total_loss.item(),
                 sps=sps,
             )
-
-        # Checkpoint
-        if timestep - last_checkpoint_timestep >= checkpoint_interval:
-            checkpoint_path = Path(__file__).parent / f"checkpoint_{timestep}.pt"
-            torch.save(
-                {
-                    "agent_state_dict": agent.state_dict(),
-                    "optimizer_state_dict": optimizer.state_dict(),
-                    "rollout": rollout,
-                    "timestep": timestep,
-                },
-                checkpoint_path,
-            )
-            print(f"Saved checkpoint: {checkpoint_path}")
-            last_checkpoint_timestep = timestep
 
     print("Training completed!")
 
