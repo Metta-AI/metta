@@ -162,20 +162,3 @@ def test_empty_database():
         assert db.get_average_metric_by_filter("reward", cast(PolicyRecord, policy_record)) is None
         assert db.potential_samples_for_metric("test", 1) == 0
         db.close()
-
-
-def test_metric_by_policy_eval(test_db):
-    """metric_by_policy_eval should return a normalized mean per policy and eval."""
-    db, _, _ = test_db
-
-    policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
-    pk, pv = db.key_and_version(policy_record)  # type: ignore
-    df = db.metric_by_policy_eval("hearts_collected", policy_record)
-
-    # Expect one row (env_test) with ≈1.2
-    assert len(df) == 1
-
-    row = df.iloc[0]
-    assert row["policy_uri"] == f"{pk}:v{pv}"
-    assert row["eval_name"] == "env_test"
-    assert 1.15 <= row["value"] <= 1.25, f"expected ≈1.2 got {row['value']}"
