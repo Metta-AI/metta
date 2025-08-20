@@ -26,6 +26,7 @@ from tensordict import TensorDict
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.core import Curriculum, SingleTrialTask, Task
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
@@ -396,9 +397,18 @@ class Simulation:
         if self._npc_pr is not None:
             self._npc_pr.policy.reset_memory()
 
+        # Track iterations for heartbeat
+        iteration_count = 0
+        heartbeat_interval = 100  # Record heartbeat every 100 iterations
+
         while (self._episode_counters < self._min_episodes).any() and (time.time() - self._t0) < self._max_time_s:
             actions_np = self.generate_actions()
             self.step_simulation(actions_np)
+
+            # Record heartbeat periodically
+            iteration_count += 1
+            if iteration_count % heartbeat_interval == 0:
+                record_heartbeat()
 
         return self.end_simulation()
 
