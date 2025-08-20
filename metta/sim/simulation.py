@@ -529,6 +529,10 @@ class Simulation:
         """Get the policy record used in this simulation."""
         return self._policy_pr
 
+    @property
+    def name(self) -> str:
+        return self._name
+
     def get_policy_state(self):
         """Get the policy state for memory manipulation.
 
