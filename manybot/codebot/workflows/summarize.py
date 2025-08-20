@@ -5,14 +5,14 @@ Implements the summarizer pattern as described in the codebot README - takes a s
 and produces a token-constrained summary optimized for AI consumption.
 """
 
-from pathlib import Path
-from typing import List, Dict, Optional, Literal
 import logging
+from pathlib import Path
+from typing import List, Literal
 
 from pydantic import BaseModel, Field, validator
 from pydantic_ai import Agent, ModelRetry
 
-from ..workflow import Command, CommandOutput, ExecutionContext, FileChange
+from manybot.codebot.workflow import Command, CommandOutput, ExecutionContext, FileChange
 
 logger = logging.getLogger(__name__)
 
@@ -81,12 +81,9 @@ class SummarizeCommand(Command):
             system_prompt=self.prompt_template.format(token_limit=token_limit),
         )
 
-        # Prepare context
-        summary_context = {"files": context.files, "focus_areas": self._identify_focus_areas(context)}
-
         # Run agent with retry logic
         try:
-            result = await summarizer.run(summary_context)
+            result = await summarizer.run({"files": context.files})
             summary = result.data
 
             # Convert to markdown
@@ -108,57 +105,14 @@ class SummarizeCommand(Command):
             logger.warning(f"Retrying summary: {retry.message}")
             raise
 
-    def _identify_focus_areas(self, context: ExecutionContext) -> List[str]:
-        """Identify areas to focus analysis on based on file types and patterns"""
-        focus_areas = []
-
-        # Analyze file extensions
-        extensions = set()
-        for filepath in context.files.keys():
-            ext = Path(filepath).suffix.lower()
-            if ext:
-                extensions.add(ext)
-
-        # Suggest focus areas based on extensions
-        if ".py" in extensions:
-            focus_areas.append("Python architecture and class hierarchies")
-        if ".js" in extensions or ".ts" in extensions:
-            focus_areas.append("JavaScript/TypeScript module structure")
-        if ".java" in extensions:
-            focus_areas.append("Java package organization and design patterns")
-        if ".rs" in extensions:
-            focus_areas.append("Rust module system and ownership patterns")
-
-        # Look for configuration files
-        config_files = [
-            f
-            for f in context.files.keys()
-            if any(
-                config_name in Path(f).name.lower()
-                for config_name in ["config", "settings", "package.json", "cargo.toml", "pyproject.toml"]
-            )
-        ]
-        if config_files:
-            focus_areas.append("Configuration and dependency management")
-
-        # Look for test files
-        test_files = [
-            f
-            for f in context.files.keys()
-            if any(test_indicator in f.lower() for test_indicator in ["test", "spec", "__test__"])
-        ]
-        if test_files:
-            focus_areas.append("Testing patterns and coverage")
-
-        return focus_areas or ["General code structure and patterns"]
-
 
 class SummaryCache:
-    """Cache summaries to avoid recomputation"""
+    """Cache summaries to avoid recomputation - sits on top of SummarizeCommand"""
 
     def __init__(self, cache_dir: Path = Path(".codebot/summaries")):
         self.cache_dir = cache_dir
         self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.summarize_command = SummarizeCommand()
 
     def _generate_cache_key(self, files: List[str], token_limit: int) -> str:
         """Generate cache key from file paths + modification times + token limit"""
@@ -181,41 +135,30 @@ class SummaryCache:
         cache_input = f"{token_limit}:" + "|".join(file_info)
         return hashlib.md5(cache_input.encode()).hexdigest()
 
-    def _gather_file_contents(self, files: List[str]) -> Dict[str, str]:
-        """Gather file contents for caching"""
-        contents = {}
-        for filepath in files:
-            try:
-                path = Path(filepath)
-                if path.exists() and path.is_file():
-                    contents[filepath] = path.read_text(encoding="utf-8")
-            except Exception as e:
-                logger.warning(f"Could not read {filepath}: {e}")
-        return contents
-
-    async def get_or_create_summary(self, files: List[str], token_limit: int = 2000) -> str:
-        """Get cached summary or create new one"""
+    async def get_or_create_summary(self, context: ExecutionContext, token_limit: int = 2000) -> CommandOutput:
+        """Get cached summary or create new one using SummarizeCommand"""
 
         # Generate cache key from file paths + modification times + token limit
-        cache_key = self._generate_cache_key(files, token_limit)
+        cache_key = self._generate_cache_key(list(context.files.keys()), token_limit)
         cache_path = self.cache_dir / f"{cache_key}.md"
 
         if cache_path.exists():
-            return cache_path.read_text()
+            # Return cached summary as CommandOutput
+            cached_content = cache_path.read_text()
+            return CommandOutput(
+                file_changes=[FileChange(filepath=".codebot/summaries/latest.md", content=cached_content)],
+                summary=f"Retrieved cached summary for {len(context.files)} files",
+                metadata={"cached": True, "cache_key": cache_key},
+            )
 
-        # Create new summary using PydanticAI
-        summarizer = Agent(
-            result_type=SummaryResult,
-            system_prompt=f"""Create a summary of the provided code that:
-            1. Captures the essential functionality and structure
-            2. Preserves important technical details
-            3. Stays under {token_limit} tokens
-            4. Is optimized for another LLM to quickly understand the codebase""",
-        )
+        # Cache miss - delegate to SummarizeCommand for actual AI work
+        logger.info(f"Cache miss for key {cache_key}, generating new summary")
+        result = await self.summarize_command.execute(context, token_limit)
 
-        result = await summarizer.run({"files": self._gather_file_contents(files), "token_limit": token_limit})
+        # Cache the generated summary
+        if result.file_changes:
+            summary_content = result.file_changes[0].content
+            cache_path.write_text(summary_content)
+            logger.info(f"Cached summary with key {cache_key}")
 
-        summary = result.data.to_markdown()
-        cache_path.write_text(summary)
-
-        return summary
+        return result

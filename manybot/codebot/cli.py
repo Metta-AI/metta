@@ -7,15 +7,14 @@ with multiple execution modes, built on PydanticAI.
 """
 
 import asyncio
-import sys
-from pathlib import Path
-from typing import List, Optional
 import logging
+import sys
+from typing import List, Optional
 
 import typer
 from typing_extensions import Annotated
 
-from .workflow import ContextManager, CommandOutput
+from .workflow import CommandOutput, ContextManager
 from .workflows.summarize import SummarizeCommand, SummaryCache
 
 # Configure logging
@@ -73,51 +72,59 @@ def summarize(
         codebot summarize -t 5000            # Higher token limit
         codebot summarize --no-cache         # Force regeneration
     """
+
+    def handle_result(result: CommandOutput):
+        """Handle CommandOutput consistently for both cached and fresh results"""
+        # Handle custom output path if specified
+        if output and result.file_changes:
+            result.file_changes[0].filepath = output
+
+        # Apply all file changes
+        for change in result.file_changes:
+            change.apply()
+
+        # Output results
+        typer.echo("✅ " + result.summary)
+
+        if result.file_changes:
+            for change in result.file_changes:
+                typer.echo(f"📁 Created: {change.filepath}")
+
+        # Show metadata
+        if result.metadata:
+            metadata = result.metadata
+            typer.echo(f"📊 Components: {metadata.get('component_count', 'N/A')}")
+            typer.echo(f"📦 Dependencies: {metadata.get('dependency_count', 'N/A')}")
+            typer.echo(f"🔍 Patterns: {metadata.get('pattern_count', 'N/A')}")
+            typer.echo(f"🎯 Token limit: {token_limit}")
+
     try:
         path_list = paths if paths else ["."]
 
         async def run_summarize():
-            if cached:
-                # Try cache first
-                cache = SummaryCache()
-                try:
-                    summary_content = await cache.get_or_create_summary(path_list, token_limit)
-                    typer.echo("✅ Summary generated successfully!")
-                    typer.echo(f"📁 Output: {output or '.codebot/summaries/latest.md'}")
-                    return
-                except Exception as e:
-                    logger.warning(f"Cache failed, running fresh: {e}")
-
-            # Run fresh summarization
+            # Always gather context first
             context_manager = ContextManager()
             context = context_manager.gather_context(path_list)
 
             logger.info(f"Analyzing {len(context.files)} files ({context.token_count:,} input tokens)")
 
-            # Create command instance following README pattern
-            summarize_cmd = SummarizeCommand()
-            result = await summarize_cmd.execute(context, token_limit=token_limit)
+            result = None
 
-            # Handle custom output path if specified
-            if output and result.file_changes:
-                # Update the file path
-                result.file_changes[0].filepath = output
-                result.file_changes[0].apply()
+            if cached:
+                # Try cache first
+                try:
+                    cache = SummaryCache()
+                    result = await cache.get_or_create_summary(context, token_limit)
+                except Exception as e:
+                    logger.warning(f"Cache failed, running fresh: {e}")
 
-            # Output results
-            typer.echo("✅ " + result.summary)
+            # Fallback to fresh summarization if cache failed or disabled
+            if result is None:
+                summarize_cmd = SummarizeCommand()
+                result = await summarize_cmd.execute(context, token_limit=token_limit)
 
-            if result.file_changes:
-                for change in result.file_changes:
-                    typer.echo(f"📁 Created: {change.filepath}")
-
-            # Show metadata
-            if result.metadata:
-                metadata = result.metadata
-                typer.echo(f"📊 Components: {metadata.get('component_count', 'N/A')}")
-                typer.echo(f"📦 Dependencies: {metadata.get('dependency_count', 'N/A')}")
-                typer.echo(f"🔍 Patterns: {metadata.get('pattern_count', 'N/A')}")
-                typer.echo(f"🎯 Token limit: {token_limit}")
+            # Handle result consistently
+            handle_result(result)
 
         asyncio.run(run_summarize())
 
@@ -125,7 +132,7 @@ def summarize(
         typer.echo(f"❌ Error: {e}", err=True)
         if logger.isEnabledFor(logging.DEBUG):
             logger.exception("Detailed error:")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()

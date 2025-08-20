@@ -4,11 +4,11 @@ Core workflow foundation for AI-powered development assistance.
 Provides the base classes and patterns for structured agent operations using PydanticAI.
 """
 
-from pathlib import Path
-from typing import Any, Dict, List, Optional, TypeVar, Union, Literal
 import logging
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional, TypeVar
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 from pydantic_ai import Agent
 
 logger = logging.getLogger(__name__)
