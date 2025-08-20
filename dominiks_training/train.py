@@ -19,7 +19,7 @@ from omegaconf import DictConfig, OmegaConf
 try:
     import wandb
 except ImportError:
-    wandb = None
+    wandb = None  # type: ignore
 
 # Add the parent directory to path so we can import from metta
 sys.path.append(str(Path(__file__).parent.parent))
@@ -41,12 +41,12 @@ def collect_rollout(
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Collect rollout experience from vectorized environments for GAE actor-critic."""
     total_agents = vecenv.num_agents  # This is num_envs * agents_per_env
-    observations = []
-    actions = []
-    rewards = []
-    values = []
-    next_values = []
-    log_probs = []
+    observations: list[np.ndarray] = []
+    actions: list[np.ndarray] = []
+    rewards: list[np.ndarray] = []
+    values: list[np.ndarray] = []
+    next_values: list[np.ndarray] = []
+    log_probs: list[np.ndarray] = []
 
     # Get initial observations
     obs, _ = vecenv.reset()
@@ -94,22 +94,22 @@ def collect_rollout(
             next_values.append(next_value.squeeze().cpu().numpy())
 
     # Convert lists to arrays and reshape for processing
-    observations = np.array(observations).swapaxes(0, 1)  # (total_agents, num_steps, obs_dim)
-    actions = np.array(actions).swapaxes(0, 1)  # (total_agents, num_steps)
-    rewards = np.array(rewards).swapaxes(0, 1)  # (total_agents, num_steps)
-    values = np.array(values).swapaxes(0, 1)  # (total_agents, num_steps)
-    next_values = np.array(next_values).swapaxes(0, 1)  # (total_agents, num_steps)
-    log_probs = np.array(log_probs).swapaxes(0, 1)  # (total_agents, num_steps)
+    obs_array = np.array(observations).swapaxes(0, 1)  # (total_agents, num_steps, obs_dim)
+    actions_array = np.array(actions).swapaxes(0, 1)  # (total_agents, num_steps)
+    rewards_array = np.array(rewards).swapaxes(0, 1)  # (total_agents, num_steps)
+    values_array = np.array(values).swapaxes(0, 1)  # (total_agents, num_steps)
+    next_values_array = np.array(next_values).swapaxes(0, 1)  # (total_agents, num_steps)
+    log_probs_array = np.array(log_probs).swapaxes(0, 1)  # (total_agents, num_steps)
 
     # Flatten all arrays for batch processing
-    observations = observations.reshape(-1, observations.shape[-1])
-    actions = actions.flatten()
-    rewards = rewards.flatten()
-    values = values.flatten()
-    next_values = next_values.flatten()
-    log_probs = log_probs.flatten()
+    obs_flat = obs_array.reshape(-1, obs_array.shape[-1])
+    actions_flat = actions_array.flatten()
+    rewards_flat = rewards_array.flatten()
+    values_flat = values_array.flatten()
+    next_values_flat = next_values_array.flatten()
+    log_probs_flat = log_probs_array.flatten()
 
-    return observations, actions, rewards, values, next_values, log_probs
+    return obs_flat, actions_flat, rewards_flat, values_flat, next_values_flat, log_probs_flat
 
 
 def create_agent(obs_dim: int, action_dim: int, device: str = "cpu") -> ActorCriticAgent:
