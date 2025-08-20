@@ -1,50 +1,43 @@
 # Metta Tools Documentation
 
-This document provides comprehensive documentation for all tools in the `./tools/` directory. These tools provide essential functionality for training, evaluation, visualization, and development workflows in the Metta ecosystem.
+This document provides comprehensive documentation for all tools in the `./tools/` directory. These tools provide
+essential functionality for training, evaluation, visualization, and development workflows in the Metta ecosystem.
 
 ## Quick Reference Table
 
-| Category | Tool | Purpose | GPU Required | Database Access |
-|----------|------|---------|--------------|-----------------|
-| **Training** | `train.py` | Train policies with PPO algorithm | ✓ | Optional |
-| | `sweep_init.py` | Initialize hyperparameter sweep experiments | ✗ | ✗ |
-| | `sweep_eval.py` | Evaluate policies from sweep runs | ✓ | ✗ |
-| | `sweep_config_utils.py` | Helper utilities for sweep configurations | ✗ | ✗ |
-| **Evaluation** | `sim.py` | Run policy evaluation simulations | ✓ | ✓ |
-| | `analyze.py` | Analyze evaluation results and generate reports | ✗ | ✓ |
-| **Visualization** | `renderer.py` | Real-time ASCII/Miniscope rendering of policies | ✓ | ✗ |
-| | `replay.py` | Generate and view replay files in MettaScope | ✓ | ✗ |
-| | `play.py` | Interactive gameplay as a Metta agent | ✗ | ✗ |
-| | `dashboard.py` | Generate dashboard data for web visualization | ✗ | ✓ |
-| **Map Tools** | `map/gen.py` | Generate maps from configuration files | ✗ | ✗ |
-| | `map/gen_scene.py` | Generate maps from scene templates | ✗ | ✗ |
-| | `map/view.py` | View stored maps in various formats | ✗ | ✗ |
-| | `map/normalize_ascii_map.py` | Normalize ASCII map characters | ✗ | ✗ |
-| | `map/normalize_scene_patterns.py` | Normalize WFC/ConvChain patterns | ✗ | ✗ |
-| **Utilities** | `validate_config.py` | Validate and print Hydra configurations | ✗ | ✗ |
-| | `stats_duckdb_cli.py` | Interactive DuckDB CLI for stats analysis | ✗ | ✓ |
-| | `upload_map_imgs.py` | Upload map images to S3 | ✗ | ✗ |
-| | `dump_src.py` | Dump source files for LLM context | ✗ | ✗ |
-| | `autotune.py` | Auto-tune vectorization parameters | ✗ | ✗ |
+| Category          | Tool                              | Purpose                                         | GPU Required | Database Access |
+| ----------------- | --------------------------------- | ----------------------------------------------- | ------------ | --------------- |
+| **Training**      | `train.py`                        | Train policies with PPO algorithm               | ✓            | Optional        |
+|                   | `sweep_init.py`                   | Initialize hyperparameter sweep experiments     | ✗            | ✗               |
+|                   | `sweep_eval.py`                   | Evaluate policies from sweep runs               | ✓            | ✗               |
+|                   | `sweep_config_utils.py`           | Helper utilities for sweep configurations       | ✗            | ✗               |
+| **Evaluation**    | `sim.py`                          | Run policy evaluation simulations               | ✓            | ✓               |
+|                   | `analyze.py`                      | Analyze evaluation results and generate reports | ✗            | ✓               |
+| **Visualization** | `renderer.py`                     | Real-time ASCII/Miniscope rendering of policies | ✓            | ✗               |
+|                   | `replay.py`                       | Generate and view replay files in MettaScope    | ✓            | ✗               |
+|                   | `play.py`                         | Interactive gameplay as a Metta agent           | ✗            | ✗               |
+|                   | `dashboard.py`                    | Generate dashboard data for web visualization   | ✗            | ✓               |
+| **Map Tools**     | `map/gen.py`                      | Generate maps from configuration files          | ✗            | ✗               |
+|                   | `map/gen_scene.py`                | Generate maps from scene templates              | ✗            | ✗               |
+|                   | `map/view.py`                     | View stored maps in various formats             | ✗            | ✗               |
+|                   | `map/normalize_ascii_map.py`      | Normalize ASCII map characters                  | ✗            | ✗               |
+|                   | `map/normalize_scene_patterns.py` | Normalize WFC/ConvChain patterns                | ✗            | ✗               |
+| **Utilities**     | `validate_config.py`              | Validate and print Hydra configurations         | ✗            | ✗               |
+|                   | `stats_duckdb_cli.py`             | Interactive DuckDB CLI for stats analysis       | ✗            | ✓               |
+|                   | `upload_map_imgs.py`              | Upload map images to S3                         | ✗            | ✗               |
+|                   | `dump_src.py`                     | Dump source files for LLM context               | ✗            | ✗               |
+|                   | `autotune.py`                     | Auto-tune vectorization parameters              | ✗            | ✗               |
 
 ## Tool Execution
 
-All tools use the `#!/usr/bin/env -S uv run` shebang, which enables direct execution with automatic dependency management:
+All tools use the `#!/usr/bin/env -S uv run` shebang, which enables direct execution with automatic dependency
+management:
 
 ```bash
 ./tools/train.py  # Direct execution
 # or
 uv run tools/train.py  # Explicit uv execution
 ```
-
-## Hydra Configuration System
-
-Most tools use [Hydra](https://hydra.cc/) for configuration management. Key concepts:
-
-- **Config Path**: Configurations are loaded from `../configs/` relative to the tools directory
-- **Config Name**: Each tool has a default config (e.g., `train_job`, `sim_job`)
-- **Overrides**: Command-line overrides use `key=value` or `+key=value` syntax
-- **Config Groups**: Modular configs can be composed (e.g., `env=mettagrid/ants`)
 
 ## Training Tools
 
@@ -53,6 +46,7 @@ Most tools use [Hydra](https://hydra.cc/) for configuration management. Key conc
 **Purpose**: Train Metta policies using PPO (Proximal Policy Optimization) algorithm.
 
 This is the primary training tool in the Metta ecosystem, supporting:
+
 - Distributed training across multiple GPUs/nodes
 - Automatic hyperparameter configuration via Hydra
 - Real-time metrics tracking with Wandb
@@ -60,12 +54,14 @@ This is the primary training tool in the Metta ecosystem, supporting:
 - Configurable evaluation during training
 
 The tool integrates with:
+
 - PolicyStore: For saving and versioning trained policies
 - StatsClient: For metrics logging and analysis
 - WandbContext: For experiment tracking and visualization
 - SimulationSuite: For periodic evaluation during training
 
 **Usage**:
+
 ```bash
 # Basic training with default settings
 ./tools/train.py
@@ -81,6 +77,7 @@ The tool integrates with:
 ```
 
 **Key Features**:
+
 - Automatic worker count detection based on CPU cores
 - Distributed training with PyTorch DDP
 - Wandb integration for experiment tracking
@@ -88,11 +85,13 @@ The tool integrates with:
 - Configurable evaluation during training
 
 **Dependencies**:
+
 - GPU recommended for faster training
 - Optional: Stats database for metrics logging
 - Optional: Wandb for experiment tracking
 
 **Configuration**:
+
 - Default config: `configs/train_job.yaml`
 - Key parameters: `trainer.*`, `agent.*`, `env.*`
 
@@ -101,18 +100,21 @@ The tool integrates with:
 **Purpose**: Initialize hyperparameter sweep experiments using Wandb sweeps and Metta Protein optimization.
 
 This tool sets up systematic hyperparameter search experiments by:
+
 - Creating Wandb sweep configurations with unique identifiers
 - Initializing the Metta Protein Bayesian optimization algorithm
 - Generating initial hyperparameter suggestions
 - Setting up distributed sweep infrastructure
 
 The Protein algorithm provides intelligent hyperparameter suggestions based on:
+
 - Bayesian optimization with Gaussian processes
 - Multi-objective optimization support
 - Adaptive exploration/exploitation balancing
 - Historical performance tracking
 
 **Sweep initialization process**:
+
 1. Check if sweep already exists (idempotent operation)
 2. Create Wandb sweep with generated ID
 3. Initialize Protein with parameter bounds
@@ -120,6 +122,7 @@ The Protein algorithm provides intelligent hyperparameter suggestions based on:
 5. Save configuration for distributed workers
 
 **Usage**:
+
 ```bash
 # Initialize a new sweep
 ./tools/sweep_init.py sweep_name=lr_search sweep_params=configs/sweep/fast.yaml
@@ -135,12 +138,14 @@ NODE_INDEX=1 ./tools/sweep_init.py sweep_name=distributed_exp
 ```
 
 **Key Features**:
+
 - Creates Wandb sweep with unique ID
 - Generates initial hyperparameter suggestions via Protein algorithm
 - Supports distributed sweep initialization
 - Saves sweep configuration for future runs
 
 **Output**:
+
 - Creates `runs/<sweep_name>/` directory
 - Saves sweep metadata and Protein state
 - Generates `train_config_overrides.yaml` for training
@@ -150,6 +155,7 @@ NODE_INDEX=1 ./tools/sweep_init.py sweep_name=distributed_exp
 **Purpose**: Evaluate policies generated during hyperparameter sweeps and update Protein observations.
 
 **Usage**:
+
 ```bash
 # Evaluate a sweep run
 ./tools/sweep_eval.py run=<run_id> sweep_name=<sweep_name>
@@ -159,12 +165,14 @@ NODE_INDEX=1 ./tools/sweep_init.py sweep_name=distributed_exp
 ```
 
 **Key Features**:
+
 - Loads policy from sweep run
 - Runs configured evaluation suite
 - Records metrics back to Protein for optimization
 - Updates Wandb with evaluation results
 
 **Dependencies**:
+
 - Requires completed training run
 - GPU for policy evaluation
 - Access to PolicyStore
@@ -176,41 +184,54 @@ NODE_INDEX=1 ./tools/sweep_init.py sweep_name=distributed_exp
 **Purpose**: Comprehensive policy evaluation tool that runs simulation suites and exports statistics.
 
 This tool provides comprehensive policy evaluation capabilities, allowing you to:
+
 - Evaluate single or multiple policies in batch
 - Run complete simulation suites with configurable environments
 - Export detailed statistics for analysis
 - Generate replays for visualization
 - Support various policy selection strategies (latest, top-k by metric)
 
-**The evaluation process**:
- ▸ For every requested *policy URI*
-   ▸ choose the checkpoint(s) according to selector/metric
-   ▸ run the configured `SimulationSuite`
-   ▸ export the merged stats DB if an output URI is provided
-   ▸ output JSON results for programmatic processing
+**The evaluation process**: ▸ For every requested _policy URI_ ▸ choose the checkpoint(s) according to selector/metric ▸
+run the configured `SimulationSuite` ▸ export the merged stats DB if an output URI is provided ▸ output JSON results for
+programmatic processing
 
 **Integration points**:
+
 - PolicyStore: For loading trained policies
 - SimulationSuite: For running evaluation scenarios
 - StatsDB: For storing and exporting metrics
 - StatsClient: For real-time metrics streaming
 
 **Usage**:
+
 ```bash
 # Evaluate a single policy
-./tools/sim.py sim_job.policy_uris='["wandb://run/experiment_001"]'
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://run/experiment_001"]'
 
 # Evaluate multiple policies
-./tools/sim.py sim_job.policy_uris='["wandb://team/project/model:v0", "wandb://run/exp_002"]'
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://team/project/model:v0", "wandb://run/exp_002"]'
+
+# Evaluate a single policy with stats DB
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://run/experiment_001"]' stats_db_uri='wandb://stats/navigation_db'
+
+# Evaluate multiple policies with stats DB
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://team/project/model:v0", "wandb://run/exp_002"]' stats_db_uri='wandb://stats/navigation_db'
 
 # Export stats to S3
-./tools/sim.py sim_job.policy_uris='["wandb://run/exp"]' sim_job.stats_db_uri=s3://bucket/eval.db
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://run/exp"]' stats_db_uri=s3://bucket/eval.db
+
+# Evaluate a single policy with stats DB
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://run/exp"]' stats_db_uri='s3://bucket/eval.db'
+
+# Evaluate multiple policies with stats DB
+./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://team/project/model:v0", "wandb://run/exp_002"]' stats_db_uri='s3://bucket/eval.db'
 
 # Use specific evaluation suite
-./tools/sim.py sim_job.simulation_suite=navigation selector_type=top
+./tools/run.py experiments.navigation.eval --overrides simulation_suite=navigation selector_type=top
 ```
 
 **Key Features**:
+
 - Supports multiple policy evaluation in one run
 - Flexible policy selection (latest, top-k by metric)
 - Replay generation for visualization
@@ -218,30 +239,37 @@ This tool provides comprehensive policy evaluation capabilities, allowing you to
 - JSON output for programmatic use
 
 **Output Format**:
+
 ```json
 {
   "simulation_suite": "navigation",
-  "policies": [{
-    "policy_uri": "wandb://run/abc123",
-    "checkpoints": [{
-      "name": "checkpoint_1000",
-      "uri": "wandb://...",
-      "metrics": {
-        "reward_avg": 15.3
-      }
-    }]
-  }]
+  "policies": [
+    {
+      "policy_uri": "wandb://run/abc123",
+      "checkpoints": [
+        {
+          "name": "checkpoint_1000",
+          "uri": "wandb://...",
+          "metrics": {
+            "reward_avg": 15.3
+          }
+        }
+      ]
+    }
+  ]
 }
 ```
 
 ### analyze.py
 
-**Purpose**: Generate detailed analysis reports from evaluation results, including performance metrics and behavior analysis.
+**Purpose**: Generate detailed analysis reports from evaluation results, including performance metrics and behavior
+analysis.
 
-This tool generates comprehensive analysis reports from policy evaluation data,
-providing insights into agent behavior, performance metrics, and learning progress.
+This tool generates comprehensive analysis reports from policy evaluation data, providing insights into agent behavior,
+performance metrics, and learning progress.
 
 **Key features**:
+
 - Statistical analysis of agent performance across episodes
 - Behavior pattern detection and visualization
 - Comparative analysis between checkpoints
@@ -249,12 +277,14 @@ providing insights into agent behavior, performance metrics, and learning progre
 - Integration with PolicyStore for policy metadata
 
 **The analysis pipeline**:
+
 1. Load policy from PolicyStore using specified selector
 2. Retrieve evaluation statistics from connected databases
 3. Generate statistical summaries and visualizations
 4. Export analysis results to specified output path
 
 **Usage**:
+
 ```bash
 # Analyze latest checkpoint of a policy
 ./tools/analyze.py analysis.policy_uri="wandb://run/experiment_001"
@@ -267,6 +297,7 @@ providing insights into agent behavior, performance metrics, and learning progre
 ```
 
 **Dependencies**:
+
 - Requires completed evaluation data
 - Access to stats database
 - PolicyStore for loading policies
@@ -277,10 +308,11 @@ providing insights into agent behavior, performance metrics, and learning progre
 
 **Purpose**: Real-time visualization of agent behavior with ASCII or Miniscope rendering.
 
-This tool provides interactive visualization of policies (random, heuristic, or trained)
-running in MettaGrid environments with support for multiple rendering backends.
+This tool provides interactive visualization of policies (random, heuristic, or trained) running in MettaGrid
+environments with support for multiple rendering backends.
 
 **Key features**:
+
 - Multiple policy types: random, simple heuristic, or trained neural networks
 - Multiple rendering modes: ASCII (NetHack-style), Miniscope (rich visuals)
 - Real-time performance metrics display
@@ -289,16 +321,19 @@ running in MettaGrid environments with support for multiple rendering backends.
 - Action validation for trained policies
 
 **Policy types**:
+
 - `random`: Generates valid random actions for baseline comparison
 - `simple`: Heuristic policy with movement preferences (60% cardinal, 20% diagonal, etc.)
 - `trained`: Loads policies from PolicyStore with automatic action validation
 
 **Rendering modes**:
+
 - `human`: ASCII renderer with NetHack-style display (default)
 - `miniscope`: Rich graphical renderer with sprites and effects
 - `nethack`: Alias for human mode
 
 **Usage**:
+
 ```bash
 # Visualize random policy
 ./tools/renderer.py renderer_job.policy_type=random
@@ -321,6 +356,7 @@ running in MettaGrid environments with support for multiple rendering backends.
 **Purpose**: Generate replay files for detailed post-hoc analysis in MettaScope.
 
 **Usage**:
+
 ```bash
 # Generate replay for a policy
 ./tools/replay.py replay_job.policy_uri="wandb://run/abc123"
@@ -333,6 +369,7 @@ running in MettaGrid environments with support for multiple rendering backends.
 ```
 
 **Key Features**:
+
 - Generates `.replay` files for MettaScope
 - Automatic browser launch on macOS
 - Local server for replay viewing
@@ -343,6 +380,7 @@ running in MettaGrid environments with support for multiple rendering backends.
 **Purpose**: Interactive gameplay interface allowing humans to control Metta agents.
 
 **Usage**:
+
 ```bash
 # Start interactive session
 ./tools/play.py
@@ -352,6 +390,7 @@ running in MettaGrid environments with support for multiple rendering backends.
 ```
 
 **Key Features**:
+
 - WebSocket-based real-time control
 - Browser-based interface via MettaScope
 - Human-in-the-loop testing
@@ -361,10 +400,11 @@ running in MettaGrid environments with support for multiple rendering backends.
 
 **Purpose**: Generate dashboard data for web-based visualization of training runs and evaluations.
 
-This tool aggregates metrics and statistics from multiple training runs and evaluations
-to create a unified dashboard view accessible via the Metta Observatory web interface.
+This tool aggregates metrics and statistics from multiple training runs and evaluations to create a unified dashboard
+view accessible via the Metta Observatory web interface.
 
 **Key features**:
+
 - Aggregates metrics across multiple training runs
 - Generates interactive visualization data
 - Supports both local and S3 output destinations
@@ -372,12 +412,14 @@ to create a unified dashboard view accessible via the Metta Observatory web inte
 - Compatible with Metta Observatory for real-time monitoring
 
 **The dashboard generation process**:
+
 1. Collect metrics from specified training runs
 2. Aggregate statistics across policies and checkpoints
 3. Generate JSON data structure for web visualization
 4. Upload to S3 or save locally with viewer URL
 
 **Usage**:
+
 ```bash
 # Generate dashboard and upload to S3
 ./tools/dashboard.py dashboard.output_path=s3://my-bucket/dashboards/experiment.json
@@ -396,12 +438,14 @@ to create a unified dashboard view accessible via the Metta Observatory web inte
 **Purpose**: Generate MettaGrid maps from configuration files using various procedural algorithms.
 
 This tool creates game maps using different generation algorithms including:
+
 - WaveFunctionCollapse (WFC): Pattern-based generation from examples
 - ConvChain: Convolutional pattern generation
 - Random: Stochastic map generation with constraints
 - Template-based: Fixed layouts with random variations
 
 **Key features**:
+
 - Batch generation support for creating map datasets
 - Multiple output formats (YAML, visual preview)
 - S3 and local file system support
@@ -409,6 +453,7 @@ This tool creates game maps using different generation algorithms including:
 - Automatic map validation and normalization
 
 **The generation pipeline**:
+
 1. Load map configuration (Hydra or OmegaConf format)
 2. Initialize chosen generation algorithm
 3. Generate map according to constraints
@@ -416,12 +461,14 @@ This tool creates game maps using different generation algorithms including:
 5. Save or display results
 
 **Output modes**:
+
 - Save to file/S3 with automatic format detection
 - Display in MettaScope web viewer
 - ASCII terminal display
 - PIL image popup
 
 **Usage**:
+
 ```bash
 # Generate and display a single map
 ./tools/map/gen.py configs/env/mettagrid/maps/maze_9x9.yaml
@@ -445,6 +492,7 @@ This tool creates game maps using different generation algorithms including:
 **Purpose**: Generate maps from scene configuration files with specified dimensions.
 
 **Usage**:
+
 ```bash
 # Generate from scene
 ./tools/map/gen_scene.py scenes/wfc/blob.yaml 32 32
@@ -457,6 +505,7 @@ This tool creates game maps using different generation algorithms including:
 ```
 
 **Key Features**:
+
 - Dynamic size specification
 - Scene template system
 - Pattern-based generation
@@ -466,6 +515,7 @@ This tool creates game maps using different generation algorithms including:
 **Purpose**: View stored maps from various sources (local files, S3, etc.).
 
 **Usage**:
+
 ```bash
 # View a specific map
 ./tools/map/view.py ./my_map.yaml
@@ -478,6 +528,7 @@ This tool creates game maps using different generation algorithms including:
 ```
 
 **Key Features**:
+
 - Auto-detection of directories vs files
 - Random map selection from directories
 - Multiple visualization modes
@@ -487,6 +538,7 @@ This tool creates game maps using different generation algorithms including:
 **Purpose**: Normalize ASCII map characters to ensure consistency across different encodings.
 
 **Usage**:
+
 ```bash
 # Print normalized map
 ./tools/map/normalize_ascii_map.py map.txt
@@ -496,6 +548,7 @@ This tool creates game maps using different generation algorithms including:
 ```
 
 **Key Features**:
+
 - Unicode normalization
 - Character substitution rules
 - Preserves map structure
@@ -505,6 +558,7 @@ This tool creates game maps using different generation algorithms including:
 **Purpose**: Normalize patterns in WFC/ConvChain scene configuration files.
 
 **Usage**:
+
 ```bash
 # Print normalized config
 ./tools/map/normalize_scene_patterns.py scene.yaml
@@ -519,11 +573,12 @@ This tool creates game maps using different generation algorithms including:
 
 **Purpose**: Load and validate Hydra configuration files, useful for debugging config issues.
 
-This tool helps developers understand and troubleshoot complex Hydra configurations
-by loading, resolving, and displaying them in a readable format. It's particularly
-useful for debugging configuration composition and interpolation issues.
+This tool helps developers understand and troubleshoot complex Hydra configurations by loading, resolving, and
+displaying them in a readable format. It's particularly useful for debugging configuration composition and interpolation
+issues.
 
 **Key features**:
+
 - Loads any Hydra configuration with proper composition
 - Handles complex configuration groups (env, trainer, agent, etc.)
 - Attempts to resolve interpolations where possible
@@ -531,6 +586,7 @@ useful for debugging configuration composition and interpolation issues.
 - Supports both simple configs and complex multi-file compositions
 
 **The validation process**:
+
 1. Load configuration using Hydra's composition system
 2. Apply necessary overrides for missing required fields
 3. Attempt to resolve all interpolations
@@ -538,6 +594,7 @@ useful for debugging configuration composition and interpolation issues.
 5. Report any issues or unresolvable references
 
 **Usage**:
+
 ```bash
 # Validate environment configuration
 ./tools/validate_config.py configs/env/mettagrid/navigation.yaml
@@ -552,16 +609,18 @@ useful for debugging configuration composition and interpolation issues.
 ./tools/validate_config.py configs/sweep/fast.yaml
 ```
 
-**Note**: Currently this script prints the configuration, but future versions will add schema validation and constraint checking.
+**Note**: Currently this script prints the configuration, but future versions will add schema validation and constraint
+checking.
 
 ### stats_duckdb_cli.py
 
 **Purpose**: Interactive DuckDB CLI for exploring evaluation statistics databases.
 
-This tool provides a convenient interface for analyzing evaluation metrics stored
-in DuckDB databases, with automatic downloading from remote sources (Wandb, S3).
+This tool provides a convenient interface for analyzing evaluation metrics stored in DuckDB databases, with automatic
+downloading from remote sources (Wandb, S3).
 
 **Key features**:
+
 - Automatic download from wandb:// or s3:// URIs
 - Direct DuckDB CLI access for SQL queries
 - Temporary local caching of remote databases
@@ -569,6 +628,7 @@ in DuckDB databases, with automatic downloading from remote sources (Wandb, S3).
 - Integration with evaluation pipeline outputs
 
 **Common query patterns**:
+
 - Agent performance metrics aggregation
 - Episode-level statistics analysis
 - Policy comparison queries
@@ -576,12 +636,14 @@ in DuckDB databases, with automatic downloading from remote sources (Wandb, S3).
 - Multi-agent coordination metrics
 
 **Database schema typically includes**:
+
 - agent_metrics: Per-step agent observations and rewards
 - episode_summary: Aggregated episode statistics
 - policy_metadata: Policy configuration and versioning
 - simulation_config: Environment and task settings
 
 **Usage**:
+
 ```bash
 # Open stats from Wandb
 ./tools/stats_duckdb_cli.py +eval_db_uri=wandb://stats/navigation_eval_v2
@@ -591,6 +653,7 @@ in DuckDB databases, with automatic downloading from remote sources (Wandb, S3).
 ```
 
 **Example Queries**:
+
 ```sql
 -- View available tables
 .tables
@@ -615,6 +678,7 @@ GROUP BY policy_name, episode;
 **Purpose**: Batch upload map visualization images to S3 for public access.
 
 **Usage**:
+
 ```bash
 # Dry run to see what would be uploaded
 ./tools/upload_map_imgs.py --dry-run
@@ -624,6 +688,7 @@ GROUP BY policy_name, episode;
 ```
 
 **Key Features**:
+
 - Auto-detection of image files
 - Proper MIME type handling
 - S3 public bucket upload
@@ -634,6 +699,7 @@ GROUP BY policy_name, episode;
 **Purpose**: Dump source code files for LLM context or analysis.
 
 **Usage**:
+
 ```bash
 # Dump all Python files
 ./tools/dump_src.py . --extensions .py
@@ -646,6 +712,7 @@ GROUP BY policy_name, episode;
 ```
 
 **Output Format**:
+
 ```
 <file: path/to/file.py>
 ... file contents ...
@@ -657,12 +724,14 @@ GROUP BY policy_name, episode;
 **Purpose**: Auto-tune vectorization parameters for optimal performance using pufferlib.
 
 **Usage**:
+
 ```bash
 # Run autotuning
 ./tools/autotune.py
 ```
 
 **Key Features**:
+
 - Finds optimal batch size
 - Determines max environments
 - Memory usage optimization
@@ -735,6 +804,7 @@ Key environment variables used by tools:
 ## Common Issues and Solutions
 
 ### GPU Memory Issues
+
 ```bash
 # Reduce batch size
 ./tools/train.py trainer.batch_size=1024
@@ -743,16 +813,8 @@ Key environment variables used by tools:
 ./tools/train.py device=cpu
 ```
 
-### Configuration Errors
-```bash
-# Validate config first
-./tools/validate_config.py configs/my_config.yaml
-
-# Check available options
-./tools/train.py hydra/help=default
-```
-
 ### Database Access
+
 ```bash
 # For local testing without database
 ./tools/train.py wandb=off stats_client=null

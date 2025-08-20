@@ -309,7 +309,6 @@ def upload_bytes_to_wandb(uri: WandbURI, blob: bytes, name: str) -> None:
 def wandb_export_context(project: str, entity: str = WANDB_ENTITY) -> wandb.Run:
     """
     Context manager that ensures a wandb run exists for artifact exports.
-    TODO: Refactor to use WandbContext without requiring passing a deep hydra config
     TODO: Remove this after switching to using wandb_context
 
     Args:

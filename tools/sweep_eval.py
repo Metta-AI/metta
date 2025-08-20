@@ -15,18 +15,27 @@ import json
 import os
 import time
 
-import hydra
 from omegaconf import DictConfig, OmegaConf
 
+from metta.cogworks.sweep.sweep_config import SweepConfig
+from metta.common.config import Config
 from metta.common.util.lock import run_once
-from metta.common.wandb.wandb_context import WandbContext
+from metta.common.wandb.wandb_context import WandbConfig, WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.system_config import create_system_config
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.rl.system_config import SystemConfig
+from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_suite import SimulationSuite
 from metta.sweep.wandb_utils import record_protein_observation_to_wandb
 
 logger = logging.getLogger(__name__)
+
+
+# TODO #dehydration - this should be a DictConfig
+class SweepEvalToolConfig(Config):
+    system: SystemConfig
+    wandb: WandbConfig
+    sim: list[SimulationConfig]
+    sweep: SweepConfig
 
 
 def log_file(run_dir, name, data, wandb_run):
@@ -45,17 +54,14 @@ def load_file(run_dir, name):
         return OmegaConf.load(f)
 
 
-@hydra.main(config_path="../configs", config_name="sweep_job", version_base=None)
-def main(cfg: DictConfig) -> int:
-    simulation_suite_cfg = SimulationSuiteConfig(**OmegaConf.to_container(cfg.sim, resolve=True))  # type: ignore[arg-type]
+def main(cfg: SweepEvalToolConfig) -> int:
+    simulation_suite_cfg = cfg.sim
 
     # Create env config
-    system_config = create_system_config(cfg)
+    system_config = cfg.system
 
     # Load run information from dist_cfg_path
-    dist_cfg = OmegaConf.load(cfg.dist_cfg_path)
-    logger.info(f"Loaded run info from {cfg.dist_cfg_path}: run={dist_cfg.run}")
-    cfg.run = dist_cfg.run
+    logger.info(f"Loaded run info from {cfg.dist_cfg_path}: run={cfg.run}")
     results_path = os.path.join(cfg.run_dir, "sweep_eval_results.yaml")
 
     # Function to run evaluation - only executed by rank 0

@@ -6,13 +6,14 @@ from tests.map.scenes.utils import assert_grid, render_scene
 
 def test_basic():
     scene = render_scene(
-        InlineAscii,
-        {
-            "data": """
+        InlineAscii.factory(
+            InlineAscii.Params(
+                data="""
 #.@.#
 #...#
 """
-        },
+            ),
+        ),
         (3, 7),
     )
 
@@ -28,12 +29,13 @@ def test_basic():
 
 def test_row_column():
     scene = render_scene(
-        InlineAscii,
-        {
-            "data": "#.@.#",
-            "row": 1,
-            "column": 2,
-        },
+        InlineAscii.factory(
+            InlineAscii.Params(
+                data="#.@.#",
+                row=1,
+                column=2,
+            )
+        ),
         (3, 7),
     )
 
@@ -50,11 +52,12 @@ def test_row_column():
 def test_overflow():
     with pytest.raises(ValueError):
         render_scene(
-            InlineAscii,
-            {
-                "data": "####",
-                "row": 1,
-                "column": 2,
-            },
+            InlineAscii.factory(
+                InlineAscii.Params(
+                    data="####",
+                    row=1,
+                    column=2,
+                )
+            ),
             (1, 3),
         )

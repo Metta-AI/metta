@@ -3,19 +3,22 @@
 A script to download a stats file from wandb or S3 and launch duckdb against it.
 
 Usage:
-    ./tools/stats_duckdb_cli.py ++eval_db_uri=wandb://stats/my_stats_db
+    ./tools/stats_duckdb_cli.py eval_db_uri=wandb://stats/my_stats_db
 """
 
 import logging
 import subprocess
 
-from omegaconf import DictConfig
-
+from metta.common.config import Config
 from metta.eval.eval_stats_db import EvalStatsDB
 from metta.mettagrid.util.file import local_copy
-from metta.util.metta_script import metta_script
+from metta.util.metta_script import pydantic_metta_script
 
 logger = logging.getLogger(__name__)
+
+
+class StatsDuckdbToolConfig(Config):
+    eval_db_uri: str
 
 
 def launch_duckdb_cli(file_path):
@@ -42,17 +45,10 @@ def launch_duckdb_cli(file_path):
     return subprocess.call(["duckdb", str(file_path)], shell=False)
 
 
-def main(cfg: DictConfig) -> int:
+def main(cfg: StatsDuckdbToolConfig) -> int:
     """
     Main function to download a stats file and launch duckdb against it.
     """
-    # Check if eval_db_uri is configured
-    if not hasattr(cfg, "eval_db_uri") or not cfg.eval_db_uri:
-        logger.error("Error: eval_db_uri is not configured")
-        print("Please set eval_db_uri in your configuration or use the command line override.")
-        print("Example: ./tools/stats_duckdb_cli.py +eval_db_uri=wandb://stats/navigation_db")
-        return 1
-
     uri = cfg.eval_db_uri
 
     # Validate URI format
@@ -75,4 +71,4 @@ def main(cfg: DictConfig) -> int:
     return 0
 
 
-metta_script(main, "analyze_job")
+pydantic_metta_script(main)

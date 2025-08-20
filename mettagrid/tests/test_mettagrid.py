@@ -1,19 +1,38 @@
 import numpy as np
 import pytest
 
+from metta.mettagrid.core import MettaGridCore
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
-from metta.mettagrid.test_support import TestEnvironmentBuilder, TokenTypes
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig
+from metta.mettagrid.test_support import TokenTypes
 
 NUM_OBS_TOKENS = 50
 
 
 @pytest.fixture
 def basic_env() -> MettaGrid:
-    """Create a basic test environment."""
-    builder = TestEnvironmentBuilder()
-    game_map = builder.create_basic_grid()
-    game_map = builder.place_agents(game_map, [(1, 1), (2, 4)])
-    return builder.create_environment(game_map, obs_width=3, obs_height=3, num_observation_tokens=NUM_OBS_TOKENS)
+    """Create a basic test environment with 8x4 grid and 2 agents."""
+    env_cfg = EnvConfig(
+        game=GameConfig(
+            num_agents=2,
+            obs_width=3,
+            obs_height=3,
+            num_observation_tokens=NUM_OBS_TOKENS,
+            actions=ActionsConfig(
+                noop=ActionConfig(),
+                move=ActionConfig(),
+                rotate=ActionConfig(),
+            ),
+            map_builder=RandomMapBuilder.Config(
+                width=8,
+                height=4,
+                agents=2,
+                seed=42,  # For deterministic test results
+            ),
+        )
+    )
+    return MettaGridCore(env_cfg)
 
 
 class TestBasicFunctionality:
@@ -23,8 +42,8 @@ class TestBasicFunctionality:
         """Test basic environment properties."""
         assert basic_env.map_width == 8
         assert basic_env.map_height == 4
-        assert len(basic_env.action_names()) > 0
-        assert "noop" in basic_env.action_names()
+        assert len(basic_env.action_names) > 0
+        assert "noop" in basic_env.action_names
 
         obs, info = basic_env.reset()
 
@@ -33,13 +52,13 @@ class TestBasicFunctionality:
 
     def test_grid_hash(self, basic_env: MettaGrid):
         """Test grid hash consistency."""
-        assert basic_env.initial_grid_hash == 9437127895318323250
+        assert basic_env.initial_grid_hash == 14602406112020495965  # Updated for RandomMapBuilder with seed=42
 
     def test_action_interface(self, basic_env: MettaGrid):
         """Test action interface and basic action execution."""
         basic_env.reset()
 
-        action_names = basic_env.action_names()
+        action_names = basic_env.action_names
         assert "noop" in action_names
         assert "move" in action_names
         assert "rotate" in action_names
@@ -57,20 +76,20 @@ class TestBasicFunctionality:
         assert isinstance(info, dict)
 
         # Action success should be boolean and per-agent
-        action_success = basic_env.action_success()
+        action_success = basic_env.action_success
         assert len(action_success) == basic_env.num_agents
         assert all(isinstance(x, bool) for x in action_success)
 
     def test_environment_state_consistency(self, basic_env: MettaGrid):
         """Test that environment state remains consistent across operations."""
         obs1, _ = basic_env.reset()
-        initial_objects = basic_env.grid_objects()
+        initial_objects = basic_env.grid_objects
 
-        noop_idx = basic_env.action_names().index("noop")
+        noop_idx = basic_env.action_names.index("noop")
         actions = np.full((basic_env.num_agents, 2), [noop_idx, 0], dtype=dtype_actions)
 
         obs2, _, _, _, _ = basic_env.step(actions)
-        post_step_objects = basic_env.grid_objects()
+        post_step_objects = basic_env.grid_objects
 
         # Object count should remain unchanged
         assert len(initial_objects) == len(post_step_objects)
@@ -80,9 +99,9 @@ class TestBasicFunctionality:
         assert basic_env.map_height == 4
 
         # Action set should remain unchanged after stepping
-        actions1 = basic_env.action_names()
+        actions1 = basic_env.action_names
         basic_env.step(actions)
-        actions2 = basic_env.action_names()
+        actions2 = basic_env.action_names
         assert actions1 == actions2
 
 
