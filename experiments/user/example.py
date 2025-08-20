@@ -17,11 +17,12 @@ obstacles_env.game.map_builder = AsciiMapBuilder.Config.from_uri(
 obstacles_env.game.max_steps = 100
 
 
-def train() -> TrainTool:
+# Run on skypilot with ./devops/skypilot/launch experiments.user.{{ USER }}.train -- run local.{{ USER }}.1
+def train(run: str = "local.{{ USER }}.1") -> TrainTool:
     env = navigation.make_env()
     env.game.max_steps = 100
     cfg = navigation.train(
-        run="local.{{ USER }}.1",
+        run=run,
         curriculum=navigation.make_curriculum(env),
     )
     return cfg
