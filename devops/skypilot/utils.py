@@ -229,7 +229,19 @@ def set_task_secrets(task: sky.Task) -> None:
     if not observatory_token:
         observatory_token = ""  # we don't have a token in CI
 
-    wandb_api_key = os.environ.get("WANDB_API_KEY")
+    config_path = os.path.expanduser("~/.netrc")
+    try:
+        with open(config_path, "r") as f:
+            for line in f:
+                if "api.wandb.ai" in line:
+                    # Next line should contain login and password
+                    next_line = f.readline()
+                    if "password" in next_line:
+                        wandb_api_key = next_line.split()[1]
+                        break
+    except FileNotFoundError:
+        print(f"wandb file not found at {config_path}")
+
     if not wandb_api_key:
         raise ValueError("Failed to get wandb api key, run 'metta install' to fix")
 
