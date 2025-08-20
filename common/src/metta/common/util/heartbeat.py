@@ -19,8 +19,6 @@ def record_heartbeat() -> None:
 
     heartbeat_file_path = os.environ.get("HEARTBEAT_FILE")
 
-    print(f"record_heartbeat to {heartbeat_file_path}")
-
     if heartbeat_file_path:
         try:
             # Ensure the directory for the heartbeat file exists
