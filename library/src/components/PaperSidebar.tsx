@@ -43,12 +43,10 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
 
   if (!paper) {
     return (
-      <div className="w-[360px] shrink-0 border-l bg-neutral-50">
-        <div className="sticky top-0 h-screen overflow-y-auto">
-          <div className="px-4 py-4">
-            <div className="text-center text-neutral-500">
-              <p className="text-sm">No paper associated with this post</p>
-            </div>
+      <div className="h-screen flex-1 overflow-y-auto border-l bg-neutral-50">
+        <div className="px-4 py-4">
+          <div className="text-center text-neutral-500">
+            <p className="text-sm">No paper associated with this post</p>
           </div>
         </div>
       </div>
@@ -56,193 +54,191 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
   }
 
   return (
-    <div className="w-[360px] shrink-0 border-l bg-white">
-      <div className="sticky top-0 h-screen overflow-y-auto">
-        <div className="space-y-4 px-4 py-4">
-          {/* Header row: star + title + download */}
-          <div className="flex items-start gap-2.5">
-            <div className="mt-0.5">
-              <StarWidgetQuery
-                paperId={paper.id}
-                initialTotalStars={paper.stars}
-                initialIsStarredByCurrentUser={paper.starred}
-                size="sm"
-              />
-            </div>
-            <div className="min-w-0 flex-1">
+    <div className="h-screen flex-1 overflow-y-auto border-l bg-white">
+      <div className="space-y-4 px-4 py-4">
+        {/* Header row: star + title + download */}
+        <div className="flex items-start gap-2.5">
+          <div className="mt-0.5">
+            <StarWidgetQuery
+              paperId={paper.id}
+              initialTotalStars={paper.stars}
+              initialIsStarredByCurrentUser={paper.starred}
+              size="sm"
+            />
+          </div>
+          <div className="min-w-0 flex-1">
+            {paper.source === "arxiv" && paper.externalId ? (
+              <a
+                href={`https://arxiv.org/abs/${paper.externalId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[15.5px] leading-[1.3] font-semibold tracking-tight text-neutral-900 hover:underline"
+              >
+                {paper.title}
+              </a>
+            ) : (
+              <div className="text-[15.5px] leading-[1.3] font-semibold tracking-tight text-neutral-900">
+                {paper.title}
+              </div>
+            )}
+            <div className="mt-1 flex items-center gap-2 text-[12.5px] text-neutral-600">
               {paper.source === "arxiv" && paper.externalId ? (
                 <a
                   href={`https://arxiv.org/abs/${paper.externalId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[15.5px] leading-[1.3] font-semibold tracking-tight text-neutral-900 hover:underline"
+                  className="hover:underline"
                 >
-                  {paper.title}
+                  arXiv
                 </a>
               ) : (
-                <div className="text-[15.5px] leading-[1.3] font-semibold tracking-tight text-neutral-900">
-                  {paper.title}
-                </div>
+                "Unknown Venue"
               )}
-              <div className="mt-1 flex items-center gap-2 text-[12.5px] text-neutral-600">
-                {paper.source === "arxiv" && paper.externalId ? (
-                  <a
-                    href={`https://arxiv.org/abs/${paper.externalId}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:underline"
-                  >
-                    arXiv
-                  </a>
-                ) : (
-                  "Unknown Venue"
-                )}
-              </div>
             </div>
-            <div className="pl-2">
-              {(paper.source === "arxiv" && paper.externalId) || paper.link ? (
-                <Button
-                  size="small"
-                  theme="default"
-                  onClick={() => {
-                    const pdfUrl =
+          </div>
+          <div className="pl-2">
+            {(paper.source === "arxiv" && paper.externalId) || paper.link ? (
+              <Button
+                size="small"
+                theme="default"
+                onClick={() => {
+                  const pdfUrl =
+                    paper.source === "arxiv" && paper.externalId
+                      ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
+                      : paper.link;
+                  if (pdfUrl) {
+                    const filename =
                       paper.source === "arxiv" && paper.externalId
-                        ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
-                        : paper.link;
-                    if (pdfUrl) {
-                      const filename =
-                        paper.source === "arxiv" && paper.externalId
-                          ? `${paper.externalId}.pdf`
-                          : `${paper.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`;
+                        ? `${paper.externalId}.pdf`
+                        : `${paper.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.pdf`;
 
-                      // Use our API endpoint to proxy the PDF download
-                      const downloadUrl = `/api/download-pdf?url=${encodeURIComponent(pdfUrl)}&filename=${encodeURIComponent(filename)}`;
+                    // Use our API endpoint to proxy the PDF download
+                    const downloadUrl = `/api/download-pdf?url=${encodeURIComponent(pdfUrl)}&filename=${encodeURIComponent(filename)}`;
 
-                      // Create a temporary anchor element to trigger download
-                      const link = document.createElement("a");
-                      link.href = downloadUrl;
-                      link.download = filename;
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                    }
-                  }}
-                  type="button"
-                >
-                  <Download className="h-4 w-4" />
-                </Button>
-              ) : null}
-            </div>
+                    // Create a temporary anchor element to trigger download
+                    const link = document.createElement("a");
+                    link.href = downloadUrl;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                  }
+                }}
+                type="button"
+              >
+                <Download className="h-4 w-4" />
+              </Button>
+            ) : null}
           </div>
-
-          <hr className="border-neutral-200" />
-
-          {/* Authors as clickable chips */}
-          {paper.authors && paper.authors.length > 0 && (
-            <section>
-              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
-                Authors
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {paper.authors.map((author) => (
-                  <a key={author.id} href="#" className="inline-block">
-                    <Badge variant="secondary" className="rounded-md">
-                      {author.name}
-                    </Badge>
-                  </a>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Institutions as clickable chips */}
-          {paper.institutions && paper.institutions.length > 0 && (
-            <section>
-              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
-                Institutions
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {paper.institutions.map((institution, index) => (
-                  <a key={index} href="#" className="inline-block">
-                    <Badge variant="secondary" className="rounded-md">
-                      {institution}
-                    </Badge>
-                  </a>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Topic tags */}
-          {paper.tags && paper.tags.length > 0 && (
-            <section>
-              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
-                Tags
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {paper.tags.map((tag, index) => (
-                  <a
-                    key={index}
-                    href="#"
-                    className="inline-block"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      handleTagClick(tag);
-                    }}
-                  >
-                    <Badge variant="secondary" className="rounded-md">
-                      {tag}
-                    </Badge>
-                  </a>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {/* Enhanced Abstract or Original Abstract */}
-          {paper.llmAbstract ? (
-            <LLMAbstractView
-              llmAbstract={paper.llmAbstract as LLMAbstract}
-              originalAbstract={paper.abstract}
-              pdfUrl={
-                paper.source === "arxiv" && paper.externalId
-                  ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
-                  : paper.link || undefined
-              }
-              homepageUrl={
-                paper.source === "arxiv" && paper.externalId
-                  ? `https://arxiv.org/abs/${paper.externalId}`
-                  : undefined
-              }
-            />
-          ) : paper.abstract ? (
-            <section>
-              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
-                Abstract
-              </div>
-              <div className="text-[13.5px] leading-[1.6] whitespace-pre-wrap text-neutral-800">
-                {paper.abstract}
-              </div>
-            </section>
-          ) : null}
-
-          {/* Timestamps */}
-          <div className="mt-6 border-t border-neutral-200 pt-4">
-            <div className="space-y-1 text-xs text-neutral-500">
-              <div>
-                <span className="font-medium">Created:</span>{" "}
-                {new Date(paper.createdAt).toLocaleDateString()}
-              </div>
-              <div>
-                <span className="font-medium">Updated:</span>{" "}
-                {new Date(paper.updatedAt).toLocaleDateString()}
-              </div>
-            </div>
-          </div>
-
-          {/* Spacer to ensure last content isn't flush to bottom */}
-          <div className="h-8" />
         </div>
+
+        <hr className="border-neutral-200" />
+
+        {/* Authors as clickable chips */}
+        {paper.authors && paper.authors.length > 0 && (
+          <section>
+            <div className="mb-1 text-[12px] font-semibold text-neutral-700">
+              Authors
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {paper.authors.map((author) => (
+                <a key={author.id} href="#" className="inline-block">
+                  <Badge variant="secondary" className="rounded-md">
+                    {author.name}
+                  </Badge>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Institutions as clickable chips */}
+        {paper.institutions && paper.institutions.length > 0 && (
+          <section>
+            <div className="mb-1 text-[12px] font-semibold text-neutral-700">
+              Institutions
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {paper.institutions.map((institution, index) => (
+                <a key={index} href="#" className="inline-block">
+                  <Badge variant="secondary" className="rounded-md">
+                    {institution}
+                  </Badge>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Topic tags */}
+        {paper.tags && paper.tags.length > 0 && (
+          <section>
+            <div className="mb-1 text-[12px] font-semibold text-neutral-700">
+              Tags
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {paper.tags.map((tag, index) => (
+                <a
+                  key={index}
+                  href="#"
+                  className="inline-block"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleTagClick(tag);
+                  }}
+                >
+                  <Badge variant="secondary" className="rounded-md">
+                    {tag}
+                  </Badge>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Enhanced Abstract or Original Abstract */}
+        {paper.llmAbstract ? (
+          <LLMAbstractView
+            llmAbstract={paper.llmAbstract as LLMAbstract}
+            originalAbstract={paper.abstract}
+            pdfUrl={
+              paper.source === "arxiv" && paper.externalId
+                ? `https://arxiv.org/pdf/${paper.externalId}.pdf`
+                : paper.link || undefined
+            }
+            homepageUrl={
+              paper.source === "arxiv" && paper.externalId
+                ? `https://arxiv.org/abs/${paper.externalId}`
+                : undefined
+            }
+          />
+        ) : paper.abstract ? (
+          <section>
+            <div className="mb-1 text-[12px] font-semibold text-neutral-700">
+              Abstract
+            </div>
+            <div className="text-[13.5px] leading-[1.6] whitespace-pre-wrap text-neutral-800">
+              {paper.abstract}
+            </div>
+          </section>
+        ) : null}
+
+        {/* Timestamps */}
+        <div className="mt-6 border-t border-neutral-200 pt-4">
+          <div className="space-y-1 text-xs text-neutral-500">
+            <div>
+              <span className="font-medium">Created:</span>{" "}
+              {new Date(paper.createdAt).toLocaleDateString()}
+            </div>
+            <div>
+              <span className="font-medium">Updated:</span>{" "}
+              {new Date(paper.updatedAt).toLocaleDateString()}
+            </div>
+          </div>
+        </div>
+
+        {/* Spacer to ensure last content isn't flush to bottom */}
+        <div className="h-8" />
       </div>
     </div>
   );

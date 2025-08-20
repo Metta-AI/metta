@@ -494,9 +494,6 @@ async function extractFiguresWithSemanticValidation(
   pdfBuffer: Buffer
 ): Promise<OpenAIPdfFigure[]> {
   const matchedFigures: OpenAIPdfFigure[] = [];
-  const outputDir = path.resolve(process.cwd(), "identified-figures");
-
-  mkdirSync(outputDir, { recursive: true });
 
   console.log(
     `🎯 Processing ${keyFigures.length} OpenAI figures against ${semanticMappings.size} semantic mappings...`
@@ -588,16 +585,11 @@ async function extractFiguresWithSemanticValidation(
       );
 
       if (extraction) {
-        // Save the image
         const filename = `${keyFig.figureNumber.replace(/[^a-zA-Z0-9]/g, "_")}.png`;
-        const filepath = path.join(outputDir, filename);
-        const imageBuffer = Buffer.from(extraction.imageData, "base64");
-        writeFileSync(filepath, imageBuffer);
-
-        if (existsSync(filepath)) {
-          const stats = statSync(filepath);
-          console.log(`✅ Saved: ${filename} (${stats.size} bytes)`);
-        }
+        const imageSize = Math.round((extraction.imageData.length * 3) / 4); // Base64 to bytes conversion
+        console.log(`✅ Extracted: ${filename} (${imageSize} bytes, virtual)`);
+        
+        // No file system write - keeping everything in memory as base64
 
         matchedFigures.push({
           caption: keyFig.caption,

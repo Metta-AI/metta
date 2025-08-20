@@ -90,3 +90,4 @@ experiments/user/*.py
 !experiments/user/example.py
 
 resources
+identified-figures/
