@@ -5,11 +5,14 @@ Provides the base classes and patterns for structured agent operations using Pyd
 """
 
 import logging
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Literal, Optional, TypeVar
 
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent
+
+import re
+import html
 
 logger = logging.getLogger(__name__)
 
@@ -161,24 +164,46 @@ class ContextManager:
             logger.warning(f"Could not import codeclip: {e}")
             return ExecutionContext(files={}, token_count=0, working_directory=Path.cwd())
 
-    def _parse_files_from_content(self, content: str) -> Dict[str, str]:
-        """Parse files from codeclip XML output"""
-        import re
 
-        files = {}
+    def _parse_files_from_content(self, xml_text: str) -> Dict[str, str]:
+        """Parse files from codeclip XML-like output with some resilience."""
+        files: Dict[str, str] = {}
+        if not xml_text or not xml_text.strip():
+            return files
 
-        # Parse XML format from codeclip
-        pattern = (
-            r"<document .*?>\s*<source>(.*?)</source>.*?"
-            r"(?:<document_content>(.*?)</document_content>|<instructions>(.*?)</instructions>).*?</document>"
+        # Prefer attribute-based form: <file path="..."><content>...</content></file>
+        file_pat = re.compile(
+            r'<(?:file|document)\b([^>]*)>(.*?)</(?:file|document)>',
+            re.DOTALL | re.IGNORECASE,
         )
-        matches = re.findall(pattern, content, re.DOTALL)
-        for match in matches:
-            path = match[0].strip()
-            content = match[1] if match[1] else match[2]
-            files[path] = content
+        attr_path_pat = re.compile(r'\bpath="([^"]+)"', re.IGNORECASE)
+        tag_pat = re.compile(
+            r'<(?P<tag>source|name|document_content|instructions|content)\b[^>]*>(?P<body>.*?)</\1>',
+            re.DOTALL | re.IGNORECASE,
+        )
+
+        for outer_attrs, inner in file_pat.findall(xml_text):
+            # Path from attribute or from a <source>/<name> child
+            m_path = attr_path_pat.search(outer_attrs)
+            path = m_path.group(1) if m_path else None
+
+            # Gather child nodes
+            tags = {m.group('tag').lower(): m.group('body') for m in tag_pat.finditer(inner)}
+            if not path:
+                path = tags.get('source') or tags.get('name')
+            if not path:
+                continue
+
+            # Choose body
+            body = tags.get('document_content') or tags.get('content') or tags.get('instructions') or ''
+            # Unescape XML entities
+            body = html.unescape(body)
+
+            norm_path = str(PurePosixPath(path.strip()))
+            files[norm_path] = body
 
         return files
+
 
     def _get_git_diff(self) -> str:
         """Get current git diff"""
