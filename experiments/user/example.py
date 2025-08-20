@@ -17,7 +17,8 @@ obstacles_env.game.map_builder = AsciiMapBuilder.Config.from_uri(
 obstacles_env.game.max_steps = 100
 
 
-# Run on skypilot with ./devops/skypilot/launch experiments.user.{{ USER }}.train -- run local.{{ USER }}.1
+# Can run this locally with `./tools/run.py experiments.user.{{ USER }}.train`
+# Can't run this on skypilot because your experiments user file is not pushed to git
 def train(run: str = "local.{{ USER }}.1") -> TrainTool:
     env = navigation.make_env()
     env.game.max_steps = 100
@@ -36,8 +37,8 @@ def play() -> PlayTool:
     return cfg
 
 
-def evaluate() -> SimTool:
-    cfg = arena.evaluate(policy_uri="wandb://run/local.{{ USER }}.1")
+def evaluate(run: str = "local.{{ USER }}.1") -> SimTool:
+    cfg = arena.evaluate(policy_uri=f"wandb://run/{run}")
 
     # If your run doesn't exist, try this:
     # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
