@@ -61,6 +61,7 @@ fi
 
 # Setup environment (all nodes)
 bash ./devops/skypilot/config/lifecycle/configure_environment.sh
+cat $METTA_ENV_FILE
 source "$METTA_ENV_FILE"
 
 export EXIT_SUCCESS=0

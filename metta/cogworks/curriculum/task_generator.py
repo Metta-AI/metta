@@ -101,7 +101,7 @@ class SingleTaskGenerator(TaskGenerator):
 
     def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
         """Always return the same EnvConfig."""
-        return self._config.env
+        return self._config.env.model_copy(deep=True)
 
 
 ################################################################################

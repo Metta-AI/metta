@@ -231,6 +231,7 @@ def set_task_secrets(task: sky.Task) -> None:
 
     task.update_secrets(
         dict(
+            WANDB_API_KEY=wandb_password,
             WANDB_PASSWORD=wandb_password,
             OBSERVATORY_TOKEN=observatory_token,
         )

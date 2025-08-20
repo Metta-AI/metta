@@ -9,6 +9,7 @@ from typing import Any
 import numpy as np
 import torch
 import wandb
+
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyRecord

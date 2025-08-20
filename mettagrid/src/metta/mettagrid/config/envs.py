@@ -105,7 +105,6 @@ def make_arena(
 def make_navigation(num_agents: int) -> EnvConfig:
     # Use the standard altar configuration
     altar = building.altar.model_copy()  # Make a copy to avoid modifying the global object
-    altar.initial_resource_count = 10  # Start with 10 hearts available
     altar.cooldown = 100  # Cooldown between conversions
 
     cfg = EnvConfig(
