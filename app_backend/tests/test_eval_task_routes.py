@@ -256,7 +256,6 @@ class TestEvalTaskRoutes:
             agent_metrics={0: {"score": 100.0, "steps": 50}},
             primary_policy_id=test_policy_id,
             eval_name="navigation/simple",
-            simulation_suite="navigation",
             replay_url="https://example.com/replay",
             attributes={"test": "true"},
             eval_task_id=eval_task_id,

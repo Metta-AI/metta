@@ -54,7 +54,6 @@ class TestStatsServerSimple:
             primary_policy_id=policy.id,
             stats_epoch=epoch.id,
             eval_name="test_evaluation",
-            simulation_suite="test_suite",
             replay_url="https://example.com/replay",
             attributes={"episode_length": 100, "difficulty": "medium"},
         )
