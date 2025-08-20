@@ -9,10 +9,10 @@ class TestPerAgentResourceLoss:
 
     def test_different_agents_have_different_loss_rates(self):
         """Test that different agents can have different resource loss probabilities."""
-        # Create a simple 3x3 grid with two agents
+        # Create a simple 3x3 grid with two agents from different groups
         game_map = [
             ["wall", "wall", "wall"],
-            ["wall", "agent.player", "agent.player"],
+            ["wall", "agent.player1", "agent.player2"],
             ["wall", "wall", "wall"],
         ]
 
@@ -35,12 +35,20 @@ class TestPerAgentResourceLoss:
                 "change_color": {"enabled": True},
             },
             "groups": {
-                "player": {
+                "player1": {
                     "id": 0,
                     "sprite": 0,
                     "props": {
                         "initial_inventory": {"heart": 5, "battery_blue": 3},
-                        "resource_loss_probs": {"heart": 1.0, "battery_blue": 1.0},  # Complete loss for player agents
+                        "resource_loss_probs": {"heart": 1.0, "battery_blue": 1.0},  # Complete loss for player1 agents
+                    },
+                },
+                "player2": {
+                    "id": 1,
+                    "sprite": 0,
+                    "props": {
+                        "initial_inventory": {"heart": 5, "battery_blue": 3},
+                        "resource_loss_probs": {"heart": 0.0, "battery_blue": 0.0},  # No loss for player2 agents
                     },
                 }
             },
@@ -88,13 +96,19 @@ class TestPerAgentResourceLoss:
 
         assert len(agents_after) == 2, "Should find two agents in grid objects after step"
 
-        # Both agents should have lost their items since they're both in the "player" group
-        # which has resource_loss_probs set to 1.0
-        for agent in agents_after:
-            inventory_after = agent["inventory"]
-            assert 0 not in inventory_after, "All hearts should be lost after one step"
-            assert 1 not in inventory_after, "All battery_blue should be lost after one step"
-            assert len(inventory_after) == 0, "Agent should have no items left"
+        # Sort agents by agent_id to ensure consistent testing
+        agents_after.sort(key=lambda x: x["agent_id"])
+        
+        # Player1 agent (agent_id=0) should have lost all items
+        player1_inventory = agents_after[0]["inventory"]
+        assert 0 not in player1_inventory, "Player1 should have lost all hearts after one step"
+        assert 1 not in player1_inventory, "Player1 should have lost all battery_blue after one step"
+        assert len(player1_inventory) == 0, "Player1 should have no items left"
+        
+        # Player2 agent (agent_id=1) should have kept all items
+        player2_inventory = agents_after[1]["inventory"]
+        assert player2_inventory[0] == 5, "Player2 should still have 5 hearts after one step"
+        assert player2_inventory[1] == 3, "Player2 should still have 3 battery_blue after one step"
 
     def test_agent_with_no_loss_keeps_items(self):
         """Test that an agent with no resource loss keeps its items."""
