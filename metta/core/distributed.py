@@ -31,9 +31,7 @@ def setup_torch_distributed(device: str) -> TorchDistributedConfig:
     if "LOCAL_RANK" in os.environ and device.startswith("cuda"):
         torch.distributed.init_process_group(backend="nccl")
 
-        # Convert string device to torch.device for set_device call
-        device_obj = torch.device(device)
-        torch.cuda.set_device(device_obj)
+        torch.cuda.set_device(device)
         distributed = True
         local_rank = torch.distributed.get_rank()
         world_size = torch.distributed.get_world_size()
