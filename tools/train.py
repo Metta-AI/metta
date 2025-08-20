@@ -84,9 +84,6 @@ def handle_train(cfg: DictConfig, wandb_run: WandbRun | None, logger: Logger):
         if not stats_client:
             cfg.trainer.simulation.evaluate_remote = False
             logger.info("Not connected to stats server, disabling remote evaluations")
-        elif not cfg.trainer.simulation.evaluate_interval:
-            cfg.trainer.simulation.evaluate_remote = False
-            logger.info("Evaluate interval set to 0, disabling remote evaluations")
         elif not cfg.trainer.simulation.git_hash:
             cfg.trainer.simulation.git_hash = get_git_hash_for_remote_task(
                 skip_git_check=cfg.trainer.simulation.skip_git_check,

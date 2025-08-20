@@ -15,6 +15,8 @@ from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
 
+IS_MASTER = not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0
+
 
 class DistributedMettaAgent(DistributedDataParallel):
     """
@@ -26,7 +28,7 @@ class DistributedMettaAgent(DistributedDataParallel):
     module: "MettaAgent"
 
     def __init__(self, agent: "MettaAgent", device: torch.device):
-        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+        if IS_MASTER:
             logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
 
         # Check if the agent might have circular references that would cause recursion
@@ -173,7 +175,7 @@ class MettaAgent(nn.Module):
         # Store original feature mapping on first initialization
         if not hasattr(self, "original_feature_mapping"):
             self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
-            if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            if IS_MASTER:
                 logger.info(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
         else:
             # Create remapping for subsequent initializations
@@ -282,7 +284,7 @@ class MettaAgent(nn.Module):
             dtype=torch.int32,
         )
 
-        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+        if IS_MASTER:
             logger.info(f"Actions initialized: {self.active_actions}")
 
         # Pass tensors to policy if needed
