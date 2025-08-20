@@ -420,6 +420,9 @@ def train(
         world_model_steps = 0
 
         while world_model_steps < trainer_cfg.world_model_pretraining.steps:
+            # Record heartbeat during pre-training
+            record_heartbeat()
+
             # Get observation for world model training
             o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
             world_model_steps += num_steps
@@ -432,6 +435,15 @@ def train(
             world_model_optimizer.zero_grad()
             world_model_loss.backward()
             world_model_optimizer.step()
+
+            # Log to wandb every 100 steps
+            if wandb_run and is_master and world_model_steps % 100 == 0:
+                wandb_run.log(
+                    {
+                        "world_model/reconstruction_loss": world_model_loss.item(),
+                        "world_model/pretraining_steps": world_model_steps,
+                    }
+                )
 
             # Log progress every 1000 steps
             if world_model_steps % 1000 == 0 or world_model_steps >= trainer_cfg.world_model_pretraining.steps:

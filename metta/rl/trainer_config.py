@@ -132,7 +132,7 @@ class DualPolicyConfig(Config):
 
 class WorldModelPretrainingConfig(Config):
     enabled: bool = True
-    steps: int = Field(default=10000, gt=0)
+    steps: int = Field(default=100000, gt=0)
 
 
 class TrainerConfig(Config):
