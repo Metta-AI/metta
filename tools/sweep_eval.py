@@ -98,13 +98,13 @@ def main(cfg: DictConfig) -> int:
                 raise ValueError("No simulation configurations provided")
 
             sim_config = simulation_suite_cfg[0] if isinstance(simulation_suite_cfg, list) else simulation_suite_cfg
-            eval = Simulation(
+            simulation = Simulation(
                 name=f"sweep_eval_{cfg.run}",
                 cfg=sim_config,
                 policy_pr=policy_pr,
                 policy_store=policy_store,
                 device=cfg.device,
-                vectorization=getattr(cfg.system, "vectorization", 1) if hasattr(cfg, "system") else 1,
+                vectorization=getattr(getattr(cfg, "system", {}), "vectorization", 1),
             )
 
             # Start evaluation process
@@ -127,7 +127,7 @@ def main(cfg: DictConfig) -> int:
             if wandb_run:
                 log_file(cfg.run_dir, "sweep_eval_config.yaml", cfg, wandb_run)
 
-            results = eval.simulate()
+            results = simulation.simulate()
             eval_time = time.time() - eval_start_time
             eval_stats_db = EvalStatsDB.from_sim_stats_db(results.stats_db)
             eval_metric = eval_stats_db.get_average_metric_by_filter(cfg.sweep.metric, policy_pr)
