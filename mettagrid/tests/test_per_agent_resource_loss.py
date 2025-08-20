@@ -40,7 +40,10 @@ class TestPerAgentResourceLoss:
                     "sprite": 0,
                     "props": {
                         "initial_inventory": {"heart": 5, "battery_blue": 3},
-                        "resource_loss_probs": {"heart": 1.0, "battery_blue": 1.0},  # Complete loss for player agents
+                        "resource_loss_probs": {
+                            "heart": 1.0,
+                            "battery_blue": 1.0,
+                        },  # Complete loss for player agents
                     },
                 }
             },
@@ -49,7 +52,10 @@ class TestPerAgentResourceLoss:
             },
             "agent": {
                 "initial_inventory": {"heart": 5, "battery_blue": 3},
-                "resource_loss_probs": {"heart": 0.0, "battery_blue": 0.0},  # No loss for default agent
+                "resource_loss_probs": {
+                    "heart": 0.0,
+                    "battery_blue": 0.0,
+                },  # No loss for default agent
             },
         }
 
