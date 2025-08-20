@@ -138,4 +138,4 @@ def _upload_replay_html(
     if step_metric_key or epoch_metric_key:
         wandb_run.log(payload)
     else:
-        wandb_run.log(payload, step=agent_step)
+        wandb_run.log(payload, step=epoch)

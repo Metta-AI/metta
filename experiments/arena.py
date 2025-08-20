@@ -31,12 +31,11 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     # arena_tasks.add_bucket("game.map_builder.height", [10, 20, 30, 40])
     # arena_tasks.add_bucket("game.map_builder.instance_border_width", [0, 6])
 
-    for item in ["ore_red", "battery_red", "laser", "armor", "heart"]:
+    for item in ["ore_red", "battery_red", "laser", "armor"]:
         arena_tasks.add_bucket(
             f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
         )
-        if item != "heart":
-            arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
+        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
@@ -46,7 +45,7 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    return cc.curriculum(arena_tasks, num_tasks=4)
+    return cc.curriculum(arena_tasks, num_tasks=1000)
 
 
 def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
@@ -74,6 +73,34 @@ def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
                     name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
                 ),
             ],
+        ),
+    )
+
+    return TrainTool(
+        trainer=trainer_cfg,
+        run=run,
+    )
+
+
+def train_shaped_rewards(run: str) -> TrainTool:
+    env_cfg = make_env()
+    env_cfg.game.agent.rewards.inventory.ore_red = 0.1
+    env_cfg.game.agent.rewards.inventory.ore_red_max = 1
+    env_cfg.game.agent.rewards.inventory.battery_red = 0.8
+    env_cfg.game.agent.rewards.inventory.battery_red_max = 1
+    env_cfg.game.agent.rewards.inventory.laser = 0.5
+    env_cfg.game.agent.rewards.inventory.laser_max = 1
+    env_cfg.game.agent.rewards.inventory.armor = 0.5
+    env_cfg.game.agent.rewards.inventory.armor_max = 1
+    env_cfg.game.agent.rewards.inventory.blueprint = 0.5
+    env_cfg.game.agent.rewards.inventory.blueprint_max = 1
+    env_cfg.game.agent.rewards.inventory.heart = 1
+    env_cfg.game.agent.rewards.inventory.heart_max = 100
+
+    trainer_cfg = TrainerConfig(
+        curriculum=cc.env_curriculum(env_cfg, num_tasks=1000),
+        evaluation=EvaluationConfig(
+            simulations=make_evals(),
         ),
     )
 

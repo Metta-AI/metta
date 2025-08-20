@@ -106,6 +106,7 @@ def make_navigation(num_agents: int) -> EnvConfig:
     # Use the standard altar configuration
     altar = building.altar.model_copy()  # Make a copy to avoid modifying the global object
     altar.cooldown = 100  # Cooldown between conversions
+    altar.initial_resource_count = 1
 
     cfg = EnvConfig(
         game=GameConfig(
@@ -120,9 +121,6 @@ def make_navigation(num_agents: int) -> EnvConfig:
                 get_items=ActionConfig(),
             ),
             agent=AgentConfig(
-                initial_inventory={
-                    "battery_red": 30,  # Give agents starting batteries to use altars
-                },
                 rewards=AgentRewards(
                     inventory=InventoryRewards(
                         heart=1,

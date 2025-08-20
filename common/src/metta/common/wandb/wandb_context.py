@@ -6,7 +6,6 @@ import socket
 import wandb
 import wandb.errors
 import wandb.sdk.wandb_run
-from omegaconf import OmegaConf
 
 from metta.common.config import Config
 
@@ -103,9 +102,9 @@ class WandbContext:
             )
 
             # Save config and set up file syncing only if wandb init succeeded
-            OmegaConf.save(self.global_cfg.model_dump(), os.path.join(self.cfg.data_dir, "config.yaml"))
             wandb.save(os.path.join(self.cfg.data_dir, "*.log"), base_path=self.cfg.data_dir, policy="live")
             wandb.save(os.path.join(self.cfg.data_dir, "*.yaml"), base_path=self.cfg.data_dir, policy="live")
+            wandb.save(os.path.join(self.cfg.data_dir, "*.json"), base_path=self.cfg.data_dir, policy="live")
             logger.info(f"Successfully initialized W&B run: {self.run.name} ({self.run.id})")
 
             # --- File-based IPC: Write to the same directory as HEARTBEAT_FILE ---

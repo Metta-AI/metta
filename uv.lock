@@ -1067,19 +1067,6 @@ wheels = [
 ]
 
 [[package]]
-name = "hydra-core"
-version = "1.4.0.dev1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "omegaconf" },
-    { name = "packaging" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/5a/05/01eac7f7e16d91933bfb802724847fd004952bff38a72fde51dc19a42af7/hydra_core-1.4.0.dev1.tar.gz", hash = "sha256:664e6755ea78f070b403df911fc460ea3464fdc59bd03affc0d6ffef9dd53221", size = 3287831, upload-time = "2024-07-10T20:09:41.548Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d0/d2/cf3b19412d1e8b397fd041500d1dccc5e902eb078bc91e3a7244452be9ff/hydra_core-1.4.0.dev1-py3-none-any.whl", hash = "sha256:e82753fe3aff8526ee1e72711f6f941beffcc9a2c1830b76c34242963835d039", size = 154173, upload-time = "2024-07-10T20:09:39.213Z" },
-]
-
-[[package]]
 name = "idna"
 version = "3.10"
 source = { registry = "https://pypi.org/simple" }
@@ -1734,7 +1721,6 @@ dependencies = [
     { name = "gymnasium" },
     { name = "heavyball" },
     { name = "httpx" },
-    { name = "hydra-core" },
     { name = "imageio" },
     { name = "ipywidgets" },
     { name = "jmespath" },
@@ -1816,7 +1802,6 @@ requires-dist = [
     { name = "gymnasium", specifier = "==0.29.1" },
     { name = "heavyball", specifier = ">=1.7.2" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "hydra-core", specifier = ">=1.4.0.dev1" },
     { name = "imageio", specifier = ">=2.37.0" },
     { name = "ipywidgets", specifier = ">=8.1.7" },
     { name = "jmespath", specifier = ">=1.0.1" },
@@ -2749,7 +2734,6 @@ wheels = [
 [[package]]
 name = "proto-plus"
 version = "1.26.1"
-
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "protobuf" },

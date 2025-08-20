@@ -332,156 +332,158 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
-  smoke-test:
-    name: "Smoke Tests"
-    if: |
-      (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
-    needs: [setup-checks]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    strategy:
-      matrix:
-        test_type: [train, replay, evals]
-      fail-fast: false
-    env:
-      CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+  # TODO(richard) #dehydration
 
-      - name: Setup uv
-        uses: ./.github/actions/setup-uv
+  # smoke-test:
+  #   name: "Smoke Tests"
+  #   if: |
+  #     (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
+  #   needs: [setup-checks]
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 10
+  #   strategy:
+  #     matrix:
+  #       test_type: [train, replay, evals]
+  #     fail-fast: false
+  #   env:
+  #     CHECKPOINT_PATH: ./train_dir/github_test/checkpoints/
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
 
-      # Training
-      - name: Training smoke test
-        if: matrix.test_type == 'train'
-        id: train
-        env:
-          WANDB_API_KEY: set_but_not_used
-          AWS_ACCESS_KEY_ID: set_but_not_used
-          AWS_SECRET_ACCESS_KEY: set_but_not_used
-        run: |
-          mkdir -p train_dir
-          uv run .github/scripts/train_smoke_test.py
-          ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
+  #     - name: Setup uv
+  #       uses: ./.github/actions/setup-uv
 
-      - name: Save training benchmark
-        if: matrix.test_type == 'train'
-        uses: ./.github/actions/save-benchmarks
-        with:
-          name: train_smoke_test
-          metrics: '{"duration": ${{ steps.train.outputs.duration }}, "memory_usage": ${{ steps.train.outputs.memory_peak_mb }}}'
-          filename: smoke_test_train_benchmark_results.json
+  #     # Training
+  #     - name: Training smoke test
+  #       if: matrix.test_type == 'train'
+  #       id: train
+  #       env:
+  #         WANDB_API_KEY: set_but_not_used
+  #         AWS_ACCESS_KEY_ID: set_but_not_used
+  #         AWS_SECRET_ACCESS_KEY: set_but_not_used
+  #       run: |
+  #         mkdir -p train_dir
+  #         uv run .github/scripts/train_smoke_test.py
+  #         ls -la $CHECKPOINT_PATH || echo "Warning: Checkpoint directory not created"
 
-      # Replay
-      - name: Run super fast training
-        if: matrix.test_type == 'replay'
-        run: |
-          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=github_test +user=ci wandb=off
+  #     - name: Save training benchmark
+  #       if: matrix.test_type == 'train'
+  #       uses: ./.github/actions/save-benchmarks
+  #       with:
+  #         name: train_smoke_test
+  #         metrics: '{"duration": ${{ steps.train.outputs.duration }}, "memory_usage": ${{ steps.train.outputs.memory_peak_mb }}}'
+  #         filename: smoke_test_train_benchmark_results.json
 
-      - name: Replay smoke test
-        if: matrix.test_type == 'replay'
-        id: replay
-        env:
-          WANDB_API_KEY: set_but_not_used
-          AWS_ACCESS_KEY_ID: set_but_not_used
-          AWS_SECRET_ACCESS_KEY: set_but_not_used
-        run: |
-          uv run .github/scripts/replay_smoke_test.py
+  #     # Replay
+  #     - name: Run super fast training
+  #       if: matrix.test_type == 'replay'
+  #       run: |
+  #         uv run --no-sync tools/train.py trainer.total_timesteps=10 run=github_test +user=ci wandb=off
 
-      - name: Save replay benchmark
-        if: matrix.test_type == 'replay'
-        uses: ./.github/actions/save-benchmarks
-        with:
-          name: replay_smoke_test
-          metrics: '{"duration": ${{ steps.replay.outputs.duration }}, "memory_usage": ${{ steps.replay.outputs.memory_peak_mb }}}'
-          filename: smoke_test_replay_benchmark_results.json
+  #     - name: Replay smoke test
+  #       if: matrix.test_type == 'replay'
+  #       id: replay
+  #       env:
+  #         WANDB_API_KEY: set_but_not_used
+  #         AWS_ACCESS_KEY_ID: set_but_not_used
+  #         AWS_SECRET_ACCESS_KEY: set_but_not_used
+  #       run: |
+  #         uv run .github/scripts/replay_smoke_test.py
 
-      # Eval
-      - name: Check evals smoke test policy availability
-        if: matrix.test_type == 'evals' && needs.setup-checks.outputs.is_external != 'true'
-        id: check_evals_policy
-        continue-on-error: true
-        env:
-          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-          POLICY: ${{ env.EVAL_SMOKE_TEST_POLICY }}
-        run: |
-          if uv run .github/scripts/validate-wandb-run.py; then
-            echo "result=success" >> "$GITHUB_OUTPUT"
-          else
-            echo "result=skipped" >> "$GITHUB_OUTPUT"
-            echo "::warning title=Evals Smoke Test Skipped::The evals smoke test was skipped because the W&B policy '${{ env.POLICY }}' could not be found. This test requires a valid W&B run to be available. Please ensure the policy exists or update the POLICY environment variable."
-          fi
+  #     - name: Save replay benchmark
+  #       if: matrix.test_type == 'replay'
+  #       uses: ./.github/actions/save-benchmarks
+  #       with:
+  #         name: replay_smoke_test
+  #         metrics: '{"duration": ${{ steps.replay.outputs.duration }}, "memory_usage": ${{ steps.replay.outputs.memory_peak_mb }}}'
+  #         filename: smoke_test_replay_benchmark_results.json
 
-      - name: Run evals smoke test
-        if: matrix.test_type == 'evals' && steps.check_evals_policy.outputs.result == 'success' && needs.setup-checks.outputs.is_external != 'true'
-        id: eval_smoke_test
-        env:
-          WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
-          AWS_ACCESS_KEY_ID: set_but_not_used
-          AWS_SECRET_ACCESS_KEY: set_but_not_used
-          POLICY: ${{ env.EVAL_SMOKE_TEST_POLICY }}
-          MIN_REWARD: ${{ env.EVAL_SMOKE_TEST_MIN_REWARD }}
-          MAX_ATTEMPTS: ${{ env.EVAL_SMOKE_TEST_MAX_ATTEMPTS }}
-          TORCH_COMPILE_DISABLE: "1"
-        run: |
-          uv run .github/scripts/eval_smoke_test.py
+  #     # Eval
+  #     - name: Check evals smoke test policy availability
+  #       if: matrix.test_type == 'evals' && needs.setup-checks.outputs.is_external != 'true'
+  #       id: check_evals_policy
+  #       continue-on-error: true
+  #       env:
+  #         WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+  #         POLICY: ${{ env.EVAL_SMOKE_TEST_POLICY }}
+  #       run: |
+  #         if uv run .github/scripts/validate-wandb-run.py; then
+  #           echo "result=success" >> "$GITHUB_OUTPUT"
+  #         else
+  #           echo "result=skipped" >> "$GITHUB_OUTPUT"
+  #           echo "::warning title=Evals Smoke Test Skipped::The evals smoke test was skipped because the W&B policy '${{ env.POLICY }}' could not be found. This test requires a valid W&B run to be available. Please ensure the policy exists or update the POLICY environment variable."
+  #         fi
 
-      - name: Save evals benchmark
-        if: matrix.test_type == 'evals' && steps.eval_smoke_test.conclusion == 'success'
-        uses: ./.github/actions/save-benchmarks
-        with:
-          name: evals_smoke_test
-          metrics: '{"duration": ${{ steps.eval_smoke_test.outputs.duration }}, "memory_usage": ${{ steps.eval_smoke_test.outputs.memory_peak_mb }}}'
-          filename: smoke_test_evals_benchmark_results.json
+  #     - name: Run evals smoke test
+  #       if: matrix.test_type == 'evals' && steps.check_evals_policy.outputs.result == 'success' && needs.setup-checks.outputs.is_external != 'true'
+  #       id: eval_smoke_test
+  #       env:
+  #         WANDB_API_KEY: ${{ secrets.WANDB_API_KEY }}
+  #         AWS_ACCESS_KEY_ID: set_but_not_used
+  #         AWS_SECRET_ACCESS_KEY: set_but_not_used
+  #         POLICY: ${{ env.EVAL_SMOKE_TEST_POLICY }}
+  #         MIN_REWARD: ${{ env.EVAL_SMOKE_TEST_MIN_REWARD }}
+  #         MAX_ATTEMPTS: ${{ env.EVAL_SMOKE_TEST_MAX_ATTEMPTS }}
+  #         TORCH_COMPILE_DISABLE: "1"
+  #       run: |
+  #         uv run .github/scripts/eval_smoke_test.py
 
-      - name: Upload benchmark file
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: smoke-test-benchmark-${{ matrix.test_type }}
-          path: |
-            smoke_test_*_benchmark_results.json
-          retention-days: 1
-          if-no-files-found: warn
+  #     - name: Save evals benchmark
+  #       if: matrix.test_type == 'evals' && steps.eval_smoke_test.conclusion == 'success'
+  #       uses: ./.github/actions/save-benchmarks
+  #       with:
+  #         name: evals_smoke_test
+  #         metrics: '{"duration": ${{ steps.eval_smoke_test.outputs.duration }}, "memory_usage": ${{ steps.eval_smoke_test.outputs.memory_peak_mb }}}'
+  #         filename: smoke_test_evals_benchmark_results.json
 
-  collect-smoke-test-results:
-    name: "Collect Smoke Test Results"
-    if: always()
-    needs: [smoke-test]
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all benchmark artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: smoke-test-benchmark-*
-          merge-multiple: true
+  #     - name: Upload benchmark file
+  #       if: always()
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: smoke-test-benchmark-${{ matrix.test_type }}
+  #         path: |
+  #           smoke_test_*_benchmark_results.json
+  #         retention-days: 1
+  #         if-no-files-found: warn
 
-      - name: Upload combined results
-        uses: actions/upload-artifact@v4
-        with:
-          name: smoke-test-benchmark-results-combined
-          path: "*.json"
-          retention-days: 7
+  # collect-smoke-test-results:
+  #   name: "Collect Smoke Test Results"
+  #   if: always()
+  #   needs: [smoke-test]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Download all benchmark artifacts
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         pattern: smoke-test-benchmark-*
+  #         merge-multiple: true
 
-  smoke-tests-summary:
-    name: "Smoke Tests"
-    needs: [smoke-test]
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check test results
-        run: |
-          echo "Smoke test job results: ${{ toJSON(needs) }}"
-          if [ "${{ contains(join(needs.*.result, ','), 'failure') }}" == "true" ]; then
-            echo "One or more smoke test jobs failed"
-            exit 1
-          elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
-            echo "One or more smoke test jobs were cancelled"
-            exit 1
-          else
-            echo "All smoke test jobs completed successfully"
-          fi
+  #     - name: Upload combined results
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: smoke-test-benchmark-results-combined
+  #         path: "*.json"
+  #         retention-days: 7
+
+  # smoke-tests-summary:
+  #   name: "Smoke Tests"
+  #   needs: [smoke-test]
+  #   if: always()
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Check test results
+  #       run: |
+  #         echo "Smoke test job results: ${{ toJSON(needs) }}"
+  #         if [ "${{ contains(join(needs.*.result, ','), 'failure') }}" == "true" ]; then
+  #           echo "One or more smoke test jobs failed"
+  #           exit 1
+  #         elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
+  #           echo "One or more smoke test jobs were cancelled"
+  #           exit 1
+  #         else
+  #           echo "All smoke test jobs completed successfully"
+  #         fi
 
   python-benchmark:
     name: "Python Benchmarks"

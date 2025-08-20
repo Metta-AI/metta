@@ -169,8 +169,7 @@ metta configure    # Reconfigure for a different profile
 
 ## Usage
 
-The repository contains command-line tools in the `tools/` directory. Most of these tools use [Hydra](https://hydra.cc/)
-for configuration management, which allows flexible parameter overrides and composition.
+The repository contains command-line tools in the `tools/` directory.
 
 #### Hydra Configuration Patterns
 
@@ -179,10 +178,10 @@ for configuration management, which allows flexible parameter overrides and comp
 - Config composition order matters - later overrides take precedence
 
 Common patterns:
+
 - **Override parameters**: `param=value` sets configuration values directly
 - **Compose configs**: `+group=option` loads additional configuration files from `configs/group/option.yaml`
 - **Use config groups**: Load user-specific settings with `+user=<name>` from `configs/user/<name>.yaml`
-
 
 ### Training a Model
 
@@ -280,33 +279,38 @@ Then, to see the results in the scorecard along with the other policies in the d
 ./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
 ```
 
-
 ### Specifying your agent architecture
 
 #### Configuring a MettaAgent
 
-This repo implements a `MettaAgent` policy class. The underlying network is parameterized by config files in `configs/agent` (with `configs/agent/fast.yaml` used by default). See `configs/agent/reference_design.yaml` for an explanation of the config structure, and [this wiki section](https://deepwiki.com/Metta-AI/metta/6-agent-architecture) for further documentation.
+This repo implements a `MettaAgent` policy class. The underlying network is parameterized by config files in
+`configs/agent` (with `configs/agent/fast.yaml` used by default). See `configs/agent/reference_design.yaml` for an
+explanation of the config structure, and [this wiki section](https://deepwiki.com/Metta-AI/metta/6-agent-architecture)
+for further documentation.
 
 To use `MettaAgent` with a non-default architecture config:
-  - (Optional): Create your own configuration file, e.g. `configs/agent/my_agent.yaml`.
-  - Run with the configuration file of your choice:
-    ```bash
-    ./tools/train.py agent=my_agent
-    ```
+
+- (Optional): Create your own configuration file, e.g. `configs/agent/my_agent.yaml`.
+- Run with the configuration file of your choice:
+  ```bash
+  ./tools/train.py agent=my_agent
+  ```
 
 #### Defining your own PyTorch agent
 
 We support agent architectures without using the MettaAgent system:
-  - Implement your agent class under `metta/agent/src/metta/agent/pytorch/my_agent.py`. See `metta/agent/src/metta/agent/pytorch/fast.py` for an example.
-  - Register it in `metta/agent/src/metta/agent/pytorch/agent_mapper.py` by adding an entry to `agent_classes` with a key name (e.g., `"my_agent"`).
-  - Select it at runtime using the `py_agent` flag (this overrides the `agent` YAML group):
-    ```bash
-    ./tools/train.py py_agent=my_agent
-    # (Optional) a .py suffix also works: py_agent=my_agent.py
-    ```
+
+- Implement your agent class under `metta/agent/src/metta/agent/pytorch/my_agent.py`. See
+  `metta/agent/src/metta/agent/pytorch/fast.py` for an example.
+- Register it in `metta/agent/src/metta/agent/pytorch/agent_mapper.py` by adding an entry to `agent_classes` with a key
+  name (e.g., `"my_agent"`).
+- Select it at runtime using the `py_agent` flag (this overrides the `agent` YAML group):
+  ```bash
+  ./tools/train.py py_agent=my_agent
+  # (Optional) a .py suffix also works: py_agent=my_agent.py
+  ```
 
 Further updates to support bringing your own agent are coming soon.
-
 
 ## Development Setup
 

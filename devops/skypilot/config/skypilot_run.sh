@@ -95,9 +95,9 @@ echo "  - ACCUMULATED_RUNTIME: ${ACCUMULATED_RUNTIME:-'NOT SET'}"
 echo "  - RESTART_COUNT: ${RESTART_COUNT}"
 echo "  - TEST_JOB_RESTART: ${TEST_JOB_RESTART:-false}" # used in timeout_monitor
 [[ ${force_restart_seconds} -gt 0 ]] && echo "     ↳ job restart test delay: ${force_restart_seconds}"
-echo " - TEST_NCCL: ${TEST_NCCL:-false}"
-[[ "${TEST_NCCL:-false}" == "true" ]] && [[ "${RESTART_COUNT:-0}" -eq 0 ]] && echo " ↳ will run"
-[[ "${TEST_NCCL:-false}" == "true" ]] && [[ "${RESTART_COUNT:-0}" -gt 0 ]] && echo " ↳ skipping on restart #${RESTART_COUNT}"
+echo "  - TEST_NCCL: ${TEST_NCCL:-false}"
+[[ "${RESTART_COUNT:-0}" -eq 0 ]] && echo "     ↳ will run"
+[[ "${RESTART_COUNT:-0}" -gt 0 ]] && echo "     ↳ skipping on restart #${RESTART_COUNT}"
 echo "  - JOB_METADATA_DIR: $JOB_METADATA_DIR"
 echo "     ↳ TERMINATION_REASON_FILE: $TERMINATION_REASON_FILE"
 echo "     ↳ CLUSTER_STOP_FILE: $CLUSTER_STOP_FILE"
@@ -140,41 +140,17 @@ shutdown() {
   if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
     echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
 
-    # Only master coordinates multi-node shutdown
-    if [[ "$IS_MASTER" == "true" ]]; then
+    # First, signal all worker nodes to start shutdown
+    if [[ "$IS_MASTER" == "true" ]] && [[ "$TOTAL_NODES" -gt 1 ]]; then
       echo "$termination_reason" > "$CLUSTER_STOP_FILE"
-      echo "[SHUTDOWN] Master node signaled all nodes to begin shutdown"
-
-      # Give workers time to detect the signal and start their own shutdown
-      echo "[SHUTDOWN] Waiting for worker nodes to begin shutdown..."
-      sleep 20
-
-    elif [[ "$IS_MASTER" != "true" ]]; then
-      # Worker waits for cluster-wide shutdown signal
-      echo "[SHUTDOWN] Worker node checking for cluster-wide shutdown signal..."
-      count=0
-      max_wait=20
-
-      while [ ! -f "$CLUSTER_STOP_FILE" ] && [ $count -lt $max_wait ]; do
-        sleep 1
-        ((count++))
-        if [ $((count % 5)) -eq 0 ]; then
-          echo "[SHUTDOWN] Worker waiting for cluster signal... ${count}/${max_wait}s"
-        fi
-      done
-
-      if [ -f "$CLUSTER_STOP_FILE" ]; then
-        echo "[SHUTDOWN] Worker node detected cluster-wide shutdown signal"
-      else
-        echo "[SHUTDOWN] Worker node timeout waiting for cluster signal, proceeding with shutdown"
-      fi
+      echo "[SHUTDOWN] Signaled all nodes to begin shutdown"
+      sleep 20 # Give workers time to shut down
     fi
 
-    # Now proceed with local process termination
-    # Send SIGTERM to the local process group
+    # Send SIGTERM to the process group
     kill -TERM -"${CMD_PGID}" 2> /dev/null || true
 
-    # Wait for graceful shutdown
+    # Wait longer for graceful shutdown (especially for distributed training)
     count=0
     max_wait=30
     while kill -0 "$CMD_PID" 2> /dev/null && [ $count -lt $max_wait ]; do
@@ -185,7 +161,7 @@ shutdown() {
       fi
     done
 
-    # If still alive, use SIGKILL
+    # If STILL alive, use SIGKILL
     if kill -0 "$CMD_PID" 2> /dev/null; then
       echo "[SHUTDOWN] Process didn't terminate gracefully after ${max_wait}s, using SIGKILL"
       kill -KILL -"${CMD_PGID}" 2> /dev/null || true
@@ -230,24 +206,23 @@ run_cmd() {
 
   export START_TIME=$(date +%s)
 
-  # Build the command as an array
-  local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
+  # Build the command with the new format
+  local cmd="./devops/run.sh ${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}"
 
-  # Add --args if METTA_ARGS is not empty
+  # Add --args if METTA_ARGS is not empty (run= is now included in METTA_ARGS)
   if [ -n "${METTA_ARGS:-}" ]; then
-    cmd+=(--args)
-    cmd+=(${METTA_ARGS}) # split on spaces
+    cmd="$cmd --args ${METTA_ARGS}"
   fi
 
   # Add --overrides if METTA_OVERRIDES is not empty
   if [ -n "${METTA_OVERRIDES:-}" ]; then
-    cmd+=(--overrides)
-    cmd+=(${METTA_OVERRIDES}) # split on spaces
+    cmd="$cmd --overrides ${METTA_OVERRIDES}"
   fi
-  echo "[INFO] Running command: ${cmd[*]}"
+
+  echo "[INFO] Running command: $cmd"
 
   # Use process substitution so $! is the trainer (not tee)
-  setsid "${cmd[@]}" &
+  setsid $cmd
   export CMD_PID=$!
 
   sleep 1

@@ -51,6 +51,9 @@ def curriculum(task_generator: TaskGeneratorConfigUnion, num_tasks: Optional[int
     return cc
 
 
-def env_curriculum(env_config: EnvConfig) -> CurriculumConfig:
+def env_curriculum(env_config: EnvConfig, num_tasks: Optional[int] = None) -> CurriculumConfig:
     """Create a curriculum configuration from an EnvConfig."""
-    return CurriculumConfig(task_generator=SingleTaskGeneratorConfig(env=env_config))
+    cc = CurriculumConfig(task_generator=SingleTaskGeneratorConfig(env=env_config))
+    if num_tasks is not None:
+        cc.num_active_tasks = num_tasks
+    return cc

@@ -16,7 +16,6 @@ dependencies = [
   "gymnasium==0.29.1",
   "heavyball>=1.7.2",
   "httpx>=0.28.1",
-  "hydra-core>=1.4.0.dev1",
   "imageio>=2.37.0",
   "jmespath>=1.0.1",
   "matplotlib>=3.10.3",

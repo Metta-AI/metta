@@ -266,6 +266,7 @@ def main():
 
     # For --dry-run, just exit after showing summary
     if args.dry_run:
+        print(red("Dry run: exiting"))
         sys.exit(0)
 
     # For --confirm, ask for confirmation

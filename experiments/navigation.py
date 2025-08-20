@@ -50,7 +50,7 @@ def make_curriculum(nav_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     # add /env/mettagrid/curriculum/navigation/subcurricula/sparse
     # add /env/mettagrid/navigation/training/sparse_bucketed: 1
 
-    return cc.curriculum(nav_tasks, num_tasks=4)
+    return cc.curriculum(nav_tasks, num_tasks=1000)
 
 
 def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
