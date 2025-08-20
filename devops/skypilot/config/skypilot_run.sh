@@ -206,23 +206,23 @@ run_cmd() {
 
   export START_TIME=$(date +%s)
 
-  # Build the command with the new format
-  local cmd="./devops/run.sh ${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}"
+  # Build the command as an array
+  local cmd=(./devops/run.sh "${METTA_MODULE_PATH:?missing METTA_MODULE_PATH}")
 
-  # Add --args if METTA_ARGS is not empty (run= is now included in METTA_ARGS)
+  # Add --args if METTA_ARGS is not empty
   if [ -n "${METTA_ARGS:-}" ]; then
-    cmd="$cmd --args ${METTA_ARGS}"
+    cmd+=(--args "${METTA_ARGS}")
   fi
 
   # Add --overrides if METTA_OVERRIDES is not empty
   if [ -n "${METTA_OVERRIDES:-}" ]; then
-    cmd="$cmd --overrides ${METTA_OVERRIDES}"
+    cmd+=(--overrides "${METTA_OVERRIDES}")
   fi
 
-  echo "[INFO] Running command: $cmd"
+  echo "[INFO] Running command: ${cmd[*]}"
 
   # Use process substitution so $! is the trainer (not tee)
-  setsid $cmd &
+  setsid "${cmd[@]}" &
   export CMD_PID=$!
 
   sleep 1
