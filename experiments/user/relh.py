@@ -17,10 +17,10 @@ obstacles_env.game.map_builder = AsciiMapBuilder.Config.from_uri(
 obstacles_env.game.max_steps = 100
 
 
-def train() -> TrainTool:
+def train(run: str = "local.relh.dehydrate.1") -> TrainTool:
     # Use default TrainerConfig with its default arena curriculum
     cfg = TrainTool(
-        run="local.relh.dehydrate.1",
+        run=run,  # Accept run parameter from launch script
         # Using all defaults from TrainerConfig
     )
     cfg.trainer.forward_pass_minibatch_target_size = 4096  # Larger minibatches for better GPU utilization
