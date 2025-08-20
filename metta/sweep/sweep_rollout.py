@@ -24,8 +24,6 @@ logger = logging.getLogger(__name__)
 
 def main(cfg: DictConfig) -> int:
     """Main entry point for sweep rollout."""
-    # Don't use @metta_script decorator since we need to generate run ID first
-    # Use module-level logger created at import time
 
     try:
         # Validate required arguments

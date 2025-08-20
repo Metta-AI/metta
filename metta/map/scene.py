@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import importlib
 from typing import Any, Generic, Optional, Type, TypeVar, Union, get_args, get_origin
 
 import numpy as np
@@ -11,6 +10,7 @@ from metta.common.config import Config
 from metta.map.config import scenes_root
 from metta.map.random.int import MaybeSeed
 from metta.map.types import Area, AreaQuery, MapGrid
+from metta.utils.module import load_class
 
 ParamsT = TypeVar("ParamsT", bound=Config)
 
@@ -19,7 +19,7 @@ SceneT = TypeVar("SceneT", bound="Scene")
 
 def _ensure_scene_cls(v: Any) -> type["Scene"]:
     if isinstance(v, str):
-        return load_class(v)
+        return load_scene_class(v)
     if not issubclass(v, Scene):
         raise ValueError(f"Class {v} does not inherit from Scene")
     return v
@@ -333,10 +333,8 @@ class Scene(Generic[ParamsT]):
             child_scene.transplant_to_grid(grid, shift_x, shift_y, is_root=False)
 
 
-def load_class(full_class_name: str, check_is_scene=True) -> type[Scene]:
-    module_name, class_name = full_class_name.rsplit(".", 1)
-    module = importlib.import_module(module_name)
-    cls = getattr(module, class_name)
+def load_scene_class(full_class_name: str, check_is_scene=True) -> type[Scene]:
+    cls = load_class(full_class_name)
     if check_is_scene and not issubclass(cls, Scene):
         raise ValueError(f"Class {cls} does not inherit from Scene")
     return cls
