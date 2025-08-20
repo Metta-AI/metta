@@ -127,7 +127,6 @@ else
   export ENABLE_DISCORD=false
   export ENABLE_GITHUB_STATUS=false
 fi
-
 shutdown() {
   # Disable the trap to prevent re-entry
   trap '' INT TERM HUP
@@ -140,17 +139,41 @@ shutdown() {
   if [ -n "${CMD_PGID:-}" ] && [ -n "${CMD_PID:-}" ]; then
     echo "[SHUTDOWN] Initiating graceful shutdown of training process tree (PGID: ${CMD_PGID})"
 
-    # First, signal all worker nodes to start shutdown
+    # Only master coordinates multi-node shutdown
     if [[ "$IS_MASTER" == "true" ]] && [[ "$TOTAL_NODES" -gt 1 ]]; then
       echo "$termination_reason" > "$CLUSTER_STOP_FILE"
-      echo "[SHUTDOWN] Signaled all nodes to begin shutdown"
-      sleep 20 # Give workers time to shut down
+      echo "[SHUTDOWN] Master node signaled all nodes to begin shutdown"
+
+      # Give workers time to detect the signal and start their own shutdown
+      echo "[SHUTDOWN] Waiting for worker nodes to begin shutdown..."
+      sleep 20
+
+    elif [[ "$IS_MASTER" != "true" ]] && [[ "$TOTAL_NODES" -gt 1 ]]; then
+      # Worker waits for cluster-wide shutdown signal
+      echo "[SHUTDOWN] Worker node checking for cluster-wide shutdown signal..."
+      count=0
+      max_wait=20
+
+      while [ ! -f "$CLUSTER_STOP_FILE" ] && [ $count -lt $max_wait ]; do
+        sleep 1
+        ((count++))
+        if [ $((count % 5)) -eq 0 ]; then
+          echo "[SHUTDOWN] Worker waiting for cluster signal... ${count}/${max_wait}s"
+        fi
+      done
+
+      if [ -f "$CLUSTER_STOP_FILE" ]; then
+        echo "[SHUTDOWN] Worker node detected cluster-wide shutdown signal"
+      else
+        echo "[SHUTDOWN] Worker node timeout waiting for cluster signal, proceeding with shutdown"
+      fi
     fi
 
-    # Send SIGTERM to the process group
+    # Now proceed with local process termination
+    # Send SIGTERM to the local process group
     kill -TERM -"${CMD_PGID}" 2> /dev/null || true
 
-    # Wait longer for graceful shutdown (especially for distributed training)
+    # Wait for graceful shutdown
     count=0
     max_wait=30
     while kill -0 "$CMD_PID" 2> /dev/null && [ $count -lt $max_wait ]; do
@@ -161,7 +184,7 @@ shutdown() {
       fi
     done
 
-    # If STILL alive, use SIGKILL
+    # If still alive, use SIGKILL
     if kill -0 "$CMD_PID" 2> /dev/null; then
       echo "[SHUTDOWN] Process didn't terminate gracefully after ${max_wait}s, using SIGKILL"
       kill -KILL -"${CMD_PGID}" 2> /dev/null || true
