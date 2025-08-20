@@ -350,6 +350,7 @@ def train() -> None:
 
     rollout = 0
     timestep = 0
+    last_checkpoint_timestep = 0
     start_time = time.time()
 
     while timestep < total_timesteps:
@@ -414,8 +415,8 @@ def train() -> None:
             )
 
         # Checkpoint
-        if rollout * rollout_steps >= checkpoint_interval:
-            checkpoint_path = Path(__file__).parent / f"checkpoint_{rollout}.pt"
+        if timestep - last_checkpoint_timestep >= checkpoint_interval:
+            checkpoint_path = Path(__file__).parent / f"checkpoint_{timestep}.pt"
             torch.save(
                 {
                     "agent_state_dict": agent.state_dict(),
@@ -426,6 +427,7 @@ def train() -> None:
                 checkpoint_path,
             )
             print(f"Saved checkpoint: {checkpoint_path}")
+            last_checkpoint_timestep = timestep
 
     print("Training completed!")
 
