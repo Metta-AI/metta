@@ -6,8 +6,6 @@ import sys
 
 import numpy as np
 
-from tools.utils import get_policy_store_from_cfg  # noqa: E402
-
 if not hasattr(np, "byte"):
     np.byte = np.int8
 
@@ -17,25 +15,14 @@ import time
 
 from omegaconf import DictConfig, OmegaConf
 
-from metta.cogworks.sweep.sweep_config import SweepConfig
-from metta.common.config import Config
+from metta.agent.policy_store import PolicyStore
 from metta.common.util.lock import run_once
-from metta.common.wandb.wandb_context import WandbConfig, WandbContext
+from metta.common.wandb.wandb_context import WandbContext
 from metta.eval.eval_stats_db import EvalStatsDB
-from metta.rl.system_config import SystemConfig
-from metta.sim.simulation_config import SimulationConfig
-from metta.sim.simulation_suite import SimulationSuite
+from metta.sim.simulation import Simulation
 from metta.sweep.wandb_utils import record_protein_observation_to_wandb
 
 logger = logging.getLogger(__name__)
-
-
-# TODO #dehydration - this should be a DictConfig
-class SweepEvalToolConfig(Config):
-    system: SystemConfig
-    wandb: WandbConfig
-    sim: list[SimulationConfig]
-    sweep: SweepConfig
 
 
 def log_file(run_dir, name, data, wandb_run):
@@ -54,7 +41,7 @@ def load_file(run_dir, name):
         return OmegaConf.load(f)
 
 
-def main(cfg: SweepEvalToolConfig) -> int:
+def main(cfg: DictConfig) -> int:
     simulation_suite_cfg = cfg.sim
 
     # Create env config
@@ -69,7 +56,15 @@ def main(cfg: SweepEvalToolConfig) -> int:
         logger.info(f"Starting evaluation for run: {cfg.run}")
 
         with WandbContext(cfg.wandb, cfg) as wandb_run:
-            policy_store = get_policy_store_from_cfg(cfg, wandb_run)
+            # Create PolicyStore with proper configuration
+            policy_store = PolicyStore(
+                device=cfg.device,
+                wandb_run=wandb_run,
+                data_dir=getattr(cfg, "data_dir", None),
+                wandb_entity=cfg.wandb.entity if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "entity") else None,
+                wandb_project=cfg.wandb.project if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "project") else None,
+                pytorch_cfg=getattr(cfg, "pytorch", None),
+            )
             try:
                 # Fetch the latest policy record from the run
                 policy_pr = policy_store.policy_record("wandb://run/" + cfg.run, selector_type="latest")
@@ -93,10 +88,16 @@ def main(cfg: SweepEvalToolConfig) -> int:
                 OmegaConf.save({"eval_metric": None, "total_time": 0, "error": str(e)}, results_path)
                 return 1
 
-            eval = SimulationSuite(
-                simulation_suite_cfg,
-                policy_pr,
-                policy_store,
+            # Create simulation using the first simulation config
+            if not simulation_suite_cfg:
+                raise ValueError("No simulation configurations provided")
+
+            sim_config = simulation_suite_cfg[0] if isinstance(simulation_suite_cfg, list) else simulation_suite_cfg
+            eval = Simulation(
+                name=f"sweep_eval_{cfg.run}",
+                cfg=sim_config,
+                policy_pr=policy_pr,
+                policy_store=policy_store,
                 device=cfg.device,
                 vectorization=system_config.vectorization,
             )

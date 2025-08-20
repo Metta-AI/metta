@@ -425,8 +425,13 @@ class Simulation:
 
         suite_name = "" if self._sim_suite_name is None else self._sim_suite_name
         db = SimulationStatsDB.from_shards_and_context(
-            self._id, self._stats_dir, agent_map, self._name, suite_name, self._policy_pr,
-            env_label=self._config.env.label
+            self._id,
+            self._stats_dir,
+            agent_map,
+            self._name,
+            suite_name,
+            self._policy_pr,
+            env_label=self._config.env.label,
         )
         return db
 
