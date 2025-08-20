@@ -66,15 +66,33 @@ class InContextOptimalSolver:
         """Calculate Manhattan distance between two positions."""
         return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
 
-    def tank_movement_cost(self, pos1: Tuple[int, int], pos2: Tuple[int, int]) -> int:
+    def tank_movement_cost(self, pos1: Tuple[int, int], pos2: Tuple[int, int]) -> float:
         """
         Calculate tank-style movement cost (rotate + move).
 
-        Assumes average case: 1 rotation + manhattan distance moves.
-        In worst case, add 1 more rotation for turning corners.
+        Tank movement requires:
+        - Initial rotation to face target direction (0-2, avg ~1)
+        - Moving forward along one axis
+        - Corner rotation if changing axis (exactly 1 if needed)
+        - Moving forward along other axis
+
+        Cases:
+        - Same row/column: 0-2 rotations (avg ~1) + distance
+        - Different row & column: 2 rotations (turn + corner) + distance
+
+        Maximum possible rotations: 2 (initial turn + corner turn)
         """
         distance = self.manhattan_distance(pos1, pos2)
-        return 0 if distance == 0 else 1 + distance
+        if distance == 0:
+            return 0
+
+        # Check if positions are aligned (same row or column)
+        if pos1[0] == pos2[0] or pos1[1] == pos2[1]:
+            # Aligned: average 1 rotation + movement
+            return distance + 1.0
+        else:
+            # Not aligned: need initial turn + corner turn
+            return distance + 2.0  # 2 rotations for non-aligned positions
 
     def calculate_average_distances(
         self, agent_pos: Tuple[int, int], converter_positions: List[Tuple[int, int]], use_tank_movement: bool = True
