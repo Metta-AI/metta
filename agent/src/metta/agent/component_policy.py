@@ -15,11 +15,6 @@ from metta.common.util.datastruct import duplicates
 logger = logging.getLogger(__name__)
 
 
-def log_on_master(*args, **argv):
-    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
-        logger.info(*args, **argv)
-
-
 class ComponentPolicy(nn.Module, ABC):
     """
     Abstract base class for component-based policies.
@@ -82,7 +77,8 @@ class ComponentPolicy(nn.Module, ABC):
 
         # Move to device
         self.components = self.components.to(device)
-        log_on_master(f"{self.__class__.__name__} policy components: {self.components}")
+        if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+            logger.info(f"{self.__class__.__name__} policy components: {self.components}")
 
         # Initialize action conversion tensors (will be set by MettaAgent)
         self.cum_action_max_params = None
@@ -104,7 +100,8 @@ class ComponentPolicy(nn.Module, ABC):
         # Recursively setup all source components first
         if hasattr(component, "_sources") and component._sources is not None:
             for source in component._sources:
-                log_on_master(f"setting up {component._name} with source {source['name']}")
+                if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+                    logger.info(f"setting up {component._name} with source {source['name']}")
                 self._setup_components(self.components[source["name"]])
 
         # Setup the current component and pass in the source components
