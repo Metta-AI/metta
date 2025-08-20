@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from metta.common.util.constants import DEV_STATS_SERVER_URI, PROD_STATS_SERVER_URI
 from metta.common.util.stats_client_cfg import get_machine_token
 from metta.setup.utils import error, info
 
@@ -24,9 +25,9 @@ def main():
     env = os.environ.copy()
 
     if args.backend == "local":
-        env["VITE_API_URL"] = "http://localhost:8000"
+        env["VITE_API_URL"] = DEV_STATS_SERVER_URI
     elif args.backend == "prod":
-        env["VITE_API_URL"] = "https://api.observatory.softmax-research.net"
+        env["VITE_API_URL"] = PROD_STATS_SERVER_URI
         if token := get_machine_token(env["VITE_API_URL"]):
             env["VITE_AUTH_TOKEN"] = token
 

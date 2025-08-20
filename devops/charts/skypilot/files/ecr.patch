@@ -1,6 +1,6 @@
 diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 --- sky/provision/docker_utils.py	2025-06-02 23:54:17
-+++ sky-patched/provision/docker_utils.py	2025-07-28 13:28:05
++++ sky-patched/provision/docker_utils.py	2025-08-11 13:49:47
 @@ -221,0 +222,22 @@
 +        def is_ecr_server(server: str):
 +            return server.endswith(".amazonaws.com") and ".ecr." in server
@@ -24,7 +24,7 @@ diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 +
 +            return server
 +
-@@ -246,0 +269,16 @@
+@@ -246,0 +269,19 @@
 +            elif is_ecr_server(docker_login_config.server):
 +                # Handle AWS ECR authentication
 +                docker_login_config.server = fix_ecr_server(docker_login_config.server)
@@ -41,10 +41,13 @@ diff -U0 -r sky/provision/docker_utils.py sky-patched/provision/docker_utils.py
 +                import json
 +                self._run(f'echo \'{json.dumps(config_json, indent=2)}\' > /tmp/docker_config.json && '
 +                            f'mv /tmp/docker_config.json ~/.docker/config.json')
++            # We automatically add the server prefix to the image name if
++            # the user did not add it.
++            specific_image = docker_login_config.format_image(specific_image)
 diff -U0 -r sky/resources.py sky-patched/resources.py
---- sky/resources.py	2025-07-28 13:24:57
-+++ sky-patched/resources.py	2025-07-28 13:26:34
-@@ -2197,3 +2196,0 @@
+--- sky/resources.py	2025-08-11 13:47:47
++++ sky-patched/resources.py	2025-08-11 13:51:08
+@@ -2222,3 +2221,0 @@
 -        if self._docker_login_config is not None:
 -            config['_docker_login_config'] = dataclasses.asdict(
 -                self._docker_login_config)

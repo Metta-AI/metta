@@ -35,6 +35,7 @@ class TestValidateConfig(unittest.TestCase):
             if e.code != 0:
                 self.fail(f"Failed to load env/mettagrid/arena/advanced.yaml: {e}")
 
+    @unittest.skip("Agent configs are now Python-based, not YAML")
     def test_load_and_print_config_agent_fast(self):
         """Test loading agent/fast.yaml config."""
         f = StringIO()
@@ -55,8 +56,9 @@ class TestValidateConfig(unittest.TestCase):
             with redirect_stdout(f):
                 load_and_print_config("trainer/trainer")
             output = f.getvalue()
-            # Should have trainer configuration
-            self.assertIn("_target_:", output)
+            # Should have trainer configuration fields
+            self.assertIn("batch_size:", output)
+            self.assertIn("ppo:", output)
         except SystemExit as e:
             if e.code != 0:
                 self.fail(f"Failed to load trainer/trainer.yaml: {e}")
@@ -72,6 +74,7 @@ class TestValidateConfig(unittest.TestCase):
         self.assertEqual(result.returncode, 0, f"Script failed: {result.stderr}")
         self.assertIn("game:", result.stdout)  # Simple validation that config was loaded
 
+    @unittest.skip("Agent configs are now Python-based, not YAML")
     def test_script_execution_agent_fast(self):
         """Test the script execution via command line for agent fast config."""
         result = subprocess.run(
@@ -94,7 +97,7 @@ class TestValidateConfig(unittest.TestCase):
         self.assertEqual(result.returncode, 0, f"Script failed: {result.stderr}")
         # Should contain trainer config elements
         self.assertTrue(
-            any(x in result.stdout for x in ["_target_:", "trainer", "batch_size"]),
+            any(x in result.stdout for x in ["batch_size", "ppo", "optimizer"]),
             f"Expected trainer config content not found in output: {result.stdout[:500]}",
         )
 

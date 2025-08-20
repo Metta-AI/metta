@@ -1,3 +1,4 @@
+import os
 import subprocess
 import sys
 from enum import Enum
@@ -24,7 +25,7 @@ class CommitHookMode(Enum):
 
     @classmethod
     def get_default(cls) -> "CommitHookMode":
-        return CommitHookMode.CHECK
+        return CommitHookMode.FIX
 
     @classmethod
     def parse(cls, value: str | None) -> "CommitHookMode":
@@ -140,12 +141,15 @@ class GitHooksSetup(SetupModule):
         current = CommitHookMode.parse(self.get_setting("commit_hook_mode", default=None))
 
         # Prompt for new mode
-        mode = prompt_choice(
-            "Select pre-commit hook behavior:",
-            [(mode, mode.get_description()) for mode in CommitHookMode],
-            default=CommitHookMode.get_default(),
-            current=current,
-        )
+        if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI"):
+            mode = CommitHookMode.get_default()
+        else:
+            mode = prompt_choice(
+                "Select pre-commit hook behavior:",
+                [(mode, mode.get_description()) for mode in CommitHookMode],
+                default=CommitHookMode.get_default(),
+                current=current,
+            )
 
         # Save the setting (only if non-default)
         self.set_setting("commit_hook_mode", mode.value)

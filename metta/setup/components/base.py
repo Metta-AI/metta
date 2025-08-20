@@ -180,3 +180,18 @@ class SetupModule(ABC):
             del parent[keys[-1]]
             # Recursively clean up parent
             self._cleanup_empty_dicts(config, keys[:-1])
+
+    def get_status(self) -> dict[str, Any] | None:
+        """Get the status of this module.
+
+        Returns:
+            Dictionary with status information or None if not applicable
+        """
+        if not self.is_applicable():
+            return None
+
+        installed = self.check_installed()
+        connected_as = self.check_connected_as() if installed else None
+        expected = self.config.get_expected_connection(self.name)
+
+        return {"installed": installed, "connected_as": connected_as, "expected": expected}

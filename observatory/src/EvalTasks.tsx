@@ -1,20 +1,126 @@
 import React, { useState, useEffect } from 'react'
-import { Repo } from './repo'
+import { Repo, EvalTask } from './repo'
+import { METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO } from './constants'
 
-interface EvalTask {
-  id: string
-  policy_id: string
-  sim_suite: string
-  status: 'unprocessed' | 'canceled' | 'done' | 'error'
-  assigned_at: string | null
-  assignee: string | null
-  created_at: string
-  attributes: Record<string, any>
-  policy_name: string | null
-  retries: number
+interface TypeaheadInputProps {
+  value: string
+  onChange: (value: string) => void
+  placeholder: string
+  suggestions: string[]
+  maxSuggestions?: number
+  filterType?: 'prefix' | 'substring'
 }
 
-type SortField = 'policy_name' | 'sim_suite' | 'status' | 'assignee' | 'retries' | 'created_at' | 'assigned_at'
+function TypeaheadInput({ 
+  value, 
+  onChange, 
+  placeholder, 
+  suggestions, 
+  maxSuggestions = 10,
+  filterType = 'substring' 
+}: TypeaheadInputProps) {
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [filteredSuggestions, setFilteredSuggestions] = useState<string[]>([])
+
+  const handleInputChange = (inputValue: string) => {
+    onChange(inputValue)
+    if (inputValue.trim()) {
+      const filtered = suggestions.filter((suggestion) => {
+        const lowerSuggestion = suggestion.toLowerCase()
+        const lowerInput = inputValue.toLowerCase()
+        return filterType === 'prefix' 
+          ? lowerSuggestion.startsWith(lowerInput)
+          : lowerSuggestion.includes(lowerInput)
+      })
+      setFilteredSuggestions(filtered.slice(0, maxSuggestions))
+      setShowSuggestions(filtered.length > 0)
+    } else {
+      setShowSuggestions(false)
+    }
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => handleInputChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: '100%',
+          padding: '10px 12px',
+          borderRadius: '6px',
+          border: '1px solid #d1d5db',
+          fontSize: '14px',
+          backgroundColor: '#fff',
+          transition: 'border-color 0.2s',
+          outline: 'none',
+        }}
+        onFocus={(e) => {
+          e.target.style.borderColor = '#007bff'
+          if (value.trim() && filteredSuggestions.length > 0) {
+            setShowSuggestions(true)
+          }
+        }}
+        onBlur={(e) => {
+          e.target.style.borderColor = '#d1d5db'
+          // Delay to allow clicking on suggestions
+          setTimeout(() => setShowSuggestions(false), 200)
+        }}
+      />
+      {showSuggestions && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            marginTop: '4px',
+            backgroundColor: 'white',
+            border: '1px solid #d1d5db',
+            borderRadius: '6px',
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+            maxHeight: '200px',
+            overflowY: 'auto',
+            zIndex: 1000,
+          }}
+        >
+          {filteredSuggestions.map((suggestion) => (
+            <div
+              key={suggestion}
+              onClick={() => {
+                onChange(suggestion)
+                setShowSuggestions(false)
+              }}
+              style={{
+                padding: '8px 12px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                borderBottom: '1px solid #f0f0f0',
+                transition: 'background-color 0.2s',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8f9fa')}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'white')}
+            >
+              {suggestion}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+type SortField =
+  | 'policy_name'
+  | 'sim_suite'
+  | 'status'
+  | 'assignee'
+  | 'user_id'
+  | 'retries'
+  | 'created_at'
+  | 'assigned_at'
+  | 'updated_at'
 type SortDirection = 'asc' | 'desc'
 
 interface Props {
@@ -33,8 +139,6 @@ export function EvalTasks({ repo }: Props) {
   const [completedSortField, setCompletedSortField] = useState<SortField>('created_at')
   const [completedSortDirection, setCompletedSortDirection] = useState<SortDirection>('desc')
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
-  const [showPolicySuggestions, setShowPolicySuggestions] = useState(false)
-  const [filteredPolicies, setFilteredPolicies] = useState<string[]>([])
 
   // Set up auto-refresh for tasks
   useEffect(() => {
@@ -65,20 +169,15 @@ export function EvalTasks({ repo }: Props) {
     return Array.from(policySet).sort()
   }
 
-  // Handle policy input change with typeahead
-  const handlePolicyInputChange = (value: string) => {
-    setPolicyIdInput(value)
-    if (value.trim()) {
-      const recentPolicies = getRecentPolicies()
-      const filtered = recentPolicies.filter(
-        (policy) => policy.toLowerCase().includes(value.toLowerCase())
-      )
-      setFilteredPolicies(filtered.slice(0, 10)) // Limit to 10 suggestions
-      setShowPolicySuggestions(filtered.length > 0)
-    } else {
-      setShowPolicySuggestions(false)
-    }
+  // Get unique sim suite values from recent tasks for autocomplete
+  const getRecentSimSuites = (): string[] => {
+    const simSuiteSet = new Set<string>()
+    tasks.forEach((task) => {
+      if (task.sim_suite) simSuiteSet.add(task.sim_suite)
+    })
+    return Array.from(simSuiteSet).sort()
   }
+
 
   const handleCreateTask = async () => {
     if (!policyIdInput.trim()) {
@@ -121,7 +220,6 @@ export function EvalTasks({ repo }: Props) {
       // Clear form
       setPolicyIdInput('')
       setGitHash('')
-      setShowPolicySuggestions(false)
 
       // Refresh tasks
       await loadTasks()
@@ -187,16 +285,16 @@ export function EvalTasks({ repo }: Props) {
 
   const getGithubUrl = (gitHash: string) => {
     // Assuming metta repo, adjust if needed
-    return `https://github.com/Metta-AI/metta/commit/${gitHash}`
+    return `https://github.com/${METTA_GITHUB_ORGANIZATION}/${METTA_GITHUB_REPO}/commit/${gitHash}`
   }
 
   const truncateWorkerName = (workerName: string | null) => {
-    if (!workerName) return '-'
+    if (!workerName) return ''
     const parts = workerName.split('-')
     if (parts.length >= 3) {
       // Get the last part (suffix) and abbreviate the middle parts
       const suffix = parts[parts.length - 1]
-      return `eval-worker-...-${suffix}`
+      return suffix
     }
     return workerName
   }
@@ -259,7 +357,12 @@ export function EvalTasks({ repo }: Props) {
     label,
     isActive,
     width,
-  }: { field: SortField; label: string; isActive: boolean; width?: string }) => {
+  }: {
+    field: SortField
+    label: string
+    isActive: boolean
+    width?: string
+  }) => {
     const sortField = isActive ? activeSortField : completedSortField
     const sortDirection = isActive ? activeSortDirection : completedSortDirection
     const isCurrentSort = sortField === field
@@ -353,8 +456,23 @@ export function EvalTasks({ repo }: Props) {
     }
 
     return (
-      <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderTop: '1px solid #dee2e6' }}>
-        <h4 style={{ marginTop: 0, marginBottom: '10px', fontSize: '14px', fontWeight: 600 }}>Attributes</h4>
+      <div
+        style={{
+          padding: '15px',
+          backgroundColor: '#f8f9fa',
+          borderTop: '1px solid #dee2e6',
+        }}
+      >
+        <h4
+          style={{
+            marginTop: 0,
+            marginBottom: '10px',
+            fontSize: '14px',
+            fontWeight: 600,
+          }}
+        >
+          Attributes
+        </h4>
         <div
           style={{
             fontSize: '12px',
@@ -423,74 +541,14 @@ export function EvalTasks({ repo }: Props) {
             >
               Policy Name or ID
             </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type="text"
-                value={policyIdInput}
-                onChange={(e) => handlePolicyInputChange(e.target.value)}
-                placeholder="Enter policy name or ID"
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid #d1d5db',
-                  fontSize: '14px',
-                  backgroundColor: '#fff',
-                  transition: 'border-color 0.2s',
-                  outline: 'none',
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = '#007bff'
-                  if (policyIdInput.trim() && filteredPolicies.length > 0) {
-                    setShowPolicySuggestions(true)
-                  }
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = '#d1d5db'
-                  // Delay to allow clicking on suggestions
-                  setTimeout(() => setShowPolicySuggestions(false), 200)
-                }}
-              />
-              {showPolicySuggestions && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    marginTop: '4px',
-                    backgroundColor: 'white',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    zIndex: 1000,
-                  }}
-                >
-                  {filteredPolicies.map((policy) => (
-                    <div
-                      key={policy}
-                      onClick={() => {
-                        setPolicyIdInput(policy)
-                        setShowPolicySuggestions(false)
-                      }}
-                      style={{
-                        padding: '8px 12px',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        borderBottom: '1px solid #f0f0f0',
-                        transition: 'background-color 0.2s',
-                      }}
-                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8f9fa')}
-                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'white')}
-                    >
-                      {policy}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <TypeaheadInput
+              value={policyIdInput}
+              onChange={setPolicyIdInput}
+              placeholder="Enter policy name or ID"
+              suggestions={getRecentPolicies()}
+              maxSuggestions={10}
+              filterType="substring"
+            />
           </div>
 
           <div style={{ flex: '1 1 250px' }}>
@@ -537,25 +595,14 @@ export function EvalTasks({ repo }: Props) {
             >
               Suite
             </label>
-            <select
+            <TypeaheadInput
               value={simSuite}
-              onChange={(e) => setSimSuite(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '6px',
-                border: '1px solid #d1d5db',
-                fontSize: '14px',
-                backgroundColor: '#fff',
-                transition: 'border-color 0.2s',
-                outline: 'none',
-              }}
-              onFocus={(e) => (e.target.style.borderColor = '#007bff')}
-              onBlur={(e) => (e.target.style.borderColor = '#d1d5db')}
-            >
-              <option value="all">All</option>
-              <option value="arena">Arena</option>
-            </select>
+              onChange={setSimSuite}
+              placeholder="Enter sim suite"
+              suggestions={getRecentSimSuites()}
+              maxSuggestions={5}
+              filterType="prefix"
+            />
           </div>
 
           <button
@@ -596,15 +643,14 @@ export function EvalTasks({ repo }: Props) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <SortHeader field="policy_name" label="Policy" isActive={true} width="30%" />
-                <SortHeader field="sim_suite" label="Suite" isActive={true} width="10%" />
-                <SortHeader field="status" label="Status" isActive={true} width="15%" />
-                <SortHeader field="assignee" label="Assignee" isActive={true} width="20%" />
-                <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '10%' }}>
-                  Duration
-                </th>
-                <SortHeader field="retries" label="Retries" isActive={true} width="8%" />
-                <SortHeader field="created_at" label="Created" isActive={true} width="12%" />
+                <SortHeader field="policy_name" label="Policy" isActive={true} width="25%" />
+                <SortHeader field="sim_suite" label="Suite" isActive={true} width="8%" />
+                <SortHeader field="status" label="Status" isActive={true} width="12%" />
+                <SortHeader field="user_id" label="User" isActive={true} width="10%" />
+                <SortHeader field="assignee" label="Assignee" isActive={true} width="10%" />
+                <SortHeader field="retries" label="Tries" isActive={true} width="7%" />
+                <SortHeader field="created_at" label="Created" isActive={true} width="10%" />
+                <SortHeader field="updated_at" label="Updated" isActive={true} width="10%" />
               </tr>
             </thead>
             <tbody>
@@ -691,6 +737,7 @@ export function EvalTasks({ repo }: Props) {
                           )}
                         </div>
                       </td>
+                      <td style={{ padding: '12px' }}>{task.user_id || '-'}</td>
                       <td style={{ padding: '12px' }}>
                         <span
                           style={{
@@ -703,14 +750,15 @@ export function EvalTasks({ repo }: Props) {
                         >
                           {truncateWorkerName(task.assignee)}
                         </span>
+                        <span>{workingDuration || ''}</span>
                       </td>
-                      <td style={{ padding: '12px' }}>{workingDuration || '-'}</td>
                       <td style={{ padding: '12px' }}>{task.retries}</td>
                       <td style={{ padding: '12px' }}>{new Date(task.created_at + 'Z').toLocaleString()}</td>
+                      <td style={{ padding: '12px' }}>{new Date(task.updated_at + 'Z').toLocaleString()}</td>
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={8} style={{ padding: 0 }}>
+                        <td colSpan={9} style={{ padding: 0 }}>
                           {renderAttributes(task.attributes)}
                         </td>
                       </tr>
@@ -733,10 +781,12 @@ export function EvalTasks({ repo }: Props) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8f9fa' }}>
-                <SortHeader field="policy_name" label="Policy" isActive={false} width="40%" />
-                <SortHeader field="sim_suite" label="Suite" isActive={false} width="15%" />
-                <SortHeader field="status" label="Status" isActive={false} width="25%" />
-                <SortHeader field="created_at" label="Created" isActive={false} width="25%" />
+                <SortHeader field="policy_name" label="Policy" isActive={false} width="20%" />
+                <SortHeader field="sim_suite" label="Suite" isActive={false} width="10%" />
+                <SortHeader field="user_id" label="User" isActive={false} width="12%" />
+                <SortHeader field="status" label="Status" isActive={false} width="15%" />
+                <SortHeader field="created_at" label="Created" isActive={false} width="19%" />
+                <SortHeader field="updated_at" label="Updated" isActive={false} width="19%" />
               </tr>
             </thead>
             <tbody>
@@ -789,6 +839,7 @@ export function EvalTasks({ repo }: Props) {
                         </div>
                       </td>
                       <td style={{ padding: '12px' }}>{task.sim_suite}</td>
+                      <td style={{ padding: '12px' }}>{task.user_id || '-'}</td>
                       <td style={{ padding: '12px' }}>
                         <div>
                           <span
@@ -818,10 +869,11 @@ export function EvalTasks({ repo }: Props) {
                         </div>
                       </td>
                       <td style={{ padding: '12px' }}>{new Date(task.created_at + 'Z').toLocaleString()}</td>
+                      <td style={{ padding: '12px' }}>{new Date(task.updated_at + 'Z').toLocaleString()}</td>
                     </tr>
                     {isExpanded && (
                       <tr>
-                        <td colSpan={5} style={{ padding: 0 }}>
+                        <td colSpan={6} style={{ padding: 0 }}>
                           {renderAttributes(task.attributes)}
                         </td>
                       </tr>

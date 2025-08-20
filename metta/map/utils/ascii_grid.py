@@ -5,10 +5,9 @@ Utilities for working with ASCII grid map files.
 from pathlib import Path
 from typing import Optional, Tuple
 
-import numpy as np
-
 from metta.map.types import MapGrid
 from metta.mettagrid.char_encoder import CHAR_TO_NAME, char_to_grid_object, grid_object_to_char
+from metta.mettagrid.level_builder import create_grid
 
 
 def add_pretty_border(lines: list[str]) -> list[str]:
@@ -40,7 +39,7 @@ def print_grid(grid: MapGrid, border=True):
 
 
 def lines_to_grid(lines: list[str]) -> MapGrid:
-    grid = np.full((len(lines), len(lines[0])), "empty", dtype="<U50")
+    grid = create_grid(len(lines), len(lines[0]))
     for r, line in enumerate(lines):
         for c, char in enumerate(line):
             grid[r, c] = char_to_grid_object(char)

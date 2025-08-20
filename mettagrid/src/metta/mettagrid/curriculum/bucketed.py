@@ -4,7 +4,7 @@ import logging
 from itertools import product
 from typing import Any, Dict, Optional
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from tqdm import tqdm
 
 from metta.common.util.config import copy_omegaconf_config
@@ -21,6 +21,7 @@ class BucketedCurriculum(LearningProgressCurriculum):
     def __init__(
         self,
         *,
+        # This is named "env_cfg_template", but really it's a task config template.
         env_cfg_template: DictConfig | None = None,
         env_cfg_template_path: str | None = None,
         buckets: Dict[str, Any],
@@ -92,5 +93,8 @@ def _expand_buckets(buckets: Dict[str, Any], default_bins: int = 1) -> Dict[str,
 
             buckets_unpacked[parameter] = binned_ranges
         else:
+            assert isinstance(bucket_spec, (list, ListConfig)), (
+                f"Bucket spec for {parameter} must be {{range: (lo, hi)}} or list. Got: {bucket_spec}"
+            )
             buckets_unpacked[parameter] = bucket_spec
     return buckets_unpacked

@@ -10,16 +10,20 @@ from pathlib import Path
 
 import pytest
 
+from metta.common.util.fs import get_repo_root
+
 
 class TestRendererJob:
     """Test renderer job works with debug environments."""
 
+    REPO_ROOT = get_repo_root()
+
     # Map of environment names to their map file paths
     DEBUG_ENVIRONMENTS = {
-        "tiny_two_altars": "configs/env/mettagrid/maps/debug/tiny_two_altars.map",
-        "simple_obstacles": "configs/env/mettagrid/maps/debug/simple_obstacles.map",
-        "resource_collection": "configs/env/mettagrid/maps/debug/resource_collection.map",
-        "mixed_objects": "configs/env/mettagrid/maps/debug/mixed_objects.map",
+        "tiny_two_altars": f"{REPO_ROOT}/configs/env/mettagrid/maps/debug/tiny_two_altars.map",
+        "simple_obstacles": f"{REPO_ROOT}/configs/env/mettagrid/maps/debug/simple_obstacles.map",
+        "resource_collection": f"{REPO_ROOT}/configs/env/mettagrid/maps/debug/resource_collection.map",
+        "mixed_objects": f"{REPO_ROOT}/configs/env/mettagrid/maps/debug/mixed_objects.map",
     }
 
     def test_map_files_exist(self):
@@ -31,16 +35,17 @@ class TestRendererJob:
 
     def test_debug_config_exists(self):
         """Test that the generic debug config exists."""
-        config_path = Path("configs/env/mettagrid/debug.yaml")
+        config_path = Path(f"{self.REPO_ROOT}/configs/env/mettagrid/debug.yaml")
         assert config_path.exists(), "Generic debug config not found"
         assert config_path.is_file(), "Debug config path is not a file"
 
     def test_renderer_job_config_exists(self):
         """Test that the renderer job config exists."""
-        config_path = Path("configs/renderer_job.yaml")
+        config_path = Path(f"{self.REPO_ROOT}/configs/renderer_job.yaml")
         assert config_path.exists(), "Renderer job config not found"
         assert config_path.is_file(), "Renderer job config path is not a file"
 
+    @pytest.mark.slow
     def test_renderer_with_debug_environments(self):
         """Test that renderer can load and initialize debug environments."""
         # Simple renderer test with very short duration
@@ -108,6 +113,7 @@ class TestRendererJob:
             agent_count = content.count("@")
             assert agent_count == 2, f"Map {env_name} should have exactly 2 agents (@), but found {agent_count}"
 
+    @pytest.mark.slow
     @pytest.mark.parametrize("env_name,map_path", DEBUG_ENVIRONMENTS.items())
     def test_basic_training_validation(self, env_name, map_path):
         """Test very basic training validation - just that the environment loads."""
@@ -126,22 +132,27 @@ class TestRendererJob:
             print(f"Map file exists: {full_map_path.exists()}")
 
             # Detect if running in CI
-            is_ci = os.environ.get("CI", "").lower() == "true"
-            hardware_config = "+hardware=github" if is_ci else "+hardware=macbook"
+            optional_ci_config = "+user=ci" if os.environ.get("CI", "").lower() == "true" else None
 
-            cmd = [
-                "python",
-                "-m",
-                "tools.train",
-                f"run={run_name}",
-                hardware_config,
-                f"data_dir={temp_dir}",
-                "trainer.simulation.replay_dir=${run_dir}/replays/",
-                "trainer.curriculum=/env/mettagrid/debug",
-                "trainer.total_timesteps=50",  # Minimal training
-                "trainer.num_workers=1",
-                "wandb=off",
-            ]
+            cmd = list(
+                filter(
+                    None,
+                    [
+                        "python",
+                        "-m",
+                        "tools.train",
+                        f"run={run_name}",
+                        optional_ci_config,
+                        f"data_dir={temp_dir}",
+                        "trainer.simulation.replay_dir=${run_dir}/replays/",
+                        "trainer.curriculum=/env/mettagrid/debug",
+                        "trainer.total_timesteps=50",  # Minimal training
+                        "trainer.num_workers=1",
+                        "trainer.simulation.skip_git_check=true",  # Skip git check for tests
+                        "wandb=off",
+                    ],
+                )
+            )
 
             # Set environment variable to specify the map
             env = os.environ.copy()

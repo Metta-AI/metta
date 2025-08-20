@@ -2,22 +2,25 @@ import uuid
 from datetime import datetime
 from typing import Any, TypeVar
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
-from metta.app_backend.metta_repo import MettaRepo, TaskStatus, TaskStatusUpdate
+from metta.app_backend.metta_repo import EvalTaskRow, EvalTaskWithPolicyName, MettaRepo, TaskStatus, TaskStatusUpdate
 from metta.app_backend.route_logger import timed_http_handler
+from metta.common.util.git import get_latest_commit
 
 T = TypeVar("T")
 
 
 class TaskCreateRequest(BaseModel):
     policy_id: uuid.UUID
+    sim_suite: str
+    attributes: dict[str, Any] = Field(default_factory=dict)
+
+    # We should remove these once clients have migrated
     git_hash: str | None = None
     env_overrides: dict[str, Any] = Field(default_factory=dict)
-    sim_suite: str = "all"
 
 
 class TaskClaimRequest(BaseModel):
@@ -34,6 +37,14 @@ class TaskUpdateRequest(BaseModel):
     updates: dict[uuid.UUID, TaskStatusUpdate]
 
 
+class TaskFilterParams(BaseModel):
+    limit: int = Field(default=500, ge=1, le=1000)
+    statuses: list[str] | None = None
+    git_hash: str | None = None
+    policy_ids: list[uuid.UUID] | None = None
+    sim_suites: list[str] | None = None
+
+
 class TaskResponse(BaseModel):
     id: uuid.UUID
     policy_id: uuid.UUID
@@ -45,9 +56,19 @@ class TaskResponse(BaseModel):
     attributes: dict[str, Any]
     policy_name: str | None = None
     retries: int
+    user_id: str | None = None
+    updated_at: datetime
 
     def _attribute_property(self, key: str) -> Any | None:
         return self.attributes.get(key)
+
+    @property
+    def sim_suite_config(self) -> dict | None:
+        return self._attribute_property("sim_suite_config")
+
+    @property
+    def trainer_task(self) -> dict | None:
+        return self._attribute_property("trainer_task")
 
     @property
     def git_hash(self) -> str | None:
@@ -58,38 +79,50 @@ class TaskResponse(BaseModel):
         return self._attribute_property("workers_spawned") or 0
 
     @classmethod
-    def from_db(cls, task: dict[str, Any]) -> "TaskResponse":
+    def from_db(cls, task: EvalTaskRow | EvalTaskWithPolicyName) -> "TaskResponse":
+        # Handle both EvalTaskRow and EvalTaskWithPolicyName
+        policy_name = None
+        if isinstance(task, EvalTaskWithPolicyName):
+            policy_name = task.policy_name
+
         return cls(
-            id=task["id"],
-            policy_id=task["policy_id"],
-            sim_suite=task["sim_suite"],
-            status=task["status"],
-            assigned_at=task["assigned_at"],
-            assignee=task["assignee"],
-            created_at=task["created_at"],
-            attributes=task["attributes"] or {},
-            policy_name=task.get("policy_name"),
-            retries=task["retries"],
+            id=task.id,
+            policy_id=task.policy_id,
+            sim_suite=task.sim_suite,
+            status=task.status,  # type: ignore
+            assigned_at=task.assigned_at,
+            assignee=task.assignee,
+            created_at=task.created_at,
+            attributes=task.attributes or {},
+            policy_name=policy_name,
+            retries=task.retries,
+            user_id=task.user_id,
+            updated_at=task.updated_at,
         )
 
 
 class TaskUpdateResponse(BaseModel):
-    statuses: dict[uuid.UUID, str]
+    statuses: dict[uuid.UUID, TaskStatus]
 
 
 class TasksResponse(BaseModel):
     tasks: list[TaskResponse]
 
 
-async def _get_latest_main_commit() -> str:
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            "https://api.github.com/repos/Metta-AI/metta/commits/main",
-            headers={"Accept": "application/vnd.github.v3+json"},
-        )
-        response.raise_for_status()
-        commit_data = response.json()
-        return commit_data["sha"]
+class GitHashesRequest(BaseModel):
+    assignees: list[str]
+
+
+class GitHashesResponse(BaseModel):
+    git_hashes: dict[str, list[str]]
+
+
+class TaskCountResponse(BaseModel):
+    count: int
+
+
+class TaskAvgRuntimeResponse(BaseModel):
+    avg_runtime: float | None
 
 
 def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
@@ -101,21 +134,23 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
     @timed_http_handler
     async def create_task(request: TaskCreateRequest, user: str = user_or_token) -> TaskResponse:
         # If no git_hash provided, fetch latest commit from main branch
-        git_hash = request.git_hash
-        if git_hash is None:
-            git_hash = await _get_latest_main_commit()
+        attributes = request.attributes.copy()
+        if not attributes.get("git_hash"):
+            if request.git_hash:
+                # Remove this once clients have migrated
+                attributes["git_hash"] = request.git_hash
+            else:
+                attributes["git_hash"] = await get_latest_commit(branch="main")
 
-        attributes = {
-            "env_overrides": request.env_overrides,
-            "git_hash": git_hash,
-        }
-        if not await stats_repo.get_policy_by_id(request.policy_id):
+        policy = await stats_repo.get_policy_by_id(request.policy_id)
+        if not policy:
             raise HTTPException(status_code=404, detail=f"Policy {request.policy_id} not found")
 
         task = await stats_repo.create_eval_task(
             policy_id=request.policy_id,
             sim_suite=request.sim_suite,
             attributes=attributes,
+            user_id=user,
         )
         return TaskResponse.from_db(task)
 
@@ -150,12 +185,28 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         task_responses = [TaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 
+    @router.post("/git-hashes")
+    @timed_http_handler
+    async def get_git_hashes_for_workers(request: GitHashesRequest) -> GitHashesResponse:
+        git_hashes = await stats_repo.get_git_hashes_for_workers(assignees=request.assignees)
+        return GitHashesResponse(git_hashes=git_hashes)
+
     @router.get("/all", response_model=TasksResponse)
     @timed_http_handler
     async def get_all_tasks(
         limit: int = Query(default=500, ge=1, le=1000),
+        statuses: list[TaskStatus] | None = Query(default=None),
+        git_hash: str | None = Query(default=None),
+        policy_ids: list[uuid.UUID] | None = Query(default=None),
+        sim_suites: list[str] | None = Query(default=None),
     ) -> TasksResponse:
-        tasks = await stats_repo.get_all_tasks(limit=limit)
+        tasks = await stats_repo.get_all_tasks(
+            limit=limit,
+            statuses=statuses,
+            git_hash=git_hash,
+            policy_ids=policy_ids,
+            sim_suites=sim_suites,
+        )
         task_responses = [TaskResponse.from_db(task) for task in tasks]
         return TasksResponse(tasks=task_responses)
 
@@ -168,5 +219,15 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
         )
 
         return TaskUpdateResponse(statuses=updated)
+
+    @router.get("/count")
+    @timed_http_handler
+    async def count_tasks(where_clause: str = Query(default="")) -> TaskCountResponse:
+        return TaskCountResponse(count=await stats_repo.count_tasks(where_clause=where_clause))
+
+    @router.get("/avg-runtime")
+    @timed_http_handler
+    async def get_avg_runtime(where_clause: str = Query(default="")) -> TaskAvgRuntimeResponse:
+        return TaskAvgRuntimeResponse(avg_runtime=await stats_repo.get_avg_runtime(where_clause=where_clause))
 
     return router

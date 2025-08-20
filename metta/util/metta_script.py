@@ -4,6 +4,7 @@ import functools
 import inspect
 import logging
 import os
+import platform
 import signal
 import sys
 from types import FrameType
@@ -15,12 +16,22 @@ from omegaconf import DictConfig, ListConfig
 from metta.common.util.fs import get_repo_root
 from metta.common.util.logging_helpers import init_logging
 from metta.common.util.resolvers import register_resolvers
-from metta.util.init.mettagrid_environment import init_mettagrid_environment
+from metta.util.init.mettagrid_system import init_mettagrid_system_environment
 
 logger = logging.getLogger(__name__)
 
 
-def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> None:
+def apply_mac_device_overrides(cfg: DictConfig) -> None:
+    if not cfg.bypass_mac_overrides and platform.system() == "Darwin":
+        cfg.device = "cpu"
+        cfg.vectorization = "serial"
+
+
+def metta_script(
+    main: Callable[[DictConfig], int | None],
+    config_name: str,
+    pre_main: Callable[[DictConfig], None] | None = None,
+) -> None:
     """
     Wrapper for Metta script entry points that performs environment setup and
     configuration before calling the `main` function.
@@ -40,14 +51,16 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
 
     This wrapper:
     1. Configures Hydra to load the `config_name` config and pass it to the `main` function
-    2. Initializes logging to both stdout and run_dir/logs/
-    3. Initializes the runtime environment for MettaGrid simulations:
+    2. Applies device overrides for Mac
+    3. Calls the optional `pre_main` if provided
+    4. Initializes logging to both stdout and run_dir/logs/
+    5. Initializes the runtime environment for MettaGrid simulations:
        - Create required directories (including run_dir)
        - Configure CUDA settings
        - Set up environment variables
        - Initialize random seeds
        - Register OmegaConf resolvers
-    4. Performs device validation and sets the device to "cpu" if CUDA is not available
+    6. Performs device validation and sets the device to "cpu" if CUDA is not available
     """
 
     # If not running as a script, there's nothing to do.
@@ -64,6 +77,11 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
         if not isinstance(cfg, DictConfig):
             raise ValueError("Metta scripts must be run with a DictConfig")
 
+        if pre_main:
+            pre_main(cfg)
+
+        apply_mac_device_overrides(cfg)
+
         run_dir = cfg.get("run_dir")
         if run_dir:
             os.makedirs(run_dir, exist_ok=True)
@@ -74,7 +92,7 @@ def metta_script(main: Callable[[DictConfig], int | None], config_name: str) -> 
         logger.info(f"Starting {main.__name__} from {script_path} with run_dir: {run_dir or 'not set'}")
 
         # Initialize the full mettagrid environment (includes device validation)
-        init_mettagrid_environment(cfg)
+        init_mettagrid_system_environment(cfg)
 
         logger.info("Environment setup completed")
 

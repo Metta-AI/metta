@@ -9,19 +9,21 @@ from metta.app_backend.routes.sweep_routes import (
     SweepCreateResponse,
     SweepInfo,
 )
+from metta.common.util.constants import DEV_STATS_SERVER_URI
 
 
 class SweepClient:
     """Client for interacting with the sweep coordination API."""
 
-    def __init__(self, base_url: str = "http://localhost:8000", auth_token: Optional[str] = None):
+    def __init__(self, base_url: str = DEV_STATS_SERVER_URI, auth_token: Optional[str] = None):
         """
-        Initialize the sweep client.
+        Initialize the sweep client with automatic authentication if no token provided.
 
         Args:
             base_url: Base URL of the API server
-            auth_token: Authentication token (machine token or user session)
+            auth_token: Authentication token.
         """
+        # Get machine token if no auth_token provided
         self.base_url = base_url.rstrip("/")
         self.headers = {}
         if auth_token:
@@ -63,7 +65,7 @@ class SweepClient:
 
 # Example usage for generate_run_id_for_sweep():
 def generate_run_id_for_sweep(
-    sweep_name: str, api_url: str = "http://localhost:8000", auth_token: Optional[str] = None
+    sweep_name: str, api_url: str = DEV_STATS_SERVER_URI, auth_token: Optional[str] = None
 ) -> str:
     """Generate a unique run ID for a sweep using the coordination API."""
     client = SweepClient(api_url, auth_token)

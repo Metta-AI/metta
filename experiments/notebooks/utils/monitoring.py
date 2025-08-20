@@ -7,6 +7,7 @@ import pandas as pd
 import wandb
 from IPython.display import display
 
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
 from metta.common.util.fs import get_repo_root
 
 
@@ -42,8 +43,8 @@ def get_sky_jobs_data() -> pd.DataFrame:
         col_positions = {
             "ID": (header_line.find("ID"), header_line.find("TASK")),
             "TASK": (header_line.find("TASK"), header_line.find("NAME")),
-            "NAME": (header_line.find("NAME"), header_line.find("RESOURCES")),
-            "RESOURCES": (header_line.find("RESOURCES"), header_line.find("SUBMITTED")),
+            "NAME": (header_line.find("NAME"), header_line.find("REQUESTED")),
+            "REQUESTED": (header_line.find("REQUESTED"), header_line.find("SUBMITTED")),
             "SUBMITTED": (
                 header_line.find("SUBMITTED"),
                 header_line.find("TOT. DURATION"),
@@ -91,11 +92,19 @@ def get_sky_jobs_data() -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def sky_job_exists(job_name: str) -> bool:
+    """
+    Check if a sky job exists.
+    """
+    jobs = get_sky_jobs_data()
+    return job_name in jobs["NAME"].values
+
+
 def monitor_training_statuses(
     run_names: list[str],
     show_metrics: list[str] | None = None,
-    entity: str = "metta-research",
-    project: str = "metta",
+    entity: str = METTA_WANDB_ENTITY,
+    project: str = METTA_WANDB_PROJECT,
 ) -> pd.DataFrame:
     if show_metrics is None:
         show_metrics = ["_step", "overview/reward"]

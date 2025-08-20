@@ -4,6 +4,8 @@ from typing import Iterable
 import wandb
 from wandb.apis.public.runs import Run
 
+from metta.common.util.constants import METTA_WANDB_ENTITY, METTA_WANDB_PROJECT
+
 
 def find_training_runs(
     wandb_tags: list[str] | None = None,
@@ -11,8 +13,8 @@ def find_training_runs(
     state: str | None = None,
     created_after: str | None = None,
     created_before: str | None = None,
-    entity: str = "metta-research",
-    project: str = "metta",
+    entity: str = METTA_WANDB_ENTITY,
+    project: str = METTA_WANDB_PROJECT,
     order_by: str = "-created_at",
     run_names: list[str] | None = None,
     limit: int = 50,

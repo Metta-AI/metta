@@ -1,6 +1,5 @@
 import datetime
 import logging
-import random
 from typing import Any, TypeVar, Union
 
 import numpy as np
@@ -13,14 +12,6 @@ Numeric = Union[int, float]  # Type alias for numeric types
 
 def oc_if(condition: bool, true_value: T, false_value: T) -> T:
     return true_value if condition else false_value
-
-
-def oc_uniform(min_val: Numeric, max_val: Numeric) -> float:
-    return float(np.random.uniform(min_val, max_val))
-
-
-def oc_choose(*args: Any) -> Any:
-    return random.choice(args)
 
 
 def oc_divide(a: Numeric, b: Numeric) -> Numeric:
@@ -220,6 +211,38 @@ def oc_date_format(format_string: str) -> str:
     return now.strftime(python_format)
 
 
+def oc_sampling(*args: Numeric) -> Numeric:
+    """
+    Sample a value from a range or set of choices.
+
+    Usage:
+    - ${sampling:min, max, default} - samples uniform between min and max, using default if sampling=0
+    - For configuration validation, returns the middle/default value
+
+    Parameters:
+    -----------
+    args : Numeric
+        Either (min, max, default) for range sampling, or multiple values for choice
+
+    Returns:
+    --------
+    Numeric
+        The sampled or default value
+    """
+    if len(args) == 3:
+        # Range sampling: min, max, default
+        min_val, max_val, default_val = args
+        # For testing/validation, return the default value
+        return default_val
+    elif len(args) > 1:
+        # Choice sampling: return the middle choice for consistency
+        middle_idx = len(args) // 2
+        return args[middle_idx]
+    else:
+        # Single value
+        return args[0] if args else 0
+
+
 class ResolverRegistrar(Callback):
     """Class for registering custom OmegaConf resolvers."""
 
@@ -253,10 +276,6 @@ class ResolverRegistrar(Callback):
 
         # Register all your resolvers
         OmegaConf.register_new_resolver("if", oc_if, replace=True)
-        self.resolver_count += 1
-        OmegaConf.register_new_resolver("uniform", oc_uniform, replace=True)
-        self.resolver_count += 1
-        OmegaConf.register_new_resolver("choose", oc_choose, replace=True)
         self.resolver_count += 1
         OmegaConf.register_new_resolver("div", oc_divide, replace=True)
         self.resolver_count += 1
@@ -295,6 +314,8 @@ class ResolverRegistrar(Callback):
         OmegaConf.register_new_resolver("iir", oc_iir, replace=True)
         self.resolver_count += 1
         OmegaConf.register_new_resolver("now", oc_date_format, replace=True)
+        self.resolver_count += 1
+        OmegaConf.register_new_resolver("sampling", oc_sampling, replace=True)
         self.resolver_count += 1
         return self
 

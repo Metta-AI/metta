@@ -6,10 +6,11 @@ from omegaconf import DictConfig
 from omegaconf.omegaconf import OmegaConf
 
 import mettascope.server
+from metta.common.util.config import config_from_path
 from metta.map.utils.storable_map import StorableMap, grid_to_lines
+from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.curriculum.core import SingleTaskCurriculum
 from metta.mettagrid.level_builder import Level
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.sim.map_preview import write_local_map_preview
 
 ShowMode = Literal["mettascope", "ascii", "ascii_border", "none"]
@@ -22,7 +23,9 @@ def show_map(storable_map: StorableMap, mode: ShowMode | None):
     if mode == "mettascope":
         num_agents = np.count_nonzero(np.char.startswith(storable_map.grid, "agent"))
 
-        env_cfg = OmegaConf.load("./configs/env/mettagrid/full.yaml")
+        with hydra.initialize(version_base=None, config_path="../../../configs"):
+            env_cfg = config_from_path("env/mettagrid/debug")
+
         env_cfg.game.num_agents = int(num_agents)
         OmegaConf.resolve(env_cfg)
         assert isinstance(env_cfg, DictConfig)

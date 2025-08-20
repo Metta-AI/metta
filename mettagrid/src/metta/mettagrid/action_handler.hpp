@@ -22,14 +22,6 @@ struct ActionConfig {
   virtual ~ActionConfig() {}
 };
 
-struct ActionTrackingState {
-  std::string last_action_name;
-  unsigned int consecutive_count = 0;
-  unsigned int total_count = 0;
-  bool last_success = false;
-  unsigned int current_step = 0;
-};
-
 class ActionHandler {
 public:
   unsigned char priority;
@@ -77,17 +69,28 @@ public:
     // Execute the action
     bool success = has_needed_resources && _handle_action(actor, arg);
 
+    // The intention here is to provide a metric that reports when an agent has stayed in one location for a long
+    // period, perhaps spinning in circles. We think this could be a good indicator that a policy has collapsed.
+    if (actor->location == actor->prev_location) {
+      actor->steps_without_motion += 1;
+      if (actor->steps_without_motion > actor->stats.get("status.max_steps_without_motion")) {
+        actor->stats.set("status.max_steps_without_motion", actor->steps_without_motion);
+      }
+    } else {
+      actor->steps_without_motion = 0;
+    }
+
     // Update tracking for this agent
-    update_tracking(actor->agent_id, success);
+    actor->prev_action_name = _action_name;
+    actor->prev_location = actor->location;
 
     // Track success/failure
     if (success) {
       actor->stats.incr("action." + _action_name + ".success");
       for (const auto& [item, amount] : _consumed_resources) {
         InventoryDelta delta = actor->update_inventory(item, -static_cast<InventoryDelta>(amount));
-        // We consume resources after the action succeeds, but in the future
-        // we might have an action that uses the resource. This check will
-        // catch that.
+        // We consume resources after the action succeeds, but in the future we might have an action that uses the
+        // resource. This check will catch that.
         assert(delta == -amount);
       }
     } else {
@@ -107,63 +110,12 @@ public:
     return _action_name;
   }
 
-  // Get tracking state for a specific agent
-  const ActionTrackingState* get_agent_tracking(size_t agent_id) const {
-    auto it = _agent_tracking.find(agent_id);
-    return it != _agent_tracking.end() ? &it->second : nullptr;
-  }
-
-  // Get the last action name for an agent across all handlers
-  static std::string get_last_action_name(size_t agent_id) {
-    auto it = _global_last_actions.find(agent_id);
-    return it != _global_last_actions.end() ? it->second : "";
-  }
-
-  // Clear all tracking data (useful for reset)
-  static void clear_all_tracking() {
-    _global_last_actions.clear();
-  }
-
-  // Clear tracking for this handler
-  void clear_tracking() {
-    _agent_tracking.clear();
-  }
-
 protected:
   virtual bool _handle_action(Agent* actor, ActionArg arg) = 0;
 
   std::string _action_name;
   std::map<InventoryItem, InventoryQuantity> _required_resources;
   std::map<InventoryItem, InventoryQuantity> _consumed_resources;
-
-  // Per-agent tracking state for this handler
-  std::map<size_t, ActionTrackingState> _agent_tracking;
-
-  // Global tracking of last action names across all handlers
-  static std::map<size_t, std::string> _global_last_actions;
-
-private:
-  void update_tracking(size_t agent_id, bool success) {
-    auto& state = _agent_tracking[agent_id];
-
-    // Check if this is consecutive
-    if (_global_last_actions[agent_id] == _action_name && success) {
-      state.consecutive_count++;
-    } else {
-      state.consecutive_count = success ? 1 : 0;
-    }
-
-    state.last_action_name = _action_name;
-    state.last_success = success;
-    if (success) {
-      state.total_count++;
-    }
-
-    // Update global tracking
-    if (success) {
-      _global_last_actions[agent_id] = _action_name;
-    }
-  }
 };
 
 #endif  // ACTION_HANDLER_HPP_

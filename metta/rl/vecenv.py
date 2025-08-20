@@ -1,5 +1,5 @@
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 import pufferlib
 import pufferlib.vector
@@ -7,8 +7,8 @@ from pydantic import validate_call
 
 from metta.common.util.logging_helpers import init_logging
 from metta.common.util.resolvers import register_resolvers
+from metta.mettagrid import MettaGridEnv
 from metta.mettagrid.curriculum.core import Curriculum
-from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
 
@@ -52,16 +52,16 @@ def make_env_func(
 def make_vecenv(
     curriculum: Curriculum,
     vectorization: str,
-    num_envs=1,
-    batch_size=None,
-    num_workers=1,
-    render_mode=None,
-    stats_writer: Optional[StatsWriter] = None,
-    replay_writer: Optional[ReplayWriter] = None,
+    num_envs: int = 1,
+    batch_size: int | None = None,
+    num_workers: int = 1,
+    render_mode: str | None = None,
+    stats_writer: StatsWriter | None = None,
+    replay_writer: ReplayWriter | None = None,
     is_training: bool = False,
     run_dir: str | None = None,
     **kwargs,
-):
+) -> Any:  # Returns pufferlib VecEnv instance
     # Determine the vectorization class
     is_serial = vectorization == "serial" or num_workers == 1
 
@@ -88,6 +88,9 @@ def make_vecenv(
         "run_dir": run_dir,
     }
 
+    # Pass through additional kwargs (e.g., dual_policy_* flags) into env kwargs so child processes receive them
+    env_kwargs.update(kwargs)
+
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,
     # but the type annotations only allow PufferEnv.
     vecenv = pufferlib.vector.make(
@@ -97,7 +100,6 @@ def make_vecenv(
         num_envs=num_envs,
         num_workers=num_workers,
         batch_size=batch_size or num_envs,
-        **kwargs,
     )
 
     return vecenv

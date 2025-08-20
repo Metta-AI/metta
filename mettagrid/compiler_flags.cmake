@@ -76,7 +76,10 @@ target_compile_options(mettagrid_warnings INTERFACE
     # Logic and control flow
     $<$<CXX_COMPILER_ID:GNU>:-Wshadow=compatible-local> # gcc shadowing warnings are very aggressive by default
     $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wshadow>
-    -Wfloat-equal
+    $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wfloat-equal> # GCC's -Wfloat-equal is too aggressive for zero comparisons
+
+    # Global constructor warnings - helps catch static init order issues
+    $<$<CXX_COMPILER_ID:Clang,AppleClang>:-Wglobal-constructors>
   >
 )
 
@@ -91,6 +94,7 @@ target_compile_options(mettagrid_strict_warnings INTERFACE
       -Wthread-safety
       -Wimplicit-int-conversion
       -Wshorten-64-to-32
+      -Wexit-time-destructors  # Warns about static destructors
     >
     # GCC-specific useful warnings
     $<$<CXX_COMPILER_ID:GNU>:
@@ -138,7 +142,9 @@ target_compile_options(mettagrid_sanitizers INTERFACE
     -fno-sanitize=shift-base
     -fno-sanitize=shift-exponent
 
-    # Platform-specific sanitizers moved to opt-in mode
+    # Note: -fsanitize=init-order is not available on macOS
+    # More aggressive sanitizer checks for better error detection
+    -fsanitize-address-use-after-scope
   >
 )
 

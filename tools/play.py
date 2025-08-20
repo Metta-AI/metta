@@ -6,6 +6,7 @@ import logging
 from omegaconf import DictConfig, OmegaConf
 
 import mettascope.server as server
+from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.util.metta_script import metta_script
 
 
@@ -20,7 +21,7 @@ def main(cfg: DictConfig):
     if open_browser:
         server.run(cfg, open_url=f"?wsUrl={ws_url}")
     else:
-        logger.info(f"Enter MettaGrid @ http://localhost:8000?wsUrl={ws_url}")
+        logger.info(f"Enter MettaGrid @ {DEV_METTASCOPE_FRONTEND_URL}?wsUrl={ws_url}")
         server.run(cfg)
 
 
