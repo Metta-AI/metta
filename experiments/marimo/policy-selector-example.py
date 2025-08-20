@@ -44,8 +44,8 @@ def _():
 def _():
     from metta.app_backend.clients.scorecard_client import ScorecardClient
 
-    # client = ScorecardClient()  # production data
-    client = ScorecardClient("http://localhost:8000")  # development mode
+    client = ScorecardClient()  # production data
+    # client = ScorecardClient("http://localhost:8000")  # development mode
     return (client,)
 
 
@@ -63,8 +63,9 @@ def _(live_widget):
     selected_policies = live_widget.selected_policies
 
     mds = [mo.md(f"## You selected {len(selected_policies)} policies:")]
-    for policy_id in selected_policies:
-        mds.append(mo.md(f"  - {policy_id}"))
+    mds.append(
+        mo.md("\n".join([f"  - {policy_id}" for policy_id in selected_policies]))
+    )
 
     mo.vstack(mds)
     return (selected_policies,)
