@@ -43,8 +43,8 @@ class GitHooksSetup(SetupModule):
     def description(self) -> str:
         return "Git hooks"
 
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("githooks") and not self._is_in_worktree()
+    def _is_applicable(self) -> bool:
+        return not self._is_in_worktree()
 
     def _is_in_worktree(self) -> bool:
         try:
