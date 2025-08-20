@@ -9,6 +9,7 @@ import { useOverlayNavigation } from "@/components/OverlayStack";
 import { StarWidgetQuery } from "@/components/StarWidgetQuery";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/Button";
+import { AuthorDTO, loadAuthorClient } from "@/posts/data/authors-client";
 
 interface PaperSidebarProps {
   paper: FeedPostDTO["paper"];
@@ -33,12 +34,78 @@ interface LLMAbstractViewProps {
 
 export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
   const router = useRouter();
+  const { openAuthor, openInstitution } = useOverlayNavigation();
 
   // Handle tag click to navigate to papers view with tag filter
   const handleTagClick = (tag: string) => {
     const params = new URLSearchParams();
     params.set("search", tag);
     router.push(`/papers?${params.toString()}`);
+  };
+
+  // Handle clicking on an author
+  const handleAuthorClick = async (authorId: string, authorName: string) => {
+    try {
+      // Try to load full author data by ID first
+      let fullAuthor = await loadAuthorClient(authorId);
+
+      // If that fails, try searching by name via the authors API
+      if (!fullAuthor) {
+        try {
+          const searchResponse = await fetch(
+            `/api/authors?search=${encodeURIComponent(authorName)}`
+          );
+          if (searchResponse.ok) {
+            const searchResults = await searchResponse.json();
+            if (searchResults.length > 0) {
+              // Use the first matching author
+              fullAuthor = searchResults[0];
+            }
+          }
+        } catch (searchError) {
+          console.log("Search by name failed:", searchError);
+        }
+      }
+
+      if (fullAuthor) {
+        openAuthor(fullAuthor);
+      } else {
+        // Fallback: create a minimal author object if all loading attempts fail
+        const fallbackAuthor: AuthorDTO = {
+          id: authorId,
+          name: authorName,
+          username: null,
+          email: null,
+          avatar: null,
+          institution: null,
+          department: null,
+          title: null,
+          expertise: [],
+          hIndex: null,
+          totalCitations: null,
+          claimed: false,
+          isFollowing: false,
+          recentActivity: null,
+          orcid: null,
+          googleScholarId: null,
+          arxivId: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          paperCount: 0,
+          recentPapers: [],
+        };
+        openAuthor(fallbackAuthor);
+      }
+    } catch (error) {
+      console.error("Error loading author:", error);
+    }
+  };
+
+  // Handle clicking on an institution
+  const handleInstitutionClick = (institutionName: string) => {
+    // For now, we'll open with just the name and empty arrays
+    // The institution overlay will load the full institution data
+    openInstitution(institutionName, [], []);
   };
 
   if (!paper) {
@@ -142,11 +209,15 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
             </div>
             <div className="flex flex-wrap gap-1">
               {paper.authors.map((author) => (
-                <a key={author.id} href="#" className="inline-block">
-                  <Badge variant="secondary" className="rounded-md">
+                <button
+                  key={author.id}
+                  onClick={() => handleAuthorClick(author.id, author.name)}
+                  className="inline-block cursor-pointer"
+                >
+                  <Badge variant="secondary" className="rounded-md hover:bg-neutral-200 transition-colors">
                     {author.name}
                   </Badge>
-                </a>
+                </button>
               ))}
             </div>
           </section>
@@ -160,11 +231,15 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
             </div>
             <div className="flex flex-wrap gap-1">
               {paper.institutions.map((institution, index) => (
-                <a key={index} href="#" className="inline-block">
-                  <Badge variant="secondary" className="rounded-md">
+                <button
+                  key={index}
+                  onClick={() => handleInstitutionClick(institution)}
+                  className="inline-block cursor-pointer"
+                >
+                  <Badge variant="secondary" className="rounded-md hover:bg-neutral-200 transition-colors">
                     {institution}
                   </Badge>
-                </a>
+                </button>
               ))}
             </div>
           </section>
