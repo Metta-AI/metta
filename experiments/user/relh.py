@@ -17,12 +17,13 @@ obstacles_env.game.map_builder = AsciiMapBuilder.Config.from_uri(
 obstacles_env.game.max_steps = 100
 
 
-def train(run: str = "local.relh.dehydrate.1") -> TrainTool:
+def train(run: str = "relh.dehydrate.shaped.820") -> TrainTool:
     # Use arena environment to match main branch defaults
     env = arena.make_env()  # 24 agents by default
-    cfg = arena.train(
+    cfg = arena.train_shaped(
         run=run,  # Accept run parameter from launch script
-        curriculum=arena.make_curriculum(env),
+        rewards=True,
+        converters=True,
     )
     # Match main branch performance settings
     cfg.trainer.forward_pass_minibatch_target_size = 4096  # From main's trainer.yaml
@@ -40,7 +41,7 @@ def play() -> PlayTool:
 
 
 def evaluate() -> SimTool:
-    cfg = arena.evaluate(policy_uri="wandb://run/local.relh.dehydrate.1")
+    cfg = arena.evaluate(policy_uri="wandb://run/relh.dehydrate.shaped.820")
 
     # If your run doesn't exist, try this:
     # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")

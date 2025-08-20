@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import gymnasium as gym
 import numpy as np
@@ -7,7 +7,7 @@ import torch
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
-from torchrl.data import Composite, UnboundedDiscrete
+from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.agent_config import AgentConfig, create_agent
 from metta.rl.system_config import SystemConfig
@@ -113,18 +113,16 @@ class MettaAgent(nn.Module):
         logger.info(f"Using agent: {agent_cfg.name}")
         return policy
 
-    def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
+    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass through the policy."""
         if self.policy is None:
             raise RuntimeError("No policy set during initialization.")
 
-        # Delegate to policy - it handles all cases including legacy
         return self.policy(td, state, action)
 
     def reset_memory(self) -> None:
-        """Reset memory - delegates to policy if it supports memory."""
-        if hasattr(self.policy, "reset_memory"):
-            self.policy.reset_memory()
+        """Reset memory - delegates to policy."""
+        self.policy.reset_memory()
 
     def get_memory(self) -> dict:
         """Get memory state - delegates to policy if it supports memory."""
@@ -133,6 +131,8 @@ class MettaAgent(nn.Module):
     def get_agent_experience_spec(self) -> Composite:
         return Composite(
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
+            action=UnboundedDiscrete(shape=torch.Size([2]), dtype=torch.int64),
+            action_dist=UnboundedContinuous(shape=torch.Size([2, 3]), dtype=torch.float32),
         )
 
     def initialize_to_environment(
@@ -143,18 +143,15 @@ class MettaAgent(nn.Module):
         device,
         is_training: bool = True,
     ):
-        """Initialize the agent to the current environment."""
+        """Initialize the agent to the current environment.
 
-        # MettaAgent handles all initialization
-        self.activate_actions(action_names, action_max_params, device)
-        self.activate_observations(features, device)
-
-    def activate_observations(self, features: dict[str, dict], device):
-        """Activate observation features by storing the feature mapping."""
-        self.active_features = features
+        This is the single entry point for environment initialization, combining
+        feature setup, action configuration, and all necessary mappings.
+        """
         self.device = device
+        self.active_features = features
 
-        # Create quick lookup mappings
+        # Set up observation features
         self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
         self.feature_normalizations = {
             props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
@@ -167,6 +164,34 @@ class MettaAgent(nn.Module):
         else:
             # Create remapping for subsequent initializations
             self._create_feature_remapping(features)
+
+        # Set up actions
+        self.action_max_params = action_max_params
+        self.action_names = action_names
+        self.active_actions = list(zip(action_names, action_max_params, strict=False))
+
+        # Precompute cumulative sums for faster conversion, Multi-Discrete
+        self.cum_action_max_params = torch.cumsum(
+            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
+        )
+
+        # Build full action names for embeddings
+        full_action_names = [f"{name}_{i}" for name, max_param in self.active_actions for i in range(max_param + 1)]
+
+        # Activate embeddings on policy
+        self.policy.activate_action_embeddings(full_action_names, device)
+
+        # Create action index tensor
+        self.action_index_tensor = torch.tensor(
+            [[idx, j] for idx, max_param in enumerate(action_max_params) for j in range(max_param + 1)],
+            device=device,
+            dtype=torch.int32,
+        )
+
+        log_on_master(f"Environment initialized with {len(features)} features and actions: {self.active_actions}")
+
+        self.policy.action_index_tensor = self.action_index_tensor
+        self.policy.cum_action_max_params = self.cum_action_max_params
 
     def _create_feature_remapping(self, features: dict[str, dict]):
         """Create a remapping dictionary to translate new feature IDs to original ones."""
@@ -215,24 +240,12 @@ class MettaAgent(nn.Module):
             if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
                 remap_tensor[feature_id] = unknown_id
 
-        # Delegate feature remapping to policy if it supports it
-        # Policies have _apply_feature_remapping that takes just the remap_tensor
-        if self.policy is not None and hasattr(self.policy, "_apply_feature_remapping"):
-            self.policy._apply_feature_remapping(remap_tensor)
-        elif self.policy is None and "_obs_" in self.components:
-            # MockAgent case - directly update observation component
-            obs_component = self.components["_obs_"]
-            if hasattr(obs_component, "update_feature_remapping"):
-                obs_component.update_feature_remapping(remap_tensor)
-
-        # Update normalization factors
+        self.policy._apply_feature_remapping(remap_tensor)
         self._update_normalization_factors(features)
 
     def _update_normalization_factors(self, features: dict[str, dict]):
         """Update normalization factors after feature remapping."""
-        # Delegate normalization update to policy if it supports it
-        if hasattr(self.policy, "update_normalization_factors"):
-            self.policy.update_normalization_factors(features, getattr(self, "original_feature_mapping", None))
+        self.policy.update_normalization_factors(features, getattr(self, "original_feature_mapping", None))
 
     def get_original_feature_mapping(self) -> dict[str, int] | None:
         """Get the original feature mapping for saving in metadata."""
@@ -243,40 +256,6 @@ class MettaAgent(nn.Module):
         # Make a copy to avoid shared state between agents
         self.original_feature_mapping = mapping.copy()
         log_on_master(f"Restored original feature mapping with {len(mapping)} features from metadata")
-
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
-        """Initialize action space for the agent."""
-
-        self.device = device
-        self.action_max_params = action_max_params
-        self.action_names = action_names
-        self.active_actions = list(zip(action_names, action_max_params, strict=False))
-
-        # Precompute cumulative sums for faster conversion, Multi-Discrete
-        self.cum_action_max_params = torch.cumsum(
-            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
-        )
-
-        # Build full action names for embeddings
-        full_action_names = [f"{name}_{i}" for name, max_param in self.active_actions for i in range(max_param + 1)]
-
-        # Activate embeddings if policy supports it
-        if hasattr(self.policy, "activate_action_embeddings"):
-            self.policy.activate_action_embeddings(full_action_names, device)
-
-        # Create action index tensor
-        self.action_index_tensor = torch.tensor(
-            [[idx, j] for idx, max_param in enumerate(action_max_params) for j in range(max_param + 1)],
-            device=device,
-            dtype=torch.int32,
-        )
-
-        log_on_master(f"Actions initialized: {self.active_actions}")
-
-        # Pass tensors to policy if needed
-        if self.policy is not None:
-            self.policy.action_index_tensor = self.action_index_tensor
-            self.policy.cum_action_max_params = self.cum_action_max_params
 
     @property
     def total_params(self):
@@ -291,25 +270,19 @@ class MettaAgent(nn.Module):
 
     def l2_init_loss(self) -> torch.Tensor:
         """Calculate L2 initialization loss - delegates to policy."""
-        if hasattr(self.policy, "l2_init_loss"):
-            return self.policy.l2_init_loss()
-        return torch.tensor(0.0, dtype=torch.float32)
+        return self.policy.l2_init_loss()
 
     def clip_weights(self):
         """Clip weights to prevent large updates - delegates to policy."""
-        if self.policy is not None and hasattr(self.policy, "clip_weights"):
-            self.policy.clip_weights()
+        self.policy.clip_weights()
 
     def update_l2_init_weight_copy(self):
         """Update L2 initialization weight copies - delegates to policy."""
-        if hasattr(self.policy, "update_l2_init_weight_copy"):
-            self.policy.update_l2_init_weight_copy()
+        self.policy.update_l2_init_weight_copy()
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics - delegates to policy."""
-        if hasattr(self.policy, "compute_weight_metrics"):
-            return self.policy.compute_weight_metrics(delta)
-        return []
+        return self.policy.compute_weight_metrics(delta)
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """Convert (action_type, action_param) pairs to discrete indices."""
