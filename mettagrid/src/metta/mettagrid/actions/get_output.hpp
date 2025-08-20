@@ -81,6 +81,9 @@ protected:
       actor->stats.add("box.opened", 1.0f);
       return true;
     }
+
+    // This should never be reached due to the initial check, but satisfies the compiler
+    return false;
   }
 };
 

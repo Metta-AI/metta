@@ -140,7 +140,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardCappingBehavior) {
   resource_reward_max[TestItems::ORE] = 2.0f;  // Cap at 2.0 instead of 10.0
 
   AgentConfig agent_cfg(
-      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f, {});
+      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f, 0, {});
 
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   float agent_reward = 0.0f;
@@ -201,7 +201,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_MultipleItemCaps) {
   // LASER and ARMOR have no caps
 
   AgentConfig agent_cfg(
-      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f, {});
+      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f, 0, {});
 
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   float agent_reward = 0.0f;
@@ -247,7 +247,7 @@ TEST_F(MettaGridCppTest, AgentInventoryUpdate_RewardToZero) {
   resource_reward_max[TestItems::ORE] = 2.0f;
 
   AgentConfig agent_cfg(
-      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f, {});
+      0, "agent", 1, "test_group", 100, 0.0f, resource_limits, rewards, resource_reward_max, {}, {}, 0.0f, 0, {});
 
   std::unique_ptr<Agent> agent(new Agent(0, 0, agent_cfg));
   float agent_reward = 0.0f;
