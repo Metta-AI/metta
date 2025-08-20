@@ -44,6 +44,8 @@ find_package(
 
 set(NUMPY_INCLUDE_DIR ${Python3_NumPy_INCLUDE_DIRS})
 
+find_package(raylib QUIET)
+
 # ========================= METTAGRID LIBRARY =========================
 file(GLOB_RECURSE METTAGRID_SOURCES CONFIGURE_DEPENDS
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid/*.cpp
@@ -57,6 +59,7 @@ add_library(mettagrid_obj OBJECT ${METTAGRID_SOURCES})
 target_link_libraries(mettagrid_obj PUBLIC pybind11::pybind11 Python3::Python)
 target_include_directories(mettagrid_obj PUBLIC
   ${NUMPY_INCLUDE_DIR}
+  ${raylib_INCLUDE_DIR}
   ${CMAKE_CURRENT_SOURCE_DIR}/src/metta/mettagrid
 )
 
@@ -76,11 +79,18 @@ if(METTAGRID_CUDA_AVAILABLE AND OpenMP_CXX_FOUND)
   target_link_libraries(mettagrid_obj PUBLIC OpenMP::OpenMP_CXX)
 endif()
 
+if(raylib_FOUND)
+  target_compile_definitions(mettagrid_obj PRIVATE METTA_WITH_RAYLIB)
+  set(METTAGRID_EXTRA_LIBS raylib)
+else()
+  set(METTAGRID_EXTRA_LIBS "")
+endif()
+
 # ========================= PYTHON MODULE =========================
 pybind11_add_module(mettagrid_c $<TARGET_OBJECTS:mettagrid_obj>)
 
 # Python module needs sanitizer link flags in debug builds
-target_link_libraries(mettagrid_c PRIVATE mettagrid_sanitizers)
+target_link_libraries(mettagrid_c PRIVATE mettagrid_sanitizers ${METTAGRID_EXTRA_LIBS})
 
 # Link CUDA configuration to ensure macros are available
 target_link_libraries(mettagrid_c PRIVATE mettagrid_cuda_config)

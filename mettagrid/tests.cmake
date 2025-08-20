@@ -80,6 +80,7 @@ if(BUILD_TESTS)
       mettagrid_all_flags           # Full flags including sanitizers
       mettagrid_test_suppressions   # Warning suppressions
       mettagrid_cuda_config         # CUDA configuration (includes CUDA_DISABLED macro if needed)
+      ${METTAGRID_EXTRA_LIBS}
     )
 
     # If CUDA is available, configure CUDA properties
@@ -134,6 +135,7 @@ if(BUILD_BENCHMARKS)
       mettagrid_common_flags        # Base flags WITHOUT sanitizers
       mettagrid_test_suppressions   # Warning suppressions
       mettagrid_cuda_config         # CUDA configuration
+      ${METTAGRID_EXTRA_LIBS}
     )
 
     # If CUDA is available, configure CUDA properties

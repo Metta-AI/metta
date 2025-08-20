@@ -12,13 +12,13 @@ initial_policy:
 checkpoint:
   checkpoint_dir: ${run_dir}/checkpoints
   checkpoint_interval: 50
-  wandb_checkpoint_interval: 50
+  wandb_checkpoint_interval: null # Defaults to checkpoint_interval
 
 simulation:
-  evaluate_interval: 200
+  evaluate_interval: null # Defaults to checkpoint.checkpoint_interval
   replay_dir: s3://softmax-public/replays/${run}
   evaluate_remote: true
-  evaluate_local: true
+  evaluate_local: false
   git_hash: null
   skip_git_check: false
 
@@ -125,3 +125,14 @@ kickstart:
     #  - teacher_uri: wandb://run/mettabox_cogeval_defaults_lowent_initialized0005:v95
     #    action_loss_coef: 1
     #    value_loss_coef: 1
+
+# Dual-policy training configuration (for training against NPC policies)
+dual_policy:
+  enabled: false
+  checkpoint_npc:
+    uri: null
+    type: top
+    range: 1
+    metric: epoch
+    filters: {}
+  training_agents_pct: 0.5

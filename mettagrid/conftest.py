@@ -1,5 +1,3 @@
-# mettagrid/conftest.py
-
 import pytest
 
 
