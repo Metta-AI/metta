@@ -27,7 +27,8 @@ struct AgentConfig : public GridObjectConfig {
               const std::map<std::string, RewardType>& stat_rewards,
               const std::map<std::string, RewardType>& stat_reward_max,
               float group_reward_pct,
-              const std::map<InventoryItem, InventoryQuantity>& initial_inventory)
+              const std::map<InventoryItem, InventoryQuantity>& initial_inventory,
+              const std::map<InventoryItem, float>& resource_loss_probs)
       : GridObjectConfig(type_id, type_name),
         group_id(group_id),
         group_name(group_name),
@@ -39,7 +40,8 @@ struct AgentConfig : public GridObjectConfig {
         stat_rewards(stat_rewards),
         stat_reward_max(stat_reward_max),
         group_reward_pct(group_reward_pct),
-        initial_inventory(initial_inventory) {}
+        initial_inventory(initial_inventory),
+        resource_loss_probs(resource_loss_probs) {}
   unsigned char group_id;
   std::string group_name;
   short freeze_duration;
@@ -51,6 +53,7 @@ struct AgentConfig : public GridObjectConfig {
   std::map<std::string, RewardType> stat_reward_max;
   float group_reward_pct;
   std::map<InventoryItem, InventoryQuantity> initial_inventory;
+  std::map<InventoryItem, float> resource_loss_probs;
 };
 
 class Agent : public GridObject {
@@ -85,6 +88,8 @@ public:
   std::string prev_action_name;
   unsigned int steps_without_motion;
   Box* box;
+  // Per-agent resource loss probabilities override
+  std::map<InventoryItem, float> resource_loss_probs;
 
   Agent(GridCoord r, GridCoord c, const AgentConfig& config)
       : group(config.group_id),
@@ -107,7 +112,8 @@ public:
         prev_location(r, c, GridLayer::AgentLayer),
         prev_action_name(""),
         steps_without_motion(0),
-        box(nullptr) {
+        box(nullptr),
+        resource_loss_probs(config.resource_loss_probs) {
     populate_initial_inventory(config.initial_inventory);
     GridObject::init(config.type_id, config.type_name, GridLocation(r, c, GridLayer::AgentLayer));
   }
