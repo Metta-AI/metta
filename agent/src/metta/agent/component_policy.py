@@ -16,6 +16,11 @@ from metta.common.util.instantiate import instantiate
 logger = logging.getLogger("component_policy")
 
 
+def log_on_master(*args, **argv):
+    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+        logger.info(*args, **argv)
+
+
 class ComponentPolicy(nn.Module):
     # ============================================================================
     # Initialization and Setup
@@ -82,9 +87,7 @@ class ComponentPolicy(nn.Module):
         if duplicate_names := duplicates(all_names):
             raise ValueError(f"Duplicate component names found: {duplicate_names}")
 
-        self.components = self.components.to(device)
-
-        logger.info(f"ComponentPolicy components: {self.components}")
+        log_on_master(f"ComponentPolicy components: {self.components}")
 
         # Initialize action conversion tensors (will be set by MettaAgent)
         self.cum_action_max_params = None
