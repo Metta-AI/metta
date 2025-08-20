@@ -10,7 +10,7 @@ import styles from './Dashboard.module.css'
 import { MapViewer } from './MapViewer'
 import { SaveDashboardModal } from './SaveDashboardModal'
 import { METTASCOPE_REPLAY_URL } from './constants'
-import { filterValidEvalNames, filterValidIds } from './utils/validationUtils'
+import { filterValidEvalNames } from './utils/validationUtils'
 
 interface DashboardProps {
   repo: Repo
@@ -260,7 +260,7 @@ export function Dashboard({ repo }: DashboardProps) {
       
       const { valid, invalid } = filterValidEvalNames(
         state.selectedEvalNames || [], 
-        availableEvalNames
+        Array.from(availableEvalNames)
       )
       
       if (invalid.length > 0) {

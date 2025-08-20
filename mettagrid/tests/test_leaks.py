@@ -3,32 +3,20 @@ import os
 
 import psutil
 import pytest
-from hydra import compose, initialize
 
-from metta.mettagrid.curriculum.core import SingleTaskCurriculum
+from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 
-@pytest.fixture(scope="module")
-def cfg():
-    # Initialize Hydra with the correct relative path
-    with initialize(version_base=None, config_path="../configs"):
-        # Load the default config
-        cfg = compose(config_name="test_basic")
-        yield cfg
-
-
-def test_mettagrid_env_init(cfg):
+def test_mettagrid_env_init():
     """Test that the MettaGridEnv can be initialized properly."""
-    curriculum = SingleTaskCurriculum("test", cfg)
-    env = MettaGridEnv(curriculum, render_mode=None)
+    env = MettaGridEnv(EnvConfig(), render_mode=None)
     assert env is not None, "Failed to initialize MettaGridEnv"
 
 
-def test_mettagrid_env_reset(cfg):
+def test_mettagrid_env_reset():
     """Test that the MettaGridEnv can be reset multiple times without memory leaks."""
-    curriculum = SingleTaskCurriculum("test", cfg)
-    env = MettaGridEnv(curriculum, render_mode=None)
+    env = MettaGridEnv(EnvConfig(), render_mode=None)
     # Reset the environment multiple times
     for _ in range(10):
         observation = env.reset()
@@ -42,7 +30,7 @@ def get_memory_usage():
 
 
 @pytest.mark.slow
-def test_mettagrid_env_no_memory_leaks(cfg):
+def test_mettagrid_env_no_memory_leaks():
     """
     Test that the MettaGridEnv can be reset multiple times without memory leaks.
 
@@ -62,8 +50,7 @@ def test_mettagrid_env_no_memory_leaks(cfg):
 
     for i in range(num_iterations):
         # Create the environment
-        curriculum = SingleTaskCurriculum("test", cfg)
-        env = MettaGridEnv(curriculum, render_mode=None)
+        env = MettaGridEnv(EnvConfig(), render_mode=None)
 
         # Reset the environment multiple times
         for _ in range(5):

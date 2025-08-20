@@ -2,14 +2,15 @@ import logging
 import os
 import random
 import zipfile
+from typing import Optional
 
 import boto3
 import numpy as np
 from botocore.exceptions import NoCredentialsError
 from filelock import FileLock
+from pydantic import Field
 
-from metta.common.util.config import Config
-from metta.mettagrid.level_builder import Level, LevelBuilder
+from metta.mettagrid.map_builder.map_builder import GameMap, MapBuilder, MapBuilderConfig
 
 logger = logging.getLogger(__name__)
 
@@ -51,23 +52,21 @@ def download_from_s3(s3_path: str, save_path: str):
         raise e
 
 
-class TerrainFromNumpyParams(Config):
-    objects: dict[str, int] = {}
-    agents: int | dict[str, int] = 0
-    dir: str
-    file: str | None = None
-
-
-class TerrainFromNumpy(LevelBuilder):
+class TerrainFromNumpy(MapBuilder):
     """
     This class is used to load a terrain environment from numpy arrays on s3.
 
     It's not a MapGen scene, because we don't know the grid size until we load the file.
     """
 
-    def __init__(self, **kwargs):
-        super().__init__()
-        self.params = TerrainFromNumpyParams(**kwargs)
+    class Config(MapBuilderConfig["TerrainFromNumpy"]):
+        objects: dict[str, int] = Field(default_factory=dict)
+        agents: int | dict[str, int] = Field(default=0, ge=0)
+        dir: str
+        file: Optional[str] = None
+
+    def __init__(self, config: Config):
+        self.config = config
 
     def get_valid_positions(self, level):
         # Create a boolean mask for empty cells
@@ -93,13 +92,10 @@ class TerrainFromNumpy(LevelBuilder):
         valid_positions = list(zip(*np.where(valid_mask), strict=False))
         return valid_positions
 
-    def get_labels(self) -> list[str]:
-        return [self.params.dir.split("/")[0]]
-
     def build(self):
-        root = self.params.dir.split("/")[0]
+        root = self.config.dir.split("/")[0]
 
-        map_dir = f"train_dir/{self.params.dir}"
+        map_dir = f"train_dir/{self.config.dir}"
         root_dir = f"train_dir/{root}"
 
         s3_path = f"s3://softmax-public/maps/{root}.zip"
@@ -114,10 +110,10 @@ class TerrainFromNumpy(LevelBuilder):
                 os.remove(local_zipped_dir)
                 logger.info(f"Extracted {local_zipped_dir} to {root_dir}")
 
-        if self.params.file is None:
+        if self.config.file is None:
             uri = pick_random_file(map_dir)
         else:
-            uri = self.params.file
+            uri = self.config.file
 
         grid = np.load(f"{map_dir}/{uri}", allow_pickle=True)
 
@@ -125,10 +121,10 @@ class TerrainFromNumpy(LevelBuilder):
         grid[grid == "agent.agent"] = "empty"
 
         # Prepare agent labels
-        if isinstance(self.params.agents, int):
-            agent_labels = ["agent.agent"] * self.params.agents
+        if isinstance(self.config.agents, int):
+            agent_labels = ["agent.agent"] * self.config.agents
         else:
-            agent_labels = [f"agent.{name}" for name, count in self.params.agents.items() for _ in range(count)]
+            agent_labels = [f"agent.{name}" for name, count in self.config.agents.items() for _ in range(count)]
 
         num_agents = len(agent_labels)
 
@@ -143,7 +139,7 @@ class TerrainFromNumpy(LevelBuilder):
         # Convert to set for O(1) removal operations
         valid_positions_set = set(valid_positions[num_agents:])
 
-        for obj_name, count in self.params.objects.items():
+        for obj_name, count in self.config.objects.items():
             count = count - np.where(grid == obj_name, 1, 0).sum()
             if count < 0:
                 continue
@@ -153,4 +149,4 @@ class TerrainFromNumpy(LevelBuilder):
                 grid[pos] = obj_name
                 valid_positions_set.remove(pos)
 
-        return Level(grid=grid, labels=self.get_labels())
+        return GameMap(grid=grid)

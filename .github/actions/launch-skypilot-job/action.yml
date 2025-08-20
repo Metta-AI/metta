@@ -88,9 +88,7 @@ runs:
 
         chmod +x ./devops/skypilot/launch.py
 
-        LAUNCH_ARGS=(
-          "--max-runtime-hours=${{ inputs.timeout_hours }}"
-        )
+        LAUNCH_ARGS=("${{ inputs.trainer_env }}")
 
         if [ -n "${{ inputs.num_gpus }}" ]; then
           LAUNCH_ARGS+=( "--gpus=${{ inputs.num_gpus }}" )
@@ -113,10 +111,9 @@ runs:
         fi
 
         LAUNCH_ARGS+=(
+          "--max-runtime-hours=${{ inputs.timeout_hours }}"
           "--git-ref=${{ inputs.commit_sha }}"
-          "train"
-          "run=${{ inputs.run_name }}"
-          "trainer.curriculum=${{ inputs.trainer_env }}"
+          "--run=${{ inputs.run_name }}"
         )
 
         # Capture the output

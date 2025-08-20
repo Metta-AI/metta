@@ -14,9 +14,6 @@ class NodejsSetup(SetupModule):
     def description(self) -> str:
         return "Node.js infrastructure - pnpm and turborepo"
 
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("nodejs")
-
     def _script_exists(self, script: str) -> bool:
         try:
             self.run_command(["which", script], capture_output=True)

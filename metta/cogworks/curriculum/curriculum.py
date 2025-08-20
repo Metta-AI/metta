@@ -7,7 +7,7 @@ from typing import Annotated, ClassVar, Union
 
 from pydantic import ConfigDict, Field, field_validator
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 from .task_generator import (
@@ -42,7 +42,7 @@ class CurriculumTask:
 class CurriculumConfig(Config):
     """Base configuration for Curriculum."""
 
-    task_generator_config: Annotated[
+    task_generator: Annotated[
         Union[SingleTaskGeneratorConfig, TaskGeneratorSetConfig, BucketedTaskGeneratorConfig],
         Field(discriminator="type", description="TaskGenerator configuration"),
     ]
@@ -79,7 +79,7 @@ class Curriculum:
 
     def __init__(self, config: CurriculumConfig, seed: int = 0):
         self._config = config
-        self._task_generator = config.task_generator_config.create()
+        self._task_generator = config.task_generator.create()
         self._rng = random.Random(seed)
         self._tasks: dict[int, CurriculumTask] = {}
         self._task_ids: set[int] = set()
