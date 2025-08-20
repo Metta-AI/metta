@@ -187,7 +187,7 @@ start_monitors() {
 }
 
 run_cmd() {
-  echo "[INFO] Starting process $METTA_CMD (node rank: $RANK)"
+  echo "[INFO] Starting process (node rank: $RANK)"
 
   export START_TIME=$(date +%s)
 
