@@ -1,14 +1,19 @@
 import logging
 import uuid
+from pathlib import Path
 
 import torch
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.common.util.collections import is_unique
+from metta.common.util.heartbeat import record_heartbeat
 from metta.eval.eval_request_config import EvalResults, EvalRewardSummary
 from metta.eval.eval_stats_db import EvalStatsDB
+from metta.sim.simulation import Simulation, SimulationCompatibilityError
 from metta.sim.simulation_config import SimulationConfig
+from metta.sim.simulation_stats_db import SimulationStatsDB
 
 
 def evaluate_policy(
@@ -41,37 +46,65 @@ def evaluate_policy(
 
     # For each checkpoint of the policy, simulate
     logger.info(f"Evaluating policy {pr.uri}")
-    sim = SimulationConfig(
-        simulations=simulations,
-        policy_pr=pr,
-        policy_store=policy_store,
-        replay_dir=replay_dir,
-        stats_dir=stats_dir,
-        device=device,
-        vectorization=vectorization,
-        stats_client=stats_client,
-        stats_epoch_id=stats_epoch_id,
-        wandb_policy_name=wandb_policy_name,
-        eval_task_id=eval_task_id,
-    )
-    result = sim.simulate()
+    if not is_unique([sim.name for sim in simulations]):
+        raise ValueError("Simulation names must be unique")
 
-    eval_stats_db = EvalStatsDB.from_sim_stats_db(result.stats_db)
+    sims = [
+        Simulation(
+            name=sim.name,
+            cfg=sim,
+            policy_pr=pr,
+            policy_store=policy_store,
+            replay_dir=replay_dir,
+            stats_dir=stats_dir,
+            device=device,
+            vectorization=vectorization,
+            stats_client=stats_client,
+            stats_epoch_id=stats_epoch_id,
+            wandb_policy_name=wandb_policy_name,
+            eval_task_id=eval_task_id,
+        )
+        for sim in simulations
+    ]
+    successful_simulations = 0
+    replay_urls: dict[str, list[str]] = {}
+    merged_db: SimulationStatsDB = SimulationStatsDB(Path(f"{stats_dir}/all_{uuid.uuid4().hex[:8]}.duckdb"))
+    for sim in sims:
+        try:
+            record_heartbeat()
+            logger.info("=== Simulation '%s' ===", sim.name)
+            sim_result = sim.simulate()
+            merged_db.merge_in(sim_result.stats_db)
+            record_heartbeat()
+            if replay_dir is not None:
+                key, version = sim_result.stats_db.key_and_version(sim.policy_record)
+                sim_replay_urls = sim_result.stats_db.get_replay_urls(key, version)
+                if sim_replay_urls:
+                    replay_urls[sim.name] = sim_replay_urls
+                    logger.info(f"Collected {len(sim_replay_urls)} replay URL(s) for simulation '{sim.name}'")
+            sim_result.stats_db.close()
+            successful_simulations += 1
+        except SimulationCompatibilityError as e:
+            # Only skip for NPC-related compatibility issues
+            error_msg = str(e).lower()
+            if "npc" in error_msg or "non-player" in error_msg:
+                logger.warning("Skipping simulation '%s' due to NPC compatibility issue: %s", sim.name, str(e))
+                continue
+            else:
+                # Re-raise for non-NPC compatibility issues
+                logger.error("Critical compatibility error in simulation '%s': %s", sim.name, str(e))
+                raise
+    if successful_simulations == 0:
+        raise RuntimeError("No simulations could be run successfully")
+    logger.info("Completed %d/%d simulations successfully", successful_simulations, len(simulations))
+
+    eval_stats_db = EvalStatsDB.from_sim_stats_db(merged_db)
     logger.info("Evaluation complete for policy %s", pr.uri)
     scores = extract_scores(policy_record, simulations, eval_stats_db, logger)
 
     if export_stats_db_uri is not None:
         logger.info("Exporting merged stats DB → %s", export_stats_db_uri)
-        result.stats_db.export(export_stats_db_uri)
-
-    # Handle replay URLs
-    replay_urls: dict[str, list[str]] = {}
-
-    if replay_dir is not None:
-        # Get all replay URLs from simulation results
-        if result.replay_urls:
-            replay_urls = result.replay_urls
-            logger.info(f"Found {len(replay_urls)} replay URLs from simulations")
+        merged_db.export(export_stats_db_uri)
 
     results = EvalResults(
         scores=scores,
