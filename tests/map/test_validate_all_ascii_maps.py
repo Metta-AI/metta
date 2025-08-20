@@ -21,8 +21,10 @@ def find_map_files(root_dir="configs") -> list[str]:
         Sorted list of relative paths for .map files
     """
     root_path = Path(root_dir).resolve()
+
     map_files = list(root_path.rglob("*.map"))
     relative_paths = [str(path.relative_to(Path.cwd())) for path in map_files]
+
     return sorted(relative_paths)
 
 

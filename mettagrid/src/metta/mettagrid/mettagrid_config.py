@@ -108,7 +108,7 @@ class GroupConfig(Config):
 class ActionConfig(Config):
     """Python action configuration."""
 
-    enabled: bool = Field(default=False)
+    enabled: bool = Field(default=True)
     # required_resources defaults to consumed_resources. Otherwise, should be a superset of consumed_resources.
     required_resources: Optional[dict[str, int]] = Field(default=None)
     consumed_resources: Optional[dict[str, int]] = Field(default_factory=dict)
@@ -130,7 +130,7 @@ class ActionsConfig(Config):
     """
     Actions configuration.
 
-    Actions will use disabled configuration if not explicitly provided.
+    Omitted actions are disabled by default.
     """
 
     noop: Optional[ActionConfig] = None
