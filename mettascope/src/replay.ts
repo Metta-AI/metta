@@ -131,6 +131,10 @@ export class Entity {
   isAgent: boolean = false
 }
 
+export class EnvConfig {
+  label: string = ''
+}
+
 export class Replay {
   version: number = 0
   numAgents: number = 0
@@ -144,6 +148,7 @@ export class Replay {
   objects: Entity[] = []
   rewardSharingMatrix: number[][] = []
   agents: Entity[] = []
+  envConfig: EnvConfig = new EnvConfig()
 
   // Generated data.
   typeImages: string[] = []
@@ -502,6 +507,9 @@ function convertReplayV1ToV2(replayData: any) {
   }
 
   data.map_size = [maxX + 1, maxY + 1]
+  data.env_config = {
+    label: 'Unlabeled Replay',
+  }
   return data
 }
 
@@ -530,6 +538,11 @@ function loadReplayJson(url: string, replayJson: any) {
   state.replay.maxSteps = replayData.max_steps
   state.replay.mapSize = replayData.map_size
   state.replay.fileName = replayData.file_name
+  state.replay.envConfig = replayData.env_config
+  if (state.replay.envConfig === undefined) {
+    state.replay.envConfig = new EnvConfig()
+    state.replay.envConfig.label = 'Unlabeled Replay'
+  }
 
   // Go through each grid object and expand its key sequence.
   for (const gridObject of replayData.objects) {
@@ -577,7 +590,9 @@ function loadReplayJson(url: string, replayJson: any) {
 
   console.log('Replay: ', state.replay)
 
-  if (state.replay.fileName) {
+  if (state.replay.envConfig.label !== '') {
+    html.fileName.textContent = state.replay.envConfig.label
+  } else if (state.replay.fileName !== '') {
     html.fileName.textContent = state.replay.fileName
   } else {
     html.fileName.textContent = url.split('/').pop() || 'unknown'
