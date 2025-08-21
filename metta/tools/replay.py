@@ -26,7 +26,7 @@ class ReplayTool(Tool):
     stats_dir: str = "./train_dir/stats"
     open_browser_on_start: bool = True
 
-    def invoke(self) -> None:
+    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         # Create policy store directly without WandbContext
         policy_store = PolicyStore.create(
             device=self.system.device,

@@ -20,11 +20,10 @@ obstacles_env.game.max_steps = 100
 
 # Can run this locally with `./tools/run.py experiments.user.{{ USER }}.train`
 # Can't run this on skypilot because your experiments user file is not pushed to git
-def train(run: str = "local.{{ USER }}.1") -> TrainTool:
+def train() -> TrainTool:
     env = navigation.make_env()
     env.game.max_steps = 100
     cfg = navigation.train(
-        run=run,
         curriculum=navigation.make_curriculum(env),
     )
     return cfg
