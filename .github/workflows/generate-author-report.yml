@@ -26,7 +26,7 @@ on:
 
 jobs:
   generate-author-report:
-    runs-on: extra-standard-runner
+    runs-on: default
     steps:
       - name: Checkout
         uses: actions/checkout@v4

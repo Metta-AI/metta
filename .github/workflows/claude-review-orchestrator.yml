@@ -30,7 +30,7 @@ permissions:
 jobs:
   # Validate PR context
   validate-pr:
-    runs-on: extra-standard-runner
+    runs-on: default
     outputs:
       pr_number: ${{ steps.validate.outputs.pr_number }}
     steps:
@@ -83,7 +83,7 @@ jobs:
   # Consolidate all results and create a single review
   consolidate-review:
     needs: [validate-pr, review-readme, review-comments, review-types, review-einops]
-    runs-on: extra-standard-runner
+    runs-on: default
     if: always()
     permissions:
       contents: read

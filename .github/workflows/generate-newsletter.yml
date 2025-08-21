@@ -24,7 +24,7 @@ on:
 
 jobs:
   generate-newsletter:
-    runs-on: extra-standard-runner
+    runs-on: default
     steps:
       - name: Checkout
         uses: actions/checkout@v4

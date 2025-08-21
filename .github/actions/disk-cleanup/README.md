@@ -22,7 +22,7 @@ That's it! No configuration needed.
 ```yaml
 jobs:
   build:
-    runs-on: extra-standard-runner
+    runs-on: default
     steps:
       - uses: actions/checkout@v4
 

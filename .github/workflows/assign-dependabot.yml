@@ -20,7 +20,7 @@ on:
 
 jobs:
   process-dependabot-prs:
-    runs-on: extra-standard-runner
+    runs-on: default
     permissions:
       pull-requests: write
       contents: read

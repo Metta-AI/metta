@@ -6,7 +6,7 @@ on:
 
 jobs:
   auto-tag:
-    runs-on: extra-standard-runner
+    runs-on: default
     permissions:
       contents: write
 

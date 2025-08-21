@@ -19,7 +19,7 @@ env:
 
 jobs:
   build:
-    runs-on: extra-standard-runner
+    runs-on: default
     permissions:
       contents: read
       packages: write

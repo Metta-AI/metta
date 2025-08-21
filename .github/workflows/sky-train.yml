@@ -47,7 +47,7 @@ env:
 
 jobs:
   launch-batch-job:
-    runs-on: extra-standard-runner
+    runs-on: default
 
     steps:
       - name: Checkout specific commit for dispatch

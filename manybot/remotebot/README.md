@@ -419,7 +419,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: extra-standard-runner
+    runs-on: default
     steps:
       - name: Deploy code review agent
         run: |

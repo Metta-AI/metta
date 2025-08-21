@@ -9,7 +9,7 @@ on:
 
 jobs:
   test-fetch-artifacts:
-    runs-on: extra-standard-runner
+    runs-on: default
 
     steps:
       - name: Checkout repository

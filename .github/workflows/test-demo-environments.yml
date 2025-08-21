@@ -17,7 +17,7 @@ on:
 
 jobs:
   test-demo-environments:
-    runs-on: extra-standard-runner
+    runs-on: default
     timeout-minutes: 5
     strategy:
       fail-fast: false

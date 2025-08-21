@@ -6,7 +6,7 @@ on:
 
 jobs:
   stale:
-    runs-on: extra-standard-runner
+    runs-on: default
     permissions:
       actions: write
       issues: write
