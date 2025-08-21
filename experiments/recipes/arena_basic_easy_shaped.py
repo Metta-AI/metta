@@ -169,63 +169,22 @@ def train() -> TrainTool:
     """
     env_cfg = make_env()
 
-    # Create trainer configuration with original hyperparameters
+    # Create trainer configuration, only overriding non-default values
     trainer_cfg = TrainerConfig(
-        # Environment
         curriculum=cc.env_curriculum(env_cfg),
-        # Training duration - default was 10B
-        total_timesteps=10_000_000_000,
-        # Checkpointing (from original config)
+        total_timesteps=10_000_000_000,  # 10B instead of default 50B
         checkpoint=CheckpointConfig(
-            checkpoint_interval=50,
-            wandb_checkpoint_interval=50,
+            checkpoint_interval=50,  # 50 instead of default 5
+            wandb_checkpoint_interval=50,  # 50 instead of default 5
         ),
-        # Evaluation
         evaluation=EvaluationConfig(
             simulations=make_evals(env_cfg),
-            evaluate_interval=50,
-            evaluate_remote=True,
-            evaluate_local=False,
+            evaluate_interval=50,  # Matches existing default
+            evaluate_remote=True,  # True instead of default False
+            evaluate_local=False,  # False instead of default True
         ),
-        # Optimizer settings (from original trainer.yaml)
-        optimizer=OptimizerConfig(
-            type="adam",
-            learning_rate=0.000457,
-            beta1=0.9,
-            beta2=0.999,
-            eps=1e-12,
-            weight_decay=0,
-        ),
-        # PPO hyperparameters (from original trainer.yaml)
-        ppo=PPOConfig(
-            clip_coef=0.1,
-            ent_coef=0.0021,
-            gae_lambda=0.916,
-            gamma=0.977,
-            max_grad_norm=0.5,
-            vf_clip_coef=0.1,
-            vf_coef=0.44,
-            l2_reg_loss_coef=0,
-            l2_init_loss_coef=0,
-            norm_adv=True,
-            clip_vloss=True,
-            target_kl=None,
-        ),
-        # Batch configuration (from original trainer.yaml)
-        batch_size=524288,
-        minibatch_size=16384,
-        bptt_horizon=64,
-        update_epochs=1,
-        # Performance settings
-        zero_copy=True,
-        require_contiguous_env_ids=False,
-        verbose=True,
-        cpu_offload=False,
-        compile=False,
-        compile_mode="reduce-overhead",
-        forward_pass_minibatch_target_size=4096,
-        async_factor=2,
-        scale_batches_by_world_size=False,
+        # All optimizer, PPO, and batch settings use defaults which already match
+        # the original trainer.yaml configuration
     )
 
     return TrainTool(trainer=trainer_cfg)
