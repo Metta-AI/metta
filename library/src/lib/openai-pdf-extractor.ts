@@ -1,13 +1,20 @@
 // ✅ NEW: Hybrid OpenAI + Adobe PDF extraction following batch script approach EXACTLY
 // 📝 Step 1: OpenAI identifies key figures + provides summary (generateObject + zod)
 // 🔧 Step 2: Get raw Adobe elements (same as debug-adobe-raw.ts)
-// 🎯 Step 3: Create semantic mappings (same as batch script)
+// 🎯 Step 3: Create semantic mappings (same as batch script) OR use LLM-based object selection
 // 🔍 Step 4: Extract ONLY semantically validated figures (same as batch script)
 // 💾 Step 5: Save extracted figures with correct coordinates
 // 🏆 Result: Same proven approach as working batch script
+//
+// 🆕 LLM-BASED ADOBE OBJECT SELECTION:
+// Set environment variable USE_LLM_ADOBE_SELECTION=true to use LLM for selecting
+// Adobe objects instead of the fragile semantic mapping logic. The LLM receives
+// the desired figure identifiers from OpenAI vision analysis and raw Adobe data,
+// then intelligently selects the appropriate objects for each figure.
 
 import { generateObject } from "ai";
 import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
 import { z } from "zod";
 import {
   writeFileSync,
@@ -38,6 +45,39 @@ interface SemanticMapping {
   subpanel?: string;
   confidence: number;
 }
+
+/**
+ * Schema for LLM-based Adobe object selection
+ */
+const AdobeObjectSelectionSchema = z.object({
+  selections: z.array(
+    z.object({
+      figureIdentifier: z
+        .string()
+        .describe(
+          "The exact figure identifier (e.g., 'Figure 1', 'Figure 2a', 'Figure 2b')"
+        ),
+      selectedObjectID: z
+        .number()
+        .describe(
+          "The ObjectID of the Adobe element that corresponds to this figure"
+        ),
+      confidence: z
+        .enum(["high", "medium", "low"])
+        .describe("Confidence level in this selection"),
+      reasoning: z
+        .string()
+        .describe(
+          "Brief explanation of why this Adobe element was selected for this figure"
+        ),
+    })
+  ),
+  globalReasoning: z
+    .string()
+    .describe(
+      "Overall explanation of the selection process and any challenges encountered"
+    ),
+});
 
 interface OpenAIPdfFigure {
   caption: string;
@@ -485,6 +525,109 @@ async function extractFigureFromElement(
   }
 }
 
+// ===== LLM-BASED ADOBE OBJECT SELECTION =====
+
+/**
+ * Use LLM to select appropriate Adobe objects for desired figures
+ * Alternative to the fragile createSemanticMappings logic
+ */
+async function selectAdobeObjectsWithLLM(
+  keyFigures: any[],
+  rawAdobeElements: AdobeElement[]
+): Promise<Map<number, SemanticMapping>> {
+  console.log(
+    `🤖 Using LLM to select Adobe objects for ${keyFigures.length} desired figures...`
+  );
+
+  // Prepare a concise representation of Adobe elements for the LLM
+  const elementsForLLM = rawAdobeElements.map((el) => ({
+    objectID: el.ObjectID,
+    page: el.Page,
+    path: el.Path,
+    text: el.Text?.substring(0, 100), // Truncate long text
+    bounds: el.Bounds,
+    hasText: !!el.Text,
+    isFigureElement: el.Path?.includes("Figure") || false,
+    elementType: el.Text
+      ? "text"
+      : el.Path?.includes("Figure")
+        ? "figure"
+        : "other",
+  }));
+
+  // Create the prompt for the LLM
+  const desiredFigures = keyFigures.map((fig) => fig.figureNumber);
+  const prompt = `You are analyzing PDF elements extracted by Adobe to select the correct objects that correspond to specific figure identifiers.
+
+DESIRED FIGURES: ${JSON.stringify(desiredFigures)}
+
+ADOBE ELEMENTS AVAILABLE:
+${JSON.stringify(elementsForLLM, null, 2)}
+
+TASK:
+For each desired figure identifier (like "Figure 1", "Figure 2a", "Figure 2b"), you need to select the Adobe element ObjectID that best corresponds to that figure.
+
+GUIDELINES:
+1. Look for elements with Path containing "Figure" - these are likely the actual figure objects
+2. Elements with Text are usually captions/labels, not the figure images themselves
+3. Figure elements should have bounds (coordinates) and be on the expected page
+4. For multi-panel figures (like "Figure 2a", "Figure 2b"), look for separate objects that are spatially arranged
+5. Single figures (like "Figure 1") should correspond to one main figure object
+6. Pay attention to page numbers - figures should be on reasonable pages
+7. Larger bounding boxes often indicate main figure content vs small decorative elements
+
+For each desired figure, select the ObjectID that most likely represents that specific figure content.`;
+
+  try {
+    const result = await generateObject({
+      model: anthropic("claude-3-5-sonnet-20241022"),
+      temperature: 0.1,
+      system:
+        "You are an expert at analyzing PDF structure and selecting the correct figure objects from Adobe PDF extraction data.",
+      prompt,
+      schema: AdobeObjectSelectionSchema,
+    });
+
+    console.log(
+      `✅ LLM selected ${result.object.selections.length} Adobe objects`
+    );
+    console.log(`🧠 LLM reasoning: ${result.object.globalReasoning}`);
+
+    // Convert LLM results to SemanticMapping format
+    const mappings = new Map<number, SemanticMapping>();
+
+    for (const selection of result.object.selections) {
+      const figureNumber =
+        parseInt(selection.figureIdentifier.replace(/[^\d]/g, "")) || 0;
+      const subpanel = selection.figureIdentifier
+        .match(/[a-z]$/i)?.[0]
+        ?.toLowerCase();
+
+      mappings.set(selection.selectedObjectID, {
+        objectID: selection.selectedObjectID,
+        semanticLabel: selection.figureIdentifier,
+        figureNumber,
+        subpanel,
+        confidence:
+          selection.confidence === "high"
+            ? 0.95
+            : selection.confidence === "medium"
+              ? 0.85
+              : 0.75,
+      });
+
+      console.log(
+        `  📍 ${selection.figureIdentifier} → ObjectID ${selection.selectedObjectID} (${selection.confidence}) - ${selection.reasoning}`
+      );
+    }
+
+    return mappings;
+  } catch (error) {
+    console.error("❌ LLM Adobe object selection failed:", error);
+    throw error;
+  }
+}
+
 // ===== MAIN EXTRACTION FUNCTION =====
 
 async function extractFiguresWithSemanticValidation(
@@ -588,7 +731,7 @@ async function extractFiguresWithSemanticValidation(
         const filename = `${keyFig.figureNumber.replace(/[^a-zA-Z0-9]/g, "_")}.png`;
         const imageSize = Math.round((extraction.imageData.length * 3) / 4); // Base64 to bytes conversion
         console.log(`✅ Extracted: ${filename} (${imageSize} bytes, virtual)`);
-        
+
         // No file system write - keeping everything in memory as base64
 
         matchedFigures.push({
@@ -690,8 +833,37 @@ CRITICAL: If a figure has multiple sub-panels (like Figure 1a, 1b, 1c), you MUST
         const rawAdobeElements = await getRawAdobeElements(pdfBuffer);
 
         console.log("🎯 Step 3: Creating semantic mappings from raw data...");
-        const semanticMappings = createSemanticMappings(rawAdobeElements);
-        console.log(`✅ Created ${semanticMappings.size} semantic mappings`);
+
+        // Configuration flag to use LLM-based object selection
+        const useLlmSelection = process.env.USE_LLM_ADOBE_SELECTION === "true";
+
+        let semanticMappings: Map<number, SemanticMapping>;
+
+        if (useLlmSelection) {
+          console.log("🤖 Using LLM-based Adobe object selection...");
+          try {
+            semanticMappings = await selectAdobeObjectsWithLLM(
+              summaryResult.object.keyFigures,
+              rawAdobeElements
+            );
+            console.log(
+              `✅ LLM created ${semanticMappings.size} object selections`
+            );
+          } catch (error) {
+            console.warn(
+              "⚠️ LLM selection failed, falling back to traditional semantic mapping:",
+              error
+            );
+            semanticMappings = createSemanticMappings(rawAdobeElements);
+            console.log(
+              `✅ Fallback created ${semanticMappings.size} semantic mappings`
+            );
+          }
+        } else {
+          console.log("🎯 Using traditional semantic mapping...");
+          semanticMappings = createSemanticMappings(rawAdobeElements);
+          console.log(`✅ Created ${semanticMappings.size} semantic mappings`);
+        }
 
         console.log(
           "🔍 Step 4: Extracting figures using semantic validation..."
