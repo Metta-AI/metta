@@ -60,8 +60,7 @@ class TestBasicFunctionality:
 
         action_names = basic_env.action_names
         assert "noop" in action_names
-        assert "move" in action_names
-        assert "rotate" in action_names
+        assert "move_8way" in action_names
 
         noop_idx = action_names.index("noop")
         actions = np.full((basic_env.num_agents, 2), [noop_idx, 0], dtype=dtype_actions)

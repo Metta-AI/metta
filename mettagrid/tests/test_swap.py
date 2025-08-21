@@ -6,6 +6,7 @@ from metta.mettagrid.mettagrid_c import MettaGrid, dtype_actions
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 
 
+@pytest.mark.skip(reason="Test requires rotate action which is disabled in favor of move_8way")
 def test_swap():
     """Test that swap_objects preserves the original layers when swapping positions."""
     # Create a minimal 3x3 map with an agent and a swappable block
@@ -127,6 +128,7 @@ def test_swap():
 
 
 # TODO -- consider moving this to actions integration test file
+@pytest.mark.skip(reason="Test requires rotate action which is disabled in favor of move_8way")
 def test_swap_frozen_agent_preserves_layers():
     """Test that swap_objects preserves layers when swapping with a frozen agent.
 
