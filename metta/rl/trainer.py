@@ -141,16 +141,7 @@ def train(
     vecenv.async_reset(system_cfg.seed + torch_dist_cfg.rank)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
-    # Load or initialize policy via TrainerInitializer
-    """
-    initializer = PolicyInitializer(
-        agent_cfg=agent_cfg,
-        system_cfg=system_cfg,
-        metta_grid_env=metta_grid_env,
-        is_master=torch_dist_cfg.is_master,
-        device=device,
-    )
-    """
+
     policy_store.empty_agent_factory = (
         lambda policy_record, base_path, checkpoint_name: load_from_safetensors_checkpoint(
             checkpoint_name=checkpoint_name,
