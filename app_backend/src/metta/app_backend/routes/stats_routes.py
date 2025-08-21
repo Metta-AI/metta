@@ -61,8 +61,14 @@ class EpisodeCreate(BaseModel):
     thumbnail_url: str | None = None
 
     @property
-    def simulation_suite(self) -> str:
-        return self.eval_name or "unknown"
+    def simulation_suite(self) -> str | None:
+        # TODO: rethink our definition of a sim suite
+        if not self.eval_name:
+            return None
+        for delim in ["/", "."]:
+            if delim in self.eval_name:
+                return self.eval_name.split(delim)[0]
+        return None
 
 
 class EpisodeResponse(BaseModel):
