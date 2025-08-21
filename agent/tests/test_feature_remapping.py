@@ -99,7 +99,7 @@ def test_feature_remapping_in_agent():
         "hp": {"id": 2, "type": "scalar", "normalization": 30.0},
         "mineral": {"id": 3, "type": "scalar", "normalization": 100.0},
     }
-    
+
     # Mock action configuration
     action_names = ["move", "attack", "gather"]
     action_max_params = [3, 2, 1]
@@ -142,7 +142,7 @@ def test_feature_remapping_in_agent():
 def test_unknown_feature_handling():
     """Test that unknown features are mapped to index 255."""
     agent = MockAgent()
-    
+
     # Mock action configuration
     action_names = ["move", "attack"]
     action_max_params = [3, 2]
@@ -192,7 +192,7 @@ def test_unknown_feature_handling():
 def test_feature_mapping_persistence_via_metadata():
     """Test that original_feature_mapping can be persisted through metadata."""
     agent = MockAgent()
-    
+
     # Mock action configuration
     action_names = ["move", "attack", "gather"]
     action_max_params = [3, 2, 1]
