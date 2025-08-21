@@ -93,17 +93,17 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     altar_copy = env_cfg.game.objects["altar"].model_copy(deep=True)
     altar_copy.input_resources = {"battery_red": 1}
     env_cfg.game.objects["altar"] = altar_copy
-    
-    # CRITICAL: Set initial resource counts so buildings aren't empty!
-    # The old configs often had initial_resource_count: 1
-    for obj_name in ["mine_red", "generator_red", "altar"]:
-        if obj_name in env_cfg.game.objects:
-            obj_copy = env_cfg.game.objects[obj_name].model_copy(deep=True)
-            obj_copy.initial_resource_count = 1  # Start with 1 resource ready
-            env_cfg.game.objects[obj_name] = obj_copy
 
     # Set label for clarity
     env_cfg.label = "arena.easy_shaped"
+
+    # desync_episodes is now fixed to match old behavior (changes max_steps for first episode only)
+    # Keep default setting (True) to match pre-dehydration behavior
+
+    # Log a warning about potential CurriculumEnv issues
+    print("\nWARNING: CurriculumEnv wrapper may be affecting performance.")
+    print("It calls set_env_config after every episode which rebuilds map_builder.")
+    print("Consider testing without the wrapper if performance issues persist.\n")
 
     return env_cfg
 
@@ -135,20 +135,25 @@ def train() -> TrainTool:
     - Total timesteps: 10B (can be overridden at runtime)
     """
     env_cfg = make_env()
-    
+
     # Log environment configuration for verification
     print(f"\n[Arena Easy Shaped] Creating training with environment config:")
-    print(f"  - Altar: input={env_cfg.game.objects['altar'].input_resources}, "
-          f"initial_count={env_cfg.game.objects['altar'].initial_resource_count}, "
-          f"cooldown={env_cfg.game.objects['altar'].cooldown}")
-    print(f"  - Mine: initial_count={env_cfg.game.objects['mine_red'].initial_resource_count}, "
-          f"cooldown={env_cfg.game.objects['mine_red'].cooldown}")
-    print(f"  - Generator: initial_count={env_cfg.game.objects['generator_red'].initial_resource_count}, "
-          f"cooldown={env_cfg.game.objects['generator_red'].cooldown}")
+    print(
+        f"  - Altar: input={env_cfg.game.objects['altar'].input_resources}, "
+        f"cooldown={env_cfg.game.objects['altar'].cooldown}"
+    )
+    print(f"  - Mine: cooldown={env_cfg.game.objects['mine_red'].cooldown}")
+    print(f"  - Generator: cooldown={env_cfg.game.objects['generator_red'].cooldown}")
     print(f"  - Shaped rewards:")
-    print(f"    * ore_red: {env_cfg.game.agent.rewards.inventory.ore_red} (max: {env_cfg.game.agent.rewards.inventory.ore_red_max})")
-    print(f"    * battery_red: {env_cfg.game.agent.rewards.inventory.battery_red} (max: {env_cfg.game.agent.rewards.inventory.battery_red_max})")
-    print(f"    * heart: {env_cfg.game.agent.rewards.inventory.heart} (max: {env_cfg.game.agent.rewards.inventory.heart_max})")
+    print(
+        f"    * ore_red: {env_cfg.game.agent.rewards.inventory.ore_red} (max: {env_cfg.game.agent.rewards.inventory.ore_red_max})"
+    )
+    print(
+        f"    * battery_red: {env_cfg.game.agent.rewards.inventory.battery_red} (max: {env_cfg.game.agent.rewards.inventory.battery_red_max})"
+    )
+    print(
+        f"    * heart: {env_cfg.game.agent.rewards.inventory.heart} (max: {env_cfg.game.agent.rewards.inventory.heart_max})"
+    )
     print(f"  - Map objects: {list(env_cfg.game.objects.keys())}")
     print(f"  - Has blocks: {'block' in env_cfg.game.objects}")
     print(f"  - Max steps: {env_cfg.game.max_steps}")

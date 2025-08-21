@@ -189,32 +189,72 @@ self._pending_config = self._current_task.get_env_cfg()
    - New: Simplified curriculum that may not be sampling tasks correctly
    - Task completion uses `get_episode_rewards().mean()` which might be wrong
 
-2. **Max output limits might be missing**
-   - Old configs had `max_output: 5` for converters
-   - New building.py doesn't set max_output (defaults to 5 but needs verification)
+2. **Initial resource counts were ALWAYS 0 in old configs**
+   - CORRECTION: Old configs also had `initial_resource_count: 0`
+   - This was NOT the issue - setting to 1 was incorrect
+   - Buildings start empty and must wait for cooldown before producing
 
-3. **Initial resource counts changed**
-   - Many old configs had `initial_resource_count: 1` or higher
-   - New defaults to 0 - buildings start empty!
+3. **Resource production timeline issue**
+   - With initial_resource_count=0 and cooldowns:
+     - Mine produces first ore at step 50
+     - Generator needs 25 more steps to make battery
+     - Altar needs 10 more steps to make heart
+   - With easy altar (1 battery): ~89 steps minimum to first heart
+   - With default altar (3 batteries): ~235 steps minimum to first heart
+   - Episode max_steps=1000 gives limited time to learn this sequence
 
-4. **Heartbeat timeout changed**
-   - Old: 300 seconds
-   - New: 99999 (effectively disabled)
-   - Could affect training dynamics
+4. **Shaped rewards ARE being configured correctly**
+   - Logging confirms: ore_red=0.1, battery_red=0.8
+   - Altar correctly set to need only 1 battery
+   - But agents still stuck at 0.5 hearts
 
-5. **"terrain_maps_nohearts" reference**
-   - Navigation recipe references maps with "nohearts" in name
-   - Could indicate maps designed without heart rewards?
+## CRITICAL ROOT CAUSE IDENTIFIED
 
-## Most Likely Culprits for 0.5 vs 15 Hearts
+### The desync_episodes Implementation Changed!
 
-1. **Initial resource counts are 0** - Buildings start empty, no initial resources!
-2. **Curriculum not sampling diverse tasks** - Stuck on same/similar environments
-3. **Task completion logic changed** - Using mean rewards differently
-4. **Altar is 3x harder** (3 batteries vs 1) - HUGE impact
-5. **No shaped rewards** - Agents don't know ore/batteries are valuable
-6. **Missing blocks** - Environment too simple, different dynamics
-7. **Environment config switching mid-episode** - Corrupts state
+**THE MAIN ISSUE**: `desync_episodes` behavior changed between old and new systems!
+
+**Old Implementation** (pre-dehydration):
+- Changed `max_steps` for the FIRST episode only at environment creation
+- Episode ran normally but with a different max_steps limit
+- Agents still got full episodes, just of varying lengths
+
+**New Implementation** (post-dehydration):
+- Truncates the FIRST episode at a random step between 1 and max_steps
+- Uses `self._early_reset` to force truncation mid-episode
+- If truncation happens at step 1-50: agents get NO rewards (ore doesn't spawn until step 50)
+- If truncation happens at step 50-89: agents might get 0.1 ore reward but no hearts
+
+**Why this matters for Arena but not Navigation**:
+- Navigation: Altars start with hearts ready (initial_resource_count=1), so even short episodes give rewards
+- Arena: Complex resource chain takes 89+ steps minimum to get first heart
+- Arena agents frequently get truncated episodes with zero or minimal rewards
+
+**FIX APPLIED**: Set `env_cfg.desync_episodes = False` in arena_easy_shaped.py
+
+### Secondary Issues Found
+
+1. **CurriculumEnv wrapper now applied to ALL environments**
+   - Old: MettaGridEnv created directly with curriculum
+   - New: MettaGridEnv wrapped with CurriculumEnv in vecenv
+   - Wrapper calls `set_env_config` after EVERY episode
+   - This rebuilds map_builder and could reset agent state
+
+2. **Checkpoint intervals changed**
+   - Old: Time-based (60 seconds)
+   - New: Epoch-based (5 epochs)
+   - Could cause more frequent I/O
+
+3. **PPO/Training changes**
+   - Removed dual-policy training code
+   - Learning rate slightly changed: 0.000457... → 0.000457
+   - evaluate_interval: 300 → 50
+   - No changes to PPO core algorithm, advantages, or fast.py network
+
+4. **Performance overhead**
+   - CurriculumEnv wrapper adds indirection
+   - set_env_config rebuilds every episode
+   - Affecting SPS (~350k vs ~450k)
 
 ## Verification Needed
 

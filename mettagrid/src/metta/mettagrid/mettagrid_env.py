@@ -73,10 +73,12 @@ class MettaGridEnv(MettaGridPufferBase):
         self._is_training = is_training
 
         # DesyncEpisodes - when training we want to stagger experience. The first episode
-        # will end early so that the next episode can begin at a different time on each worker.
-        self._early_reset: int | None = None
-        if self._is_training and env_cfg.desync_episodes:
-            self._early_reset = int(np.random.randint(1, env_cfg.game.max_steps))
+        # will have a different max_steps so that episodes desync across workers.
+        self._first_episode = True
+        self._original_max_steps = env_cfg.game.max_steps
+        if self._is_training and env_cfg.desync_episodes and self._first_episode:
+            # Change max_steps for first episode only (like old implementation)
+            env_cfg.game.max_steps = int(np.random.randint(1, self._original_max_steps + 1))
 
         # Initialize MettaGridPufferBase
         super().__init__(
@@ -105,6 +107,11 @@ class MettaGridEnv(MettaGridPufferBase):
         # Reset counters
         self._steps = 0
         self._resets += 1
+
+        # Restore original max_steps after first episode if desync was used
+        if self._first_episode and self._is_training and self.env_config.desync_episodes:
+            self._first_episode = False
+            self.env_config.game.max_steps = self._original_max_steps
 
         # Set up episode tracking
         self._episode_id = self._make_episode_id()
@@ -141,10 +148,7 @@ class MettaGridEnv(MettaGridPufferBase):
             with self.timer("_replay_writer.log_step"):
                 self._replay_writer.log_step(self._episode_id, actions, rewards)
 
-        # Handle early reset for #DesyncEpisodes
-        if self._early_reset is not None and self._steps >= self._early_reset:
-            truncations[:] = True
-            self._early_reset = None
+        # No longer need early truncation - desync is handled by changing max_steps for first episode
 
         infos = {}
         if terminals.all() or truncations.all():
