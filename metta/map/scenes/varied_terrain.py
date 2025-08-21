@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.map.scene import Scene
 
 
@@ -146,9 +146,6 @@ class VariedTerrain(Scene[VariedTerrainParams]):
                     r, c = pos
                     self.grid[r, c] = obj_name
                     self._occupancy[r, c] = True
-
-    def get_labels(self) -> list[str]:
-        return [*super().get_labels(), self.params.style]
 
     # ---------------------------
     # Helper Functions

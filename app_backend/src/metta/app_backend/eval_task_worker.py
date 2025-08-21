@@ -9,14 +9,15 @@ Runs eval tasks inside a Docker container.
 """
 
 import asyncio
-import json
 import logging
 import os
 import subprocess
-import tempfile
 import uuid
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import datetime
+
+import boto3
 
 from devops.observatory_login import CLIAuthenticator
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
@@ -28,14 +29,21 @@ from metta.app_backend.routes.eval_task_routes import (
 )
 from metta.common.datadog.tracing import init_tracing, trace
 from metta.common.util.collections import remove_none_values
-from metta.common.util.constants import SOFTMAX_S3_BASE
+from metta.common.util.constants import SOFTMAX_S3_BASE, SOFTMAX_S3_BUCKET
 from metta.common.util.git import METTA_API_REPO_URL
 from metta.common.util.logging_helpers import init_logging
 
 
+@dataclass
+class TaskResult:
+    success: bool
+    stdout_log_path: str | None = None
+    stderr_log_path: str | None = None
+
+
 class AbstractTaskExecutor(ABC):
     @abstractmethod
-    async def execute_task(self, task: TaskResponse) -> None:
+    async def execute_task(self, task: TaskResponse) -> TaskResult:
         pass
 
 
@@ -65,10 +73,30 @@ class SimTaskExecutor(AbstractTaskExecutor):
             env=env,
         )
 
-        if result.returncode != 0:
-            raise RuntimeError(f"{error_msg}: {result.stderr}")
-
         return result
+
+    def _stdout_log_path(self, job_id: str) -> str:
+        return f"jobs/{job_id}/stdout.txt"
+
+    def _stderr_log_path(self, job_id: str) -> str:
+        return f"jobs/{job_id}/stderr.txt"
+
+    def _upload_logs_to_s3(self, job_id: str, process: subprocess.CompletedProcess) -> None:
+        self._logger.info(f"Uploading logs to S3: {job_id}")
+        s3_client = boto3.client("s3")
+        s3_client.put_object(
+            Bucket=SOFTMAX_S3_BUCKET,
+            Key=self._stdout_log_path(job_id),
+            Body=process.stdout,
+            ContentType="text/plain",
+        )
+
+        s3_client.put_object(
+            Bucket=SOFTMAX_S3_BUCKET,
+            Key=self._stderr_log_path(job_id),
+            Body=process.stderr,
+            ContentType="text/plain",
+        )
 
     @trace("worker.setup_checkout")
     def _setup_versioned_checkout(self, git_hash: str) -> None:
@@ -116,7 +144,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
     async def execute_task(
         self,
         task: TaskResponse,
-    ) -> None:
+    ) -> TaskResult:
         if not task.git_hash:
             raise RuntimeError(f"Git hash not found for task {task.id}")
 
@@ -125,42 +153,35 @@ class SimTaskExecutor(AbstractTaskExecutor):
         policy_name = task.policy_name
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
-
         cmd = [
             "uv",
             "run",
-            "tools/sim.py",
+            "tools/run.py",
+            "experiments.evals.run",
+            "--args",
             f"policy_uri=wandb://run/{policy_name}",
-            f"sim={task.sim_suite}",
+            f"simulations_json={task.attributes.get('simulations')}",
+            "--overrides",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
-            "device=cpu",
-            "vectorization=serial",
             "push_metrics_to_wandb=true",
-            f"sim_job.replay_dir={SOFTMAX_S3_BASE}/replays/" + "${run}",
         ]
+        self._logger.info(f"Running command: {' '.join(cmd)}")
 
-        with tempfile.TemporaryDirectory(prefix=f"metta-policy-evaluator-{task.id}", dir="/tmp") as task_tmp_dir:
-            if task.sim_suite_config:
-                path = os.path.join(task_tmp_dir, "sim_suite_config.json")
-                with open(path, "w") as f:
-                    json.dump(task.sim_suite_config, f)
-                cmd.append(f"sim_suite_config_path={path}")
+        result = self._run_cmd_from_versioned_checkout(
+            cmd,
+            "sim.py failed with exit code",
+        )
 
-            if task.trainer_task:
-                path = os.path.join(task_tmp_dir, "trainer_task.json")
-                with open(path, "w") as f:
-                    json.dump(task.trainer_task, f)
-                cmd.append(f"trainer_task_path={path}")
+        self._upload_logs_to_s3(str(task.id), result)
 
-            self._logger.info(f"Running command: {' '.join(cmd)}")
+        self._logger.info(f"Simulation completed successfully: {result.stdout}")
 
-            result = self._run_cmd_from_versioned_checkout(
-                cmd,
-                "sim.py failed with exit code",
-            )
-
-            self._logger.info(f"Simulation completed successfully: {result.stdout}")
+        return TaskResult(
+            success=result.returncode == 0,
+            stdout_log_path=f"{SOFTMAX_S3_BASE}/{self._stdout_log_path(str(task.id))}",
+            stderr_log_path=f"{SOFTMAX_S3_BASE}/{self._stderr_log_path(str(task.id))}",
+        )
 
 
 class EvalTaskWorker:
@@ -191,6 +212,8 @@ class EvalTaskWorker:
         task_id: uuid.UUID,
         status: TaskStatus,
         error_reason: str | None = None,
+        stdout_log_path: str | None = None,
+        stderr_log_path: str | None = None,
     ) -> None:
         await self._client.update_task_status(
             TaskUpdateRequest(
@@ -198,7 +221,13 @@ class EvalTaskWorker:
                 updates={
                     task_id: TaskStatusUpdate(
                         status=status,
-                        attributes=remove_none_values({f"error_reason_{self._assignee}": error_reason}),
+                        attributes=remove_none_values(
+                            {
+                                f"error_reason_{self._assignee}": error_reason,
+                                "stdout_log_path": stdout_log_path,
+                                "stderr_log_path": stderr_log_path,
+                            }
+                        ),
                     )
                 },
             )
@@ -224,13 +253,24 @@ class EvalTaskWorker:
                     task: TaskResponse = min(claimed_tasks.tasks, key=lambda x: x.assigned_at or datetime.min)
                     self._logger.info(f"Processing task {task.id}")
                     try:
-                        await self._task_executor.execute_task(task)
-                        self._logger.info(f"Task {task.id} completed successfully")
-                        await self._update_task_status(task.id, "done")
-                        self._logger.info(f"Task {task.id} updated to done")
+                        task_result = await self._task_executor.execute_task(task)
+                        status = "done" if task_result.success else "error"
+
+                        self._logger.info(f"Task {task.id} completed with status {status}")
+                        await self._update_task_status(
+                            task.id,
+                            status,
+                            stdout_log_path=task_result.stdout_log_path,
+                            stderr_log_path=task_result.stderr_log_path,
+                        )
+                        self._logger.info(f"Task {task.id} updated to {status}")
                     except Exception as e:
                         self._logger.error(f"Task failed: {e}", exc_info=True)
-                        await self._update_task_status(task.id, "error", str(e))
+                        await self._update_task_status(
+                            task.id,
+                            "error",
+                            str(e),
+                        )
                 else:
                     self._logger.debug("No tasks claimed")
 

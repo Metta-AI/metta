@@ -4,12 +4,9 @@ from typing import Any, Optional
 
 import gymnasium as gym
 import numpy as np
-import torch
 from omegaconf import DictConfig
 
 from metta.agent.metta_agent import MettaAgent
-from metta.common.util.instantiate import instantiate
-from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("policy")
 
@@ -44,24 +41,25 @@ def load_pytorch_policy(path: str, device: str = "cpu", pytorch_cfg: Optional[Di
     """
     Create or loads a PyTorch policy.
     """
+    # TODO(richard): #dehydration - this is a hack to get the policy to work. We need to fix this.
+    raise NotImplementedError("This is a hack to get the policy to work. We need to fix this.")
+    # try:
+    #     weights = torch.load(path, map_location=device, weights_only=True)
+    #     num_actions, hidden_size, num_action_args, obs_channels = _parse_weights_metadata(weights)
+    # except Exception as e:
+    #     logger.warning(f"Failed to load checkpoint from {path}: {e}")
 
-    try:
-        weights = torch.load(path, map_location=device, weights_only=True)
-        num_actions, hidden_size, num_action_args, obs_channels = _parse_weights_metadata(weights)
-    except Exception as e:
-        logger.warning(f"Failed to load checkpoint from {path}: {e}")
+    # env = _init_env()
+    # policy = instantiate(pytorch_cfg, env=env, policy=None)
 
-    env = _init_env()
-    policy = instantiate(pytorch_cfg, env=env, policy=None)
+    # try:
+    #     policy.load_state_dict(weights)
+    # except Exception as e:
+    #     logger.warning(f"Failed to load weights into policy: {e}")
+    #     logger.warning("Proceeding with new policy.")
 
-    try:
-        policy.load_state_dict(weights)
-    except Exception as e:
-        logger.warning(f"Failed to load weights into policy: {e}")
-        logger.warning("Proceeding with new policy.")
+    # logger.info(f"Loaded PyTorch policy config: {pytorch_cfg}")
 
-    logger.info(f"Loaded PyTorch policy config: {pytorch_cfg}")
+    # system_cfg = SystemConfig(device=device)
 
-    system_cfg = SystemConfig(device=device)
-
-    return MettaAgent(env, system_cfg, pytorch_cfg, policy=policy)
+    # return MettaAgent(env, system_cfg, pytorch_cfg, policy=policy)

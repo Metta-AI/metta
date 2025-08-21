@@ -6,8 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from metta.app_backend.clients.base_client import get_machine_token
 from metta.common.util.constants import DEV_STATS_SERVER_URI, PROD_STATS_SERVER_URI
-from metta.common.util.stats_client_cfg import get_machine_token
 from metta.setup.utils import error, info
 
 

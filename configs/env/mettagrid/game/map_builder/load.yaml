@@ -1,7 +1,0 @@
-_target_: metta.map.load.Load
-
-uri: ???
-
-# Optional scene to render on top of the loaded map.
-extra_root:
-  type: metta.map.scenes.make_connected.MakeConnected

@@ -6,7 +6,10 @@ from tests.map.scenes.utils import render_scene
 
 def test_basic():
     """Test basic functionality of MeanDistance scene."""
-    scene = render_scene(MeanDistance, {"mean_distance": 3.0, "objects": {"altar": 2, "enemy": 1}}, (11, 11))
+    scene = render_scene(
+        MeanDistance.factory(MeanDistance.Params(mean_distance=3.0, objects={"altar": 2, "enemy": 1})),
+        (11, 11),
+    )
 
     # Agent should be placed at the center
     agent_pos = (5, 5)  # center of 11x11 grid
@@ -25,7 +28,10 @@ def test_basic():
 
 def test_object_placement():
     """Test that objects are placed at reasonable distances from agent."""
-    scene = render_scene(MeanDistance, {"mean_distance": 2.0, "objects": {"altar": 5}}, (101, 101))
+    scene = render_scene(
+        MeanDistance.factory(MeanDistance.Params(mean_distance=2.0, objects={"altar": 5})),
+        (101, 101),
+    )
 
     agent_pos = (50, 50)  # center of 101x101 grid
     assert scene.grid[agent_pos] == "agent.agent"
@@ -49,7 +55,10 @@ def test_object_placement():
 
 def test_multiple_object_types():
     """Test placement of multiple different object types."""
-    scene = render_scene(MeanDistance, {"mean_distance": 4.0, "objects": {"altar": 3, "enemy": 2, "key": 1}}, (21, 21))
+    scene = render_scene(
+        MeanDistance.factory(MeanDistance.Params(mean_distance=4.0, objects={"altar": 3, "enemy": 2, "key": 1})),
+        (21, 21),
+    )
 
     # Check all objects are placed
     assert (scene.grid == "altar").sum() == 3
@@ -63,7 +72,10 @@ def test_multiple_object_types():
 
 def test_small_grid():
     """Test behavior with a smaller grid where placement might be constrained."""
-    scene = render_scene(MeanDistance, {"mean_distance": 2.0, "objects": {"altar": 2}}, (7, 7))
+    scene = render_scene(
+        MeanDistance.factory(MeanDistance.Params(mean_distance=2.0, objects={"altar": 2})),
+        (7, 7),
+    )
 
     # Agent should be at center
     agent_pos = (3, 3)

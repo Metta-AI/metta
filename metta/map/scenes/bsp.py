@@ -3,7 +3,7 @@ from typing import Literal, Tuple
 
 import numpy as np
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.map.scene import Scene
 from metta.map.types import MapGrid
 

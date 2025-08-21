@@ -19,10 +19,6 @@ class SystemSetup(SetupModule):
     def description(self) -> str:
         return "System dependencies (Homebrew packages, etc.)"
 
-    @override
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("system")
-
     @property
     def supported_for_platform(self) -> bool:
         return platform.system() == "Darwin" or self._find_brew_path() is not None

@@ -28,7 +28,8 @@ METTA_SKYPILOT_URL = "skypilot-api.softmax-research.net"
 
 METTA_ENV_FILE = LazyPath(os.path.expanduser("~/.metta_env_path"))
 
-SOFTMAX_S3_BASE = "s3://softmax-public"
+SOFTMAX_S3_BUCKET = "softmax-public"
+SOFTMAX_S3_BASE = f"s3://{SOFTMAX_S3_BUCKET}"
 
 
 def main():

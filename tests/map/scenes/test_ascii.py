@@ -3,7 +3,7 @@ from tests.map.scenes.utils import assert_grid, render_scene
 
 
 def test_basic():
-    scene = render_scene(Ascii, {"uri": "tests/map/scenes/fixtures/test.map"}, (4, 4))
+    scene = render_scene(Ascii.factory(Ascii.Params(uri="tests/map/scenes/fixtures/test.map")), (4, 4))
 
     assert_grid(
         scene,

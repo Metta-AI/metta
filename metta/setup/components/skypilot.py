@@ -5,6 +5,7 @@ import subprocess
 from metta.common.util.constants import METTA_SKYPILOT_URL
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
+from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import info, success
 
 
@@ -20,9 +21,6 @@ class SkypilotSetup(SetupModule):
     @property
     def description(self) -> str:
         return "SkyPilot cloud compute orchestration"
-
-    def is_applicable(self) -> bool:
-        return self.config.is_component_enabled("skypilot") and self.config.is_component_enabled("aws")
 
     def check_installed(self) -> bool:
         try:
@@ -72,7 +70,7 @@ class SkypilotSetup(SetupModule):
             info("SkyPilot is already configured for external use. Skipping authentication.")
         else:
             # Need to authenticate skypilot.
-            if self.config.user_type.is_softmax:
+            if get_saved_settings().user_type.is_softmax:
                 try:
                     # Temporarily block Ctrl+C for parent process during script execution
                     # This is necessary because `sky api login` flow requires ctrl+c before the token can be pasted.
@@ -96,7 +94,7 @@ class SkypilotSetup(SetupModule):
         if not self.check_installed():
             return None
 
-        if self.config.user_type.is_softmax:
+        if get_saved_settings().user_type.is_softmax:
             try:
                 result = subprocess.run(["uv", "run", "sky", "api", "info"], capture_output=True, text=True)
 

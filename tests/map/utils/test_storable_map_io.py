@@ -1,14 +1,12 @@
 import numpy as np
-from omegaconf import DictConfig
 
 from metta.map.utils.storable_map import StorableMap
-from metta.mettagrid.level_builder import map_grid_dtype
+from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.util import file as file_utils
 
 
 def simple_map():
-    grid = np.array([["empty", "wall"], ["wall", "empty"]], dtype=map_grid_dtype)
-    return StorableMap(grid, metadata={}, config=DictConfig({}))
+    return StorableMap.from_cfg(AsciiMapBuilder.Config(map_data=[[".", "#"], ["#", "."]]))
 
 
 def test_save_and_load_local(tmp_path):

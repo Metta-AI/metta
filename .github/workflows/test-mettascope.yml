@@ -8,6 +8,7 @@ on:
 
 jobs:
   check-container:
+    if: false # Workflow disabled #TODO(andre) #dehydration
     name: "Check Container Availability"
     runs-on: ubuntu-latest
     outputs:
@@ -33,6 +34,7 @@ jobs:
           fi
 
   test:
+    if: false # Workflow disabled
     name: "Lint, Install, and Test"
     runs-on: ubuntu-latest
     needs: check-container

@@ -5,13 +5,13 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
 from typing_extensions import TypedDict
 
-from metta.common.util.instantiate import instantiate
 from metta.map.mapgen import MapGen
 from metta.map.types import MapGrid
 from metta.map.utils.ascii_grid import grid_to_lines, lines_to_grid
+from metta.mettagrid.map_builder.map_builder import MapBuilderConfig
 from metta.mettagrid.util import file as file_utils
 
 logger = logging.getLogger(__name__)
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 class FrontmatterDict(TypedDict):
     metadata: dict
     config: dict
-    scene_tree: dict | None = None
+    scene_tree: dict | None
 
 
 class StorableMapDict(TypedDict):
@@ -37,14 +37,14 @@ class StorableMap:
 
     grid: MapGrid
     metadata: dict
-    config: DictConfig  # config that was used to generate the map
+    config: MapBuilderConfig  # config that was used to generate the map
     scene_tree: dict | None = None
 
     def __str__(self) -> str:
         frontmatter = OmegaConf.to_yaml(
             {
                 "metadata": self.metadata,
-                "config": self.config,
+                "config": self.config.model_dump(),
                 "scene_tree": self.scene_tree,
             }
         )
@@ -76,11 +76,10 @@ class StorableMap:
         return StorableMap(lines_to_grid(lines), metadata=metadata, config=config)
 
     @staticmethod
-    def from_cfg(cfg: DictConfig) -> StorableMap:
+    def from_cfg(cfg: MapBuilderConfig) -> StorableMap:
         # Generate and measure time taken
         start = time.time()
-        # TODO(slava): Remove _recursive_=True once mapgen no longer needs it
-        map_builder = instantiate(OmegaConf.to_container(cfg, resolve=True), _recursive_=True)
+        map_builder = cfg.create()
         level = map_builder.build()
         gen_time = time.time() - start
         logger.info(f"Time taken to build map: {gen_time}s")
@@ -92,7 +91,6 @@ class StorableMap:
         storable_map = StorableMap(
             grid=level.grid,
             metadata={
-                "labels": level.labels,
                 "gen_time": gen_time,
                 "timestamp": datetime.now().isoformat(),
             },

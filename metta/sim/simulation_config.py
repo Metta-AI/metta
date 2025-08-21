@@ -1,100 +1,24 @@
 # metta/sim/simulation_config.py
 
-import json
-from typing import Any, Dict, Literal, Optional
+from typing import Optional
 
-from omegaconf import DictConfig, OmegaConf
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field
 
-from metta.common.util.config import Config
-
-
-def _to_jsonable(obj):
-    """Convert nested objects (Pydantic, OmegaConf) to plain JSON-safe containers."""
-    if isinstance(obj, BaseModel):
-        # Dump to python first to avoid JSON serialization on unknown inner types
-        python_obj = obj.model_dump(mode="python")
-        return _to_jsonable(python_obj)
-    if isinstance(obj, DictConfig):
-        return OmegaConf.to_container(obj, resolve=True)
-    if isinstance(obj, dict):
-        return {k: _to_jsonable(v) for k, v in obj.items()}
-    if isinstance(obj, (list, tuple)):
-        return [_to_jsonable(v) for v in obj]
-    return obj
+from metta.common.config import Config
+from metta.mettagrid import EnvConfig
 
 
 class SimulationConfig(Config):
     """Configuration for a single simulation run."""
 
+    name: str = Field(description="Name of the simulation")
+    env: EnvConfig
+
     # Core simulation config
-    num_episodes: int
-    max_time_s: int = 120
-    env_overrides: dict = {}
+    num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)
+    max_time_s: int = Field(default=120, description="Maximum time in seconds to run the simulation", ge=0)
 
-    npc_policy_uri: Optional[str] = None
-    policy_agents_pct: float = 1.0
+    npc_policy_uri: Optional[str] = Field(default=None, description="URI of the policy to use for NPC agents")
+    policy_agents_pct: float = Field(default=1.0, description="pct of agents to be controlled by policies", ge=0, le=1)
 
-
-class SingleEnvSimulationConfig(SimulationConfig):
-    """Configuration for a single simulation run."""
-
-    __init__ = SimulationConfig.__init__
-
-    type: Literal["single"] = Field(default="single", description="Type discriminator for SingleEnvSimulationConfig")
-    env: str
-    env_overrides: dict = {}
-
-
-class SimulationSuiteConfig(SimulationConfig):
-    """A suite of named simulations, with suite-level defaults injected."""
-
-    type: Literal["suite"] = Field(default="suite", description="Type discriminator for SimulationSuiteConfig")
-    name: str
-    simulations: Dict[str, SingleEnvSimulationConfig]
-    episode_tags: list[str] = []
-
-    @model_validator(mode="before")
-    @classmethod
-    def propagate_suite_fields(cls, values: dict) -> dict:
-        # Handle cases where values might not be a dict (e.g., when using custom __init__)
-        if not isinstance(values, dict):
-            return values
-
-        # collect only fields that were explicitly passed (not defaults)
-        # note: in `mode="before"`, `values` is raw user input
-
-        explicitly_provided = {
-            k: v
-            for k, v in values.items()
-            if k in SimulationConfig.model_fields  # only fields simulation children would know
-        }
-        raw_sims = values.get("simulations", {}) or {}
-        merged: Dict[str, dict] = {}
-
-        for name, sim_cfg in raw_sims.items():
-            # Handle both dict and SingleEnvSimulationConfig instances
-            if isinstance(sim_cfg, dict):
-                # Raw dict - merge with suite defaults
-                merged[name] = {**explicitly_provided, **sim_cfg}
-            elif isinstance(sim_cfg, SingleEnvSimulationConfig):
-                # Already instantiated - convert to dict and merge
-                sim_dict = sim_cfg.model_dump()
-                merged[name] = {**explicitly_provided, **sim_dict}
-            else:
-                # Pass through as-is and let Pydantic handle validation
-                merged[name] = sim_cfg
-
-        values["simulations"] = merged
-        return values
-
-    def to_jsonable(self) -> dict[str, Any]:
-        return _to_jsonable(self)  # type: ignore
-
-    @classmethod
-    def from_json(cls, json_str: str) -> "SimulationSuiteConfig":
-        """Create a SimulationSuiteConfig from a JSON string."""
-        data = json.loads(json_str)
-        if not isinstance(data, dict):
-            raise ValueError("Expected JSON object for SimulationSuiteConfig")
-        return cls.model_validate(data)  # type: ignore[return-value]
+    episode_tags: Optional[list[str]] = Field(default=None, description="Tags to add to each episode")

@@ -2,7 +2,7 @@ import math
 
 from pydantic import Field
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.map.scene import Scene
 from metta.map.utils.draw import bresenham_line
 

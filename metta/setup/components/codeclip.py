@@ -3,6 +3,7 @@ import subprocess
 from metta.setup.components.base import SetupModule
 from metta.setup.profiles import UserType
 from metta.setup.registry import register_module
+from metta.setup.saved_settings import get_saved_settings
 from metta.setup.utils import info, success, warning
 
 
@@ -14,9 +15,9 @@ class CodeclipSetup(SetupModule):
     def description(self) -> str:
         return "Developer tools copying code for LLM contexts"
 
-    def is_applicable(self) -> bool:
+    def _is_applicable(self) -> bool:
         # Only applicable for developer profiles, not docker profiles
-        return self.config.user_type in [UserType.SOFTMAX, UserType.EXTERNAL, UserType.CLOUD]
+        return get_saved_settings().user_type in [UserType.SOFTMAX, UserType.EXTERNAL, UserType.CLOUD]
 
     def check_installed(self) -> bool:
         """Check if codeclip is installed."""

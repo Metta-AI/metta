@@ -31,11 +31,12 @@ def convert_to_cpp_game_config(mettagrid_config_dict: dict):
         agent_group_props = copy.deepcopy(default_agent_config_dict)
 
         # Update, but in a nested way
-        for key, value in group_config.props.model_dump(exclude_unset=True).items():
-            if isinstance(value, dict):
-                agent_group_props[key].update(value)
-            else:
-                agent_group_props[key] = value
+        if group_config.props:
+            for key, value in group_config.props.model_dump(exclude_unset=True).items():
+                if isinstance(value, dict):
+                    agent_group_props[key].update(value)
+                else:
+                    agent_group_props[key] = value
 
         # Extract inventory rewards - handle both old and new format for backward compatibility
         inventory_rewards = {}

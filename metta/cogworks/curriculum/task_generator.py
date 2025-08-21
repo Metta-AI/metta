@@ -3,19 +3,38 @@ from __future__ import annotations
 import logging
 import random
 from abc import ABC, abstractmethod
-from typing import Annotated, Any, ClassVar, Literal, Union
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar, cast
 
-from omegaconf import OmegaConf
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    SerializeAsAny,
+    WrapValidator,
+    field_validator,
+    model_serializer,
+)
+from typing_extensions import Generic
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.utils.module import load_class
+
+if TYPE_CHECKING:
+    from metta.cogworks.curriculum.curriculum import CurriculumConfig
 
 logger = logging.getLogger(__name__)
 
+TTaskGenerator = TypeVar("TTaskGenerator", bound="TaskGenerator")
 
-class TaskGeneratorConfig(Config):
-    """Base configuration for TaskGenerator."""
+
+class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
+    """Base configuration for TaskGenerator.
+
+    Subclasses *optionally* know which TaskGenerator they build via `_generator_cls`
+    (auto-filled when nested inside a TaskGenerator subclass).
+    """
+
+    _generator_cls: ClassVar[Optional[Type[TTaskGenerator]]] = None  # type: ignore[misc]
 
     # pydantic configuration
     model_config: ClassVar[ConfigDict] = ConfigDict(
@@ -24,16 +43,46 @@ class TaskGeneratorConfig(Config):
         populate_by_name=True,
     )
 
+    label: Optional[str] = Field(default=None, description="Label for the task generator")
+
     overrides: dict[str, Any] = Field(
         default_factory=dict, description="Overrides to apply as dict with dot-separated keys"
     )
 
-    def create(self) -> "TaskGenerator":
-        """Create a TaskGenerator from this configuration.
+    def create(self) -> TTaskGenerator:
+        """Instantiate the bound TaskGenerator.
 
-        Subclasses should override this method to create their specific generator type.
+        Subclasses nested under a TaskGenerator automatically bind `_generator_cls`.
+        If you define a standalone Config subclass, either set `_generator_cls`
+        on the class or override `create()`.
         """
-        raise NotImplementedError("TaskGeneratorConfig.create() must be overridden by subclasses")
+        return self.generator_cls()(self)  # type: ignore[call-arg]
+
+    @classmethod
+    def generator_cls(cls) -> Type[TTaskGenerator]:
+        if cls._generator_cls is None:
+            raise TypeError(
+                f"{cls.__name__} is not bound to a TaskGenerator; "
+                f"either define it nested under the generator or set `_generator_cls`."
+            )
+        return cls._generator_cls
+
+    def to_curriculum(self, num_tasks: Optional[int] = None) -> "CurriculumConfig":
+        """Create a CurriculumConfig from this configuration."""
+        from metta.cogworks.curriculum.curriculum import CurriculumConfig
+
+        cc = CurriculumConfig(task_generator=self)
+        cc.num_active_tasks = num_tasks or cast(int, cc.num_active_tasks)
+        return cc
+
+    @model_serializer(mode="wrap")
+    def _serialize_with_type(self, handler):
+        """Ensure YAML/JSON dumps always include a 'type' with a nice FQCN."""
+        data = handler(self)  # dict of the model's fields
+        typ_cls: Type[Any] = self._generator_cls or self.__class__
+        # Prefer the *generator* class if known, fall back to the config class
+        type_str = f"{typ_cls.__module__}.{typ_cls.__name__}"
+        return {"type": type_str, **data}
 
 
 class TaskGenerator(ABC):
@@ -41,7 +90,18 @@ class TaskGenerator(ABC):
 
     TaskGenerator supports .get_task(task_id) where task_id is used as the seed.
     It should always be constructed with a TaskGeneratorConfig.
+
+    If a subclass declares a nested class `Config` that inherits from TaskGeneratorConfig,
+    it will be *automatically bound*.
     """
+
+    Config: ClassVar[type[TaskGeneratorConfig[Any]]]
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        # Auto-bind nested Config class to this generator
+        if hasattr(cls, "Config"):
+            cls.Config._generator_cls = cls  # type: ignore[assignment]
 
     def __init__(self, config: TaskGeneratorConfig):
         self._config = config
@@ -74,77 +134,33 @@ class TaskGenerator(ABC):
         if not overrides:
             return env_config
 
-        # Convert to dict, apply overrides using OmegaConf
-        config_dict = OmegaConf.create(env_config.model_dump())
-
-        for key, value in overrides.items():
-            OmegaConf.update(config_dict, key, value, merge=True)
-
-        config_dict = OmegaConf.to_container(config_dict)
-
-        return EnvConfig.model_validate(config_dict)
+        env_config.update(overrides)
+        return env_config
 
 
 ################################################################################
 # SingleTaskGenerator
 ################################################################################
-
-
-class SingleTaskGeneratorConfig(TaskGeneratorConfig):
-    """Configuration for SingleTaskGenerator."""
-
-    type: Literal["single"] = Field(default="single", description="Type discriminator for SingleTaskGenerator")
-    env_config: EnvConfig = Field(description="The environment configuration to always return")
-
-    def create(self) -> "SingleTaskGenerator":
-        """Create a SingleTaskGenerator from this configuration."""
-        return SingleTaskGenerator(self)
-
-
 class SingleTaskGenerator(TaskGenerator):
     """TaskGenerator that always returns the same EnvConfig."""
 
-    def __init__(self, config: SingleTaskGeneratorConfig):
+    class Config(TaskGeneratorConfig["SingleTaskGenerator"]):
+        """Configuration for SingleTaskGenerator."""
+
+        env: EnvConfig = Field(description="The environment configuration to always return")
+
+    def __init__(self, config: "SingleTaskGenerator.Config"):
         super().__init__(config)
-        self._config: SingleTaskGeneratorConfig = config
+        self._config = config
 
     def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
         """Always return the same EnvConfig."""
-        return self._config.env_config
+        return self._config.env.model_copy(deep=True)
 
 
 ################################################################################
 # TaskGeneratorSet
 ################################################################################
-
-
-class TaskGeneratorSetConfig(TaskGeneratorConfig):
-    """Configuration for TaskGeneratorSet."""
-
-    type: Literal["set"] = Field(default="set", description="Type discriminator for TaskGeneratorSet")
-    task_generator_configs: list[
-        Annotated[
-            Union["SingleTaskGeneratorConfig", "TaskGeneratorSetConfig", "BucketedTaskGeneratorConfig"],
-            Field(discriminator="type"),
-        ]
-    ] = Field(min_length=1, description="Task generator configurations to sample from")
-    weights: list[float] = Field(min_length=1, description="Weights for sampling each task generator")
-
-    @field_validator("weights")
-    @classmethod
-    def validate_weights(cls, v, info):
-        """Ensure weights are positive."""
-        if any(w <= 0 for w in v):
-            raise ValueError("All weights must be positive")
-        if len(v) != len(info.data.get("task_generator_configs", [])):
-            raise ValueError("Number of weights must match number of task generator configs")
-        return v
-
-    def create(self) -> "TaskGeneratorSet":
-        """Create a TaskGeneratorSet from this configuration."""
-        return TaskGeneratorSet(self)
-
-
 class TaskGeneratorSet(TaskGenerator):
     """TaskGenerator that contains a list of TaskGenerators with weights.
 
@@ -152,13 +168,36 @@ class TaskGeneratorSet(TaskGenerator):
     from the list by weight and return child.get_task().
     """
 
-    def __init__(self, config: TaskGeneratorSetConfig):
+    class Config(TaskGeneratorConfig["TaskGeneratorSet"]):
+        """Configuration for TaskGeneratorSet."""
+
+        task_generators: list[AnyTaskGeneratorConfig] = Field(
+            default_factory=list, description="Task generator configurations to sample from"
+        )
+        weights: list[float] = Field(default_factory=list, description="Weights for sampling each task generator")
+
+        @field_validator("weights")
+        @classmethod
+        def validate_weights(cls, v, info):
+            """Ensure weights are positive."""
+            if any(w <= 0 for w in v):
+                raise ValueError("All weights must be positive")
+            task_gens = info.data.get("task_generators", [])
+            if v and len(v) != len(task_gens):
+                raise ValueError("Number of weights must match number of task generator configs")
+            return v
+
+        def add(self, task_generator: AnyTaskGeneratorConfig, weight: float = 1.0) -> "TaskGeneratorSet.Config":
+            """Add a task generator to the set with a weight."""
+            self.task_generators.append(task_generator)
+            self.weights.append(weight)
+            return self
+
+    def __init__(self, config: "TaskGeneratorSet.Config"):
         super().__init__(config)
-
-        self._config: TaskGeneratorSetConfig = config
-
-        self._sub_task_generators = [config.create() for config in self._config.task_generator_configs]
-        self._weights = self._config.weights
+        self._config = config
+        self._sub_task_generators = [gen_config.create() for gen_config in self._config.task_generators]
+        self._weights = self._config.weights if self._config.weights else [1.0] * len(self._sub_task_generators)
 
     def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
         return rng.choices(self._sub_task_generators, weights=self._weights)[0].get_task(task_id)
@@ -167,8 +206,6 @@ class TaskGeneratorSet(TaskGenerator):
 ################################################################################
 # BucketedTaskGenerator
 ################################################################################
-
-
 class ValueRange(Config):
     """A range of values with minimum and maximum bounds."""
 
@@ -189,33 +226,8 @@ class ValueRange(Config):
         """Create a ValueRange from a range_min and range_max."""
         return cls(range_min=range_min, range_max=range_max)
 
-
-class BucketedTaskGeneratorConfig(TaskGeneratorConfig):
-    """Configuration for BucketedTaskGenerator."""
-
-    type: Literal["bucketed"] = Field(default="bucketed", description="Type discriminator for BucketedTaskGenerator")
-    child_generator_config: Annotated[
-        Union["SingleTaskGeneratorConfig", "TaskGeneratorSetConfig", "BucketedTaskGeneratorConfig"],
-        Field(discriminator="type", description="Child task generator configuration"),
-    ]
-    buckets: dict[str, list[int | float | str | ValueRange]] = Field(
-        default_factory=dict, description="Buckets for sampling, keys are config paths"
-    )
-
-    def add_bucket(self, path: str, values: list[int | float | str | ValueRange]) -> "BucketedTaskGeneratorConfig":
-        """Add a bucket of values for a specific configuration path."""
-        assert path not in self.buckets, f"Bucket {path} already exists"
-        self.buckets[path] = values
-        return self
-
-    def create(self) -> "BucketedTaskGenerator":
-        """Create a BucketedTaskGenerator from this configuration."""
-        return BucketedTaskGenerator(self)
-
-    @classmethod
-    def from_env_config(cls, env_config: EnvConfig) -> BucketedTaskGeneratorConfig:
-        """Create a BucketedTaskGeneratorConfig from an EnvConfig."""
-        return cls(child_generator_config=SingleTaskGeneratorConfig(env_config=env_config))
+    def __str__(self) -> str:
+        return f"{self.range_min}-{self.range_max}"
 
 
 class BucketedTaskGenerator(TaskGenerator):
@@ -227,13 +239,34 @@ class BucketedTaskGenerator(TaskGenerator):
     3. Apply the sampled bucket values as overrides to the returned EnvConfig
     """
 
-    def __init__(self, config: BucketedTaskGeneratorConfig):
+    class Config(TaskGeneratorConfig["BucketedTaskGenerator"]):
+        """Configuration for BucketedTaskGenerator."""
+
+        child_generator_config: AnyTaskGeneratorConfig = Field(description="Child task generator configuration")
+        buckets: dict[str, Sequence[int | float | str | ValueRange]] = Field(
+            default_factory=dict, description="Buckets for sampling, keys are config paths"
+        )
+
+        def add_bucket(
+            self, path: str, values: Sequence[int | float | str | ValueRange]
+        ) -> "BucketedTaskGenerator.Config":
+            """Add a bucket of values for a specific configuration path."""
+            assert path not in self.buckets, f"Bucket {path} already exists"
+            self.buckets[path] = values
+            return self
+
+        @classmethod
+        def from_env_config(cls, env_config: EnvConfig) -> "BucketedTaskGenerator.Config":
+            """Create a BucketedTaskGenerator.Config from an EnvConfig."""
+            return cls(child_generator_config=SingleTaskGenerator.Config(env=env_config))
+
+    def __init__(self, config: "BucketedTaskGenerator.Config"):
         super().__init__(config)
-        self._config: BucketedTaskGeneratorConfig = config
+        self._config = config
         assert config.buckets, "Buckets must be non-empty"
         self._child_generator = config.child_generator_config.create()
 
-    def _get_bucket_value(self, bucket_values: list[int | float | str | ValueRange], rng: random.Random) -> Any:
+    def _get_bucket_value(self, bucket_values: Sequence[int | float | str | ValueRange], rng: random.Random) -> Any:
         bucket_value = rng.choice(bucket_values)
 
         if isinstance(bucket_value, ValueRange):
@@ -253,17 +286,70 @@ class BucketedTaskGenerator(TaskGenerator):
 
         # Get task from the child generator
         env_config = self._child_generator.get_task(task_id)
+        if self._config.label is not None:
+            env_config.label += "|" + self._config.label
 
         # Apply the sampled bucket values as overrides
         return self._apply_overrides(env_config, overrides)
 
 
-# Type alias for all TaskGeneratorConfig subclasses with discriminator
-TaskGeneratorConfigUnion = Annotated[
-    Union[SingleTaskGeneratorConfig, TaskGeneratorSetConfig, BucketedTaskGeneratorConfig], Field(discriminator="type")
+def _validate_open_task_generator(v: Any, handler):
+    """Accepts any of:
+    - a TaskGeneratorConfig instance (already specific)
+    - a dict with {"type": "<FQCN-of-TaskGenerator-or-Config>", ...params...}
+    - anything else -> let the default handler try (will error if invalid)
+    """
+    if isinstance(v, TaskGeneratorConfig):
+        return v
+
+    if isinstance(v, dict):
+        t = v.get("type")
+        if t is None:
+            # try default handler first (e.g., if the default type is already implied)
+            return handler(v)
+
+        # Import the symbol named in 'type'
+        target = load_class(t) if isinstance(t, str) else t
+
+        # If it's a Generator, use its nested Config
+        if isinstance(target, type) and issubclass(target, TaskGenerator):
+            # Special handling for known task generators
+            if target is SingleTaskGenerator:
+                data = {k: v for k, v in v.items() if k != "type"}
+                return SingleTaskGeneratorConfig.model_validate(data)
+            elif target is TaskGeneratorSet:
+                data = {k: v for k, v in v.items() if k != "type"}
+                return TaskGeneratorSetConfig.model_validate(data)
+            elif target is BucketedTaskGenerator:
+                data = {k: v for k, v in v.items() if k != "type"}
+                return BucketedTaskGeneratorConfig.model_validate(data)
+            else:
+                # Generic handling for unknown task generators
+                cfg_model = getattr(target, "Config", None)
+                if not (isinstance(cfg_model, type) and issubclass(cfg_model, TaskGeneratorConfig)):
+                    raise TypeError(f"{target.__name__} must define a nested class Config(TaskGeneratorConfig).")
+                data = {k: v for k, v in v.items() if k != "type"}
+                return cfg_model.model_validate(data)
+
+        # If it's already a Config subclass, validate with it directly
+        if isinstance(target, type) and issubclass(target, TaskGeneratorConfig):
+            data = {k: v for k, v in v.items() if k != "type"}
+            return target.model_validate(data)
+
+        raise TypeError(
+            f"'type' must point to a TaskGenerator subclass or a TaskGeneratorConfig subclass; got {target!r}"
+        )
+
+    # Fallback to the normal validator (will raise a decent error)
+    return handler(v)
+
+
+AnyTaskGeneratorConfig = SerializeAsAny[
+    Annotated[TaskGeneratorConfig[Any], WrapValidator(_validate_open_task_generator)]
 ]
 
-# Rebuild models to resolve forward references
-SingleTaskGeneratorConfig.model_rebuild()
-TaskGeneratorSetConfig.model_rebuild()
-BucketedTaskGeneratorConfig.model_rebuild()
+
+# Create aliases for backward compatibility
+SingleTaskGeneratorConfig = SingleTaskGenerator.Config
+TaskGeneratorSetConfig = TaskGeneratorSet.Config
+BucketedTaskGeneratorConfig = BucketedTaskGenerator.Config

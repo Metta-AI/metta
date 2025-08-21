@@ -1,14 +1,11 @@
 from typing import Any, Dict, Optional
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 
 
 class HyperparameterSchedulerConfig(Config):
     """
     Configuration for hyperparameter scheduling in RL training.
-
-    Each schedule field should be a dict that can be passed to hydra.utils.instantiate
-    with a _target_ field specifying the schedule class.
     """
 
     learning_rate_schedule: Optional[Dict[str, Any]] = None

@@ -1,8 +1,0 @@
-defaults:
-  - /env/mettagrid/navigation/evals/defaults@
-  - _self_
-
-game:
-  max_steps: 100
-  map_builder:
-    uri: "configs/env/mettagrid/maps/navigation/obstacles0.map"

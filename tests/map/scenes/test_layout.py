@@ -1,6 +1,6 @@
 import pytest
 
-from metta.map.scenes.layout import Layout
+from metta.map.scenes.layout import Layout, LayoutArea
 from metta.map.types import AreaQuery, AreaWhere
 from tests.map.scenes.utils import render_scene
 
@@ -26,12 +26,13 @@ def test_single_centered_area():
 
     tag = "zone"
     scene = render_scene(
-        Layout,
-        {
-            "areas": [
-                {"width": area_w, "height": area_h, "tag": tag},
-            ]
-        },
+        Layout.factory(
+            Layout.Params(
+                areas=[
+                    LayoutArea(width=area_w, height=area_h, tag=tag),
+                ]
+            )
+        ),
         shape=grid_shape,
     )
 
@@ -53,12 +54,13 @@ def test_area_too_large_raises():
     """An area larger than the grid should raise a ValueError."""
     with pytest.raises(ValueError):
         render_scene(
-            Layout,
-            {
-                "areas": [
-                    {"width": 6, "height": 6, "tag": "oversized"},
-                ]
-            },
+            Layout.factory(
+                Layout.Params(
+                    areas=[
+                        LayoutArea(width=6, height=6, tag="oversized"),
+                    ]
+                )
+            ),
             shape=(5, 5),
         )
 
@@ -68,8 +70,7 @@ def test_multiple_areas():
     grid_shape = (5, 5)
     tags = ["a", "b", "c"]
     scene = render_scene(
-        Layout,
-        {"areas": [{"width": 1, "height": 1, "tag": t} for t in tags]},
+        Layout.factory(Layout.Params(areas=[LayoutArea(width=1, height=1, tag=t) for t in tags])),
         shape=grid_shape,
     )
 

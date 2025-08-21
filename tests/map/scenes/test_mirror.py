@@ -5,9 +5,8 @@ from tests.map.scenes.utils import assert_grid, render_scene
 
 def test_horizontal():
     scene = render_scene(
-        Mirror,
-        {"scene": Maze.factory({}, seed=123), "symmetry": "horizontal"},
-        shape=(9, 9),
+        Mirror.factory(Mirror.Params(scene=Maze.factory(seed=123), symmetry="horizontal")),
+        (9, 9),
     )
 
     assert_grid(
@@ -28,9 +27,8 @@ def test_horizontal():
 
 def test_vertical():
     scene = render_scene(
-        Mirror,
-        {"scene": Maze.factory({}, seed=123), "symmetry": "vertical"},
-        shape=(9, 9),
+        Mirror.factory(Mirror.Params(scene=Maze.factory(seed=123), symmetry="vertical")),
+        (9, 9),
     )
 
     assert_grid(
@@ -51,9 +49,8 @@ def test_vertical():
 
 def test_x4():
     scene = render_scene(
-        Mirror,
-        {"scene": Maze.factory({}, seed=123), "symmetry": "x4"},
-        shape=(9, 9),
+        Mirror.factory(Mirror.Params(scene=Maze.factory(seed=123), symmetry="x4")),
+        (9, 9),
     )
 
     scene.print_scene_tree()

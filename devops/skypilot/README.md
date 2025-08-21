@@ -288,8 +288,6 @@ The script uses `./devops/skypilot/config/sk_train.yaml` as the base configurati
 The following environment variables are automatically set:
 
 - `METTA_RUN_ID`: The run identifier
-- `METTA_CMD`: The command being executed
-- `METTA_CMD_ARGS`: Additional command arguments
 - `METTA_GIT_REF`: Git commit hash being used
 
 ### Debug Commands

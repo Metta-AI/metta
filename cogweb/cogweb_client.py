@@ -2,8 +2,8 @@
 
 from typing import Optional
 
+from metta.app_backend.clients.base_client import get_machine_token
 from metta.app_backend.sweep_client import SweepClient
-from metta.common.util.stats_client_cfg import get_machine_token
 
 
 class CogwebClient:

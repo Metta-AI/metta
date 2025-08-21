@@ -97,7 +97,7 @@ def test_action_index_changes():
 
     # Get action indices
     action_names1 = env1.action_names()
-    assert action_names1 == ["move", "noop", "rotate"]
+    assert action_names1 == ["get_items", "move", "noop", "rotate"]
 
     # Create config with different action order in the dictionary
     config2 = create_basic_config()
@@ -111,7 +111,7 @@ def test_action_index_changes():
     env2 = MettaGrid(from_mettagrid_config(config2), create_simple_map(), 42)
     action_names2 = env2.action_names()
     # Action order remains the same despite different config order
-    assert action_names2 == ["move", "noop", "rotate"]
+    assert action_names2 == ["get_items", "move", "noop", "rotate"]
 
     # This actually protects trained policies from config reordering
     # The same numeric action executes the same behavior
@@ -297,7 +297,7 @@ def test_special_attack_action():
     )
 
     # Check the order - attack should come first before the basic actions
-    expected_actions = ["attack", "move", "noop", "rotate"]
+    expected_actions = ["attack", "get_items", "move", "noop", "rotate"]
     assert action_names == expected_actions, (
         f"Action order mismatch with attack! See {ACTION_COMPATIBILITY_DOC} for migration strategies."
     )

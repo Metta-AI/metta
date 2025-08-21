@@ -2,20 +2,20 @@ from typing import Literal
 
 from pydantic import ConfigDict, Field
 
-from metta.common.util.config import Config
-from metta.map.scene import Scene
-from metta.map.types import AreaWhere, ChildrenAction, SceneCfg
+from metta.common.config import Config
+from metta.map.scene import ChildrenAction, Scene, SceneConfigOrFile
+from metta.map.types import AreaWhere
 
 Symmetry = Literal["horizontal", "vertical", "x4"]
 
 
 class MirrorParams(Config):
-    scene: SceneCfg = Field(exclude=True)
+    scene: SceneConfigOrFile
     symmetry: Symmetry = "horizontal"
 
 
 class InnerMirrorParams(Config):
-    scene: SceneCfg = Field(exclude=True)
+    scene: SceneConfigOrFile
 
 
 class Mirror(Scene[MirrorParams]):
@@ -46,7 +46,7 @@ class HorizontalMirror(Scene[InnerMirrorParams]):
                 where=AreaWhere(tags=["original"]),
             ),
             ChildrenAction(
-                scene=Mirrored.factory(params={"parent": self, "flip_x": True}),
+                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_x=True)),
                 where=AreaWhere(tags=["mirrored"]),
             ),
         ]
@@ -65,7 +65,7 @@ class VerticalMirror(Scene[InnerMirrorParams]):
                 where=AreaWhere(tags=["original"]),
             ),
             ChildrenAction(
-                scene=Mirrored.factory(params={"parent": self, "flip_y": True}),
+                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_y=True)),
                 where=AreaWhere(tags=["mirrored"]),
             ),
         ]
@@ -81,15 +81,15 @@ class X4Mirror(Scene[InnerMirrorParams]):
         return [
             ChildrenAction(scene=self.params.scene, where=AreaWhere(tags=["original"])),
             ChildrenAction(
-                scene=Mirrored.factory(params={"parent": self, "flip_x": True}),
+                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_x=True)),
                 where=AreaWhere(tags=["mirrored_x"]),
             ),
             ChildrenAction(
-                scene=Mirrored.factory(params={"parent": self, "flip_y": True}),
+                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_y=True)),
                 where=AreaWhere(tags=["mirrored_y"]),
             ),
             ChildrenAction(
-                scene=Mirrored.factory(params={"parent": self, "flip_x": True, "flip_y": True}),
+                scene=Mirrored.factory(Mirrored.Params(parent=self, flip_x=True, flip_y=True)),
                 where=AreaWhere(tags=["mirrored_xy"]),
             ),
         ]
@@ -110,6 +110,7 @@ class MirroredParams(Config):
     flip_y: bool = False
 
 
+# Helper scene, shouldn't be used directly. (Its params are not serializable.)
 class Mirrored(Scene[MirroredParams]):
     def render(self):
         original_grid = self.params.parent._original_mirror_area.grid

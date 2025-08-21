@@ -9,8 +9,8 @@ from typing import Any
 import numpy as np
 import torch
 import wandb
-from omegaconf import DictConfig
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyRecord
 from metta.common.profiling.memory_monitor import MemoryMonitor
@@ -342,7 +342,7 @@ def process_stats(
     policy: PolicyAgent,
     timer: Stopwatch,
     trainer_cfg: TrainerConfig,
-    agent_cfg: DictConfig,
+    agent_cfg: AgentConfig,
     agent_step: int,
     epoch: int,
     wandb_run: WandbRun | None,

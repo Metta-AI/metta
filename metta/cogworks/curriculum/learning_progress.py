@@ -20,6 +20,7 @@ class LearningProgressCurriculumConfig(CurriculumConfig):
     memory: int = Field(default=25, gt=0, description="Number of recent outcomes to remember per task")
 
 
+# TODO #dehydration
 # class LearningProgressCurriculumTask(CurriculumTask):
 #     """CurriculumTask that tracks learning progress internally."""
 

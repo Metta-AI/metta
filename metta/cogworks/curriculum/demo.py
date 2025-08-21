@@ -1,14 +1,14 @@
 import metta.cogworks.curriculum as cc
-import metta.mettagrid.config.builder as eb
+import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.task_generator import ValueRange as vr
 
-arena = eb.arena(num_agents=24)
+arena = eb.make_arena(num_agents=24)
 
 # disable swap
 arena.game.actions.swap.enabled = False
 
 # make a set of training tasks for the arena
-arena_tasks = cc.tasks(arena)
+arena_tasks = cc.bucketed(arena)
 
 # arena_tasks.add_bucket("game.level_map.num_agents", [1, 2, 3, 4, 6, 24])
 
@@ -23,10 +23,10 @@ for item in arena.game.inventory_item_names:
 # to maintain action space consistency.
 arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
 
-curriculum_cfg = cc.curriculum(arena_tasks, num_tasks=4)
+curriculum_cfg = arena_tasks.to_curriculum(num_tasks=4)
 
 print(curriculum_cfg.model_dump_json(indent=2))
-print(curriculum_cfg.task_generator_config.model_dump_json(indent=2))
+print(curriculum_cfg.task_generator.model_dump_json(indent=2))
 curriculum = curriculum_cfg.make()
 
 # print("Generating 10 tasks")

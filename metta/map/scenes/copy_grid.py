@@ -1,6 +1,6 @@
 from pydantic import ConfigDict, Field
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.map.scene import Scene
 from metta.map.types import MapGrid
 
@@ -9,7 +9,6 @@ class CopyGridParams(Config):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     grid: MapGrid = Field(exclude=True)  # full outer grid
-    labels: list[str] = Field(default_factory=list)
 
 
 class CopyGrid(Scene[CopyGridParams]):
@@ -35,6 +34,3 @@ class CopyGrid(Scene[CopyGridParams]):
 
         # Place the grid at the center
         self.grid[start_row:end_row, start_col:end_col] = self.params.grid
-
-    def get_labels(self) -> list[str]:
-        return self.params.labels

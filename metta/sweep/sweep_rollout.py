@@ -13,7 +13,6 @@ import os
 import subprocess
 import sys
 
-import hydra
 from omegaconf import DictConfig
 
 from metta.common.util.lock import run_once
@@ -23,11 +22,8 @@ from tools.sweep_prepare_run import setup_next_run
 logger = logging.getLogger(__name__)
 
 
-@hydra.main(config_path="../../configs", config_name="sweep_job", version_base=None)
 def main(cfg: DictConfig) -> int:
     """Main entry point for sweep rollout."""
-    # Don't use @metta_script decorator since we need to generate run ID first
-    # Use module-level logger created at import time
 
     try:
         # Validate required arguments

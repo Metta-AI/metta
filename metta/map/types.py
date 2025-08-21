@@ -1,17 +1,8 @@
 from dataclasses import dataclass
-from typing import Any, Callable, Literal, TypeAlias
+from typing import Literal
 
-import numpy as np
-import numpy.typing as npt
-
-from metta.common.util.config import Config
-
-# We store maps as 2D arrays of object names.
-# "empty" means an empty cell; "wall" means a wall, etc. See `metta.mettagrid.char_encoder` for the full list.
-#
-# Properly shaped version, `np.ndarray[tuple[int, int], np.dtype[np.str_]]`,
-# would be better, but slices from numpy arrays are not typed properly, which makes it too annoying to use.
-MapGrid: TypeAlias = npt.NDArray[np.str_]
+from metta.common.config import Config
+from metta.mettagrid.map_builder.map_builder import MapGrid
 
 
 @dataclass
@@ -78,15 +69,6 @@ class Area:
         return Area(x=new_x, y=new_y, width=new_width, height=new_height, grid=sliced_grid, tags=self.tags.copy())
 
 
-# Scene configs can be either:
-# - a dict with `type`, `params`, and optionally `children` keys (this is how we define scenes in YAML configs)
-# - a string path to a scene config file (this is how we load reusable scene configs from `scenes/` directory)
-# - a function that takes a MapGrid and returns a Scene instance (useful for children actions produced in Python code)
-#
-# See `metta.map.scene.make_scene` implementation for more details.
-SceneCfg = dict | str | Callable[[Area, np.random.Generator], Any]
-
-
 class AreaWhere(Config):
     tags: list[str] = []
 
@@ -97,7 +79,3 @@ class AreaQuery(Config):
     lock: str | None = None
     where: Literal["full"] | AreaWhere | None = None
     order_by: Literal["random", "first", "last"] = "random"
-
-
-class ChildrenAction(AreaQuery):
-    scene: SceneCfg

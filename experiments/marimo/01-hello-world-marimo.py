@@ -60,7 +60,6 @@ def _():
     import matplotlib.pyplot as plt
     from omegaconf import OmegaConf
     from typing import Any, Dict  # type: ignore
-    from metta.mettagrid.util.hydra import get_cfg  # type: ignore
     from metta.common.util.fs import get_repo_root
     from tools.renderer import setup_environment, get_policy
     import anywidget

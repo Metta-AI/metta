@@ -1,11 +1,10 @@
 from pathlib import Path
 from typing import cast
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.map.config import scenes_root
-from metta.map.scene import Scene
+from metta.map.scene import ChildrenAction, Scene
 from metta.map.scenes.random_scene import RandomScene, RandomSceneCandidate
-from metta.map.types import ChildrenAction
 
 
 class RandomSceneFromDirParams(Config):
@@ -30,7 +29,7 @@ class RandomSceneFromDir(Scene[RandomSceneFromDirParams]):
         candidates = [cast(RandomSceneCandidate, {"scene": scene, "weight": 1.0}) for scene in self._scenes]
         return [
             ChildrenAction(
-                scene=RandomScene.factory({"candidates": candidates}),
+                scene=RandomScene.factory(RandomScene.Params(candidates=candidates)),
                 where="full",
             ),
             *self.children_actions,

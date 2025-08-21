@@ -1,0 +1,74 @@
+resources:
+  cloud: aws
+  any_of:
+    - region: us-east-1
+      use_spot: true
+      accelerators: "L4:1"
+    - region: us-east-1
+      use_spot: true
+      accelerators: "A10G:1"
+    - region: us-east-1
+      accelerators: "L4:1"
+    - region: us-east-1
+      accelerators: "A10G:1"
+    - region: us-west-2
+      use_spot: true
+      accelerators: "L4:1"
+    - region: us-west-2
+      use_spot: true
+      accelerators: "A10G:1"
+    - region: us-west-2
+      accelerators: "L4:1"
+    - region: us-west-2
+      accelerators: "A10G:1"
+  cpus: 8+
+  image_id: docker:metta:latest
+  job_recovery:
+    strategy: EAGER_NEXT_REGION
+    max_restarts_on_errors: 20
+
+config:
+  docker:
+    run_options:
+      - --cap-add=IPC_LOCK
+      - --ulimit memlock=-1:-1
+      - --ipc=host
+      - --userns=host
+
+file_mounts:
+  /mnt/s3/softmax-public:
+    source: s3://softmax-public
+    mode: MOUNT_CACHED
+  /mnt/s3/train_dir:
+    source: s3://softmax-train-dir
+    mode: MOUNT_CACHED
+
+# `set -u`: Exit on undefined variables to catch missing env vars early
+setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
+
+# `set -e`: Ensure SkyPilot propagates exit codes from skypilot_run.sh (otherwise restart test fails)
+run: set -e && /workspace/metta/devops/skypilot/config/skypilot_run.sh
+
+envs:
+  TEST_NCCL: "false"
+
+  GITHUB_REPOSITORY: Metta-AI/metta
+  GITHUB_PAT: ""
+
+  METTA_RUN_ID: ""
+  METTA_MODULE_PATH: ""
+  METTA_ARGS: ""
+  METTA_OVERRIDES: ""
+  METTA_GIT_REF: main
+  HEARTBEAT_TIMEOUT: 600
+
+  # s3 mount slows down uv, so we put DATA_DIR outside of /workspace/metta
+  DATA_DIR: /mnt/s3/train_dir
+  SKYPILOT_DOCKER_USERNAME: ""
+  SKYPILOT_DOCKER_PASSWORD: ""
+  SKYPILOT_DOCKER_SERVER: 751442549699.dkr.ecr.us-east-1.amazonaws.com
+
+secrets:
+  # configured by launch script based on local credentials
+  WANDB_PASSWORD: ""
+  OBSERVATORY_TOKEN: ""
