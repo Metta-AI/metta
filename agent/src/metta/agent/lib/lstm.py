@@ -129,7 +129,8 @@ class LSTM(LayerBase):
 
         self.lstm = nn.LSTM(self._in_tensor_shapes[0][0], **self._nn_params)
         if self.reset_in_training:
-            self.lstm_train_step = torch.jit.script(LstmTrainStep(self.lstm))
+            # self.lstm_train_step = torch.jit.script(LstmTrainStep(self.lstm))
+            self.lstm_train_step = LstmTrainStep(self.lstm)
 
         for name, param in self.lstm.named_parameters():
             if "bias" in name:
@@ -180,10 +181,6 @@ class LSTM(LayerBase):
 
             h_0 = self.lstm_h[:, segment_ids]
             c_0 = self.lstm_c[:, segment_ids]
-
-        else:
-            print("!! in train with batch and tt of", B, TT)
-            breakpoint()
 
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
         if self.reset_in_training and TT != 1:
