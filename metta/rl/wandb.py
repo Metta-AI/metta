@@ -109,8 +109,7 @@ def upload_policy_artifact(
         return None
 
     try:
-        # Use run.name instead of run.id to preserve suffixes like .r.1 for sweeps
-        wandb_policy_name = policy_store.add_to_wandb_run(wandb_run.name, policy_record)
+        wandb_policy_name = policy_store.add_to_wandb_run(wandb_run.id, policy_record)
         logger.info(f"Uploaded policy to wandb: {wandb_policy_name}")
         return wandb_policy_name
     except Exception as e:
