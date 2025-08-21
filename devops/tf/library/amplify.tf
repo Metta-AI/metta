@@ -51,7 +51,11 @@ applications:
     frontend:
       phases:
         preBuild:
-          commands: ['corepack enable', 'pnpm install', 'pnpm run db:generate']
+          commands:
+            - nvm use 24
+            - corepack enable
+            - pnpm install
+            - pnpm run db:generate
         build:
           commands: ['pnpm run build']
       artifacts:
