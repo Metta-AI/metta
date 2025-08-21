@@ -45,7 +45,7 @@ export class PaperAbstractService {
 
       // Check if we already have an LLM abstract
       if (paper.llmAbstract && paper.llmAbstractGeneratedAt) {
-        const existingAbstract = paper.llmAbstract as LLMAbstract;
+        const existingAbstract = paper.llmAbstract as unknown as LLMAbstract;
         console.log(`📋 Found existing LLM abstract for paper: ${paperId}`);
         return existingAbstract;
       }
@@ -94,7 +94,7 @@ export class PaperAbstractService {
       // Find papers without LLM abstracts that have PDF links
       const papersNeedingAbstracts = await prisma.paper.findMany({
         where: {
-          llmAbstract: null,
+          llmAbstract: null as any,
           link: { not: null },
         },
         select: { id: true },
@@ -116,24 +116,6 @@ export class PaperAbstractService {
     } catch (error) {
       console.error("❌ Error generating missing abstracts:", error);
     }
-  }
-
-  /**
-   * Normalize URL to get the actual PDF, not HTML pages
-   */
-  private static normalizePdfUrl(url: string): string {
-    if (!url) return url;
-
-    // arXiv URLs: convert from abstract page to PDF
-    if (url.includes("arxiv.org/abs/")) {
-      const normalizedUrl = url.replace("/abs/", "/pdf/") + ".pdf";
-      console.log(`📄 Converted arXiv abstract URL to PDF: ${normalizedUrl}`);
-      return normalizedUrl;
-    }
-
-    // Other common patterns can be added here
-    // For now, return the original URL
-    return url;
   }
 
   /**
@@ -320,7 +302,7 @@ export class PaperAbstractService {
       });
 
       if (paper?.llmAbstract) {
-        return paper.llmAbstract as LLMAbstract;
+        return paper.llmAbstract as unknown as LLMAbstract;
       }
 
       return null;
@@ -341,7 +323,7 @@ export class PaperAbstractService {
       await prisma.paper.update({
         where: { id: paperId },
         data: {
-          llmAbstract: null,
+          llmAbstract: null as any,
           llmAbstractGeneratedAt: null,
         },
       });

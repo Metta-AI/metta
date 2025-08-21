@@ -15,7 +15,7 @@ const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
           {
             "border-transparent bg-neutral-100 text-neutral-900 hover:bg-neutral-200":
               variant === "default",
-            "border-transparent bg-neutral-100 text-neutral-900 hover:bg-neutral-200":
+            "border-transparent bg-neutral-200 text-neutral-900 hover:bg-neutral-300":
               variant === "secondary",
             "border-transparent bg-red-100 text-red-900 hover:bg-red-200":
               variant === "destructive",

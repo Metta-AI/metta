@@ -70,8 +70,14 @@ export class AutoTaggingService {
       let suggestedTags: string[] = [];
 
       // Try PDF analysis first (if available)
-      if (paper.link && this.canAnalyzePdf(paper)) {
-        suggestedTags = await this.generateTagsFromPdf(paper, tagVocabulary);
+      if (
+        paper.link &&
+        this.canAnalyzePdf({ link: paper.link, source: paper.source })
+      ) {
+        suggestedTags = await this.generateTagsFromPdf(
+          { ...paper, link: paper.link },
+          tagVocabulary
+        );
       }
 
       // Fallback to text-based analysis

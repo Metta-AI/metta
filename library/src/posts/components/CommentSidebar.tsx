@@ -306,7 +306,10 @@ export const CommentSidebar: FC<CommentSidebarProps> = ({
           <div className="border-t border-gray-200 p-4">
             <div className="flex gap-3">
               <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
-                {getUserInitials(currentUser.name, currentUser.email)}
+                {getUserInitials(
+                  currentUser.name || null,
+                  currentUser.email || null
+                )}
               </div>
               <div className="flex-1">
                 <textarea

@@ -132,7 +132,7 @@ User Question: ${message}
 Please provide a helpful response about this paper.`,
         },
       ],
-      maxTokens: 1000, // Reasonable limit for comment responses
+
       temperature: 0.7, // Balanced creativity
     });
 
