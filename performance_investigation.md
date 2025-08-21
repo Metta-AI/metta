@@ -1,308 +1,175 @@
-# Performance Investigation - SPS and Training Performance Issues
+# Performance Investigation - Arena Training Regression After Dehydration
 
 ## 🔴 CRITICAL Problem Statement
 - **PRIMARY ISSUE**: Agents stuck at ~0.5 heart.get vs 15 heart.get before dehydration
-- **SECONDARY ISSUE**: SPS dropped from ~450k to ~350k after dehydration commit
+- **SECONDARY ISSUE**: SPS dropped from ~450k to ~350k after dehydration
 - The heart.get values flatline and don't improve over training!
+- **Current command**: `./tools/run.py experiments.recipes.arena_easy_shaped.train --args run=relh.easy_shaped.820.5`
 
-## Proposed Fixes
+## All Fixes Applied to Date
 
-### ✅ Completed Fixes
+### ✅ Fixed Critical Bugs
 
-#### 1. CurriculumEnv Performance Fix
+#### 1. Environment Recreation on Every Reset (CRITICAL FIX)
+**File**: `mettagrid/src/metta/mettagrid/core.py`
+**Issue**: Environment was completely recreated on every reset, losing episode rewards
+**Fix**: Only recreate when necessary (if None or config changed)
+```python
+def reset(self, seed: Optional[int] = None):
+    if self.__c_env_instance is None or self._config_changed:
+        self._create_c_env()
+        self._update_core_buffers()
+        self._config_changed = False
+```
+
+#### 2. desync_episodes Implementation Changed
+**File**: `mettagrid/src/metta/mettagrid/mettagrid_env.py`
+**Issue**: New implementation truncated episodes early instead of changing max_steps
+**Fix**: Restored old behavior - modify max_steps for first episode only
+```python
+if self._is_training and env_cfg.desync_episodes and self._first_episode:
+    env_cfg.game.max_steps = int(np.random.randint(1, self._original_max_steps + 1))
+```
+
+#### 3. CurriculumEnv Performance Fix
 **File**: `metta/cogworks/curriculum/curriculum_env.py`
-**Status**: ✅ Implemented
-**Change**: Replaced `__getattribute__` with `__getattr__` and explicit method overrides
-**Impact**: Should improve SPS by reducing Python overhead on every attribute access
+**Change**: Replaced `__getattribute__` with `__getattr__` to reduce overhead
 
-#### 2. Arena Easy Shaped Recipe Environment Fix  
+#### 4. Arena Easy Shaped Recipe Configuration
 **File**: `experiments/recipes/arena_easy_shaped.py`
-**Status**: ✅ Implemented
-**Changes**:
+**Fixed**:
 - Added 20 blocks back to the map (were missing)
 - Set walls to 20 instead of 10
 - Removed lasery and armory buildings
 - Set altar to require only 1 battery_red (was 3)
-- Added all shaped rewards (ore: 0.1, battery: 0.8, etc.)
+- Added all shaped rewards (ore: 0.1, battery: 0.8, heart: 1.0)
 
-### ❓ Proposed But Not Yet Verified
+### ✅ Restored Configuration Defaults
 
-#### 3. Worker Count Power-of-2 Rounding
-**File**: `metta/tools/train.py` line ~162
-**Status**: ❌ Not implemented (you said it's unreasonable)
-**Original Proposal**: Round worker count down to nearest power of 2
+All pre-dehydration defaults restored in `metta/rl/trainer_config.py`:
+
+| Parameter | Old (Pre-Dehydration) | Was Broken | Now Fixed |
+|-----------|----------------------|------------|-----------|
+| Checkpoint interval | 50 epochs | 5 epochs | ✅ 50 |
+| WandB checkpoint interval | 50 epochs | 5 epochs | ✅ 50 |
+| Evaluate remote | True | False | ✅ True |
+| Evaluate local | False | True | ✅ False |
+| V-trace rho clip | 1.0 | 1.0 | ✅ Already correct |
+| V-trace c clip | 1.0 | 1.0 | ✅ Already correct |
+| Prioritized replay alpha | 0.0 | 0.0 | ✅ Already correct |
+| Grad mean variance interval | 0 | 0 | ✅ Already correct |
+| Profiler interval | 10000 | 0 | ✅ 10000 |
+
+### ✅ Verified Non-Issues
+
+1. **Hyperparameter Scheduler**: Was already disabled pre-dehydration (code commented out)
+2. **PPO hyperparameters**: All correct (clip=0.1, ent=0.0021, gae=0.916, gamma=0.977)
+3. **Optimizer settings**: Correct (lr=0.000457, beta1=0.9, beta2=0.999)
+4. **Batch sizes**: Correct (batch=524288, minibatch=16384)
+
+## Major Architectural Differences Found
+
+### 1. Training Invocation Changed
+**Old**: `./tools/train.py` with Hydra/YAML configs
+**New**: `./tools/run.py experiments.recipes.arena_easy_shaped.train` with Python configs
+
+### 2. CurriculumEnv Wrapper Added Everywhere
+**Old**: Environment created directly
+**New**: ALL environments wrapped with `CurriculumEnv`
+- Calls `set_env_config()` after every episode
+- Sets `_config_changed = True`, potentially triggering recreation
+- Adds overhead to every operation
+
+### 3. Worker Count Calculation Changed
+**Old**: Rounded down to nearest power of 2
 ```python
-# Current code:
-ideal_workers = (os.cpu_count() // 2) // torch.cuda.device_count()
-cfg.trainer.rollout_workers = max(1, ideal_workers)
-
-# Proposed (but disputed):
-num_workers = 1
 while num_workers * 2 <= ideal_workers:
     num_workers *= 2
-cfg.trainer.rollout_workers = max(1, num_workers)
 ```
-
-#### 4. Checkpoint Interval Adjustment
-**File**: `experiments/recipes/arena_easy_shaped.py`
-**Status**: ❌ Not implemented (you said it probably doesn't matter)
-**Note**: Changed from time-based (seconds) to epoch-based intervals
-- Old: 60 seconds checkpoint, 300 seconds evaluate
-- New: 5 epochs checkpoint, 50 epochs evaluate
-- Recipe currently uses: 50 epochs for both
-
-#### 5. CurriculumEnv Config Timing
-**File**: `metta/cogworks/curriculum/curriculum_env.py`
-**Status**: ❌ Not implemented
-**Issue**: `set_env_config()` called immediately on episode end, before reset
-**Proposed Fix**: Delay config change until reset
+**New**: Direct calculation without rounding
 ```python
-# Store config for next reset instead of applying immediately
-self._pending_config = self._current_task.get_env_cfg()
+cfg.trainer.rollout_workers = max(1, ideal_workers)
 ```
 
-## Key Environment Differences Found
+### 4. Configuration System
+**Old**: YAML-based with Hydra
+**New**: Python-based with Tool abstraction layer
 
-### Old Default (`/env/mettagrid/arena/basic_easy_shaped`)
-- **Objects**: 10 mines, 5 generators, 5 altars, 20 blocks, 20 walls
-- **Rewards**: Shaped (ore: 0.1, battery: 0.8, laser: 0.5, armor: 0.5, blueprint: 0.5, heart: 1)
-- **Altar**: 1 battery → 1 heart (easy)
-- **Combat**: Disabled (laser cost: 100)
+## Deep Investigation Findings
 
-### New Default (`make_arena()`)
-- **Objects**: 10 mines, 5 generators, 5 altars, 0 blocks, 10 walls, 1 lasery, 1 armory
-- **Rewards**: Only heart: 1 (no shaped rewards)
-- **Altar**: 3 batteries → 1 heart (hard)
-- **Combat**: Enabled by default (laser cost: 1)
+### Agent Creation and Initialization
+- Agent is created as `MettaAgent(metta_grid_env, system_cfg, agent_cfg)`
+- Uses ComponentFast architecture (same as before)
+- Feature normalizations passed correctly from environment
+- Policy initialized with correct observation/action spaces
 
-## Questions to Verify
+### Reward Flow Analysis
+1. Rewards configured in Python: `env_cfg.game.agent.rewards.inventory.ore_red = 0.1`
+2. Passed via `model_dump()` to C++ config converter
+3. Extracted correctly in `mettagrid_c_config.py` lines 50-57
+4. Set as `resource_rewards` in agent config
 
-1. **Is the recipe actually being used?**
-   - Need to verify curriculum is created from arena_easy_shaped
-   - Check if shaped rewards are active during training
+### Experience Buffer and PPO
+- Experience buffer implementation unchanged
+- PPO loss computation standard and correct
+- Advantage computation using same CUDA kernels
+- Batch accumulation logic unchanged
 
-2. **Is set_env_config() causing issues?**
-   - Check if environment is being rebuilt during episodes
-   - Verify rewards are collected properly
+### Environment Management
+- `training_env_id` handling unchanged
+- Episode stats collection at episode end
+- Buffer allocation with zero_copy unchanged
+- Async factor still set to 2
 
-3. **Are checkpoints too frequent?**
-   - Monitor actual checkpoint frequency in epochs vs time
-   - Check I/O overhead
+## Remaining Suspects
 
-## All Investigated Issues & Concerns
+### 1. CurriculumEnv Wrapper Impact (HIGH PRIORITY)
+Even though it "shouldn't be a big thing", it's the most significant architectural change:
+- Not present in old system at all
+- Wraps EVERY environment
+- Calls `set_env_config()` after every episode
+- Could interfere with reward accumulation or state management
 
-### Environment & Curriculum Issues
-1. **Default environment completely wrong** (VERIFIED ISSUE)
-   - Missing 20 blocks (navigation obstacles)
-   - Only 10 walls instead of 20
-   - Has combat buildings (lasery, armory) that shouldn't be there
-   - Altar needs 3 batteries instead of 1 (3x harder!)
-   - NO shaped rewards (only heart=1)
+### 2. Worker Count Power-of-2 Rounding
+Old system had specific reason for power-of-2 rounding - might affect:
+- Memory alignment
+- CPU cache efficiency
+- Parallel processing patterns
 
-2. **CurriculumEnv wrapper overhead**
-   - Was using `__getattribute__` intercepting every call (FIXED)
-   - Still wraps environment adding indirection
-   - Calls `set_env_config()` mid-episode potentially corrupting state
+### 3. Unknown Differences in C++ Layer
+Haven't fully verified:
+- Episode reward accumulation in C++
+- Resource generation timing
+- Action processing
 
-3. **Environment reset/config timing**
-   - `set_env_config()` rebuilds map_builder during episode
-   - Could be losing reward information
-   - DesyncEpisodes feature may behave differently
+## What We Haven't Tried Yet
 
-### Training Loop & PPO Issues
-4. **Checkpoint intervals changed units**
-   - Old: time-based (60 seconds)
-   - New: epoch-based (5 epochs)
-   - Could cause excessive I/O if epochs are short
+1. **Remove CurriculumEnv wrapper entirely** - Test if this is the root cause
+2. **Restore power-of-2 worker rounding** - Could affect performance
+3. **Add comprehensive C++ logging** - Verify rewards are being generated
+4. **Test with navigation environment** - Verify if simpler env works
 
-5. **Worker count calculation**
-   - No longer rounds to power of 2
-   - Could cause suboptimal CPU/memory alignment
+## Diagnostic Tools Created
 
-6. **Batch processing changes**
-   - Removed dual-policy code that may have had side effects
-   - Changed how tensors flow through the system
-
-### Agent & Policy Issues
-7. **Agent initialization path changed**
-   - New AgentConfig system
-   - Different factory function for creating agents
-   - Weight initialization might be different
-
-8. **Feature normalization changes**
-   - Remapping logic was refactored
-   - Could corrupt observations if mapping is wrong
-   - Unknown features handled differently
-
-9. **Network architecture defaults**
-   - clip_range defaults to 0
-   - analyze_weights_interval changed
-   - Possible initialization differences
-
-### Reward & Learning Issues
-10. **Reward signal problems**
-    - Only getting heart rewards, no intermediate progress
-    - Altar 3x harder means fewer hearts collected
-    - No shaped rewards to guide learning
-
-11. **Value function bootstrap**
-    - Could be learning wrong values without shaped rewards
-    - GAE advantage calculation affected by sparse rewards
-
-12. **Exploration issues**
-    - With only sparse heart rewards, exploration is critical
-    - Entropy coefficient might need adjustment
-    - Action distribution could be affected
-
-### Performance & System Issues
-13. **PufferLib buffer management**
-    - Changed to `set_buffers(env, buf)` 
-    - Could add memory copy overhead
-
-14. **Stats collection overhead**
-    - Processing inline vs deferred
-    - More synchronous operations
-
-15. **Learning rate scheduling**
-    - Hyperparameter scheduler changes
-    - Could affect convergence
-
-### Observation & Action Space Issues
-16. **Map diversity**
-    - Without blocks, environments too simple
-    - Less interesting navigation challenges
-    - Agents might not learn robust policies
-
-17. **Action masking**
-    - Invalid action handling might have changed
-    - Could waste actions on impossible moves
-
-18. **Observation encoding**
-    - Feature IDs might be mapped differently
-    - Could confuse the neural network
-
-## NEW FINDINGS FROM DEEP DIVE
-
-### Critical Changes Found
-1. **Curriculum system completely rewritten**
-   - Old: Used Hydra-based curriculum with specific task completion tracking
-   - New: Simplified curriculum that may not be sampling tasks correctly
-   - Task completion uses `get_episode_rewards().mean()` which might be wrong
-
-2. **Initial resource counts were ALWAYS 0 in old configs**
-   - CORRECTION: Old configs also had `initial_resource_count: 0`
-   - This was NOT the issue - setting to 1 was incorrect
-   - Buildings start empty and must wait for cooldown before producing
-
-3. **Resource production timeline issue**
-   - With initial_resource_count=0 and cooldowns:
-     - Mine produces first ore at step 50
-     - Generator needs 25 more steps to make battery
-     - Altar needs 10 more steps to make heart
-   - With easy altar (1 battery): ~89 steps minimum to first heart
-   - With default altar (3 batteries): ~235 steps minimum to first heart
-   - Episode max_steps=1000 gives limited time to learn this sequence
-
-4. **Shaped rewards ARE being configured correctly**
-   - Logging confirms: ore_red=0.1, battery_red=0.8
-   - Altar correctly set to need only 1 battery
-   - But agents still stuck at 0.5 hearts
-
-## CRITICAL ROOT CAUSE IDENTIFIED
-
-### The desync_episodes Implementation Changed!
-
-**THE MAIN ISSUE**: `desync_episodes` behavior changed between old and new systems!
-
-**Old Implementation** (pre-dehydration):
-- Changed `max_steps` for the FIRST episode only at environment creation
-- Episode ran normally but with a different max_steps limit
-- Agents still got full episodes, just of varying lengths
-
-**New Implementation** (post-dehydration):
-- Truncates the FIRST episode at a random step between 1 and max_steps
-- Uses `self._early_reset` to force truncation mid-episode
-- If truncation happens at step 1-50: agents get NO rewards (ore doesn't spawn until step 50)
-- If truncation happens at step 50-89: agents might get 0.1 ore reward but no hearts
-
-**Why this matters for Arena but not Navigation**:
-- Navigation: Altars start with hearts ready (initial_resource_count=1), so even short episodes give rewards
-- Arena: Complex resource chain takes 89+ steps minimum to get first heart
-- Arena agents frequently get truncated episodes with zero or minimal rewards
-
-**FIX APPLIED**: Set `env_cfg.desync_episodes = False` in arena_easy_shaped.py
-
-### Secondary Issues Found
-
-1. **CurriculumEnv wrapper now applied to ALL environments**
-   - Old: MettaGridEnv created directly with curriculum
-   - New: MettaGridEnv wrapped with CurriculumEnv in vecenv
-   - Wrapper calls `set_env_config` after EVERY episode
-   - This rebuilds map_builder and could reset agent state
-
-2. **Checkpoint intervals changed**
-   - Old: Time-based (60 seconds)
-   - New: Epoch-based (5 epochs)
-   - Could cause more frequent I/O
-
-3. **PPO/Training changes**
-   - Removed dual-policy training code
-   - Learning rate slightly changed: 0.000457... → 0.000457
-   - evaluate_interval: 300 → 50
-   - No changes to PPO core algorithm, advantages, or fast.py network
-
-4. **Performance overhead**
-   - CurriculumEnv wrapper adds indirection
-   - set_env_config rebuilds every episode
-   - Affecting SPS (~350k vs ~450k)
-
-## Verification Needed
-
-1. **Confirm environment is using our recipe config**
-   - Added logging to verify altar costs and rewards
-   - Need to check during actual training
-
-2. **Check if agents are even trying to collect resources**
-   - Without shaped rewards, they might not learn to collect ore/batteries
-   - Need to monitor intermediate resource collection
-
-3. **Verify observation encoding**
-   - Check if feature IDs are consistent
-   - Ensure remapping isn't corrupting observations
-
-## Note: Hyperparameter Scheduler Was Already Disabled
-
-The hyperparameter scheduler in `/home/relh/Code/metta/metta/rl/hyperparameter_scheduler.py` is commented out, but this was already the case BEFORE dehydration (has `TODO(richard): #dehydration` comment). So this is NOT a cause of the performance regression.
-
-While old configs defined schedules:
-- CosineSchedule for learning rate
-- LogarithmicSchedule for PPO clip
-- LinearSchedule for entropy coefficient
-
-These weren't actually being used even before dehydration.
-
-## Status of All Fixes Applied
-
-### ✅ Fixed Issues
-1. **Environment recreation on every reset** - Fixed in core.py
-2. **desync_episodes implementation** - Fixed in mettagrid_env.py
-3. **CurriculumEnv performance** - Fixed using __getattr__ instead of __getattribute__
-4. **Arena recipe configuration** - Fixed with proper shaped rewards
-5. **Checkpoint intervals** - Fixed (5→50 epochs)
-6. **Evaluation settings** - Fixed (remote=True, local=False)
-7. **V-trace parameters** - Verified correct (1.0, 1.0)
-8. **Prioritized experience replay** - Verified correct (alpha=0.0)
-9. **Grad mean variance interval** - Fixed (default 0, disabled)
-10. **Profiler interval** - Fixed (0→10000 epochs)
-
-### ❌ Remaining Issues
-1. **Hyperparameter scheduler completely disabled** - Code commented out!
-2. **CurriculumEnv still calls set_env_config after every episode**
-3. **Map builder recreated when config changes**
+### diagnose_training.py
+Created diagnostic script to:
+- Verify environment configuration
+- Run steps and check reward generation
+- Test environment recreation
+- Monitor shaped rewards
 
 ## Next Steps
 
-1. **CRITICAL: Re-enable hyperparameter scheduler** - Uncomment and integrate the scheduler code
-2. **Run training with all fixes** to see if performance is restored
-3. **Monitor learning rate and clip coefficient** during training
-4. **Check if agents are now getting 15 heart.get like before**
+1. **Most Important**: Test without CurriculumEnv wrapper to isolate its impact
+2. Add logging to verify rewards are actually being generated in C++
+3. Monitor first 1000 steps to see if agents ever get rewards
+4. Check if navigation environment works (simpler reward structure)
+
+## Summary
+
+Despite fixing multiple critical bugs and restoring all configuration defaults, arena training still fails. The most significant remaining difference is the CurriculumEnv wrapper that wasn't present in the old system. This wrapper:
+- Is applied to every environment
+- Calls `set_env_config()` after every episode  
+- May interfere with the complex resource chain in arena
+
+The fact that navigation works but arena doesn't suggests the issue is specific to complex reward chains, not general training.
