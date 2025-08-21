@@ -104,7 +104,7 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
 
 
 class Policy(nn.Module):
-    def __init__(self, env, input_size=128, hidden_size=128):  
+    def __init__(self, env, input_size=128, hidden_size=128):
         super().__init__()
         self.hidden_size = hidden_size
         self.input_size = input_size
