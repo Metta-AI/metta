@@ -36,12 +36,12 @@ from metta.tools.train import TrainTool
 
 
 def make_env(num_agents: int = 24) -> EnvConfig:
-    """Create the pre-dehydration basic_easy_shaped environment exactly."""
+    """Create the pre-dehydration basic_easy_shaped environment."""
 
     # Start with standard arena configuration
     env_cfg = eb.make_arena(num_agents=num_agents, combat=False)
 
-    # CRITICAL: Recreate the exact OLD map configuration from configs/env/mettagrid/arena/basic.yaml
+    # Map configuration from original configs/env/mettagrid/arena/basic.yaml
     env_cfg.game.map_builder = MapGen.Config(
         num_agents=num_agents,
         width=25,
@@ -55,30 +55,25 @@ def make_env(num_agents: int = 24) -> EnvConfig:
                     "mine_red": 10,
                     "generator_red": 5,
                     "altar": 5,
-                    "block": 20,  # CRITICAL: Blocks were in old config
-                    "wall": 20,  # CRITICAL: 20 walls, not 10
+                    "block": 20,  # Blocks included for environment variety
+                    "wall": 20,  # 20 walls for proper spacing
                 },
             ),
         ),
     )
 
-    # Add block object (was in old basic.yaml)
+    # Add block object from original configuration
     env_cfg.game.objects["block"] = building.block
 
-    # Remove combat buildings not in old basic config
-    if "lasery" in env_cfg.game.objects:
-        del env_cfg.game.objects["lasery"]
-    if "armory" in env_cfg.game.objects:
-        del env_cfg.game.objects["armory"]
+    # Keep combat buildings enabled (lasery and armory stay in the config)
 
-    # ACTION SET: Using move_8way since move no longer exists
-    # The old config had move+rotate, but now we need to use move_8way which combines both
+    # Action configuration using move_8way for directional movement
     env_cfg.game.actions = ActionsConfig(
         noop=ActionConfig(enabled=True),
         move_8way=ActionConfig(
             enabled=True
-        ),  # 8-directional movement (replaces old move+rotate)
-        rotate=ActionConfig(enabled=True),  # Keep rotation for compatibility
+        ),  # 8-directional movement
+        rotate=ActionConfig(enabled=True),  # Rotation action
         put_items=ActionConfig(enabled=True),
         get_items=ActionConfig(enabled=True),
         attack=AttackActionConfig(
@@ -109,12 +104,9 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     env_cfg.game.agent.rewards.inventory.blueprint = 0.5
     env_cfg.game.agent.rewards.inventory.blueprint_max = 1
 
-    # CRITICAL FIX: heart_max was null (unlimited) in old config
-    # In new system, 255 is the maximum possible value
+    # Heart reward with maximum possible value
     env_cfg.game.agent.rewards.inventory.heart = 1
-    env_cfg.game.agent.rewards.inventory.heart_max = (
-        255  # Was 100, now maximum possible
-    )
+    env_cfg.game.agent.rewards.inventory.heart_max = 255
 
     # Easy converter configuration (from configs/env/mettagrid/game/objects/basic_easy.yaml)
     # Altar only needs 1 battery_red instead of 3
@@ -122,19 +114,18 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     altar_copy.input_resources = {"battery_red": 1}
     env_cfg.game.objects["altar"] = altar_copy
 
-    # CRITICAL FIX: Set initial resource counts so buildings aren't empty!
-    # Without this, agents have to wait for production cycles before getting any rewards
+    # Set initial resource counts for immediate availability
     for obj_name in ["mine_red", "generator_red", "altar"]:
         if obj_name in env_cfg.game.objects:
             obj_copy = env_cfg.game.objects[obj_name].model_copy(deep=True)
-            obj_copy.initial_resource_count = 1  # Start with 1 resource ready
+            obj_copy.initial_resource_count = 1
             env_cfg.game.objects[obj_name] = obj_copy
 
     # Set label for clarity
     env_cfg.label = "arena.basic_easy_shaped"
 
     # Global configuration flags from old mettagrid.yaml
-    env_cfg.desync_episodes = True  # Explicit: changes max_steps for first episode only
+    env_cfg.desync_episodes = True  # Changes max_steps for first episode only
     env_cfg.game.track_movement_metrics = True
     env_cfg.game.no_agent_interference = False
     env_cfg.game.resource_loss_prob = 0.0
@@ -177,43 +168,6 @@ def train() -> TrainTool:
     - basic_easy_shaped environment configuration
     """
     env_cfg = make_env()
-
-    # Log configuration for verification
-    print("\n[Arena Basic Easy Shaped - Pre-dehydration Compatible]")
-    print("Environment configuration:")
-    print(
-        f"  - Altar: requires {env_cfg.game.objects['altar'].input_resources['battery_red']} battery (easy mode)"
-    )
-    print(
-        f"  - Initial resources: {env_cfg.game.objects['altar'].initial_resource_count}"
-    )
-    print(
-        f"  - Mine initial: {env_cfg.game.objects['mine_red'].initial_resource_count}"
-    )
-    print(
-        f"  - Generator initial: {env_cfg.game.objects['generator_red'].initial_resource_count}"
-    )
-    print("  - Shaped rewards:")
-    print(
-        f"    * ore_red: {env_cfg.game.agent.rewards.inventory.ore_red} (max: {env_cfg.game.agent.rewards.inventory.ore_red_max})"
-    )
-    print(
-        f"    * battery_red: {env_cfg.game.agent.rewards.inventory.battery_red} (max: {env_cfg.game.agent.rewards.inventory.battery_red_max})"
-    )
-    print(
-        f"    * heart: {env_cfg.game.agent.rewards.inventory.heart} (max: {env_cfg.game.agent.rewards.inventory.heart_max})"
-    )
-    print(f"  - Map has blocks: {'block' in env_cfg.game.objects}")
-    print(f"  - Num agents: {env_cfg.game.num_agents}")
-    print(f"  - Max steps: {env_cfg.game.max_steps}")
-    print(
-        "  - Actions enabled: move_8way, rotate, get_items, put_items, attack, swap, noop"
-    )
-    print("\nKey fixes applied:")
-    print("  ✓ initial_resource_count = 1 (immediate rewards)")
-    print("  ✓ heart_max = 255 (was capped at 100)")
-    print("  ✓ Minimal action set (easier learning)")
-    print("  ✓ Blocks and walls in map")
 
     # Create trainer configuration with original hyperparameters
     trainer_cfg = TrainerConfig(
@@ -284,36 +238,6 @@ def play(
 ) -> PlayTool:
     """Interactive play tool for testing the environment."""
     if env is None:
-        print("\n=== Arena Basic Easy Shaped (Pre-dehydration Compatible) ===")
-        print(f"Creating environment with {num_agents} agents")
-        print("Key features:")
-        print("  - Easy altar (1 battery → 1 heart)")
-        print("  - Initial resources available immediately")
-        print("  - Heart rewards uncapped (max 255)")
-        print("  - Minimal action set for easier learning")
-        print("  - Shaped rewards for progression")
-        print("")
-
-        if policy_uri:
-            print(f"WATCHING TRAINED POLICY: {policy_uri}")
-            print("The agents will act autonomously using the trained policy.")
-        else:
-            print("MANUAL CONTROL MODE")
-            print("Controls:")
-            print("  - Click on an agent to select it")
-            print("  - Use arrow keys for cardinal movement")
-            print("  - Auto-interact when facing objects")
-            print("")
-            print("Gameplay:")
-            print("  1. Mine red ore from mines (reward: 0.1 per ore, max 1.0)")
-            print(
-                "  2. Convert ore to batteries at generators (reward: 0.8 per battery, max 1.0)"
-            )
-            print(
-                "  3. Convert batteries to hearts at altars (reward: 1.0 per heart, max 255.0)"
-            )
-        print("")
-
         eval_env = make_env(num_agents=num_agents)
     else:
         eval_env = env
