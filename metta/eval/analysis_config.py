@@ -15,7 +15,7 @@ class AnalysisConfig(Config):
     eval_db_uri: str
 
     # Filtering options
-    suite: str | None = None
+    sim_name: str | None = None
 
     # Output configuration (add these)
     output_path: str | None = None

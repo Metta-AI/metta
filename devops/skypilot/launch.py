@@ -99,7 +99,7 @@ def patch_task(
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("module_path", help="Module path to run (e.g., experiments.arena.train)")
+    parser.add_argument("module_path", help="Module path to run (e.g., experiments.recipes.arena.train)")
     parser.add_argument("--run", type=str, default=None, help="Run ID for the job")
     parser.add_argument("--args", nargs="*", default=[], help="Arguments to pass to the module")
     parser.add_argument("--overrides", nargs="*", default=[], help="Overrides to apply to the config")

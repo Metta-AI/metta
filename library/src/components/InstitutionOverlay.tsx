@@ -366,7 +366,11 @@ export default function InstitutionOverlay({
                             {paper.tags.slice(0, 5).map((tag, index) => (
                               <span
                                 key={index}
-                                className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700"
+                                className="rounded px-2 py-1 text-xs font-bold"
+                                style={{
+                                  backgroundColor: "#EFF3F9",
+                                  color: "#131720",
+                                }}
                               >
                                 {tag}
                               </span>

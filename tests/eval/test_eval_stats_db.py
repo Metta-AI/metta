@@ -11,16 +11,19 @@ import datetime
 import tempfile
 import uuid
 from pathlib import Path
-from typing import List, Tuple, cast
+from typing import List, cast
 
 import pytest
+from typing_extensions import Generator
 
 from metta.agent.mocks import MockPolicyRecord
 from metta.agent.policy_record import PolicyRecord
 from metta.eval.eval_stats_db import EvalStatsDB
 
+TestEvalStatsDb = tuple[EvalStatsDB, list[str], str]
 
-def _create_test_db_with_missing_metrics(db_path: Path) -> Tuple[EvalStatsDB, List[str], str]:
+
+def _create_test_db_with_missing_metrics(db_path: Path) -> TestEvalStatsDb:
     db = EvalStatsDB(db_path)
 
     policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
@@ -31,8 +34,7 @@ def _create_test_db_with_missing_metrics(db_path: Path) -> Tuple[EvalStatsDB, Li
     db._insert_simulation(
         sim_id=sim_id,
         name="test_sim",
-        suite="test_suite",
-        env_name="env_test",
+        env_name="test_env",
         policy_key=pk,
         policy_version=pv,
     )
@@ -75,7 +77,7 @@ def _create_test_db_with_missing_metrics(db_path: Path) -> Tuple[EvalStatsDB, Li
 
 # -------- Pytest fixtures -------------------------------------------------- #
 @pytest.fixture
-def test_db():
+def test_db() -> Generator[TestEvalStatsDb, None, None]:
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp) / f"{uuid.uuid4().hex}.duckdb"
         db, eps, sid = _create_test_db_with_missing_metrics(p)
@@ -84,13 +86,14 @@ def test_db():
 
 
 # -------- Tests ------------------------------------------------------------ #
-def test_metrics_normalization(test_db):
+def test_metrics_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
     pk, pv = db.key_and_version(policy_record)  # type: ignore
 
     # hearts_collected: only 2/5 potential samples recorded (value 3 each)
     avg_hearts = db.get_average_metric_by_filter("hearts_collected", policy_record)
+    assert avg_hearts is not None
     assert 1.15 <= avg_hearts <= 1.25, f"expected ≈1.2 got {avg_hearts}"
 
     potential = db.potential_samples_for_metric(pk, pv)
@@ -104,14 +107,15 @@ def test_metrics_normalization(test_db):
     assert avg_reward is not None
 
     # filter condition
-    avg_filtered = db.get_average_metric_by_filter("hearts_collected", policy_record, "sim_suite = 'test_suite'")
+    avg_filtered = db.get_average_metric_by_filter("hearts_collected", policy_record, "sim_env = 'test_env'")
+    assert avg_filtered is not None
     assert 1.15 <= avg_filtered <= 1.25
 
     # non‑matching filter
-    assert db.get_average_metric_by_filter("hearts_collected", policy_record, "sim_suite = 'none'") is None
+    assert db.get_average_metric_by_filter("hearts_collected", policy_record, "sim_env = 'none'") is None
 
 
-def test_simulation_scores_normalization(test_db):
+def test_simulation_scores_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
 
@@ -120,7 +124,7 @@ def test_simulation_scores_normalization(test_db):
 
     key = next(iter(scores))
     exp = scores[key]
-    assert key == ("test_suite", "test_sim", "env_test")
+    assert key == ("test_sim", "test_env")
     assert 1.15 <= exp <= 1.25
 
     # Compare to raw (non‑normalized) mean
@@ -131,15 +135,16 @@ def test_simulation_scores_normalization(test_db):
     assert 2.9 <= raw <= 3.1  # expected ≈3
 
 
-def test_sum_metric_normalization(test_db):
+def test_sum_metric_normalization(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
 
     sum_norm = db.get_sum_metric_by_filter("hearts_collected", policy_record)
+    assert sum_norm is not None
     assert 1.15 <= sum_norm <= 1.25  # (6 / 5) ≈ 1.2
 
 
-def test_no_metrics(test_db):
+def test_no_metrics(test_db: TestEvalStatsDb) -> None:
     db, _, _ = test_db
     policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
 
@@ -157,20 +162,3 @@ def test_empty_database():
         assert db.get_average_metric_by_filter("reward", cast(PolicyRecord, policy_record)) is None
         assert db.potential_samples_for_metric("test", 1) == 0
         db.close()
-
-
-def test_metric_by_policy_eval(test_db):
-    """metric_by_policy_eval should return a normalized mean per policy and eval."""
-    db, _, _ = test_db
-
-    policy_record = MockPolicyRecord.from_key_and_version("test_policy", 1)
-    pk, pv = db.key_and_version(policy_record)  # type: ignore
-    df = db.metric_by_policy_eval("hearts_collected", policy_record)
-
-    # Expect one row (env_test) with ≈1.2
-    assert len(df) == 1
-
-    row = df.iloc[0]
-    assert row["policy_uri"] == f"{pk}:v{pv}"
-    assert row["eval_name"] == "env_test"
-    assert 1.15 <= row["value"] <= 1.25, f"expected ≈1.2 got {row['value']}"

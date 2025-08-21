@@ -115,6 +115,10 @@ class Policy(nn.Module):
         self.out_height = 11
         self.num_layers = 22
 
+        # Define layer dimensions that are used multiple times
+        self.actor_hidden_dim = 512  # Used in actor_1 and bilinear calculation
+        self.action_embed_dim = 16  # Used in action_embeddings and bilinear calculation
+
         # Define components with explicit names and sources
         self.obs_ = ObsTokenPadStrip(
             obs_shape=(200, 3),
@@ -140,14 +144,12 @@ class Policy(nn.Module):
 
         self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
         self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
-        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
-        self.action_embeddings = nn.Embedding(100, 16)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.actor_hidden_dim))
+        self.action_embeddings = nn.Embedding(100, self.action_embed_dim)
 
-        # Action heads - will be initialized based on action space
-        action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
-
-        self.actor_heads = nn.ModuleList(
-            [pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec]
+        # Create action heads using mixin pattern
+        self.actor_heads = PyTorchAgentMixin.create_action_heads(
+            self, env, input_size=self.actor_hidden_dim + self.action_embed_dim
         )
 
     def network_forward(self, x):

@@ -86,7 +86,7 @@ For post-training evaluation to compare different policies:
 
 ```bash
 ./tools/run.py \
-    experiments.navigation.eval \
+    experiments.recipes.navigation.eval \
     --overrides \
     policy_uris=wandb://run/YOUR_POLICY_URI \
     stats_db_uri=wandb://stats/navigation_db \

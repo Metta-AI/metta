@@ -9,7 +9,7 @@ on:
 
 jobs:
   check-context:
-    runs-on: ubuntu-latest
+    runs-on: default
     if: github.event.pull_request.draft == false
     outputs:
       is_external: ${{ steps.detect-pr.outputs.is_external }}
@@ -23,7 +23,7 @@ jobs:
 
   asana_integration:
     needs: check-context
-    runs-on: ubuntu-latest
+    runs-on: default
     if: |
       github.event.pull_request.draft == false &&
       needs.check-context.outputs.is_external != 'true'

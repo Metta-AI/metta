@@ -126,7 +126,10 @@ export async function extractPdfWithAdobe(pdfBuffer: Buffer): Promise<{
     console.log("✅ Adobe extraction completed!");
 
     // Get the result content
-    const resultAsset = pdfServicesResponse.result.resource;
+    const resultAsset = pdfServicesResponse.result?.resource;
+    if (!resultAsset) {
+      throw new Error("Adobe PDF Services did not return a result asset");
+    }
     const streamAsset = await pdfServices.getContent({ asset: resultAsset });
 
     // Save result to temporary file
@@ -143,7 +146,7 @@ export async function extractPdfWithAdobe(pdfBuffer: Buffer): Promise<{
     const zipEntries = zip.getEntries();
 
     // Find the structured data JSON
-    const jsonEntry = zipEntries.find((entry) =>
+    const jsonEntry = zipEntries.find((entry: any) =>
       entry.entryName.includes("structuredData.json")
     );
 
@@ -390,7 +393,7 @@ function createStructuralSubpanelMappings(
         if (nextElement.Text && /^\([a-z]\)/.test(nextElement.Text.trim())) {
           // Extract just the letter from "(a) text" -> "a"
           const match = nextElement.Text.trim().match(/^\(([a-z])\)/);
-    if (match) {
+          if (match) {
             label = match[1];
             break;
           }
@@ -530,7 +533,9 @@ function createSemanticMappings(
         }
       }
     } catch (error) {
-      console.log(`   ❌ Error processing Figure caption: ${error.message}`);
+      console.log(
+        `   ❌ Error processing Figure caption: ${(error as any)?.message}`
+      );
     }
   }
 
@@ -579,7 +584,7 @@ async function processSemanticFigures(
   // Convert PDF pages to images first
   console.log("🖼️ Converting PDF pages to images...");
   const pageImages = await convertPdfToImages(pdfBuffer);
-  console.log(`✅ Converted ${pageImages.length} pages to images`);
+  console.log(`✅ Converted ${Object.keys(pageImages).length} pages to images`);
 
   // Process each figure
   const pageImageDimensions: {
@@ -623,13 +628,13 @@ async function processSemanticFigures(
     console.log(`  - Page: ${pageNumber}`);
     console.log(`  - ObjectID: ${element.ObjectID}`);
     console.log(`  - Page image available: ${!!pageImages[pageNumber]}`);
-    
+
     // Debug specific Figure 1a
     if (mapping.semanticLabel === "Figure 1a") {
       console.log(`🎯 FIGURE 1A DEBUG: This should be the correct extraction!`);
       console.log(`   Expected ObjectID: 1347, Actual: ${element.ObjectID}`);
       console.log(`   Expected Page: 3, Actual: ${pageNumber}`);
-      console.log(`   Bounds: [${element.Bounds?.join(', ') || 'none'}]`);
+      console.log(`   Bounds: [${element.Bounds?.join(", ") || "none"}]`);
     }
 
     if (pageImages[pageNumber]) {
@@ -671,13 +676,17 @@ async function processSemanticFigures(
         console.log(
           `  - Image coords: x=${transformedCoords.x}, y=${transformedCoords.y}, w=${transformedCoords.width}, h=${transformedCoords.height}`
         );
-        
+
         if (mapping.semanticLabel === "Figure 1a") {
           console.log(`🎯 FIGURE 1A COORDINATE TRANSFORM:`);
           console.log(`   PDF size: ${pdfWidth}x${pdfHeight}`);
           console.log(`   Image size: ${pageDims.width}x${pageDims.height}`);
-          console.log(`   Raw calculation: x=${element.Bounds[0]} * ${scaleX} = ${element.Bounds[0] * scaleX}`);
-          console.log(`   Raw calculation: y=(${pdfHeight} - ${element.Bounds[3]}) * ${scaleY} = ${(pdfHeight - element.Bounds[3]) * scaleY}`);
+          console.log(
+            `   Raw calculation: x=${element.Bounds[0]} * ${scaleX} = ${element.Bounds[0] * scaleX}`
+          );
+          console.log(
+            `   Raw calculation: y=(${pdfHeight} - ${element.Bounds[3]}) * ${scaleY} = ${(pdfHeight - element.Bounds[3]) * scaleY}`
+          );
         }
 
         const croppedImage = await extractFigureImage(
@@ -776,7 +785,7 @@ async function convertPdfToImages(
         // Clean up temp image
         unlinkSync(tempImagePath);
       } catch (pageError) {
-        console.log(`  ❌ Page ${pageNum} error:`, pageError.message);
+        console.log(`  ❌ Page ${pageNum} error:`, (pageError as any)?.message);
         // Clean up temp image if it exists
         try {
           unlinkSync(tempImagePath);

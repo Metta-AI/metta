@@ -53,8 +53,7 @@ class TestStatsServerSimple:
             },
             primary_policy_id=policy.id,
             stats_epoch=epoch.id,
-            eval_name="test_evaluation",
-            simulation_suite="test_suite",
+            sim_name="test_evaluation",
             replay_url="https://example.com/replay",
             attributes={"episode_length": 100, "difficulty": "medium"},
         )
@@ -85,7 +84,8 @@ class TestStatsServerSimple:
                 agent_metrics={0: {"reward": float(i * 10), "steps": float(i * 5)}},
                 primary_policy_id=policy.id,
                 stats_epoch=epoch.id,
-                eval_name=f"episode_{i}",
+                sim_name=f"episode_{i}",
+                env_label="test_env",
             )
             episode_ids.append(episode.id)
             assert episode.id is not None

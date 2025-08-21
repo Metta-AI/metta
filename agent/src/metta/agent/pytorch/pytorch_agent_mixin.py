@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 
+import pufferlib.pytorch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -39,15 +40,7 @@ class PyTorchAgentMixin:
         return isinstance(module, (nn.Linear, nn.Conv2d, nn.Conv1d, nn.ConvTranspose2d))
 
     def extract_mixin_params(self, kwargs: dict) -> dict:
-        """
-        Extract parameters needed by the mixin from kwargs.
-
-        Args:
-            kwargs: Keyword arguments passed to the agent
-
-        Returns:
-            Dictionary with mixin-specific parameters
-        """
+        """Extract parameters needed by the mixin from kwargs."""
         return {
             "clip_range": kwargs.pop("clip_range", 0),
             "analyze_weights_interval": kwargs.pop("analyze_weights_interval", 300),
@@ -57,14 +50,7 @@ class PyTorchAgentMixin:
     def init_mixin(
         self, clip_range: float = 0, analyze_weights_interval: int = 300, extra_kwargs: Optional[dict] = None
     ):
-        """
-        Initialize mixin parameters.
-
-        Args:
-            clip_range: Weight clipping range (0 = disabled)
-            analyze_weights_interval: Interval for weight analysis
-            extra_kwargs: Additional configuration parameters for logging
-        """
+        """Initialize mixin parameters."""
         self.clip_range = clip_range
         self.analyze_weights_interval = analyze_weights_interval
         self.l2_init_scale = 1  # Default L2-init scale
@@ -75,6 +61,19 @@ class PyTorchAgentMixin:
 
         # Note: action_index_tensor and cum_action_max_params are set by
         # MettaAgent.initialize_to_environment() directly on the policy object
+
+    def create_action_heads(self, env, input_size: int = 512 + 16):
+        """
+        Create action heads based on the environment's action configuration.
+
+        For multi-discrete action spaces, we create a single head with the total
+        flattened action space (sum of all action parameter ranges).
+        """
+        # Calculate total flattened action space from environment
+        total_actions = sum(max_arg + 1 for max_arg in env.max_action_args)
+
+        # Create a single head for the flattened action space
+        return nn.ModuleList([pufferlib.pytorch.layer_init(nn.Linear(input_size, total_actions), std=0.01)])
 
     def clip_weights(self):
         """
@@ -103,13 +102,6 @@ class PyTorchAgentMixin:
 
         NOTE: The caller must reshape the TD BEFORE calling this if needed.
         The fields will be set to match the flattened batch dimension.
-
-        Args:
-            td: TensorDict to update (should be reshaped if needed)
-            observations: Observation tensor to determine dimensions
-
-        Returns:
-            Tuple of (B, TT) dimensions
         """
         if observations.dim() == 4:  # Training: [B, T, obs_tokens, 3]
             B = observations.shape[0]
@@ -130,18 +122,7 @@ class PyTorchAgentMixin:
     def forward_training(
         self, td: TensorDict, action: torch.Tensor, logits_list: torch.Tensor, value: torch.Tensor
     ) -> TensorDict:
-        """
-        Forward pass for training mode with proper TD reshaping.
-
-        Args:
-            td: TensorDict to update
-            action: Action tensor from training data
-            logits_list: Logits from policy
-            value: Value estimates from critic
-
-        Returns:
-            Updated TensorDict with proper shape
-        """
+        """Forward pass for training mode with proper TD reshaping."""
         # CRITICAL: ComponentPolicy expects the action to be flattened already during training
         # The TD should be reshaped to match the flattened batch dimension
         if action.dim() == 3:  # (B, T, A) -> (BT, A)
@@ -176,17 +157,7 @@ class PyTorchAgentMixin:
         return td
 
     def forward_inference(self, td: TensorDict, logits_list: torch.Tensor, value: torch.Tensor) -> TensorDict:
-        """
-        Forward pass for inference mode with action sampling.
-
-        Args:
-            td: TensorDict to update
-            logits_list: Logits from policy
-            value: Value estimates from critic
-
-        Returns:
-            Updated TensorDict with sampled actions
-        """
+        """Forward pass for inference mode with action sampling."""
         log_probs = F.log_softmax(logits_list, dim=-1)
         action_probs = torch.exp(log_probs)
 
@@ -216,12 +187,6 @@ class PyTorchAgentMixin:
 
         NOTE: This overrides MettaAgent's implementation to use the policy's
         action_index_tensor which is set by MettaAgent.initialize_to_environment().
-
-        Args:
-            action_logit_index: Indices into flattened action space
-
-        Returns:
-            Action tensor with (action_type, action_param) pairs
         """
         # Use the action_index_tensor that MettaAgent sets on the policy
         if not hasattr(self, "action_index_tensor") or self.action_index_tensor is None:
@@ -237,12 +202,6 @@ class PyTorchAgentMixin:
         For MultiDiscrete action spaces, actions are represented as pairs:
         - action_type: which action type (e.g., move, attack, etc.)
         - action_param: parameter for that action type
-
-        Args:
-            flattened_action: Actions as (action_type, action_param) pairs
-
-        Returns:
-            Indices into flattened action space
         """
         # Use the cum_action_max_params that MettaAgent sets on the policy
         if not hasattr(self, "cum_action_max_params") or self.cum_action_max_params is None:
@@ -263,10 +222,6 @@ class PyTorchAgentMixin:
 
         This is called by MettaAgent.initialize_to_environment() and should be
         overridden by agents that have action embeddings.
-
-        Args:
-            full_action_names: List of action names
-            device: Device for tensors
         """
         # Pass through to the policy if it exists
         if hasattr(self, "policy") and hasattr(self.policy, "activate_action_embeddings"):
