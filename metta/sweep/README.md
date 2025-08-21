@@ -1,388 +1,233 @@
 # Metta Sweep System
 
-## Overview
+The sweep system provides hyperparameter optimization using the Protein optimizer, fully integrated with the Tool pattern.
 
-The Metta sweep system provides automated hyperparameter optimization using Bayesian optimization through the Protein
-optimizer, integrated with Weights & Biases (WandB) for experiment tracking and a centralized Cogweb database for sweep
-coordination. The system efficiently explores hyperparameter spaces to find optimal training configurations for
-reinforcement learning policies.
+## Quick Start
 
-## System Architecture
-
-### Core Components
-
-```
-metta/
-├── sweep/                                 # Core sweep modules
-│   ├── __init__.py                       # Package exports
-│   ├── protein.py                        # Gaussian Process Bayesian optimizer
-│   ├── protein_metta.py                  # Metta wrapper with OmegaConf support
-│   ├── sweep_lifecycle.py                # Sweep initialization, preparation, evaluation
-│   └── wandb_utils.py                    # WandB observation management
-│
-tools/
-├── sweep_execute.py                      # Main sweep execution script
-├── train.py                              # Training script invoked by sweeps
-└── get_best_params_from_sweep.py         # Extract optimal parameters from completed sweeps
-│
-configs/
-├── sweep_job.yaml                        # Main sweep job configuration
-├── sweep/                                # Sweep parameter configurations
-│   ├── quick.yaml                        # Minimal sweep for testing (5 samples)
-│   ├── full.yaml                         # Comprehensive parameter search
-│   └── cogeval_sweep.yaml                # Cognitive evaluation sweep config
-│
-devops/
-├── sweep.sh                              # Shell wrapper for sweep execution
-└── skypilot/
-    └── launch.py                         # Cloud deployment via SkyPilot
-```
-
-## Configuration System
-
-### Main Sweep Job Configuration (`configs/sweep_job.yaml`)
-
-```yaml
-defaults:
-  - common # Common settings (data_dir, device, etc.)
-  - wandb: metta_research # WandB configuration
-  - sweep: full # Sweep parameter space definition
-  - _self_
-
-sweep_name: ??? # Required: set via command line
-
-settings:
-  max_consecutive_failures: 0 # 0 = unlimited retries
-  rollout_retry_delay: 5 # Seconds between retry attempts
-  max_observations_to_load: 250 # Limit historical observations
-  sweep_server_uri: https://api.observatory.softmax-research.net
-
-sim_name: arena # Evaluation suite to use
-
-sweep_job_overrides: # Applied to all training runs
-  trainer:
-    curriculum: /env/mettagrid/arena/advanced
-    simulation:
-      evaluate_interval: 0 # No evaluation during training
-      replay_dir: '' # No replays for sweeps
-```
-
-### Sweep Parameter Configurations (`configs/sweep/*.yaml`)
-
-The sweep system supports multiple parameter distributions for different types of hyperparameters:
-
-#### Distribution Types
-
-1. **`uniform`** - Linear uniform distribution
-
-   ```yaml
-   parameter:
-     distribution: uniform
-     min: 0.1 # Lower bound
-     max: 1.0 # Upper bound
-     mean: 0.5 # Search center
-     scale: auto # Search width (auto = 0.5)
-   ```
-
-2. **`int_uniform`** - Integer uniform distribution
-
-   ```yaml
-   num_layers:
-     distribution: int_uniform
-     min: 2
-     max: 8
-     mean: 4
-     scale: auto
-   ```
-
-3. **`uniform_pow2`** - Power-of-2 integers (for batch sizes, etc.)
-
-   ```yaml
-   batch_size:
-     distribution: uniform_pow2
-     min: 256 # 2^8
-     max: 4096 # 2^12
-     mean: 1024 # 2^10
-     scale: auto
-   ```
-
-4. **`log_normal`** - Log-scale distribution (for learning rates, etc.)
-
-   ```yaml
-   learning_rate:
-     distribution: log_normal
-     min: 1e-5
-     max: 1e-2
-     mean: 3e-4 # Geometric center
-     scale: auto # Or "time" for adaptive scaling
-   ```
-
-5. **`logit_normal`** - For probabilities (0-1 range)
-   ```yaml
-   dropout_rate:
-     distribution: logit_normal
-     min: 0.1
-     max: 0.9
-     mean: 0.5
-     scale: auto
-   ```
-
-#### Example Full Sweep Configuration
-
-```yaml
-protein: # Protein optimizer settings
-  num_random_samples: 20 # Initial exploration samples
-  max_suggestion_cost: 3600 # Max compute time per run (seconds)
-  resample_frequency: 3 # Frequency of resampling
-  global_search_scale: 1.0 # Exploration vs exploitation
-  random_suggestions: 15 # Random samples for acquisition
-  suggestions_per_pareto: 32 # Samples per Pareto point
-  expansion_rate: 0.15 # Exploration along cost dimension
-  seed_with_search_center: true # Start from mean values
-
-metric: reward # Objective to optimize
-goal: maximize # maximize or minimize
-method: bayes # Optimization method
-
-parameters: # Hyperparameter search space
-  trainer:
-    total_timesteps:
-      distribution: int_uniform
-      min: 500000000 # 500M steps
-      max: 2000000000 # 2B steps
-      mean: 1000000000 # 1B steps
-      scale: auto
-
-    batch_size:
-      distribution: uniform_pow2
-      min: 262144 # 2^18
-      max: 2097152 # 2^21
-      mean: 524288 # 2^19
-      scale: auto
-
-    optimizer:
-      learning_rate:
-        distribution: log_normal
-        min: 1e-4
-        max: 1e-2
-        mean: 3e-4
-        scale: auto
-```
-
-## Running Sweeps
-
-### Local Execution
+Run a sweep experiment:
 
 ```bash
-# Basic sweep execution (runs continuously)
-./tools/sweep_execute.py sweep_name=my_sweep
+# Run a hyperparameter sweep for arena
+uv run ./tools/run.py experiments.sweep_arena.sweep_optimizer \
+  --args sweep_name=my_arena_sweep num_trials=20
 
-# With specific sweep configuration
-./tools/sweep_execute.py sweep_name=my_sweep sweep=quick
-
-# Override specific parameters
-./tools/sweep_execute.py sweep_name=my_sweep \
-  sweep.protein.num_random_samples=10 \
-  sweep_job_overrides.trainer.total_timesteps=10000000
-
-# Using the shell wrapper
-./devops/sweep.sh run=my_sweep
+# Override Protein settings
+uv run ./tools/run.py experiments.sweep_arena.sweep_optimizer \
+  --args sweep_name=my_sweep num_trials=50 \
+  --overrides sweep.protein.settings.num_random_samples=100
 ```
 
-### Cloud Execution (SkyPilot)
+## Architecture
+
+The sweep system follows the Tool pattern with these key components:
+
+### 1. **ProteinConfig** (`protein_config.py`)
+Configures the Protein optimizer:
+- `metric`: What to optimize (e.g., "arena", "navigation")
+- `goal`: "maximize" or "minimize"
+- `parameters`: Nested dict of parameters to optimize
+- `settings`: Protein algorithm settings (GP parameters, search strategy)
+
+### 2. **SweepConfig** (`sweep_config.py`)
+Overall sweep configuration:
+- `num_trials`: How many trials to run
+- `protein`: ProteinConfig instance
+- `evaluation_simulations`: Optional evaluation tasks
+
+### 3. **SweepTool** (`../tools/sweep.py`)
+Tool wrapper that:
+- Takes a TrainTool factory function
+- Manages the sweep loop
+- Applies Protein suggestions to TrainTools
+- Records results back to Protein
+
+### 4. **Core Sweep Function** (`sweep.py`)
+The main sweep logic that:
+- Initializes Protein with previous observations from WandB
+- Generates suggestions for each trial
+- Creates and invokes TrainTool instances
+- Evaluates policies and records metrics
+- Updates Protein with results
+
+## Configuration Pipeline
+
+### Step 1: Define Parameters to Optimize
+
+```python
+from metta.sweep.protein_config import ParameterConfig, ProteinConfig
+
+protein_config = ProteinConfig(
+    metric="arena",  # Metric to optimize
+    goal="maximize",
+    parameters={
+        "trainer": {
+            "optimizer": {
+                "learning_rate": ParameterConfig(
+                    min=1e-5, 
+                    max=1e-2, 
+                    distribution="log_normal"
+                ),
+            },
+            "ppo": {
+                "clip_coef": ParameterConfig(
+                    min=0.05, 
+                    max=0.3, 
+                    distribution="uniform"
+                ),
+            }
+        }
+    }
+)
+```
+
+### Step 2: Create Sweep Experiment
+
+```python
+from experiments.arena import train as arena_train_factory
+from metta.tools.sweep import SweepTool
+from metta.sweep.sweep_config import SweepConfig
+
+def sweep_optimizer(sweep_name: str, num_trials: int = 10) -> SweepTool:
+    # Define what to optimize
+    protein_config = ProteinConfig(...)
+    
+    # Configure the sweep
+    sweep_config = SweepConfig(
+        num_trials=num_trials,
+        protein=protein_config,
+    )
+    
+    # Factory that creates TrainTools
+    def train_factory(run_name: str) -> TrainTool:
+        return arena_train_factory(run_name)
+    
+    return SweepTool(
+        sweep=sweep_config,
+        sweep_name=sweep_name,
+        train_tool_factory=train_factory,
+    )
+```
+
+### Step 3: Run the Sweep
 
 ```bash
-# Launch sweep on cloud
-./devops/skypilot/launch.py sweep run=my_sweep
-
-# With specific hardware
-./devops/skypilot/launch.py sweep run=my_sweep \
-  --gpus 8 \
-  --nodes 4
-
-# Using no-spot instances
-./devops/skypilot/launch.py sweep run=my_sweep \
-  --no-spot
+uv run ./tools/run.py experiments.sweep_arena.sweep_optimizer \
+  --args sweep_name=my_sweep num_trials=20
 ```
 
-## Detailed Execution Flow
+## How It Works
 
-### Phase 1: Sweep Initialization (`initialize_sweep`)
+1. **Protein Optimization**: Uses Gaussian Process-based Bayesian optimization to explore the hyperparameter space efficiently
 
-1. **Cogweb Registration**
-   - Connects to centralized sweep server (`sweep_server_uri`)
-   - Checks if sweep exists in database
-   - Creates new sweep entry if needed
-   - Stores sweep metadata (name, WandB project/entity)
+2. **Suggestion Generation**: For each trial, Protein generates a set of hyperparameters based on previous observations
 
-### Phase 2: Continuous Rollout Loop
+3. **Training**: A TrainTool is created from the factory, suggestions are applied via the Tool's `override()` method, then training runs
 
-The main script (`sweep_execute.py`) runs an infinite loop that:
+4. **Evaluation**: After training, the policy is evaluated on specified simulations to compute the optimization metric
 
-1. **Prepares Each Run** (`prepare_sweep_run`)
-   - Fetches previous observations from WandB (up to `max_observations_to_load`)
-   - Updates Protein optimizer with historical data
-   - Generates new hyperparameter suggestions using Gaussian Process
-   - Gets unique run ID from Cogweb (e.g., `sweep_name.r.0`, `sweep_name.r.1`)
-   - Returns run name and parameter suggestions
+5. **Observation Recording**: Results (metric score, training cost) are recorded back to Protein and saved to WandB
 
-2. **Launches Training** (`launch_training_subprocess`)
-   - Constructs command for `devops/train.sh`:
-     ```bash
-     ./devops/train.sh \
-       run=sweep_name.r.0 \
-       wandb.entity=<entity> \
-       wandb.project=<project> \
-       wandb.group=<sweep_name> \
-       wandb.name=sweep_name.r.0 \
-       ++trainer.batch_size=1024 \           # From protein suggestion
-       ++trainer.optimizer.learning_rate=0.0003 \
-       ++trainer.total_timesteps=1000000000 \
-       sim=arena                              # From sweep_job config
-     ```
-   - Parameters are passed via CLI using `++` prefix for force-override
-   - Training runs as subprocess with real-time logging
-   - Outputs saved to `{data_dir}/{run_name}/`
+6. **Persistence**: Observations are stored in WandB, allowing sweeps to be resumed or extended
 
-3. **Evaluates Results** (`evaluate_sweep_rollout`)
-   - Loads saved configuration from `sweep_eval_config.yaml`
-   - Initializes WandB context for recording
-   - Runs policy evaluation suite:
-     - Loads trained policy from checkpoints
-     - Executes simulation suite specified by `sim_name`
-     - Collects metrics (reward, success rate, etc.)
-   - Records observation to Protein via WandB:
-     - Suggestion parameters
-     - Objective value (metric score)
-     - Compute cost (training + eval time)
-     - Failure status
-   - Saves results to `sweep_eval_results.yaml`
+## Parameter Distributions
 
-4. **Error Handling**
-   - On failure: increments consecutive failure counter
-   - Waits `rollout_retry_delay` seconds before retry
-   - Stops if `max_consecutive_failures` exceeded (0 = unlimited)
-   - On success: resets failure counter
+Supported distributions for `ParameterConfig`:
+- `"uniform"`: Linear uniform sampling
+- `"log_normal"`: Log-scale sampling (good for learning rates)
+- `"int_uniform"`: Integer uniform sampling
 
-### Phase 3: Optimization Process
+## Customization
 
-The Protein optimizer uses Gaussian Process regression to:
+### Custom Metrics
+The metric can be any category from evaluation simulations (e.g., "navigation", "arena/combat") or "avg_category_score" for overall performance.
 
-1. **Model the objective function** from all observations
-2. **Balance exploration vs exploitation** via acquisition functions
-3. **Consider compute cost** in multi-objective optimization
-4. **Suggest promising hyperparameters** for next iteration
+### Protein Settings
+Fine-tune the optimizer via `ProteinSettings`:
+- `num_random_samples`: Random samples before using GP
+- `suggestions_per_pareto`: Suggestions per Pareto-optimal point
+- `expansion_rate`: How quickly to expand search space
 
-Key Protein settings:
+### Evaluation
+Add custom evaluation simulations to compute domain-specific metrics:
 
-- `num_random_samples`: Initial random exploration before GP modeling
-- `max_suggestion_cost`: Upper bound on compute time per run
-- `global_search_scale`: Controls exploration (higher = more exploration)
-- `suggestions_per_pareto`: Samples for Pareto frontier construction
-- `seed_with_search_center`: Whether to start from mean values
-
-### Distributed Coordination
-
-For multi-node training:
-
-- **Rank 0 (Master)**: Handles all sweep operations
-- **Other ranks**: Wait via `run_once` synchronization
-- All ranks participate in distributed training
-- Only rank 0 performs evaluation and recording
-
-## Analyzing Results
-
-### Extract Best Parameters
-
-```bash
-# Get best configuration
-./tools/get_best_params_from_sweep.py sweep_name=my_sweep
-
-# Show top 5 configurations
-./tools/get_best_params_from_sweep.py sweep_name=my_sweep --top-n 5
-
-# Generate reusable config patch
-./tools/get_best_params_from_sweep.py sweep_name=my_sweep \
-  --output-dir configs/trainer/patch
+```python
+sweep_config = SweepConfig(
+    evaluation_simulations=[
+        SimulationConfig(name="arena/basic", ...),
+        SimulationConfig(name="arena/combat", ...),
+    ]
+)
 ```
 
-This generates a patch file for future training:
+## Example: Complete Sweep Experiment
 
-```bash
-# Train with optimal parameters
-./tools/train.py run=production +trainer/patch=my_sweep_best
+```python
+# experiments/sweep_arena.py
+from experiments.arena import train as arena_train_factory
+from metta.sweep.protein_config import ParameterConfig, ProteinConfig
+from metta.sweep.sweep_config import SweepConfig
+from metta.tools.sweep import SweepTool
+
+def sweep_optimizer(sweep_name: str, num_trials: int = 10) -> SweepTool:
+    """Sweep for optimizing PPO hyperparameters on arena."""
+    
+    protein_config = ProteinConfig(
+        metric="arena",
+        goal="maximize",
+        method="bayes",
+        parameters={
+            "trainer": {
+                "optimizer": {
+                    "learning_rate": ParameterConfig(
+                        min=1e-5, max=1e-2, distribution="log_normal"
+                    ),
+                },
+                "ppo": {
+                    "clip_coef": ParameterConfig(
+                        min=0.05, max=0.3, distribution="uniform"
+                    ),
+                    "ent_coef": ParameterConfig(
+                        min=0.0001, max=0.01, distribution="log_normal"
+                    ),
+                    "gae_lambda": ParameterConfig(
+                        min=0.8, max=0.99, distribution="uniform"
+                    ),
+                },
+                "batch_size": ParameterConfig(
+                    min=65536, max=1048576, distribution="int_uniform"
+                ),
+            }
+        },
+    )
+    
+    sweep_config = SweepConfig(
+        num_trials=num_trials,
+        protein=protein_config,
+    )
+    
+    def train_factory(run_name: str) -> TrainTool:
+        return arena_train_factory(run_name)
+    
+    return SweepTool(
+        sweep=sweep_config,
+        sweep_name=sweep_name,
+        train_tool_factory=train_factory,
+    )
 ```
 
-### Monitor Progress
+## Distributed Training Note
 
-View in WandB dashboard:
+The current implementation is designed for single-node sweeps. Key areas marked with `TODO: Adapt for distributed setup`:
+- Protein suggestion generation (master only)
+- WandB observation recording (master only)
+- Evaluation execution (master only)
 
-- Filter by group name (sweep name)
-- Use parallel coordinates plot for parameter relationships
-- Track metric convergence over iterations
-- Analyze cost vs performance trade-offs
+The underlying TrainTool handles distributed training automatically.
 
-## Integration Points
+## Legacy System
 
-### Cogweb Server
-
-- Centralized sweep coordination
-- Unique run ID generation
-- Prevents duplicate runs across workers
-- API endpoint: `sweep_server_uri`
-
-### WandB
-
-- Stores all observations and metrics
-- Provides sweep visualization
-- Enables historical data loading
-- Groups runs by sweep name
-
-### Evaluation System
-
-- Uses `SimulationSuite` for policy evaluation
-- Runs suite specified by `sim_name`
-- Stores results in SQLite database (`eval/stats.db`)
-- Computes aggregate metrics for optimization
-
-## Best Practices
-
-1. **Start with `sweep=quick`** for testing (5 samples)
-2. **Set appropriate bounds** - avoid extremely wide search spaces
-3. **Use correct distributions**:
-   - `log_normal` for learning rates
-   - `uniform_pow2` for batch sizes
-   - `logit_normal` for probabilities
-4. **Monitor early iterations** before scaling up
-5. **Set `max_consecutive_failures`** > 0 for production
-6. **Limit `max_observations_to_load`** for large sweeps
-7. **Use descriptive sweep names** for organization
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Import errors**: Check PyTorch installation (macOS issues common)
-2. **Cogweb connection**: Verify `sweep_server_uri` is accessible
-3. **WandB authentication**: Run `wandb login`
-4. **Duplicate runs**: Check Cogweb database for conflicts
-5. **OOM errors**: Reduce `batch_size` or `num_envs`
-
-### Debug Mode
-
-```bash
-# Enable detailed logging
-HYDRA_FULL_ERROR=1 ./tools/sweep_execute.py sweep_name=debug
-
-# Check intermediate files
-ls train_dir/<sweep_name>/<run_name>/
-```
-
-### Recovery
-
-The system automatically handles:
-
-- Resumption from interruption (no state lost)
-- Retry of failed runs
-- Loading historical observations
-- Skipping duplicate run IDs
+The previous Hydra-based sweep system (`sweep_execute.py`, `sweep_lifecycle.py`) is being deprecated in favor of this Tool-pattern approach. Key improvements:
+- Better composition with TrainTool
+- Cleaner configuration with Pydantic
+- No subprocess calls or intermediate YAML files
+- Direct integration with the experiment system

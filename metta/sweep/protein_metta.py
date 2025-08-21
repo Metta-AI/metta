@@ -1,9 +1,8 @@
 import logging
 from typing import Any, Tuple
 
-from omegaconf import DictConfig, OmegaConf
-
 from metta.common.util.numpy_helpers import clean_numpy_types
+from metta.sweep.protein_config import ProteinConfig
 
 from .protein import Protein
 
@@ -22,24 +21,18 @@ class MettaProtein:
 
     def __init__(
         self,
-        cfg: DictConfig,
+        cfg: ProteinConfig,
     ):
         self._cfg = cfg
 
-        # Convert OmegaConf to regular dict
-        parameters_dict = OmegaConf.to_container(cfg.parameters, resolve=True)
+        # Convert ProteinConfig to the dict format Protein expects
+        protein_dict = cfg.to_protein_dict()
 
-        # Create the config structure that Protein expects
-        protein_config = {
-            "metric": cfg.metric,
-            "goal": cfg.goal,
-            "method": cfg.method,
-            **parameters_dict,  # Add flattened parameters at top level
-        }
-        protein_settings = OmegaConf.to_container(cfg.protein, resolve=True)
+        # Get protein settings as dict
+        protein_settings = cfg.settings.model_dump()
 
         # Initialize Protein with sweep config and protein-specific settings
-        self._protein = Protein(protein_config, **protein_settings)
+        self._protein = Protein(protein_dict, **protein_settings)
 
     def suggest(self, fill=None) -> Tuple[dict[str, Any], dict[str, Any]]:
         """

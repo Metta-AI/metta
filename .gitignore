@@ -90,3 +90,6 @@ experiments/user/*.py
 !experiments/user/example.py
 
 resources
+LUNARVIM_CHEATSHEET.md
+metta/sweep/experiments/README.md
+metta/sweep/experiments/README_*.md
