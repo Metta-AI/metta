@@ -1,6 +1,6 @@
 import metta.map.scenes.random
 from metta.map.mapgen import MapGen
-from metta.mettagrid.config import building
+from metta.mettagrid.config import building, empty_converters
 from metta.mettagrid.map_builder.map_builder import MapBuilderConfig
 from metta.mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from metta.mettagrid.map_builder.random import RandomMapBuilder
@@ -141,6 +141,7 @@ def make_navigation(num_agents: int) -> EnvConfig:
 
 
 def make_icl_resource_chain(num_agents: int, max_steps, game_objects: dict, map_builder_objects: dict) -> EnvConfig:
+    game_objects["wall"] = empty_converters.wall
     cfg = EnvConfig(
         game=GameConfig(
             max_steps=max_steps,

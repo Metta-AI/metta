@@ -7,6 +7,7 @@ from metta.sim.simulation_config import SimulationConfig
 
 def make_icl_resource_chain_eval_env(
     name: str,
+    num_agents: int,
     max_steps: int,
     game_objects: dict,
     map_builder_objects: dict,
@@ -14,7 +15,7 @@ def make_icl_resource_chain_eval_env(
 ) -> EnvConfig:
     ascii_map = f"mettagrid/configs/maps/icl_resource_chain/{name}.map"
     env = make_icl_resource_chain(
-        num_agents=1,
+        num_agents=num_agents,
         max_steps=max_steps,
         game_objects=game_objects,
         map_builder_objects=map_builder_objects,
@@ -23,7 +24,7 @@ def make_icl_resource_chain_eval_env(
     env.game.map_builder = MapGen.Config.with_ascii_uri(
         ascii_map, border_width=border_width
     )
-    env.game.agent.resource_limits.heart = 5
+    env.game.agent.resource_limits["heart"] = 5
 
     return env
 

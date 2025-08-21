@@ -1,4 +1,7 @@
-from metta.mettagrid.mettagrid_config import ConverterConfig
+from metta.mettagrid.mettagrid_config import ConverterConfig, WallConfig
+
+wall = WallConfig(type_id=1)
+block = WallConfig(type_id=14, swappable=True)
 
 mine_red = ConverterConfig(
     type_id=2,

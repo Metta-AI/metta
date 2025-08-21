@@ -40,8 +40,8 @@ RESOURCE_TYPES = [
 
 @dataclass
 class _BuildCfg:
-    used_objects: set[str] = field(default_factory=set)
-    all_input_resources: set[str] = field(default_factory=set)
+    used_objects: List[str] = field(default_factory=list)
+    all_input_resources: List[str] = field(default_factory=list)
     converters: List[str] = field(default_factory=list)
     game_objects: Dict[str, Any] = field(default_factory=dict)
     map_builder_objects: Dict[str, int] = field(default_factory=dict)
@@ -162,9 +162,7 @@ def make_curriculum() -> CurriculumConfig:
         chain_lengths=[2, 3, 4, 5],
         num_sinks=[0, 1, 2],
     )
-    task_generator = ConverterChainTaskGenerator(task_generator_cfg)
-
-    return CurriculumConfig(task_generator=task_generator)
+    return CurriculumConfig(task_generator=task_generator_cfg)
 
 
 def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
