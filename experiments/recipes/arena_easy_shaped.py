@@ -221,9 +221,41 @@ def train() -> TrainTool:
     return TrainTool(trainer=trainer_cfg)
 
 
-def play(env: Optional[EnvConfig] = None) -> PlayTool:
-    """Interactive play tool for testing the environment."""
-    eval_env = env or make_env()
+def play(env: Optional[EnvConfig] = None, num_agents: int = 24) -> PlayTool:
+    """Interactive play tool for testing the environment.
+    
+    Args:
+        env: Optional environment config to use (defaults to make_env())
+        num_agents: Number of agents (default 24 for full arena, can use 6 for simpler testing)
+    """
+    if env is None:
+        # Create the full arena easy shaped environment
+        print("\n=== Arena Easy Shaped Environment ===")
+        print(f"Creating environment with:")
+        print(f"  - {num_agents} agents (cooperative)")
+        print(f"  - Red mines (produce ore)")
+        print(f"  - Red generators (convert ore to batteries)")
+        print(f"  - Altars (convert 1 battery to hearts - EASY MODE)")
+        print(f"  - Blocks and walls for obstacles")
+        print(f"  - Shaped rewards for progression")
+        print("=====================================\n")
+        
+        eval_env = make_env(num_agents=num_agents)
+        
+        # Print gameplay instructions
+        print("Controls:")
+        print("  - Click on an agent to select it")
+        print("  - Use arrow keys or WASD to move")
+        print("  - Press spacebar to interact with objects")
+        print("")
+        print("Gameplay:")
+        print("  1. Mine red ore from mines (reward: 0.1 per ore, max 1.0)")
+        print("  2. Convert ore to batteries at generators (reward: 0.8 per battery, max 1.0)")
+        print("  3. Convert batteries to hearts at altars (reward: 1.0 per heart, max 100.0)")
+        print("")
+    else:
+        eval_env = env
+    
     return PlayTool(sim=SimulationConfig(env=eval_env, name="arena_easy_shaped"))
 
 

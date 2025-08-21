@@ -131,8 +131,17 @@ class Simulation:
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
 
-        metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv)
+        # Get the MettaGridEnv from the vecenv
+        # The driver_env may be a CurriculumEnv that wraps the actual MettaGridEnv
+        driver_env = self._vecenv.driver_env  # type: ignore
+        if hasattr(driver_env, '_env') and isinstance(driver_env._env, MettaGridEnv):
+            # CurriculumEnv case - get the wrapped environment
+            metta_grid_env: MettaGridEnv = driver_env._env
+        elif isinstance(driver_env, MettaGridEnv):
+            # Direct MettaGridEnv case
+            metta_grid_env = driver_env
+        else:
+            raise TypeError(f"Expected MettaGridEnv but got {type(driver_env)}")
 
         # Initialize policy to environment
         initialize_policy_for_environment(
