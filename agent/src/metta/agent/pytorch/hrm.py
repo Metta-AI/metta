@@ -1,9 +1,11 @@
-from ast import Tuple
-import torch
-from torch import nn
-from typing import Dict, Tuple, List
-import torch.nn.functional as F
+import math
+import warnings
+from typing import Dict, List, Tuple
 
+import einops
+import torch
+import torch.nn.functional as F
+from torch import nn
 
 # ------------------
 # Utility functions
@@ -48,16 +50,17 @@ class SwiGLU(nn.Module):
 class Attention(nn.Module):
     """Multi-head self-attention w/ optional rotary embeddings."""
 
-    def __init__(self, hidden_size, head_dim, num_heads, num_key_value_heads=None, causal=False):
+    def __init__(self, hidden_size, head_dim, num_heads, num_key_value_heads=None, causal=False, cast_to=torch.float32):
         super().__init__()
         self.hidden_size = hidden_size
         self.num_heads = num_heads
         self.head_dim = head_dim
         self.scale = head_dim**-0.5
         self.causal = causal
+        self.cast_to = cast_to
 
-        self.qkv = nn.Linear(hidden_size, 3 * num_heads * head_dim)
-        self.proj = nn.Linear(num_heads * head_dim, hidden_size)
+        self.qkv = CastedLinear(hidden_size, 3 * num_heads * head_dim, cast_to=cast_to)
+        self.proj = CastedLinear(num_heads * head_dim, hidden_size, cast_to=cast_to)
 
     def forward(self, hidden_states, cos_sin=None):
         B, T, C = hidden_states.size()
@@ -67,19 +70,24 @@ class Attention(nn.Module):
         q = q.view(B, T, self.num_heads, self.head_dim).transpose(1, 2)  # (B, nh, T, d)
         k = k.view(B, T, self.num_heads, self.head_dim).transpose(1, 2)
         v = v.view(B, T, self.num_heads, self.head_dim).transpose(1, 2)
+        print(f"q shape: {q.shape}, k shape: {k.shape}, v shape: {v.shape}")
 
         # Apply rotary embeddings if passed
         if cos_sin is not None:
             q, k = apply_rotary_pos_emb(q, k, cos_sin)
+            print(f"After rotary: q shape: {q.shape}, k shape: {k.shape}")
 
         attn_scores = (q @ k.transpose(-2, -1)) * self.scale
         if self.causal:
-            mask = torch.full((T, T), float("-inf"), device=attn_scores.device)
+            mask = torch.full((T, T), float("-inf"), device=attn_scores.device, dtype=attn_scores.dtype)
             mask = torch.triu(mask, diagonal=1)
             attn_scores = attn_scores + mask
 
         attn = attn_scores.softmax(dim=-1)
+        print(f"attn shape: {attn.shape}")
         out = (attn @ v).transpose(1, 2).contiguous().view(B, T, C)
+        print(f"out shape before view: {(attn @ v).transpose(1, 2).contiguous().shape}")
+        print(f"expected view shape: [{B}, {T}, {C}]")
         return self.proj(out)
 
 
@@ -105,8 +113,8 @@ class RotaryEmbedding(nn.Module):
 def apply_rotary_pos_emb(q, k, cos_sin):
     cos, sin = cos_sin
     # cos/sin: (T, dim/2) -> expand to (1, 1, T, dim)
-    cos = cos[:, None, None, :].to(q.device)
-    sin = sin[:, None, None, :].to(q.device)
+    cos = cos[:, None, None, :].to(device=q.device, dtype=q.dtype)
+    sin = sin[:, None, None, :].to(device=q.device, dtype=q.dtype)
 
     def rotary(x):
         x1, x2 = x[..., ::2], x[..., 1::2]
@@ -137,29 +145,50 @@ class CastedLinear(nn.Linear):
         if bias:
             nn.init.zeros_(self.bias)
         self.cast_to = cast_to
+        # Cast weights to the target dtype
+        self.weight.data = self.weight.data.to(cast_to)
+        if bias:
+            self.bias.data = self.bias.data.to(cast_to)
 
     def forward(self, x):
-        return super().forward(x).to(self.cast_to)
-
+        return super().forward(x.to(self.cast_to)).to(self.cast_to)
 
 
 class ReasoningAttnBlock(nn.Module):
-    def __init__(self, hidden_size=512):
+    def __init__(self, hidden_size=512, num_heads=8, cast_to=torch.float32):
         super().__init__()
 
         self.self_attn = Attention(
-            hidden_size=hidden_size, head_dim=hidden_size // 8, num_heads=8, num_key_value_heads=8, causal=False
+            hidden_size=hidden_size,
+            head_dim=hidden_size // num_heads,
+            num_heads=num_heads,
+            num_key_value_heads=num_heads,
+            causal=False,
+            cast_to=cast_to,
         )
         self.mlp = SwiGLU(hidden_size=hidden_size, expansion=4)
         self.norm_eps = 1e-5
 
-    def forward(self, hidden_states: torch.Tensor, input_injection: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(
+        self, hidden_states: torch.Tensor, input_injection: torch.Tensor, cos_sin=None, **kwargs
+    ) -> torch.Tensor:
         # Post Norm
-        hidden_states = rms_norm(
-            hidden_states + self.self_attn(cos_sin=cos_sin, hidden_states=hidden_states), variance_epsilon=self.norm_eps
-        )
-        # Fully Connected
-        hidden_states = rms_norm(hidden_states + self.mlp(hidden_states), variance_epsilon=self.norm_eps)
+        # hidden_states = rms_norm(
+        #     hidden_states + self.self_attn(cos_sin=cos_sin, hidden_states=hidden_states), variance_epsilon=self.norm_eps
+        # )
+        # # Fully Connected
+        # hidden_states = rms_norm(hidden_states + self.mlp(hidden_states), variance_epsilon=self.norm_eps)
+
+        # Simple linear layer for simplicity
+
+        print(f"hidden_states shape: {hidden_states.shape}")
+        # Flatten the input
+        batch_size, seq_len, hidden_dim = hidden_states.shape
+        hidden_states = hidden_states.view(batch_size * seq_len, hidden_dim)
+        linear_layer = nn.Linear(hidden_dim, hidden_dim).to(dtype=hidden_states.dtype, device=hidden_states.device)
+        hidden_states = linear_layer(hidden_states)
+        hidden_states = hidden_states.view(batch_size, seq_len, hidden_dim)
+        # hidden_states = self.mlp(hidden_states)
         return hidden_states
 
 
@@ -171,12 +200,9 @@ class ReasoningBlock(nn.Module):
 
     def forward(self, hidden_states: torch.Tensor, input_injection: torch.Tensor, **kwargs) -> torch.Tensor:
         for layer in self.layers:
-            hidden_states = layer(hidden_states=hidden_states, **kwargs)
+            hidden_states = layer(hidden_states=hidden_states, input_injection=input_injection, **kwargs)
 
         return hidden_states
-
-
-import math
 
 
 class HRM_ACTV1_Inner(nn.Module):
@@ -216,13 +242,13 @@ class HRM_ACTV1_Inner(nn.Module):
         self.embed_tokens = CastedEmbedding(
             self.vocab_size, self.hidden_size, init_std=embed_init_std, cast_to=self.forward_dtype
         )
-        self.lm_head = CastedLinear(self.hidden_size, self.vocab_size, bias=False)
-        self.q_head = CastedLinear(self.hidden_size, 2, bias=True)
+        self.lm_head = CastedLinear(self.hidden_size, self.vocab_size, bias=False, cast_to=self.forward_dtype)
+        self.q_head = CastedLinear(self.hidden_size, 2, bias=True, cast_to=self.forward_dtype)
 
         # LM Blocks
         if self.pos_encodings == "rope":
             self.rotary_emb = RotaryEmbedding(
-                dim=self.hidden_size // self.num_heads,
+                dim=self.hidden_size // self.num_heads,  # Match the head_dim used in Attention
                 max_position_embeddings=self.seq_len,
                 base=self.rope_theta,
             )
@@ -238,10 +264,16 @@ class HRM_ACTV1_Inner(nn.Module):
 
         # Reasoning Layers
         self.H_level = ReasoningBlock(
-            layers=[ReasoningAttnBlock(hidden_size=self.hidden_size) for _i in range(self.H_layers)]
+            layers=[
+                ReasoningAttnBlock(hidden_size=self.hidden_size, num_heads=self.num_heads, cast_to=self.forward_dtype)
+                for _i in range(self.H_layers)
+            ]
         )
         self.L_level = ReasoningBlock(
-            layers=[ReasoningAttnBlock(hidden_size=self.hidden_size) for _i in range(self.L_layers)]
+            layers=[
+                ReasoningAttnBlock(hidden_size=self.hidden_size, num_heads=self.num_heads, cast_to=self.forward_dtype)
+                for _i in range(self.L_layers)
+            ]
         )
 
         # Initial states
@@ -252,45 +284,134 @@ class HRM_ACTV1_Inner(nn.Module):
             trunc_normal_init_(torch.empty(self.hidden_size, dtype=self.forward_dtype), std=1), persistent=True
         )
 
+        # Observation encoding parameters (similar to fast.py)
+        self.num_layers = 8  # Number of observation layers
+        self.out_width = 16  # Spatial width
+        self.out_height = 16  # Spatial height
+
+        # Observation projection layer
+        self.obs_projection = CastedLinear(
+            self.num_layers * self.out_width * self.out_height, self.hidden_size, cast_to=self.forward_dtype
+        )
+
         # Q head special init
         # Init Q to (almost) zero for faster learning during bootstrapping
         with torch.no_grad():
             self.q_head.weight.zero_()
             self.q_head.bias.fill_(-5)  # type: ignore
 
-    def _input_embeddings(self, input: torch.Tensor):
-        # Token embedding
-        embedding = self.embed_tokens(input.to(torch.int32))
+    def encode_observations(self, observations):
+        """
+        Encode observations into a hidden representation.
 
-        # Position embeddings
-        if self.pos_encodings == "learned":
-            # scale by 1/sqrt(2) to maintain forward variance
-            embedding = 0.707106781 * (embedding + self.embed_pos.embedding_weight.to(self.forward_dtype))
+        Input: observations with shape [batch_size, seq_len, 3]
+        Output: encoded features with shape [batch_size, seq_len, hidden_size]
+        """
+        token_observations = observations
+        B = token_observations.shape[0]
+        TT = token_observations.shape[1] if token_observations.dim() == 3 else 1
+        B_TT = B * TT
 
-        # Scale
-        return self.embed_scale * embedding
+        if token_observations.dim() != 3:
+            token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
 
-    def empty_carry(self, batch_size: int):
-        return (
-            z_H=torch.empty(batch_size, self.seq_len, self.hidden_size, dtype=self.forward_dtype),
-            z_L=torch.empty(batch_size, self.seq_len, self.hidden_size, dtype=self.forward_dtype),
+        assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
+
+        # Extract coordinates and attributes
+        coords_byte = token_observations[..., 0].to(torch.uint8)
+        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
+        y_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+        atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M]
+        atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
+
+        # Create mask for valid tokens
+        valid_tokens = coords_byte != 0xFF
+
+        # Additional validation: ensure atr_indices are within valid range
+        valid_atr = atr_indices < self.num_layers
+        valid_mask = valid_tokens & valid_atr
+
+        # Log warning for out-of-bounds indices
+        invalid_atr_mask = valid_tokens & ~valid_atr
+        if invalid_atr_mask.any():
+            invalid_indices = atr_indices[invalid_atr_mask].unique()
+            warnings.warn(
+                f"Found observation attribute indices {sorted(invalid_indices.tolist())} "
+                f">= num_layers ({self.num_layers}). These tokens will be ignored.",
+                stacklevel=2,
+            )
+
+        # Use scatter-based write to avoid multi-dim advanced indexing
+        # Compute flattened spatial index and a combined index that encodes (layer, x, y)
+        flat_spatial_index = x_coord_indices * self.out_height + y_coord_indices  # [B_TT, M]
+        dim_per_layer = self.out_width * self.out_height
+        combined_index = atr_indices * dim_per_layer + flat_spatial_index  # [B_TT, M]
+
+        # Mask out invalid entries by directing them to index 0 with value 0
+        safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
+        safe_values = torch.where(valid_mask, atr_values, torch.zeros_like(atr_values))
+
+        # Scatter values into a flattened buffer, then reshape to [B_TT, L, W, H]
+        box_flat = torch.zeros(
+            (B_TT, self.num_layers * dim_per_layer), dtype=atr_values.dtype, device=token_observations.device
         )
+        box_flat.scatter_(1, safe_index, safe_values)
+        box_obs = box_flat.view(B_TT, self.num_layers, self.out_width, self.out_height)
+
+        # Flatten spatial dimensions and project to hidden size
+        box_obs_flat = box_obs.view(B_TT, -1)  # [B_TT, num_layers * width * height]
+
+        # Project to hidden size using the pre-initialized linear layer
+        encoded = self.obs_projection(box_obs_flat)  # [B_TT, hidden_size]
+
+        # Reshape back to [B, TT, hidden_size]
+        if TT > 1:
+            encoded = encoded.view(B, TT, self.hidden_size)
+
+        return encoded
+
+    def _input_embeddings(self, input: torch.Tensor):
+        # Check if input is observation features (shape [batch_size, seq_len, 3]) or token indices
+        if input.shape[-1] == 3:
+            # This is observation features, use observation encoding
+            embedding = self.encode_observations(input)
+        else:
+            # This is token indices, use token embedding
+            embedding = self.embed_tokens(input.to(torch.int32))
+
+            # Position embeddings
+            if self.pos_encodings == "learned":
+                # scale by 1/sqrt(2) to maintain forward variance
+                embedding = 0.707106781 * (
+                    embedding + self.embed_pos.embedding_weight.to(device=embedding.device, dtype=embedding.dtype)
+                )
+
+            # Scale
+            embedding = self.embed_scale * embedding
+
+        return embedding
+
+    def empty_carry(self, batch_size: int, device: torch.device):
+        z_H = torch.empty(batch_size, self.seq_len, self.hidden_size, dtype=self.forward_dtype, device=device)
+        z_L = torch.empty(batch_size, self.seq_len, self.hidden_size, dtype=self.forward_dtype, device=device)
+        return type("Carry", (), {"z_H": z_H, "z_L": z_L})()
 
     def reset_carry(self, reset_flag: torch.Tensor, carry):
-        return (
-            z_H=torch.where(reset_flag.view(-1, 1, 1), self.H_init, carry.z_H),
-            z_L=torch.where(reset_flag.view(-1, 1, 1), self.L_init, carry.z_L),
-        )
+        H_init = self.H_init.to(device=carry.z_H.device, dtype=carry.z_H.dtype)
+        L_init = self.L_init.to(device=carry.z_L.device, dtype=carry.z_L.dtype)
+        z_H = torch.where(reset_flag.view(-1, 1, 1), H_init, carry.z_H)
+        z_L = torch.where(reset_flag.view(-1, 1, 1), L_init, carry.z_L)
+        return type("Carry", (), {"z_H": z_H, "z_L": z_L})()
 
     def forward(
         self, carry, batch: Dict[str, torch.Tensor]
-    ) -> Tuple[Tuple[torch.Tensor, torch.Tensor], torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+    ) -> Tuple[object, torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         seq_info = dict(
             cos_sin=self.rotary_emb() if hasattr(self, "rotary_emb") else None,
         )
 
         # Input encoding
-        input_embeddings = self._input_embeddings(batch["inputs"])
+        input_embeddings = self._input_embeddings(batch["env_obs"])
 
         # Forward iterations
         with torch.no_grad():
@@ -311,7 +432,7 @@ class HRM_ACTV1_Inner(nn.Module):
         z_H = self.H_level(z_H, z_L, **seq_info)
 
         # LM Outputs
-        new_carry = (z_H=z_H.detach(), z_L=z_L.detach())  # New carry no grad
+        new_carry = type("Carry", (), {"z_H": z_H.detach(), "z_L": z_L.detach()})()  # New carry no grad
         output = self.lm_head(z_H)
 
         # Q head
@@ -320,10 +441,8 @@ class HRM_ACTV1_Inner(nn.Module):
         return new_carry, output, (q_logits[..., 0], q_logits[..., 1])
 
 
-
-
 class HRMBackbone(nn.Module):
-    """ACT wrapper."""
+    """Hierarchical Reasoning Backbone with ACT wrapper (no puzzle embedding)."""
 
     def __init__(
         self,
@@ -345,6 +464,7 @@ class HRMBackbone(nn.Module):
         super().__init__()
         self.halt_max_steps = halt_max_steps
         self.halt_exploration_prob = halt_exploration_prob
+        self.forward_dtype = getattr(torch, forward_dtype)
 
         self.inner = HRM_ACTV1_Inner(
             hidden_size=hidden_size,
@@ -362,78 +482,95 @@ class HRMBackbone(nn.Module):
         )
 
     def initial_carry(self, batch: Dict[str, torch.Tensor]):
-        batch_size = batch["inputs"].shape[0]
+        """Initialize carry (state) for a new batch."""
+        batch_size = batch["env_obs"].shape[0]
+        device = batch["env_obs"].device
 
         return {
-            "inner_carry": self.inner.empty_carry(batch_size),  # Empty is expected, it will be reseted in first pass as all sequences are halted.
-            "steps": torch.zeros((batch_size, ), dtype=torch.int32),
-            "halted": torch.ones((batch_size, ), dtype=torch.bool),  # Default to halted
-            "current_data": {k: torch.empty_like(v) for k, v in batch.items()}
+            "inner_carry": self.inner.empty_carry(batch_size, device),
+            "steps": torch.zeros((batch_size,), dtype=torch.int32, device=device),
+            "halted": torch.ones((batch_size,), dtype=torch.bool, device=device),  # start halted, reset on first step
+            "current_data": {
+                "env_obs": torch.empty_like(batch["env_obs"]),
+                "mask": torch.empty_like(
+                    batch.get("mask", torch.ones(batch["env_obs"].shape[:2], dtype=torch.bool, device=device))
+                ),
+            },
         }
 
-    def forward(self, carry, batch: Dict[str, torch.Tensor]) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
-        # Update data, carry (removing halted sequences)
+    def forward(
+        self, carry: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor]
+    ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+        """Forward pass with ACT control."""
+        device = batch["env_obs"].device
+
+        # Reset halted sequences in carry
         new_inner_carry = self.inner.reset_carry(carry["halted"], carry["inner_carry"])
+        new_steps = torch.where(carry["halted"], torch.zeros_like(carry["steps"]), carry["steps"])
 
-        new_steps = torch.where(carry["halted"], 0, carry["steps"])
+        # Update current data only for halted sequences
+        new_current_data = {
+            "env_obs": torch.where(
+                carry["halted"].view((-1, 1, 1)), batch["env_obs"], carry["current_data"]["env_obs"]
+            ),
+            "mask": torch.where(
+                carry["halted"].view((-1, 1)),
+                batch.get("mask", torch.ones(batch["env_obs"].shape[:2], dtype=torch.bool, device=device)),
+                carry["current_data"]["mask"],
+            ),
+        }
 
-        new_current_data = {k: torch.where(carry["halted"].view((-1, ) + (1, ) * (batch[k].ndim - 1)), batch[k], v) for k, v in carry["current_data"].items()}
-
-        # Forward inner model
+        # Forward inner HRM
         new_inner_carry, logits, (q_halt_logits, q_continue_logits) = self.inner(new_inner_carry, new_current_data)
 
         outputs = {
             "logits": logits,
             "q_halt_logits": q_halt_logits,
-            "q_continue_logits": q_continue_logits
+            "q_continue_logits": q_continue_logits,
         }
 
         with torch.no_grad():
-            # Step
+            # Step counter
             new_steps = new_steps + 1
             is_last_step = new_steps >= self.halt_max_steps
-
             halted = is_last_step
 
-            # if training, and ACT is enabled
             if self.training and (self.halt_max_steps > 1):
-                # Halt signal
-                # NOTE: During evaluation, always use max steps, this is to guarantee the same halting steps inside a batch for batching purposes
+                # ACT halting logic
                 halted = halted | (q_halt_logits > q_continue_logits)
 
-                # Exploration
-                min_halt_steps = (torch.rand_like(q_halt_logits) < self.halt_exploration_prob) * torch.randint_like(new_steps, low=2, high=self.halt_max_steps + 1)
-
+                # Exploration for stochastic halting
+                min_halt_steps = (torch.rand_like(q_halt_logits) < self.halt_exploration_prob) * torch.randint_like(
+                    new_steps, low=2, high=self.halt_max_steps + 1
+                )
                 halted = halted & (new_steps >= min_halt_steps)
 
-                # Compute target Q
-                # NOTE: No replay buffer and target networks for computing target Q-value.
-                # As batch_size is large, there're many parallel envs.
-                # Similar concept as PQN https://arxiv.org/abs/2407.04811
+                # Compute target Q (like PQN idea)
                 next_q_halt_logits, next_q_continue_logits = self.inner(new_inner_carry, new_current_data)[-1]
-
-                outputs["target_q_continue"] = torch.sigmoid(torch.where(is_last_step, next_q_halt_logits, torch.maximum(next_q_halt_logits, next_q_continue_logits)))
+                outputs["target_q_continue"] = torch.sigmoid(
+                    torch.where(
+                        is_last_step,
+                        next_q_halt_logits,
+                        torch.maximum(next_q_halt_logits, next_q_continue_logits),
+                    )
+                )
 
         return {
             "inner_carry": new_inner_carry,
             "steps": new_steps,
             "halted": halted,
-            "current_data": new_current_data
+            "current_data": new_current_data,
         }, outputs
 
 
-
 if __name__ == "__main__":
-    # I want HRMBackbone to accept hidden state with shape [batch_size, hidden_size]
-    # and outputs transformed hidden state with shape [batch_size, hidden_size]
-
     hrm = HRMBackbone(
         hidden_size=128,
         vocab_size=10000,
         batch_size=1,
         pos_encodings="rope",
         rope_theta=10000,
-        seq_len=1024,
+        seq_len=200,  # Changed to match typical observation sequence length
         forward_dtype="float16",
         H_layers=1,
         L_layers=1,
@@ -444,8 +581,11 @@ if __name__ == "__main__":
         halt_exploration_prob=0.1,
     )
 
-    hidden_state = torch.randn(1, 128)
-    carry = hrm.initial_carry({"inputs": torch.randint(0, 10000, (1, 1024))})
-    new_carry, outputs = hrm(carry, {"inputs": torch.randint(0, 10000, (1, 1024))})
-    print(new_carry)
-    print(outputs)
+    # Test with observation features [batch_size, seq_len, 3]
+    # Use smaller values to avoid the warning about attribute indices >= num_layers
+    obs_features = torch.randint(0, 8, (1, 200, 3), dtype=torch.uint8)  # [1, 200, 3]
+    carry = hrm.initial_carry({"env_obs": obs_features})
+    new_carry, outputs = hrm(carry, {"env_obs": obs_features})
+    print(f"New carry keys: {new_carry.keys()}")
+    print(f"Outputs keys: {outputs.keys()}")
+    print(f"Logits shape: {outputs['logits'].shape}")
