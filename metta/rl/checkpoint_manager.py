@@ -89,7 +89,7 @@ class CheckpointManager:
         agent_step: int,
         evals: EvalRewardSummary,
         timer: Stopwatch,
-        initial_policy_record: PolicyRecord,
+        initial_policy_uri: str | None,
     ) -> PolicyRecord:
         """Save policy with metadata if needed."""
 
@@ -108,7 +108,7 @@ class CheckpointManager:
             "total_time": timer.get_elapsed(),
             "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
             "run": self.run_name,
-            "initial_pr": initial_policy_record.uri if initial_policy_record else None,
+            "initial_pr": initial_policy_uri,
         }
 
         # Only include evaluation metadata if we have meaningful scores
@@ -166,7 +166,7 @@ def maybe_establish_checkpoint(
     agent_step: int,
     eval_scores: EvalRewardSummary,
     timer: Stopwatch,
-    initial_policy_record: PolicyRecord,
+    initial_policy_uri: str | None,
     optimizer: torch.optim.Optimizer,
     run_dir: str,
     kickstarter: Kickstarter | None,
@@ -187,7 +187,7 @@ def maybe_establish_checkpoint(
         agent_step=agent_step,
         evals=eval_scores,
         timer=timer,
-        initial_policy_record=initial_policy_record,
+        initial_policy_uri=initial_policy_uri,
     )
     if not new_record.uri:
         # We shouldn't get here

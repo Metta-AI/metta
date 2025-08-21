@@ -183,6 +183,7 @@ def train(
         if checkpoint.stopwatch_state is not None:
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
+    # ?? i don't like the code structure around these two lines - how can this be restructured and simplified?
     # Load or initialize policy with distributed coordination
     policy_path = get_initial_policy_path(
         checkpoint_manager=checkpoint_manager,
@@ -190,7 +191,7 @@ def train(
         checkpoint=checkpoint,
     )
 
-    initial_policy_record = latest_saved_policy_record = get_policy_record(
+    latest_saved_policy_record = get_policy_record(
         checkpoint_manager=checkpoint_manager,
         agent_cfg=agent_cfg,
         system_cfg=system_cfg,
@@ -198,6 +199,7 @@ def train(
         policy_path=policy_path,
         metta_grid_env=metta_grid_env,
     )
+    initial_policy_uri = latest_saved_policy_record.uri
 
     # Don't proceed until all ranks have the policy
     if torch.distributed.is_initialized():
@@ -527,7 +529,7 @@ def train(
                 agent_step=agent_step,
                 eval_scores=eval_scores,
                 timer=timer,
-                initial_policy_record=initial_policy_record,
+                initial_policy_uri=initial_policy_uri,
                 optimizer=optimizer,
                 run_dir=run_dir,
                 kickstarter=kickstarter,
@@ -647,7 +649,7 @@ def train(
         agent_step=agent_step,
         eval_scores=eval_scores,
         timer=timer,
-        initial_policy_record=initial_policy_record,
+        initial_policy_uri=initial_policy_uri,
         optimizer=optimizer,
         run_dir=run_dir,
         kickstarter=kickstarter,
