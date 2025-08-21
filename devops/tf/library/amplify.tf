@@ -21,6 +21,8 @@ resource "aws_amplify_app" "library" {
 
   platform = "WEB_COMPUTE"
 
+  access_token = var.amplify_github_access_token
+
   # App-level env vars (available to all branches; branch can override)
   environment_variables = {
     AMPLIFY_MONOREPO_APP_ROOT = "library"

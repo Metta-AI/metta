@@ -25,3 +25,11 @@ variable "oauth_secret_arn" {
 variable "library_secrets_arn" {
   default = "arn:aws:secretsmanager:us-east-1:751442549699:secret:softmax-library-secrets-IzNjL8"
 }
+
+variable "amplify_github_access_token" {
+  type      = string
+  sensitive = true
+
+  # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/amplify_app#access_token-1
+  description = "One-time only access token for Amplify to create a webhook"
+}
