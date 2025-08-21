@@ -75,21 +75,19 @@ def make_env(num_agents: int = 24) -> EnvConfig:
         move_cardinal=ActionConfig(enabled=True),  # North/South/East/West movement only
         
         # Resource collection - essential actions only
-        get_items=ActionConfig(enabled=True),      # Collect from mines
-        get_output=ActionConfig(enabled=True),     # Get from generators  
+        get_items=ActionConfig(enabled=True),      # Collect from mines/generators/altars
         put_items=ActionConfig(enabled=True),      # Put into buildings
-        put_recipe_items=ActionConfig(enabled=True),  # Put specific recipe items
         
-        # EVERYTHING ELSE DISABLED
+        # Keep noop for when no action needed
+        noop=ActionConfig(enabled=True),
+        
+        # EVERYTHING ELSE DISABLED (explicitly set to False)
         move=ActionConfig(enabled=False),          # Disable regular move
         rotate=ActionConfig(enabled=False),        # No rotation needed with cardinal
         move_8way=ActionConfig(enabled=False),     # No diagonal movement
-        attack=ActionConfig(enabled=False),        # No combat
-        attack_nearest=ActionConfig(enabled=False), # No auto-attack
         swap=ActionConfig(enabled=False),          # No swapping
         change_color=ActionConfig(enabled=False),  # No color changing
         place_box=ActionConfig(enabled=False),     # No box placement
-        noop=ActionConfig(enabled=False),          # No idle action
     )
 
     # Set shaped rewards (from configs/env/mettagrid/game/agent/rewards/shaped.yaml)
