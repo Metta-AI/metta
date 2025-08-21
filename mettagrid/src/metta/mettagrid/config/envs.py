@@ -32,7 +32,7 @@ def make_arena(
 
     actions = ActionsConfig(
         noop=ActionConfig(),
-        move_8way=ActionConfig(),
+        move=ActionConfig(),
         rotate=ActionConfig(),
         put_items=ActionConfig(),
         get_items=ActionConfig(),
@@ -116,7 +116,7 @@ def make_navigation(num_agents: int) -> EnvConfig:
                 "wall": building.wall,
             },
             actions=ActionsConfig(
-                move_8way=ActionConfig(),
+                move=ActionConfig(),
                 rotate=ActionConfig(),
                 get_items=ActionConfig(),
             ),

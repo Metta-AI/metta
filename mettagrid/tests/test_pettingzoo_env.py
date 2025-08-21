@@ -57,7 +57,7 @@ def make_pettingzoo_env(num_agents=3, max_steps=100):
             num_agents=num_agents,
             max_steps=max_steps,
             actions=ActionsConfig(
-                move_8way=ActionConfig(),
+                move=ActionConfig(),
                 noop=ActionConfig(),
                 rotate=ActionConfig(),
             ),

@@ -21,7 +21,7 @@ def create_test_env(global_obs_config):
             "action_failure_penalty": 0,
         },
         "groups": {"agent": {"id": 0, "sprite": 0, "props": {}}},
-        "actions": {"noop": {"enabled": True}, "move_8way": {"enabled": True}},
+        "actions": {"noop": {"enabled": True}, "move": {"enabled": True}},
         "objects": {"wall": {"type_id": 1, "swappable": False}},
     }
 

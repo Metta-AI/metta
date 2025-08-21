@@ -20,7 +20,7 @@ def test_8way_movement_all_directions():
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
-                move_8way=ActionConfig(),
+                move=ActionConfig(),
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
@@ -45,7 +45,7 @@ def test_8way_movement_all_directions():
     assert initial_pos == (2, 2)
 
     action_names = env.action_names
-    move_8dir_idx = action_names.index("move_8way")
+    move_8dir_idx = action_names.index("move")
 
     # Test all 8 directions
     moves = [
@@ -92,7 +92,7 @@ def test_8way_movement_obstacles():
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
-                move_8way=ActionConfig(),
+                move=ActionConfig(),
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
@@ -115,7 +115,7 @@ def test_8way_movement_obstacles():
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
 
     action_names = env.action_names
-    move_8dir_idx = action_names.index("move_8way")
+    move_8dir_idx = action_names.index("move")
 
     # Test diagonal movements near corners
     actions = np.zeros((1, 2), dtype=dtype_actions)
@@ -145,7 +145,7 @@ def test_orientation_changes_with_8way():
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
-                move_8way=ActionConfig(),
+                move=ActionConfig(),
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
@@ -165,7 +165,7 @@ def test_orientation_changes_with_8way():
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
 
     action_names = env.action_names
-    move_8dir_idx = action_names.index("move_8way")
+    move_8dir_idx = action_names.index("move")
     rotate_idx = action_names.index("rotate")
 
     # First rotate to face right
@@ -210,7 +210,7 @@ def test_8way_movement_with_simple_environment():
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
-                move_8way=ActionConfig(),
+                move=ActionConfig(),
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
@@ -238,7 +238,7 @@ def test_8way_movement_with_simple_environment():
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (4, 4)
 
     action_names = env.action_names
-    move_8dir_idx = action_names.index("move_8way")
+    move_8dir_idx = action_names.index("move")
 
     # Test diagonal movement pattern (diamond shape)
     actions = np.zeros((1, 2), dtype=dtype_actions)
@@ -275,7 +275,7 @@ def test_8way_movement_boundary_check():
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
-                move_8way=ActionConfig(),
+                move=ActionConfig(),
                 rotate=ActionConfig(),
                 noop=ActionConfig(),
             ),
@@ -295,7 +295,7 @@ def test_8way_movement_boundary_check():
     agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)
 
     action_names = env.action_names
-    move_8dir_idx = action_names.index("move_8way")
+    move_8dir_idx = action_names.index("move")
 
     # Move to top-left corner
     actions = np.zeros((1, 2), dtype=dtype_actions)
@@ -336,7 +336,7 @@ def test_orientation_changes_on_failed_8way_movement():
             num_agents=1,
             actions=ActionsConfig(
                 rotate=ActionConfig(enabled=True),  # Enable rotate to test orientation changes
-                move_8way=ActionConfig(enabled=True),
+                move=ActionConfig(enabled=True),
             ),
             objects={"wall": WallConfig(type_id=1)},
             map_builder=AsciiMapBuilder.Config(
@@ -358,7 +358,7 @@ def test_orientation_changes_on_failed_8way_movement():
     assert objects[agent_id]["orientation"] == 0  # Up
 
     action_names = env.action_names
-    move_8way_idx = action_names.index("move_8way")
+    move_8way_idx = action_names.index("move")
 
     # Set initial orientation to Left
     if "rotate" in action_names:
