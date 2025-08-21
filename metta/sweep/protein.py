@@ -304,29 +304,37 @@ class ParetoGenetic:
         )
 
 
+class DeviceAwarePolynomial(gp.kernels.Polynomial):
+    """Polynomial kernel that properly initializes parameters on the correct device."""
+
+    def __init__(self, input_dim, degree=1, device="cpu"):
+        super().__init__(input_dim, degree=degree)
+        # Override the default parameters with ones on the correct device
+        device = torch.device(device)
+        self.variance = torch.nn.Parameter(torch.ones(1, device=device))
+        self.bias = torch.nn.Parameter(torch.ones(1, device=device))
+
+
 def create_gp(x_dim, scale_length=1.0, device="cpu"):
-    device = torch.device(device)
+    device_obj = torch.device(device)
 
-    X = torch.zeros((1, x_dim), device=device)
-    y = torch.zeros((1,), device=device)
+    X = torch.zeros((1, x_dim), device=device_obj)
+    y = torch.zeros((1,), device=device_obj)
 
-    # Create kernels
-    matern_kernel = gp.kernels.Matern32(input_dim=x_dim, lengthscale=scale_length * torch.ones(x_dim, device=device))
-    linear_kernel = gp.kernels.Polynomial(input_dim=x_dim, degree=1)
-
-    # Manually initialize linear kernel parameters on the correct device
-    with torch.no_grad():
-        linear_kernel.variance = torch.nn.Parameter(torch.ones(1, device=device))
-        linear_kernel.bias = torch.nn.Parameter(torch.ones(1, device=device))
+    # Create kernels with device awareness
+    matern_kernel = gp.kernels.Matern32(
+        input_dim=x_dim, lengthscale=scale_length * torch.ones(x_dim, device=device_obj)
+    )
+    linear_kernel = DeviceAwarePolynomial(input_dim=x_dim, degree=1, device=device)
 
     kernel = gp.kernels.Sum(linear_kernel, matern_kernel)
 
     # Create model
     model = gp.models.GPRegression(X, y, kernel=kernel, jitter=1.0e-3)  # Increased jitter for stability
-    model = model.to(device)
+    model = model.to(device_obj)
 
     # Keep noise as a positive tensor (simpler & numerically stable)
-    model.noise = torch.tensor(1e-2, device=device)
+    model.noise = torch.tensor(1e-2, device=device_obj)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
 
     return model, optimizer
