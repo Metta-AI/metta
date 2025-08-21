@@ -9,7 +9,7 @@ import numpy as np
 from pydantic import Field
 
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
-from .task_generator import TaskGeneratorConfigUnion
+from .task_generator import AnyTaskGeneratorConfig
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class LearningProgressCurriculumConfig(CurriculumConfig):
     """Configuration for LearningProgressCurriculum following the discriminated union pattern."""
 
     # Override the task_generator_config to use our learning progress specific config
-    task_generator_config: TaskGeneratorConfigUnion = Field(
+    task_generator_config: AnyTaskGeneratorConfig = Field(
         description="TaskGenerator configuration for learning progress curriculum"
     )
 
