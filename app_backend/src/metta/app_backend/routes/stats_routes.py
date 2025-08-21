@@ -54,6 +54,7 @@ class EpisodeCreate(BaseModel):
     primary_policy_id: uuid.UUID
     stats_epoch: uuid.UUID | None = None
     sim_name: str | None = None
+    env_label: str | None = None
     replay_url: str | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
     eval_task_id: uuid.UUID | None = None
@@ -179,6 +180,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 primary_policy_id=episode.primary_policy_id,
                 stats_epoch=episode.stats_epoch,
                 sim_name=episode.sim_name,
+                env_label=episode.env_label,
                 replay_url=episode.replay_url,
                 attributes=episode.attributes,
                 eval_task_id=episode.eval_task_id,

@@ -814,6 +814,7 @@ class MettaRepo:
         primary_policy_id: uuid.UUID,
         stats_epoch: uuid.UUID | None,
         sim_name: str | None,
+        env_label: str | None,
         replay_url: str | None,
         attributes: dict[str, Any],
         eval_task_id: uuid.UUID | None = None,
@@ -821,9 +822,6 @@ class MettaRepo:
         thumbnail_url: str | None = None,
     ) -> uuid.UUID:
         async with self.connect() as con:
-            # Parse eval_category and env_name from eval_name
-            eval_category = sim_name.split("/", 1)[0] if sim_name else None
-            env_name = sim_name.split("/", 1)[1] if sim_name and "/" in sim_name else None
 
             def _get_simulation_suite(sim_name: str) -> str:
                 for delim in ["/", "."]:
@@ -855,8 +853,8 @@ class MettaRepo:
                     replay_url,
                     sim_name,
                     simulation_suite,
-                    eval_category,
-                    env_name,
+                    simulation_suite,
+                    env_label,
                     primary_policy_id,
                     stats_epoch,
                     Jsonb(attributes),

@@ -118,6 +118,7 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 80.0, "survival_time": 120.0, "score": 95.0}},
             primary_policy_id=policy.id,
+            env_label="test_env",
             stats_epoch=epoch.id,
             sim_name="metrics_suite/test_env",
             replay_url="https://example.com/replay/test",
@@ -434,6 +435,7 @@ class TestPolicyScorecardRoutes:
                 primary_policy_id=policy.id,
                 stats_epoch=epoch.id,
                 sim_name="agg_suite/test_env",
+                env_label="test_env",
                 replay_url=f"https://example.com/replay/episode_{i}",
             )
 
@@ -728,6 +730,7 @@ class TestPolicyScorecardRoutes:
                 agent_policies={0: policy_0_run1.id},
                 agent_metrics={0: {"reward": additional_high_scores[f"policy_0_{env_name}"]}},
                 primary_policy_id=policy_0_run1.id,
+                env_label="test_env",
                 stats_epoch=epoch_0_run1.id,
                 sim_name=f"navigation/{env_name}",
                 replay_url=f"https://example.com/replay/boost/{env_name}",
@@ -738,6 +741,7 @@ class TestPolicyScorecardRoutes:
                 agent_policies={0: policy_0_run1.id},
                 agent_metrics={0: {"reward": additional_high_scores[f"policy_0_{env_name}"]}},
                 primary_policy_id=policy_0_run1.id,
+                env_label="test_env",
                 stats_epoch=epoch_0_run1.id,
                 sim_name=f"combat/{env_name}",
                 replay_url=f"https://example.com/replay/boost/{env_name}",
@@ -747,6 +751,7 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy_0_run1.id},
             agent_metrics={0: {"reward": additional_high_scores["policy_0_team1"]}},
             primary_policy_id=policy_0_run1.id,
+            env_label="test_env",
             stats_epoch=epoch_0_run1.id,
             sim_name="cooperation/team1",
             replay_url="https://example.com/replay/boost/team1",
@@ -796,6 +801,7 @@ class TestPolicyScorecardRoutes:
             primary_policy_id=policy_0_run1.id,
             stats_epoch=epoch_0_run1.id,
             sim_name="navigation/maze1",
+            env_label="test_env",
             replay_url="https://example.com/replay/multi_agent",
         )
 
@@ -1041,6 +1047,7 @@ class TestPolicyScorecardRoutes:
                 primary_policy_id=policy1.id,
                 stats_epoch=epoch1.id,
                 sim_name="dedup_suite/env1",
+                env_label="test_env",
                 replay_url=f"https://example.com/replay/p1_env1_{score}",
             )
 
@@ -1052,6 +1059,7 @@ class TestPolicyScorecardRoutes:
                 primary_policy_id=policy1.id,
                 stats_epoch=epoch1.id,
                 sim_name="dedup_suite/env2",
+                env_label="test_env",
                 replay_url=f"https://example.com/replay/p1_env2_{score}",
             )
 
@@ -1063,6 +1071,7 @@ class TestPolicyScorecardRoutes:
                 primary_policy_id=policy2.id,
                 stats_epoch=epoch2.id,
                 sim_name="dedup_suite/env1",
+                env_label="test_env",
                 replay_url=f"https://example.com/replay/p2_env1_{score}",
             )
 
@@ -1074,6 +1083,7 @@ class TestPolicyScorecardRoutes:
                 primary_policy_id=policy2.id,
                 stats_epoch=epoch2.id,
                 sim_name="dedup_suite/env2",
+                env_label="test_env",
                 replay_url=f"https://example.com/replay/p2_env2_{score}",
             )
 
@@ -1323,6 +1333,7 @@ class TestPolicyScorecardRoutes:
             primary_policy_id=policy_2.id,
             stats_epoch=epoch_2.id,
             sim_name="tie_suite/env1",
+            env_label="test_env",
             replay_url="https://example.com/replay/boost",
         )
 
@@ -1483,6 +1494,7 @@ class TestPolicyScorecardRoutes:
                         agent_policies={0: policy.id},
                         agent_metrics={0: {"reward": metrics[metric_key]}},
                         primary_policy_id=policy.id,
+                        env_label="test_env",
                         stats_epoch=epoch.id,
                         sim_name=f"selection_suite/{eval_name}",
                         replay_url=f"https://example.com/replay/{policy.id}/{eval_name}",
@@ -1541,6 +1553,7 @@ class TestPolicyScorecardRoutes:
                 agent_policies={0: all_policies[1].id},
                 agent_metrics={0: {"reward": additional_metrics[metric_key]}},
                 primary_policy_id=all_policies[1].id,
+                env_label="test_env",
                 stats_epoch=all_epochs[1].id,
                 sim_name=f"selection_suite/{eval_name}",
                 replay_url=f"https://example.com/replay/{all_policies[1].id}/{eval_name}_bonus",
@@ -1920,6 +1933,7 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 100.0}},
             primary_policy_id=policy.id,
+            env_label="test_env",
             stats_epoch=epoch.id,
             sim_name="multiagent_edge/test_env",
             replay_url="https://example.com/replay/single",
@@ -1930,6 +1944,7 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id, 1: policy.id},
             agent_metrics={0: {"reward": 20.0}, 1: {"reward": 80.0}},  # avg per agent: 50.0
             primary_policy_id=policy.id,
+            env_label="test_env",
             stats_epoch=epoch.id,
             sim_name="multiagent_edge/test_env",
             replay_url="https://example.com/replay/two_agents",
@@ -1942,6 +1957,7 @@ class TestPolicyScorecardRoutes:
             agent_policies={i: policy.id for i in range(10)},
             agent_metrics=many_agent_metrics,
             primary_policy_id=policy.id,
+            env_label="test_env",
             stats_epoch=epoch.id,
             sim_name="multiagent_edge/test_env",
             replay_url="https://example.com/replay/many_agents",
@@ -1954,6 +1970,7 @@ class TestPolicyScorecardRoutes:
             primary_policy_id=policy.id,
             stats_epoch=epoch.id,
             sim_name="multiagent_edge/test_env",
+            env_label="test_env",
             replay_url="https://example.com/replay/zero_rewards",
         )
 
@@ -1997,6 +2014,7 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 999999.999}},
             primary_policy_id=policy.id,
+            env_label="test_env",
             stats_epoch=epoch.id,
             sim_name="extreme_suite/large_values",
             replay_url="https://example.com/replay/large",
@@ -2007,6 +2025,7 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 0.000001}},
             primary_policy_id=policy.id,
+            env_label="test_env",
             stats_epoch=epoch.id,
             sim_name="extreme_suite/small_values",
             replay_url="https://example.com/replay/small",
@@ -2017,6 +2036,7 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": -100.5}},
             primary_policy_id=policy.id,
+            env_label="test_env",
             stats_epoch=epoch.id,
             sim_name="extreme_suite/negative_values",
             replay_url="https://example.com/replay/negative",
@@ -2027,6 +2047,7 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 123.456789012345}},
             primary_policy_id=policy.id,
+            env_label="test_env",
             stats_epoch=epoch.id,
             sim_name="extreme_suite/precision_values",
             replay_url="https://example.com/replay/precision",

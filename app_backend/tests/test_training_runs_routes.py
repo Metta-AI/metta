@@ -185,6 +185,7 @@ class TestTrainingRunsRoutes:
                 primary_policy_id=policy.id,
                 stats_epoch=epoch.id,
                 sim_name=eval_name,
+                env_label="test_env",
                 replay_url=f"https://replay.example.com/{policy_name}/{eval_name.replace('/', '_')}",
                 attributes=attributes,
             )

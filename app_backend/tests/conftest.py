@@ -223,6 +223,7 @@ def record_episodes(stats_client: StatsClient):
                     primary_policy_id=policy.id,
                     stats_epoch=epoch_id,
                     sim_name=sim_name,
+                    env_label=env_name,
                     replay_url=f"https://example.com/replay/{policy.id}/{sim_name}",
                 )
 

@@ -85,6 +85,7 @@ class TestStatsServerSimple:
                 primary_policy_id=policy.id,
                 stats_epoch=epoch.id,
                 sim_name=f"episode_{i}",
+                env_label="test_env",
             )
             episode_ids.append(episode.id)
             assert episode.id is not None

@@ -398,6 +398,7 @@ def generate_test_data():
                         primary_policy_id=policy_id,
                         stats_epoch=epoch_id,
                         sim_name=f"{suite_name}/{task}",
+                        env_label=suite_name,
                         replay_url=f"https://replays.example.com/{policy_data['name']}/{suite_name}_{task}.mp4",
                         attributes={
                             "agent_groups": {str(aid): 1 if aid == 0 else 2 for aid in range(num_agents)},
