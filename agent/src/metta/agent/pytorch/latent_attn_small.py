@@ -140,15 +140,19 @@ class Policy(nn.Module):
             out_dim=128, _feat_dim=32, num_heads=4, num_layers=2, use_mask=False, use_cls_token=True
         )
 
+        # Define layer dimensions as named attributes to avoid magic numbers
+        self.actor_hidden_dim = 512  # Actor feature dimension
+        self.action_embed_dim = 16  # Action embedding dimension
+
         self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
         self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
-        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
-        self.action_embeddings = nn.Embedding(100, 16)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.actor_hidden_dim))
+        self.action_embeddings = nn.Embedding(100, self.action_embed_dim)
 
         # Create action heads using mixin pattern
-        from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
-
-        self.actor_heads = PyTorchAgentMixin.create_action_heads(self, env, input_size=512 + 16)
+        self.actor_heads = PyTorchAgentMixin.create_action_heads(
+            self, env, input_size=self.actor_hidden_dim + self.action_embed_dim
+        )
 
     def network_forward(self, x):
         x, mask, B_TT = self.obs_(x)
