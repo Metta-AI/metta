@@ -11,7 +11,7 @@ def make_systematic_exploration_memory_eval_env(env: EnvConfig) -> EnvConfig:
 
 
 def make_systematic_exploration_memory_ascii_env(
-    max_steps: int, name: str, border_width: int = 1
+    name: str, max_steps: int, border_width: int = 1
 ) -> EnvConfig:
     ascii_map = f"mettagrid/configs/maps/systematic_exploration_memory/{name}.map"
     env = make_navigation(num_agents=1)

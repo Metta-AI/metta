@@ -19,7 +19,7 @@ def make_nav_eval_env(env: EnvConfig) -> EnvConfig:
     return env
 
 
-def make_nav_ascii_env(max_steps: int, name: str, border_width: int = 1) -> EnvConfig:
+def make_nav_ascii_env(name: str, max_steps: int, border_width: int = 1) -> EnvConfig:
     ascii_map = f"mettagrid/configs/maps/navigation/{name}.map"
     env = make_navigation(num_agents=1)
     env.game.max_steps = max_steps
