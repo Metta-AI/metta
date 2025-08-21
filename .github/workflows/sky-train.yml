@@ -11,7 +11,7 @@ on:
       module_name:
         description: "Module to launch with devops/run.sh"
         required: true
-        default: "experiments.arena.train"
+        default: "experiments.recipes.arena.train"
         type: string
       commit_to_run:
         description: "The full commit hash to run the job against (required for manual runs)."
@@ -38,7 +38,7 @@ on:
     branches: [main]
 
 env:
-  DEFAULT_MODULE_NAME: "experiments.arena.train"
+  DEFAULT_MODULE_NAME: "experiments.recipes.arena.train"
   DEFAULT_TIMEOUT_HOURS: 0.333 # 20 minutes = 0.333 hours
   DEFAULT_NUM_GPUS: "4"
   DEFAULT_NUM_NODES: "2"
@@ -92,7 +92,7 @@ jobs:
           fi
 
           # Extract everything between "experiments." and ".train"
-          # e.g., "experiments.arena.train" -> "arena"
+          # e.g., "experiments.recipes.arena.train" -> "arena"
           # e.g., "experiments.a.b.c.train" -> "a.b.c"
           ENV_NAME=$(echo "$MODULE_NAME" | sed 's|^experiments\\.||' | sed 's|\\.train$||')
 
