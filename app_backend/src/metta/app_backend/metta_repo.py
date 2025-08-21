@@ -757,7 +757,7 @@ class MettaRepo:
         async with self.connect() as con:
             result = await con.execute(
                 """
-                UPDATE training_runs 
+                UPDATE training_runs
                 SET status = %s, finished_at = CASE WHEN %s != 'running' THEN CURRENT_TIMESTAMP ELSE finished_at END
                 WHERE id = %s
                 """,
@@ -813,8 +813,7 @@ class MettaRepo:
         agent_metrics: dict[int, dict[str, float]],
         primary_policy_id: uuid.UUID,
         stats_epoch: uuid.UUID | None,
-        eval_name: str | None,
-        simulation_suite: str | None,
+        sim_name: str | None,
         replay_url: str | None,
         attributes: dict[str, Any],
         eval_task_id: uuid.UUID | None = None,
@@ -823,8 +822,16 @@ class MettaRepo:
     ) -> uuid.UUID:
         async with self.connect() as con:
             # Parse eval_category and env_name from eval_name
-            eval_category = eval_name.split("/", 1)[0] if eval_name else None
-            env_name = eval_name.split("/", 1)[1] if eval_name and "/" in eval_name else None
+            eval_category = sim_name.split("/", 1)[0] if sim_name else None
+            env_name = sim_name.split("/", 1)[1] if sim_name and "/" in sim_name else None
+
+            def _get_simulation_suite(sim_name: str) -> str:
+                for delim in ["/", "."]:
+                    if delim in sim_name:
+                        return sim_name.split(delim)[0]
+                return sim_name
+
+            simulation_suite = _get_simulation_suite(sim_name) if sim_name else None
 
             # Insert into episodes table
             result = await con.execute(
@@ -846,7 +853,7 @@ class MettaRepo:
                 """,
                 (
                     replay_url,
-                    eval_name,
+                    sim_name,
                     simulation_suite,
                     eval_category,
                     env_name,

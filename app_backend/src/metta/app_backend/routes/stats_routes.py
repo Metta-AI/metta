@@ -60,21 +60,6 @@ class EpisodeCreate(BaseModel):
     tags: list[str] | None = None
     thumbnail_url: str | None = None
 
-    @property
-    def eval_name(self) -> str | None:
-        # this is just an alias
-        return self.sim_name
-
-    @property
-    def simulation_suite(self) -> str | None:
-        # TODO: rethink our definition of a sim suite
-        if not self.eval_name:
-            return None
-        for delim in ["/", "."]:
-            if delim in self.eval_name:
-                return self.eval_name.split(delim)[0]
-        return None
-
 
 class EpisodeResponse(BaseModel):
     id: uuid.UUID
@@ -193,8 +178,7 @@ def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
                 agent_metrics=episode.agent_metrics,
                 primary_policy_id=episode.primary_policy_id,
                 stats_epoch=episode.stats_epoch,
-                eval_name=episode.eval_name,
-                simulation_suite=episode.simulation_suite,
+                sim_name=episode.sim_name,
                 replay_url=episode.replay_url,
                 attributes=episode.attributes,
                 eval_task_id=episode.eval_task_id,
