@@ -85,7 +85,7 @@ def _update_training_status_on_failure(stats_client: StatsClient | None, stats_r
             logger.warning(f"Failed to update training run status to failed: {e}", exc_info=True)
 
 
-# TODO: dehydrate to just take in an agent and curriculum 
+# TODO: dehydrate to just take in an agent and curriculum
 def train(
     run_dir: str,
     run: str,

@@ -20,11 +20,10 @@ from typing import Any, Dict
 import numpy as np
 import torch
 from einops import rearrange
-from tensordict import TensorDict
-from metta.agent.utils import obs_to_td
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
@@ -278,7 +277,7 @@ class Simulation:
             policy = self._policy_pr.policy
             policy(td)
             policy_actions = td["actions"]
-            
+
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
                 npc_obs = self._obs[self._npc_idxs]
