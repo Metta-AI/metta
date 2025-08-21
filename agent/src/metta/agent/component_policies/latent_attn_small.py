@@ -4,7 +4,7 @@ from omegaconf import DictConfig
 
 from metta.agent.component_policy import ComponentPolicy
 from metta.agent.lib.action import ActionEmbedding
-from metta.agent.lib.actor import MettaActorSingleHead
+from metta.agent.lib.actor import MettaActorKeySingleHead, MettaActorQuerySingleHead
 from metta.agent.lib.lstm import LSTM
 from metta.agent.lib.nn_layer_library import Linear
 from metta.agent.lib.obs_enc import ObsLatentAttn, ObsSelfAttn
@@ -88,8 +88,12 @@ class LatentAttnSmall(ComponentPolicy):
                 nn_params=DictConfig({"num_embeddings": 100, "embedding_dim": 16}),
                 sources=None,
             ),
-            "_action_": MettaActorSingleHead(
+            "actor_query": MettaActorQuerySingleHead(
+                name="actor_query",
+                sources=[{"name": "actor_1"}],
+            ),
+            "_action_": MettaActorKeySingleHead(
                 name="_action_",
-                sources=[{"name": "actor_1"}, {"name": "_action_embeds_"}],
+                sources=[{"name": "actor_query"}, {"name": "_action_embeds_"}],
             ),
         }

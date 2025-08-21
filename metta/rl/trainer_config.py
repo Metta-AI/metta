@@ -158,8 +158,6 @@ class TrainerConfig(Config):
     scale_batches_by_world_size: bool = False
 
     # Performance configuration
-    # CPU offload disabled: Keep tensors on GPU for speed
-    cpu_offload: bool = False
     # Torch compile disabled by default for stability
     compile: bool = False
     # Reduce-overhead mode: Best for training loops when compile is enabled
