@@ -20,13 +20,21 @@ logger = logging.getLogger(__name__)
 class PolicyRecord:
     """A record containing a policy and its metadata."""
 
-    def __init__(self, policy_store: "PolicyStore", run_name: str, uri: str | None, metadata: PolicyMetadata):
+    def __init__(
+        self,
+        policy_store: "PolicyStore",
+        run_name: str,
+        uri: str | None,
+        metadata: PolicyMetadata | dict,
+        policy: PolicyAgent | None = None,
+    ):
         self._policy_store = policy_store
         self.run_name = run_name  # Human-readable identifier (e.g., from wandb). Can include version
         self.uri: str | None = uri
+        
         # Use the setter to ensure proper type
         self.metadata = metadata
-        self._cached_policy: "PolicyAgent | None" = None
+        self._cached_policy: PolicyAgent | None = policy
 
     def extract_wandb_run_info(self) -> tuple[str, str, str, str | None]:
         if self.uri is None or not self.uri.startswith("wandb://"):
@@ -80,7 +88,7 @@ class PolicyRecord:
         return self._metadata
 
     @metadata.setter
-    def metadata(self, value) -> None:
+    def metadata(self, value: PolicyMetadata | dict) -> None:
         """Set metadata, ensuring it's a PolicyMetadata instance."""
         if isinstance(value, PolicyMetadata):
             self._metadata = value

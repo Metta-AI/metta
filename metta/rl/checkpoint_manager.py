@@ -104,7 +104,7 @@ class CheckpointManager:
         policy_to_save: MettaAgent = policy.module if isinstance(policy, DistributedMettaAgent) else policy
 
         # Build metadata
-        name = self.policy_store.make_model_name(epoch)
+        name = self.policy_store.make_model_name(epoch, self.checkpoint_cfg.model_suffix())
 
         # Base metadata without evaluation scores
         metadata = {
@@ -160,7 +160,7 @@ class CheckpointManager:
         policy_record.metadata = metadata
         policy_record.policy = policy_to_save
 
-        saved_policy_record = self.policy_store.save(policy_record)
+        saved_policy_record = self.policy_store.save(policy_record, self.checkpoint_cfg.checkpoint_file_type)
         logger.info(f"Successfully saved policy at epoch {epoch}")
 
         return saved_policy_record
@@ -187,7 +187,7 @@ class CheckpointManager:
         """
 
         # Check if policy already exists at default path - all ranks check this
-        default_model_name = self.policy_store.make_model_name(0)
+        default_model_name = self.policy_store.make_model_name(0, self.checkpoint_cfg.model_suffix())
         default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, default_model_name)
 
         # First priority: checkpoint
@@ -221,17 +221,17 @@ class CheckpointManager:
         else:
             # No existing policy - all ranks create new one with same structure
             logger.info(f"Rank {self.rank}: No existing policy found, creating new one")
-            new_policy_record = self.policy_store.create_empty_policy_record(
+            checkpoint_policy_record = self.policy_store.create_empty_policy_record(
                 checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
             )
-            new_policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+            checkpoint_policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
 
             # Only master saves the new policy to disk
             if self.is_master:
-                policy_record = self.policy_store.save(new_policy_record)
+                policy_record = self.policy_store.save(checkpoint_policy_record)
                 logger.info(f"Master saved new policy to {policy_record.uri}")
             else:
-                policy_record = new_policy_record
+                policy_record = checkpoint_policy_record
                 logger.info(f"Rank {self.rank}: Created policy structure for DDP sync")
 
         # Synchronize policy metadata from master using NCCL broadcast of objects.

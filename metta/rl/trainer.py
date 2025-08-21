@@ -33,6 +33,7 @@ from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
+from metta.rl.policy_initializer import PolicyInitializer
 from metta.rl.policy_management import (
     initialize_policy_for_environment,
     wrap_agent_distributed,
@@ -137,6 +138,15 @@ def train(
     vecenv.async_reset(system_cfg.seed + torch_dist_cfg.rank)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
+    # Load or initialize policy via TrainerInitializer
+    initializer = PolicyInitializer(
+        agent_cfg=agent_cfg,
+        system_cfg=system_cfg,
+        metta_grid_env=metta_grid_env,
+        is_master=torch_dist_cfg.is_master,
+        device=device,
+    )
+    policy_store.agent_factory = initializer.make_policy
 
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
