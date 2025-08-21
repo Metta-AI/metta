@@ -13,7 +13,7 @@ from metta.agent import policy_metadata_yaml_helper
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent, PolicyAgent
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
+from metta.agent.policy_store import EmptyPolicyInitializer, PolicyStore
 from metta.agent.util.distribution_utils import get_from_master
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
@@ -143,18 +143,22 @@ def train(
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
-    policy_store.empty_agent_factory = (
-        lambda policy_record, base_path, checkpoint_name: load_from_safetensors_checkpoint(
-            checkpoint_name=checkpoint_name,
-            base_path=base_path,
-            metta_grid_env=metta_grid_env,
-            system_cfg=system_cfg,
-            agent_cfg=agent_cfg,
-            device=device,
-            torch_dist_cfg=torch_dist_cfg,
-            policy_record=policy_record,
-        )
-    )
+    class TrainerEmptyPolicyInitializer(EmptyPolicyInitializer):
+        def initialize_empty_policy(
+            self, policy_record: PolicyRecord, base_path: str, checkpoint_name: str
+        ) -> PolicyRecord:
+            return load_from_safetensors_checkpoint(
+                checkpoint_name=checkpoint_name,
+                base_path=base_path,
+                metta_grid_env=metta_grid_env,
+                system_cfg=system_cfg,
+                agent_cfg=agent_cfg,
+                device=device,
+                torch_dist_cfg=torch_dist_cfg,
+                policy_record=policy_record,
+            )
+
+    policy_store.initialize_empty_policy = TrainerEmptyPolicyInitializer()
 
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary

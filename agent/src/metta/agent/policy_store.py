@@ -14,6 +14,7 @@ import logging
 import os
 import random
 import sys
+from abc import ABC, abstractmethod
 from typing import Any, Literal
 from urllib.parse import urlparse
 
@@ -47,6 +48,17 @@ class PolicyMissingError(ValueError):
     pass
 
 
+class EmptyPolicyInitializer(ABC):
+    """Abstract class for initializing empty policies."""
+
+    @abstractmethod
+    def initialize_empty_policy(
+        self, policy_record: "PolicyRecord", base_path: str, checkpoint_name: str
+    ) -> "PolicyRecord":
+        """Initialize an empty policy with the given parameters."""
+        pass
+
+
 class PolicyStore:
     def __init__(
         self,
@@ -66,7 +78,7 @@ class PolicyStore:
         self._wandb_run: WandbRun | None = wandb_run
         self._cached_prs = PolicyCache(max_size=policy_cache_size)
         self._made_codebase_backwards_compatible = False
-        self.empty_agent_factory = None
+        self.initialize_empty_policy: EmptyPolicyInitializer | None = None
 
     def policy_record(
         self,
@@ -373,7 +385,6 @@ class PolicyStore:
 
             return list([self._load_from_file(path, metadata_only=True) for path in paths])
 
-
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a PolicyRecord from a file, automatically detecting format based on extension."""
         if path.endswith(".pt"):
@@ -530,7 +541,9 @@ class PolicyStore:
                 return cached_pr
 
         pr = self.create_empty_policy_record(self.checkpoint_name(path), self.base_path(path))
-        pr = self.empty_agent_factory(pr, self.base_path(path), self.checkpoint_name(path))
+        if self.initialize_empty_policy is None:
+            raise ValueError("initialize_empty_policy must be set to load from safetensors format")
+        pr = self.initialize_empty_policy.initialize_empty_policy(pr, self.base_path(path), self.checkpoint_name(path))
         self._cached_prs.put(path, pr)
         return pr
 
