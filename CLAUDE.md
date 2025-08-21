@@ -165,9 +165,9 @@ metta install core                   # Reinstall core dependencies only
 
 #### Training and Evaluation Pipeline
 
-1. **Training**: `tools/train.py` - Main training script using Hydra configuration
+1. **Training**: `tools/run.py` - Main training script using recipe configurations
    ```bash
-   uv run ./tools/train.py run=my_experiment
+   uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped
    ```
 
 2. **Simulation/Evaluation**: `tools/sim.py` - Run evaluation suites on trained policies
@@ -242,39 +242,30 @@ The project uses OmegaConf for configuration, with config files organized in `co
 - `user/`: User-specific configurations
 - `wandb/`: Weights & Biases settings
 
-#### Configuration Override Examples
+#### Running Training and Tools
+
+All tools are now run through `./tools/run.py` with recipe functions:
 
 ```bash
-# Override specific parameters
-uv run ./tools/train.py trainer.num_workers=4 trainer.total_timesteps=100000
+# Training with arena recipe
+uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.train
 
-# Use different agent architecture
-uv run ./tools/train.py agent=latent_attn_tiny
+# Play/test a trained policy
+uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.play --policy_uri file://./checkpoints/policy.pt
 
-# Disable wandb
-uv run ./tools/train.py wandb=off
+# Run evaluation
+uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.evaluate --policy_uri file://./checkpoints/policy.pt
 
-# Configure movement systems (8-way example)
-# Training: use ++trainer.env_overrides for environment config
-uv run ./tools/train.py run=8way_test \
-  ++trainer.env_overrides.game.actions.move.enabled=false \
-  ++trainer.env_overrides.game.actions.rotate.enabled=false \
-  ++trainer.env_overrides.game.actions.move_8way.enabled=true
-
-# Evaluation: use +replay_job.sim.env_overrides (must match training)
-uv run ./tools/play.py run=play_8way \
-  policy_uri=file://./train_dir/8way_test/checkpoints \
-  +replay_job.sim.env_overrides.game.actions.move.enabled=false \
-  +replay_job.sim.env_overrides.game.actions.rotate.enabled=false \
-  +replay_job.sim.env_overrides.game.actions.move_8way.enabled=true
+# View replays
+uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.replay
 ```
 
-#### Hydra Configuration Patterns
+#### Configuration System
 
-- Use `+` prefix to add new config groups: `+user=your-custom-config-name`
-- Use `++` prefix to force override: `++trainer.device=cpu`
-- Config composition order matters - later overrides take precedence
-- **Important**: Use `env_overrides` path for environment configuration, not direct `mettagrid` overrides
+The project now uses Pydantic-based configuration instead of Hydra/YAML. Configurations are built programmatically in recipe files:
+- Recipes define training setups, environments, and evaluation suites
+- Each recipe function returns a Tool configuration object
+- Override parameters can be passed via command line arguments to the recipe functions
 
 ### Development Workflows
 
