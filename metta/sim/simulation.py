@@ -274,7 +274,7 @@ class Simulation:
         # ---------------- forward passes ------------------------- #
         with torch.no_grad():
             # Candidate-policy agents
-            my_obs = self._obs[self._policy_idxs]
+            my_obs = self._obs[self._policy_idxs.cpu()]
             td = obs_to_td(my_obs, self._device)  # One-liner conversion
             policy = self._policy_pr.policy
             policy(td)
