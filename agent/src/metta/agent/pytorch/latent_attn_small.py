@@ -21,8 +21,8 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
         env,
         policy=None,
         cnn_channels=128,
-        input_size=128,  # Same as tiny per original YAML
-        hidden_size=128,  # Same as tiny per original YAML
+        input_size=128,
+        hidden_size=128,
         num_layers=2,
         **kwargs,
     ):
@@ -104,7 +104,7 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
 
 
 class Policy(nn.Module):
-    def __init__(self, env, input_size=128, hidden_size=128):  # Same as tiny per original YAML
+    def __init__(self, env, input_size=128, hidden_size=128):  
         super().__init__()
         self.hidden_size = hidden_size
         self.input_size = input_size
@@ -128,7 +128,7 @@ class Policy(nn.Module):
         )
 
         self.obs_latent_query_attn = ObsLatentAttn(
-            out_dim=32,  # Per original YAML
+            out_dim=32,
             _feat_dim=41,
             use_mask=True,
             num_query_tokens=10,
@@ -137,7 +137,7 @@ class Policy(nn.Module):
             num_layers=1,
         )
         self.obs_latent_self_attn = ObsSelfAttn(
-            out_dim=128,  # Per original YAML
+            out_dim=128,
             _feat_dim=32,
             num_heads=4,
             num_layers=2,
