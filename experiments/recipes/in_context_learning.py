@@ -104,3 +104,14 @@ class InContextResourceChain:
             self.game_objects[obj].cooldown = cooldown
 
         return self.game_objects, self.map_builder_objects
+
+
+# class InContextTaskGenerator(SingleTaskGenerator):
+#     def __init__(self, maximum_chain_length: int = 5, maximum_num_sinks: int = 2):
+#         self.
+
+#     def generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
+
+#         return InContextResourceChain(
+#             resource_chain=["ore_red", "ore_blue"], num_sinks=0
+#         ).make_env()
