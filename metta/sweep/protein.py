@@ -307,26 +307,27 @@ class ParetoGenetic:
 def create_gp(x_dim, scale_length=1.0, device="cpu"):
     device = torch.device(device)
 
-    # Set default device for all new tensors
-    if device.type == "cuda":
-        torch.set_default_device(device)
-
     X = torch.zeros((1, x_dim), device=device)
     y = torch.zeros((1,), device=device)
+
+    # Create kernels
     matern_kernel = gp.kernels.Matern32(input_dim=x_dim, lengthscale=scale_length * torch.ones(x_dim, device=device))
     linear_kernel = gp.kernels.Polynomial(input_dim=x_dim, degree=1)
+
+    # Manually initialize linear kernel parameters on the correct device
+    with torch.no_grad():
+        linear_kernel.variance = torch.nn.Parameter(torch.ones(1, device=device))
+        linear_kernel.bias = torch.nn.Parameter(torch.ones(1, device=device))
+
     kernel = gp.kernels.Sum(linear_kernel, matern_kernel)
-    # Move kernel to device before creating model
-    kernel = kernel.to(device)
+
+    # Create model
     model = gp.models.GPRegression(X, y, kernel=kernel, jitter=1.0e-3)  # Increased jitter for stability
     model = model.to(device)
+
     # Keep noise as a positive tensor (simpler & numerically stable)
     model.noise = torch.tensor(1e-2, device=device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
-
-    # Reset default device
-    if device.type == "cuda":
-        torch.set_default_device("cpu")
 
     return model, optimizer
 
