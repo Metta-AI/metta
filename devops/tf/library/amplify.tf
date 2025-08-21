@@ -55,13 +55,12 @@ applications:
         build:
           commands: ['pnpm run build']
       artifacts:
-        baseDirectory: library/.next
+        baseDirectory: .next
         files:
           - '**/*'
       cache:
         paths:
           - 'library/.next/cache/**/*'
-          - 'node_modules/**/*'
           - 'library/node_modules/**/*'
   EOT
 }
