@@ -2,8 +2,8 @@ name: "Launch SkyPilot Job"
 description: "Sets up and launches a SkyPilot job with necessary configurations."
 
 inputs:
-  trainer_env:
-    description: "Training environment configuration (e.g., env/mettagrid/arena/advanced)"
+  module_name:
+    description: "Module to launch with devops/run.sh (e.g., experiments.recipes.arena.train)"
     required: true
   timeout_hours:
     description: "Job timeout in hours"
@@ -19,6 +19,10 @@ inputs:
     description: "Number of Nodes to request. If empty, uses SkyPilot task default."
     required: false
     default: ""
+  run_ci_tests:
+    description: "Runs NCCL and job restart tests"
+    required: false
+    default: "false"
   wandb_api_key:
     description: "Weights & Biases API Key"
     required: true
@@ -84,9 +88,7 @@ runs:
 
         chmod +x ./devops/skypilot/launch.py
 
-        LAUNCH_ARGS=(
-          "--max-runtime-hours=${{ inputs.timeout_hours }}"
-        )
+        LAUNCH_ARGS=("${{ inputs.module_name }}")
 
         if [ -n "${{ inputs.num_gpus }}" ]; then
           LAUNCH_ARGS+=( "--gpus=${{ inputs.num_gpus }}" )
@@ -104,11 +106,14 @@ runs:
           LAUNCH_ARGS+=( "--discord-webhook-url=${{ inputs.discord_webhook_url }}" )
         fi
 
+        if [[ "${{ inputs.run_ci_tests }}" == "true" ]]; then
+          LAUNCH_ARGS+=( "--run-ci-tests" )
+        fi
+
         LAUNCH_ARGS+=(
+          "--max-runtime-hours=${{ inputs.timeout_hours }}"
           "--git-ref=${{ inputs.commit_sha }}"
-          "train"
-          "run=${{ inputs.run_name }}"
-          "trainer.curriculum=${{ inputs.trainer_env }}"
+          "--run=${{ inputs.run_name }}"
         )
 
         # Capture the output

@@ -1,4 +1,3 @@
-# mettagrid/tests/test_pufferlib_integration.py
 """
 Tests for PufferLib integration with MettaGrid.
 

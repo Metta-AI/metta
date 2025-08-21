@@ -5,6 +5,7 @@ from pathlib import Path
 
 import torch
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
@@ -151,6 +152,7 @@ class CheckpointManager:
             logger.warning(f"Saved policy record did not have a uri: {policy_record}")
             return policy_record, False
 
+<<<<<<< HEAD
         # Create checkpoint
         checkpoint = TrainerCheckpoint(
             agent_step=agent_step,
@@ -160,6 +162,18 @@ class CheckpointManager:
             stopwatch_state=timer.save_state(),
             extra_args=remove_none_values({"teacher_pr_uri": kickstarter and kickstarter.teacher_uri}),
         )
+=======
+    def load_or_create_policy(
+        self,
+        agent_cfg: AgentConfig,
+        system_cfg: SystemConfig,
+        trainer_cfg: TrainerConfig,
+        checkpoint: TrainerCheckpoint | None,
+        metta_grid_env: MettaGridEnv,
+    ) -> PolicyRecord:
+        """
+        Load or initialize policy with distributed coordination.
+>>>>>>> refs/remotes/origin/main
 
         # Save checkpoint
         checkpoint.save(run_dir)

@@ -2,15 +2,19 @@
 
 import logging
 import os
-from typing import Tuple
 
 import torch
 
+<<<<<<< HEAD
 from metta.core.distributed_config import DistributedConfig
+=======
+from metta.common.config import Config
+>>>>>>> refs/remotes/origin/main
 
 logger = logging.getLogger(__name__)
 
 
+<<<<<<< HEAD
 def setup_distributed_vars() -> DistributedConfig:
     """Set up distributed training variables.
 
@@ -31,16 +35,30 @@ def setup_distributed_vars() -> DistributedConfig:
 
 def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.device, DistributedConfig]:
     """Set up device and initialize distributed training if needed.
+=======
+class TorchDistributedConfig(Config):
+    device: str
+    is_master: bool
+    world_size: int
+    rank: int
+    local_rank: int
+    distributed: bool
 
-    This function handles:
-    - Device selection based on LOCAL_RANK environment variable
-    - Distributed process group initialization with appropriate backend
-    - Fallback to CPU if CUDA requested but not available
-    - Returns distributed training variables (is_master, world_size, rank)
 
-    Args:
-        base_device: Base device type ("cuda" or "cpu")
+def setup_torch_distributed(device: str) -> TorchDistributedConfig:
+    assert not torch.distributed.is_initialized()
+>>>>>>> refs/remotes/origin/main
 
+    master = True
+    world_size = 1
+    rank = 0
+    local_rank = 0
+    distributed = False
+
+    if "LOCAL_RANK" in os.environ and device.startswith("cuda"):
+        torch.distributed.init_process_group(backend="nccl")
+
+<<<<<<< HEAD
     Returns:
         Tuple of (device, distributed_config)
     """
@@ -79,6 +97,24 @@ def setup_device_and_distributed(base_device: str = "cuda") -> Tuple[torch.devic
     distributed_config = setup_distributed_vars()
 
     return device, distributed_config
+=======
+        torch.cuda.set_device(device)
+        distributed = True
+        local_rank = torch.distributed.get_rank()
+        world_size = torch.distributed.get_world_size()
+        rank = torch.distributed.get_rank()
+        master = rank == 0
+        logger.info(f"Initialized NCCL distributed training on {device}")
+
+    return TorchDistributedConfig(
+        device=device,
+        is_master=master,
+        world_size=world_size,
+        rank=rank,
+        local_rank=local_rank,
+        distributed=distributed,
+    )
+>>>>>>> refs/remotes/origin/main
 
 
 def cleanup_distributed() -> None:

@@ -85,12 +85,12 @@ For post-training evaluation to compare different policies:
 1. Add your policy to the existing navigation evals DB:
 
 ```bash
-./tools/sim.py \
-    sim=navigation \
-    run=navigation101 \
-    policy_uri=wandb://run/YOUR_POLICY_URI \
-    sim_job.stats_db_uri=wandb://stats/navigation_db \
-    device=cpu
+./tools/run.py \
+    experiments.recipes.navigation.eval \
+    --overrides \
+    policy_uris=wandb://run/YOUR_POLICY_URI \
+    stats_db_uri=wandb://stats/navigation_db \
+    system.device=cpu
 ```
 
 2. View the results in a heatmap along with other policies in the database:

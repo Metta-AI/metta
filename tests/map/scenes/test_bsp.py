@@ -10,8 +10,14 @@ from tests.map.scenes.utils import assert_connected, render_scene
 def test_basic():
     for _ in range(10):
         scene = render_scene(
-            BSP,
-            {"rooms": 7, "min_room_size": 3, "min_room_size_ratio": 0.5, "max_room_size_ratio": 0.9},
+            BSP.factory(
+                BSP.Params(
+                    rooms=7,
+                    min_room_size=3,
+                    min_room_size_ratio=0.5,
+                    max_room_size_ratio=0.9,
+                )
+            ),
             (20, 20),
         )
 
