@@ -76,6 +76,8 @@ class MettaGridEnv(MettaGridPufferBase):
         self._episode_id: str | None = None
         self._reset_at = datetime.datetime.now()
         self._is_training = is_training
+        self._seed = 1337
+        self._current_seed = self._seed
 
         # Initialize with base PufferLib functionality
         super().__init__(
@@ -127,7 +129,7 @@ class MettaGridEnv(MettaGridPufferBase):
         # Get initial observations for new trial
         if self._c_env_instance is None:
             raise RuntimeError("Core environment not initialized")
-        self._c_env_instance.reset()
+        self._c_env_instance.reset(1337)
 
     @override
     @with_instance_timer("reset")
@@ -143,6 +145,7 @@ class MettaGridEnv(MettaGridPufferBase):
         """
         self.timer.stop("thread_idle")
 
+        seed = 1337
         # Get new task from curriculum
         self._task = self._curriculum.get_task()
         task_cfg = self._task.env_cfg()

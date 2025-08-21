@@ -8,3 +8,12 @@ trainer:
   total_timesteps: 1000000
   checkpoint:
     checkpoint_file_type: safetensors
+  initial_rng_state_file: /Users/localmini/github/metta_real/train_dir/localmini.basic_easy_shaped.20250819_125706/checkpoints/model_0000.rng
+
+trainer:
+  env: /env/mettagrid/arena/advanced
+  total_timesteps: 1000000
+  checkpoint:
+    checkpoint_file_type: safetensors
+  initial_rng_state_file: /Users/localmini/github/metta_real/train_dir/localmini.basic_easy_shaped.20250819_125706/checkpoints/model_0000.rng
+

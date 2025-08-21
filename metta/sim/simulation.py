@@ -222,7 +222,7 @@ class Simulation:
         )
         logger.info("Stats dir: %s", self._stats_dir)
         # ---------------- reset ------------------------------- #
-        self._obs, _ = self._vecenv.reset()
+        self._obs, _ = self._vecenv.reset(1337)
         self._env_done_flags = [False] * self._num_envs
 
         self._t0 = time.time()

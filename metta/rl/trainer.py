@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 import os
 from collections import defaultdict
@@ -27,6 +29,7 @@ from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.advantage import compute_advantage
+from metta.rl.array_utils import save_3d_array_readable
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
@@ -40,6 +43,7 @@ from metta.rl.policy_management import (
     validate_policy_environment_match,
     wrap_agent_distributed,
 )
+from metta.rl.rng_state_config import load_and_restore_rng_state
 from metta.rl.rollout import get_observation, send_observation
 from metta.rl.stats import (
     StatsTracker,
@@ -61,11 +65,16 @@ from metta.rl.wandb import (
     setup_wandb_metrics,
 )
 from metta.sim.simulation_config import SimulationSuiteConfig
-from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
+from metta.utils.batch import (
+    calculate_batch_sizes,
+    calculate_prioritized_sampling_params,
+)
 from tools.utils import get_policy_store_from_cfg
 
 try:
-    from pufferlib import _C  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
+    from pufferlib import (
+        _C,  # noqa: F401 - Required for torch.ops.pufferlib  # type: ignore[reportUnusedImport]
+    )
 except ImportError:
     raise ImportError(
         "Failed to import C/CUDA advantage kernel. If you have non-default PyTorch, "
@@ -153,7 +162,12 @@ def get_policy_record(
         raise RuntimeError("Failed to create or load policy record")
 
     return initialize_policy_for_training(
-        policy_record, initializer, metta_grid_env, device, trainer_cfg, distributed_config
+        policy_record,
+        initializer,
+        metta_grid_env,
+        device,
+        trainer_cfg,
+        distributed_config,
     )
 
 
@@ -236,6 +250,16 @@ def train(
     # Set up distributed
     distributed_config = setup_distributed_vars()
 
+    # Load initial RNG state if specified
+    if trainer_cfg.initial_rng_state_file:  # and distributed_config.is_master:
+        try:
+            load_and_restore_rng_state(trainer_cfg.initial_rng_state_file)
+            logger.info(f"Loaded initial RNG state from {trainer_cfg.initial_rng_state_file}")
+        except FileNotFoundError:
+            logger.warning(f"Initial RNG state file not found: {trainer_cfg.initial_rng_state_file}")
+        except Exception as e:
+            logger.warning(f"Failed to load initial RNG state from {trainer_cfg.initial_rng_state_file}: {e}")
+
     # Create timer, Losses, profiler, curriculum
     timer = Stopwatch(logger)
     timer.start()
@@ -263,7 +287,7 @@ def train(
         is_training=True,
     )
 
-    vecenv.async_reset(system_cfg.seed + distributed_config.rank)
+    vecenv.async_reset(1337)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
@@ -312,6 +336,11 @@ def train(
         if checkpoint.stopwatch_state is not None:
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
+    # ?? do we need to know if the policy exists - what are the cases
+    # ?? a) file there (exists)
+    # ?? b) file not there and we are supposed to create it
+    # ?? c) file not there and we should throw an exception
+    # ?? currently code will not handle (c). when do we run into this?
     initial_policy_path, policy_exists = get_initial_policy_path(
         trainer_cfg=trainer_cfg,
         checkpoint=checkpoint,
@@ -368,6 +397,14 @@ def train(
             eps=trainer_cfg.optimizer.eps,
             weight_decay=trainer_cfg.optimizer.weight_decay,
         )
+        """
+        optimizer = torch.optim.SGD(
+            policy.parameters(),
+            lr=trainer_cfg.optimizer.learning_rate,
+            momentum=0.9,  # Common default, you might want to make this configurable
+            weight_decay=trainer_cfg.optimizer.weight_decay,
+        )
+        """
     elif optimizer_type == "muon":
         # ForeachMuon expects int for weight_decay
         optimizer = ForeachMuon(
@@ -429,6 +466,7 @@ def train(
     wandb_policy_name: str | None = None
 
     # Main training loop
+    i = 0
     while agent_step < trainer_cfg.total_timesteps:
         steps_before = agent_step
         record_heartbeat()
@@ -445,9 +483,13 @@ def train(
 
                 while not experience.ready_for_training:
                     # Get observation
-                    o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
+                    o, r, d, t, info, training_env_id, _, num_steps = get_observation(
+                        vecenv, device, timer, policy.policy.components
+                    )
                     total_steps += num_steps
-
+                    save_3d_array_readable(f"/Users/localmini/gridobs/observation_{i}.txt", o)
+                    i += 1
+                    o = torch.zeros_like(o)
                     td = buffer_step[training_env_id].clone()
                     td["env_obs"] = o
                     td["rewards"] = r
@@ -719,7 +761,10 @@ def train(
             if wandb_run and abort_requested(wandb_run, min_interval_sec=60):
                 logger.info("Abort tag detected. Stopping the run.")
                 trainer_cfg.total_timesteps = int(agent_step)
-                wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
+                wandb_run.config.update(
+                    {"trainer.total_timesteps": trainer_cfg.total_timesteps},
+                    allow_val_change=True,
+                )
                 break
 
     # All ranks wait until training is complete before closing vecenv

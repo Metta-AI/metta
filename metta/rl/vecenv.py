@@ -100,4 +100,7 @@ def make_vecenv(
         **kwargs,
     )
 
+    for e in enumerate(vecenv.envs):
+        e[1].reset(1337)
+
     return vecenv

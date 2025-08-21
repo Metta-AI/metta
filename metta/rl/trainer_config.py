@@ -201,6 +201,8 @@ class TrainerConfig(Config):
     curriculum: str | None = "/env/mettagrid/curriculum/simple"
     env_overrides: dict[str, Any] = Field(default_factory=dict)
     initial_policy: InitialPolicyConfig = Field(default_factory=InitialPolicyConfig)
+    # Initial RNG state file: Optional path to load initial random number generator state
+    initial_rng_state_file: str | None = Field(default=None, description="Path to initial RNG state file (.rng)")
 
     # Checkpoint configuration
     checkpoint: CheckpointConfig = Field(default_factory=CheckpointConfig)

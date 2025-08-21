@@ -1,0 +1,59 @@
+{
+  "context": {
+    "date": "2025-08-14T21:44:12+00:00",
+    "host_name": "pkrvmsl9tci6h6u",
+    "executable": "build-release/test_mettagrid_env_benchmark",
+    "num_cpus": 4,
+    "mhz_per_cpu": 3249,
+    "cpu_scaling_enabled": false,
+    "aslr_enabled": true,
+    "caches": [
+      {
+        "type": "Data",
+        "level": 1,
+        "size": 32768,
+        "num_sharing": 2
+      },
+      {
+        "type": "Instruction",
+        "level": 1,
+        "size": 32768,
+        "num_sharing": 2
+      },
+      {
+        "type": "Unified",
+        "level": 2,
+        "size": 524288,
+        "num_sharing": 2
+      },
+      {
+        "type": "Unified",
+        "level": 3,
+        "size": 33554432,
+        "num_sharing": 4
+      }
+    ],
+    "load_avg": [1.42773,0.89209,0.364746],
+    "library_version": "v1.9.4",
+    "library_build_type": "release",
+    "json_schema_version": 1
+  },
+  "benchmarks": [
+    {
+      "name": "MettaGridBenchmark/Step",
+      "family_index": 0,
+      "per_family_instance_index": 0,
+      "run_name": "MettaGridBenchmark/Step",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 61343,
+      "real_time": 1.1930426275206511e+04,
+      "cpu_time": 1.1930032407935703e+04,
+      "time_unit": "ns",
+      "agent_rate": 3.3528827611057047e+05,
+      "env_rate": 8.3822069027642618e+04
+    }
+  ]
+}

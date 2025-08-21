@@ -3,54 +3,68 @@
   // for more information on the VS Code debugger, visit https://go.microsoft.com/fwlink/?linkid=830387
   "configurations": [
     {
+      "name": "compare models",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "tests/rl/compare_models.py",
+      "console": "integratedTerminal",
+      "args": [
+        "/Users/localmini/github/metta/train_dir/localmini.basic_easy_shaped.20250819_110917/checkpoints/model_0150.genericmodel",
+        "/Users/localmini/github/metta/train_dir/localmini.basic_easy_shaped.20250819_114819/checkpoints/model_0150.genericmodel",
+      ],
+    },
+    {
+      "name": "compare models 2",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "tests/rl/compare_models.py",
+      "console": "integratedTerminal",
+      "args": [
+        "/Users/localmini/github/metta_real/train_dir/localmini.basic_easy_shaped.20250819_140549/checkpoints/model_0010.genericmodel",
+        "/Users/localmini/github/metta_real/train_dir/localmini.basic_easy_shaped.20250819_140744/checkpoints/model_0010.genericmodel",
+      ],
+    },
+    {
       "name": "Train Metta",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.train",
-      "args": [
-        "+user=${env:USER}"
-      ],
+      "args": ["+user=${env:USER}"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Sweep: Init",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.sweep_init",
-      "args": [
-        "+user=${env:USER}",
-        "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"
-      ],
+      "args": ["+user=${env:USER}", "dist_cfg_path=${data_dir}/${env:USER}/dist_cfg.yaml"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Sweep: Eval",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.sweep_eval",
-      "args": [
-        "+user=${env:USER}",
-        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
-      ],
+      "args": ["+user=${env:USER}", "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Sweep: Train",
@@ -60,115 +74,99 @@
       "args": [
         "+user=${env:USER}",
         "data_dir=./train_dir/sweep/${sweep_name}/runs",
-        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml"
+        "dist_cfg_path=./train_dir/${env:USER}/dist_cfg.yaml",
       ],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Evaluate",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.sim",
-      "args": [
-        "+user=${env:USER}",
-        "cmd=sim"
-      ],
+      "args": ["+user=${env:USER}", "cmd=sim"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Dashboard",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.dashboard",
-      "args": [
-        "+user=${env:USER}",
-      ],
+      "args": ["+user=${env:USER}"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Analyze",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.analyze",
-      "args": [
-        "+user=${env:USER}",
-        "cmd=analyze"
-      ],
+      "args": ["+user=${env:USER}", "cmd=analyze"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Generate Replay",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.replay",
-      "args": [
-        "+user=${env:USER}",
-      ],
+      "args": ["+user=${env:USER}"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Play Metta",
       "type": "debugpy",
       "request": "launch",
       "module": "tools.play",
-      "args": [
-        "+user=${env:USER}",
-      ],
+      "args": ["+user=${env:USER}"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "Test",
       "type": "debugpy",
       "request": "launch",
       "module": "pytest",
-      "args": [
-        "-v",
-        "-s",
-        "./tests"
-      ],
+      "args": ["-v", "-s", "./tests"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
+      "preLaunchTask": "${defaultBuildTask}",
     },
     {
       "name": "MettaGridTest",
@@ -179,10 +177,10 @@
       "cwd": "${workspaceFolder}/mettagrid",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
-        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}"
+        "UV_PROJECT_ENVIRONMENT": "${env:VIRTUAL_ENV}",
       },
       "python": "${workspaceFolder}/.venv/bin/python",
-      "preLaunchTask": "${defaultBuildTask}"
-    }
-  ]
+      "preLaunchTask": "${defaultBuildTask}",
+    },
+  ],
 }

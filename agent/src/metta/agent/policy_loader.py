@@ -25,7 +25,9 @@ from metta.agent import policy_metadata_yaml_helper
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
+from metta.rl.model_architecture_serializer import save_model_architecture
 from metta.rl.puffer_policy import load_pytorch_policy
+from metta.rl.rng_state_config import load_and_restore_rng_state, save_current_rng_state
 from metta.rl.trainer_config import CheckpointFileType
 
 logger = logging.getLogger("policy_loader")
@@ -242,6 +244,16 @@ class PolicyLoader:
         # New format - PolicyRecord object
         pr = checkpoint
 
+        # Try to load RNG state if available
+        rng_state_path = path.replace(".pt", ".rng")
+        try:
+            load_and_restore_rng_state(rng_state_path)
+            logger.info(f"Restored RNG state from {rng_state_path}")
+        except FileNotFoundError:
+            logger.debug(f"No RNG state file found at {rng_state_path}")
+        except Exception as e:
+            logger.warning(f"Failed to load RNG state from {rng_state_path}: {e}")
+
         if self._cached_prs:
             self._cached_prs.put(path, pr)
 
@@ -278,6 +290,16 @@ class PolicyLoader:
 
         pr = self.agent_factory(path)
         policy_metadata_yaml_helper.restore_agent(pr.policy, self.checkpoint_name(path), Path(self.base_path(path)))
+
+        # Try to load RNG state if available
+        rng_state_path = path.replace(".safetensors", ".rng")
+        try:
+            load_and_restore_rng_state(rng_state_path)
+            logger.info(f"Restored RNG state from {rng_state_path}")
+        except FileNotFoundError:
+            logger.debug(f"No RNG state file found at {rng_state_path}")
+        except Exception as e:
+            logger.warning(f"Failed to load RNG state from {rng_state_path}: {e}")
 
         if self._cached_prs:
             self._cached_prs.put(path, pr)
@@ -317,6 +339,15 @@ class PolicyLoader:
         # Save to a temporary file first to ensure atomic writes
         temp_path = path + ".tmp"
 
+        # Save RNG state
+        rng_state_path = path.replace(".pt", ".rng")
+        try:
+            save_current_rng_state(rng_state_path)
+            save_model_architecture(path.replace(".pt", ".genericmodel"), pr.policy)
+            logger.info(f"Saved RNG state to {rng_state_path}")
+        except Exception as e:
+            logger.warning(f"Failed to save RNG state to {rng_state_path}: {e}")
+
         # Temporarily remove the policy loader reference to avoid pickling issues
         pr._policy_loader = None  # type: ignore
         try:
@@ -332,6 +363,7 @@ class PolicyLoader:
                     os.remove(temp_path)
                 except OSError:
                     pass
+
         return path
 
     def save_to_safetensors_file(self, pr: PolicyRecord, path: str | None) -> str:
@@ -353,6 +385,17 @@ class PolicyLoader:
 
         # Save .safetensors file (just the model weights/state dict)
         safetensors_path = policy_metadata_yaml_helper.save_policy(pr, checkpoint_name, Path(checkpoint_dir))
+
+        # Save RNG state
+        rng_state_path = str(safetensors_path).replace(".safetensors", ".rng")
+        try:
+            save_current_rng_state(rng_state_path)
+            logger.info(f"Saved RNG state to {rng_state_path}")
+            save_model_architecture(pr.policy, path.replace(".safetensors", ".genericmodel"))
+
+        except Exception as e:
+            logger.warning(f"Failed to save RNG state to {rng_state_path}: {e}")
+
         return str(safetensors_path)
 
     # ?? this just returns the pr that is passed in. is that correct?

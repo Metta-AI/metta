@@ -34,6 +34,7 @@ def seed_everything(seed, torch_deterministic, rank: int = 0):
         rank_specific_seed = seed + rank
     else:
         rank_specific_seed = rank
+    rank_specific_seed = 1337
 
     random.seed(rank_specific_seed)
     np.random.seed(rank_specific_seed)

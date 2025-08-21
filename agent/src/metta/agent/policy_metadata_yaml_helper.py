@@ -160,7 +160,7 @@ def _extract_metadata_from_record(policy_record: PolicyRecord) -> Dict[str, Any]
 def _atomic_save_weights(sd: Dict, target_path: Path) -> Path:
     """Atomically save weights to prevent corruption"""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pt", dir=target_path.parent) as tmp:
-        # (recommended) normalize tensors before saving - should I do this?
+        # (recommended) normalize the format of tensor data before saving - should I do this?
         sd = {k: v.detach().cpu().contiguous() for k, v in sd.items() if isinstance(v, torch.Tensor)}
         save_file(sd, tmp.name)
         tmp.flush()

@@ -21,7 +21,7 @@ def calculate_batch_sizes(
     batch_size = (target_batch_size // num_workers) * num_workers
     num_envs = batch_size * async_factor
 
-    return target_batch_size, batch_size, num_envs
+    return target_batch_size, batch_size, 1  # num_envs
 
 
 def calculate_prioritized_sampling_params(

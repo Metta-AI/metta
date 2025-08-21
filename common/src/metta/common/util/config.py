@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, Optional, TypeVar, cast
 
 import hydra
@@ -43,6 +44,8 @@ class Config(BaseModel):
     def prepare_dict(self, raw) -> Dict[str, Any]:
         """Prepare a dictionary config from various input formats and validate keys."""
         data = OmegaConf.to_container(raw, resolve=True) if isinstance(raw, DictConfig) else dict(raw)
+        s = json.dumps(data, sort_keys=True, separators=(",", ":"))
+        print(s)
         # Ensure data is a proper dict with string keys
         if isinstance(data, dict):
             assert all(isinstance(k, str) for k in data.keys()), "All dictionary keys must be strings"

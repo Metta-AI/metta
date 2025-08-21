@@ -4,6 +4,7 @@ import torch
 from tensordict import TensorDict
 
 from metta.agent.lib.metta_layer import LayerBase
+from metta.rl.array_utils import save_3d_array_readable
 
 
 class ObsTokenToBoxShaper(LayerBase):
@@ -32,9 +33,26 @@ class ObsTokenToBoxShaper(LayerBase):
         self.out_height = obs_height
         self.num_layers = max(feature_normalizations.keys()) + 1
         self._out_tensor_shape = [self.num_layers, self.out_width, self.out_height]
+        self.i = 1
+
+    def sha256_tensor(self, x: torch.Tensor, include_meta: bool = True) -> str:
+        import hashlib
+
+        import numpy as np
+
+        t = x.detach().to("cpu").contiguous()
+        h = hashlib.sha256()
+        if include_meta:
+            # include dtype + shape so shape/dtype changes don't look identical
+            h.update(str(t.dtype).encode())
+            h.update(np.asarray(t.shape, dtype=np.int64).tobytes())
+        h.update(t.numpy().tobytes())
+        return h.hexdigest()
 
     def _forward(self, td: TensorDict):
         token_observations = td["env_obs"]
+        save_3d_array_readable(f"/Users/localmini/gridobs/token_observations_{self.i}.txt", token_observations)
+        self.i += 1
         B_TT = td.batch_size.numel()
 
         # coords_byte contains x and y coordinates in a single byte (first 4 bits are x, last 4 bits are y)

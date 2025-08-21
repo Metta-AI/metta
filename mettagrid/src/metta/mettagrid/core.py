@@ -7,9 +7,13 @@ without any training-specific features or framework dependencies.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
+import gymnasium
 import numpy as np
 from gymnasium import spaces
 
@@ -18,6 +22,98 @@ from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 
 logger = logging.getLogger("MettaGridCore")
+
+ReadableFmt = Literal["json", "yaml"]
+
+
+def _infer_fmt(path: Path, fmt: ReadableFmt | None) -> ReadableFmt:
+    if fmt in ("json", "yaml"):
+        return fmt
+    suf = path.suffix.lower()
+    if suf in {".yml", ".yaml"}:
+        return "yaml"
+    return "json"
+
+
+def save_3d_array_readable(
+    path: str | Path,
+    data: Any,
+    *,
+    fmt: ReadableFmt | None = None,
+    round_fp: int | None = None,
+) -> Path:
+    """Save a 3D array to a *human‑readable* text file (JSON or YAML).
+
+    - Preserves shape & dtype
+    - Uses nested lists for readability (depth -> rows -> cols)
+    - Optionally rounds floating‑point values for smaller/cleaner files
+
+    Parameters
+    ----------
+    path : str | Path
+        Output file path. If no extension is given, defaults to .json.
+    data : Any
+        Array-like object convertible to a NumPy array.
+    fmt : {"json", "yaml"} | None
+        Force output format. If None, inferred from the file extension.
+    round_fp : int | None
+        If provided, round floats to this many decimals before saving.
+
+    Returns
+    -------
+    Path
+        The resolved output path.
+    """
+    arr = np.asarray(data)
+    if arr.ndim != 3:
+        raise ValueError(f"Expected 3D array, got {arr.ndim}D")
+
+    p = Path(path)
+    chosen_fmt = _infer_fmt(p, fmt)
+    if p.suffix == "":
+        p = p.with_suffix(".json" if chosen_fmt == "json" else ".yaml")
+
+    # Convert to nested lists for readability
+    nested: Any = arr.tolist()
+
+    if round_fp is not None:
+        # Recursively round floats inside nested lists
+        def _round(v: Any) -> Any:
+            if isinstance(v, float):
+                return round(v, round_fp)
+            if isinstance(v, list):
+                return [_round(x) for x in v]
+            return v
+
+        nested = _round(nested)
+
+    payload = {
+        "shape": list(arr.shape),
+        "dtype": arr.dtype.name,
+        "data": nested,
+    }
+
+    if chosen_fmt == "json":
+        with p.open("w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False)
+    else:
+        try:
+            import yaml  # type: ignore
+        except Exception as e:  # pragma: no cover
+            raise RuntimeError(
+                "PyYAML is required for YAML output. Install with `pip install pyyaml` or use fmt='json'."
+            ) from e
+        with p.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(payload, f, sort_keys=False, allow_unicode=True)
+
+    return p.resolve()
+
+
+# --- Example ---
+# x = np.arange(2*3*4, dtype=np.float32).reshape(2, 3, 4)
+# save_3d_array_readable("array.yaml", x, fmt="yaml", round_fp=None)
+# x2 = load_3d_array_readable("array.yaml")
+# assert np.array_equal(x, x2)
 
 
 class MettaGridCore:
@@ -49,8 +145,7 @@ class MettaGridCore:
         self._level = level
         self._renderer = None
         self._map_labels: List[str] = level.labels
-        self._current_seed: int = 0
-
+        self._current_seed: int = 1337
         # Environment metadata
         self.labels: List[str] = []
         self._should_reset = False
@@ -95,6 +190,7 @@ class MettaGridCore:
             New MettaGridCpp instance
         """
         level = self._level
+        seed = 1337
 
         # Validate number of agents
         level_agents = np.count_nonzero(np.char.startswith(level.grid, "agent"))
@@ -117,6 +213,59 @@ class MettaGridCore:
         # Create C++ environment
         current_seed = seed if seed is not None else self._current_seed
         c_env = MettaGridCpp(c_cfg, level.grid.tolist(), current_seed)
+
+        def rollout_fingerprint_multidiscrete(env_ctor, seed=123, T=50, use_fixed_actions=True):
+            env = env_ctor(seed=seed)
+            obs, info = env.reset()
+
+            # infer N (#agents)
+            N = getattr(env, "num_agents", None)
+            if N is None:
+                sample = obs["grid_obs"] if isinstance(obs, dict) else obs
+                N = sample.shape[0]
+
+            assert isinstance(env.action_space, gymnasium.spaces.multi_discrete.MultiDiscrete)
+            nvec = np.asarray(env.action_space.nvec, dtype=np.int32)  # int32 for C++ binding
+            K = int(nvec.shape[0])
+
+            if use_fixed_actions:
+
+                def next_action(t):
+                    a = np.zeros((N, K), dtype=np.int32)
+                    return np.ascontiguousarray(a)
+            else:
+                rng = np.random.default_rng(0)
+
+                def next_action(t):
+                    a = rng.integers(low=0, high=nvec, size=(N, K), endpoint=False, dtype=np.int32)
+                    return np.ascontiguousarray(a)
+
+            # hash helper
+            def fp(x, i):
+                arr = x["grid_obs"] if isinstance(x, dict) else x
+                save_3d_array_readable(f"/Users/localmini/gridobs/grid_obs_{i}.txt", arr)
+                return hashlib.sha256(arr.tobytes()).hexdigest()[:16]
+
+            fps = [fp(obs, 0)]
+            i = 1
+            for t in range(T):
+                a = next_action(t)  # shape (N, K), int32, C-contig
+                obs, rew, done, trunc, info = env.step(a)
+                fps.append(fp(obs, i))
+                i += 1
+                if np.asarray(done).ndim > 0 and np.asarray(done).any():
+                    obs, info = env.reset()
+            return fps
+
+        #        f1 = rollout_fingerprint_multidiscrete(
+        #            lambda seed: MettaGridCpp(c_cfg, level.grid.tolist(), 1337), seed=1337, T=900, use_fixed_actions=True
+        #        )
+        #        f2 = rollout_fingerprint_multidiscrete(
+        #            lambda seed: MettaGridCpp(c_cfg, level.grid.tolist(), 1337), seed=1337, T=900, use_fixed_actions=True
+        #        )
+        #        print("trajectories identical:", f1 == f2)  #
+        #        if f1 != f2:
+        #            print("trajectories not identical:", f1, f2)
 
         # Initialize renderer if needed
         if (
