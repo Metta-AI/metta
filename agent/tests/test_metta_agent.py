@@ -94,10 +94,6 @@ def test_initialize_to_environment(create_metta_agent):
     # Call initialize_to_environment
     agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
 
-    # Check that features were stored
-    assert hasattr(agent, "active_features")
-    assert agent.active_features == features
-
     # Check feature mappings were created
     assert hasattr(agent, "feature_id_to_name")
     assert agent.feature_id_to_name[0] == "type_id"

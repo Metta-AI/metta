@@ -149,76 +149,80 @@ class MettaAgent(nn.Module):
         feature setup, action configuration, and all necessary mappings.
         """
         self.device = device
-        self.active_features = features
+        self.training = is_training
 
-        # Set up observation features
+        # === FEATURE SETUP ===
+        # Build feature mappings
         self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
         self.feature_normalizations = {
             props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
         }
 
-        # Store original feature mapping on first initialization
+        # Handle feature remapping for backward compatibility
         if not hasattr(self, "original_feature_mapping"):
+            # First initialization - store the mapping
             self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
             log_on_master(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
         else:
-            # Create remapping for subsequent initializations
-            self._create_feature_remapping(features)
+            # Re-initialization - create remapping inline
+            UNKNOWN_FEATURE_ID = 255
+            self.feature_id_remap = {}
+            unknown_features = []
 
-        # Set up actions
-        self.action_max_params = action_max_params
+            for name, props in features.items():
+                new_id = props["id"]
+                if name in self.original_feature_mapping:
+                    # Remap known features to their original IDs
+                    original_id = self.original_feature_mapping[name]
+                    if new_id != original_id:
+                        self.feature_id_remap[new_id] = original_id
+                elif not is_training:
+                    # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
+                    self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
+                    unknown_features.append(name)
+                else:
+                    # In training mode, learn new features
+                    self.original_feature_mapping[name] = new_id
+
+            if self.feature_id_remap:
+                logger.info(
+                    f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
+                )
+                # Apply the remapping
+                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
+
+        # === ACTION SETUP ===
         self.action_names = action_names
-        self.active_actions = list(zip(action_names, action_max_params, strict=False))
+        self.action_max_params = action_max_params
 
-        # Precompute cumulative sums for faster conversion, Multi-Discrete
+        # Compute action tensors for efficient indexing
         self.cum_action_max_params = torch.cumsum(
             torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
         )
-
-        # Build full action names for embeddings
-        full_action_names = [f"{name}_{i}" for name, max_param in self.active_actions for i in range(max_param + 1)]
-
-        # Activate embeddings on policy
-        self.policy.activate_action_embeddings(full_action_names, device)
-
-        # Create action index tensor
         self.action_index_tensor = torch.tensor(
             [[idx, j] for idx, max_param in enumerate(action_max_params) for j in range(max_param + 1)],
             device=device,
             dtype=torch.int32,
         )
 
-        log_on_master(f"Environment initialized with {len(features)} features and actions: {self.active_actions}")
+        # Generate full action names directly (no need to store active_actions)
+        full_action_names = [
+            f"{name}_{i}"
+            for name, max_param in zip(action_names, action_max_params, strict=False)
+            for i in range(max_param + 1)
+        ]
 
+        # === POLICY ACTIVATION ===
+        self.policy.activate_action_embeddings(full_action_names, device)
+
+        # Share tensors with policy (required for policy's forward pass)
         self.policy.action_index_tensor = self.action_index_tensor
         self.policy.cum_action_max_params = self.cum_action_max_params
 
-    def _create_feature_remapping(self, features: dict[str, dict]):
-        """Create a remapping dictionary to translate new feature IDs to original ones."""
-        UNKNOWN_FEATURE_ID = 255
-        self.feature_id_remap = {}
-        unknown_features = []
-
-        for name, props in features.items():
-            new_id = props["id"]
-            if name in self.original_feature_mapping:
-                # Remap known features to their original IDs
-                original_id = self.original_feature_mapping[name]
-                if new_id != original_id:
-                    self.feature_id_remap[new_id] = original_id
-            elif not self.training:
-                # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
-                self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
-                unknown_features.append(name)
-            else:
-                # In training mode, learn new features
-                self.original_feature_mapping[name] = new_id
-
-        if self.feature_id_remap:
-            logger.info(
-                f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
-            )
-            self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
+        log_on_master(
+            f"Environment initialized with {len(features)} features and actions: "
+            f"{list(zip(action_names, action_max_params, strict=False))}"
+        )
 
     def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
         """Apply feature remapping to policy if it supports it, and update normalizations.
@@ -372,10 +376,8 @@ class MettaAgent(nn.Module):
                     "obs_space",
                     "_total_params",
                     "cfg",
-                    "active_features",
                     "feature_id_to_name",
                     "original_feature_mapping",
-                    "active_actions",
                     "action_names",
                     "action_max_params",
                     "components_with_memory",
