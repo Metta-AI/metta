@@ -3,16 +3,15 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.train import TrainTool
 
+# CI-friendly runtime: tiny steps and small batches.
+
 
 def train() -> TrainTool:
     cfg = arena.train(curriculum=arena.make_curriculum(arena.make_env()))
 
-    # CI-friendly runtime: tiny steps and small batches.
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
-
-    # Mirror CI overrides from .github/workflows/test-mettascope.yml
-    cfg.trainer.total_timesteps = 16
+    cfg.trainer.total_timesteps = 16  # Minimal steps for smoke testing.
     cfg.trainer.minibatch_size = 8
     cfg.trainer.batch_size = 1536
     cfg.trainer.bptt_horizon = 8
@@ -22,7 +21,6 @@ def train() -> TrainTool:
     if cfg.trainer.evaluation is not None:
         cfg.trainer.evaluation.evaluate_interval = 0
 
-    # Name the run for CI readability.
     cfg.run = "smoke_test"
     return cfg
 
@@ -34,7 +32,6 @@ def replay() -> ReplayTool:
     cfg.wandb.enabled = False
     cfg.system.vectorization = "serial"
     cfg.open_browser_on_start = False
-    # Ensure label is present as expected by frontend/tests.
     cfg.sim.env.label = cfg.sim.env.label or "mettagrid"
     return cfg
 
@@ -51,7 +48,7 @@ def play() -> PlayTool:
 
 
 def play_null() -> PlayTool:
+    # Mock policy test.
     cfg = play()
-    # Use mock policy (Simulation will create mock when policy_uri is None).
     cfg.policy_uri = None
     return cfg
