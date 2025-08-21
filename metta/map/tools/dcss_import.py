@@ -130,5 +130,5 @@ def generate_scenes_from_dcss_maps():
 
 
 class DCSSImportTool(Tool):
-    def invoke(self):
+    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         generate_scenes_from_dcss_maps()

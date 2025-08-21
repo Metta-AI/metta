@@ -367,17 +367,12 @@ class PolicyStore:
         elif path.endswith(".safetensors"):
             paths.append(path)
         else:
-            # Look for both .pt and .safetensors files in directory
-            pt_files = [os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")]
-            safetensors_files = [os.path.join(path, p) for p in os.listdir(path) if p.endswith(".safetensors")]
-            paths.extend(pt_files)
-            paths.extend(safetensors_files)
+            checkpoint_files = [p for p in os.listdir(path) if p.endswith(".pt") or p.endswith(".safetensors")]
+            checkpoint_files.sort(key=lambda f: int(f[6:-3]) if f.startswith("model_") else -1, reverse=True)
+            paths.extend([os.path.join(path, p) for p in checkpoint_files])
 
-        policy_records = []
-        for path in paths:
-            policy_records.append(self._load_from_file(path, metadata_only=True))
+            return list([self._load_from_file(path, metadata_only=True) for path in paths])
 
-        return policy_records
 
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a PolicyRecord from a file, automatically detecting format based on extension."""
