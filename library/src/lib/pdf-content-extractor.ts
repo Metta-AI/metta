@@ -443,14 +443,14 @@ function parseFullTextContent(
 export async function extractPdfContentWithImages(
   pdfBuffer: Buffer
 ): Promise<PdfContent> {
-  // Try OpenAI vision first (preferred method)
-  if (process.env.OPENAI_API_KEY) {
+  // Try Anthropic vision first (preferred method)
+  if (process.env.ANTHROPIC_API_KEY) {
     try {
-      console.log(`🔍 Extracting PDF content with OpenAI Vision...`);
+      console.log(`🔍 Extracting PDF content with Anthropic Vision...`);
 
       const openaiResult = await extractPdfWithOpenAI(pdfBuffer);
 
-      // Convert OpenAI figures to expected format
+      // Convert Anthropic figures to expected format
       const figuresWithImages = openaiResult.figuresWithImages.map((fig) => ({
         caption: fig.caption,
         pageNumber: fig.pageNumber,
@@ -460,20 +460,20 @@ export async function extractPdfContentWithImages(
         boundingBox: fig.boundingBox,
       }));
 
-      // Use structured data directly from enhanced OpenAI extraction
+      // Use structured data directly from enhanced Anthropic extraction
       return {
         title: openaiResult.title,
         abstract: openaiResult.shortExplanation, // Use shortExplanation as abstract
         introduction: openaiResult.summary.substring(0, 500) + "...", // Use part of summary as introduction
         mainSections: [openaiResult.summary], // Full summary as main section
-        figures: [], // OpenAI figures are already in figuresWithImages
+        figures: [], // Anthropic figures are already in figuresWithImages
         figuresWithImages: figuresWithImages,
         references: [], // Enhanced extraction doesn't extract references yet
         fullText: openaiResult.summary, // Use summary as fullText to avoid undefined
         pageCount: openaiResult.pageCount,
       };
     } catch (error) {
-      console.error(`❌ Error in OpenAI PDF extraction:`, error);
+      console.error(`❌ Error in Anthropic PDF extraction:`, error);
       // console.log(`🔄 Falling back to Adobe extraction...`);
       throw error; // Re-throw to prevent Adobe fallback
     }
@@ -481,7 +481,7 @@ export async function extractPdfContentWithImages(
 
   // COMMENTED OUT: Adobe fallback to prevent GraphicsMagick usage
   /*
-  // Fallback to Adobe if OpenAI fails or API key not available
+  // Fallback to Adobe if Anthropic fails or API key not available
   try {
     console.log(`🔍 Extracting PDF content with Adobe PDF Extract...`);
 
@@ -510,6 +510,6 @@ export async function extractPdfContentWithImages(
   }
   */
 
-  // If we reach here, OpenAI API key is not available
-  throw new Error("No OpenAI API key available and Adobe fallback is disabled");
+  // If we reach here, Anthropic API key is not available
+  throw new Error("No Anthropic API key available and Adobe fallback is disabled");
 }

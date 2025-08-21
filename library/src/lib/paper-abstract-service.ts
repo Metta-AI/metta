@@ -119,27 +119,69 @@ export class PaperAbstractService {
   }
 
   /**
+   * Normalize URL to get the actual PDF, not HTML pages
+   */
+  private static normalizePdfUrl(url: string): string {
+    if (!url) return url;
+
+    // arXiv URLs: convert from abstract page to PDF
+    if (url.includes("arxiv.org/abs/")) {
+      const normalizedUrl = url.replace("/abs/", "/pdf/") + ".pdf";
+      console.log(`📄 Converted arXiv abstract URL to PDF: ${normalizedUrl}`);
+      return normalizedUrl;
+    }
+
+    // Other common patterns can be added here
+    // For now, return the original URL
+    return url;
+  }
+
+  /**
    * Generate new abstract for a paper
    */
   private static async generateNewAbstract(
     paper: any
   ): Promise<LLMAbstract | null> {
     try {
-      // Fetch and extract PDF content
-      const pdfContent = await this.fetchAndExtractPdf(paper.link);
-      if (!pdfContent) {
+      // Normalize URL to ensure we get the actual PDF
+      const normalizedUrl = this.normalizePdfUrl(paper.link);
+      console.log(`📥 Fetching PDF from: ${normalizedUrl}`);
+
+      const response = await fetch(normalizedUrl, {
+        headers: {
+          Accept: "application/pdf,*/*",
+          "User-Agent": "Mozilla/5.0 (compatible; LibraryBot/1.0)",
+        },
+        redirect: "follow",
+      });
+
+      if (!response.ok) {
         console.error(
-          `❌ Could not extract PDF content for paper: ${paper.id}`
+          `❌ Failed to fetch PDF: ${response.status} ${response.statusText}`
         );
         return null;
       }
 
-      // Generate LLM abstract (reuse the already-fetched PDF buffer)
+      // Validate content type
+      const contentType = response.headers.get("content-type") || "";
+      console.log(`📄 Response content-type: ${contentType}`);
+
+      if (contentType.includes("text/html")) {
+        console.error(
+          `❌ URL returned HTML instead of PDF. URL might be incorrect: ${normalizedUrl}`
+        );
+        console.error(`❌ Original URL: ${paper.link}`);
+        return null;
+      }
+
+      const pdfBuffer = Buffer.from(await response.arrayBuffer());
+      console.log(`📄 Successfully fetched PDF (${pdfBuffer.length} bytes)`);
+
+      // Generate LLM abstract directly (no separate content extraction step)
       const homepageUrl = this.getHomepageUrl(paper);
-      const pdfBuffer = (pdfContent as any)._pdfBuffer;
       const llmAbstract = await generateLLMAbstract(
         paper.title,
-        pdfContent,
+        {} as any, // Empty pdfContent since we're going direct to enhanced extraction
         paper.link,
         homepageUrl,
         pdfBuffer
