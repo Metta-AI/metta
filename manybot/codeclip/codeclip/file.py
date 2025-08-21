@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import tiktoken
 
 # Import git helpers
-from metta.common.util import git as gitlib
+import gitlib
 
 logger = logging.getLogger(__name__)
 

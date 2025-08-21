@@ -7,11 +7,11 @@ from typing import Optional
 
 import torch
 
+from gitlib import get_git_hash_for_remote_task
 from metta.agent.agent_config import AgentConfig
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
-from metta.common.util.git import get_git_hash_for_remote_task
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.util.logging_helpers import init_file_logging, init_logging
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun

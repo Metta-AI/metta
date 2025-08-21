@@ -5,8 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from metta.common.util.git import get_commit_count, get_file_list
-from metta.common.util.git_filter import filter_repo
+from gitlib import filter_repo, get_commit_count, get_file_list
 
 
 class TestFilterRepo:

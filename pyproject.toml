@@ -103,7 +103,7 @@ source = ["metta", "metta.mettagrid", "metta.common", "metta.agent", "metta.app_
 CMAKE_BUILD_TYPE = "Release"
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", "manybot/codeclip/tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
@@ -124,13 +124,14 @@ cache-keys = [
 default-groups = ["dev"]
 
 [tool.uv.workspace]
-members = ["mettagrid", "app_backend", "common", "agent", "experiments"]
+members = ["mettagrid", "app_backend", "common", "agent", "experiments", "gitlib"]
 
 [tool.uv.sources]
 metta-app-backend = { workspace = true }
 metta-mettagrid = { workspace = true }
 metta-common = { workspace = true }
 metta-agent = { workspace = true }
+gitlib = { workspace = true }
 
 [tool.ruff]
 exclude = ["*.ipynb"]

@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 import httpx
 import pytest
 
-from metta.common.util.git import (
+from gitlib import (
     GitError,
     add_remote,
     get_branch_commit,
@@ -271,27 +271,27 @@ def test_get_remote_url_no_remote(git_repo):
 
 def test_is_metta_ai_repo(monkeypatch):
     # Import the constants to get the exact repo name
-    from metta.common.util.git import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
+    from gitlib import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
 
     # Test with metta-ai repo URLs (using exact format from constants)
     monkeypatch.setattr(
-        "metta.common.util.git.get_remote_url",
+        "gitlib.get_remote_url",
         lambda: f"https://github.com/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}.git",
     )
     assert is_metta_ai_repo() is True
 
     monkeypatch.setattr(
-        "metta.common.util.git.get_remote_url",
+        "gitlib.get_remote_url",
         lambda: f"git@github.com:{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}.git",
     )
     assert is_metta_ai_repo() is True
 
     # Test with different repo
-    monkeypatch.setattr("metta.common.util.git.get_remote_url", lambda: "https://github.com/other/repo.git")
+    monkeypatch.setattr("gitlib.get_remote_url", lambda: "https://github.com/other/repo.git")
     assert is_metta_ai_repo() is False
 
     # Test with no remote
-    monkeypatch.setattr("metta.common.util.git.get_remote_url", lambda: None)
+    monkeypatch.setattr("gitlib.get_remote_url", lambda: None)
     assert is_metta_ai_repo() is False
 
 
@@ -332,24 +332,22 @@ def test_get_git_hash_for_remote_task(monkeypatch, caplog):
     logger = logging.getLogger()
 
     # Test when not in git repo
-    monkeypatch.setattr(
-        "metta.common.util.git.get_current_commit", Mock(side_effect=ValueError("Not in a git repository"))
-    )
+    monkeypatch.setattr("gitlib.get_current_commit", Mock(side_effect=ValueError("Not in a git repository")))
     result = get_git_hash_for_remote_task(logger=logger)
     assert result is None
     assert "Not in a git repository" in caplog.text
 
     # Test when not metta-ai repo
-    monkeypatch.setattr("metta.common.util.git.get_current_commit", lambda: "abc123")
-    monkeypatch.setattr("metta.common.util.git.is_metta_ai_repo", lambda: False)
+    monkeypatch.setattr("gitlib.get_current_commit", lambda: "abc123")
+    monkeypatch.setattr("gitlib.is_metta_ai_repo", lambda: False)
     caplog.clear()
     result = get_git_hash_for_remote_task(logger=logger)
     assert result is None
     assert "Origin not set to metta-ai/metta" in caplog.text
 
     # Test with uncommitted changes (should raise)
-    monkeypatch.setattr("metta.common.util.git.is_metta_ai_repo", lambda: True)
-    monkeypatch.setattr("metta.common.util.git.has_unstaged_changes", lambda: (True, "M  some_file.py"))
+    monkeypatch.setattr("gitlib.is_metta_ai_repo", lambda: True)
+    monkeypatch.setattr("gitlib.has_unstaged_changes", lambda: (True, "M  some_file.py"))
     with pytest.raises(GitError) as e:
         get_git_hash_for_remote_task()
     assert "uncommitted changes" in str(e.value)
@@ -357,14 +355,14 @@ def test_get_git_hash_for_remote_task(monkeypatch, caplog):
     # Test with uncommitted changes but skip_git_check=True
     caplog.clear()
     # Need to mock is_commit_pushed to avoid git command with fake commit hash
-    monkeypatch.setattr("metta.common.util.git.is_commit_pushed", lambda x: True)
+    monkeypatch.setattr("gitlib.is_commit_pushed", lambda x: True)
     result = get_git_hash_for_remote_task(skip_git_check=True, logger=logger)
     assert result == "abc123"
     assert "Working tree has unstaged changes" in caplog.text
 
     # Test with unpushed commit
-    monkeypatch.setattr("metta.common.util.git.has_unstaged_changes", lambda: (False, ""))
-    monkeypatch.setattr("metta.common.util.git.is_commit_pushed", lambda x: False)
+    monkeypatch.setattr("gitlib.has_unstaged_changes", lambda: (False, ""))
+    monkeypatch.setattr("gitlib.is_commit_pushed", lambda x: False)
     with pytest.raises(GitError) as e:
         get_git_hash_for_remote_task()
     assert "hasn't been pushed" in str(e.value)
@@ -376,7 +374,7 @@ def test_get_git_hash_for_remote_task(monkeypatch, caplog):
     # No specific log message for unpushed commits when skip_git_check=True
 
     # Test success case
-    monkeypatch.setattr("metta.common.util.git.is_commit_pushed", lambda x: True)
+    monkeypatch.setattr("gitlib.is_commit_pushed", lambda x: True)
     result = get_git_hash_for_remote_task()
     assert result == "abc123"
 
@@ -503,8 +501,8 @@ def test_is_commit_pushed_fast_path(monkeypatch):
         else:
             raise GitError("Unexpected git command")
 
-    monkeypatch.setattr("metta.common.util.git.get_current_branch", lambda: "main")
-    monkeypatch.setattr("metta.common.util.git.run_git", mock_run_git)
+    monkeypatch.setattr("gitlib.get_current_branch", lambda: "main")
+    monkeypatch.setattr("gitlib.run_git", mock_run_git)
 
     assert is_commit_pushed("test-commit") is True
 
@@ -519,7 +517,7 @@ def test_is_commit_pushed_fast_path(monkeypatch):
         else:
             raise GitError("Unexpected git command")
 
-    monkeypatch.setattr("metta.common.util.git.run_git", mock_run_git_not_ancestor)
+    monkeypatch.setattr("gitlib.run_git", mock_run_git_not_ancestor)
     assert is_commit_pushed("test-commit") is False
 
 
@@ -537,7 +535,7 @@ def test_get_branch_commit_with_remote_fetch(monkeypatch):
         else:
             raise GitError(f"Unexpected git command: {args}")
 
-    monkeypatch.setattr("metta.common.util.git.run_git", mock_run_git)
+    monkeypatch.setattr("gitlib.run_git", mock_run_git)
 
     result = get_branch_commit("origin/main")
     assert result == "abcd1234" * 5
@@ -556,7 +554,7 @@ def test_get_branch_commit_with_remote_fetch(monkeypatch):
         else:
             raise GitError(f"Unexpected git command: {args}")
 
-    monkeypatch.setattr("metta.common.util.git.run_git", mock_run_git_fetch_fails)
+    monkeypatch.setattr("gitlib.run_git", mock_run_git_fetch_fails)
 
     result = get_branch_commit("origin/main")
     assert result == "abcd1234" * 5

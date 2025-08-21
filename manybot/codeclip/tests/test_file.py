@@ -4,7 +4,6 @@ import unittest
 from pathlib import Path
 
 from codeclip.file import (
-    _find_git_root,
     _find_gitignore,
     _find_parent_readmes,
     _read_gitignore,
@@ -12,6 +11,8 @@ from codeclip.file import (
     _should_ignore_file_type,
     resolve_codebase_path,
 )
+
+import gitlib
 
 
 class TestGitignoreHandling(unittest.TestCase):
@@ -194,14 +195,14 @@ class TestGitRootAndReadmeHandling(unittest.TestCase):
         subdir.mkdir(parents=True)
 
         # Test from various locations
-        self.assertEqual(_find_git_root(subdir), repo_root)
-        self.assertEqual(_find_git_root(repo_root / "src"), repo_root)
-        self.assertEqual(_find_git_root(repo_root), repo_root)
+        self.assertEqual(gitlib.find_root(subdir), repo_root)
+        self.assertEqual(gitlib.find_root(repo_root / "src"), repo_root)
+        self.assertEqual(gitlib.find_root(repo_root), repo_root)
 
         # Test when not in a git repo
         non_git_dir = self.base_path / "non_git"
         non_git_dir.mkdir()
-        self.assertIsNone(_find_git_root(non_git_dir))
+        self.assertIsNone(gitlib.find_root(non_git_dir))
 
     def test_find_parent_readmes_in_git_repo(self):
         """Test finding parent READMEs up to git root."""

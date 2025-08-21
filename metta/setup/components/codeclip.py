@@ -29,7 +29,8 @@ class CodeclipSetup(SetupModule):
 
     def install(self) -> None:
         """Install codeclip as an editable uv tool."""
-        codeclip_dir = self.repo_root / "manybot" / "codebot" / "codeclip"
+        codeclip_dir = self.repo_root / "manybot" / "codeclip"
+        gitlib_dir = self.repo_root / "gitlib"
 
         if not codeclip_dir.exists():
             warning(f"Codeclip directory not found at {codeclip_dir}")
@@ -37,13 +38,16 @@ class CodeclipSetup(SetupModule):
 
         info("Installing codeclip tool...")
 
-        # Install as editable package using uv
+        # Install as editable package using uv with gitlib dependency
         try:
-            # Use --force to update if already installed
-            self.run_command(["uv", "tool", "install", "--force", "-e", str(codeclip_dir)])
+            # First install the tool with gitlib
+            self.run_command(
+                ["uv", "tool", "install", "--force", "-e", str(codeclip_dir), "--with", f"gitlib @ file://{gitlib_dir}"]
+            )
+
             success("Codeclip tool installed successfully!")
             info("You can now use 'metta clip' or 'codeclip' commands")
         except subprocess.CalledProcessError as e:
             warning(f"Failed to install codeclip: {e}")
             warning("You can manually install it with:")
-            warning(f"  cd {codeclip_dir} && uv tool install --force -e .")
+            warning(f"  uv tool install --force -e {codeclip_dir} --with 'gitlib @ file://{gitlib_dir}'")
