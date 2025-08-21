@@ -44,4 +44,4 @@ next-env.d.ts
 # Debug PDF files (from Adobe/PDF processing issues)
 debug-adobe-error-*.pdf
 debug-textract-error-*.pdf
-temp-pdf-*.pdf 
+temp-pdf-*.pdf
