@@ -1,7 +1,7 @@
 """Silence deprecation warnings from Gym."""
 
-import warnings
 import logging
+import warnings
 
 # Silence the deprecation warning
 warnings.filterwarnings("ignore", category=DeprecationWarning)
