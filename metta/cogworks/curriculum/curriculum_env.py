@@ -52,56 +52,56 @@ class CurriculumEnv(PufferEnv):
     def reset(self, *args, **kwargs):
         """Reset the environment."""
         return self._env.reset(*args, **kwargs)
-    
+
     def close(self):
         """Close the environment."""
         return self._env.close()
-    
+
     def render(self, *args, **kwargs):
         """Render the environment."""
         return self._env.render(*args, **kwargs)
-    
+
     def async_reset(self, *args, **kwargs):
         """Async reset for the environment."""
         return self._env.async_reset(*args, **kwargs)
-    
+
     def send(self, *args, **kwargs):
         """Send actions to the environment."""
         return self._env.send(*args, **kwargs)
-    
+
     def recv(self):
         """Receive observations from the environment."""
         return self._env.recv()
-    
+
     # Delegate properties
     @property
     def single_observation_space(self):
         return self._env.single_observation_space
-    
+
     @property
     def single_action_space(self):
         return self._env.single_action_space
-    
+
     @property
     def num_agents(self):
         return self._env.num_agents
-    
+
     @property
     def agent_per_batch(self):
         return self._env.agent_per_batch
-    
+
     @property
     def emulated(self):
         return self._env.emulated
-    
+
     @property
     def done(self):
         return self._env.done
-    
+
     @property
     def driver_env(self):
         return self._env.driver_env
-    
+
     def __getattr__(self, name: str):
         """Delegate any other attribute access to wrapped environment.
 

@@ -12,7 +12,10 @@ It includes:
 from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
+import metta.map.scenes.random
 import metta.mettagrid.config.envs as eb
+from metta.map.mapgen import MapGen
+from metta.mettagrid.config import building
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.rl.trainer_config import (
     CheckpointConfig,
@@ -30,10 +33,6 @@ from metta.tools.train import TrainTool
 
 def make_env(num_agents: int = 24) -> EnvConfig:
     """Create the arena easy shaped rewards environment matching the old basic_easy_shaped."""
-    # Import required modules for map building
-    import metta.map.scenes.random
-    from metta.map.mapgen import MapGen
-    from metta.mettagrid.config import building
 
     # Start with the standard arena configuration but we'll override the map
     env_cfg = eb.make_arena(num_agents=num_agents, combat=False)
