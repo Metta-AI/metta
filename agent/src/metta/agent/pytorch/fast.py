@@ -116,12 +116,11 @@ class Policy(nn.Module):
             # Fallback for environments without feature_normalizations
             self.num_layers = 25  # Default value
 
-        # Define layer dimensions as named attributes to avoid magic numbers
-        self.cnn_channels = 64  # CNN channel dimension
-        self.fc_hidden_dim = 128  # Fully connected hidden dimension
-        self.critic_hidden_dim = 1024  # Critic hidden dimension
-        self.actor_hidden_dim = 512  # Actor feature dimension
-        self.action_embed_dim = 16  # Action embedding dimension
+        # Define layer dimensions that are used multiple times
+        self.cnn_channels = 64  # Used in cnn1 and cnn2
+        self.critic_hidden_dim = 1024  # Used in critic_1 and value_head
+        self.actor_hidden_dim = 512  # Used in actor_1, actor_W, and bilinear calculations
+        self.action_embed_dim = 16  # Used in action_embeddings, actor_W, and bilinear calculations
 
         # Match YAML component initialization more closely
         # Use dynamically determined num_layers as input channels
@@ -143,8 +142,8 @@ class Policy(nn.Module):
         self.flatten = nn.Flatten()
 
         # Match YAML: Linear layers use orthogonal with gain=1
-        self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(self.flattened_size, self.fc_hidden_dim), std=1.0)
-        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(self.fc_hidden_dim, self.input_size), std=1.0)
+        self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(self.flattened_size, 128), std=1.0)
+        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, self.input_size), std=1.0)
 
         # Critic branch
         # critic_1 uses gain=sqrt(2) because it's followed by tanh (YAML: nonlinearity: nn.Tanh)
