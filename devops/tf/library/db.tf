@@ -14,8 +14,8 @@ resource "aws_db_instance" "postgres" {
 
   publicly_accessible = true
 
-  db_name  = "softmax-library"
-  username = "softmax-library"
+  db_name  = "library"
+  username = "library"
   password = random_password.db.result
 
 }
