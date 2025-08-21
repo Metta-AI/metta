@@ -138,12 +138,12 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
         return result
 
     move_8way_idx = action_names.index("move_8way")
-    
+
     # Map orientations to 8-way movement indices
     # 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
     orientation_to_8way = {
-        Orientation.UP: 0,    # North
-        Orientation.RIGHT: 2, # East  
+        Orientation.UP: 0,  # North
+        Orientation.RIGHT: 2,  # East
         Orientation.DOWN: 4,  # South
         Orientation.LEFT: 6,  # West
     }
@@ -151,18 +151,9 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
     # Get initial position for verification
     position_before = get_agent_position(env, agent_idx)
 
-    # Step 1: Rotate to face target direction
-    rotate_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-    rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
-    env.step(rotate_action)
-
-    if not env.action_success()[agent_idx]:
-        result["error"] = f"Failed to rotate to {orientation}"
-        return result
-
-    # Step 2: Move forward
+    # Use direct 8-way movement in the specified direction
     move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-    move_action[agent_idx] = [move_action_idx, 0]  # Move forward
+    move_action[agent_idx] = [move_8way_idx, orientation_to_8way[orientation]]
     env.step(move_action)
 
     if not env.action_success()[agent_idx]:

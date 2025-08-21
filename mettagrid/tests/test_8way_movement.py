@@ -203,7 +203,6 @@ def test_orientation_changes_with_8way():
         )
 
 
-
 def test_8way_movement_with_simple_environment():
     """Test 8-way movement using the simple environment builder."""
     # Create a larger environment to test diagonal movements
