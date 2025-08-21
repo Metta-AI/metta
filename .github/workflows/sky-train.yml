@@ -94,7 +94,7 @@ jobs:
           # Extract everything between "experiments." and ".train"
           # e.g., "experiments.recipes.arena.train" -> "arena"
           # e.g., "experiments.a.b.c.train" -> "a.b.c"
-          ENV_NAME=$(echo "$MODULE_NAME" | sed 's|^experiments\\.||' | sed 's|\\.train$||')
+          ENV_NAME=$(echo "$MODULE_NAME" | sed 's|^experiments\\.recipes\\.||' | sed 's|\\.train$||')
 
           if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
             # Manual dispatch: run name is github.sky.<short_hash>.<env_name>.<timestamp>
