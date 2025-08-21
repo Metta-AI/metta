@@ -211,7 +211,7 @@ class GameConfig(Config):
 
     # Movement metrics configuration
     track_movement_metrics: bool = Field(
-        default=False, description="Enable movement metrics tracking (sequential rotations)"
+        default=True, description="Enable movement metrics tracking (sequential rotations)"
     )
     no_agent_interference: bool = Field(
         default=False, description="Enable agents to move through and not observe each other"
