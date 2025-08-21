@@ -16,6 +16,13 @@ game:
     team_1:
       group_reward_pct: 1.0 # 100% reward sharing within team
 
+  agent:
+    rewards:
+      inventory:
+        heart: 1.0
+        ore_red: 0.01
+        battery_red: 0.05
+
   map_builder:
     _target_: metta.map.mapgen.MapGen
     # Width/height removed - will be auto-detected from ASCII map files
@@ -27,3 +34,22 @@ game:
       type: metta.map.scenes.ascii.Ascii
       params:
         uri: "configs/env/mettagrid/maps/simple/train1.map" # Default map - bucketed curriculum will override this
+
+    # Add this section to reduce cooldowns
+  objects:
+    mine_red:
+      cooldown: 20 # Default is 50 - how many steps before mine can be used again
+      initial_resource_count: 0 # Default is 0 - start with resources available
+      max_output: 5 # Default is 5 - more resources available
+
+    generator_red:
+      cooldown: 10 # Default is 25 - how many steps before generator can be used again
+      initial_resource_count: 0 # Default is 0 - start with some ore already there
+      output_resources:
+        battery_red: 1 # Default is 1 - produce more batteries per ore
+
+    altar:
+      cooldown: 5 # Default is 10 - how many steps before altar can be used again
+      input_resources:
+        battery_red: 3 # Default is 3 - require fewer batteries for a heart
+      max_output: 5 # Default is 5 - more hearts available
