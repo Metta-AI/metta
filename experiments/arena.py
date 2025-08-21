@@ -20,7 +20,9 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     return arena_env
 
 
-def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
+def make_curriculum(
+    arena_env: Optional[EnvConfig] = None, use_learning_progress: bool = True
+) -> CurriculumConfig:
     arena_env = arena_env or make_env()
 
     # make a set of training tasks for the arena
@@ -45,7 +47,10 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    return arena_tasks.to_curriculum()
+    # Use the updated to_curriculum method that defaults to learning progress
+    return arena_tasks.to_curriculum(
+        num_tasks=16, use_learning_progress=use_learning_progress
+    )
 
 
 def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
@@ -61,9 +66,14 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
     ]
 
 
-def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(
+    run: str,
+    curriculum: Optional[CurriculumConfig] = None,
+    use_learning_progress: bool = True,
+) -> TrainTool:
     trainer_cfg = TrainerConfig(
-        curriculum=curriculum or make_curriculum(),
+        curriculum=curriculum
+        or make_curriculum(use_learning_progress=use_learning_progress),
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(
@@ -82,7 +92,12 @@ def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     )
 
 
-def train_shaped(run: str, rewards: bool = True, converters: bool = True) -> TrainTool:
+def train_shaped(
+    run: str,
+    rewards: bool = True,
+    converters: bool = True,
+    use_learning_progress: bool = True,
+) -> TrainTool:
     env_cfg = make_env()
     env_cfg.game.agent.rewards.inventory.heart = 1
     env_cfg.game.agent.rewards.inventory.heart_max = 100
@@ -100,10 +115,32 @@ def train_shaped(run: str, rewards: bool = True, converters: bool = True) -> Tra
         env_cfg.game.agent.rewards.inventory.blueprint_max = 1
 
     if converters:
-        env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
+        # Set altar input resources for battery_red conversion
+        altar_obj = env_cfg.game.objects["altar"]
+        if hasattr(altar_obj, "input_resources"):
+            altar_obj.input_resources["battery_red"] = 1
+
+    if use_learning_progress:
+        # Create learning progress curriculum for shaped training
+        arena_tasks = cc.bucketed(env_cfg)
+
+        # Add shaped-specific buckets
+        for item in ["ore_red", "battery_red", "laser", "armor", "blueprint"]:
+            arena_tasks.add_bucket(
+                f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
+            )
+            arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
+
+        arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
+
+        # Use the updated to_curriculum method that defaults to learning progress
+        curriculum = arena_tasks.to_curriculum(num_tasks=16, use_learning_progress=True)
+    else:
+        # Fall back to original random curriculum
+        curriculum = cc.env_curriculum(env_cfg)
 
     trainer_cfg = TrainerConfig(
-        curriculum=cc.env_curriculum(env_cfg, num_tasks=1000),
+        curriculum=curriculum,
         evaluation=EvaluationConfig(
             simulations=make_evals(),
         ),

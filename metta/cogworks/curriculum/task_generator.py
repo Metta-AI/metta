@@ -67,12 +67,38 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
             )
         return cls._generator_cls
 
-    def to_curriculum(self, num_tasks: Optional[int] = None) -> "CurriculumConfig":
-        """Create a CurriculumConfig from this configuration."""
-        from metta.cogworks.curriculum.curriculum import CurriculumConfig
+    def to_curriculum(self, num_tasks: Optional[int] = None, use_learning_progress: bool = True) -> "CurriculumConfig":
+        """Create a CurriculumConfig from this configuration.
 
-        cc = CurriculumConfig(task_generator=self)
-        cc.num_active_tasks = num_tasks or cast(int, cc.num_active_tasks)
+        Args:
+            num_tasks: Number of active tasks to maintain
+            use_learning_progress: Whether to use learning progress curriculum (default: True)
+        """
+        from metta.cogworks.curriculum.curriculum import CurriculumConfig
+        from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressHypers
+
+        if use_learning_progress:
+            # Create learning progress algorithm hyperparameters
+            lp_hypers = LearningProgressHypers(
+                ema_timescale=0.001,
+                progress_smoothing=0.05,
+                num_active_tasks=num_tasks or 16,
+                rand_task_rate=0.25,
+                sample_threshold=10,
+                memory=25,
+            )
+
+            # Create curriculum with integrated learning progress algorithm
+            cc = CurriculumConfig(
+                task_generator=self,
+                num_active_tasks=num_tasks or 16,
+                algorithm_hypers=lp_hypers,
+            )
+        else:
+            # Fall back to original random curriculum
+            cc = CurriculumConfig(task_generator=self)
+            cc.num_active_tasks = num_tasks or cast(int, cc.num_active_tasks)
+
         return cc
 
     @model_serializer(mode="wrap")
