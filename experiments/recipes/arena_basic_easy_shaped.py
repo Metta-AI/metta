@@ -175,7 +175,6 @@ def train() -> TrainTool:
         ),
         evaluation=EvaluationConfig(
             simulations=make_evals(env_cfg),
-            evaluate_interval=50,  # Matches existing default
             evaluate_remote=True,  # True instead of default False
             evaluate_local=False,  # False instead of default True
         ),
