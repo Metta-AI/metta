@@ -38,7 +38,14 @@ class SystemSetup(SetupModule):
 
         try:
             result = self.run_command([brew_path, "bundle", "check", "--file", str(brewfile_path)], check=False)
-            return result.returncode == 0
+            if result.returncode != 0:
+                return False
+
+            if need_to_pin := self._get_deps_to_pin():
+                warning(f"The following are not pinned: {need_to_pin}")
+                return False
+
+            return True
         except (subprocess.CalledProcessError, FileNotFoundError):
             return False
 
@@ -50,6 +57,7 @@ class SystemSetup(SetupModule):
             if platform.system() == "Darwin" and not self._find_brew_path():
                 self._install_homebrew()
             self._run_brew_bundle("Brewfile")
+            self._pin_formulae(self._get_deps_to_pin())
             success("System dependencies installed")
         else:
             # NOTE: need to implement this at some point
@@ -118,3 +126,24 @@ class SystemSetup(SetupModule):
             if Path(path).exists():
                 return path
         return None
+
+    def _get_deps_to_pin(self) -> list[str]:
+        pinned_deps_path = self.repo_root / "devops" / "macos" / "pinned-deps.txt"
+        if not pinned_deps_path.exists():
+            return []
+        with open(pinned_deps_path, "r") as f:
+            should_be_pinned = set([line.strip() for line in f if line.strip() and not line.strip().startswith("#")])
+        result = self.run_command(["brew", "list", "--pinned"], capture_output=True)
+        currently_pinned = set(filter(None, result.stdout.strip().split("\n"))) if result.stdout.strip() else set()
+        return list(should_be_pinned - currently_pinned)
+
+    def _pin_formulae(self, formulae: list[str]) -> None:
+        brew_path = self._find_brew_path() or "brew"
+        for formula in formulae:
+            try:
+                self.run_command([brew_path, "pin", formula], check=False)
+                # Get just the first line of brew info
+                info_output = self.run_command([brew_path, "info", formula], capture_output=True).stdout.split("\n")[0]
+                info(f"Pinned {formula} to {info_output}")
+            except subprocess.CalledProcessError:
+                warning(f"Failed to pin {formula}. It may not be installed or pinning is unsupported.")
