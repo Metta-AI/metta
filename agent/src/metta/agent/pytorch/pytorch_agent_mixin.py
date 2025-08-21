@@ -74,7 +74,7 @@ class PyTorchAgentMixin:
         self._store_initial_weights()
 
         # Note: action_index_tensor and cum_action_max_params are set by
-        # MettaAgent.activate_actions() directly on the policy object
+        # MettaAgent.initialize_to_environment() directly on the policy object
 
     def clip_weights(self):
         """
@@ -208,7 +208,7 @@ class PyTorchAgentMixin:
         Convert logit indices back to action pairs.
 
         NOTE: This overrides MettaAgent's implementation to use the policy's
-        action_index_tensor which is set by MettaAgent.activate_actions().
+        action_index_tensor which is set by MettaAgent.initialize_to_environment().
 
         Args:
             action_logit_index: Indices into flattened action space
@@ -218,7 +218,9 @@ class PyTorchAgentMixin:
         """
         # Use the action_index_tensor that MettaAgent sets on the policy
         if not hasattr(self, "action_index_tensor") or self.action_index_tensor is None:
-            raise RuntimeError("action_index_tensor not set. MettaAgent.activate_actions() must be called first.")
+            raise RuntimeError(
+                "action_index_tensor not set. MettaAgent.initialize_to_environment() must be called first."
+            )
         return self.action_index_tensor[action_logit_index]
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
@@ -237,7 +239,9 @@ class PyTorchAgentMixin:
         """
         # Use the cum_action_max_params that MettaAgent sets on the policy
         if not hasattr(self, "cum_action_max_params") or self.cum_action_max_params is None:
-            raise RuntimeError("cum_action_max_params not set. MettaAgent.activate_actions() must be called first.")
+            raise RuntimeError(
+                "cum_action_max_params not set. MettaAgent.initialize_to_environment() must be called first."
+            )
 
         action_type_numbers = flattened_action[:, 0].long()
         action_params = flattened_action[:, 1].long()
@@ -250,7 +254,7 @@ class PyTorchAgentMixin:
         """
         Activate action embeddings to match ComponentPolicy interface.
 
-        This is called by MettaAgent.activate_actions() and should be
+        This is called by MettaAgent.initialize_to_environment() and should be
         overridden by agents that have action embeddings.
 
         Args:
@@ -298,3 +302,18 @@ class PyTorchAgentMixin:
                     metrics["name"] = name if name else "root"
                     metrics_list.append(metrics)
         return metrics_list
+
+    def _apply_feature_remapping(self, remap_tensor: torch.Tensor):
+        """Apply feature remapping for compatibility with ComponentPolicy interface.
+
+        PyTorch vanilla models don't need feature remapping since they work with
+        fixed feature spaces, so this is a no-op.
+        """
+        pass
+
+    def update_normalization_factors(self, features: dict[str, dict], original_feature_mapping: dict[str, int] | None):
+        """Update normalization factors for compatibility with ComponentPolicy interface.
+
+        PyTorch vanilla models don't dynamically update normalizations, so this is a no-op.
+        """
+        pass
