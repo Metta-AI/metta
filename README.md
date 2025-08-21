@@ -171,29 +171,114 @@ metta configure    # Reconfigure for a different profile
 
 The repository contains command-line tools in the `tools/` directory.
 
-#### Hydra Configuration Patterns
+### Run tasks with the runner
 
-- Use `+` prefix to add new config groups: `+user=your-custom-config-name`
-- Use `++` prefix to force override: `++trainer.device=cpu`
-- Config composition order matters - later overrides take precedence
+`run.py` is a script that kicks off tasks like training, evaluation, and visualization. The runner looks up the task,
+builds its configuration, and runs it. The current available tasks are:
 
-Common patterns:
+- **experiments.arena.train**: Train on the arena curriculum
 
-- **Override parameters**: `param=value` sets configuration values directly
-- **Compose configs**: `+group=option` loads additional configuration files from `configs/group/option.yaml`
-- **Use config groups**: Load user-specific settings with `+user=<name>` from `configs/user/<name>.yaml`
+  `./tools/run.py experiments.arena.train --args run=my_experiment`
 
-### Training a Model
+- **experiments.navigation.train**: Train on the navigation curriculum
+
+  `./tools/run.py experiments.navigation.train --args run=my_experiment`
+
+- **experiments.arena.play**: Play in the browser
+
+  `./tools/run.py experiments.arena.play`
+
+- **experiments.arena.replay**: Replay a single episode from a saved policy
+
+  `./tools/run.py experiments.arena.replay --overrides policy_uri=wandb://run/local.alice.1`
+
+- **experiments.arena.evaluate**: Evaluate a policy on the arena eval suite
+
+  `./tools/run.py experiments.arena.evaluate --args policy_uri=wandb://run/local.alice.1`
+
+- Dry-run version, e.g. Print the resolved config without executing it
+
+  `./tools/run.py experiments.arena.train --args run=my_experiment --dry-run`
+
+### Runner arguments
+
+Use the runner like this:
 
 ```bash
-./tools/train.py run=my_experiment wandb=off +user=<name>
+./tools/run.py <task_name> [--args key=value ...] [--overrides path.to.field=value ...] [--dry-run]
 ```
 
-Parameters:
+- `task_name`: a Python-style path to a task (for example, `experiments.arena.train`).
+- `--args`: name=value pairs passed to the task function (these become constructor args of the Tool it returns).
+  - Types: integers (`42`), floats (`0.1`), booleans (`true/false`), and strings.
+  - Multiple args: add more pairs separated by spaces.
+  - Example: `--args run=local.alice.1`
+- `--overrides`: update fields inside the returned Tool configuration using dot paths.
+  - Common fields: `system.device=cpu`, `wandb.enabled=false`, `trainer.total_timesteps=100000`,
+    `trainer.rollout_workers=4`, `policy_uri=wandb://run/<name>` (for replay/eval).
+  - Multiple overrides: add more pairs separated by spaces.
+  - Example: `--overrides system.device=cpu wandb.enabled=false`
+- `--dry-run`: print the fully-resolved configuration as JSON and exit without running.
 
-- `run=my_experiment` - Names your experiment and controls where checkpoints are saved under `train_dir/<run>`
-- `wandb=off` - Disables Weights & Biases logging
-- `+user=<name>` - Loads your personal settings from `configs/user/<name>.yaml`
+Quick examples:
+
+```bash
+# Faster local run on CPU, less logging
+./tools/run.py experiments.arena.train \
+  --args run=local.alice.1 \
+  --overrides system.device=cpu wandb.enabled=false trainer.total_timesteps=100000
+
+# Evaluate a specific policy URI on the arena suite
+./tools/run.py experiments.arena.evaluate --args policy_uri=wandb://run/local.alice.1
+```
+
+Tips:
+
+- Strings with spaces: quote the value, for example `notes="my local run"`.
+- Booleans are lowercase: `true` and `false`.
+- If a value looks numeric but should be a string, wrap it in quotes (for example, `run="001"`).
+
+### Defining your own runner tasks
+
+A “task” is just a Python function (or class) that returns a Tool configuration. The runner loads it by name and runs
+its `invoke()` method.
+
+What you write:
+
+- A function that returns a Tool, for example `TrainTool`, `SimTool`, `PlayTool`, or `ReplayTool`.
+- Place it anywhere importable (for personal use, `experiments/user/<your_file>.py` is convenient).
+- The function name becomes part of the task name you run.
+
+Minimal example:
+
+```python
+# experiments/user/my_tasks.py
+from metta.mettagrid.config.envs import make_arena
+from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.train import TrainTool
+
+def my_train(run: str = "local.me.1") -> TrainTool:
+    trainer = TrainerConfig(
+        evaluation=EvaluationConfig(
+            simulations=[SimulationConfig(name="arena/basic", env=make_arena(num_agents=4))]
+        )
+    )
+    return TrainTool(trainer=trainer, run=run)
+```
+
+Run your task:
+
+```bash
+./tools/run.py experiments.user.my_tasks.my_train --args run=local.me.2 \
+  --overrides system.device=cpu wandb.enabled=false
+```
+
+Notes:
+
+- Tasks can also be Tool classes (subclasses of `metta.common.config.tool.Tool`). The runner will construct them with
+  `--args` and then apply `--overrides`.
+- Use `--dry-run` while developing to see the exact configuration your task produces.
 
 ### Setting up Weights & Biases for Personal Use
 
@@ -214,7 +299,7 @@ To use WandB with your personal account:
 Now you can run training with your personal WandB config:
 
 ```
-./tools/train.py run=local.yourname.123 wandb=user
+./tools/run.py experiments.arena.train --args run=local.yourname.123 --overrides wandb.enabled=true wandb.entity=<your_user>
 ```
 
 ## Visualizing a Model
@@ -229,23 +314,19 @@ For more information, see [./mettascope/README.md](./mettascope/README.md).
 #### Run the interactive simulation
 
 ```bash
-./tools/play.py run=<name> [options]
+./tools/run.py experiments.arena.play
 ```
 
-Arguments:
+Optional overrides:
 
-- `run=<name>` - **Required**. Experiment identifier
-- `policy_uri=<path>` - Specify the policy the models follow when not manually controller with a model checkpoint (`.pt`
-  file).
-  - For local files, supply the path: `./train_dir/<run_name>/checkpoints/<checkpoint_name>.pt`. These checkpoint files
-    are created during training
-  - For wandb artifacts, prefix with `wandb://`
+- `policy_uri=<path>`: Use a specific policy for NPC agents.
+  - Local checkpoints: `file://./train_dir/<run>/checkpoints`
+  - WandB artifacts: `wandb://run/<run_name>`
 
-### Run the terminal simulation
+### Replay a single episode
 
 ```
-./tools/renderer.py run=demo_obstacles \
-renderer_job.environment.root.params.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
+./tools/run.py experiments.arena.replay --overrides policy_uri=wandb://run/local.alice.1
 ```
 
 ### Evaluating a Model
@@ -259,24 +340,16 @@ However, this will not apply for anything trained before April 8th.
 
 If you want to run evaluation post-training to compare different policies, you can do the following:
 
-To add your policy to the existing navigation evals DB:
+Evaluate a policy against the arena eval suite:
 
 ```
-./tools/sim.py \
-    sim=navigation \
-    run=navigation101 \
-    policy_uri=wandb://run/YOUR_POLICY_URI \
-    sim_job.stats_db_uri=wandb://stats/navigation_db \
-    device=cpu
+./tools/run.py experiments.arena.evaluate --args policy_uri=wandb://run/local.alice.1
 ```
 
-This will run your policy through the `configs/eval/navigation` eval_suite and then save it to the `navigation_db`
-artifact on WandB.
-
-Then, to see the results in the scorecard along with the other policies in the database, you can run:
+Evaluate on the navigation eval suite (provide the policy URI):
 
 ```
-./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
+./tools/run.py experiments.navigation.eval --overrides policy_uris=wandb://run/local.alice.1
 ```
 
 ### Specifying your agent architecture
@@ -304,10 +377,9 @@ We support agent architectures without using the MettaAgent system:
   `metta/agent/src/metta/agent/pytorch/fast.py` for an example.
 - Register it in `metta/agent/src/metta/agent/pytorch/agent_mapper.py` by adding an entry to `agent_classes` with a key
   name (e.g., `"my_agent"`).
-- Select it at runtime using the `py_agent` flag (this overrides the `agent` YAML group):
+- Select it at runtime using the runner and an override on the agent config name:
   ```bash
-  ./tools/train.py py_agent=my_agent
-  # (Optional) a .py suffix also works: py_agent=my_agent.py
+  ./tools/run.py experiments.arena.train --overrides policy_architecture.name=pytorch/my_agent
   ```
 
 Further updates to support bringing your own agent are coming soon.
@@ -322,6 +394,18 @@ ruff check
 pyright metta  # optional, some stubs are missing
 pytest
 ```
+
+### CLI cheat sheet
+
+| Task                        | Command                                                                                        |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| Train (arena)               | `./tools/run.py experiments.arena.train --args run=my_experiment`                              |
+| Train (navigation)          | `./tools/run.py experiments.navigation.train --args run=my_experiment`                         |
+| Play (browser)              | `./tools/run.py experiments.arena.play`                                                        |
+| Replay (policy)             | `./tools/run.py experiments.arena.replay --overrides policy_uri=wandb://run/local.alice.1`     |
+| Evaluate (arena)            | `./tools/run.py experiments.arena.evaluate --args policy_uri=wandb://run/local.alice.1`        |
+| Evaluate (navigation suite) | `./tools/run.py experiments.navigation.eval --overrides policy_uris=wandb://run/local.alice.1` |
+| Dry-run (print config)      | `./tools/run.py experiments.arena.train --args run=my_experiment --dry-run`                    |
 
 Running these commands mirrors our CI configuration and helps keep the codebase consistent.
 
