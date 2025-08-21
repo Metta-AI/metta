@@ -1,5 +1,6 @@
 import random
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
@@ -43,15 +44,13 @@ RESOURCE_TYPES = [
 ]
 
 
-class InContextCfg:
-    """Configuration for InContextResourceChainEnv."""
-
-    def __init__(self):
-        self.used_objects = []
-        self.all_input_resources = []
-        self.converters = []
-        self.game_objects = {}
-        self.map_builder_objects = {}
+@dataclass
+class _BuildCfg:
+    used_objects: set[str] = field(default_factory=set)
+    all_input_resources: set[str] = field(default_factory=set)
+    converters: List[str] = field(default_factory=list)
+    game_objects: Dict[str, Any] = field(default_factory=dict)
+    map_builder_objects: Dict[str, int] = field(default_factory=dict)
 
 
 class ConverterChainTaskGenerator(TaskGenerator):
@@ -71,15 +70,23 @@ class ConverterChainTaskGenerator(TaskGenerator):
         self.resource_types = RESOURCE_TYPES.copy()
         self.converter_types = CONVERTER_TYPES.copy()
 
-    def set_converter(
+    def _choose_converter_name(
+        self, pool: Dict[str, Any], used: set[str], rng: random.Random
+    ) -> str:
+        choices = [name for name in pool.keys() if name not in used]
+        if not choices:
+            raise ValueError("No available converter names left to choose from.")
+        return str(rng.choice(choices))
+
+    def _add_converter(
         self,
-        input_resource,
-        output_resource,
-        cfg,
-        rng,
+        input_resource: str,
+        output_resource: str,
+        cfg: _BuildCfg,
+        rng: random.Random,
     ):
-        converter_name = str(
-            rng.choice([c for c in self.converter_types if c not in cfg.used_objects])
+        converter_name = self._choose_converter_name(
+            self.converter_types, cfg.used_objects, rng
         )
         cfg.used_objects.append(converter_name)
         cfg.converters.append(converter_name)
@@ -95,9 +102,9 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cfg.game_objects[converter_name] = converter
         cfg.map_builder_objects[converter_name] = 1
 
-    def set_sink(self, cfg, rng):
-        sink_name = str(
-            rng.choice([c for c in self.converter_types if c not in cfg.used_objects])
+    def _add_sink(self, cfg: _BuildCfg, rng: random.Random):
+        sink_name = self._choose_converter_name(
+            self.converter_types, cfg.used_objects, rng
         )
         cfg.used_objects.append(sink_name)
         sink = self.converter_types[sink_name]
@@ -108,19 +115,18 @@ class ConverterChainTaskGenerator(TaskGenerator):
         cfg.game_objects[sink_name] = sink
         cfg.map_builder_objects[sink_name] = 1
 
-    def make_env(self, resource_chain, num_sinks, rng, max_steps=256) -> EnvConfig:
-        cfg = InContextCfg()
-
+    def _make_env_cfg(self, resource_chain, num_sinks, rng, max_steps=256) -> EnvConfig:
+        cfg = _BuildCfg()
         resource_chain = ["nothing"] + list(resource_chain) + ["heart"]
 
         chain_length = len(resource_chain)
 
         for i in range(chain_length - 1):
             input_resource, output_resource = resource_chain[i], resource_chain[i + 1]
-            self.set_converter(input_resource, output_resource, cfg, rng=rng)
+            self._add_converter(input_resource, output_resource, cfg, rng=rng)
 
         for _ in range(num_sinks):
-            self.set_sink(cfg, rng=rng)
+            self._add_sink(cfg, rng=rng)
 
         # longer episodes for longer chains
         if len(cfg.used_objects) > 4:
@@ -143,7 +149,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
         num_sinks = rng.choice(self.config.num_sinks)
         resource_chain = rng.sample(self.resource_types, chain_length)
 
-        icl_env = self.make_env(resource_chain, num_sinks, rng=rng)
+        icl_env = self._make_env_cfg(resource_chain, num_sinks, rng=rng)
 
         return icl_env
 
