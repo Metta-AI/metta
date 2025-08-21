@@ -1,6 +1,8 @@
 from ast import Tuple
 import torch
 from torch import nn
+from typing import Dict, Tuple, List
+import torch.nn.functional as F
 
 
 # ------------------
@@ -140,17 +142,6 @@ class CastedLinear(nn.Linear):
         return super().forward(x).to(self.cast_to)
 
 
-class CastedSparseEmbedding(nn.Module):
-    def __init__(self, num_embeddings, embedding_dim, batch_size, init_std=0.02, cast_to=torch.float32):
-        super().__init__()
-        self.emb = nn.Embedding(num_embeddings, embedding_dim, sparse=True)
-        trunc_normal_init_(self.emb.weight, std=init_std)
-        self.cast_to = cast_to
-
-    def forward(self, x):
-        return self.emb(x).to(self.cast_to)
-
-
 
 class ReasoningAttnBlock(nn.Module):
     def __init__(self, hidden_size=512):
@@ -193,12 +184,10 @@ class HRM_ACTV1_Inner(nn.Module):
         self,
         hidden_size: int,
         vocab_size: int,
-        puzzle_emb_ndim: int,
         batch_size: int,
         pos_encodings: str,
         rope_theta: float,
         seq_len: int,
-        num_puzzle_identifiers: int,
         forward_dtype: str,
         H_layers: int,
         L_layers: int,
@@ -209,12 +198,10 @@ class HRM_ACTV1_Inner(nn.Module):
         super().__init__()
         self.hidden_size = hidden_size
         self.vocab_size = vocab_size
-        self.puzzle_emb_ndim = puzzle_emb_ndim
         self.batch_size = batch_size
         self.pos_encodings = pos_encodings
         self.rope_theta = rope_theta
         self.seq_len = seq_len
-        self.num_puzzle_identifiers = num_puzzle_identifiers
         self.H_layers = H_layers
         self.L_layers = L_layers
         self.H_cycles = H_cycles
@@ -232,27 +219,16 @@ class HRM_ACTV1_Inner(nn.Module):
         self.lm_head = CastedLinear(self.hidden_size, self.vocab_size, bias=False)
         self.q_head = CastedLinear(self.hidden_size, 2, bias=True)
 
-        self.puzzle_emb_len = -(self.puzzle_emb_ndim // -self.hidden_size)  # ceil div
-        if self.puzzle_emb_ndim > 0:
-            # Zero init puzzle embeddings
-            self.puzzle_emb = CastedSparseEmbedding(
-                self.num_puzzle_identifiers,
-                self.puzzle_emb_ndim,
-                batch_size=self.batch_size,
-                init_std=0,
-                cast_to=self.forward_dtype,
-            )
-
         # LM Blocks
         if self.pos_encodings == "rope":
             self.rotary_emb = RotaryEmbedding(
                 dim=self.hidden_size // self.num_heads,
-                max_position_embeddings=self.seq_len + self.puzzle_emb_len,
+                max_position_embeddings=self.seq_len,
                 base=self.rope_theta,
             )
         elif self.pos_encodings == "learned":
             self.embed_pos = CastedEmbedding(
-                self.seq_len + self.puzzle_emb_len,
+                self.seq_len,
                 self.hidden_size,
                 init_std=embed_init_std,
                 cast_to=self.forward_dtype,
@@ -282,19 +258,9 @@ class HRM_ACTV1_Inner(nn.Module):
             self.q_head.weight.zero_()
             self.q_head.bias.fill_(-5)  # type: ignore
 
-    def _input_embeddings(self, input: torch.Tensor, puzzle_identifiers: torch.Tensor):
+    def _input_embeddings(self, input: torch.Tensor):
         # Token embedding
         embedding = self.embed_tokens(input.to(torch.int32))
-
-        # Puzzle embeddings
-        if self.puzzle_emb_ndim > 0:
-            puzzle_embedding = self.puzzle_emb(puzzle_identifiers)
-
-            pad_count = self.puzzle_emb_len * self.hidden_size - puzzle_embedding.shape[-1]
-            if pad_count > 0:
-                puzzle_embedding = F.pad(puzzle_embedding, (0, pad_count))
-
-            embedding = torch.cat((puzzle_embedding.view(-1, self.puzzle_emb_len, self.hidden_size), embedding), dim=-2)
 
         # Position embeddings
         if self.pos_encodings == "learned":
@@ -306,8 +272,8 @@ class HRM_ACTV1_Inner(nn.Module):
 
     def empty_carry(self, batch_size: int):
         return (
-            z_H=torch.empty(batch_size, self.seq_len + self.puzzle_emb_len, self.hidden_size, dtype=self.forward_dtype),
-            z_L=torch.empty(batch_size, self.seq_len + self.puzzle_emb_len, self.hidden_size, dtype=self.forward_dtype),
+            z_H=torch.empty(batch_size, self.seq_len, self.hidden_size, dtype=self.forward_dtype),
+            z_L=torch.empty(batch_size, self.seq_len, self.hidden_size, dtype=self.forward_dtype),
         )
 
     def reset_carry(self, reset_flag: torch.Tensor, carry):
@@ -324,7 +290,7 @@ class HRM_ACTV1_Inner(nn.Module):
         )
 
         # Input encoding
-        input_embeddings = self._input_embeddings(batch["inputs"], batch["puzzle_identifiers"])
+        input_embeddings = self._input_embeddings(batch["inputs"])
 
         # Forward iterations
         with torch.no_grad():
@@ -346,7 +312,7 @@ class HRM_ACTV1_Inner(nn.Module):
 
         # LM Outputs
         new_carry = (z_H=z_H.detach(), z_L=z_L.detach())  # New carry no grad
-        output = self.lm_head(z_H)[:, self.puzzle_emb_len :]
+        output = self.lm_head(z_H)
 
         # Q head
         q_logits = self.q_head(z_H[:, 0]).to(torch.float32)
@@ -363,12 +329,10 @@ class HRMBackbone(nn.Module):
         self,
         hidden_size: int,
         vocab_size: int,
-        puzzle_emb_ndim: int,
         batch_size: int,
         pos_encodings: str,
         rope_theta: float,
         seq_len: int,
-        num_puzzle_identifiers: int,
         forward_dtype: str,
         H_layers: int,
         L_layers: int,
@@ -385,12 +349,10 @@ class HRMBackbone(nn.Module):
         self.inner = HRM_ACTV1_Inner(
             hidden_size=hidden_size,
             vocab_size=vocab_size,
-            puzzle_emb_ndim=puzzle_emb_ndim,
             batch_size=batch_size,
             pos_encodings=pos_encodings,
             rope_theta=rope_theta,
             seq_len=seq_len,
-            num_puzzle_identifiers=num_puzzle_identifiers,
             forward_dtype=forward_dtype,
             H_layers=H_layers,
             L_layers=L_layers,
@@ -399,29 +361,23 @@ class HRMBackbone(nn.Module):
             num_heads=num_heads,
         )
 
-    @property
-    def puzzle_emb(self):
-        return self.inner.puzzle_emb
-
     def initial_carry(self, batch: Dict[str, torch.Tensor]):
         batch_size = batch["inputs"].shape[0]
 
-        return HierarchicalReasoningModel_ACTV1Carry(
-            inner_carry=self.inner.empty_carry(batch_size),  # Empty is expected, it will be reseted in first pass as all sequences are halted.
+        return {
+            "inner_carry": self.inner.empty_carry(batch_size),  # Empty is expected, it will be reseted in first pass as all sequences are halted.
+            "steps": torch.zeros((batch_size, ), dtype=torch.int32),
+            "halted": torch.ones((batch_size, ), dtype=torch.bool),  # Default to halted
+            "current_data": {k: torch.empty_like(v) for k, v in batch.items()}
+        }
 
-            steps=torch.zeros((batch_size, ), dtype=torch.int32),
-            halted=torch.ones((batch_size, ), dtype=torch.bool),  # Default to halted
-
-            current_data={k: torch.empty_like(v) for k, v in batch.items()}
-        )
-
-    def forward(self, carry: HierarchicalReasoningModel_ACTV1Carry, batch: Dict[str, torch.Tensor]) -> Tuple[HierarchicalReasoningModel_ACTV1Carry, Dict[str, torch.Tensor]]:
+    def forward(self, carry, batch: Dict[str, torch.Tensor]) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         # Update data, carry (removing halted sequences)
-        new_inner_carry = self.inner.reset_carry(carry.halted, carry.inner_carry)
+        new_inner_carry = self.inner.reset_carry(carry["halted"], carry["inner_carry"])
 
-        new_steps = torch.where(carry.halted, 0, carry.steps)
+        new_steps = torch.where(carry["halted"], 0, carry["steps"])
 
-        new_current_data = {k: torch.where(carry.halted.view((-1, ) + (1, ) * (batch[k].ndim - 1)), batch[k], v) for k, v in carry.current_data.items()}
+        new_current_data = {k: torch.where(carry["halted"].view((-1, ) + (1, ) * (batch[k].ndim - 1)), batch[k], v) for k, v in carry["current_data"].items()}
 
         # Forward inner model
         new_inner_carry, logits, (q_halt_logits, q_continue_logits) = self.inner(new_inner_carry, new_current_data)
@@ -458,4 +414,38 @@ class HRMBackbone(nn.Module):
 
                 outputs["target_q_continue"] = torch.sigmoid(torch.where(is_last_step, next_q_halt_logits, torch.maximum(next_q_halt_logits, next_q_continue_logits)))
 
-        return (new_inner_carry, new_steps, halted, new_current_data), outputs
+        return {
+            "inner_carry": new_inner_carry,
+            "steps": new_steps,
+            "halted": halted,
+            "current_data": new_current_data
+        }, outputs
+
+
+
+if __name__ == "__main__":
+    # I want HRMBackbone to accept hidden state with shape [batch_size, hidden_size]
+    # and outputs transformed hidden state with shape [batch_size, hidden_size]
+
+    hrm = HRMBackbone(
+        hidden_size=128,
+        vocab_size=10000,
+        batch_size=1,
+        pos_encodings="rope",
+        rope_theta=10000,
+        seq_len=1024,
+        forward_dtype="float16",
+        H_layers=1,
+        L_layers=1,
+        H_cycles=1,
+        L_cycles=1,
+        num_heads=1,
+        halt_max_steps=10,
+        halt_exploration_prob=0.1,
+    )
+
+    hidden_state = torch.randn(1, 128)
+    carry = hrm.initial_carry({"inputs": torch.randint(0, 10000, (1, 1024))})
+    new_carry, outputs = hrm(carry, {"inputs": torch.randint(0, 10000, (1, 1024))})
+    print(new_carry)
+    print(outputs)
