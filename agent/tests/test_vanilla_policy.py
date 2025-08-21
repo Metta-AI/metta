@@ -150,12 +150,68 @@ def test_metta_agent_with_mixin_policy():
 
     # Re-initialize in eval mode
     agent.eval()
-    agent.initialize_to_environment(new_features, action_names, action_max_params, "cpu")
+    agent.initialize_to_environment(new_features, action_names, action_max_params, "cpu", is_training=False)
 
     # Check that remapping was created (mixin provides no-op implementation)
-    assert agent.feature_id_remap[5] == 1  # health remapped
-    assert agent.feature_id_remap[7] == 2  # energy remapped
+    # In eval mode, new features should be mapped to UNKNOWN (255)
+    assert agent.feature_id_remap[5] == 1  # health remapped to original ID
+    assert agent.feature_id_remap[7] == 2  # energy remapped to original ID
     assert agent.feature_id_remap[10] == 255  # mana mapped to UNKNOWN in eval mode
+
+
+def test_training_mode_learns_new_features():
+    """Test that in training mode, new features are learned and added to the mapping."""
+
+    # Create minimal environment mock
+    class MinimalEnv:
+        def __init__(self):
+            self.single_observation_space = gym.spaces.Box(low=0, high=255, shape=(10, 10, 3), dtype=np.uint8)
+            self.obs_width = 10
+            self.obs_height = 10
+            self.single_action_space = gym.spaces.Discrete(10)
+            self.feature_normalizations = {}
+
+    # Create configs
+    system_cfg = SystemConfig(device="cpu")
+    agent_cfg = DictConfig({"clip_range": 0})
+
+    # Create MettaAgent with mixin-enhanced policy
+    mixin_policy = VanillaPolicyWithMixin()
+    agent = MettaAgent(MinimalEnv(), system_cfg, agent_cfg, policy=mixin_policy)
+
+    # Initial features
+    features = {
+        "health": {"id": 1, "type": "scalar", "normalization": 100.0},
+        "energy": {"id": 2, "type": "scalar", "normalization": 50.0},
+    }
+    action_names = ["move", "attack"]
+    action_max_params = [3, 1]
+
+    # Initialize with initial features
+    agent.initialize_to_environment(features, action_names, action_max_params, "cpu")
+
+    # Verify original mapping stored
+    assert agent.original_feature_mapping == {"health": 1, "energy": 2}
+
+    # New features with different IDs and a new feature
+    new_features = {
+        "health": {"id": 5, "type": "scalar", "normalization": 100.0},  # Different ID
+        "energy": {"id": 7, "type": "scalar", "normalization": 50.0},  # Different ID
+        "mana": {"id": 10, "type": "scalar", "normalization": 30.0},  # New feature
+    }
+
+    # Re-initialize in TRAINING mode (default)
+    agent.train()
+    agent.initialize_to_environment(new_features, action_names, action_max_params, "cpu", is_training=True)
+
+    # In training mode, new features should be learned
+    assert agent.feature_id_remap[5] == 1  # health remapped to original ID
+    assert agent.feature_id_remap[7] == 2  # energy remapped to original ID
+    # mana should be added to original_feature_mapping in training mode
+    assert "mana" in agent.original_feature_mapping
+    assert agent.original_feature_mapping["mana"] == 10
+    # Since mana is now learned, it shouldn't be in the remap
+    assert 10 not in agent.feature_id_remap
 
 
 def test_mixin_provides_all_required_methods():
