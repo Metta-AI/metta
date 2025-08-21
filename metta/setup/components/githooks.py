@@ -217,17 +217,21 @@ class GitHooksSetup(SetupModule):
             info("Skipping secrets scanning...")
             return True
 
-        info("Scanning for secrets with gitleaks...")
         try:
             subprocess.run(
-                ["gitleaks", "protect", "--staged", "-v"],
+                ["gitleaks", "protect", "--staged", "-v", "--no-banner", "--exit-code", "1"],
                 cwd=self.repo_root,
                 check=True,
+                capture_output=True,
+                text=True,
             )
-            success("No secrets detected")
             return True
-        except subprocess.CalledProcessError:
-            error("Gitleaks detected potential secrets in staged files!")
+        except subprocess.CalledProcessError as e:
+            if e.stdout:
+                info(e.stdout)
+            if e.stderr:
+                error(e.stderr)
+
             error("Review the output above and remove any secrets before committing.")
 
             if gitleaks_mode == GitLeaksMode.BLOCK:
