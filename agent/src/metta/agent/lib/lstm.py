@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Tuple
 
 import torch
 import torch.nn as nn
@@ -67,20 +67,21 @@ class LSTM(LayerBase):
         self.reset_in_training = cfg.get("reset_in_training", False)
         self.lstm_train_step = None
 
-        self.lstm_h: Dict[int, torch.Tensor] = {}
-        self.lstm_c: Dict[int, torch.Tensor] = {}
+        # self.lstm_h: Dict[int, torch.Tensor] = {}
+        # self.lstm_c: Dict[int, torch.Tensor] = {}
 
     def __setstate__(self, state):
         """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
         self.__dict__.update(state)
+        # AV NOTE: would it be better if I set these dicts to registered buffers?
         # Reset hidden states when loading from checkpoint to avoid batch size mismatch
-        if not hasattr(self, "lstm_h"):
-            self.lstm_h = {}
-        if not hasattr(self, "lstm_c"):
-            self.lstm_c = {}
+        # if not hasattr(self, "lstm_h"):
+        #     self.lstm_h = {}
+        # if not hasattr(self, "lstm_c"):
+        #     self.lstm_c = {}
         # Clear any existing states to handle batch size mismatches
-        self.lstm_h.clear()
-        self.lstm_c.clear()
+        # self.lstm_h.clear()
+        # self.lstm_c.clear()
 
     def on_rollout_start(self):
         self.reset_memory()
@@ -110,8 +111,9 @@ class LSTM(LayerBase):
         self.lstm_h, self.lstm_c = memory[0], memory[1]
 
     def reset_memory(self):
-        self.lstm_h.clear()
-        self.lstm_c.clear()
+        # self.lstm_h.clear()
+        # self.lstm_c.clear()
+        pass
 
     def setup(self, source_components):
         """Setup the layer and create the network."""
@@ -133,6 +135,11 @@ class LSTM(LayerBase):
             elif "weight" in name:
                 nn.init.orthogonal_(param, 1)  # torch's default is uniform
 
+        # make registered buffers?
+        self.lstm_h = torch.empty(self.num_layers, 0, self.hidden_size)
+        self.lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
+        self.iter = 0
+
         return None
 
     @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
@@ -145,11 +152,9 @@ class LSTM(LayerBase):
         TT = td["bptt"][0]
         B = td["batch"][0]
 
-        training_env_id_start = td.get("training_env_id_start", None)
-        if training_env_id_start is None:
-            training_env_id_start = 0
-        else:
-            training_env_id_start = training_env_id_start[0].item()
+        training_env_ids = td.get("training_env_ids", None)
+        if training_env_ids is None:
+            training_env_ids = torch.arange(B, device=latent.device)
 
         dones = td.get("dones", None)
         truncateds = td.get("truncateds", None)
@@ -158,15 +163,24 @@ class LSTM(LayerBase):
         else:
             reset_mask = torch.ones(1, B, 1, device=latent.device)
 
-        if training_env_id_start in self.lstm_h and training_env_id_start in self.lstm_c:
-            h_0 = self.lstm_h[training_env_id_start]
-            c_0 = self.lstm_c[training_env_id_start]
-            if TT == 1:
-                h_0 = h_0.masked_fill(reset_mask, 0)
-                c_0 = c_0.masked_fill(reset_mask, 0)
+        if TT == 1:
+            self.iter += 1
+            print(f"!! iter: {self.iter}")
+            print(f"!! training_env_ids[-1]: {training_env_ids[-1]}")
+            if training_env_ids[-1] >= self.lstm_h.size(1):
+                # we haven't allocated states for these envs (ie the very first epoch)
+                # NOTE: this rests on the assumption that envIDs come in contiguous chunks
+                h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
+                c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
+                self.lstm_h = torch.cat([self.lstm_h, h_0.detach()], dim=1)
+                self.lstm_c = torch.cat([self.lstm_c, c_0.detach()], dim=1)
+
+            h_0 = self.lstm_h[:, training_env_ids]
+            c_0 = self.lstm_c[:, training_env_ids]
+
         else:
-            h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
-            c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
+            print("!!")
+            breakpoint()
 
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
         if self.reset_in_training and TT != 1:
@@ -176,8 +190,8 @@ class LSTM(LayerBase):
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
-        self.lstm_h[training_env_id_start] = h_n.detach()
-        self.lstm_c[training_env_id_start] = c_n.detach()
+        self.lstm_h[:, training_env_ids] = h_n.detach()
+        self.lstm_c[:, training_env_ids] = c_n.detach()
 
         td[self._name] = hidden
 

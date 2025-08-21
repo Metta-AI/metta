@@ -106,7 +106,7 @@ class ComponentPolicy(nn.Module, ABC):
         component.setup(source_components)
 
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
-        """Forward pass."""
+        """Forward pass. state is not used. It is left in the signature for compatibility with MettaAgent."""
         # Handle BPTT reshaping
         if td.batch_dims > 1:
             B = td.batch_size[0]

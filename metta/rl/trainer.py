@@ -469,14 +469,8 @@ def train(
                     td["rewards"] = r
                     td["dones"] = d.float()
                     td["truncateds"] = t.float()
-                    td.set(
-                        "training_env_id_start",
-                        torch.full(
-                            td.batch_size,
-                            training_env_id.start,
-                            device=td.device,
-                            dtype=torch.long,
-                        ),
+                    td["training_env_ids"] = torch.arange(
+                        training_env_id.start, training_env_id.stop, dtype=torch.long, device=device
                     )
 
                     # Inference
