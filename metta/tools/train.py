@@ -121,6 +121,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
     )
 
     if platform.system() == "Darwin":
+        pass
         cfg = _minimize_config_for_debugging(cfg)
 
     # Save configuration

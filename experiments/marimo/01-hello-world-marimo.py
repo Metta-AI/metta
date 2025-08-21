@@ -325,6 +325,8 @@ def _(RendererToolConfig):
     # Simple approach: use the built-in arena and add a custom map - just like the demos do
     from metta.mettagrid.config.envs import make_arena
     from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
+    from metta.mettagrid.mettagrid_config import AgentRewards, InventoryRewards
+    import pprint
 
     # Define simple hallway map as ASCII string
     import textwrap
@@ -360,7 +362,12 @@ def _(RendererToolConfig):
     env_config.game.actions.place_box.enabled = False
 
     # Ensure ore collection gives rewards
-    env_config.game.agent.rewards.inventory.ore_red = 1.0
+    env_config.game.agent.rewards = AgentRewards(
+        inventory=InventoryRewards(
+            ore_red=1.0,
+            battery_red=1.0,
+        ),
+    )
 
     # Create a proper RendererToolConfig for policy creation
     renderer_config = RendererToolConfig(
@@ -371,7 +378,16 @@ def _(RendererToolConfig):
     )
 
     print("✅ Simple hallway environment: start with arena, add custom map")
-    return AsciiMapBuilder, env_config, make_arena, renderer_config, textwrap
+    print(pprint.pp(env_config, indent=1, width=80))
+    return (
+        AgentRewards,
+        AsciiMapBuilder,
+        InventoryRewards,
+        env_config,
+        make_arena,
+        renderer_config,
+        textwrap,
+    )
 
 
 @app.cell(hide_code=True)
@@ -630,8 +646,6 @@ def _(mo):
 
 @app.cell
 def _(datetime, env_config, mo, os, train_button):
-    mo.stop(not train_button.value)
-
     # Import training modules
     import logging
     from metta.tools.train import TrainTool
@@ -641,7 +655,6 @@ def _(datetime, env_config, mo, os, train_button):
         EvaluationConfig,
     )
 
-    # from metta.common.wandb.wandb_context import WandbConfigOff
     from metta.cogworks.curriculum import env_curriculum
 
     username = os.environ.get("USER", "metta_user")
@@ -653,52 +666,65 @@ def _(datetime, env_config, mo, os, train_button):
 
     print(f"🚀 Starting training run: {run_name}")
 
-    # Create a simple curriculum with our hallway environment
-    curriculum = env_curriculum(env_config)
+    def _():
+        # Create a simple curriculum with our hallway environment
+        curriculum = env_curriculum(env_config)
 
-    # Create trainer configuration with small settings for demo
-    trainer_config = TrainerConfig(
-        curriculum=curriculum,
-        total_timesteps=5000,  # Small demo run
-        # total_timesteps=1000,  # DEBUG run
-        batch_size=256,
-        minibatch_size=256,
-        rollout_workers=14,  # Correct field name
-        checkpoint=CheckpointConfig(
-            checkpoint_interval=50,  # Checkpoint every 50 steps for demo
-            wandb_checkpoint_interval=50,
-        ),
-        # Enable replay generation for MettaScope visualization
-        evaluation=EvaluationConfig(
-            evaluate_interval=50,  # Generate replays every 50 steps (matches checkpoint interval)
-            evaluate_remote=False,  # Run locally
-            evaluate_local=True,
-            replay_dir=f"s3://softmax-public/replays/{run_name}",  # Store replays on S3
-            simulations=[],  # Empty list instead of None
-        ),
+        # Create trainer configuration with small settings for demo
+        trainer_config = TrainerConfig(
+            curriculum=curriculum,
+            total_timesteps=100000,  # Small demo run
+            # total_timesteps=1000,  # DEBUG run
+            batch_size=256,
+            minibatch_size=256,
+            rollout_workers=1,  # Correct field name
+            forward_pass_minibatch_target_size=2,
+            checkpoint=CheckpointConfig(
+                checkpoint_interval=50,  # Checkpoint every n epochs
+                wandb_checkpoint_interval=50,
+            ),
+            # Enable replay generation for MettaScope visualization
+            evaluation=EvaluationConfig(
+                evaluate_interval=50,  # Generate replays every 50 steps (matches checkpoint interval)
+                evaluate_remote=False,  # Run locally or you'll have to wait
+                evaluate_local=True,
+                replay_dir=f"s3://softmax-public/replays/{run_name}",  # Store replays on S3
+            ),
+        )
+
+        # Create and configure the training tool
+        train_tool = TrainTool(
+            trainer=trainer_config,
+            # wandb=WandbConfigOff(),  # Disable wandb for simplicity
+            run=run_name,
+            run_dir=f"train_dir/{run_name}",
+        )
+
+        # Set up logging to capture output
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+        try:
+            print("🏋️ Training started...")
+            result = train_tool.invoke()  # Use invoke() method instead of run()
+            print(f"✅ Training completed successfully! Result: {result}")
+        except Exception as e:
+            print(f"❌ Training failed: {e}")
+            import traceback
+
+            traceback.print_exc()
+
+    mo.stop(not train_button.value)
+    _()
+    return (
+        CheckpointConfig,
+        EvaluationConfig,
+        TrainTool,
+        TrainerConfig,
+        env_curriculum,
+        logging,
+        run_name,
+        username,
     )
-
-    # Create and configure the training tool
-    train_tool = TrainTool(
-        trainer=trainer_config,
-        # wandb=WandbConfigOff(),  # Disable wandb for simplicity
-        run=run_name,
-        run_dir=f"train_dir/{run_name}",
-    )
-
-    # Set up logging to capture output
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-
-    try:
-        print("🏋️ Training started...")
-        result = train_tool.invoke()  # Use invoke() method instead of run()
-        print(f"✅ Training completed successfully! Result: {result}")
-    except Exception as e:
-        print(f"❌ Training failed: {e}")
-        import traceback
-
-        traceback.print_exc()
-    return run_name, traceback
 
 
 @app.cell(hide_code=True)
@@ -757,14 +783,14 @@ def _(
     time,
     widgets,
 ):
-    mo.stop(not eval_trained_button.value or not run_name)
-
     # Load trained policy using repo's PolicyStore approach (like tools/sim.py)
     from metta.agent.policy_store import PolicyStore
 
     from metta.common.wandb.wandb_context import WandbConfig
     from metta.rl.policy_management import initialize_policy_for_environment
     import torch
+
+    mo.stop(not eval_trained_button.value or not run_name)
 
     def _():
         # Find the latest checkpoint
@@ -913,7 +939,7 @@ def _(
         print(f"📊 Compare with opportunistic baseline from earlier evaluation!")
 
     _()
-    return
+    return PolicyStore, WandbConfig, initialize_policy_for_environment, torch
 
 
 @app.cell(hide_code=True)
@@ -971,7 +997,7 @@ def _(mo, replay_available, replay_button, run_name, show_replay):
 
 
 @app.cell
-def _(run_name, traceback):
+def _(mo, run_name, traceback):
     import wandb
     import IPython
 
@@ -987,23 +1013,41 @@ def _(run_name, traceback):
         try:
             obj = api.from_path(path)
 
-            IPython.display.display_html(
-                obj.to_html(height=height),
-                raw=True,
-            )
+            return mo.md(obj.to_html(height=height))
         except wandb.Error:
             traceback.print_exc()
-            IPython.display.display_html(
-                f"Path {path!r} does not refer to a W&B object you can access.",
-                raw=True,
+            return mo.md(
+                f"Path {path!r} does not refer to a W&B object you can access."
             )
 
-    _display_by_wandb_path(f"metta-research/metta/runs/{run_name}", height=600)
+    _display_by_wandb_path(f"metta-research/metta/runs/{run_name}", height=580)
     return
 
 
 @app.cell
-def _(AsciiMapBuilder, RendererToolConfig, make_arena, textwrap):
+def _(mo):
+    mo.md(
+        r"""
+    # Let's run a new example with a new map
+
+        ###########  
+        #R...@...m#  
+        ###########
+
+    """
+    )
+    return
+
+
+@app.cell
+def _(
+    AgentRewards,
+    AsciiMapBuilder,
+    InventoryRewards,
+    RendererToolConfig,
+    make_arena,
+    textwrap,
+):
     hallway_map2 = textwrap.dedent("""
         ###########
         #R...@...m#
@@ -1016,6 +1060,31 @@ def _(AsciiMapBuilder, RendererToolConfig, make_arena, textwrap):
     # Replace with our simple hallway map
     map_data2 = [list(line) for line in hallway_map2.splitlines()]
     env_config2.game.map_builder = AsciiMapBuilder.Config(map_data=map_data2)
+
+    # Simple customizations
+    env_config2.game.max_steps = 5000
+    env_config2.game.obs_width = 11
+    env_config2.game.obs_height = 11
+
+    # Enable basic movement and item collection - disable combat
+    env_config2.game.actions.move_cardinal.enabled = True
+    env_config2.game.actions.rotate.enabled = True
+    env_config2.game.actions.noop.enabled = True
+    env_config2.game.actions.move_8way.enabled = False
+    env_config2.game.actions.attack.enabled = False
+    env_config2.game.actions.put_items.enabled = True
+    env_config2.game.actions.change_color.enabled = False
+    env_config2.game.actions.change_glyph.enabled = False
+    env_config2.game.actions.swap.enabled = False
+    env_config2.game.actions.place_box.enabled = False
+
+    # Ensure ore collection gives rewards
+    env_config2.game.agent.rewards = AgentRewards(
+        inventory=InventoryRewards(
+            ore_red=1.0,
+            battery_red=1.0,
+        ),
+    )
 
     renderer_config2 = RendererToolConfig(
         policy_type="opportunistic",
@@ -1082,6 +1151,279 @@ def _(
             map_box.value = f"<pre>{buffer_str}</pre>"
             time.sleep(renderer_config2.sleep_time)
         env.close()
+
+    _()
+    return
+
+
+@app.cell
+def _(mo):
+    train_button2 = mo.ui.run_button(label="Click to run training below")
+    train_button2
+    return (train_button2,)
+
+
+@app.cell
+def _(
+    CheckpointConfig,
+    EvaluationConfig,
+    TrainTool,
+    TrainerConfig,
+    datetime,
+    env_config2,
+    env_curriculum,
+    logging,
+    mo,
+    train_button2,
+    username,
+):
+    mo.stop(not train_button2.value)
+
+    def _():
+        # Create a simple curriculum with our hallway environment
+        curriculum = env_curriculum(env_config2)
+
+        run_name2 = f"{username}.hello_world_train.generator.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        # Create trainer configuration with small settings for demo
+        trainer_config = TrainerConfig(
+            curriculum=curriculum,
+            total_timesteps=100000,  # Small demo run
+            # total_timesteps=1000,  # DEBUG run
+            batch_size=256,
+            minibatch_size=256,
+            rollout_workers=1,  # Correct field name
+            forward_pass_minibatch_target_size=2,
+            checkpoint=CheckpointConfig(
+                checkpoint_interval=50,  # Checkpoint every n epochs
+                wandb_checkpoint_interval=50,
+            ),
+            # Enable replay generation for MettaScope visualization
+            evaluation=EvaluationConfig(
+                evaluate_interval=50,  # Generate replays every 50 steps (matches checkpoint interval)
+                evaluate_remote=False,  # Run locally or you'll have to wait
+                evaluate_local=True,
+                replay_dir=f"s3://softmax-public/replays/{run_name2}",  # Store replays on S3
+            ),
+        )
+
+        # Create and configure the training tool
+        train_tool = TrainTool(
+            trainer=trainer_config,
+            # wandb=WandbConfigOff(),  # Disable wandb for simplicity
+            run=run_name2,
+            run_dir=f"train_dir/{run_name2}",
+        )
+
+        # Set up logging to capture output
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+
+        try:
+            print("🏋️ Training started...")
+            result = train_tool.invoke()  # Use invoke() method instead of run()
+            print(f"✅ Training completed successfully! Result: {result}")
+        except Exception as e:
+            print(f"❌ Training failed: {e}")
+            import traceback
+
+            traceback.print_exc()
+
+        return run_name2
+
+    run_name2 = _()
+    return (run_name2,)
+
+
+@app.cell
+def _(mo):
+    eval_trained_button2 = mo.ui.run_button(label="Click to evaluate trained agent")
+    eval_trained_button2
+    return (eval_trained_button2,)
+
+
+@app.cell
+def _(
+    EVAL_EPISODES,
+    MettaGridEnv,
+    Path,
+    PolicyStore,
+    WandbConfig,
+    contextlib,
+    display,
+    env_config2,
+    eval_trained_button2,
+    initialize_policy_for_environment,
+    io,
+    mo,
+    np,
+    pd,
+    renderer_config2,
+    run_name2,
+    time,
+    torch,
+    widgets,
+):
+    mo.stop(not eval_trained_button2.value or not run_name2)
+
+    def _():
+        # Find the latest checkpoint
+        ckpt_dir = Path("train_dir") / run_name2 / "checkpoints"
+        latest_ckpt = max(ckpt_dir.glob("*.pt"), key=lambda p: p.stat().st_mtime)
+
+        print(f"Evaluating checkpoint: {latest_ckpt.name}")
+
+        # Create policy store (same as tools/sim.py:65-70)
+        policy_store = PolicyStore.create(
+            device="cpu",
+            wandb_config=WandbConfig.Off(),
+            data_dir="train_dir",
+            wandb_run=None,
+        )
+
+        # Get policy record (same as tools/sim.py:76-82)
+        policy_uri = f"file://{latest_ckpt.parent.absolute()}"
+        policy_records = policy_store.policy_records(
+            uri_or_config=policy_uri,
+            selector_type="latest",
+            n=1,
+            metric="score",
+        )
+
+        if not policy_records:
+            raise Exception("No policy records found")
+
+        policy_record = policy_records[0]
+        print(f"✅ Successfully loaded policy: {policy_record.run_name}")
+
+        # Create evaluation environment
+        with contextlib.redirect_stdout(io.StringIO()):
+            eval_env = MettaGridEnv(env_config2, render_mode="human")
+
+        # Initialize policy for environment (same as simulation.py:133-138)
+        initialize_policy_for_environment(
+            policy_record=policy_record,
+            metta_grid_env=eval_env,
+            device=torch.device("cpu"),
+            restore_feature_mapping=True,
+        )
+
+        # Get the trained policy from the policy record
+        trained_policy = policy_record.policy
+
+        # Run animated evaluation with the trained policy
+        trained_scores_ore: list[int] = []
+        trained_scores_batteries: list[int] = []
+
+        # Create header and display widgets for animation
+        header = widgets.HTML()
+        map_box = widgets.HTML()
+        display(header, map_box)
+
+        print(f"🎯 Running {EVAL_EPISODES} episodes with animated evaluation...")
+
+        for ep in range(1, EVAL_EPISODES + 1):
+            header.value = (
+                f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Evaluating trained agent..."
+            )
+
+            _obs, _ = eval_env.reset()
+            # Convert obs to tensor format for policy
+            obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
+
+            steps = 1000
+            for _step in range(steps):  # Same number of steps as opportunistic
+                # Use TensorDict format for trained policy (same as simulation.py:272-275)
+                from tensordict import TensorDict
+
+                td = TensorDict({"env_obs": obs_tensor}, batch_size=obs_tensor.shape[0])
+                trained_policy(td)
+                _actions = td["actions"].cpu().numpy()
+
+                _obs, _, _, _, _ = eval_env.step(_actions)
+                obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
+
+                # Update display every few steps to show animation
+                _agent_obj = next(
+                    (
+                        o
+                        for o in eval_env.grid_objects.values()
+                        if o.get("agent_id") == 0
+                    )
+                )
+                _inv = {
+                    eval_env.inventory_item_names[idx]: cnt
+                    for idx, cnt in _agent_obj.get("inventory", {}).items()
+                }
+                header.value = (
+                    f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/{steps} - "
+                    f"<br />"
+                    f"<b>Ore collected:</b> {_inv.get('ore_red', 0)}"
+                    f"<br />"
+                    f"<b>Batteries collected:</b> {_inv.get('battery_red', 0)}"
+                )
+                with contextlib.redirect_stdout(io.StringIO()) as buffer:
+                    buffer_str = eval_env.render()
+                map_box.value = f"<pre>{buffer_str}</pre>"
+                time.sleep(renderer_config2.sleep_time)  # Small delay for animation
+
+            # Final inventory count for this episode
+            _agent_obj = next(
+                (o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0)
+            )
+            _inv = {
+                eval_env.inventory_item_names[idx]: cnt
+                for idx, cnt in _agent_obj.get("inventory", {}).items()
+            }
+            inv_count_ore = int(_inv.get("ore_red", 0))
+            inv_count_batteries = int(_inv.get("battery_red", 0))
+            trained_scores_ore.append(inv_count_ore)
+            trained_scores_batteries.append(inv_count_batteries)
+
+        eval_env.close()
+
+        # Calculate and display results
+        mean_score_ore = np.mean(trained_scores_ore)
+        mean_score_batteries = np.mean(trained_scores_batteries)
+        std_score_ore = np.std(trained_scores_ore)
+        std_score_batteries = np.std(trained_scores_batteries)
+        running_avg_ore = pd.Series(trained_scores_ore).expanding().mean()
+        running_avg_batteries = pd.Series(trained_scores_batteries).expanding().mean()
+
+        # Show final results
+        header.value = f"<b>✅ Evaluation Complete!</b>"
+        map_box.value = f"""<pre>
+    🏆 TRAINED AGENT RESULTS 🏆
+
+    Episodes: {EVAL_EPISODES}
+    Average Score: {mean_score_ore:.2f} ± {std_score_ore:.2f} ore collected
+    Average Score: {mean_score_batteries:.2f} ± {std_score_batteries:.2f} batteries collected
+    Best Episode: {max(trained_scores_ore)} ore, {max(trained_scores_batteries)} batteries
+    Worst Episode: {min(trained_scores_ore)} ore, {min(trained_scores_batteries)} batteries
+
+    Individual Episode Scores: {trained_scores_ore} ore, {trained_scores_batteries} batteries
+
+    Compare this to the opportunistic baseline from earlier!
+        </pre>"""
+
+        display(
+            pd.DataFrame(
+                {
+                    "episode": list(range(1, EVAL_EPISODES + 1)),
+                    "ore_red": trained_scores_ore,
+                    "battery_red": trained_scores_batteries,
+                    "running_avg_ore": running_avg_ore,
+                    "running_avg_batteries": running_avg_batteries,
+                }
+            )
+        )
+
+        print(
+            f"\n🎯 Trained agent performance: {mean_score_ore:.2f} ± {std_score_ore:.2f} ore collected"
+        )
+        print(
+            f"\n🎯 Trained agent performance: {mean_score_batteries:.2f} ± {std_score_batteries:.2f} batteries collected"
+        )
+        print(f"📊 Compare with opportunistic baseline from earlier evaluation!")
 
     _()
     return
