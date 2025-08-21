@@ -166,6 +166,7 @@ GET_EVALS_QUERY = """
         training_run_id = ANY(%s) OR  -- Policies from selected training runs
         (training_run_id IS NULL AND primary_policy_id = ANY(%s))  -- Selected run-free policies
     )
+    AND eval_name IS NOT NULL
 """
 
 GET_AVAILABLE_METRICS_QUERY = """
@@ -292,7 +293,7 @@ async def get_evals_for_selection(
         con, GET_EVALS_QUERY, (training_run_ids, run_free_policy_ids), "get_evals_for_selection"
     )
 
-    return [row[0] for row in rows]
+    return [row[0] for row in rows if row[0] is not None]
 
 
 async def get_available_metrics_for_selection(
