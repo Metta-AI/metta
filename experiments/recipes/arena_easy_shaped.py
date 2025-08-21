@@ -67,27 +67,24 @@ def make_env(num_agents: int = 24) -> EnvConfig:
         del env_cfg.game.objects["lasery"]
     if "armory" in env_cfg.game.objects:
         del env_cfg.game.objects["armory"]
-    
+
     # MINIMAL ACTION SET: Only cardinal movement and resource collection
     # This tests if learning works with the simplest possible action space
     env_cfg.game.actions = ActionsConfig(
         # Movement - ONLY cardinal movement
         move_cardinal=ActionConfig(enabled=True),  # North/South/East/West movement only
-        
         # Resource collection - essential actions only
-        get_items=ActionConfig(enabled=True),      # Collect from mines/generators/altars
-        put_items=ActionConfig(enabled=True),      # Put into buildings
-        
+        get_items=ActionConfig(enabled=True),  # Collect from mines/generators/altars
+        put_items=ActionConfig(enabled=True),  # Put into buildings
         # Keep noop for when no action needed
         noop=ActionConfig(enabled=True),
-        
         # EVERYTHING ELSE DISABLED (explicitly set to False)
-        move=ActionConfig(enabled=False),          # Disable regular move
-        rotate=ActionConfig(enabled=False),        # No rotation needed with cardinal
-        move_8way=ActionConfig(enabled=False),     # No diagonal movement
-        swap=ActionConfig(enabled=False),          # No swapping
+        move=ActionConfig(enabled=False),  # Disable regular move
+        rotate=ActionConfig(enabled=False),  # No rotation needed with cardinal
+        move_8way=ActionConfig(enabled=False),  # No diagonal movement
+        swap=ActionConfig(enabled=False),  # No swapping
         change_color=ActionConfig(enabled=False),  # No color changing
-        place_box=ActionConfig(enabled=False),     # No box placement
+        place_box=ActionConfig(enabled=False),  # No box placement
     )
 
     # Set shaped rewards (from configs/env/mettagrid/game/agent/rewards/shaped.yaml)
@@ -115,6 +112,15 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     altar_copy = env_cfg.game.objects["altar"].model_copy(deep=True)
     altar_copy.input_resources = {"battery_red": 1}
     env_cfg.game.objects["altar"] = altar_copy
+
+    # CRITICAL: Set initial resource counts so buildings aren't empty!
+    # The old configs often had initial_resource_count: 1
+    # This fixes the issue where agents can't get rewards initially
+    for obj_name in ["mine_red", "generator_red", "altar"]:
+        if obj_name in env_cfg.game.objects:
+            obj_copy = env_cfg.game.objects[obj_name].model_copy(deep=True)
+            obj_copy.initial_resource_count = 1  # Start with 1 resource ready
+            env_cfg.game.objects[obj_name] = obj_copy
 
     # Set label for clarity
     env_cfg.label = "arena.easy_shaped"
@@ -162,10 +168,17 @@ def train() -> TrainTool:
     print("\n[Arena Easy Shaped] Creating training with environment config:")
     print(
         f"  - Altar: input={env_cfg.game.objects['altar'].input_resources}, "
+        f"initial_count={env_cfg.game.objects['altar'].initial_resource_count}, "
         f"cooldown={env_cfg.game.objects['altar'].cooldown}"
     )
-    print(f"  - Mine: cooldown={env_cfg.game.objects['mine_red'].cooldown}")
-    print(f"  - Generator: cooldown={env_cfg.game.objects['generator_red'].cooldown}")
+    print(
+        f"  - Mine: initial_count={env_cfg.game.objects['mine_red'].initial_resource_count}, "
+        f"cooldown={env_cfg.game.objects['mine_red'].cooldown}"
+    )
+    print(
+        f"  - Generator: initial_count={env_cfg.game.objects['generator_red'].initial_resource_count}, "
+        f"cooldown={env_cfg.game.objects['generator_red'].cooldown}"
+    )
     print("  - Shaped rewards:")
     print(
         f"    * ore_red: {env_cfg.game.agent.rewards.inventory.ore_red} (max: {env_cfg.game.agent.rewards.inventory.ore_red_max})"
@@ -243,7 +256,11 @@ def train() -> TrainTool:
     return TrainTool(trainer=trainer_cfg)
 
 
-def play(env: Optional[EnvConfig] = None, num_agents: int = 24, policy_uri: Optional[str] = None) -> PlayTool:
+def play(
+    env: Optional[EnvConfig] = None,
+    num_agents: int = 24,
+    policy_uri: Optional[str] = None,
+) -> PlayTool:
     """Interactive play tool for testing the environment.
 
     Args:
@@ -284,15 +301,19 @@ def play(env: Optional[EnvConfig] = None, num_agents: int = 24, policy_uri: Opti
             print("")
             print("Gameplay:")
             print("  1. Mine red ore from mines (reward: 0.1 per ore, max 1.0)")
-            print("  2. Convert ore to batteries at generators (reward: 0.8 per battery, max 1.0)")
-            print("  3. Convert batteries to hearts at altars (reward: 1.0 per heart, max 100.0)")
+            print(
+                "  2. Convert ore to batteries at generators (reward: 0.8 per battery, max 1.0)"
+            )
+            print(
+                "  3. Convert batteries to hearts at altars (reward: 1.0 per heart, max 100.0)"
+            )
         print("")
     else:
         eval_env = env
 
     return PlayTool(
         sim=SimulationConfig(env=eval_env, name="arena_easy_shaped"),
-        policy_uri=policy_uri
+        policy_uri=policy_uri,
     )
 
 
@@ -323,18 +344,18 @@ if __name__ == "__main__":
     """
     import os
     import sys
-    
+
     # Parse arguments
     port = 8001
     num_agents = 24
     policy_uri = None
-    
+
     if len(sys.argv) > 1:
         try:
             port = int(sys.argv[1])
         except ValueError:
             print(f"Invalid port: {sys.argv[1]}, using default {port}")
-    
+
     if len(sys.argv) > 2:
         arg = sys.argv[2]
         if arg.startswith("wandb://") or arg.startswith("file://") or "/" in arg:
@@ -346,13 +367,13 @@ if __name__ == "__main__":
                     num_agents = (num_agents // 6) * 6
             except ValueError:
                 policy_uri = arg
-    
+
     if len(sys.argv) > 3 and not policy_uri:
         policy_uri = sys.argv[3]
-    
+
     # Set server port
     os.environ["METTASCOPE_PORT"] = str(port)
-    
+
     # Run play
     play_tool = play(num_agents=num_agents, policy_uri=policy_uri)
     play_tool.invoke({}, [])
