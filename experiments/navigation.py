@@ -65,7 +65,7 @@ def make_curriculum(nav_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     return nav_tasks.to_curriculum()
 
 
-def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
@@ -73,11 +73,7 @@ def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
         ),
     )
 
-    return TrainTool(
-        trainer=trainer_cfg,
-        # TODO #dehydration - get rid of run in here
-        run=run,
-    )
+    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[EnvConfig] = None) -> PlayTool:

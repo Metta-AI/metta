@@ -61,7 +61,7 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
     ]
 
 
-def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
@@ -76,13 +76,10 @@ def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
         ),
     )
 
-    return TrainTool(
-        trainer=trainer_cfg,
-        run=run,
-    )
+    return TrainTool(trainer=trainer_cfg)
 
 
-def train_shaped(run: str, rewards: bool = True, converters: bool = True) -> TrainTool:
+def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     env_cfg = make_env()
     env_cfg.game.agent.rewards.inventory.heart = 1
     env_cfg.game.agent.rewards.inventory.heart_max = 100
@@ -103,16 +100,13 @@ def train_shaped(run: str, rewards: bool = True, converters: bool = True) -> Tra
         env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
 
     trainer_cfg = TrainerConfig(
-        curriculum=cc.env_curriculum(env_cfg, num_tasks=1000),
+        curriculum=cc.env_curriculum(env_cfg),
         evaluation=EvaluationConfig(
             simulations=make_evals(),
         ),
     )
 
-    return TrainTool(
-        trainer=trainer_cfg,
-        run=run,
-    )
+    return TrainTool(trainer=trainer_cfg)
 
 
 def play(env: Optional[EnvConfig] = None) -> PlayTool:

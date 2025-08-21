@@ -19,7 +19,7 @@ class GenSceneTool(Tool):
     scene_overrides: list[str] = []  # OmegaConf-style overrides for the scene config
     show_mode: ShowMode | None = None  # Show the map in the specified mode
 
-    def invoke(self):
+    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         scene_omega_cfg = OmegaConf.load(self.scene)
 
         if not OmegaConf.is_dict(scene_omega_cfg):
