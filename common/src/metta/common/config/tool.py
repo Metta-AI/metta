@@ -20,6 +20,8 @@ class Tool(Config):
 
     system: SystemConfig = Field(default_factory=SystemConfig)
 
+    consumed_args: list[str] = Field(default_factory=list)
+
     # Returns exit code, optionally.
     @abstractmethod
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None: ...
