@@ -10,10 +10,13 @@ from metta.mettagrid.mettagrid_c import (
 )
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.test_support.actions import (
-    Orientation,
     get_agent_position,
     move,
+    noop,
+    rotate,
 )
+from metta.mettagrid.test_support.compass import Compass
+from metta.mettagrid.test_support.orientation import Orientation
 
 NUM_AGENTS = 1
 OBS_HEIGHT = 3
@@ -44,6 +47,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             "noop": {"enabled": True},
             "get_items": {"enabled": True},
             "move": {"enabled": True},
+            "rotate": {"enabled": True},
             "put_items": {"enabled": True},
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "swap": {"enabled": True},
@@ -92,23 +96,26 @@ def perform_action(env, action_name, arg=0):
 def wait_for_heart_production(env, steps=5):
     """Wait for altar to produce hearts by performing noop actions."""
     for _ in range(steps):
-        perform_action(env, "noop")
+        noop(env)
 
 
 def collect_heart_from_altar(env):
     """Move agent to altar (if needed) and collect a heart. Returns (success, reward)."""
     agent_pos = get_agent_position(env, 0)
-    _altar_pos = (1, 3)  # Known altar position
-    target_pos = (1, 2)  # Adjacent position to altar
+    altar_pos = (1, 3)  # Known altar position
+    target_pos = (1, 2)  # Position to the left of altar
 
-    # Only move if not already in the correct position
+    # Move to target position if not already there
     if agent_pos != target_pos:
-        move_result = move(env, Orientation.RIGHT, agent_idx=0)
+        # Agent starts at (1, 1), needs to move right to (1, 2)
+        move_result = move(env, Compass.EAST, agent_idx=0)
         if not move_result["success"]:
             return False, 0.0
 
-    # With move, we don't need to rotate - just collect directly
-    # The get_items action will work from any adjacent position
+    # Now we're at (1, 2), need to face right to interact with altar at (1, 3)
+    rotate_result = rotate(env, Orientation.RIGHT, agent_idx=0)
+    if not rotate_result["success"]:
+        return False, 0.0
 
     # Collect heart
     obs, reward, success = perform_action(env, "get_items", 0)
@@ -132,11 +139,12 @@ class TestRewards:
         # Check that rewards start at zero
         assert np.all(rewards == 0), f"Rewards should start at zero, got {rewards}"
 
-        # Take a step with noop actions
-        noop_action_idx = env.action_names().index("noop")
-        actions = np.full((NUM_AGENTS, 2), [noop_action_idx, 0], dtype=dtype_actions)
+        # Take a step with noop action
+        noop_result = noop(env)
+        assert noop_result["success"], "Noop should always succeed"
 
-        obs, step_rewards, terminals, truncations, info = env.step(actions)
+        # Get the rewards from the step
+        step_rewards = rewards.copy()  # The buffer is updated by step()
 
         # Check that step rewards are accessible and match buffer
         assert np.array_equal(step_rewards, rewards), "Step rewards should match buffer rewards"

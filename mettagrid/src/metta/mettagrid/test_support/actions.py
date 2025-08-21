@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import numpy as np
 
@@ -74,7 +74,7 @@ def generate_valid_random_actions(
     return actions
 
 
-def move(env: MettaGrid, direction: Compass, agent_idx: int = 0) -> Dict[str, Any]:
+def move(env: MettaGrid, direction: Compass, agent_idx: int = 0) -> dict[str, Any]:
     """
     Movement helper supporting all 8 compass directions.
 
@@ -120,7 +120,7 @@ def move(env: MettaGrid, direction: Compass, agent_idx: int = 0) -> Dict[str, An
     return result
 
 
-def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[str, Any]:
+def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> dict[str, Any]:
     """
     Rotate agent to face specified direction.
 
@@ -194,6 +194,213 @@ def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict
 
     except Exception as e:
         result["error"] = f"Exception during rotation: {str(e)}"
+
+    return result
+
+
+def noop(env: MettaGrid, agent_idx: int = 0) -> dict[str, Any]:
+    """
+    Perform a no-operation action.
+
+    Args:
+        env: MettaGrid environment
+        agent_idx: Agent index (default 0)
+
+    Returns:
+        Dict with success status
+    """
+    result = {"success": False, "error": None}
+    action_names = env.action_names()
+
+    if "noop" not in action_names:
+        result["error"] = "Noop action not available"
+        return result
+
+    noop_idx = action_names.index("noop")
+
+    # Perform noop
+    noop_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
+    noop_action[agent_idx] = [noop_idx, 0]
+    env.step(noop_action)
+
+    result["success"] = bool(env.action_success()[agent_idx])
+    if not result["success"]:
+        result["error"] = "Noop action failed"
+
+    return result
+
+
+def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str, Any]:
+    """
+    Perform an attack action.
+
+    The attack searches for agents in a 3x3 grid in front of the attacker:
+    7 6 8  (3 cells forward)
+    4 3 5  (2 cells forward)
+    1 0 2  (1 cell forward)
+      A    (Attacker position)
+
+    The target_arg (0-8) selects which agent to attack based on scan order.
+    If target_arg > number of agents found, attacks the last agent found.
+
+    Args:
+        env: MettaGrid environment
+        target_arg: Which agent to target in the 3x3 grid (0-8, default 0)
+        agent_idx: Attacking agent index (default 0)
+
+    Returns:
+        Dict with success status, attack details, and any frozen/stolen info
+    """
+    result = {
+        "success": False,
+        "error": None,
+        "target_arg": target_arg,
+        "agent_idx": agent_idx,
+        "attack_position": None,
+        "target_frozen": False,
+        "resources_stolen": {},
+        "defense_used": False,
+    }
+
+    action_names = env.action_names()
+
+    if "attack" not in action_names:
+        result["error"] = "Attack action not available"
+        return result
+
+    attack_idx = action_names.index("attack")
+
+    # Get initial state for comparison
+    objects_before = env.grid_objects()
+
+    # Get attacker's resources before attack
+    attacker_resources_before = {}
+    for _obj_id, obj_data in objects_before.items():
+        if obj_data.get("agent_id") == agent_idx:
+            attacker_resources_before = obj_data.get("resources", {}).copy()
+            break
+
+    # Perform attack
+    attack_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
+    attack_action[agent_idx] = [attack_idx, target_arg]
+    env.step(attack_action)
+
+    result["success"] = bool(env.action_success()[agent_idx])
+
+    if result["success"]:
+        # Analyze the results
+        objects_after = env.grid_objects()
+
+        # Find which agent was affected
+        for obj_id, obj_data in objects_after.items():
+            if obj_data.get("type") == 0:  # Agent type
+                obj_before = objects_before.get(obj_id, {})
+
+                # Check if this agent was frozen
+                freeze_after = obj_data.get("freeze_remaining", 0)
+                freeze_before = obj_before.get("freeze_remaining", 0)
+
+                if freeze_after > 0 and freeze_before == 0:
+                    # This agent was just frozen
+                    result["target_frozen"] = True
+                    result["frozen_agent_id"] = obj_id
+                    result["freeze_duration"] = freeze_after
+                    result["target_position"] = (obj_data["r"], obj_data["c"])
+
+                    # Check for stolen resources
+                    target_resources_before = obj_before.get("resources", {})
+                    target_resources_after = obj_data.get("resources", {})
+
+                    for item, amount_before in target_resources_before.items():
+                        amount_after = target_resources_after.get(item, 0)
+                        if amount_after < amount_before:
+                            result["resources_stolen"][item] = amount_before - amount_after
+
+                elif freeze_after > 0 and freeze_before > 0:
+                    # Attack hit an already frozen target (wasted)
+                    result["wasted_on_frozen"] = True
+                    result["frozen_agent_id"] = obj_id
+
+        # Check if attacker gained resources
+        for _obj_id, obj_data in objects_after.items():
+            if obj_data.get("agent_id") == agent_idx:
+                attacker_resources_after = obj_data.get("resources", {})
+                for item, amount_after in attacker_resources_after.items():
+                    amount_before = attacker_resources_before.get(item, 0)
+                    if amount_after > amount_before:
+                        gain = amount_after - amount_before
+                        if item not in result["resources_stolen"]:
+                            result["resources_stolen"][item] = 0
+                        # Verify this matches what was stolen
+                        if result["resources_stolen"][item] == gain:
+                            result["resources_gained"] = result.get("resources_gained", {})
+                            result["resources_gained"][item] = gain
+                break
+
+        # Map target_arg to attack position for clarity
+        attack_positions = {
+            0: "front-center",
+            1: "front-left",
+            2: "front-right",
+            3: "mid-center",
+            4: "mid-left",
+            5: "mid-right",
+            6: "far-center",
+            7: "far-left",
+            8: "far-right",
+        }
+        result["attack_position"] = attack_positions.get(target_arg, f"position-{target_arg}")
+
+    else:
+        result["error"] = "Attack action failed (no valid target found or blocked)"
+
+    return result
+
+
+def swap(env: MettaGrid, agent_idx: int = 0) -> dict[str, Any]:
+    """
+    Perform a swap action with whatever is in front of the agent.
+
+    Args:
+        env: MettaGrid environment
+        agent_idx: Agent index (default 0)
+
+    Returns:
+        Dict with success status and swap details
+    """
+    result = {
+        "success": False,
+        "error": None,
+        "agent_idx": agent_idx,
+        "position_before": None,
+        "position_after": None,
+    }
+
+    action_names = env.action_names()
+
+    if "swap" not in action_names:
+        result["error"] = "Swap action not available"
+        return result
+
+    swap_idx = action_names.index("swap")
+
+    # Get initial position
+    result["position_before"] = get_agent_position(env, agent_idx)
+
+    # Perform swap
+    swap_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
+    swap_action[agent_idx] = [swap_idx, 0]  # Swap argument is typically ignored
+    env.step(swap_action)
+
+    result["success"] = bool(env.action_success()[agent_idx])
+
+    if result["success"]:
+        result["position_after"] = get_agent_position(env, agent_idx)
+        if result["position_after"] == result["position_before"]:
+            result["error"] = "Position unchanged after swap"
+            result["success"] = False
+    else:
+        result["error"] = "Swap action failed (target may not be swappable)"
 
     return result
 

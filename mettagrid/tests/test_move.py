@@ -1,10 +1,19 @@
 """Tests for 8-way movement system."""
 
 import numpy as np
+import pytest
 
 from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-from metta.mettagrid.mettagrid_c import dtype_actions
+from metta.mettagrid.mettagrid_c import (
+    MettaGrid,
+    dtype_actions,
+    dtype_observations,
+    dtype_rewards,
+    dtype_terminals,
+    dtype_truncations,
+)
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
@@ -12,10 +21,106 @@ from metta.mettagrid.mettagrid_config import (
     GameConfig,
     WallConfig,
 )
+from metta.mettagrid.test_support.actions import get_agent_position, move
+from metta.mettagrid.test_support.compass import Compass
 
 
+# Test fixtures for MettaGrid environments
+@pytest.fixture
+def base_config():
+    """Base configuration for MettaGrid tests."""
+    return {
+        "max_steps": 50,
+        "num_agents": 1,
+        "obs_width": 3,
+        "obs_height": 3,
+        "num_observation_tokens": 100,
+        "inventory_item_names": ["laser", "armor"],
+        "actions": {
+            "noop": {"enabled": True},
+            "move": {"enabled": True},
+            "rotate": {"enabled": True},
+        },
+        "groups": {"red": {"id": 0, "props": {}}},
+        "objects": {
+            "wall": {"type_id": 1},
+        },
+        "agent": {"rewards": {}},
+    }
+
+
+@pytest.fixture
+def movement_game_map():
+    """Game map with agent in center and room to move."""
+    return [
+        ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+        ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
+        ["wall", "empty", "empty", "agent.red", "empty", "empty", "wall"],  # Agent in center
+        ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
+        ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+    ]
+
+
+@pytest.fixture
+def small_movement_game_map():
+    """Smaller game map for focused movement tests."""
+    return [
+        ["wall", "wall", "wall", "wall", "wall"],
+        ["wall", "empty", "empty", "empty", "wall"],
+        ["wall", "empty", "agent.red", "empty", "wall"],
+        ["wall", "empty", "empty", "empty", "wall"],
+        ["wall", "wall", "wall", "wall", "wall"],
+    ]
+
+
+@pytest.fixture
+def blocked_game_map():
+    """Game map where agent is completely surrounded by walls."""
+    return [
+        ["wall", "wall", "wall"],
+        ["wall", "agent.red", "wall"],
+        ["wall", "wall", "wall"],
+    ]
+
+
+@pytest.fixture
+def corridor_game_map():
+    """Game map with a corridor for walking tests."""
+    return [
+        ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+        ["wall", "agent.red", "empty", "empty", "empty", "empty", "wall"],
+        ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
+        ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+    ]
+
+
+@pytest.fixture
+def configured_env(base_config):
+    """Factory fixture that creates a configured MettaGrid environment."""
+
+    def _create_env(game_map, config_overrides=None):
+        game_config = base_config.copy()
+        if config_overrides:
+            game_config.update(config_overrides)
+
+        env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
+
+        # Set up buffers
+        observations = np.zeros((1, 100, 3), dtype=dtype_observations)
+        terminals = np.zeros(1, dtype=dtype_terminals)
+        truncations = np.zeros(1, dtype=dtype_truncations)
+        rewards = np.zeros(1, dtype=dtype_rewards)
+        env.set_buffers(observations, terminals, truncations, rewards)
+
+        env.reset()
+        return env
+
+    return _create_env
+
+
+# Tests for MettaGridCore (low-level API)
 def test_8way_movement_all_directions():
-    """Test 8-way movement in all eight directions."""
+    """Test 8-way movement in all eight directions using MettaGridCore."""
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
@@ -397,3 +502,322 @@ def test_orientation_remains_on_failed_8way_movement():
     objects = env.grid_objects
     assert not env.action_success[0]  # Movement should fail
     assert objects[agent_id]["orientation"] == 2  # Orientation should still be Left
+
+
+# Tests for MettaGrid (high-level API) using helper functions
+def test_move_all_directions(configured_env, movement_game_map):
+    """Test the move function in all eight compass directions."""
+    env = configured_env(movement_game_map)
+
+    initial_pos = get_agent_position(env)
+    assert initial_pos is not None, "Agent should have a valid initial position"
+
+    # Test cardinal directions first
+    cardinal_tests = [
+        (Compass.NORTH, (-1, 0)),
+        (Compass.EAST, (0, 1)),
+        (Compass.SOUTH, (1, 0)),
+        (Compass.WEST, (0, -1)),
+    ]
+
+    for compass_dir, (expected_dr, expected_dc) in cardinal_tests:
+        direction_name = str(compass_dir)
+
+        print(f"Testing move {direction_name} (value {compass_dir.value})")
+
+        position_before = get_agent_position(env, 0)
+        result = move(env, compass_dir)
+        position_after = get_agent_position(env, 0)
+
+        # Assert movement was successful
+        assert result["success"], f"Move {direction_name} should succeed. Error: {result.get('error', 'Unknown')}"
+
+        # Assert position changed
+        assert position_before != position_after, f"Agent should have moved {direction_name}"
+
+        # Assert movement was in correct direction
+        dr = position_after[0] - position_before[0]
+        dc = position_after[1] - position_before[1]
+        assert (dr, dc) == (expected_dr, expected_dc), f"Agent should have moved correctly {direction_name}"
+
+        print(f"✅ Move {direction_name}: {position_before} → {position_after}")
+
+
+def test_move_diagonal_directions(configured_env, movement_game_map):
+    """Test the move function in all four diagonal directions."""
+    env = configured_env(movement_game_map)
+
+    # Test diagonal directions
+    diagonal_tests = [
+        (Compass.NORTHEAST, (-1, 1)),
+        (Compass.SOUTHEAST, (1, 1)),
+        (Compass.SOUTHWEST, (1, -1)),
+        (Compass.NORTHWEST, (-1, -1)),
+    ]
+
+    for compass_dir, (expected_dr, expected_dc) in diagonal_tests:
+        # Reset to center for each test
+        env = configured_env(movement_game_map)
+
+        direction_name = str(compass_dir)
+        print(f"Testing diagonal move {direction_name} (value {compass_dir.value})")
+
+        position_before = get_agent_position(env, 0)
+        result = move(env, compass_dir)
+        position_after = get_agent_position(env, 0)
+
+        # Assert movement was successful
+        assert result["success"], f"Move {direction_name} should succeed. Error: {result.get('error', 'Unknown')}"
+
+        # Assert position changed
+        assert position_before != position_after, f"Agent should have moved {direction_name}"
+
+        # Assert movement was in correct direction
+        dr = position_after[0] - position_before[0]
+        dc = position_after[1] - position_before[1]
+        assert (dr, dc) == (expected_dr, expected_dc), f"Agent should have moved correctly {direction_name}"
+
+        print(f"✅ Move {direction_name}: {position_before} → {position_after}")
+
+
+def test_move_up(configured_env, small_movement_game_map):
+    """Test moving north specifically."""
+    env = configured_env(small_movement_game_map, {"max_steps": 10})
+
+    # Get position before move
+    position_before = get_agent_position(env, 0)
+
+    result = move(env, Compass.NORTH)  # Use Compass.NORTH for moving up
+
+    assert result["success"], f"Move north should succeed. Error: {result.get('error')}"
+
+    # Get position after move and verify
+    position_after = get_agent_position(env, 0)
+    assert position_before[0] - position_after[0] == 1, "Should move up by 1 row"
+
+
+def test_move_blocked_by_wall(configured_env, blocked_game_map):
+    """Test that movement is properly blocked by walls."""
+    env = configured_env(blocked_game_map, {"max_steps": 10})
+
+    directions = [
+        Compass.NORTH,
+        Compass.EAST,
+        Compass.SOUTH,
+        Compass.WEST,
+    ]
+
+    for compass_dir in directions:
+        position_before = get_agent_position(env, 0)
+        result = move(env, compass_dir)
+        position_after = get_agent_position(env, 0)
+        direction_name = str(compass_dir)
+
+        # Movement should fail or position should remain unchanged
+        if result["success"]:
+            # This shouldn't happen for blocked movement
+            raise AssertionError(f"Move {direction_name} should fail when blocked by wall")
+        else:
+            # Action failed, which is expected for blocked movement
+            assert result["error"] is not None, f"Failed move {direction_name} should have an error message"
+            assert position_before == position_after, "Position should not change when blocked"
+
+
+def test_move_returns_to_center(configured_env, movement_game_map):
+    """Test that we can move in a square and return to center."""
+    env = configured_env(movement_game_map)
+
+    initial_pos = get_agent_position(env)
+    assert initial_pos is not None, "Agent should have a valid initial position"
+
+    # Move in a square: north, east, south, west
+    moves = [
+        Compass.NORTH,
+        Compass.EAST,
+        Compass.SOUTH,
+        Compass.WEST,
+    ]
+
+    for compass_dir in moves:
+        result = move(env, compass_dir)
+        direction_name = str(compass_dir)
+
+        assert result["success"], f"Move {direction_name} should succeed"
+
+    # Should be back at original position
+    final_pos = get_agent_position(env)
+    assert final_pos == initial_pos, f"Agent should return to original position {initial_pos}, but is at {final_pos}"
+
+
+def test_agent_walks_across_room(configured_env, corridor_game_map):
+    """
+    Test where a single agent walks across a room.
+    Creates a simple corridor and attempts to walk the agent from one end to the other.
+    """
+    print("Testing agent walking across room...")
+
+    # Create environment with walking-specific config
+    env = configured_env(
+        corridor_game_map,
+        {
+            "max_steps": 20,
+            "obs_width": 3,
+            "obs_height": 3,
+        },
+    )
+
+    print(f"Environment created: {env.map_width}x{env.map_height}")
+    print(f"Initial timestep: {env.current_step}")
+
+    # Find a working direction using Compass enum
+    successful_moves = []
+    total_moves = 0
+
+    print("\n=== Testing which direction allows movement ===")
+    working_direction = None
+
+    # Test all cardinal directions
+    directions = [
+        Compass.NORTH,
+        Compass.EAST,
+        Compass.SOUTH,
+        Compass.WEST,
+    ]
+
+    for compass_dir in directions:
+        direction_name = str(compass_dir)
+
+        print(f"\nTesting movement {direction_name}...")
+
+        result = move(env, compass_dir, agent_idx=0)
+
+        if result["success"]:
+            print(f"✔ Found working direction: {direction_name}")
+            working_direction = compass_dir
+            working_direction_str = direction_name
+            break
+        else:
+            print(f"✗ Direction {direction_name} failed: {result.get('error', 'Unknown error')}")
+
+    # Assert we found at least one working direction
+    assert working_direction is not None, "Should find at least one direction that allows movement"
+
+    print(f"\n=== Walking across room in direction: {working_direction_str} ===")
+
+    # Reset for clean walk
+    env = configured_env(
+        corridor_game_map,
+        {
+            "max_steps": 20,
+            "obs_width": 3,
+            "obs_height": 3,
+        },
+    )
+
+    # Walk multiple steps
+    max_steps = 5
+
+    for step in range(1, max_steps + 1):
+        print(f"\n--- Step {step}: Moving {working_direction_str} ---")
+
+        position_before = get_agent_position(env, 0)
+        result = move(env, working_direction, agent_idx=0)
+        position_after = get_agent_position(env, 0)
+        total_moves += 1
+
+        if result["success"]:
+            successful_moves.append(step)
+            print(f"✔ Successful move #{len(successful_moves)}")
+            print(f"  Position: {position_before} → {position_after}")
+        else:
+            print(f"✗ Move failed: {result.get('error', 'Unknown error')}")
+            print("  Agent likely hit an obstacle or boundary")
+            break
+
+        if env.current_step >= 18:
+            print("  Approaching max steps limit")
+            break
+
+    print("\n=== Walking Test Summary ===")
+    print(f"Working direction: {working_direction_str}")
+    print(f"Total move attempts: {total_moves}")
+    print(f"Successful moves: {len(successful_moves)}")
+    print(f"Success rate: {len(successful_moves) / total_moves:.1%}" if total_moves > 0 else "N/A")
+
+    # Validation
+    assert len(successful_moves) >= 1, (
+        f"Agent should have moved at least once. Got {len(successful_moves)} successful moves."
+    )
+
+    assert total_moves > 0, "Should have attempted at least one move"
+
+    print("✅ Agent walking test passed!")
+
+
+def test_agent_walks_in_all_cardinal_directions(configured_env, corridor_game_map):
+    """Test that agent can move in all non-blocked cardinal directions."""
+    print("Testing agent movement in all possible cardinal directions...")
+
+    env = configured_env(corridor_game_map, {"max_steps": 20})
+
+    successful_directions = []
+    failed_directions = []
+
+    # Test all cardinal directions using Compass
+    directions = [
+        Compass.NORTH,
+        Compass.EAST,
+        Compass.SOUTH,
+        Compass.WEST,
+    ]
+
+    for compass_dir in directions:
+        direction_name = str(compass_dir)
+
+        print(f"\nTesting {direction_name} (value {compass_dir.value})...")
+
+        # Reset environment for each direction test
+        env = configured_env(corridor_game_map, {"max_steps": 20})
+
+        position_before = get_agent_position(env, 0)
+        result = move(env, compass_dir, agent_idx=0)
+        position_after = get_agent_position(env, 0)
+
+        if result["success"] and position_before != position_after:
+            successful_directions.append(direction_name)
+            print(f"✔ {direction_name}: {position_before} → {position_after}")
+        else:
+            failed_directions.append(direction_name)
+            print(f"✗ {direction_name}: {result.get('error', 'Movement failed')}")
+
+    print("\nResults:")
+    print(f"Successful directions: {successful_directions}")
+    print(f"Failed directions: {failed_directions}")
+
+    # Based on the corridor map, "east" should work (agent starts at (1,1), can move to (1,2))
+    # west should be blocked by wall, north/south might be blocked depending on exact positioning
+    assert len(successful_directions) >= 1, (
+        f"Should be able to move in at least one direction. "
+        f"Successful: {successful_directions}, Failed: {failed_directions}"
+    )
+
+    # In a corridor, we expect east to work since agent starts next to empty spaces
+    if "east" not in successful_directions:
+        print("Warning: East movement failed, which is unexpected in this corridor layout")
+
+
+def test_compass_enum_functionality():
+    """Test that the Compass enum works as expected."""
+    assert Compass.NORTH.value == 0
+    assert Compass.NORTHEAST.value == 1
+    assert Compass.EAST.value == 2
+    assert Compass.SOUTHEAST.value == 3
+    assert Compass.SOUTH.value == 4
+    assert Compass.SOUTHWEST.value == 5
+    assert Compass.WEST.value == 6
+    assert Compass.NORTHWEST.value == 7
+
+    assert str(Compass.NORTH) == "north"
+    assert str(Compass.EAST) == "east"
+    assert str(Compass.SOUTH) == "south"
+    assert str(Compass.WEST) == "west"
