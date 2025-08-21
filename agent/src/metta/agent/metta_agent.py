@@ -8,7 +8,7 @@ from omegaconf import DictConfig
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
-from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
+from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete, UnboundedDiscreteTensorSpec
 
 from metta.agent.agent_mapper import agents
 from metta.rl.system_config import SystemConfig
@@ -165,6 +165,7 @@ class MettaAgent(nn.Module):
             env_obs=UnboundedDiscrete(shape=torch.Size([200, 3]), dtype=torch.uint8),
             dones=UnboundedContinuous(shape=torch.Size([1]), dtype=torch.float32),
             truncateds=UnboundedContinuous(shape=torch.Size([1]), dtype=torch.float32),
+            segment_ids=UnboundedDiscreteTensorSpec(shape=(), dtype=torch.int32),
             # training_env_ids=UnboundedDiscrete(shape=torch.Size([1]), dtype=torch.long),
         )
 

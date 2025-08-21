@@ -20,7 +20,7 @@ from typing import Dict
 import torch
 from tensordict import TensorDict
 from torch import Tensor
-from torchrl.data import Composite
+from torchrl.data import Composite, UnboundedDiscreteTensorSpec
 
 from metta.common.util.datastruct import duplicates
 
@@ -60,8 +60,13 @@ class Experience:
                 f"Please set trainer.batch_size >= {mini_batch_size} in your configuration."
             )
 
-        spec = experience_spec.expand(self.segments, self.bptt_horizon).to(self.device)
+        experience_spec["segment_ids"] = UnboundedDiscreteTensorSpec(shape=(), dtype=torch.int32)
+
+        spec = experience_spec.expand((self.segments, self.bptt_horizon)).to(self.device)
         self.buffer = spec.zero()
+
+        segment_ids = torch.arange(self.segments, device=self.device, dtype=torch.int32).view(-1, 1)
+        self.buffer["segment_ids"] = segment_ids.expand(-1, self.bptt_horizon)
 
         # Episode tracking
         self.ep_lengths = torch.zeros(total_agents, device=self.device, dtype=torch.int32)
