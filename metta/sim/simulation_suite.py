@@ -56,8 +56,12 @@ class SimulationSuite:
 
         for name, sim_config in self._config.simulations.items():
             try:
-                # merge global simulation suite overrides with simulation-specific overrides
-                sim_config.env_overrides = {**self._config.env_overrides, **sim_config.env_overrides}
+                # Deep merge global simulation suite overrides with simulation-specific overrides
+                from omegaconf import OmegaConf
+                global_overrides = OmegaConf.create(self._config.env_overrides)
+                sim_overrides = OmegaConf.create(sim_config.env_overrides)
+                merged_overrides = OmegaConf.merge(global_overrides, sim_overrides)
+                sim_config.env_overrides = OmegaConf.to_container(merged_overrides, resolve=True)
                 sim = Simulation(
                     name,
                     sim_config,
