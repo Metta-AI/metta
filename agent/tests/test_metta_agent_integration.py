@@ -11,6 +11,7 @@ from tensordict import TensorDict
 import metta.mettagrid.config.envs as eb
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent
+from metta.agent.utils import obs_to_td
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.rl.system_config import SystemConfig
 
@@ -55,16 +56,8 @@ def test_full_forward_pass(create_env_and_agent):
     # MettaGridEnv returns tokenized observations as numpy arrays
     assert isinstance(obs, np.ndarray)
 
-    # Convert to TensorDict for agent - obs already has shape [1, obs_tokens, 3] for single agent
-    td = TensorDict(
-        {
-            "env_obs": torch.from_numpy(obs),  # Already has batch dimension
-        },
-        batch_size=obs.shape[0],
-    )
-
-    # Forward pass through agent
-    output = agent(td)
+    # Forward pass with automatic TensorDict conversion
+    output = agent(obs_to_td(obs))
 
     # Check output structure
     assert isinstance(output, TensorDict)
@@ -85,16 +78,8 @@ def test_action_sampling_and_stepping(create_env_and_agent):
     # Reset and get initial observation
     obs, info = env.reset()
 
-    # Convert to TensorDict
-    td = TensorDict(
-        {
-            "env_obs": torch.from_numpy(obs),
-        },
-        batch_size=obs.shape[0],
-    )
-
     # Get actions from agent
-    output = agent(td)
+    output = agent(obs_to_td(obs))
     actions = output["actions"]
 
     # Convert actions to numpy for environment
@@ -122,13 +107,7 @@ def test_memory_handling_with_episodes(create_env_and_agent):
     # Run a few steps
     obs, _ = env.reset()
     for _ in range(3):
-        td = TensorDict(
-            {
-                "env_obs": torch.from_numpy(obs),
-            },
-            batch_size=obs.shape[0],
-        )
-        output = agent(td)
+        output = agent(obs_to_td(obs))
         actions = output["actions"].numpy()
         obs, rewards, terminated, truncated, _ = env.step(actions)
 
@@ -149,16 +128,8 @@ def test_action_distribution_properties(create_env_and_agent):
     # Get observation
     obs, _ = env.reset()
 
-    # Convert to TensorDict
-    td = TensorDict(
-        {
-            "env_obs": torch.from_numpy(obs),
-        },
-        batch_size=obs.shape[0],
-    )
-
-    # Forward pass
-    output = agent(td)
+    # Forward pass with automatic conversion
+    output = agent(obs_to_td(obs))
 
     # Check that we have log probabilities
     assert "act_log_prob" in output
@@ -181,16 +152,8 @@ def test_value_estimation(create_env_and_agent):
     # Get observation
     obs, _ = env.reset()
 
-    # Convert to TensorDict
-    td = TensorDict(
-        {
-            "env_obs": torch.from_numpy(obs),
-        },
-        batch_size=obs.shape[0],
-    )
-
-    # Forward pass
-    output = agent(td)
+    # Forward pass with automatic conversion
+    output = agent(obs_to_td(obs))
 
     # Check value estimates
     assert "values" in output
@@ -208,16 +171,8 @@ def test_batch_processing(create_env_and_agent):
     # Get observation from environment
     obs, _ = env.reset()
 
-    # Create TensorDict with natural batch size
-    td = TensorDict(
-        {
-            "env_obs": torch.from_numpy(obs),
-        },
-        batch_size=obs.shape[0],
-    )
-
-    # Forward pass
-    output = agent(td)
+    # Forward pass with automatic conversion
+    output = agent(obs_to_td(obs))
 
     # Check batch dimensions match observation batch size
     assert output["actions"].shape[0] == obs.shape[0]
@@ -234,21 +189,13 @@ def test_training_mode_vs_inference(create_env_and_agent):
     # Get observation
     obs, _ = env.reset()
 
-    # Convert to TensorDict
-    td = TensorDict(
-        {
-            "env_obs": torch.from_numpy(obs),
-        },
-        batch_size=obs.shape[0],
-    )
-
     # Test in training mode
     agent.train()
-    output_train = agent(td.clone())  # Clone to avoid mutation
+    output_train = agent(obs_to_td(obs))
 
     # Test in evaluation mode
     agent.eval()
-    output_eval = agent(td.clone())
+    output_eval = agent(obs_to_td(obs))
 
     # Both should produce valid outputs
     assert "actions" in output_train
@@ -264,13 +211,8 @@ def test_checkpoint_compatibility(create_env_and_agent):
 
     # Get initial output
     obs, _ = env.reset()
-    td = TensorDict(
-        {
-            "env_obs": torch.from_numpy(obs).unsqueeze(0),
-        },
-        batch_size=1,
-    )
-    output_before = agent(td.clone())
+    # Note: This test needs unsqueeze for batch dimension compatibility
+    output_before = agent(obs_to_td(obs.reshape(1, *obs.shape[1:])))
 
     # Save state
     state_dict = agent.state_dict()
@@ -292,7 +234,7 @@ def test_checkpoint_compatibility(create_env_and_agent):
     # Outputs should be similar (not identical due to sampling)
     new_agent.eval()
     agent.eval()
-    output_after = new_agent(td.clone())
+    output_after = new_agent(obs_to_td(obs.reshape(1, *obs.shape[1:])))
 
     # Values should be identical in eval mode
     torch.testing.assert_close(output_before["values"], output_after["values"])
@@ -326,15 +268,7 @@ def test_multi_agent_environment(create_env_and_agent):
     obs, _ = multi_env.reset()
 
     # For multi-agent, MettaGridEnv returns tokenized observations for all agents
-    # Convert to TensorDict
-    td = TensorDict(
-        {
-            "env_obs": torch.from_numpy(obs),  # Shape: (6, obs_tokens, 3) for 6 agents
-        },
-        batch_size=6,
-    )
-
-    output = agent(td)
+    output = agent(obs_to_td(obs))  # Automatically handles batch_size from obs.shape[0]
 
     # Should handle multiple agents (4 agents in single env)
     assert output["actions"].shape[0] == 6
@@ -366,13 +300,7 @@ def test_different_agent_architectures():
 
         # Test forward pass
         obs, _ = env.reset()
-        td = TensorDict(
-            {
-                "env_obs": torch.from_numpy(obs),
-            },
-            batch_size=obs.shape[0],
-        )
-        output = agent(td)
+        output = agent(obs_to_td(obs))
 
         # All architectures should produce valid outputs
         assert "actions" in output
@@ -404,15 +332,11 @@ def test_pytorch_vs_component_policies():
 
     # Both should work
     obs, _ = env.reset()
-    td = TensorDict(
-        {
-            "env_obs": torch.from_numpy(obs).unsqueeze(0),
-        },
-        batch_size=1,
-    )
+    # Note: This test needs unsqueeze for batch dimension compatibility
+    obs_single = obs.reshape(1, *obs.shape[1:])  # Add batch dimension
 
-    component_output = component_agent(td.clone())
-    pytorch_output = pytorch_agent(td.clone())
+    component_output = component_agent(obs_to_td(obs_single))
+    pytorch_output = pytorch_agent(obs_to_td(obs_single))
 
     # Both should produce similar structure
     assert "actions" in component_output

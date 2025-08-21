@@ -21,6 +21,7 @@ import numpy as np
 import torch
 from einops import rearrange
 from tensordict import TensorDict
+from metta.agent.utils import obs_to_td
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
@@ -271,17 +272,17 @@ class Simulation:
 
         # ---------------- forward passes ------------------------- #
         with torch.no_grad():
-            obs_t = torch.as_tensor(self._obs, device=self._device)
             # Candidate-policy agents
-            my_obs = obs_t[self._policy_idxs]
-            td = TensorDict({"env_obs": my_obs}, batch_size=my_obs.shape[0])
+            my_obs = self._obs[self._policy_idxs]
+            td = obs_to_td(my_obs, self._device)  # One-liner conversion
             policy = self._policy_pr.policy
             policy(td)
             policy_actions = td["actions"]
+            
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
-                npc_obs = obs_t[self._npc_idxs]
-                td = TensorDict({"env_obs": npc_obs}, batch_size=npc_obs.shape[0])
+                npc_obs = self._obs[self._npc_idxs]
+                td = obs_to_td(npc_obs, self._device)  # One-liner conversion
                 npc_policy = self._npc_pr.policy
                 try:
                     npc_policy(td)
