@@ -33,7 +33,7 @@ class TestProgrammaticEnvironments:
                     "wall": building.wall,
                 },
                 actions=ActionsConfig(
-                    move=ActionConfig(),
+                    move_8way=ActionConfig(),
                     rotate=ActionConfig(),
                     noop=ActionConfig(),
                 ),
@@ -56,7 +56,7 @@ class TestProgrammaticEnvironments:
         assert env_config.game.num_agents == 4
         assert env_config.game.max_steps == 100
         assert "wall" in env_config.game.objects
-        assert env_config.game.actions.move is not None
+        assert env_config.game.actions.move_8way is not None
 
     def test_create_arena_like_environment(self):
         """Test creating an arena-style environment similar to experiments/arena.py."""
@@ -84,7 +84,7 @@ class TestProgrammaticEnvironments:
         assert nav_env.game.num_agents == 4
         assert "altar" in nav_env.game.objects
         assert "wall" in nav_env.game.objects
-        assert nav_env.game.actions.move is not None
+        assert nav_env.game.actions.move_8way is not None
         assert nav_env.game.actions.rotate is not None
         assert nav_env.game.actions.get_items is not None
 
@@ -99,7 +99,7 @@ class TestProgrammaticEnvironments:
                     "altar": building.altar,
                 },
                 actions=ActionsConfig(
-                    move=ActionConfig(),
+                    move_8way=ActionConfig(),
                     get_items=ActionConfig(),
                 ),
                 agent=AgentConfig(
@@ -148,7 +148,7 @@ class TestProgrammaticEnvironments:
                     "wall": building.wall,
                 },
                 actions=ActionsConfig(
-                    move=ActionConfig(),
+                    move_8way=ActionConfig(),
                 ),
                 agent=AgentConfig(),
                 groups={

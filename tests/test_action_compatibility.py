@@ -36,7 +36,7 @@ def create_basic_config():
             }
         },
         "actions": {
-            "move": {
+            "move_8way": {
                 "enabled": True,
                 "required_resources": {},
                 "consumed_resources": {},
@@ -97,7 +97,7 @@ def test_action_index_changes():
 
     # Get action indices
     action_names1 = env1.action_names()
-    assert action_names1 == ["get_items", "move", "noop", "rotate"]
+    assert action_names1 == ["get_items", "move_8way", "noop", "rotate"]
 
     # Create config with different action order in the dictionary
     config2 = create_basic_config()
@@ -105,13 +105,13 @@ def test_action_index_changes():
     config2["actions"] = {
         "rotate": config2["actions"]["rotate"],
         "noop": config2["actions"]["noop"],
-        "move": config2["actions"]["move"],
+        "move_8way": config2["actions"]["move_8way"],
     }
 
     env2 = MettaGrid(from_mettagrid_config(config2), create_simple_map(), 42)
     action_names2 = env2.action_names()
     # Action order remains the same despite different config order
-    assert action_names2 == ["get_items", "move", "noop", "rotate"]
+    assert action_names2 == ["get_items", "move_8way", "noop", "rotate"]
 
     # This actually protects trained policies from config reordering
     # The same numeric action executes the same behavior
@@ -121,7 +121,7 @@ def test_action_index_changes():
     env1.reset()
     env2.reset()
 
-    # Both execute "move" since index 0 is always "move"
+    # Both execute "move_8way" since index 0 is always "move_8way"
     obs1, reward1, done1, trunc1, info1 = env1.step(action)
     obs2, reward2, done2, trunc2, info2 = env2.step(action)
 
@@ -133,7 +133,7 @@ def test_action_index_changes():
     assert success1 == success2, (
         f"Action index mismatch detected! See {ACTION_COMPATIBILITY_DOC} for migration strategies."
     )
-    print(f"Action index 0 in both envs executes 'move': success={success1}")
+    print(f"Action index 0 in both envs executes 'move_8way': success={success1}")
 
 
 def test_max_arg_reduction():
@@ -145,10 +145,10 @@ def test_max_arg_reduction():
 
     # Get max args for each action
     max_args = env.max_action_args()
-    move_idx = env.action_names().index("move")
+    move_idx = env.action_names().index("move_8way")
 
-    # Default move has max_arg=1 (forward=0, backward=1)
-    assert max_args[move_idx] == 1
+    # Default move_8way has max_arg=7 (8 directions)
+    assert max_args[move_idx] == 7
 
     # Both forward and backward should be valid
     forward_action = np.array([[move_idx, 0]], dtype=np.int32)
@@ -171,15 +171,15 @@ def test_max_arg_reduction():
 
 def test_resource_requirement_changes():
     """Test that changing resource requirements breaks actions."""
-    # Create config where move requires resources
+    # Create config where move_8way requires resources
     config1 = create_basic_config()
-    config1["actions"]["move"]["required_resources"] = {"ore": 1}
-    config1["actions"]["move"]["consumed_resources"] = {"ore": 1}
+    config1["actions"]["move_8way"]["required_resources"] = {"ore": 1}
+    config1["actions"]["move_8way"]["consumed_resources"] = {"ore": 1}
 
     env1 = MettaGrid(from_mettagrid_config(config1), create_simple_map(), 42)  # Changed seed=42 to 42
     env1.reset()
 
-    move_idx = env1.action_names().index("move")
+    move_idx = env1.action_names().index("move_8way")
     move_action = np.array([[move_idx, 0]], dtype=np.int32)
 
     # Agent starts with no resources, so move should fail
@@ -189,7 +189,7 @@ def test_resource_requirement_changes():
         f"Resource requirement change not detected! See {ACTION_COMPATIBILITY_DOC} for migration strategies."
     )
 
-    # Create config where move requires no resources
+    # Create config where move_8way requires no resources
     config2 = create_basic_config()
     env2 = MettaGrid(from_mettagrid_config(config2), create_simple_map(), 42)  # Changed seed=42 to 42
     env2.reset()
@@ -199,8 +199,8 @@ def test_resource_requirement_changes():
     success_without_requirement = env2.action_success()[0]
 
     # This demonstrates how resource requirement changes affect action success
-    print(f"Move with resource requirement: success={success_without_resources}")
-    print(f"Move without resource requirement: success={success_without_requirement}")
+    print(f"Move_8way with resource requirement: success={success_without_resources}")
+    print(f"Move_8way without resource requirement: success={success_without_requirement}")
 
 
 def test_inventory_item_reordering():
@@ -208,12 +208,12 @@ def test_inventory_item_reordering():
     # Config with ore first
     config1 = create_basic_config()
     config1["inventory_item_names"] = ["ore", "wood"]
-    config1["actions"]["move"]["required_resources"] = {"ore": 1}
+    config1["actions"]["move_8way"]["required_resources"] = {"ore": 1}
 
     # Config with wood first
     config2 = create_basic_config()
     config2["inventory_item_names"] = ["wood", "ore"]
-    config2["actions"]["move"]["required_resources"] = {"ore": 1}
+    config2["actions"]["move_8way"]["required_resources"] = {"ore": 1}
 
     # In config1, ore has index 0
     # In config2, ore has index 1
@@ -241,7 +241,7 @@ def test_action_validation_stats():
     env.step(invalid_type)
 
     # Try invalid action argument
-    move_idx = env.action_names().index("move")
+    move_idx = env.action_names().index("move_8way")
     invalid_arg = np.array([[move_idx, 99]], dtype=np.int32)  # Arg 99 exceeds max_arg
     env.step(invalid_arg)
 
@@ -297,7 +297,7 @@ def test_special_attack_action():
     )
 
     # Check the order - attack should come first before the basic actions
-    expected_actions = ["attack", "get_items", "move", "noop", "rotate"]
+    expected_actions = ["attack", "get_items", "move_8way", "noop", "rotate"]
     assert action_names == expected_actions, (
         f"Action order mismatch with attack! See {ACTION_COMPATIBILITY_DOC} for migration strategies."
     )
