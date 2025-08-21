@@ -26,7 +26,7 @@ class GenTool(Tool):
     count: int = 1  # Number of maps to generate
     env_overrides: list[str] = []  # OmegaConf-style overrides for the env config
 
-    def invoke(self):
+    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
         show_mode = self.show_mode
         if not show_mode and not self.output_uri:
             # if not asked to save, show the map

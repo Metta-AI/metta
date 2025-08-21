@@ -1,6 +1,7 @@
 import logging
 import os
 import platform
+import uuid
 from logging import Logger
 from typing import Optional
 
@@ -31,7 +32,7 @@ class TrainTool(Tool):
     trainer: TrainerConfig = TrainerConfig()
     wandb: WandbConfig = WandbConfig.Unconfigured()
     policy_architecture: Optional[AgentConfig] = None
-    run: str
+    run: Optional[str] = None
     run_dir: Optional[str] = None
     stats_server_uri: Optional[str] = auto_stats_server_uri()
 
@@ -41,7 +42,17 @@ class TrainTool(Tool):
     # Optional configurations
     map_preview_uri: str | None = None
 
-    def model_post_init(self, __context):
+    consumed_args: list[str] = ["run"]
+
+    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+        # Handle run_id being passed via cmd line
+        if "run" in args:
+            assert self.run is None, "run cannot be set via args and config"
+            self.run = args["run"]
+
+        if self.run is None:
+            self.run = f"local.{os.getenv('USER', 'unknown')}.{str(uuid.uuid4())}"
+
         # Set run_dir based on run name if not explicitly set
         if self.run_dir is None:
             self.run_dir = f"{self.system.data_dir}/{self.run}"
@@ -61,13 +72,10 @@ class TrainTool(Tool):
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
 
-    def invoke(self) -> int:
-        assert self.run_dir is not None
         os.makedirs(self.run_dir, exist_ok=True)
 
         record_heartbeat()
 
-        assert self.run_dir is not None
         init_file_logging(run_dir=self.run_dir)
 
         init_logging(run_dir=self.run_dir)
