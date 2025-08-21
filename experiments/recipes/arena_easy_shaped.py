@@ -29,9 +29,45 @@ from metta.tools.train import TrainTool
 
 
 def make_env(num_agents: int = 24) -> EnvConfig:
-    """Create the arena easy shaped rewards environment."""
-    # Start with the standard arena configuration
+    """Create the arena easy shaped rewards environment matching the old basic_easy_shaped."""
+    # Import required modules for map building
+    import metta.map.scenes.random
+    from metta.map.mapgen import MapGen
+    from metta.mettagrid.config import building
+
+    # Start with the standard arena configuration but we'll override the map
     env_cfg = eb.make_arena(num_agents=num_agents, combat=False)
+
+    # CRITICAL: Recreate the OLD map configuration with blocks and more walls
+    # This matches configs/env/mettagrid/arena/basic.yaml exactly
+    env_cfg.game.map_builder = MapGen.Config(
+        num_agents=num_agents,
+        width=25,
+        height=25,
+        border_width=6,
+        instance_border_width=0,
+        root=metta.map.scenes.random.Random.factory(
+            params=metta.map.scenes.random.Random.Params(
+                agents=6,
+                objects={
+                    "mine_red": 10,
+                    "generator_red": 5,
+                    "altar": 5,
+                    "block": 20,  # CRITICAL: Add blocks back!
+                    "wall": 20,  # CRITICAL: 20 walls not 10!
+                },
+            ),
+        ),
+    )
+
+    # Add block object to the environment (was missing in new version)
+    env_cfg.game.objects["block"] = building.block
+
+    # Remove combat buildings that weren't in the old config
+    if "lasery" in env_cfg.game.objects:
+        del env_cfg.game.objects["lasery"]
+    if "armory" in env_cfg.game.objects:
+        del env_cfg.game.objects["armory"]
 
     # Set shaped rewards (from configs/env/mettagrid/game/agent/rewards/shaped.yaml)
     env_cfg.game.agent.rewards.inventory.ore_red = 0.1
@@ -54,7 +90,10 @@ def make_env(num_agents: int = 24) -> EnvConfig:
 
     # Easy converter configuration (from configs/env/mettagrid/game/objects/basic_easy.yaml)
     # Altar only needs 1 battery_red instead of the default (harder) requirement
-    env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
+    # Need to make a copy since it's a pydantic model
+    altar_copy = env_cfg.game.objects["altar"].model_copy(deep=True)
+    altar_copy.input_resources = {"battery_red": 1}
+    env_cfg.game.objects["altar"] = altar_copy
 
     # Set label for clarity
     env_cfg.label = "arena.easy_shaped"
