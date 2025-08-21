@@ -71,6 +71,7 @@ class MettaGridCore:
         self._renderer = None
         self._current_seed: int = 0
         self._map_builder = self.__env_config.game.map_builder.create()
+        self._config_changed = False
 
         # Set by PufferBase
         self.observations: np.ndarray
@@ -94,6 +95,8 @@ class MettaGridCore:
         """Set the environment configuration."""
         self.__env_config = env_config
         self._map_builder = self.__env_config.game.map_builder.create()
+        # Mark that we need to recreate the environment on next reset
+        self._config_changed = True
 
     @property
     def c_env(self) -> MettaGridCpp:
@@ -162,11 +165,13 @@ class MettaGridCore:
         if seed is not None:
             self._current_seed = seed
 
-        # Recreate C++ environment with new config
-        self._create_c_env()
-        self._update_core_buffers()
+        # Only create/recreate C++ environment if needed
+        if self.__c_env_instance is None or self._config_changed:
+            self._create_c_env()
+            self._update_core_buffers()
+            self._config_changed = False
 
-        # Get initial observations from core environment
+        # Reset the environment
         obs, infos = self.__c_env_instance.reset()
 
         return obs, infos
