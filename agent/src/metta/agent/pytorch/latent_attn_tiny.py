@@ -115,10 +115,9 @@ class Policy(nn.Module):
         self.out_height = 11
         self.num_layers = 22
 
-        # Define layer dimensions as named attributes to avoid magic numbers
-        self.actor_hidden_dim = 512  # Actor feature dimension
-        self.action_embed_dim = 16  # Action embedding dimension
-        self.critic_hidden_dim = 1024  # Critic hidden dimension
+        # Define layer dimensions that are used multiple times
+        self.actor_hidden_dim = 512  # Used in actor_1 and bilinear calculation
+        self.action_embed_dim = 16  # Used in action_embeddings and bilinear calculation
 
         # Define components with explicit names and sources
         self.obs_ = ObsTokenPadStrip(
@@ -143,8 +142,8 @@ class Policy(nn.Module):
             qk_dim=32,
         )
 
-        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.critic_hidden_dim))
-        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(self.critic_hidden_dim, 1), std=1.0)
+        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024))
+        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
         self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.actor_hidden_dim))
         self.action_embeddings = nn.Embedding(100, self.action_embed_dim)
 

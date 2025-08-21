@@ -39,7 +39,7 @@ class LatentAttnSmall(ComponentPolicy):
             ),
             "obs_latent_query_attn": ObsLatentAttn(
                 name="obs_latent_query_attn",
-                out_dim=32,  # Per original YAML
+                out_dim=32,
                 use_mask=True,
                 num_query_tokens=10,
                 query_token_dim=32,
@@ -49,7 +49,7 @@ class LatentAttnSmall(ComponentPolicy):
             ),
             "obs_latent_self_attn": ObsSelfAttn(
                 name="obs_latent_self_attn",
-                out_dim=128,  # Per original YAML
+                out_dim=128,
                 num_heads=4,
                 num_layers=2,
                 qk_dim=32,
@@ -59,12 +59,12 @@ class LatentAttnSmall(ComponentPolicy):
             ),
             "_core_": LSTM(
                 name="_core_",
-                nn_params=DictConfig({"hidden_size": 128, "num_layers": 2}),  # Per original YAML
+                nn_params=DictConfig({"hidden_size": 128, "num_layers": 2}),
                 sources=[{"name": "obs_latent_self_attn"}],
             ),
             "critic_1": Linear(
                 name="critic_1",
-                nn_params=DictConfig({"out_features": 1024}),  # Per original YAML
+                nn_params=DictConfig({"out_features": 1024}),
                 sources=[{"name": "_core_"}],
                 nonlinearity="nn.Tanh",
                 effective_rank=True,
@@ -79,13 +79,13 @@ class LatentAttnSmall(ComponentPolicy):
             ),
             "actor_1": Linear(
                 name="actor_1",
-                nn_params=DictConfig({"out_features": 512}),  # Per original YAML
+                nn_params=DictConfig({"out_features": 512}),
                 sources=[{"name": "_core_"}],
                 **self.agent_attributes,
             ),
             "_action_embeds_": ActionEmbedding(
                 name="_action_embeds_",
-                nn_params=DictConfig({"num_embeddings": 100, "embedding_dim": 16}),  # Per original YAML
+                nn_params=DictConfig({"num_embeddings": 100, "embedding_dim": 16}),
                 sources=None,
             ),
             "_action_": MettaActorSingleHead(
