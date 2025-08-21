@@ -328,10 +328,7 @@ class PolicyStore:
         if path.endswith(".pt"):
             paths.append(path)
         else:
-            # Get all .pt files and sort them numerically by checkpoint number
             checkpoint_files = [p for p in os.listdir(path) if p.endswith(".pt")]
-            # Sort in descending order so the latest (highest number) is first
-            # Assumes format: model_XXXXX.pt
             checkpoint_files.sort(key=lambda f: int(f[6:-3]) if f.startswith("model_") else -1, reverse=True)
             paths.extend([os.path.join(path, p) for p in checkpoint_files])
 
