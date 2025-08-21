@@ -39,15 +39,15 @@ def create_arena_learning_progress_config():
     arena.game.actions.swap.enabled = False
 
     # Create task generator for arena
-    arena_tasks = cc.tasks(arena)
+    arena_tasks = cc.bucketed(arena)
 
     # Add various task buckets for curriculum learning
     # Agent count variations
-    arena_tasks.add_bucket("game.level_map.num_agents", [1, 2, 3, 4, 6, 12, 24])
+    arena_tasks.add_bucket("game.map_builder.num_agents", [1, 2, 3, 4, 6, 12, 24])
 
     # Map size variations
-    arena_tasks.add_bucket("game.level_map.width", [10, 15, 20, 25, 30])
-    arena_tasks.add_bucket("game.level_map.height", [10, 15, 20, 25, 30])
+    arena_tasks.add_bucket("game.map_builder.width", [10, 15, 20, 25, 30])
+    arena_tasks.add_bucket("game.map_builder.height", [10, 15, 20, 25, 30])
 
     # Reward variations for different items
     for item in arena.game.inventory_item_names:
