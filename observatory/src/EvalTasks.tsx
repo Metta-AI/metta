@@ -18,6 +18,7 @@ function InputGroup({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
+        position: 'relative',
         display: 'grid',
         gridTemplateColumns: '1.5fr 1fr 180px 140px', // ⬅️ same as labels
         alignItems: 'stretch',
@@ -53,8 +54,8 @@ function GroupCell({
         position: 'relative',
         display: 'flex',
         alignItems: 'center',
-        height: 44,
-        borderLeft: withDivider ? '1px solid #e5e7eb' : 'none',
+        height: 38,
+        borderLeft: withDivider ? (focused ? '1px solid transparent' : '1px solid #e5e7eb') : 'none',
       }}
     >
       {/* focus ring drawn on the CELL, with correct corner rounding */}
@@ -62,9 +63,9 @@ function GroupCell({
         aria-hidden
         style={{
           position: 'absolute',
-          inset: 0,
+          inset: focused ? -1 : 0,
           pointerEvents: 'none',
-          boxShadow: focused ? 'inset 0 0 0 2px #007bff' : 'none',
+          border: focused ? '2px solid #007bff' : '2px solid transparent',
           borderRadius: isFirst ? '8px 0 0 8px' : isLast ? '0 8px 8px 0' : 0,
           zIndex: 1,
         }}
@@ -81,7 +82,8 @@ function GroupTextInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
       style={{
         width: '100%',
         height: '100%',
-        padding: '10px 12px',
+        padding: '0 12px',
+        lineHeight: '38px',
         border: 'none',
         borderRadius: 0,
         fontSize: 14,
@@ -122,7 +124,8 @@ function TypeaheadInput({
     ? {
         width: '100%',
         height: '100%',
-        padding: '10px 12px',
+        padding: '0 12px',
+        lineHeight: '38px',
         border: 'none',
         borderRadius: 0,
         fontSize: 14,
