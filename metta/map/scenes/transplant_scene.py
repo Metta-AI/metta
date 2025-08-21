@@ -3,7 +3,7 @@ from typing import Callable
 
 from pydantic import ConfigDict, Field
 
-from metta.common.util.config import Config
+from metta.common.config import Config
 from metta.map.scene import Scene
 from metta.map.types import MapGrid
 
@@ -40,6 +40,3 @@ class TransplantScene(Scene[TransplantSceneParams]):
             self.params.get_grid(), self.area.x - self.params.scene.area.x, self.area.y - self.params.scene.area.y
         )
         self.children.append(scene_copy)
-
-    def get_labels(self) -> list[str]:
-        return self.params.scene.get_labels()

@@ -1,7 +1,0 @@
-hydra:
-  run:
-    dir: ./outputs/${now:%Y-%m-%d}_${now:%H-%M-%S}
-
-  # we configure logging in metta_script.py
-  job_logging: none
-  hydra_logging: none

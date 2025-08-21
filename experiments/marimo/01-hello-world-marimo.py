@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.14.16"
+__generated_with = "0.14.17"
 app = marimo.App(width="medium", app_title="Hello metta-ai")
 
 
@@ -60,7 +60,6 @@ def _():
     import matplotlib.pyplot as plt
     from omegaconf import OmegaConf
     from typing import Any, Dict  # type: ignore
-    from metta.mettagrid.util.hydra import get_cfg  # type: ignore
     from metta.common.util.fs import get_repo_root
     from tools.renderer import setup_environment, get_policy
     import anywidget
@@ -205,12 +204,25 @@ def _(Any, Dict, OmegaConf, get_cfg):
         200  # Default value expected by MettaAgent
     )
 
+    # Disable+enable to make the environment we need
+    env_dict["game"]["actions"]["attack"]["enabled"] = 0
+    env_dict["game"]["actions"]["noop"]["enabled"] = 0
+    env_dict["game"]["actions"]["move"]["enabled"] = 0
+    env_dict["game"]["actions"]["rotate"]["enabled"] = 0
+    env_dict["game"]["actions"]["move_cardinal"] = {"enabled": 1}
+    env_dict["game"]["actions"]["move_8way"] = {"enabled": 0}
+    env_dict["game"]["actions"]["change_color"]["enabled"] = 0
+    env_dict["game"]["actions"]["change_glyph"]["enabled"] = 0
+    env_dict["game"]["actions"]["swap"]["enabled"] = 0
+    env_dict["game"]["actions"]["put_items"]["enabled"] = 0
+    env_dict["game"]["actions"]["get_items"]["enabled"] = 1
+
     cfg = OmegaConf.create(
         {
             "env": env_dict,
             "renderer_job": {
                 "policy_type": "opportunistic",
-                "num_steps": 100,
+                "num_steps": 200,
                 "num_agents": 1,
                 "sleep_time": 0.04,
             },
@@ -243,7 +255,6 @@ def _(mo):
 def _(mo):
     observe_button = mo.ui.run_button(label="Click to run observation below")
     observe_button
-
     return (observe_button,)
 
 
@@ -502,19 +513,25 @@ def _(
         f"trainer.curriculum=tmp/{curriculum_name}",
         "wandb=off",
         "device=cpu",
-        "trainer.total_timesteps=10000",  # tiny demo run
-        "trainer.batch_size=256",  # Must be divisible by bptt_horizon
+        "trainer.total_timesteps=100000",
+        "trainer.batch_size=1024",  # Must be divisible by bptt_horizon
         "trainer.minibatch_size=128",  # Adjusted for bptt_horizon=64
-        "trainer.num_workers=2",
+        "trainer.forward_pass_minibatch_target_size=2",  # Richard said we need this line
+        "trainer.num_workers=8",
         "trainer.bptt_horizon=64",  # Longer horizon for better temporal learning
-        "trainer.forward_pass_minibatch_target_size=2",
         "trainer.simulation.skip_git_check=true",  # Skip git check to avoid errors in notebooks
+        "trainer.simulation.evaluate_remote=false",
+        "trainer.checkpoint.checkpoint_interval=500",  # Skip
+        "trainer.simulation.evaluate_interval=500",  # Skip
+        "trainer.checkpoint.wandb_checkpoint_interval=500",  # Skip
         "sim=sim",
         "+train_job.evals.name=hallway",
         "+train_job.evals.num_episodes=1",
         "+train_job.evals.simulations={}",
+        "bypass_mac_overrides=true",
     ]
 
+    print("Training command:", " ".join(train_cmd))  # Debug line
     process = subprocess.Popen(
         train_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
     )
@@ -590,7 +607,7 @@ def _(
             "policy_uri": f"file://{latest_ckpt.absolute()}",
             "renderer_job": {
                 "policy_type": "trained",
-                "num_steps": 100,
+                "num_steps": 1000,
                 "num_agents": 1,
                 "sleep_time": 0.04,
             },
@@ -605,7 +622,7 @@ def _(
     _obs, _ = trained_env.reset()
     for _step in range(auto_cfg.renderer_job.num_steps):
         _actions = trained_policy.predict(_obs)
-        _obs, _, _, _, _ = trained_env.step(_actions)
+        _obs, a, _, _, _ = trained_env.step(_actions)
         _agent_obj = next(
             (o for o in trained_env.grid_objects.values() if o.get("agent_id") == 0)
         )

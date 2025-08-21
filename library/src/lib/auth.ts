@@ -1,11 +1,12 @@
 import "server-only";
 
-import { DrizzleAdapter } from "@auth/drizzle-adapter";
+import { PrismaAdapter } from "@auth/prisma-adapter";
 import NextAuth, { NextAuthConfig, NextAuthResult, Session } from "next-auth";
 import { Provider } from "next-auth/providers";
+import Google from "next-auth/providers/google";
 import { redirect } from "next/navigation";
 
-import { db } from "./db";
+import { prisma } from "./db/prisma";
 
 function buildAuthConfig(): NextAuthConfig {
   const providers: Provider[] = [];
@@ -21,12 +22,25 @@ function buildAuthConfig(): NextAuthConfig {
         console.log({ url });
       },
     });
+  } else {
+    // Google OAuth provider for production
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      throw new Error(
+        "Missing Google OAuth credentials. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET when DEV_MODE is false."
+      );
+    }
+    
+    providers.push(
+      Google({
+        clientId: process.env.GOOGLE_CLIENT_ID,
+        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+      })
+    );
+
   }
 
-  // TODO: configure Google provider for production deployment.
-
   const config: NextAuthConfig = {
-    adapter: DrizzleAdapter(db),
+    adapter: PrismaAdapter(prisma),
     providers,
     session: {
       strategy: "database",
@@ -64,4 +78,4 @@ export async function getSessionOrRedirect() {
     return session;
   }
   redirect("/api/auth/signin"); // TODO - callbackUrl
-}
+} 

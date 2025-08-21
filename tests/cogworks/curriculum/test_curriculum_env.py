@@ -19,8 +19,8 @@ class TestCurriculumEnv:
 
     def create_test_curriculum(self):
         """Helper to create a test curriculum."""
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config, num_active_tasks=5, new_task_rate=0.1)
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=5, new_task_rate=0.1)
         return Curriculum(config, seed=0)
 
     def create_mock_env(self):
@@ -33,7 +33,9 @@ class TestCurriculumEnv:
             np.array([False, False]),  # truncations
             {},  # infos
         )
-        mock_env.set_env_cfg = Mock()  # Add set_env_cfg method
+
+        mock_env.get_episode_rewards = Mock(return_value=np.array([1.0, 2.0]))  # Add get_episode_rewards method
+        mock_env.set_env_config = Mock()  # Add set_env_config method
         return mock_env
 
     def test_curriculum_env_creation(self):
@@ -87,6 +89,8 @@ class TestCurriculumEnv:
             np.array([False, False]),
             {},
         )
+        # Set up get_episode_rewards to return matching values
+        mock_env.get_episode_rewards.return_value = np.array([0.8, 0.9])
 
         curriculum = self.create_test_curriculum()
         wrapper = CurriculumEnv(mock_env, curriculum)
@@ -109,7 +113,7 @@ class TestCurriculumEnv:
         assert isinstance(wrapper._current_task, CurriculumTask)
 
         # Should have set new env config
-        mock_env.set_env_cfg.assert_called_once_with(wrapper._current_task.get_env_cfg())
+        mock_env.set_env_config.assert_called_once_with(wrapper._current_task.get_env_cfg())
 
     def test_curriculum_env_step_with_truncation(self):
         """Test step method when episode truncates."""
@@ -122,6 +126,8 @@ class TestCurriculumEnv:
             np.array([True, True]),  # Both truncated
             {},
         )
+        # Set up get_episode_rewards to return matching values
+        mock_env.get_episode_rewards.return_value = np.array([0.6, 0.4])
 
         curriculum = self.create_test_curriculum()
         wrapper = CurriculumEnv(mock_env, curriculum)
@@ -238,6 +244,8 @@ class TestCurriculumEnv:
                 np.array([False, False]),
                 {},
             )
+            # Set up get_episode_rewards to return matching values
+            mock_env.get_episode_rewards.return_value = np.array([0.5 + episode * 0.1, 0.6 + episode * 0.1])
 
             wrapper.step([1, 0])
 
@@ -270,6 +278,8 @@ class TestCurriculumEnv:
                 np.array([False] * len(rewards)),
                 {},
             )
+            # Set up get_episode_rewards to return matching values
+            mock_env.get_episode_rewards.return_value = rewards
 
             initial_task = wrapper._current_task
             wrapper.step([1, 0])
@@ -282,30 +292,33 @@ class TestCurriculumEnv:
 class TestCurriculumEnvEdgeCases:
     """Test edge cases and error conditions."""
 
-    def test_curriculum_env_wrapper_empty_rewards(self):
-        """Test wrapper behavior with empty reward arrays."""
+    def test_curriculum_env_wrapper_zero_rewards(self):
+        """Test wrapper behavior with zero rewards."""
         mock_env = Mock()
+        # Simulate a 2-agent environment with zero rewards and no termination
         mock_env.step.return_value = (
-            np.array([]),
-            np.array([]),  # Empty rewards
-            np.array([]),
-            np.array([]),
+            np.array([[1, 2, 3], [4, 5, 6]]),  # obs for 2 agents
+            np.array([0.0, 0.0]),  # Zero rewards
+            np.array([False, False]),  # No termination
+            np.array([False, False]),  # No truncation
             {},
         )
-        mock_env.set_env_cfg = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config)
+        mock_env.get_episode_rewards = Mock(return_value=np.array([0.0, 0.0]))
+        mock_env.set_env_config = Mock()
+
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        config = CurriculumConfig(task_generator=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
         wrapper = CurriculumEnv(mock_env, curriculum)
         initial_task = wrapper._current_task
 
-        # Should handle empty arrays gracefully (no termination due to empty arrays)
-        result = wrapper.step([])
+        # Step with 2 agent actions
+        result = wrapper.step([[0, 0], [0, 0]])
         assert len(result) == 5
 
-        # Task should remain the same since empty arrays don't trigger termination
+        # Task should remain the same since no termination occurred
         assert wrapper._current_task is initial_task
 
     def test_curriculum_env_wrapper_single_agent(self):
@@ -318,10 +331,12 @@ class TestCurriculumEnvEdgeCases:
             np.array([False]),  # Single truncation
             {},
         )
-        mock_env.set_env_cfg = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config)
+        mock_env.get_episode_rewards = Mock(return_value=np.array([0.8]))
+        mock_env.set_env_config = Mock()
+
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        config = CurriculumConfig(task_generator=task_gen_config)
         curriculum = Curriculum(config, seed=0)
 
         wrapper = CurriculumEnv(mock_env, curriculum)
@@ -343,10 +358,12 @@ class TestCurriculumEnvEdgeCases:
             np.array([False, False]),
             {},
         )
-        mock_env.set_env_cfg = Mock()
 
-        task_gen_config = SingleTaskGeneratorConfig(env_config=EnvConfig())
-        config = CurriculumConfig(task_generator_config=task_gen_config, num_active_tasks=2)
+        mock_env.get_episode_rewards = Mock(return_value=np.array([0.7, 0.3]))
+        mock_env.set_env_config = Mock()
+
+        task_gen_config = SingleTaskGeneratorConfig(env=EnvConfig())
+        config = CurriculumConfig(task_generator=task_gen_config, num_active_tasks=2)
         curriculum = Curriculum(config, seed=0)
         wrapper = CurriculumEnv(mock_env, curriculum)
 

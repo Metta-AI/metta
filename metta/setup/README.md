@@ -19,7 +19,8 @@ To add a new tool or service dependency:
 
 ## Per-Component Configuration
 
-Components can store and retrieve their own configuration settings. This allows components to remember user preferences and customize their behavior.
+Components can store and retrieve their own configuration settings. This allows components to remember user preferences
+and customize their behavior.
 
 ### For Component Developers
 
@@ -52,12 +53,15 @@ class MyComponentSetup(SetupModule):
 ```
 
 Key principles:
+
 - All settings must have defaults defined in `get_configuration_options()`
 - Only non-default values are written to disk
 - Settings are automatically namespaced under `module_settings.<component_name>`
 - Installation (`metta install`) should never prompt for configuration
-- Components can depend on other components being installed first. This should be specified in the `dependencies` class var
-- `install_once` should be used for components for which if `check_installed` is True, `metta install` only calls the component's `install` if `--force` is provided
+- Components can depend on other components being installed first. This should be specified in the `dependencies` class
+  var
+- `install_once` should be used for components for which if `check_installed` is True, `metta install` only calls the
+  component's `install` if `--force` is provided
 
 ### For Users
 
@@ -74,24 +78,32 @@ metta configure
 metta configure --profile=softmax
 ```
 
-Component settings are stored in `~/.metta/config.yaml` under the `module_settings` section. Only non-default values are saved:
+These settings are saved in `~/.metta/config.yaml` under the `module_settings` section. Only non-default values are
+saved:
 
 ```yaml
 module_settings:
   githooks:
-    commit_hook_mode: fix  # Only saved because it differs from default "check"
+    commit_hook_mode: fix # Only saved because it differs from default "check"
 ```
 
 ### Example: Git Hooks Configuration
 
 The git hooks component supports three commit hook modes:
+
 - `none`: No pre-commit linting
 - `check`: Check only, fail if issues found (default)
 - `fix`: Auto-fix issues before committing
 
 To configure:
+
 ```bash
 metta configure githooks
 ```
 
 Since `check` is the default, it won't appear in your config file unless you change it.
+
+### Enabled setup components
+
+A setup component will only be considered enabled if it is applicable (see its `_applicable` implementation) and it and
+all of its dependencies are enabled in saved settings.

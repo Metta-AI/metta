@@ -95,10 +95,55 @@ function drawFloor() {
   )
 }
 
+const wallSprites = [
+  'objects/wall.0.png',
+  'objects/wall.e.png',
+  'objects/wall.s.png',
+  'objects/wall.se.png',
+  'objects/wall.w.png',
+  'objects/wall.we.png',
+  'objects/wall.ws.png',
+  'objects/wall.wse.png',
+  'objects/wall.n.png',
+  'objects/wall.ne.png',
+  'objects/wall.ns.png',
+  'objects/wall.nse.png',
+  'objects/wall.nw.png',
+  'objects/wall.nwe.png',
+  'objects/wall.nws.png',
+  'objects/wall.nwse.png',
+]
+
+const enum WallTile {
+  None = 0,
+  E = 1,
+  S = 2,
+  W = 4,
+  N = 8,
+
+  SE = S | E,
+  NW = N | W,
+}
+
+let wallCells: Uint16Array | null = null
+let wallFills: Uint16Array | null = null
+let wallMap: Grid | null = null
+
 /** Draws the walls, based on the adjacency map, and fills any holes. */
 function drawWalls() {
+  const width  = state.replay.mapSize[0]
+  const height = state.replay.mapSize[1]
+  const totalCells = width * height
+
+  let numFills = 0
+  let numWalls = 0
+  if (wallCells === null || wallCells.length < totalCells) {
+    wallCells = new Uint16Array(totalCells)
+    wallFills = new Uint16Array(totalCells)
+    wallMap = new Grid(width, height)
+  }
+
   // Construct a wall adjacency map.
-  const wallMap = new Grid(state.replay.mapSize[0], state.replay.mapSize[1])
   for (const gridObject of state.replay.objects) {
     const type = gridObject.typeId
     const typeName = state.replay.typeNames[type]
@@ -108,72 +153,43 @@ function drawWalls() {
     const location = gridObject.location.get()
     const x = location[0]
     const y = location[1]
-    wallMap.set(x, y, true)
+    wallMap!.set(x, y, true)
+    wallCells![numWalls++] = x
+    wallCells![numWalls++] = y
   }
 
   // Draw the walls, following the adjacency map.
-  for (const gridObject of state.replay.objects) {
-    const type = gridObject.typeId
-    const typeName = state.replay.typeNames[type]
-    if (typeName !== 'wall') {
-      continue
+  for (let i = 0; i < numWalls; i += 2) {
+    const x = wallCells![i]
+    const y = wallCells![i + 1]
+
+    let tile = WallTile.None
+    if (wallMap!.get(x, y + 1)) tile |= WallTile.S
+    if (wallMap!.get(x + 1, y)) tile |= WallTile.E
+    if (wallMap!.get(x, y - 1)) tile |= WallTile.N
+    if (wallMap!.get(x - 1, y)) tile |= WallTile.W
+
+    if ((tile & WallTile.SE) == WallTile.SE && wallMap!.get(x + 1, y + 1)) {
+      wallFills![numFills++] = x
+      wallFills![numFills++] = y
+
+      if ((tile & WallTile.NW) == WallTile.NW && wallMap!.get(x + 1, y - 1) && wallMap!.get(x - 1, y - 1) && wallMap!.get(x - 1, y + 1)) {
+        continue
+      }
     }
-    const location = gridObject.location.get()
-    const x = location[0]
-    const y = location[1]
-    let suffix = '0'
-    let n = false
-    let w = false
-    let e = false
-    let s = false
-    if (wallMap.get(x, y - 1)) {
-      n = true
-    }
-    if (wallMap.get(x - 1, y)) {
-      w = true
-    }
-    if (wallMap.get(x, y + 1)) {
-      s = true
-    }
-    if (wallMap.get(x + 1, y)) {
-      e = true
-    }
-    if (n || w || e || s) {
-      suffix = (n ? 'n' : '') + (w ? 'w' : '') + (s ? 's' : '') + (e ? 'e' : '')
-    }
-    ctx.drawSprite(`objects/wall.${suffix}.png`, x * Common.TILE_SIZE, y * Common.TILE_SIZE)
+
+    ctx.drawSprite(wallSprites[tile], x * Common.TILE_SIZE, y * Common.TILE_SIZE)
   }
 
-  // Draw the wall infill, following the adjacency map.
-  for (const gridObject of state.replay.objects) {
-    const type = gridObject.typeId
-    const typeName = state.replay.typeNames[type]
-    if (typeName !== 'wall') {
-      continue
-    }
-    const location = gridObject.location.get()
-    const x = location[0]
-    const y = location[1]
-    // If walls to the E, S, and SE are filled, draw a wall fill.
-    let s = false
-    let e = false
-    let se = false
-    if (wallMap.get(x + 1, y)) {
-      e = true
-    }
-    if (wallMap.get(x, y + 1)) {
-      s = true
-    }
-    if (wallMap.get(x + 1, y + 1)) {
-      se = true
-    }
-    if (e && s && se) {
-      ctx.drawSprite(
-        'objects/wall.fill.png',
-        x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
-        y * Common.TILE_SIZE + Common.TILE_SIZE / 2 - 42
-      )
-    }
+  // Draw the wall infills.
+  for (let i = 0; i < numFills; i += 2) {
+    const x = wallFills![i]
+    const y = wallFills![i + 1]
+    ctx.drawSprite(
+      "objects/wall.fill.png",
+      x * Common.TILE_SIZE + Common.TILE_SIZE / 2,
+      y * Common.TILE_SIZE + Common.TILE_SIZE / 2 - 42
+    )
   }
 }
 
@@ -544,7 +560,13 @@ function drawThoughtBubbles() {
         continue
       }
       const actionName = state.replay.actionNames[actionId]
-      if (actionName === 'noop' || actionName === 'rotate' || actionName === 'move' || actionName === 'move_cardinal' || actionName === 'move_8way') {
+      if (
+        actionName === 'noop' ||
+        actionName === 'rotate' ||
+        actionName === 'move' ||
+        actionName === 'move_cardinal' ||
+        actionName === 'move_8way'
+      ) {
         continue
       }
       keyAction = [actionId, actionParam]

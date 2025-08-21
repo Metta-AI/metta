@@ -9,8 +9,8 @@ from httpx import ASGITransport, AsyncClient
 
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator
-from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker
+from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator, FixedScaler
+from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker, TaskResult
 from metta.app_backend.routes.eval_task_routes import (
     TaskCreateRequest,
     TaskFilterParams,
@@ -24,15 +24,15 @@ class SuccessTaskExecutor(AbstractTaskExecutor):
     def __init__(self):
         pass
 
-    async def execute_task(self, task: TaskResponse) -> None:
-        pass
+    async def execute_task(self, task: TaskResponse) -> TaskResult:
+        return TaskResult(success=True)
 
 
 class FailureTaskExecutor(AbstractTaskExecutor):
     def __init__(self):
         pass
 
-    async def execute_task(self, task: TaskResponse) -> None:
+    async def execute_task(self, task: TaskResponse) -> TaskResult:
         raise Exception("Failed task")
 
 
@@ -104,8 +104,8 @@ class TestEvalTaskOrchestratorIntegration:
             task_client=eval_task_client,
             worker_manager=mock_thread_manager,
             poll_interval=0.5,  # Fast polling for tests
+            worker_scaler=FixedScaler(2),
             worker_idle_timeout=5.0,  # Short timeout for tests
-            max_workers=2,
         )
         return orch
 
@@ -177,7 +177,7 @@ class TestEvalTaskOrchestratorIntegration:
             worker_manager=failure_manager,
             poll_interval=0.5,
             worker_idle_timeout=5.0,
-            max_workers=1,
+            worker_scaler=FixedScaler(1),
         )
 
         # Create a test task
@@ -240,7 +240,7 @@ class TestEvalTaskOrchestratorIntegration:
             worker_manager=success_manager,
             poll_interval=0.5,
             worker_idle_timeout=10.0,
-            max_workers=3,
+            worker_scaler=FixedScaler(3),
         )
 
         # Create multiple test tasks
@@ -339,7 +339,7 @@ class TestEvalTaskOrchestratorIntegration:
             task_client=eval_task_client,
             worker_manager=mock_worker_manager,
             poll_interval=0.5,
-            max_workers=1,
+            worker_scaler=FixedScaler(1),
         )
 
         # Should use worker manager
