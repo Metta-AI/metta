@@ -149,11 +149,9 @@ class CheckpointManager:
                 )
 
         # Create and save policy record
-        policy_record = self.policy_store.create_empty_policy_record(
-            name=name, checkpoint_dir=self.checkpoint_cfg.checkpoint_dir
+        policy_record = self.policy_store.create_policy_record(
+            name=name, checkpoint_dir=self.checkpoint_cfg.checkpoint_dir, metadata=metadata, policy=policy_to_save
         )
-        policy_record.metadata = metadata
-        policy_record.policy = policy_to_save
 
         saved_policy_record = self.policy_store.save(policy_record, self.checkpoint_cfg.checkpoint_file_type)
         logger.info(f"Successfully saved policy at epoch {epoch}")

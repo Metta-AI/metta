@@ -779,10 +779,11 @@ def get_policy_record(
         default_model_name = checkpoint_manager.policy_store.make_model_name(
             0, checkpoint_manager.checkpoint_cfg.model_suffix()
         )
-        new_policy_record = checkpoint_manager.policy_store.create_empty_policy_record(
-            checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
+        new_policy_record = checkpoint_manager.policy_store.create_policy_record(
+            checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir,
+            name=default_model_name,
+            policy=MettaAgent(metta_grid_env, system_cfg, agent_cfg),
         )
-        new_policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
 
         # Only master saves the new policy to disk
         if checkpoint_manager.is_master:
