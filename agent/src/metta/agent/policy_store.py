@@ -13,6 +13,7 @@ import collections
 import logging
 import os
 import random
+import re
 import sys
 from typing import Any, Literal
 
@@ -328,7 +329,18 @@ class PolicyStore:
         if path.endswith(".pt"):
             paths.append(path)
         else:
-            paths.extend([os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")])
+            # Get all .pt files and sort them numerically by checkpoint number
+            checkpoint_files = [p for p in os.listdir(path) if p.endswith(".pt")]
+
+            # Sort by extracting the number from model_XXXX.pt filenames
+            def _get_checkpoint_number(filename):
+                match = re.search(r"_(\d+)\.pt$", filename)
+                return int(match.group(1)) if match else -1
+
+            # Sort in descending order so the latest (highest number) is first
+            checkpoint_files.sort(key=_get_checkpoint_number, reverse=True)
+            paths.extend([os.path.join(path, p) for p in checkpoint_files])
+
         return [self._load_from_file(path, metadata_only=True) for path in paths]
 
     def _prs_from_wandb_artifact(self, uri: str, version: str | None = None) -> list[PolicyRecord]:
