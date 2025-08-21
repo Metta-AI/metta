@@ -245,7 +245,12 @@ class PolicyLoader:
         path = parsed.path.rsplit("/", 1)[0]
         return parsed._replace(path=path).geturl()
 
+    # note that you should set policy after this
     def create_empty_policy_record(self, name: str, checkpoint_dir: str) -> PolicyRecord:
         path = os.path.join(checkpoint_dir, name)
         metadata = PolicyMetadata()
-        return PolicyRecord(self, name, f"file://{path}", metadata)
+        return PolicyRecord(
+            name,
+            f"file://{path}",
+            metadata,
+        )

@@ -4,14 +4,11 @@ This is separated from PolicyStore to enable cleaner packaging of saved policies
 """
 
 import logging
-from typing import TYPE_CHECKING
 
 import torch
 
+from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_metadata import PolicyMetadata
-
-if TYPE_CHECKING:
-    from metta.agent.metta_agent import PolicyAgent
 
 logger = logging.getLogger(__name__)
 
@@ -109,10 +106,12 @@ class PolicyRecord:
     @property
     def policy(self) -> "PolicyAgent":
         """Load and return the policy, using cache if available."""
-        if callable(self._cached_policy):
+        if isinstance(self._cached_policy, PolicyAgent):
+            return self._cached_policy
+        elif callable(self._cached_policy):
             # Invoke the callable and set the result as the cached policy
             self._cached_policy = self._cached_policy()
-        elif not isinstance(self._cached_policy, PolicyAgent):
+        else:
             raise TypeError(f"Expected PolicyAgent or callable, got {type(self._cached_policy).__name__}")
 
         return self._cached_policy
@@ -120,9 +119,10 @@ class PolicyRecord:
     @property
     def cached_policy(self) -> "PolicyAgent | None":
         """Get the cached policy without loading."""
-        if callable(self._cached_policy):
+        if isinstance(self._cached_policy, PolicyAgent):
+            return self._cached_policy
+        else:
             return None
-        return self._cached_policy
 
     @cached_policy.setter
     def cached_policy(self, policy: "PolicyAgent") -> None:

@@ -329,7 +329,7 @@ class PolicyStore:
             checkpoint_files.sort(key=lambda f: int(f[6:-3]) if f.startswith("model_") else -1, reverse=True)
             paths.extend([os.path.join(path, p) for p in checkpoint_files])
 
-            return list([self._policy_loader.load_from_file(path, metadata_only=True) for path in paths])
+        return list([self._policy_loader.load_from_file(path, metadata_only=True) for path in paths])
 
     def _prs_from_wandb_artifact(self, uri: str, version: str | None = None) -> list[PolicyRecord]:
         """
