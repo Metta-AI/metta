@@ -304,15 +304,17 @@ class ParetoGenetic:
         )
 
 
-def create_gp(x_dim, scale_length=1.0):
-    X = torch.zeros((1, x_dim))
-    y = torch.zeros((1,))
-    matern_kernel = gp.kernels.Matern32(input_dim=x_dim, lengthscale=scale_length * torch.ones(x_dim))
+def create_gp(x_dim, scale_length=1.0, device="cpu"):
+    device = torch.device(device)
+    X = torch.zeros((1, x_dim), device=device)
+    y = torch.zeros((1,), device=device)
+    matern_kernel = gp.kernels.Matern32(input_dim=x_dim, lengthscale=scale_length * torch.ones(x_dim, device=device))
     linear_kernel = gp.kernels.Polynomial(input_dim=x_dim, degree=1)
     kernel = gp.kernels.Sum(linear_kernel, matern_kernel)
     model = gp.models.GPRegression(X, y, kernel=kernel, jitter=1.0e-3)  # Increased jitter for stability
+    model = model.to(device)
     # Keep noise as a positive tensor (simpler & numerically stable)
-    model.noise = torch.tensor(1e-2)
+    model.noise = torch.tensor(1e-2, device=device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-2)
     return model, optimizer
 
@@ -332,6 +334,7 @@ class Protein:
         acquisition_fn="naive",
         ucb_beta=2.0,
         randomize_acquisition=False,
+        device="cpu",
     ):
         self.hyperparameters = Hyperparameters(sweep_config)
         self.num_random_samples = num_random_samples
@@ -345,11 +348,12 @@ class Protein:
         self.acquisition_fn = acquisition_fn
         self.ucb_beta = ucb_beta
         self.randomize_acquisition = randomize_acquisition
+        self.device = torch.device(device)
         self.success_observations = []
         self.failure_observations = []
         self.suggestion_idx = 0
-        self.gp_score, self.score_opt = create_gp(self.hyperparameters.num)
-        self.gp_cost, self.cost_opt = create_gp(self.hyperparameters.num)
+        self.gp_score, self.score_opt = create_gp(self.hyperparameters.num, device=self.device)
+        self.gp_cost, self.cost_opt = create_gp(self.hyperparameters.num, device=self.device)
 
         # Validate acquisition function
         if acquisition_fn not in ["naive", "ei", "ucb"]:
