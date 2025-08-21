@@ -24,7 +24,7 @@ env:
 jobs:
   claude-response:
     if: contains(github.event.comment.body, '@claude')
-    runs-on: ubuntu-latest
+    runs-on: extra-standard-runner
     outputs:
       action: ${{ steps.check_action.outputs.action }}
       review_types: ${{ steps.check_action.outputs.review_types }}

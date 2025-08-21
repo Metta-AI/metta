@@ -22,7 +22,7 @@ That's it! No configuration needed.
 ```yaml
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: extra-standard-runner
     steps:
       - uses: actions/checkout@v4
 

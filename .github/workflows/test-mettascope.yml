@@ -10,7 +10,7 @@ jobs:
   check-container:
     if: false # Workflow disabled #TODO(andre) #dehydration
     name: "Check Container Availability"
-    runs-on: ubuntu-latest
+    runs-on: extra-standard-runner
     outputs:
       container-tag: ${{ steps.check.outputs.tag }}
     steps:
@@ -36,7 +36,7 @@ jobs:
   test:
     if: false # Workflow disabled
     name: "Lint, Install, and Test"
-    runs-on: ubuntu-latest
+    runs-on: extra-standard-runner
     needs: check-container
     container:
       image: ghcr.io/metta-ai/metta/mettascope-ci:${{ needs.check-container.outputs.container-tag }}

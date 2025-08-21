@@ -19,7 +19,7 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: extra-standard-runner
     permissions:
       contents: read
       packages: write

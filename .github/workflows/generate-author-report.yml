@@ -26,7 +26,7 @@ on:
 
 jobs:
   generate-author-report:
-    runs-on: ubuntu-latest
+    runs-on: extra-standard-runner
     steps:
       - name: Checkout
         uses: actions/checkout@v4
