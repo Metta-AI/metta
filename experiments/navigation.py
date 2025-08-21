@@ -34,7 +34,9 @@ def make_env(num_agents: int = 4) -> EnvConfig:
     return nav
 
 
-def make_curriculum(nav_env: Optional[EnvConfig] = None) -> CurriculumConfig:
+def make_curriculum(
+    nav_env: Optional[EnvConfig] = None, use_learning_progress: bool = True
+) -> CurriculumConfig:
     nav_env = nav_env or make_env()
 
     # make a set of training tasks for navigation
@@ -62,12 +64,20 @@ def make_curriculum(nav_env: Optional[EnvConfig] = None) -> CurriculumConfig:
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
-    return nav_tasks.to_curriculum()
+    # Use the updated to_curriculum method that defaults to learning progress
+    return nav_tasks.to_curriculum(
+        num_tasks=16, use_learning_progress=use_learning_progress
+    )
 
 
-def train(run: str, curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(
+    run: str,
+    curriculum: Optional[CurriculumConfig] = None,
+    use_learning_progress: bool = True,
+) -> TrainTool:
     trainer_cfg = TrainerConfig(
-        curriculum=curriculum or make_curriculum(),
+        curriculum=curriculum
+        or make_curriculum(use_learning_progress=use_learning_progress),
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
         ),
