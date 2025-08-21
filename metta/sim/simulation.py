@@ -133,7 +133,7 @@ class Simulation:
 
         # Get the MettaGridEnv (may be wrapped in CurriculumEnv)
         driver_env = self._vecenv.driver_env  # type: ignore
-        metta_grid_env: MettaGridEnv = getattr(driver_env, '_env', driver_env)
+        metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
         assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
         # Initialize policy to environment
