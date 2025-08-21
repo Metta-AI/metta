@@ -9,6 +9,7 @@ import torch.distributed
 from heavyball import ForeachMuon
 from torchrl.data import Composite
 
+from metta.agent import policy_metadata_yaml_helper
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent, PolicyAgent
 from metta.agent.policy_record import PolicyRecord
@@ -150,7 +151,18 @@ def train(
         device=device,
     )
     """
-    policy_store.empty_agent_factory = lambda path: get_default_policy_agent(metta_grid_env, system_cfg, agent_cfg)
+    policy_store.empty_agent_factory = (
+        lambda policy_record, base_path, checkpoint_name: load_from_safetensors_checkpoint(
+            checkpoint_name=checkpoint_name,
+            base_path=base_path,
+            metta_grid_env=metta_grid_env,
+            system_cfg=system_cfg,
+            agent_cfg=agent_cfg,
+            device=device,
+            torch_dist_cfg=torch_dist_cfg,
+            policy_record=policy_record,
+        )
+    )
 
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
@@ -703,6 +715,47 @@ def get_default_policy_agent(
     metta_grid_env: MettaGridEnv, system_cfg: SystemConfig, agent_cfg: AgentConfig
 ) -> MettaAgent:
     return MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+
+
+def load_from_safetensors_checkpoint(
+    checkpoint_name: str,
+    base_path: str,
+    metta_grid_env: MettaGridEnv,
+    system_cfg: SystemConfig,
+    agent_cfg: AgentConfig,
+    policy_record: PolicyRecord,
+    device: torch.device,
+    torch_dist_cfg: TorchDistributedConfig,
+) -> PolicyRecord:
+    agent = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+    agent.initialize_to_environment(
+        features=metta_grid_env.get_observation_features(),
+        action_names=metta_grid_env.action_names,
+        action_max_params=metta_grid_env.max_action_args,
+        device=device,
+        is_training=True,
+    )
+    policy_metadata_yaml_helper.restore_agent(agent, checkpoint_name, base_path)
+    policy_record.policy = agent
+
+    # Wrap in DDP if distributed
+    if torch.distributed.is_initialized():
+        if torch_dist_cfg.is_master:
+            logger.info("Initializing DistributedDataParallel")
+        torch.distributed.barrier()
+        policy_record.policy = wrap_agent_distributed(agent, device)
+        torch.distributed.barrier()
+
+    # Initialize policy to environment after distributed wrapping
+    # This must happen after wrapping to ensure all ranks do it at the same time
+    initialize_policy_for_environment(
+        policy_record=policy_record,
+        metta_grid_env=metta_grid_env,
+        device=device,
+        restore_feature_mapping=True,
+    )
+
+    return policy_record
 
 
 def get_policy_record(

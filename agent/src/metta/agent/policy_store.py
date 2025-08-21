@@ -384,7 +384,7 @@ class PolicyStore:
         if path.endswith(".pt"):
             return self._load_from_pt_file(path, metadata_only)
         elif path.endswith(".safetensors"):
-            return self._load_from_safetensorsfile(path, metadata_only)
+            return self._load_from_safetensors_file(path, metadata_only)
         else:
             raise ValueError(f"Unsupported file format: {path}. Expected .pt or .safetensors")
 
@@ -527,18 +527,15 @@ class PolicyStore:
         path = parsed.path.rsplit("/", 1)[0]
         return parsed._replace(path=path).geturl()
 
-    def _load_from_safetensorsfile(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+    def _load_from_safetensors_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a PolicyRecord from safetensors format with YAML metadata sidecar."""
         cached_pr = self._cached_prs.get(path)
         if cached_pr is not None:
             if metadata_only or cached_pr._cached_policy is not None:
                 return cached_pr
 
-        agent = self.empty_agent_factory(path)
-        policy_metadata_yaml_helper.restore_agent(agent, self.checkpoint_name(path), self.base_path(path))
         pr = self.create_empty_policy_record(self.checkpoint_name(path), self.base_path(path))
-        pr.policy = agent
-
+        pr = self.empty_agent_factory(pr, self.base_path(path), self.checkpoint_name(path))
         self._cached_prs.put(path, pr)
         return pr
 
