@@ -19,7 +19,7 @@ def test_single_agent_gym_env():
             num_agents=1,
             max_steps=100,
             actions=ActionsConfig(
-                move_8way=ActionConfig(),
+                move=ActionConfig(),
                 noop=ActionConfig(),
                 rotate=ActionConfig(),
             ),
@@ -72,7 +72,7 @@ def test_gym_env_episode_termination():
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
-                move_8way=ActionConfig(),
+                move=ActionConfig(),
                 noop=ActionConfig(),
                 rotate=ActionConfig(),
             ),

@@ -34,7 +34,7 @@ def env_with_visitation():
             inventory_item_names=["wood", "stone"],
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
-                move_8way=ActionConfig(enabled=True),  # Enable 8-way movement
+                move=ActionConfig(enabled=True),  # Enable regular move action
                 get_items=ActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
@@ -77,7 +77,7 @@ def env_without_visitation():
             inventory_item_names=["wood", "stone"],
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
-                move_8way=ActionConfig(enabled=True),  # Enable 8-way movement
+                move=ActionConfig(enabled=True),  # Enable regular move action
                 get_items=ActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
@@ -120,7 +120,7 @@ def env_default():
             inventory_item_names=["wood", "stone"],
             actions=ActionsConfig(
                 noop=ActionConfig(enabled=False),
-                move_8way=ActionConfig(enabled=True),  # Enable 8-way movement
+                move=ActionConfig(enabled=True),  # Enable regular move action
                 get_items=ActionConfig(enabled=False),
             ),
             objects={"wall": WallConfig(type_id=1)},
@@ -179,7 +179,6 @@ def get_agent_position(env: MettaGridCore) -> Optional[tuple[int, int]]:
     return None
 
 
-@pytest.mark.skip(reason="Visitation counts not incrementing - needs investigation")
 def test_visitation_counts_enabled(env_with_visitation):
     """Test that visitation counts work correctly when enabled."""
     obs, _ = env_with_visitation.reset(seed=42)
@@ -245,7 +244,7 @@ def test_visitation_counts_configurable():
             obs_height=5,
             num_observation_tokens=100,
             inventory_item_names=["wood", "stone"],
-            actions=ActionsConfig(move_8way=ActionConfig()),
+            actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
             global_obs=GlobalObsConfig(visitation_counts=True),
@@ -265,7 +264,7 @@ def test_visitation_counts_configurable():
             obs_height=5,
             num_observation_tokens=100,
             inventory_item_names=["wood", "stone"],
-            actions=ActionsConfig(move_8way=ActionConfig()),
+            actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
             global_obs=GlobalObsConfig(visitation_counts=False),
@@ -285,7 +284,7 @@ def test_visitation_counts_configurable():
             obs_height=5,
             num_observation_tokens=100,
             inventory_item_names=["wood", "stone"],
-            actions=ActionsConfig(move_8way=ActionConfig()),
+            actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
             map_builder=AsciiMapBuilder.Config(map_data=simple_map),
@@ -319,7 +318,7 @@ def performance_config():
             obs_height=11,
             num_observation_tokens=200,
             inventory_item_names=["wood", "stone"],
-            actions=ActionsConfig(move_8way=ActionConfig()),
+            actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
             map_builder=AsciiMapBuilder.Config(map_data=simple_map),

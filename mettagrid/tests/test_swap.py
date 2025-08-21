@@ -26,7 +26,8 @@ def test_swap():
         "inventory_item_names": [],
         "actions": {
             "noop": {"enabled": True},
-            "move_8way": {"enabled": True},
+            "move": {"enabled": True},
+            "rotate": {"enabled": True},
             "swap": {
                 "enabled": True,
             },
@@ -81,17 +82,15 @@ def test_swap():
         pytest.fail("Swap with non-swappable wall should have failed!")
     print("  ✓ Swap correctly rejected (wall is not swappable)")
 
-    # Now use move_8way to face right (toward the block)
+    # Now rotate to face the swappable block
     # Agent starts at (1,1) facing Up (orientation=0)
     # Block is at (1,2) to the right
-    # We can use move_8way with direction 2 (East) to face right
-    # But since there's a block there, we'll just face that direction without moving
-    print("\nUsing move_8way to face right (toward block):")
-    move_idx = env.action_names().index("move_8way")
-    actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # 2 = East in 8-way
+    # We need to rotate the agent to face Right (orientation=3)
+    print("\nRotating agent to face right (toward block):")
+    rotate_idx = env.action_names().index("rotate")
+    actions = np.array([[rotate_idx, 3]], dtype=dtype_actions)  # 3 = Right
     env.step(actions)
-    # The move will fail (blocked by the block) but the agent will still turn to face East
-    print("  Agent now facing right (move was blocked but orientation changed)")
+    print("  Agent now facing right")
 
     # Now perform the swap with the block
     print("\nAttempting swap with block (should succeed):")
@@ -166,7 +165,8 @@ def test_swap_frozen_agent_preserves_layers():
         "inventory_item_names": ["laser"],
         "actions": {
             "noop": {"enabled": True},
-            "move_8way": {"enabled": True},
+            "move": {"enabled": True},
+            "rotate": {"enabled": True},
             "attack": {
                 "enabled": True,
             },
@@ -231,13 +231,14 @@ def test_swap_frozen_agent_preserves_layers():
     # Get action indices
     attack_idx = env.action_names().index("attack")
     swap_idx = env.action_names().index("swap")
+    rotate_idx = env.action_names().index("rotate")
     noop_idx = env.action_names().index("noop")
-    move_idx = env.action_names().index("move_8way")
+    move_idx = env.action_names().index("move")
 
     # Agent 0 needs to face right to attack agent 1
-    print("\nAgent 0 using move_8way to face right:")
+    print("\nAgent 0 rotating to face right:")
     actions = np.zeros((2, 2), dtype=dtype_actions)
-    actions[0] = [move_idx, 2]  # Agent 0: move_8way East (will be blocked but turns to face right)
+    actions[0] = [rotate_idx, 3]  # Agent 0: rotate to face right
     actions[1] = [noop_idx, 0]  # Agent 1: do nothing
     env.step(actions)
 
@@ -261,21 +262,17 @@ def test_swap_frozen_agent_preserves_layers():
     assert agent1_frozen > 0
 
     # Walk over to the frozen agent
-    # Agent0 is at (1,1), Agent1 is at (2,3)
-    # We need to move right twice then down once to be adjacent
     print("\nAgent 0 moving to be adjacent to frozen agent 1:")
-
-    # Move right twice
-    actions[0] = [move_idx, 2]  # Agent 0: move East
+    actions[0] = [move_idx, 0]  # Agent 0: step forward
     actions[1] = [noop_idx, 0]  # Agent 1: do nothing (frozen)
     env.step(actions)
 
-    actions[0] = [move_idx, 2]  # Agent 0: move East again
+    actions[0] = [move_idx, 0]  # Agent 0: step forward
     actions[1] = [noop_idx, 0]  # Agent 1: do nothing (frozen)
     env.step(actions)
 
-    # Use move_8way to face down (direction 4 = South)
-    actions[0] = [move_idx, 4]  # Agent 0: move_8way South (will be blocked but turns to face down)
+    # Orientation: Up = 0, Down = 1, Left = 2, Right = 3
+    actions[0] = [rotate_idx, 1]  # Agent 0: face down towards agent 1
     actions[1] = [noop_idx, 0]  # Agent 1: do nothing (frozen)
     env.step(actions)
 

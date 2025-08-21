@@ -110,7 +110,9 @@ class ActionsConfig(Config):
     """
 
     noop: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    move_8way: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))  # Default movement action
+    move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    move_8way: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
+    move_cardinal: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     place_box: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))

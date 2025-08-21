@@ -13,6 +13,7 @@ from metta.mettagrid.util.actions import (
     Orientation,
     get_agent_position,
     move,
+    rotate,
 )
 
 NUM_AGENTS = 1
@@ -43,7 +44,8 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         "actions": {
             "noop": {"enabled": True},
             "get_items": {"enabled": True},
-            "move_8way": {"enabled": True},
+            "move": {"enabled": True},
+            "rotate": {"enabled": True},
             "put_items": {"enabled": True},
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "swap": {"enabled": True},
@@ -107,8 +109,10 @@ def collect_heart_from_altar(env):
         if not move_result["success"]:
             return False, 0.0
 
-    # With move_8way, we don't need to rotate - just collect directly
-    # The get_items action will work from any adjacent position
+    # Rotate to face right (towards altar at (1,3))
+    rotate_result = rotate(env, Orientation.RIGHT, agent_idx=0)
+    if not rotate_result["success"]:
+        return False, 0.0
 
     # Collect heart
     obs, reward, success = perform_action(env, "get_items", 0)

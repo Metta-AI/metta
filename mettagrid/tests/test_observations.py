@@ -33,7 +33,7 @@ def basic_env() -> MettaGridCore:
             num_observation_tokens=NUM_OBS_TOKENS,
             actions=ActionsConfig(
                 noop=ActionConfig(),
-                move_8way=ActionConfig(),
+                move=ActionConfig(),
                 rotate=ActionConfig(),
                 get_items=ActionConfig(),
             ),
@@ -65,7 +65,7 @@ def adjacent_agents_env() -> MettaGridCore:
             num_observation_tokens=NUM_OBS_TOKENS,
             actions=ActionsConfig(
                 noop=ActionConfig(),
-                move_8way=ActionConfig(),
+                move=ActionConfig(),
                 rotate=ActionConfig(),
                 get_items=ActionConfig(),
             ),
@@ -247,7 +247,7 @@ class TestObservations:
                 num_observation_tokens=NUM_OBS_TOKENS,
                 actions=ActionsConfig(
                     noop=ActionConfig(),
-                    move_8way=ActionConfig(),
+                    move=ActionConfig(),
                     rotate=ActionConfig(),
                     get_items=ActionConfig(),
                 ),
@@ -407,7 +407,7 @@ class TestGlobalTokens:
                 num_observation_tokens=NUM_OBS_TOKENS,
                 actions=ActionsConfig(
                     noop=ActionConfig(),
-                    move_8way=ActionConfig(),
+                    move=ActionConfig(),
                     rotate=ActionConfig(),
                     get_items=ActionConfig(),
                 ),
@@ -453,8 +453,8 @@ class TestGlobalTokens:
         last_arg = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION_ARG)
         assert last_arg == 0, f"Expected last action arg 0, got {last_arg}"
 
-        # Take a move_8way action
-        move_idx = env.action_names.index("move_8way")
+        # Take a move action
+        move_idx = env.action_names.index("move")
         actions = np.full((num_agents, 2), [move_idx, 1], dtype=dtype_actions)
         obs, _, _, _, _ = env.step(actions)
 
@@ -498,7 +498,7 @@ class TestGlobalTokens:
                 num_observation_tokens=NUM_OBS_TOKENS,
                 actions=ActionsConfig(
                     noop=ActionConfig(),
-                    move_8way=ActionConfig(),
+                    move=ActionConfig(),
                     rotate=ActionConfig(),
                     get_items=ActionConfig(),
                     change_glyph=ChangeGlyphActionConfig(enabled=True, number_of_glyphs=8),
@@ -816,7 +816,7 @@ class TestEdgeObservations:
                 num_observation_tokens=NUM_OBS_TOKENS,
                 actions=ActionsConfig(
                     noop=ActionConfig(),
-                    move_8way=ActionConfig(),
+                    move=ActionConfig(),
                     rotate=ActionConfig(),
                     get_items=ActionConfig(),
                 ),
@@ -843,7 +843,8 @@ class TestEdgeObservations:
         obs, _ = env.reset()
 
         # Get action indices
-        move_idx = env.action_names.index("move_8way")
+        move_idx = env.action_names.index("move")
+        rotate_idx = env.action_names.index("rotate")
 
         # Verify initial position - agent should be at center of observation
         agent_tokens = helper.find_tokens_at_location(obs[0], 3, 3)
@@ -857,9 +858,12 @@ class TestEdgeObservations:
 
         print("\nInitial state: Agent at (2,2), altar at (7,5) - not visible")
 
-        # Move right 3 steps using move_8way (direction 2 = East)
+        # Face right and move right 3 steps
+        actions = np.array([[rotate_idx, 3]], dtype=dtype_actions)
+        obs, _, _, _, _ = env.step(actions)
+
         for step in range(3):
-            actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # 2 = East
+            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
             obs, _, _, _, _ = env.step(actions)
 
             # After step 0: agent at (3,2), window covers (0,0) to (6,5) - altar still not visible
@@ -890,7 +894,7 @@ class TestEdgeObservations:
 
         # Continue moving right until altar leaves view
         for step in range(3, 6):
-            actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # 2 = East
+            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
             obs, _, _, _, _ = env.step(actions)
 
             # After step 3: agent at (6,2), altar at relative (1,3) - still visible
@@ -912,7 +916,7 @@ class TestEdgeObservations:
 
         # Continue moving right until altar leaves view
         for step in range(6, 9):
-            actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # 2 = East
+            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
             obs, _, _, _, _ = env.step(actions)
 
             # After step 6: agent at (9,2), altar at relative (-2,3) - obs position (1,6)
@@ -937,12 +941,15 @@ class TestEdgeObservations:
         # Now walk to bottom-right corner
         # Continue right to x=13
         for _ in range(5):
-            actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # 2 = East
+            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
             obs, _, _, _, _ = env.step(actions)
 
-        # Move down to y=8 using move_8way (direction 4 = South)
+        # Face down and move to y=8
+        actions = np.array([[rotate_idx, 1]], dtype=dtype_actions)
+        obs, _, _, _, _ = env.step(actions)
+
         for _ in range(6):
-            actions = np.array([[move_idx, 4]], dtype=dtype_actions)  # 4 = South
+            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
             obs, _, _, _, _ = env.step(actions)
 
         # Verify agent is still at center of observation

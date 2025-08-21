@@ -115,6 +115,11 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
     Simple tank-style movement helper for tests.
     For direct movement (cardinal/8way), tests should create actions explicitly.
 
+    Example for cardinal movement:
+        action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
+        action[0] = [env.action_names().index("move_cardinal"), Orientation.UP.value]
+        env.step(action)
+
     Example for 8-way movement:
         action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
         # Map orientation to 8-way indices: UP=0, RIGHT=2, DOWN=4, LEFT=6
@@ -132,28 +137,29 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
     result = {"success": False, "error": None}
     action_names = env.action_names()
 
-    # This helper now uses 8-way movement
-    if "move_8way" not in action_names:
-        result["error"] = "8-way movement not available"
+    # This helper only supports tank-style movement
+    if "move" not in action_names or "rotate" not in action_names:
+        result["error"] = "Tank-style movement (move/rotate) not available"
         return result
 
-    move_8way_idx = action_names.index("move_8way")
-
-    # Map orientations to 8-way movement indices
-    # 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
-    orientation_to_8way = {
-        Orientation.UP: 0,  # North
-        Orientation.RIGHT: 2,  # East
-        Orientation.DOWN: 4,  # South
-        Orientation.LEFT: 6,  # West
-    }
+    move_action_idx = action_names.index("move")
+    rotate_action_idx = action_names.index("rotate")
 
     # Get initial position for verification
     position_before = get_agent_position(env, agent_idx)
 
-    # Use direct 8-way movement in the specified direction
+    # Step 1: Rotate to face target direction
+    rotate_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
+    rotate_action[agent_idx] = [rotate_action_idx, orientation.value]
+    env.step(rotate_action)
+
+    if not env.action_success()[agent_idx]:
+        result["error"] = f"Failed to rotate to {orientation}"
+        return result
+
+    # Step 2: Move forward
     move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-    move_action[agent_idx] = [move_8way_idx, orientation_to_8way[orientation]]
+    move_action[agent_idx] = [move_action_idx, 0]  # Move forward
     env.step(move_action)
 
     if not env.action_success()[agent_idx]:
