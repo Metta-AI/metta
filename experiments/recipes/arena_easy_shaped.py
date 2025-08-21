@@ -127,6 +127,14 @@ def train() -> TrainTool:
     - Total timesteps: 10B (can be overridden at runtime)
     """
     env_cfg = make_env()
+    
+    # Log environment configuration for verification
+    print(f"[Arena Easy Shaped] Creating training with environment config:")
+    print(f"  - Altar input: {env_cfg.game.objects['altar'].input_resources}")
+    print(f"  - Shaped rewards: ore={env_cfg.game.agent.rewards.inventory.ore_red}, "
+          f"battery={env_cfg.game.agent.rewards.inventory.battery_red}")
+    print(f"  - Objects in map: {list(env_cfg.game.objects.keys())}")
+    print(f"  - Has blocks: {'block' in env_cfg.game.objects}")
 
     # Create trainer configuration with original hyperparameters
     trainer_cfg = TrainerConfig(
