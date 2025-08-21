@@ -91,10 +91,10 @@ Examples:
     # Step 2: Run the simulation
     print("\n🚀 Step 2: Running simulation...")
     sim_cmd = [
-        "./tools/sim.py",
-        "sim=navigation",
-        f"run={args.run}",
-        f"policy_uri={wandb_path}",
+        "./tools/run.py",
+        "experiments.recipes.navigation.eval",
+        f"--overrides policy_uri={wandb_path}",
+        "+eval_db_uri=wandb://stats/navigation_db",
         "+eval_db_uri=wandb://stats/navigation_db",
     ] + additional_args
 

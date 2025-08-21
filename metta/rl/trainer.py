@@ -8,16 +8,16 @@ import numpy as np
 import torch
 import torch.distributed
 from heavyball import ForeachMuon
-from omegaconf import DictConfig, OmegaConf
 from torchrl.data import Composite
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.wandb_context import WandbRun
-from metta.core.distributed import setup_distributed_vars
+from metta.core.distributed import TorchDistributedConfig
 from metta.core.monitoring import (
     cleanup_monitoring,
     setup_monitoring,
@@ -25,7 +25,6 @@ from metta.core.monitoring import (
 from metta.eval.eval_request_config import EvalRewardSummary
 from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
-from metta.mettagrid.curriculum.util import curriculum_from_config_path
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
@@ -58,7 +57,6 @@ from metta.rl.wandb import (
     log_model_parameters,
     setup_wandb_metrics,
 )
-from metta.sim.simulation_config import SimulationSuiteConfig
 from metta.utils.batch import calculate_batch_sizes
 
 try:
@@ -77,17 +75,28 @@ _local_rank = int(os.environ.get("LOCAL_RANK", 0))
 logger = logging.getLogger(f"trainer-{_rank}-{_local_rank}")
 
 
+def _update_training_status_on_failure(stats_client: StatsClient | None, stats_run_id, logger) -> None:
+    """Helper to update training run status to 'failed' when training encounters an error."""
+    if stats_client and stats_run_id:
+        try:
+            stats_client.update_training_run_status(stats_run_id, "failed")
+            logger.info("Training run status updated to 'failed'")
+        except Exception as e:
+            logger.warning(f"Failed to update training run status to failed: {e}", exc_info=True)
+
+
+# TODO: dehydrate to just take in an agent and curriculum
 def train(
     run_dir: str,
     run: str,
     system_cfg: SystemConfig,
-    agent_cfg: DictConfig,
+    agent_cfg: AgentConfig,
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,
     policy_store: PolicyStore,
-    sim_suite_config: SimulationSuiteConfig,
     stats_client: StatsClient | None,
+    torch_dist_cfg: TorchDistributedConfig,
 ) -> None:
     """Main training loop for Metta agents."""
     torch.autograd.set_detect_anomaly(True)
@@ -100,21 +109,18 @@ def train(
         if files:
             logger.info(f"Recent checkpoints: {', '.join(files)}")
 
-    # Set up distributed
-    is_master, world_size, rank = setup_distributed_vars()
-
-    # Create timer, profiler, curriculum
+    # Create timer, Losses, profiler, curriculum
     timer = Stopwatch(logger)
     timer.start()
-    torch_profiler = TorchProfiler(is_master, trainer_cfg.profiler, wandb_run, run_dir)
-    curriculum = curriculum_from_config_path(trainer_cfg.curriculum_or_env, DictConfig(trainer_cfg.env_overrides))
+    torch_profiler = TorchProfiler(torch_dist_cfg.is_master, trainer_cfg.profiler, wandb_run, run_dir)
+    curriculum = trainer_cfg.curriculum.make()
 
     # Calculate batch sizes
-    num_agents = curriculum.get_task().env_cfg().game.num_agents
+    num_agents = curriculum.get_task().get_env_cfg().game.num_agents
     target_batch_size, batch_size, num_envs = calculate_batch_sizes(
         trainer_cfg.forward_pass_minibatch_target_size,
         num_agents,
-        trainer_cfg.num_workers,
+        trainer_cfg.rollout_workers,
         trainer_cfg.async_factor,
     )
 
@@ -124,12 +130,12 @@ def train(
         system_cfg.vectorization,
         num_envs=num_envs,
         batch_size=batch_size,
-        num_workers=trainer_cfg.num_workers,
+        num_workers=trainer_cfg.rollout_workers,
         zero_copy=trainer_cfg.zero_copy,
         is_training=True,
     )
 
-    vecenv.async_reset(system_cfg.seed + rank)
+    vecenv.async_reset(system_cfg.seed + torch_dist_cfg.rank)
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
@@ -141,8 +147,8 @@ def train(
         policy_store=policy_store,
         checkpoint_config=trainer_cfg.checkpoint,
         device=device,
-        is_master=is_master,
-        rank=rank,
+        is_master=torch_dist_cfg.is_master,
+        rank=torch_dist_cfg.rank,
         run_name=run,
     )
 
@@ -179,7 +185,8 @@ def train(
 
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
-        logger.info(f"Initializing DistributedDataParallel on device {device}")
+        if torch_dist_cfg.is_master:
+            logger.info("Initializing DistributedDataParallel")
         torch.distributed.barrier()
         policy = wrap_agent_distributed(policy, device)
         torch.distributed.barrier()
@@ -259,7 +266,7 @@ def train(
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
     # Set up monitoring (master only)
-    if is_master:
+    if torch_dist_cfg.is_master:
         logger.info("Starting training")
         memory_monitor, system_monitor = setup_monitoring(
             policy=policy,
@@ -270,7 +277,7 @@ def train(
         memory_monitor, system_monitor = None, None
 
     # Set up wandb metrics (master only)
-    if wandb_run and is_master:
+    if wandb_run and torch_dist_cfg.is_master:
         setup_wandb_metrics(wandb_run)
         log_model_parameters(policy, wandb_run)
 
@@ -295,7 +302,7 @@ def train(
         except Exception as e:
             logger.warning(f"Failed to create training run: {e}", exc_info=True)
 
-    if is_master:
+    if torch_dist_cfg.is_master:
         logger.info(f"Training on {device}")
     wandb_policy_name: str | None = None
 
@@ -305,279 +312,287 @@ def train(
         epoch=0,
         update_epoch=0,
         mb_idx=0,
-        num_mbs=0,
         optimizer=optimizer,
     )
+    try:
+        while agent_step < trainer_cfg.total_timesteps:
+            steps_before = agent_step
+            trainer_state.agent_step = agent_step
+            trainer_state.epoch = epoch
+            policy_losses = policy.get_cfg().losses
+            shared_loss_mb_data = experience.give_me_empty_md_td()
+            policy.on_new_training_run()
+            for _loss_name in loss_instances.keys():
+                shared_loss_mb_data[_loss_name] = experience.give_me_empty_md_td()
+            record_heartbeat()
 
-    while agent_step < trainer_cfg.total_timesteps:
-        steps_before = agent_step
-        trainer_state.agent_step = agent_step
-        trainer_state.epoch = epoch
-        policy_losses = policy.get_cfg().losses
-        shared_loss_mb_data = experience.give_me_empty_md_td()
-        policy.on_new_training_run()
-        for _loss_name in loss_instances.keys():
-            shared_loss_mb_data[_loss_name] = experience.give_me_empty_md_td()
-        record_heartbeat()
+            with torch_profiler:
+                # ---- ROLLOUT PHASE ----
+                with timer("_rollout"):
+                    raw_infos = []
+                    total_steps = 0
+                    experience.reset_for_rollout()
+                    for _loss_name in list(policy_losses):
+                        loss_instances[_loss_name].on_rollout_start(trainer_state)
 
-        with torch_profiler:
-            # ---- ROLLOUT PHASE ----
-            with timer("_rollout"):
-                raw_infos = []
-                total_steps = 0
-                experience.reset_for_rollout()
-                for _loss_name in list(policy_losses):
-                    loss_instances[_loss_name].on_rollout_start(trainer_state)
+                    buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
+                    buffer_step = buffer_step.select(*policy_spec.keys())
 
-                buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
-                buffer_step = buffer_step.select(*policy_spec.keys())
+                    while not experience.ready_for_training:
+                        # Get observation
+                        o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
+                        total_steps += num_steps
 
-                while not experience.ready_for_training:
-                    # Get observation
-                    o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
-                    total_steps += num_steps
+                        trainer_state.training_env_id = training_env_id
+                        td = buffer_step[training_env_id].clone()
+                        td["env_obs"] = o
+                        td["rewards"] = r
+                        td["dones"] = d.float()
+                        td["truncateds"] = t.float()
+                        td.set(
+                            "training_env_id_start",
+                            torch.full(
+                                td.batch_size,
+                                training_env_id.start,
+                                device=td.device,
+                                dtype=torch.long,
+                            ),
+                        )
 
-                    trainer_state.training_env_id = training_env_id
-                    td = buffer_step[training_env_id].clone()
-                    td["env_obs"] = o
-                    td["rewards"] = r
-                    td["dones"] = d.float()
-                    td["truncateds"] = t.float()
-                    td.set(
-                        "training_env_id_start",
-                        torch.full(
-                            td.batch_size,
-                            training_env_id.start,
-                            device=td.device,
-                            dtype=torch.long,
-                        ),
-                    )
+                        # Inference
+                        # note that each loss will modify the td, the same one that is passed to other losses.
+                        # We want this because this allows other parts of the network to only run what's needed on
+                        # these obs, efficiently reusing hiddens within the network. Other losses should clear fields
+                        # and/or clone as necessary.
+                        for _lname in list(policy_losses):
+                            loss_obj = loss_instances[_lname]
+                            loss_obj.rollout(td, trainer_state)
 
-                    # Inference
-                    # note that each loss will modify the td, the same one that is passed to other losses. We want this
-                    # because this allows other parts of the network to only run what's needed on these obs, efficiently
-                    # reusing hiddens within the network. Other losses should clear fields and/or clone as necessary.
+                            # Send observation
+                            send_observation(vecenv, td["actions"], dtype_actions, timer)
+
+                            if info:
+                                raw_infos.extend(info)
+
+                        agent_step += total_steps * torch_dist_cfg.world_size
+                    accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
+
+                # ---- TRAINING PHASE ----
+                with timer("_train"):
+                    shared_loss_mb_data.zero_()
+
+                    # Train for multiple epochs
+                    epochs_trained = 0
                     for _lname in list(policy_losses):
                         loss_obj = loss_instances[_lname]
-                        loss_obj.rollout(td, trainer_state)
+                        loss_obj.zero_loss_tracker()
 
-                    # Send observation
-                    send_observation(vecenv, td["actions"], dtype_actions, timer)
+                    for _update_epoch in range(trainer_cfg.update_epochs):
+                        trainer_state.update_epoch = _update_epoch
+                        for mb_idx in range(experience.num_minibatches):
+                            trainer_state.mb_idx = mb_idx
+                            trainer_state.early_stop_update_epoch = False
+                            total_loss = torch.tensor(0.0, device=device)
+                            for _lname in list(policy_losses):
+                                loss_obj = loss_instances[_lname]
+                                loss_val, shared_loss_mb_data = loss_obj.train(shared_loss_mb_data, trainer_state)
+                                total_loss = total_loss + loss_val
 
-                    if info:
-                        raw_infos.extend(info)
+                            if trainer_state.early_stop_update_epoch:
+                                break
 
-                agent_step += total_steps * world_size
-            accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
+                            # Optimizer step
+                            optimizer.zero_grad()
 
-            # ---- TRAINING PHASE ----
-            with timer("_train"):
-                shared_loss_mb_data.zero_()
+                            # This also serves as a barrier for all ranks
+                            total_loss.backward()
 
-                # Train for multiple epochs
-                epochs_trained = 0
-                for _lname in list(policy_losses):
-                    loss_obj = loss_instances[_lname]
-                    loss_obj.zero_loss_tracker()
+                            if (mb_idx + 1) % experience.accumulate_minibatches == 0:
+                                torch.nn.utils.clip_grad_norm_(policy.parameters(), policy_cfg.losses.PPO.max_grad_norm)
+                                optimizer.step()
 
-                for _update_epoch in range(trainer_cfg.update_epochs):
-                    trainer_state.update_epoch = _update_epoch
-                    for mb_idx in range(experience.num_minibatches):
-                        trainer_state.mb_idx = mb_idx
-                        trainer_state.early_stop_update_epoch = False
-                        total_loss = torch.tensor(0.0, device=device)
-                        for _lname in list(policy_losses):
-                            loss_obj = loss_instances[_lname]
-                            loss_val, shared_loss_mb_data = loss_obj.train(shared_loss_mb_data, trainer_state)
-                            total_loss = total_loss + loss_val
+                                if device.type == "cuda":
+                                    torch.cuda.synchronize()
 
-                        if trainer_state.early_stop_update_epoch:
-                            break
+                            for _lname in list(policy_losses):
+                                loss_obj = loss_instances[_lname]
+                                loss_obj.on_mb_end(trainer_state)
 
-                        # Optimizer step
-                        optimizer.zero_grad()
+                        epochs_trained += 1
 
-                        # This also serves as a barrier for all ranks
-                        total_loss.backward()
+                    for _lname in list(policy_losses):
+                        loss_obj = loss_instances[_lname]
+                        loss_obj.on_train_phase_end(trainer_state)
 
-                        if (mb_idx + 1) % experience.accumulate_minibatches == 0:
-                            torch.nn.utils.clip_grad_norm_(policy.parameters(), policy_cfg.losses.PPO.max_grad_norm)
-                            optimizer.step()
+                epoch += epochs_trained
+                trainer_state.epoch = epoch
+                trainer_state.agent_step = agent_step  # update agent_step count state not in between rollout and train
 
-                            if device.type == "cuda":
-                                torch.cuda.synchronize()
+            # Safe to proceed to next rollout phase only once all ranks have completed training
+            if torch.distributed.is_initialized():
+                torch.distributed.barrier()
 
-                        for _lname in list(policy_losses):
-                            loss_obj = loss_instances[_lname]
-                            loss_obj.on_mb_end(trainer_state)
+            if not torch_dist_cfg.is_master:
+                # Only master needs to do bookkeeping
+                continue
 
-                    epochs_trained += 1
+            torch_profiler.on_epoch_end(epoch)
 
-                for _lname in list(policy_losses):
-                    loss_obj = loss_instances[_lname]
-                    loss_obj.on_train_phase_end(trainer_state)
+            losses_stats = {}
+            for _lname in list(policy_losses):
+                loss_obj = loss_instances[_lname]
+                losses_stats.update(loss_obj.stats())
 
-            epoch += epochs_trained
-            trainer_state.epoch = epoch
-            trainer_state.agent_step = agent_step  # update agent_step count state not in between rollout and train
+            with timer("_process_stats"):
+                if wandb_run:
+                    process_stats(
+                        agent_cfg=agent_cfg,
+                        stats=stats_tracker.rollout_stats,
+                        losses_stats=losses_stats,
+                        evals=eval_scores,
+                        grad_stats=stats_tracker.grad_stats,
+                        experience=experience,
+                        policy=policy,
+                        timer=timer,
+                        trainer_cfg=trainer_cfg,
+                        agent_step=agent_step,
+                        epoch=epoch,
+                        wandb_run=wandb_run,
+                        # We know these exist within master
+                        memory_monitor=memory_monitor,  # type: ignore[arg-type]
+                        system_monitor=system_monitor,  # type: ignore[arg-type]
+                        latest_saved_policy_record=latest_saved_policy_record,
+                        optimizer=optimizer,
+                    )
+                # Clear stats after processing
+                stats_tracker.clear_rollout_stats()
+                stats_tracker.clear_grad_stats()
 
-        # Safe to proceed to next rollout phase only once all ranks have completed training
-        if torch.distributed.is_initialized():
-            torch.distributed.barrier()
+            log_training_progress(
+                epoch=epoch,
+                agent_step=agent_step,
+                prev_agent_step=steps_before,
+                total_timesteps=trainer_cfg.total_timesteps,
+                train_time=timer.get_last_elapsed("_train"),
+                rollout_time=timer.get_last_elapsed("_rollout"),
+                stats_time=timer.get_last_elapsed("_process_stats"),
+                run_name=run,
+            )
+            checkpoint_result = maybe_establish_checkpoint(
+                checkpoint_manager=checkpoint_manager,
+                epoch=epoch,
+                policy=policy,
+                agent_step=agent_step,
+                eval_scores=eval_scores,
+                timer=timer,
+                initial_policy_record=initial_policy_record,
+                optimizer=optimizer,
+                run_dir=run_dir,
+                wandb_run=wandb_run,
+            )
+            if checkpoint_result:
+                # TODO: wandb_policy_name should come directly from last_saved_policy_record
+                latest_saved_policy_record, wandb_policy_name = checkpoint_result
 
-        if not is_master:
-            # Only master needs to do bookkeeping
-            continue
+            if trainer_cfg.evaluation and should_run(epoch, trainer_cfg.evaluation.evaluate_interval):
+                if latest_saved_policy_record:
+                    if stats_client and stats_tracker.stats_run_id:
+                        stats_tracker.stats_epoch_id = stats_client.create_epoch(
+                            run_id=stats_tracker.stats_run_id,
+                            start_training_epoch=stats_tracker.stats_epoch_start,
+                            end_training_epoch=epoch,
+                        ).id
 
-        torch_profiler.on_epoch_end(epoch)
+                    sims = [
+                        curriculum.get_task().get_env_cfg().to_sim(f"train_task_{i}")
+                        for i in range(trainer_cfg.evaluation.num_training_tasks)
+                    ]
+                    sims.extend(trainer_cfg.evaluation.simulations)
 
-        losses_stats = {}
-        for _lname in list(policy_losses):
-            loss_obj = loss_instances[_lname]
-            losses_stats.update(loss_obj.stats())
-
-        with timer("_process_stats"):
-            if wandb_run:
-                process_stats(
-                    agent_cfg=agent_cfg,
-                    stats=stats_tracker.rollout_stats,
-                    losses_stats=losses_stats,
-                    evals=eval_scores,
-                    grad_stats=stats_tracker.grad_stats,
-                    experience=experience,
-                    policy=policy,
-                    timer=timer,
-                    trainer_cfg=trainer_cfg,
-                    agent_step=agent_step,
-                    epoch=epoch,
-                    wandb_run=wandb_run,
-                    # We know these exist within master
-                    memory_monitor=memory_monitor,  # type: ignore[arg-type]
-                    system_monitor=system_monitor,  # type: ignore[arg-type]
-                    latest_saved_policy_record=latest_saved_policy_record,
-                    optimizer=optimizer,
-                )
-            # Clear stats after processing
-            stats_tracker.clear_rollout_stats()
-            stats_tracker.clear_grad_stats()
-
-        log_training_progress(
-            epoch=epoch,
-            agent_step=agent_step,
-            prev_agent_step=steps_before,
-            total_timesteps=trainer_cfg.total_timesteps,
-            train_time=timer.get_last_elapsed("_train"),
-            rollout_time=timer.get_last_elapsed("_rollout"),
-            stats_time=timer.get_last_elapsed("_process_stats"),
-            run_name=run,
-        )
-        checkpoint_result = maybe_establish_checkpoint(
-            checkpoint_manager=checkpoint_manager,
-            epoch=epoch,
-            policy=policy,
-            agent_step=agent_step,
-            eval_scores=eval_scores,
-            timer=timer,
-            initial_policy_record=initial_policy_record,
-            optimizer=optimizer,
-            run_dir=run_dir,
-            wandb_run=wandb_run,
-        )
-        if checkpoint_result:
-            # TODO: wandb_policy_name should come directly from last_saved_policy_record
-            latest_saved_policy_record, wandb_policy_name = checkpoint_result
-
-        if should_run(epoch, trainer_cfg.simulation.evaluate_interval):
-            if latest_saved_policy_record:
-                if stats_client and stats_tracker.stats_run_id:
-                    stats_tracker.stats_epoch_id = stats_client.create_epoch(
-                        run_id=stats_tracker.stats_run_id,
-                        start_training_epoch=stats_tracker.stats_epoch_start,
-                        end_training_epoch=epoch,
-                    ).id
-
-                # Create extended simulation suite that includes the training task
-                # Deep merge trainer env_overrides with sim_suite_config env_overrides
-                merged_env_overrides: dict = OmegaConf.to_container(  # type: ignore
-                    OmegaConf.merge(sim_suite_config.env_overrides, trainer_cfg.env_overrides)
-                )
-                extended_suite_config = SimulationSuiteConfig(
-                    name=sim_suite_config.name,
-                    simulations=dict(sim_suite_config.simulations),
-                    env_overrides=merged_env_overrides,
-                    num_episodes=sim_suite_config.num_episodes,
-                )
-
-                evaluate_local = trainer_cfg.simulation.evaluate_local
-
-                if trainer_cfg.simulation.evaluate_remote:
-                    try:
-                        evaluate_policy_remote(
+                    evaluate_local = trainer_cfg.evaluation.evaluate_local
+                    if trainer_cfg.evaluation.evaluate_remote:
+                        try:
+                            evaluate_policy_remote(
+                                policy_record=latest_saved_policy_record,
+                                simulations=sims,
+                                stats_epoch_id=stats_tracker.stats_epoch_id,
+                                wandb_policy_name=wandb_policy_name,
+                                stats_client=stats_client,
+                                wandb_run=wandb_run,
+                                trainer_cfg=trainer_cfg,
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
+                            logger.error("Falling back to local evaluation")
+                            evaluate_local = True
+                    if evaluate_local:
+                        evaluation_results = evaluate_policy(
                             policy_record=latest_saved_policy_record,
-                            sim_suite_config=extended_suite_config,
+                            simulations=sims,
+                            device=device,
+                            vectorization=system_cfg.vectorization,
+                            replay_dir=trainer_cfg.evaluation.replay_dir,
                             stats_epoch_id=stats_tracker.stats_epoch_id,
                             wandb_policy_name=wandb_policy_name,
+                            policy_store=policy_store,
                             stats_client=stats_client,
-                            wandb_run=wandb_run,
-                            trainer_cfg=trainer_cfg,
+                            logger=logger,
                         )
-                    except Exception as e:
-                        logger.error(f"Failed to evaluate policy remotely: {e}", exc_info=True)
-                        logger.error("Falling back to local evaluation")
-                        evaluate_local = True
+                        logger.info("Simulation complete")
+                        eval_scores = evaluation_results.scores
+                        category_scores = list(eval_scores.category_scores.values())
+                        if category_scores and latest_saved_policy_record:
+                            latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
+                        if wandb_run is not None and evaluation_results.replay_urls:
+                            upload_replay_html(
+                                replay_urls=evaluation_results.replay_urls,
+                                agent_step=agent_step,
+                                epoch=epoch,
+                                wandb_run=wandb_run,
+                                metric_prefix="training_eval",
+                                step_metric_key="metric/epoch",
+                                epoch_metric_key="metric/epoch",
+                            )
 
-                if evaluate_local:
-                    evaluation_results = evaluate_policy(
-                        policy_record=latest_saved_policy_record,
-                        simulation_suite=extended_suite_config,
-                        device=device,
-                        vectorization=system_cfg.vectorization,
-                        replay_dir=trainer_cfg.simulation.replay_dir,
-                        stats_epoch_id=stats_tracker.stats_epoch_id,
-                        wandb_policy_name=wandb_policy_name,
-                        policy_store=policy_store,
-                        stats_client=stats_client,
-                        logger=logger,
-                        training_curriculum=curriculum,
+                    stats_tracker.update_epoch_tracking(epoch + 1)
+
+            # Compute gradient stats
+            if should_run(epoch, trainer_cfg.grad_mean_variance_interval):
+                with timer("grad_stats"):
+                    stats_tracker.grad_stats = compute_gradient_stats(policy)
+
+            # Check for abort every 5 epochs
+            if should_run(epoch, 5):
+                if wandb_run and abort_requested(wandb_run, min_interval_sec=60):
+                    logger.info("Abort tag detected. Stopping the run.")
+                    trainer_cfg.total_timesteps = int(agent_step)
+                    wandb_run.config.update(
+                        {"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True
                     )
-                    logger.info("Simulation complete")
-                    eval_scores = evaluation_results.scores
-                    category_scores = list(eval_scores.category_scores.values())
-                    if category_scores and latest_saved_policy_record:
-                        latest_saved_policy_record.metadata["score"] = float(np.mean(category_scores))
-                    if wandb_run is not None and evaluation_results.replay_urls:
-                        upload_replay_html(
-                            replay_urls=evaluation_results.replay_urls,
-                            agent_step=agent_step,
-                            epoch=epoch,
-                            wandb_run=wandb_run,
-                        )
+                    break
 
-                stats_tracker.update_epoch_tracking(epoch + 1)
-
-        # Compute gradient stats
-        if should_run(epoch, trainer_cfg.grad_mean_variance_interval):
-            with timer("grad_stats"):
-                stats_tracker.grad_stats = compute_gradient_stats(policy)
-
-        # Check for abort every 5 epochs
-        if should_run(epoch, 5):
-            if wandb_run and abort_requested(wandb_run, min_interval_sec=60):
-                logger.info("Abort tag detected. Stopping the run.")
-                trainer_cfg.total_timesteps = int(agent_step)
-                wandb_run.config.update({"trainer.total_timesteps": trainer_cfg.total_timesteps}, allow_val_change=True)
-                break
-
-    # All ranks wait until training is complete before closing vecenv
-    if torch.distributed.is_initialized():
-        torch.distributed.barrier()
+        # All ranks wait until training is complete before closing vecenv
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+    except:
+        _update_training_status_on_failure(stats_client, stats_tracker.stats_run_id, logger)
+        raise
 
     vecenv.close()
 
-    if not is_master:
+    if not torch_dist_cfg.is_master:
         return
 
     logger.info("Training complete!")
+
+    # Update training run status to completed
+    if stats_client and stats_tracker.stats_run_id:
+        try:
+            stats_client.update_training_run_status(stats_tracker.stats_run_id, "completed")
+            logger.info("Training run status updated to 'completed'")
+        except Exception as e:
+            logger.warning(f"Failed to update training run status to completed: {e}", exc_info=True)
+
     timing_summary = timer.get_all_summaries()
     for name, summary in timing_summary.items():
         logger.info(f"  {name}: {timer.format_time(summary['total_elapsed'])}")
@@ -597,3 +612,8 @@ def train(
     )
 
     cleanup_monitoring(memory_monitor, system_monitor)
+
+    # Return stats info for exception handling at higher levels
+    if stats_client and stats_tracker and hasattr(stats_tracker, "stats_run_id"):
+        return {"stats_run_id": stats_tracker.stats_run_id, "stats_client": stats_client, "logger": logger}
+    return None

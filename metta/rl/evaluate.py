@@ -13,7 +13,7 @@ from metta.common.util.collections import remove_none_keys
 from metta.common.util.constants import METTASCOPE_REPLAY_URL
 from metta.common.wandb.wandb_context import WandbRun
 from metta.rl.trainer_config import TrainerConfig
-from metta.sim.simulation_config import SimulationSuiteConfig
+from metta.sim.simulation_config import SimulationConfig
 from metta.sim.utils import get_or_create_policy_ids, wandb_policy_name_to_uri
 
 logger = logging.getLogger(__name__)
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 def evaluate_policy_remote(
     policy_record: PolicyRecord,
-    sim_suite_config: SimulationSuiteConfig,
+    simulations: list[SimulationConfig],
     stats_epoch_id: uuid.UUID | None,
     wandb_policy_name: str | None,
     stats_client: StatsClient | None,
@@ -53,19 +53,15 @@ def evaluate_policy_remote(
                 task = stats_client.create_task(
                     TaskCreateRequest(
                         policy_id=stats_server_policy_id,
-                        sim_suite=sim_suite_config.name,
+                        sim_suite=simulations[0].name,
                         attributes={
-                            "sim_suite_config": sim_suite_config.to_jsonable(),
-                            "git_hash": trainer_cfg.simulation.git_hash,
-                            "trainer_task": {
-                                "curriculum": trainer_cfg.curriculum_or_env,
-                                "env_overrides": trainer_cfg.env_overrides,
-                            },
+                            "git_hash": (trainer_cfg.evaluation and trainer_cfg.evaluation.git_hash),
+                            "simulations": [sim.model_dump() for sim in simulations],
                         },
                     )
                 )
                 logger.info(
-                    f"Policy evaluator: created task {task.id} for {wandb_policy_name} on {sim_suite_config.name}"
+                    f"Policy evaluator: created task {task.id} for {wandb_policy_name} on {simulations[0].name}"
                 )
 
                 return task
@@ -115,17 +111,13 @@ def upload_replay_html(
 
         # Log all links in a single HTML entry
         html_content = " | ".join(links)
-        _upload_replay_html(
-            html_content, agent_step, epoch, wandb_run, metric_prefix, step_metric_key, epoch_metric_key
-        )
+        _upload_replay_html(html_content, agent_step, epoch, wandb_run, step_metric_key, epoch_metric_key)
 
     # Maintain backward compatibility - log training task separately if available
     if "eval/training_task" in replay_urls and replay_urls["eval/training_task"]:
         training_url = replay_urls["eval/training_task"][0]  # Use first URL for backward compatibility
         html_content = _form_mettascope_link(training_url, f"MetaScope Replay (Epoch {epoch})")
-        _upload_replay_html(
-            html_content, agent_step, epoch, wandb_run, metric_prefix, step_metric_key, epoch_metric_key
-        )
+        _upload_replay_html(html_content, agent_step, epoch, wandb_run, step_metric_key, epoch_metric_key)
 
 
 def _form_mettascope_link(url: str, name: str) -> str:
@@ -137,15 +129,13 @@ def _upload_replay_html(
     agent_step: int,
     epoch: int,
     wandb_run: WandbRun,
-    metric_prefix: str | None = None,
     step_metric_key: str | None = None,
     epoch_metric_key: str | None = None,
 ) -> None:
-    key_all = (f"{metric_prefix}/" if metric_prefix else "") + "replays/all"
     payload: dict[str, Any] = remove_none_keys(
-        {key_all: wandb.Html(html_content), step_metric_key: agent_step, epoch_metric_key: epoch}
+        {"replays/all": wandb.Html(html_content), step_metric_key: agent_step, epoch_metric_key: epoch}
     )
     if step_metric_key or epoch_metric_key:
         wandb_run.log(payload)
     else:
-        wandb_run.log(payload, step=agent_step)
+        wandb_run.log(payload, step=epoch)

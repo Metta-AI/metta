@@ -4,7 +4,6 @@
 import argparse
 import asyncio
 import concurrent.futures
-import logging
 import uuid
 
 import wandb
@@ -16,6 +15,7 @@ from pydantic.fields import Field
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyMissingError, PolicySelectorType, PolicyStore
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
+from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import TaskStatus
 from metta.app_backend.routes.eval_task_routes import TaskCreateRequest, TaskFilterParams, TaskResponse
 from metta.common.util.collections import group_by, remove_none_values
@@ -27,7 +27,6 @@ from metta.common.util.constants import (
     PROD_OBSERVATORY_FRONTEND_URL,
     PROD_STATS_SERVER_URI,
 )
-from metta.common.util.stats_client_cfg import get_stats_client_direct
 from metta.setup.utils import debug, info, success, warning
 from metta.sim.utils import get_or_create_policy_ids
 
@@ -83,6 +82,8 @@ def _get_policy_records_for_uri(
     select_num: int,
     select_metric: str,
     disallow_missing_policies: bool = False,
+    stats_client: StatsClient | None = None,
+    eval_name: str | None = None,
 ) -> tuple[str, list[PolicyRecord] | None]:
     try:
         records = policy_store.policy_records(
@@ -90,6 +91,8 @@ def _get_policy_records_for_uri(
             selector_type=selector_type,
             n=select_num,
             metric=select_metric,
+            stats_client=stats_client,
+            eval_name=eval_name,
         )
         return policy_uri, records
     except PolicyMissingError as e:
@@ -103,13 +106,11 @@ def _get_policy_records_for_uri(
 async def _create_remote_eval_tasks(
     request: EvalRequest,
 ) -> None:
-    logger = logging.getLogger("tools.request_eval")
     info(f"Validating authentication with stats server {request.stats_server_uri}...")
-    stats_client = get_stats_client_direct(request.stats_server_uri, logger)
+    stats_client = StatsClient.create(request.stats_server_uri)
     if stats_client is None:
-        logger.error("No stats client found")
+        warning("No stats client found")
         return
-    stats_client.validate_authenticated()
 
     policy_store = PolicyStore(
         wandb_entity=request.wandb_entity,
@@ -122,12 +123,14 @@ async def _create_remote_eval_tasks(
         future_to_uri = {
             executor.submit(
                 _get_policy_records_for_uri,
-                policy_store,
-                policy_uri,
-                request.policy_select_type,
-                request.policy_select_num,
-                request.policy_select_metric,
-                request.disallow_missing_policies,
+                policy_store=policy_store,
+                policy_uri=policy_uri,
+                selector_type=request.policy_select_type,
+                select_num=request.policy_select_num,
+                select_metric=request.policy_select_metric,
+                disallow_missing_policies=request.disallow_missing_policies,
+                stats_client=stats_client,
+                eval_name=request.evals[0],
             ): policy_uri
             for policy_uri in request.policies
         }

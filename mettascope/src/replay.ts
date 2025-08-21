@@ -131,6 +131,10 @@ export class Entity {
   isAgent: boolean = false
 }
 
+export class EnvConfig {
+  label: string = ''
+}
+
 export class Replay {
   version: number = 0
   numAgents: number = 0
@@ -144,6 +148,7 @@ export class Replay {
   objects: Entity[] = []
   rewardSharingMatrix: number[][] = []
   agents: Entity[] = []
+  envConfig: EnvConfig = new EnvConfig()
 
   // Generated data.
   typeImages: string[] = []
@@ -469,14 +474,21 @@ function convertReplayV1ToV2(replayData: any) {
 
     if (gridObject.agent_id != null) {
       object.agent_id = gridObject.agent_id
-      object.is_frozen = Boolean(gridObject['agent:frozen'])
+
+      const frozen = gridObject['agent:frozen']
+      if (frozen && Array.isArray(frozen)) {
+        object.is_frozen = frozen.map((pair: any) => [pair[0], Boolean(pair[1])])
+      } else {
+        object.is_frozen = Boolean(frozen)
+      }
+
       object.color = gridObject['agent:color']
       object.action_success = gridObject['action_success']
       object.group_id = gridObject['agent:group']
       object.orientation = gridObject['agent:orientation']
-      object.hp = gridObject['agent:hp']
-      object.current_reward = gridObject['agent:reward']
-      object.total_reward = gridObject['agent:total_reward']
+      object.hp = gridObject['hp']
+      object.current_reward = gridObject['reward']
+      object.total_reward = gridObject['total_reward']
 
       const action_id = []
       const action_param = []
@@ -495,6 +507,9 @@ function convertReplayV1ToV2(replayData: any) {
   }
 
   data.map_size = [maxX + 1, maxY + 1]
+  data.env_config = {
+    label: 'Unlabeled Replay',
+  }
   return data
 }
 
@@ -523,6 +538,11 @@ function loadReplayJson(url: string, replayJson: any) {
   state.replay.maxSteps = replayData.max_steps
   state.replay.mapSize = replayData.map_size
   state.replay.fileName = replayData.file_name
+  state.replay.envConfig = replayData.env_config
+  if (state.replay.envConfig === undefined) {
+    state.replay.envConfig = new EnvConfig()
+    state.replay.envConfig.label = 'Unlabeled Replay'
+  }
 
   // Go through each grid object and expand its key sequence.
   for (const gridObject of replayData.objects) {
@@ -570,7 +590,9 @@ function loadReplayJson(url: string, replayJson: any) {
 
   console.log('Replay: ', state.replay)
 
-  if (state.replay.fileName) {
+  if (state.replay.envConfig.label !== '') {
+    html.fileName.textContent = state.replay.envConfig.label
+  } else if (state.replay.fileName !== '') {
     html.fileName.textContent = state.replay.fileName
   } else {
     html.fileName.textContent = url.split('/').pop() || 'unknown'

@@ -184,8 +184,8 @@ class TestTrainingRunsRoutes:
                 agent_metrics={0: metrics},
                 primary_policy_id=policy.id,
                 stats_epoch=epoch.id,
-                eval_name=eval_name,
-                simulation_suite=None,
+                sim_name=eval_name,
+                env_label="test_env",
                 replay_url=f"https://replay.example.com/{policy_name}/{eval_name.replace('/', '_')}",
                 attributes=attributes,
             )
@@ -275,6 +275,134 @@ class TestTrainingRunsRoutes:
         """Test getting a training run with invalid UUID."""
         response = test_client.get("/training-runs/invalid-uuid", headers=auth_headers)
         assert response.status_code == 404
+
+    def test_update_training_run_status(
+        self, stats_client: StatsClient, test_client: TestClient, auth_headers: Dict[str, str]
+    ) -> None:
+        """Test updating training run status."""
+        # Create a training run
+        training_run = stats_client.create_training_run(name="test_status_update", attributes={"test": "status_update"})
+
+        # Test updating to completed
+        response = test_client.patch(
+            f"/stats/training-runs/{training_run.id}/status", json={"status": "completed"}, headers=auth_headers
+        )
+        assert response.status_code == 204
+
+        # Verify the status was updated
+        response = test_client.get(f"/training-runs/{training_run.id}", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "completed"
+        assert data["finished_at"] is not None  # Should be set when status changes from running
+
+        # Test updating to failed
+        response = test_client.patch(
+            f"/stats/training-runs/{training_run.id}/status", json={"status": "failed"}, headers=auth_headers
+        )
+        assert response.status_code == 204
+
+        # Verify the status was updated
+        response = test_client.get(f"/training-runs/{training_run.id}", headers=auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "failed"
+
+    def test_update_training_run_status_validation(
+        self, stats_client: StatsClient, test_client: TestClient, auth_headers: Dict[str, str]
+    ) -> None:
+        """Test status update validation."""
+        # Create a training run
+        training_run = stats_client.create_training_run(
+            name="test_status_validation", attributes={"test": "status_validation"}
+        )
+
+        # Test invalid status value
+        response = test_client.patch(
+            f"/stats/training-runs/{training_run.id}/status", json={"status": "invalid_status"}, headers=auth_headers
+        )
+        assert response.status_code == 400
+        assert "Invalid status" in response.json()["detail"]
+
+        # Test missing status field
+        response = test_client.patch(f"/stats/training-runs/{training_run.id}/status", json={}, headers=auth_headers)
+        assert response.status_code == 400
+        assert "Missing 'status' field" in response.json()["detail"]
+
+        # Test invalid UUID
+        response = test_client.patch(
+            "/stats/training-runs/invalid-uuid/status", json={"status": "completed"}, headers=auth_headers
+        )
+        assert response.status_code == 400
+        assert "Invalid UUID format" in response.json()["detail"]
+
+        # Test non-existent training run (the exact error message may vary)
+        import uuid
+
+        fake_id = str(uuid.uuid4())  # Generate a random UUID that definitely won't exist
+        response = test_client.patch(
+            f"/stats/training-runs/{fake_id}/status", json={"status": "completed"}, headers=auth_headers
+        )
+        assert response.status_code == 404  # Should return 404 for non-existent resource
+        assert "not found" in response.json()["detail"].lower()
+
+    def test_update_training_run_status_not_found_error(
+        self, test_client: TestClient, auth_headers: Dict[str, str]
+    ) -> None:
+        """Test that non-existent training run returns proper 'not found' error, not 'Invalid UUID format'."""
+        import uuid
+
+        fake_id = str(uuid.uuid4())  # Valid UUID format but non-existent
+        response = test_client.patch(
+            f"/stats/training-runs/{fake_id}/status", json={"status": "completed"}, headers=auth_headers
+        )
+        assert response.status_code == 404  # Should be 404 not 400
+        assert "not found" in response.json()["detail"].lower()
+        assert "Invalid UUID format" not in response.json()["detail"]
+
+    def test_training_failure_updates_status(
+        self, stats_client: StatsClient, test_client: TestClient, auth_headers: Dict[str, str]
+    ) -> None:
+        """Test that training failures can be handled and status updated properly."""
+        # Create a training run
+        training_run = stats_client.create_training_run(name="test_failure_handling", attributes={"test": "failure"})
+
+        # Get the training run to verify initial status is 'running'
+        response = test_client.get(f"/training-runs/{training_run.id}", headers=auth_headers)
+        assert response.status_code == 200
+        initial_data = response.json()
+        assert initial_data["status"] == "running"
+
+        # Simulate what our training failure handling should do:
+        # When training fails, it should update the status to 'failed'
+        stats_client.update_training_run_status(training_run.id, "failed")
+
+        # Verify the status was updated to 'failed'
+        # This demonstrates that the status update mechanism works
+        # The actual automatic failure detection is implemented in the train() wrapper
+        response = test_client.get(f"/training-runs/{training_run.id}", headers=auth_headers)
+        assert response.status_code == 200
+        updated_data = response.json()
+        assert updated_data["status"] == "failed"
+
+        # Also test that we can update back to other statuses
+        stats_client.update_training_run_status(training_run.id, "completed")
+        response = test_client.get(f"/training-runs/{training_run.id}", headers=auth_headers)
+        assert response.status_code == 200
+        final_data = response.json()
+        assert final_data["status"] == "completed"
+
+    def test_stats_client_update_training_run_status(self, stats_client: StatsClient) -> None:
+        """Test the StatsClient update_training_run_status method."""
+        # Create a training run
+        training_run = stats_client.create_training_run(
+            name="test_client_status_update", attributes={"test": "client_update"}
+        )
+
+        # Test updating status via client (should not raise any exception)
+        stats_client.update_training_run_status(training_run.id, "completed")
+        stats_client.update_training_run_status(training_run.id, "failed")
+        stats_client.update_training_run_status(training_run.id, "running")
 
 
 if __name__ == "__main__":

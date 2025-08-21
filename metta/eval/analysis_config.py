@@ -1,15 +1,11 @@
-from pydantic import ConfigDict, Field
-
 from metta.agent.policy_store import PolicySelectorConfig
-from metta.common.util.config import Config
+from metta.common.config import Config
 
 
 class AnalysisConfig(Config):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
     # Policy URI to analyze
     policy_uri: str | None = None
-    policy_selector: PolicySelectorConfig = Field(default_factory=PolicySelectorConfig)
+    policy_selector: PolicySelectorConfig = PolicySelectorConfig()
 
     # Metrics to analyze
     # Supports globs, e.g. *.reward
@@ -19,7 +15,7 @@ class AnalysisConfig(Config):
     eval_db_uri: str
 
     # Filtering options
-    suite: str | None = None
+    sim_name: str | None = None
 
     # Output configuration (add these)
     output_path: str | None = None

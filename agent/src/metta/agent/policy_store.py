@@ -23,8 +23,11 @@ from omegaconf import DictConfig
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
-from metta.common.wandb.wandb_context import WandbRun
+from metta.app_backend.clients.stats_client import StatsClient
+from metta.common.config import Config
+from metta.common.wandb.wandb_context import WandbConfig, WandbRun
 from metta.rl.puffer_policy import load_pytorch_policy
+from metta.sim.utils import get_pr_scores_from_stats_server
 
 logger = logging.getLogger("policy_store")
 
@@ -32,12 +35,9 @@ logger = logging.getLogger("policy_store")
 PolicySelectorType = Literal["all", "top", "latest", "rand"]
 
 
-class PolicySelectorConfig:
-    """Simple config class for policy selection without pydantic dependency."""
-
-    def __init__(self, type: PolicySelectorType = "top", metric: str = "score"):
-        self.type = type
-        self.metric = metric
+class PolicySelectorConfig(Config):
+    type: PolicySelectorType = "top"
+    metric: str = "score"
 
 
 class PolicyMissingError(ValueError):
@@ -69,8 +69,10 @@ class PolicyStore:
         uri_or_config: str | DictConfig,
         selector_type: PolicySelectorType = "top",
         metric: str = "score",
+        stats_client: StatsClient | None = None,
+        eval_name: str | None = None,
     ) -> PolicyRecord:
-        prs = self.policy_records(uri_or_config, selector_type, 1, metric)
+        prs = self.policy_records(uri_or_config, selector_type, 1, metric, stats_client, eval_name)
         assert len(prs) == 1, f"Expected 1 policy record, got {len(prs)} policy records!"
         return prs[0]
 
@@ -80,12 +82,20 @@ class PolicyStore:
         selector_type: PolicySelectorType = "top",
         n: int = 1,
         metric: str = "score",
+        stats_client: StatsClient | None = None,
+        eval_name: str | None = None,
     ) -> list[PolicyRecord]:
         uri = uri_or_config if isinstance(uri_or_config, str) else uri_or_config.uri
-        return self._select_policy_records(uri, selector_type, n, metric)
+        return self._select_policy_records(uri, selector_type, n, metric, stats_client, eval_name)
 
     def _select_policy_records(
-        self, uri: str, selector_type: PolicySelectorType = "top", n: int = 1, metric: str = "score"
+        self,
+        uri: str,
+        selector_type: PolicySelectorType = "top",
+        n: int = 1,
+        metric: str = "score",
+        stats_client: StatsClient | None = None,
+        eval_name: str | None = None,
     ) -> list[PolicyRecord]:
         """
         Select policy records based on URI and selection criteria.
@@ -122,7 +132,7 @@ class PolicyStore:
             return [selected]
 
         elif selector_type == "top":
-            return self._select_top_prs_by_metric(prs, n, metric)
+            return self._select_top_prs_by_metric(prs, n, metric, stats_client, eval_name)
 
         else:
             raise ValueError(f"Invalid selector type: {selector_type}")
@@ -165,10 +175,20 @@ class PolicyStore:
         else:
             return self._prs_from_path(uri)
 
-    def _select_top_prs_by_metric(self, prs: list[PolicyRecord], n: int, metric: str) -> list[PolicyRecord]:
+    def _select_top_prs_by_metric(
+        self,
+        prs: list[PolicyRecord],
+        n: int,
+        metric: str,
+        stats_client: StatsClient | None = None,
+        eval_name: str | None = None,
+    ) -> list[PolicyRecord]:
         """Select top N policy records based on metric score."""
         # Extract scores
         policy_scores = self._get_pr_scores(prs, metric)
+        if eval_name and stats_client and any([s is None for s in policy_scores.values()]):
+            # Because an eval_name is provided, assume that the metric is reward
+            policy_scores.update(get_pr_scores_from_stats_server(stats_client, prs, eval_name, metric="reward"))
 
         # Filter policy records with valid scores
         valid_policies = [(p, score) for p, score in policy_scores.items() if score is not None]
@@ -308,7 +328,10 @@ class PolicyStore:
         if path.endswith(".pt"):
             paths.append(path)
         else:
-            paths.extend([os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")])
+            checkpoint_files = [p for p in os.listdir(path) if p.endswith(".pt")]
+            checkpoint_files.sort(key=lambda f: int(f[6:-3]) if f.startswith("model_") else -1, reverse=True)
+            paths.extend([os.path.join(path, p) for p in checkpoint_files])
+
         return [self._load_from_file(path, metadata_only=True) for path in paths]
 
     def _prs_from_wandb_artifact(self, uri: str, version: str | None = None) -> list[PolicyRecord]:
@@ -452,3 +475,52 @@ class PolicyStore:
         pr = self._load_from_file(os.path.join(artifact_path, "model.pt"))
         pr.metadata.update(artifact.metadata)
         return pr
+
+    @classmethod
+    def create(
+        cls,
+        device: str,
+        data_dir: str,
+        wandb_config: WandbConfig,
+        wandb_run: WandbRun | None = None,
+    ) -> "PolicyStore":
+        """Create a PolicyStore from a WandbConfig.
+
+        Args:
+            device: Device to load policies on (e.g., "cpu", "cuda")
+            wandb_config: WandbConfig object containing entity and project info
+            replay_dir: Directory for storing policy artifacts
+            wandb_run: Optional existing wandb run
+
+        Returns:
+            Configured PolicyStore instance
+        """
+        return cls(
+            device=device,
+            wandb_run=wandb_run,
+            data_dir=data_dir,
+            wandb_entity=wandb_config.entity if wandb_config.enabled else None,
+            wandb_project=wandb_config.project if wandb_config.enabled else None,
+        )
+
+    def policy_record_or_mock(
+        self,
+        policy_uri: str | None,
+        run_name: str = "mock_run",
+    ) -> PolicyRecord:
+        """Get a policy record or create a mock if no URI provided.
+
+        Args:
+            policy_uri: Optional policy URI to load
+            run_name: Name for the mock run if no URI provided
+
+        Returns:
+            PolicyRecord from URI or MockPolicyRecord
+        """
+        if policy_uri is not None:
+            return self.policy_record(policy_uri)
+        else:
+            # Import here to avoid circular dependency
+            from metta.agent.mocks import MockPolicyRecord
+
+            return MockPolicyRecord(run_name=run_name, uri=None)

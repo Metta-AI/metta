@@ -23,11 +23,38 @@ class MockAgent(MettaAgent):
         self.device = "cpu"
         self.policy = None  # MockAgent doesn't have a separate policy
 
-    def activate_actions(self, action_names, action_max_params, device):
-        """Store action configuration for testing."""
-        self.action_names = action_names
-        self.action_max_params = action_max_params
-        self.device = device
+        # Initialize feature remapping attributes
+        self.original_feature_mapping = None
+        self.feature_id_remap = {}
+
+    def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
+        """Apply feature remapping to observation components."""
+        # Build complete remapping tensor
+        remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
+
+        # Apply explicit remappings
+        for old_id, new_id in self.feature_id_remap.items():
+            remap_tensor[old_id] = new_id
+
+        # Map original IDs not in current env to unknown
+        if self.original_feature_mapping:
+            current_ids = {props["id"] for props in features.values()}
+            for original_id in self.original_feature_mapping.values():
+                if original_id not in current_ids and original_id < 256:
+                    remap_tensor[original_id] = unknown_id
+
+        # Apply to observation components
+        for name, component in self.components.items():
+            if name.startswith("_obs_") and hasattr(component, "update_feature_remapping"):
+                component.update_feature_remapping(remap_tensor)
+
+    def get_original_feature_mapping(self) -> dict[str, int] | None:
+        """Get the original feature mapping for persistence."""
+        return self.original_feature_mapping.copy() if self.original_feature_mapping else None
+
+    def restore_original_feature_mapping(self, mapping: dict[str, int]):
+        """Restore the original feature mapping from metadata."""
+        self.original_feature_mapping = mapping.copy()
 
     def forward(self, td: TensorDict, action: torch.Tensor | None = None) -> TensorDict:
         """
@@ -83,11 +110,46 @@ class MockAgent(MettaAgent):
 
         Note: is_training parameter is deprecated and ignored.
         """
-        # Store action configuration
-        self.activate_actions(action_names, action_max_params, device)
+        self.device = device
 
-        # Initialize observations to support feature remapping
-        self.activate_observations(features, device)
+        # Store action configuration
+        self.action_names = action_names
+        self.action_max_params = action_max_params
+
+        # Build feature mappings
+        self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
+        self.feature_normalizations = {
+            props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
+        }
+
+        # Handle feature remapping for backward compatibility
+        if self.original_feature_mapping is None:
+            # First initialization - store the mapping
+            self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
+        else:
+            # Re-initialization - create remapping
+            UNKNOWN_FEATURE_ID = 255
+            self.feature_id_remap = {}
+            unknown_features = []
+
+            for name, props in features.items():
+                new_id = props["id"]
+                if name in self.original_feature_mapping:
+                    # Remap known features to their original IDs
+                    original_id = self.original_feature_mapping[name]
+                    if new_id != original_id:
+                        self.feature_id_remap[new_id] = original_id
+                elif not self.training:
+                    # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
+                    self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
+                    unknown_features.append(name)
+                else:
+                    # In training mode, learn new features
+                    self.original_feature_mapping[name] = new_id
+
+            if self.feature_id_remap:
+                # Apply the remapping to any observation components
+                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
 
     def reset_memory(self):
         """Mock implementation - no memory to reset."""

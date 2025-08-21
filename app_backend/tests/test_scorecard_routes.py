@@ -1,4 +1,5 @@
 import datetime
+import uuid
 
 import pytest
 from fastapi.testclient import TestClient
@@ -117,9 +118,9 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 80.0, "survival_time": 120.0, "score": 95.0}},
             primary_policy_id=policy.id,
+            env_label="test_env",
             stats_epoch=epoch.id,
-            eval_name="metrics_suite/test_env",
-            simulation_suite="metrics_suite",
+            sim_name="metrics_suite/test_env",
             replay_url="https://example.com/replay/test",
         )
 
@@ -433,8 +434,8 @@ class TestPolicyScorecardRoutes:
                 agent_metrics={0: {"reward": reward_value}},
                 primary_policy_id=policy.id,
                 stats_epoch=epoch.id,
-                eval_name="agg_suite/test_env",
-                simulation_suite="agg_suite",
+                sim_name="agg_suite/test_env",
+                env_label="test_env",
                 replay_url=f"https://example.com/replay/episode_{i}",
             )
 
@@ -729,9 +730,9 @@ class TestPolicyScorecardRoutes:
                 agent_policies={0: policy_0_run1.id},
                 agent_metrics={0: {"reward": additional_high_scores[f"policy_0_{env_name}"]}},
                 primary_policy_id=policy_0_run1.id,
+                env_label="test_env",
                 stats_epoch=epoch_0_run1.id,
-                eval_name=f"navigation/{env_name}",
-                simulation_suite="navigation",
+                sim_name=f"navigation/{env_name}",
                 replay_url=f"https://example.com/replay/boost/{env_name}",
             )
 
@@ -740,9 +741,9 @@ class TestPolicyScorecardRoutes:
                 agent_policies={0: policy_0_run1.id},
                 agent_metrics={0: {"reward": additional_high_scores[f"policy_0_{env_name}"]}},
                 primary_policy_id=policy_0_run1.id,
+                env_label="test_env",
                 stats_epoch=epoch_0_run1.id,
-                eval_name=f"combat/{env_name}",
-                simulation_suite="combat",
+                sim_name=f"combat/{env_name}",
                 replay_url=f"https://example.com/replay/boost/{env_name}",
             )
 
@@ -750,9 +751,9 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy_0_run1.id},
             agent_metrics={0: {"reward": additional_high_scores["policy_0_team1"]}},
             primary_policy_id=policy_0_run1.id,
+            env_label="test_env",
             stats_epoch=epoch_0_run1.id,
-            eval_name="cooperation/team1",
-            simulation_suite="cooperation",
+            sim_name="cooperation/team1",
             replay_url="https://example.com/replay/boost/team1",
         )
 
@@ -799,8 +800,8 @@ class TestPolicyScorecardRoutes:
             },  # Total: 270, agents: 3, per-agent avg: 90.0
             primary_policy_id=policy_0_run1.id,
             stats_epoch=epoch_0_run1.id,
-            eval_name="navigation/maze1",
-            simulation_suite="navigation",
+            sim_name="navigation/maze1",
+            env_label="test_env",
             replay_url="https://example.com/replay/multi_agent",
         )
 
@@ -1045,8 +1046,8 @@ class TestPolicyScorecardRoutes:
                 agent_metrics={0: {"reward": score}},
                 primary_policy_id=policy1.id,
                 stats_epoch=epoch1.id,
-                eval_name="dedup_suite/env1",
-                simulation_suite="dedup_suite",
+                sim_name="dedup_suite/env1",
+                env_label="env1",
                 replay_url=f"https://example.com/replay/p1_env1_{score}",
             )
 
@@ -1057,8 +1058,8 @@ class TestPolicyScorecardRoutes:
                 agent_metrics={0: {"reward": score}},
                 primary_policy_id=policy1.id,
                 stats_epoch=epoch1.id,
-                eval_name="dedup_suite/env2",
-                simulation_suite="dedup_suite",
+                sim_name="dedup_suite/env2",
+                env_label="env2",
                 replay_url=f"https://example.com/replay/p1_env2_{score}",
             )
 
@@ -1069,8 +1070,8 @@ class TestPolicyScorecardRoutes:
                 agent_metrics={0: {"reward": score}},
                 primary_policy_id=policy2.id,
                 stats_epoch=epoch2.id,
-                eval_name="dedup_suite/env1",
-                simulation_suite="dedup_suite",
+                sim_name="dedup_suite/env1",
+                env_label="env1",
                 replay_url=f"https://example.com/replay/p2_env1_{score}",
             )
 
@@ -1081,8 +1082,8 @@ class TestPolicyScorecardRoutes:
                 agent_metrics={0: {"reward": score}},
                 primary_policy_id=policy2.id,
                 stats_epoch=epoch2.id,
-                eval_name="dedup_suite/env2",
-                simulation_suite="dedup_suite",
+                sim_name="dedup_suite/env2",
+                env_label="env2",
                 replay_url=f"https://example.com/replay/p2_env2_{score}",
             )
 
@@ -1331,8 +1332,8 @@ class TestPolicyScorecardRoutes:
             agent_metrics={0: {"reward": 85.0}},  # Slightly higher than 80.0
             primary_policy_id=policy_2.id,
             stats_epoch=epoch_2.id,
-            eval_name="tie_suite/env1",
-            simulation_suite="tie_suite",
+            sim_name="tie_suite/env1",
+            env_label="env1",
             replay_url="https://example.com/replay/boost",
         )
 
@@ -1493,9 +1494,9 @@ class TestPolicyScorecardRoutes:
                         agent_policies={0: policy.id},
                         agent_metrics={0: {"reward": metrics[metric_key]}},
                         primary_policy_id=policy.id,
+                        env_label=eval_name,
                         stats_epoch=epoch.id,
-                        eval_name=f"selection_suite/{eval_name}",
-                        simulation_suite="selection_suite",
+                        sim_name=f"selection_suite/{eval_name}",
                         replay_url=f"https://example.com/replay/{policy.id}/{eval_name}",
                     )
 
@@ -1552,9 +1553,9 @@ class TestPolicyScorecardRoutes:
                 agent_policies={0: all_policies[1].id},
                 agent_metrics={0: {"reward": additional_metrics[metric_key]}},
                 primary_policy_id=all_policies[1].id,
+                env_label="test_env",
                 stats_epoch=all_epochs[1].id,
-                eval_name=f"selection_suite/{eval_name}",
-                simulation_suite="selection_suite",
+                sim_name=f"selection_suite/{eval_name}",
                 replay_url=f"https://example.com/replay/{all_policies[1].id}/{eval_name}_bonus",
             )
 
@@ -1932,9 +1933,9 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 100.0}},
             primary_policy_id=policy.id,
+            env_label="test_env",
             stats_epoch=epoch.id,
-            eval_name="multiagent_edge/test_env",
-            simulation_suite="multiagent_edge",
+            sim_name="multiagent_edge/test_env",
             replay_url="https://example.com/replay/single",
         )
 
@@ -1943,9 +1944,9 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id, 1: policy.id},
             agent_metrics={0: {"reward": 20.0}, 1: {"reward": 80.0}},  # avg per agent: 50.0
             primary_policy_id=policy.id,
+            env_label="test_env",
             stats_epoch=epoch.id,
-            eval_name="multiagent_edge/test_env",
-            simulation_suite="multiagent_edge",
+            sim_name="multiagent_edge/test_env",
             replay_url="https://example.com/replay/two_agents",
         )
 
@@ -1956,9 +1957,9 @@ class TestPolicyScorecardRoutes:
             agent_policies={i: policy.id for i in range(10)},
             agent_metrics=many_agent_metrics,
             primary_policy_id=policy.id,
+            env_label="test_env",
             stats_epoch=epoch.id,
-            eval_name="multiagent_edge/test_env",
-            simulation_suite="multiagent_edge",
+            sim_name="multiagent_edge/test_env",
             replay_url="https://example.com/replay/many_agents",
         )
 
@@ -1968,8 +1969,8 @@ class TestPolicyScorecardRoutes:
             agent_metrics={0: {"reward": 0.0}, 1: {"reward": 0.0}},  # avg per agent: 0.0
             primary_policy_id=policy.id,
             stats_epoch=epoch.id,
-            eval_name="multiagent_edge/test_env",
-            simulation_suite="multiagent_edge",
+            sim_name="multiagent_edge/test_env",
+            env_label="test_env",
             replay_url="https://example.com/replay/zero_rewards",
         )
 
@@ -2013,9 +2014,9 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 999999.999}},
             primary_policy_id=policy.id,
+            env_label="large_values",
             stats_epoch=epoch.id,
-            eval_name="extreme_suite/large_values",
-            simulation_suite="extreme_suite",
+            sim_name="extreme_suite/large_values",
             replay_url="https://example.com/replay/large",
         )
 
@@ -2024,9 +2025,9 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 0.000001}},
             primary_policy_id=policy.id,
+            env_label="small_values",
             stats_epoch=epoch.id,
-            eval_name="extreme_suite/small_values",
-            simulation_suite="extreme_suite",
+            sim_name="extreme_suite/small_values",
             replay_url="https://example.com/replay/small",
         )
 
@@ -2035,9 +2036,9 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": -100.5}},
             primary_policy_id=policy.id,
+            env_label="negative_values",
             stats_epoch=epoch.id,
-            eval_name="extreme_suite/negative_values",
-            simulation_suite="extreme_suite",
+            sim_name="extreme_suite/negative_values",
             replay_url="https://example.com/replay/negative",
         )
 
@@ -2046,9 +2047,9 @@ class TestPolicyScorecardRoutes:
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 123.456789012345}},
             primary_policy_id=policy.id,
+            env_label="precision_values",
             stats_epoch=epoch.id,
-            eval_name="extreme_suite/precision_values",
-            simulation_suite="extreme_suite",
+            sim_name="extreme_suite/precision_values",
             replay_url="https://example.com/replay/precision",
         )
 
@@ -2235,7 +2236,6 @@ class TestPolicyScorecardRoutes:
         # manually running the update logic using the stats_repo fixture.
 
         # Import the necessary components for manual leaderboard update
-        import uuid
 
         from metta.app_backend.leaderboard_updater import LeaderboardUpdater
 
@@ -2344,6 +2344,191 @@ class TestPolicyScorecardRoutes:
         assert leaderboard_scorecard["policyAverageScores"] == individual_scorecard["policyAverageScores"]
         assert leaderboard_scorecard["evalAverageScores"] == individual_scorecard["evalAverageScores"]
         assert leaderboard_scorecard["evalMaxScores"] == individual_scorecard["evalMaxScores"]
+
+    def test_search_policies_by_name(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+        """Test searching policies by name."""
+        # Create test data with distinctive names
+        test_data = create_test_data("navigation_search_test", num_policies=2, create_run_free_policies=1)
+
+        # Record episodes so policies appear in unified_training_runs view
+        record_episodes(
+            test_data,
+            eval_category="navigation",
+            env_names=["search_env"],
+            metric_values={"policy_0_search_env": 75.0, "policy_1_search_env": 85.0, "policy_2_search_env": 65.0},
+        )
+
+        # Test search by partial name match
+        search_request = {"search": "navigation_search"}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        # Should find policies containing the search term
+        assert "policies" in result
+        assert len(result["policies"]) >= 1
+        found_policies = [p for p in result["policies"] if "navigation_search" in p["name"]]
+        assert len(found_policies) >= 1
+
+        # Test case-insensitive search
+        search_request = {"search": "NAVIGATION"}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        found_policies = [p for p in result["policies"] if "navigation" in p["name"].lower()]
+        assert len(found_policies) >= 1
+
+    def test_search_policies_by_type(self, test_client: TestClient, create_test_data) -> None:
+        """Test filtering policies by type."""
+        # Create test data with both types
+        create_test_data("search_policies_type", num_policies=1, create_run_free_policies=2)
+
+        # Test filter by training_run type
+        search_request = {"policy_type": "training_run"}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        # All returned policies should be training runs
+        for policy in result["policies"]:
+            assert policy["type"] == "training_run"
+
+        # Test filter by policy type
+        search_request = {"policy_type": "policy"}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        # All returned policies should be run-free policies
+        for policy in result["policies"]:
+            assert policy["type"] == "policy"
+
+    def test_search_policies_by_tags(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+        """Test filtering policies by tags."""
+        # Create test data that will have the scorecard_test tag
+        test_data = create_test_data("search_tags_test", num_policies=2, create_run_free_policies=1)
+
+        # Record episodes so policies appear in unified_training_runs view
+        record_episodes(
+            test_data,
+            eval_category="navigation",
+            env_names=["tag_env"],
+            metric_values={"policy_0_tag_env": 80.0, "policy_1_tag_env": 90.0, "policy_2_tag_env": 70.0},
+        )
+
+        # Test filter by tag that we know exists in test data (scorecard_test)
+        search_request = {"tags": ["scorecard_test"]}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        # Find training runs with scorecard_test tag
+        tagged_policies = [p for p in result["policies"] if "scorecard_test" in p.get("tags", [])]
+        assert len(tagged_policies) >= 1
+
+        # Test filter by multiple tags (should match policies with ANY of the tags)
+        search_request = {"tags": ["test_tag", "nonexistent"]}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        # Should still find policies with test_tag (which exists in test data)
+        tagged_policies = [p for p in result["policies"] if "test_tag" in p.get("tags", [])]
+        assert len(tagged_policies) >= 1
+
+    def test_search_policies_combined_filters(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+        """Test combining multiple search filters."""
+        # Create test data
+        test_data = create_test_data("combined_filter_test", num_policies=2, create_run_free_policies=1)
+
+        # Record episodes so policies appear in unified_training_runs view
+        record_episodes(
+            test_data,
+            eval_category="navigation",
+            env_names=["combined_env"],
+            metric_values={"policy_0_combined_env": 80.0, "policy_1_combined_env": 90.0, "policy_2_combined_env": 70.0},
+        )
+
+        # Test combining search term, type, and tags using existing test data
+        search_request = {
+            "search": "combined_filter",  # Part of the training run name
+            "policy_type": "training_run",
+            "tags": ["scorecard_test"],  # Tag that exists in test data
+        }
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        # Should find training runs that match ALL criteria
+        matching_policies = []
+        for policy in result["policies"]:
+            if (
+                "combined_filter" in policy["name"].lower()
+                and policy["type"] == "training_run"
+                and "scorecard_test" in policy.get("tags", [])
+            ):
+                matching_policies.append(policy)
+
+        assert len(matching_policies) >= 1
+
+    def test_search_policies_pagination(self, test_client: TestClient, create_test_data) -> None:
+        """Test pagination in search results."""
+        # Create test data
+        create_test_data("search_pagination", num_policies=5, create_run_free_policies=3)
+
+        # Test with limit
+        search_request = {"limit": 2}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        assert len(result["policies"]) <= 2
+
+        # Test with offset
+        search_request = {"limit": 3, "offset": 2}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        assert len(result["policies"]) <= 3
+
+    def test_search_policies_empty_results(self, test_client: TestClient) -> None:
+        """Test search with no matching results."""
+        search_request = {"search": "nonexistent_policy_name_12345"}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200
+        result = response.json()
+
+        assert "policies" in result
+        assert len(result["policies"]) == 0
+
+    def test_search_policies_invalid_parameters(self, test_client: TestClient) -> None:
+        """Test search with invalid parameters."""
+        # Test invalid policy type
+        search_request = {"policy_type": "invalid_type"}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 200  # Should return empty results, not error
+        result = response.json()
+        assert "policies" in result
+        assert len(result["policies"]) == 0
+
+        # Test excessive limit (should be capped)
+        search_request = {"limit": 2000}  # Over the 1000 limit
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 422  # Validation error
+
+        # Test negative offset
+        search_request = {"offset": -1}
+        response = test_client.post("/scorecard/policies/search", json=search_request)
+        assert response.status_code == 422  # Validation error
 
 
 if __name__ == "__main__":

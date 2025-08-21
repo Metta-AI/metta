@@ -1,21 +1,24 @@
 import logging
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import gymnasium as gym
 import numpy as np
 import torch
-from omegaconf import DictConfig
 from tensordict import TensorDict
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedDiscrete
 
-from metta.agent.component_policy import ComponentPolicy
-from metta.agent.pytorch.agent_mapper import agent_classes
+from metta.agent.agent_config import AgentConfig, create_agent
 from metta.rl.experience import Experience
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
+
+
+def log_on_master(*args, **argv):
+    if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
+        logger.info(*args, **argv)
 
 
 class DistributedMettaAgent(DistributedDataParallel):
@@ -28,7 +31,7 @@ class DistributedMettaAgent(DistributedDataParallel):
     module: "MettaAgent"
 
     def __init__(self, agent: "MettaAgent", device: torch.device):
-        logger.info("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
+        log_on_master("Converting BatchNorm layers to SyncBatchNorm for distributed training...")
 
         # Check if the agent might have circular references that would cause recursion
         # This can happen with legacy checkpoints wrapped in LegacyMettaAgentAdapter
@@ -61,11 +64,11 @@ class MettaAgent(nn.Module):
         self,
         env,
         system_cfg: SystemConfig,
-        agent_cfg: DictConfig,
+        policy_architecture_cfg: AgentConfig,
         policy: Optional[nn.Module] = None,
     ):
         super().__init__()
-        self.cfg = agent_cfg
+        self.cfg = policy_architecture_cfg
         self.device = system_cfg.device
 
         # Create observation space
@@ -83,47 +86,42 @@ class MettaAgent(nn.Module):
 
         # Create policy if not provided
         if policy is None:
-            policy = self._create_policy(agent_cfg, env, system_cfg)
+            policy = self._create_policy(policy_architecture_cfg, env, system_cfg)
 
         self.policy = policy
-        if self.policy is not None and hasattr(self.policy, "device"):
-            self.policy.device = self.device
-            self.policy.to(self.device)
+        if self.policy is not None:
+            # Move policy to device - this matches how main branch handled it
+            self.policy = self.policy.to(self.device)
+            # Set device attribute if the policy supports it (for backwards compatibility)
+            if hasattr(self.policy, "device"):
+                self.policy.device = self.device
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
 
-    def _create_policy(self, agent_cfg: DictConfig, env, system_cfg: SystemConfig) -> nn.Module:
+    def _create_policy(self, agent_cfg: AgentConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
-        if agent_cfg.get("agent_type") in agent_classes:
-            # Create PyTorch policy
-            AgentClass = agent_classes[agent_cfg.agent_type]
-            policy = AgentClass(env=env)
-            logger.info(f"Using PyTorch Policy: {policy} (type: {agent_cfg.agent_type})")
-        else:
-            # Create ComponentPolicy (YAML config)
-            policy = ComponentPolicy(
-                obs_space=self.obs_space,
-                obs_width=self.obs_width,
-                obs_height=self.obs_height,
-                action_space=self.action_space,
-                feature_normalizations=self.feature_normalizations,
-                device=system_cfg.device,
-                cfg=agent_cfg,
-            )
-            logger.info(f"Using ComponentPolicy: {type(policy).__name__}")
+        # Use the create_agent factory function
+        policy = create_agent(
+            config=agent_cfg,
+            obs_space=self.obs_space,
+            obs_width=self.obs_width,
+            obs_height=self.obs_height,
+            feature_normalizations=self.feature_normalizations,
+            env=env,
+        )
 
+        logger.info(f"Using agent: {agent_cfg.name}")
         return policy
 
-    def forward(self, td: Dict[str, torch.Tensor], state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
+    def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass through the policy."""
         if self.policy is None:
             raise RuntimeError("No policy set during initialization.")
 
-        # Delegate to policy - it handles all cases including legacy
         return self.policy(td, state, action)
 
-    def get_cfg(self) -> DictConfig:
+    def get_cfg(self) -> AgentConfig:
         return self.cfg
 
     def on_new_training_run(self):
@@ -173,56 +171,86 @@ class MettaAgent(nn.Module):
         device,
         is_training: bool = True,
     ):
-        """Initialize the agent to the current environment."""
-        # MettaAgent handles all initialization
-        self.activate_actions(action_names, action_max_params, device)
-        self.activate_observations(features, device)
+        """Initialize the agent to the current environment.
 
-    def activate_observations(self, features: dict[str, dict], device):
-        """Activate observation features by storing the feature mapping."""
-        self.active_features = features
+        This is the single entry point for environment initialization, combining
+        feature setup, action configuration, and all necessary mappings.
+        """
         self.device = device
+        self.training = is_training
 
-        # Create quick lookup mappings
+        # === FEATURE SETUP ===
+        # Build feature mappings
         self.feature_id_to_name = {props["id"]: name for name, props in features.items()}
         self.feature_normalizations = {
             props["id"]: props.get("normalization", 1.0) for props in features.values() if "normalization" in props
         }
 
-        # Store original feature mapping on first initialization
+        # Handle feature remapping for backward compatibility
         if not hasattr(self, "original_feature_mapping"):
+            # First initialization - store the mapping
             self.original_feature_mapping = {name: props["id"] for name, props in features.items()}
-            logger.info(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
+            log_on_master(f"Stored original feature mapping with {len(self.original_feature_mapping)} features")
         else:
-            # Create remapping for subsequent initializations
-            self._create_feature_remapping(features)
+            # Re-initialization - create remapping inline
+            UNKNOWN_FEATURE_ID = 255
+            self.feature_id_remap = {}
+            unknown_features = []
 
-    def _create_feature_remapping(self, features: dict[str, dict]):
-        """Create a remapping dictionary to translate new feature IDs to original ones."""
-        UNKNOWN_FEATURE_ID = 255
-        self.feature_id_remap = {}
-        unknown_features = []
+            for name, props in features.items():
+                new_id = props["id"]
+                if name in self.original_feature_mapping:
+                    # Remap known features to their original IDs
+                    original_id = self.original_feature_mapping[name]
+                    if new_id != original_id:
+                        self.feature_id_remap[new_id] = original_id
+                elif not is_training:
+                    # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
+                    self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
+                    unknown_features.append(name)
+                else:
+                    # In training mode, learn new features
+                    self.original_feature_mapping[name] = new_id
 
-        for name, props in features.items():
-            new_id = props["id"]
-            if name in self.original_feature_mapping:
-                # Remap known features to their original IDs
-                original_id = self.original_feature_mapping[name]
-                if new_id != original_id:
-                    self.feature_id_remap[new_id] = original_id
-            elif not self.training:
-                # In eval mode, map unknown features to UNKNOWN_FEATURE_ID
-                self.feature_id_remap[new_id] = UNKNOWN_FEATURE_ID
-                unknown_features.append(name)
-            else:
-                # In training mode, learn new features
-                self.original_feature_mapping[name] = new_id
+            if self.feature_id_remap:
+                logger.info(
+                    f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
+                )
+                # Apply the remapping
+                self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
 
-        if self.feature_id_remap:
-            logger.info(
-                f"Created feature remapping: {len(self.feature_id_remap)} remapped, {len(unknown_features)} unknown"
-            )
-            self._apply_feature_remapping(features, UNKNOWN_FEATURE_ID)
+        # === ACTION SETUP ===
+        self.action_names = action_names
+        self.action_max_params = action_max_params
+
+        # Compute action tensors for efficient indexing
+        self.cum_action_max_params = torch.cumsum(
+            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
+        )
+        self.action_index_tensor = torch.tensor(
+            [[idx, j] for idx, max_param in enumerate(action_max_params) for j in range(max_param + 1)],
+            device=device,
+            dtype=torch.int32,
+        )
+
+        # Generate full action names directly (no need to store active_actions)
+        full_action_names = [
+            f"{name}_{i}"
+            for name, max_param in zip(action_names, action_max_params, strict=False)
+            for i in range(max_param + 1)
+        ]
+
+        # === POLICY ACTIVATION ===
+        self.policy.activate_action_embeddings(full_action_names, device)
+
+        # Share tensors with policy (required for policy's forward pass)
+        self.policy.action_index_tensor = self.action_index_tensor
+        self.policy.cum_action_max_params = self.cum_action_max_params
+
+        log_on_master(
+            f"Environment initialized with {len(features)} features and actions: "
+            f"{list(zip(action_names, action_max_params, strict=False))}"
+        )
 
     def _apply_feature_remapping(self, features: dict[str, dict], unknown_id: int):
         """Apply feature remapping to policy if it supports it, and update normalizations.
@@ -244,24 +272,12 @@ class MettaAgent(nn.Module):
             if feature_id not in self.feature_id_remap and feature_id not in current_feature_ids:
                 remap_tensor[feature_id] = unknown_id
 
-        # Delegate feature remapping to policy if it supports it
-        # Policies have _apply_feature_remapping that takes just the remap_tensor
-        if self.policy is not None and hasattr(self.policy, "_apply_feature_remapping"):
-            self.policy._apply_feature_remapping(remap_tensor)
-        elif self.policy is None and "_obs_" in self.components:
-            # MockAgent case - directly update observation component
-            obs_component = self.components["_obs_"]
-            if hasattr(obs_component, "update_feature_remapping"):
-                obs_component.update_feature_remapping(remap_tensor)
-
-        # Update normalization factors
+        self.policy._apply_feature_remapping(remap_tensor)
         self._update_normalization_factors(features)
 
     def _update_normalization_factors(self, features: dict[str, dict]):
         """Update normalization factors after feature remapping."""
-        # Delegate normalization update to policy if it supports it
-        if hasattr(self.policy, "update_normalization_factors"):
-            self.policy.update_normalization_factors(features, getattr(self, "original_feature_mapping", None))
+        self.policy.update_normalization_factors(features, getattr(self, "original_feature_mapping", None))
 
     def get_original_feature_mapping(self) -> dict[str, int] | None:
         """Get the original feature mapping for saving in metadata."""
@@ -271,39 +287,7 @@ class MettaAgent(nn.Module):
         """Restore the original feature mapping from metadata."""
         # Make a copy to avoid shared state between agents
         self.original_feature_mapping = mapping.copy()
-        logger.info(f"Restored original feature mapping with {len(mapping)} features from metadata")
-
-    def activate_actions(self, action_names: list[str], action_max_params: list[int], device):
-        """Initialize action space for the agent."""
-        self.device = device
-        self.action_max_params = action_max_params
-        self.action_names = action_names
-        self.active_actions = list(zip(action_names, action_max_params, strict=False))
-
-        # Precompute cumulative sums for faster conversion
-        self.cum_action_max_params = torch.cumsum(
-            torch.tensor([0] + action_max_params, device=device, dtype=torch.long), dim=0
-        )
-
-        # Build full action names for embeddings
-        full_action_names = [f"{name}_{i}" for name, max_param in self.active_actions for i in range(max_param + 1)]
-
-        # Activate embeddings if policy supports it
-        if hasattr(self.policy, "activate_action_embeddings"):
-            self.policy.activate_action_embeddings(full_action_names, device)
-
-        # Create action index tensor
-        self.action_index_tensor = torch.tensor(
-            [[idx, j] for idx, max_param in enumerate(action_max_params) for j in range(max_param + 1)],
-            device=device,
-            dtype=torch.int32,
-        )
-        logger.info(f"Actions initialized: {self.active_actions}")
-
-        # Pass tensors to policy if needed
-        if self.policy is not None:
-            self.policy.action_index_tensor = self.action_index_tensor
-            self.policy.cum_action_max_params = self.cum_action_max_params
+        log_on_master(f"Restored original feature mapping with {len(mapping)} features from metadata")
 
     @property
     def total_params(self):
@@ -318,9 +302,7 @@ class MettaAgent(nn.Module):
 
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
         """Compute weight metrics - delegates to policy."""
-        if hasattr(self.policy, "compute_weight_metrics"):
-            return self.policy.compute_weight_metrics(delta)
-        return []
+        return self.policy.compute_weight_metrics(delta)
 
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
         """Convert (action_type, action_param) pairs to discrete indices."""
@@ -350,15 +332,21 @@ class MettaAgent(nn.Module):
             logger.info("Detected old checkpoint format - converting to new ComponentPolicy structure")
 
             # Extract the components and related attributes that belong in ComponentPolicy
-            from metta.agent.component_policy import ComponentPolicy
 
             # First, break any circular references in the old state
             if "policy" in state and state.get("policy") is state:
                 del state["policy"]
-                logger.info("Removed circular reference: state['policy'] = state")
+                log_on_master("Removed circular reference: state['policy'] = state")
 
-            # Create ComponentPolicy without calling __init__ to avoid rebuilding components
-            policy = ComponentPolicy.__new__(ComponentPolicy)
+            # Default to Fast ComponentPolicy for old checkpoints
+            # (Old checkpoints don't have the agent type stored in a way we can easily retrieve)
+            from metta.agent.component_policies.fast import Fast
+
+            PolicyClass = Fast
+            logger.info("Converting old checkpoint to Fast agent")
+
+            # Create the specific policy class without calling __init__ to avoid rebuilding components
+            policy = PolicyClass.__new__(PolicyClass)
 
             # Initialize nn.Module base class
             nn.Module.__init__(policy)
@@ -404,10 +392,8 @@ class MettaAgent(nn.Module):
                     "obs_space",
                     "_total_params",
                     "cfg",
-                    "active_features",
                     "feature_id_to_name",
                     "original_feature_mapping",
-                    "active_actions",
                     "action_names",
                     "action_max_params",
                     "components_with_memory",
@@ -448,7 +434,7 @@ class MettaAgent(nn.Module):
             if hasattr(self, "device") and self.policy is not None:
                 self.policy.device = self.device
 
-            logger.info("Successfully converted old checkpoint to new structure")
+            log_on_master("Successfully converted old checkpoint to new structure")
         else:
             # Normal checkpoint restoration
             self.__dict__.update(state)
