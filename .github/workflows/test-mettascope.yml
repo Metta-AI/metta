@@ -191,7 +191,7 @@ jobs:
 
           BACKEND_LOG_NULL="mettascope_backend_null_policy.log"
           echo "Starting backend server with null policy..."
-          uv run --no-sync tools/play.py run=smoke_test +user=ci wandb=off replay_job.open_browser_on_start=false replay_job.policy_uri=null > "$BACKEND_LOG_NULL" 2>&1 &
+          METTA_USER=ci uv run --no-sync tools/run.py metta.tools.play.PlayTool --args sim.name=play_smoke sim.env.label=mettagrid --overrides wandb.enabled=false system.vectorization=serial open_browser_on_start=false replay_job.policy_uri=null > "$BACKEND_LOG_NULL" 2>&1 &
           BACKEND_PID=$!
           echo "Backend (null policy) started with PID: $BACKEND_PID"
 
