@@ -79,14 +79,12 @@ def make_env(num_agents: int = 24) -> EnvConfig:
         rotate=ActionConfig(enabled=True),  # Keep rotation for compatibility
         put_items=ActionConfig(enabled=True),
         get_items=ActionConfig(enabled=True),
-        attack=ActionConfig(enabled=True, consumed_resources={"laser": 1}),
+        attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
         swap=ActionConfig(enabled=True),
         # These were disabled in old config
         place_box=ActionConfig(enabled=False),
         change_color=ActionConfig(enabled=False),
-        change_glyph=ActionConfig(enabled=False),
-        # Disable move_cardinal since we're using move_8way
-        move_cardinal=ActionConfig(enabled=False),
+        change_glyph=ChangeGlyphActionConfig(enabled=False, number_of_glyphs=4),
     )
     
     # Shaped rewards exactly matching old configs/env/mettagrid/game/agent/rewards/shaped.yaml
