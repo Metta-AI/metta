@@ -181,13 +181,40 @@ self._pending_config = self._current_task.get_env_cfg()
     - Feature IDs might be mapped differently
     - Could confuse the neural network
 
+## NEW FINDINGS FROM DEEP DIVE
+
+### Critical Changes Found
+1. **Curriculum system completely rewritten**
+   - Old: Used Hydra-based curriculum with specific task completion tracking
+   - New: Simplified curriculum that may not be sampling tasks correctly
+   - Task completion uses `get_episode_rewards().mean()` which might be wrong
+
+2. **Max output limits might be missing**
+   - Old configs had `max_output: 5` for converters
+   - New building.py doesn't set max_output (defaults to 5 but needs verification)
+
+3. **Initial resource counts changed**
+   - Many old configs had `initial_resource_count: 1` or higher
+   - New defaults to 0 - buildings start empty!
+
+4. **Heartbeat timeout changed**
+   - Old: 300 seconds
+   - New: 99999 (effectively disabled)
+   - Could affect training dynamics
+
+5. **"terrain_maps_nohearts" reference**
+   - Navigation recipe references maps with "nohearts" in name
+   - Could indicate maps designed without heart rewards?
+
 ## Most Likely Culprits for 0.5 vs 15 Hearts
 
-1. **Altar is 3x harder** (3 batteries vs 1) - HUGE impact
-2. **No shaped rewards** - Agents don't know ore/batteries are valuable
-3. **Missing blocks** - Environment too simple, different dynamics
-4. **Feature remapping** - Observations might be corrupted
-5. **Environment config switching** - Mid-episode config changes
+1. **Initial resource counts are 0** - Buildings start empty, no initial resources!
+2. **Curriculum not sampling diverse tasks** - Stuck on same/similar environments
+3. **Task completion logic changed** - Using mean rewards differently
+4. **Altar is 3x harder** (3 batteries vs 1) - HUGE impact
+5. **No shaped rewards** - Agents don't know ore/batteries are valuable
+6. **Missing blocks** - Environment too simple, different dynamics
+7. **Environment config switching mid-episode** - Corrupts state
 
 ## Verification Needed
 
