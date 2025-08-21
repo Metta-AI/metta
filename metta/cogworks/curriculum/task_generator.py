@@ -74,18 +74,15 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
             num_tasks: Number of active tasks to maintain
             use_learning_progress: Whether to use learning progress curriculum (default: True)
         """
-        from metta.cogworks.curriculum.curriculum import CurriculumConfig
-        from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressHypers
+        from metta.cogworks.curriculum.curriculum import CurriculumConfig, LearningProgressHypers
 
         if use_learning_progress:
             # Create learning progress algorithm hyperparameters
             lp_hypers = LearningProgressHypers(
-                ema_timescale=0.001,
-                progress_smoothing=0.05,
-                num_active_tasks=num_tasks or 16,
-                rand_task_rate=0.25,
-                sample_threshold=10,
-                memory=25,
+                num_tasks=1000,  # N=1000 tasks in memory
+                sample_size=10,  # K=10 tasks to sample
+                max_samples=20,  # A=20 max samples before eviction
+                exploration_weight=0.1,  # Balance exploration vs exploitation
             )
 
             # Create curriculum with integrated learning progress algorithm
