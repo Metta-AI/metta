@@ -96,7 +96,6 @@ def train_shaped(
     run: str,
     rewards: bool = True,
     converters: bool = True,
-    use_learning_progress: bool = True,
 ) -> TrainTool:
     env_cfg = make_env()
     env_cfg.game.agent.rewards.inventory.heart = 1
@@ -120,24 +119,7 @@ def train_shaped(
         if hasattr(altar_obj, "input_resources"):
             altar_obj.input_resources["battery_red"] = 1
 
-    if use_learning_progress:
-        # Create learning progress curriculum for shaped training
-        arena_tasks = cc.bucketed(env_cfg)
-
-        # Add shaped-specific buckets
-        for item in ["ore_red", "battery_red", "laser", "armor", "blueprint"]:
-            arena_tasks.add_bucket(
-                f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
-            )
-            arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
-
-        arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
-
-        # Use the updated to_curriculum method that defaults to learning progress
-        curriculum = arena_tasks.to_curriculum(num_tasks=16, use_learning_progress=True)
-    else:
-        # Fall back to original random curriculum
-        curriculum = cc.env_curriculum(env_cfg)
+    curriculum = cc.env_curriculum(env_cfg)
 
     trainer_cfg = TrainerConfig(
         curriculum=curriculum,

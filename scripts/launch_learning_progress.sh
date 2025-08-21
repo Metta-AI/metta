@@ -90,60 +90,21 @@ if [ "$DISTRIBUTED" = true ]; then
             echo "⚠️  Warning: Multi-node with multiple GPUs per node may require custom configuration"
         fi
 
-        # Use SkyPilot's --num-nodes flag for multi-node scaling
-        sky launch configs/sweep/learning_progress_multi_node_launch.yaml \
-            --num-nodes $NUM_NODES \
-            --env NUM_EPISODES=$NUM_EPISODES \
-            --env WANDB_PROJECT=$WANDB_PROJECT \
-            --env WANDB_RUN_NAME=$WANDB_RUN_NAME
+        # Multi-node training not yet implemented
+        echo "❌ Error: Multi-node training not yet implemented"
+        echo "   Please use single-node multi-GPU training instead"
+        exit 1
     else
         echo "🔗 Launching single-node multi-GPU training..."
         echo "   Using 1 node with $NUM_GPUS GPU(s)"
 
-        # Check for valid GPU configurations
-        if [ "$NUM_GPUS" -eq 4 ]; then
-            echo "✅ Using L4:4 configuration (4 L4 GPUs)"
-            sky launch configs/sweep/learning_progress_multi_gpu.yaml \
-                --env NUM_EPISODES=$NUM_EPISODES \
-                --env WANDB_PROJECT=$WANDB_PROJECT \
-                --env WANDB_RUN_NAME=$WANDB_RUN_NAME
-        elif [ "$NUM_GPUS" -eq 8 ]; then
-            echo "✅ Using L4:8 configuration (8 L4 GPUs)"
-            # Create a temporary config for 8 GPUs
-            TEMP_CONFIG=$(mktemp)
-            cat > "$TEMP_CONFIG" << EOF
-name: learning-progress-training
-
-resources:
-  accelerators: L4:8
-
-setup: |
-  echo "Setting up learning progress training environment..."
-  pip install -r requirements.txt
-  export WORLD_SIZE=8
-  export MASTER_ADDR=localhost
-  export MASTER_PORT=29500
-
-run: |
-  echo "Starting learning progress training with \$WORLD_SIZE GPUs..."
-  python -m torch.distributed.launch \\
-    --nproc_per_node=\$WORLD_SIZE \\
-    --master_port=\$MASTER_PORT \\
-    experiments/user/arena_lp_test.py \\
-    --distributed \\
-    --num_episodes=$NUM_EPISODES \\
-    --learning_progress=True \\
-    --wandb_project=$WANDB_PROJECT \\
-    --wandb_run_name=$WANDB_RUN_NAME
-EOF
-
-            sky launch "$TEMP_CONFIG"
-            rm "$TEMP_CONFIG"
+        # Multi-GPU training not yet implemented
+        echo "❌ Error: Multi-GPU training not yet implemented"
+        echo "   Please use local training instead"
+        exit 1
         else
-            echo "❌ Error: Invalid GPU configuration. Available options:"
-            echo "   - 4 GPUs (L4:4)"
-            echo "   - 8 GPUs (L4:8)"
-            echo "   - 1 GPU per node (multi-node)"
+            echo "❌ Error: Multi-GPU training not yet implemented"
+            echo "   Please use local training instead"
             exit 1
         fi
     fi

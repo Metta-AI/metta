@@ -10,8 +10,10 @@ import os
 from typing import Any, Dict, Optional
 
 import numpy as np
+import torch
 
 from .curriculum import Curriculum, CurriculumConfig, CurriculumTask
+from .ddp_curriculum_manager import DDPCurriculumConfig
 from .distributed_curriculum import DistributedCurriculumConfig
 
 
@@ -36,6 +38,8 @@ class CurriculumManager:
         aggregation_interval: int = 10,
         force_distributed: bool = False,
         force_local: bool = False,
+        force_ddp: bool = False,
+        device: Optional[torch.device] = None,
     ):
         """Initialize the curriculum manager.
 
@@ -46,11 +50,15 @@ class CurriculumManager:
             aggregation_interval: How often to perform global aggregation (distributed mode)
             force_distributed: Force distributed mode regardless of hardware
             force_local: Force local mode regardless of hardware
+            force_ddp: Force DDP mode for PyTorch distributed training
+            device: Device to use for DDP tensors (required if force_ddp=True)
         """
         self.curriculum_config = curriculum_config
         self.aggregation_interval = aggregation_interval
         self.force_distributed = force_distributed
         self.force_local = force_local
+        self.force_ddp = force_ddp
+        self.device = device
 
         # Auto-detect hardware configuration
         self._detect_hardware_config(worker_id, num_workers)
@@ -167,8 +175,13 @@ class CurriculumManager:
     def _initialize_curriculum_manager(self):
         """Initialize the appropriate curriculum manager based on configuration."""
 
-        if self.is_distributed and not self.force_local:
-            # Distributed mode
+        if self.force_ddp:
+            # DDP mode for PyTorch distributed training
+            if self.device is None:
+                raise ValueError("device must be specified when force_ddp=True")
+            self._init_ddp_manager()
+        elif self.is_distributed and not self.force_local:
+            # Distributed mode with shared memory
             self._init_distributed_manager()
         else:
             # Local mode
@@ -196,6 +209,30 @@ class CurriculumManager:
 
         print("   Using distributed curriculum with shared memory")
 
+    def _init_ddp_manager(self):
+        """Initialize DDP curriculum manager."""
+
+        # Create DDP curriculum config
+        ddp_config = DDPCurriculumConfig(
+            curriculum_config=self.curriculum_config,
+            device=self.device,  # type: ignore[arg-type] - checked above
+            sync_interval=self.aggregation_interval,
+        )
+
+        # Create DDP manager
+        self.ddp_manager = ddp_config.create()
+
+        # Create local curriculum for task generation
+        self.local_curriculum = Curriculum(self.curriculum_config)
+
+        # No distributed manager needed
+        self.distributed_manager = None
+
+        # Track which mode we're using
+        self.mode = "ddp"
+
+        print("   Using DDP curriculum with parameter server pattern")
+
     def _init_local_manager(self):
         """Initialize local curriculum manager."""
 
@@ -216,7 +253,10 @@ class CurriculumManager:
         Returns:
             CurriculumTask: The selected task
         """
-        if self.mode == "distributed" and self.distributed_manager is not None:
+        if self.mode == "ddp" and hasattr(self, "ddp_manager"):
+            # Use DDP curriculum manager
+            return self.ddp_manager.get_task()
+        elif self.mode == "distributed" and self.distributed_manager is not None:
             # Use distributed sampling
             task_id = self.distributed_manager.sample_task()
 
@@ -238,7 +278,10 @@ class CurriculumManager:
             task_id: ID of the task that was completed
             score: Success rate (0.0 to 1.0) for the task
         """
-        if self.mode == "distributed" and self.distributed_manager is not None:
+        if self.mode == "ddp" and hasattr(self, "ddp_manager"):
+            # Update DDP curriculum manager
+            self.ddp_manager.update_task_performance(task_id, score)
+        elif self.mode == "distributed" and self.distributed_manager is not None:
             # Update distributed manager
             self.distributed_manager.update_task_performance(task_id, score)
 
@@ -308,8 +351,12 @@ class CurriculumManager:
         # Add mode information
         stats = {"mode": self.mode, "worker_id": self.worker_id, "num_workers": self.num_workers, **local_stats}
 
+        # Add DDP stats if applicable
+        if self.mode == "ddp" and hasattr(self, "ddp_manager"):
+            ddp_stats = self.ddp_manager.get_stats()
+            stats.update({f"ddp_{k}": v for k, v in ddp_stats.items()})
         # Add distributed stats if applicable
-        if self.mode == "distributed" and self.distributed_manager is not None:
+        elif self.mode == "distributed" and self.distributed_manager is not None:
             dist_stats = self.distributed_manager.get_stats()
             stats.update({f"distributed_{k}": v for k, v in dist_stats.items()})
 
