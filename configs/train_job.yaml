@@ -2,20 +2,19 @@ defaults:
   - common
   - agent: fast
   - trainer: trainer
-  - sim: arena
+  - sim: coop_rewardsharing
   - wandb: metta_research
   - _self_
 
 seed: 1
 py_agent: null
 
-
 train_job:
   map_preview_uri: s3://softmax-public/training_runs/${run}/map_preview.json.z
   evals: ${sim}
 
 trainer:
-  curriculum: /env/mettagrid/arena/basic_easy_shaped
+  curriculum: /env/mettagrid/curriculum/coop_rewardsharing/rewardsharing_buckets
 
 # If we detect you are on a mac, we update configs related to batch size and checkpoint frequency
 # you can opt out of those by setting this to true

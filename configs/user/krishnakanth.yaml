@@ -4,7 +4,7 @@ defaults:
   - /common
   - /agent/fast
   - /trainer/trainer
-  - /sim/coop_rewardsharing_only@sim
+  - /sim/coop_rewardsharing@sim # Changed to use your 5-map eval suite
   - _self_
 
 run: krishnakanth.coop_rewardsharing_bucket.$(date +%m-%d).$(date +%H%M)
@@ -14,7 +14,7 @@ data_dir: ${oc.env:DATA_DIR,./train_dir}
 run_dir: ${data_dir}/${run}
 
 trainer:
-  curriculum: /env/mettagrid/curriculum/coop_rewardsharing/combined
+  curriculum: /env/mettagrid/curriculum/coop_rewardsharing/rewardsharing_buckets # Your 4-map bucketed curriculum
   num_workers: 4
   simulation:
     evaluate_interval: 100

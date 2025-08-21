@@ -8,7 +8,7 @@ defaults:
 
 game:
   # Adjust as needed for your map/agents
-  num_agents: 16
+  num_agents: 18
   max_steps: 300
 
   # Configure team reward sharing
@@ -18,8 +18,7 @@ game:
 
   map_builder:
     _target_: metta.map.mapgen.MapGen
-    width: 7
-    height: 7
+    # Width/height removed - will be auto-detected from ASCII map files
     border_width: 0
     instances: ${div:${..num_agents},2}
     instance_border_width: 1
@@ -27,4 +26,4 @@ game:
     root:
       type: metta.map.scenes.ascii.Ascii
       params:
-        uri: "configs/env/mettagrid/maps/simple/coop_rewardsharing.map"
+        uri: "configs/env/mettagrid/maps/simple/train1.map" # Default map - bucketed curriculum will override this

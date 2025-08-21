@@ -1,0 +1,10 @@
+_target_: metta.mettagrid.curriculum.bucketed.BucketedCurriculum
+
+env_cfg_template_path: /env/mettagrid/arena/coop_rewardsharing
+
+buckets:
+  game.map_builder.root.params.uri:
+    - "configs/env/mettagrid/maps/simple/train1.map"
+    - "configs/env/mettagrid/maps/simple/train2.map"
+    - "configs/env/mettagrid/maps/simple/train3.map"
+    - "configs/env/mettagrid/maps/simple/train4.map"

@@ -1,0 +1,33 @@
+defaults:
+  - sim_suite
+  - _self_
+
+name: coop_rewardsharing
+
+simulations:
+  # Training maps (same 4 maps as in bucketed curriculum)
+  coop/train1:
+    env: /env/mettagrid/arena/coop_rewardsharing
+    env_overrides:
+      game.map_builder.root.params.uri: "configs/env/mettagrid/maps/simple/train1.map"
+
+  coop/train2:
+    env: /env/mettagrid/arena/coop_rewardsharing
+    env_overrides:
+      game.map_builder.root.params.uri: "configs/env/mettagrid/maps/simple/train2.map"
+
+  coop/train3:
+    env: /env/mettagrid/arena/coop_rewardsharing
+    env_overrides:
+      game.map_builder.root.params.uri: "configs/env/mettagrid/maps/simple/train3.map"
+
+  coop/train4:
+    env: /env/mettagrid/arena/coop_rewardsharing
+    env_overrides:
+      game.map_builder.root.params.uri: "configs/env/mettagrid/maps/simple/train4.map"
+
+  # Eval-only map (not in training curriculum)
+  coop/eval1:
+    env: /env/mettagrid/arena/coop_rewardsharing
+    env_overrides:
+      game.map_builder.root.params.uri: "configs/env/mettagrid/maps/simple/eval1.map"
