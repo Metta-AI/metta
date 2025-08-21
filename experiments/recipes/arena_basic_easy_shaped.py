@@ -65,23 +65,22 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     if "armory" in env_cfg.game.objects:
         del env_cfg.game.objects["armory"]
     
-    # MINIMAL ACTION SET: Only cardinal movement and resource collection
-    # This simplifies learning and matches what worked in testing
+    # ACTION SET: Using move_8way since move no longer exists
+    # The old config had move+rotate, but now we need to use move_8way which combines both
     env_cfg.game.actions = ActionsConfig(
-        # Movement - ONLY cardinal movement
-        move_cardinal=ActionConfig(enabled=True),  # North/South/East/West movement only
-        # Resource collection - essential actions only
-        get_items=ActionConfig(enabled=True),  # Collect from mines/generators/altars
-        put_items=ActionConfig(enabled=True),  # Put into buildings
-        # Keep noop for when no action needed
         noop=ActionConfig(enabled=True),
-        # EVERYTHING ELSE DISABLED (explicitly set to False)
-        move=ActionConfig(enabled=False),  # Disable regular move
-        rotate=ActionConfig(enabled=False),  # No rotation needed with cardinal
-        move_8way=ActionConfig(enabled=False),  # No diagonal movement
-        swap=ActionConfig(enabled=False),  # No swapping
-        change_color=ActionConfig(enabled=False),  # No color changing
-        place_box=ActionConfig(enabled=False),  # No box placement
+        move_8way=ActionConfig(enabled=True),  # 8-directional movement (replaces old move+rotate)
+        rotate=ActionConfig(enabled=True),  # Keep rotation for compatibility
+        put_items=ActionConfig(enabled=True),
+        get_items=ActionConfig(enabled=True),
+        attack=ActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
+        swap=ActionConfig(enabled=True),
+        # These were disabled in old config
+        place_box=ActionConfig(enabled=False),
+        change_color=ActionConfig(enabled=False),
+        change_glyph=ActionConfig(enabled=False, number_of_glyphs=4),
+        # Disable move_cardinal since we're using move_8way
+        move_cardinal=ActionConfig(enabled=False),
     )
     
     # Shaped rewards exactly matching old configs/env/mettagrid/game/agent/rewards/shaped.yaml
@@ -122,8 +121,19 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     # Set label for clarity
     env_cfg.label = "arena.basic_easy_shaped"
     
-    # desync_episodes is fixed to match old behavior (changes max_steps for first episode only)
-    # Keep default setting (True) to match pre-dehydration behavior
+    # Global configuration flags from old mettagrid.yaml
+    env_cfg.desync_episodes = True  # Explicit: changes max_steps for first episode only
+    env_cfg.game.track_movement_metrics = True
+    env_cfg.game.no_agent_interference = False
+    env_cfg.game.resource_loss_prob = 0.0
+    env_cfg.game.recipe_details_obs = False
+    
+    # Global observation tokens from old config
+    env_cfg.game.global_obs.episode_completion_pct = True
+    env_cfg.game.global_obs.last_action = True
+    env_cfg.game.global_obs.last_reward = True
+    env_cfg.game.global_obs.resource_rewards = False
+    env_cfg.game.global_obs.visitation_counts = False
     
     return env_cfg
 
