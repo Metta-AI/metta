@@ -5,7 +5,7 @@ applications:
       phases:
         preBuild:
           commands:
-            - nvm use 24
+            - nvm use 22
             - corepack enable
             - pnpm install
             - pnpm run db:generate
