@@ -5,7 +5,7 @@ from __future__ import annotations
 import abc
 import random
 from abc import ABC
-from typing import Annotated, ClassVar, List, Optional, Union
+from typing import ClassVar, List, Optional
 
 import numpy as np
 from pydantic import ConfigDict, Field, field_validator
@@ -14,9 +14,7 @@ from metta.common.config import Config
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 from .task_generator import (
-    BucketedTaskGeneratorConfig,
-    SingleTaskGeneratorConfig,
-    TaskGeneratorSetConfig,
+    AnyTaskGeneratorConfig,
 )
 
 
@@ -157,13 +155,10 @@ class DiscreteRandomCurriculum(CurriculumAlgorithm):
 class CurriculumConfig(Config):
     """Base configuration for Curriculum."""
 
-    task_generator: Annotated[
-        Union[SingleTaskGeneratorConfig, TaskGeneratorSetConfig, BucketedTaskGeneratorConfig],
-        Field(discriminator="type", description="TaskGenerator configuration"),
-    ]
+    task_generator: AnyTaskGeneratorConfig = Field(description="TaskGenerator configuration")
     max_task_id: int = Field(default=1000000, gt=0, description="Maximum task id to generate")
 
-    num_active_tasks: int = Field(default=100, gt=0, description="Number of active tasks to maintain")
+    num_active_tasks: int = Field(default=10000, gt=0, description="Number of active tasks to maintain")
     new_task_rate: float = Field(default=0.01, ge=0, le=1.0, description="Rate of new tasks to generate")
 
     # Algorithm configuration
@@ -180,7 +175,7 @@ class CurriculumConfig(Config):
     @field_validator("num_active_tasks")
     @classmethod
     def validate_num_active_tasks(cls, v, info):
-        max_task_id = info.data.get("max_task_id", 1000000)
+        max_task_id = info.data["max_task_id"]
         if v > max_task_id:
             raise ValueError("num_active_tasks must be less than max_task_id")
         return v
