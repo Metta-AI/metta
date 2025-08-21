@@ -28,14 +28,14 @@ def make_ascii_env(max_steps: int, ascii_map: str, border_width: int = 1) -> Env
 def make_corridors_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=450,
-        ascii_map="configs/env/mettagrid/maps/navigation/corridors.map",
+        ascii_map="mettagrid/configs/maps/navigation/corridors.map",
     )
 
 
 def make_cylinder_easy_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=250,
-        ascii_map="configs/env/mettagrid/maps/navigation/cylinder_easy.map",
+        ascii_map="mettagrid/configs/maps/navigation/cylinder_easy.map",
     )
 
 
@@ -43,105 +43,105 @@ def make_cylinder_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=250,
         border_width=10,  # I have no idea if this is important -- Slava
-        ascii_map="configs/env/mettagrid/maps/navigation/cylinder.map",
+        ascii_map="mettagrid/configs/maps/navigation/cylinder.map",
     )
 
 
 def make_honeypot_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=300,
-        ascii_map="configs/env/mettagrid/maps/navigation/honeypot.map",
+        ascii_map="mettagrid/configs/maps/navigation/honeypot.map",
     )
 
 
 def make_knotty_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=500,
-        ascii_map="configs/env/mettagrid/maps/navigation/knotty.map",
+        ascii_map="mettagrid/configs/maps/navigation/knotty.map",
     )
 
 
 def make_memory_palace_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=200,
-        ascii_map="configs/env/mettagrid/maps/navigation/memory_palace.map",
+        ascii_map="mettagrid/configs/maps/navigation/memory_palace.map",
     )
 
 
 def make_obstacles0_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=100,
-        ascii_map="configs/env/mettagrid/maps/navigation/obstacles0.map",
+        ascii_map="mettagrid/configs/maps/navigation/obstacles0.map",
     )
 
 
 def make_obstacles1_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=300,
-        ascii_map="configs/env/mettagrid/maps/navigation/obstacles1.map",
+        ascii_map="mettagrid/configs/maps/navigation/obstacles1.map",
     )
 
 
 def make_obstacles2_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=350,
-        ascii_map="configs/env/mettagrid/maps/navigation/obstacles2.map",
+        ascii_map="mettagrid/configs/maps/navigation/obstacles2.map",
     )
 
 
 def make_obstacles3_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=300,
-        ascii_map="configs/env/mettagrid/maps/navigation/obstacles3.map",
+        ascii_map="mettagrid/configs/maps/navigation/obstacles3.map",
     )
 
 
 def make_radial_large_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=1000,
-        ascii_map="configs/env/mettagrid/maps/navigation/radial_large.map",
+        ascii_map="mettagrid/configs/maps/navigation/radial_large.map",
     )
 
 
 def make_radial_mini_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=150,
-        ascii_map="configs/env/mettagrid/maps/navigation/radial_mini.map",
+        ascii_map="mettagrid/configs/maps/navigation/radial_mini.map",
     )
 
 
 def make_radial_small_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=120,
-        ascii_map="configs/env/mettagrid/maps/navigation/radial_small.map",
+        ascii_map="mettagrid/configs/maps/navigation/radial_small.map",
     )
 
 
 def make_radialmaze_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=200,
-        ascii_map="configs/env/mettagrid/maps/navigation/radial_maze.map",
+        ascii_map="mettagrid/configs/maps/navigation/radial_maze.map",
     )
 
 
 def make_swirls_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=350,
-        ascii_map="configs/env/mettagrid/maps/navigation/swirls.map",
+        ascii_map="mettagrid/configs/maps/navigation/swirls.map",
     )
 
 
 def make_thecube_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=350,
-        ascii_map="configs/env/mettagrid/maps/navigation/thecube.map",
+        ascii_map="mettagrid/configs/maps/navigation/thecube.map",
     )
 
 
 def make_walkaround_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=250,
-        ascii_map="configs/env/mettagrid/maps/navigation/walkaround.map",
+        ascii_map="mettagrid/configs/maps/navigation/walkaround.map",
     )
 
 
@@ -202,7 +202,7 @@ def make_walls_withinsight_env() -> EnvConfig:
 def make_wanderout_env() -> EnvConfig:
     return make_ascii_env(
         max_steps=500,
-        ascii_map="configs/env/mettagrid/maps/navigation/wanderout.map",
+        ascii_map="mettagrid/configs/maps/navigation/wanderout.map",
     )
 
 
