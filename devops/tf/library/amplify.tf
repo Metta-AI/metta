@@ -43,30 +43,6 @@ resource "aws_amplify_app" "library" {
 
     ANTHROPIC_API_KEY = jsondecode(data.aws_secretsmanager_secret_version.library_secrets.secret_string)["ANTHROPIC_API_KEY"]
   }
-
-  build_spec = <<-EOT
-version: 1
-applications:
-  - appRoot: library
-    frontend:
-      phases:
-        preBuild:
-          commands:
-            - nvm use 24
-            - corepack enable
-            - pnpm install
-            - pnpm run db:generate
-        build:
-          commands: ['pnpm run build']
-      artifacts:
-        baseDirectory: .next
-        files:
-          - '**/*'
-      cache:
-        paths:
-          - 'library/.next/cache/**/*'
-          - 'library/node_modules/**/*'
-  EOT
 }
 
 resource "aws_amplify_branch" "main" {
