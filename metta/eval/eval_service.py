@@ -133,7 +133,7 @@ def extract_scores(
         category_scores[category] = score
     per_sim_scores: dict[tuple[str, str], float] = {}
     all_scores = stats_db.simulation_scores(policy_record, "reward")
-    for (_, sim_name, _), score in all_scores.items():
+    for (sim_name, _), score in all_scores.items():
         category = sim_name.split("/")[0]
         sim_short_name = sim_name.split("/")[-1]
         per_sim_scores[(category, sim_short_name)] = score
