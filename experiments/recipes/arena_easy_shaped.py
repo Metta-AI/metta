@@ -243,16 +243,17 @@ def train() -> TrainTool:
     return TrainTool(trainer=trainer_cfg)
 
 
-def play(env: Optional[EnvConfig] = None, num_agents: int = 24) -> PlayTool:
+def play(env: Optional[EnvConfig] = None, num_agents: int = 24, policy_uri: Optional[str] = None) -> PlayTool:
     """Interactive play tool for testing the environment.
 
     Args:
         env: Optional environment config to use (defaults to make_env())
         num_agents: Number of agents (default 24 for full arena, can use 6 for simpler testing)
+        policy_uri: Optional policy URI to load (e.g., 'wandb://run/relh.easy_shaped.820.6')
     """
     if env is None:
         # Create the full arena easy shaped environment
-        print("\n=== Arena Easy Shaped Environment ===")
+        print("\n=== Arena Easy Shaped Environment (MINIMAL ACTIONS) ===")
         print("Creating environment with:")
         print(f"  - {num_agents} agents (cooperative)")
         print("  - Red mines (produce ore)")
@@ -260,29 +261,39 @@ def play(env: Optional[EnvConfig] = None, num_agents: int = 24) -> PlayTool:
         print("  - Altars (convert 1 battery to hearts - EASY MODE)")
         print("  - Blocks and walls for obstacles")
         print("  - Shaped rewards for progression")
-        print("=====================================\n")
+        print("  - MINIMAL ACTION SET: Only 4 action types enabled:")
+        print("    * move_cardinal (N/S/E/W movement)")
+        print("    * get_items (collect resources)")
+        print("    * put_items (deposit resources)")
+        print("    * noop (no operation)")
+        print("========================================================\n")
 
         eval_env = make_env(num_agents=num_agents)
 
-        # Print gameplay instructions
-        print("Controls:")
-        print("  - Click on an agent to select it")
-        print("  - Use arrow keys or WASD to move")
-        print("  - Press spacebar to interact with objects")
-        print("")
-        print("Gameplay:")
-        print("  1. Mine red ore from mines (reward: 0.1 per ore, max 1.0)")
-        print(
-            "  2. Convert ore to batteries at generators (reward: 0.8 per battery, max 1.0)"
-        )
-        print(
-            "  3. Convert batteries to hearts at altars (reward: 1.0 per heart, max 100.0)"
-        )
+        # Print control information based on whether we have a policy
+        if policy_uri:
+            print(f"WATCHING TRAINED POLICY: {policy_uri}")
+            print("The agents will act autonomously using the trained policy.")
+            print("You can pause/unpause with 'P' to observe their behavior.")
+        else:
+            print("MANUAL CONTROL MODE")
+            print("Controls:")
+            print("  - Click on an agent to select it")
+            print("  - Use arrow keys to move (cardinal directions only)")
+            print("  - Auto-interact when facing objects")
+            print("")
+            print("Gameplay:")
+            print("  1. Mine red ore from mines (reward: 0.1 per ore, max 1.0)")
+            print("  2. Convert ore to batteries at generators (reward: 0.8 per battery, max 1.0)")
+            print("  3. Convert batteries to hearts at altars (reward: 1.0 per heart, max 100.0)")
         print("")
     else:
         eval_env = env
 
-    return PlayTool(sim=SimulationConfig(env=eval_env, name="arena_easy_shaped"))
+    return PlayTool(
+        sim=SimulationConfig(env=eval_env, name="arena_easy_shaped"),
+        policy_uri=policy_uri
+    )
 
 
 def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
@@ -297,3 +308,51 @@ def evaluate(policy_uri: str) -> SimTool:
         simulations=make_evals(),
         policy_uris=[policy_uri],
     )
+
+
+if __name__ == "__main__":
+    """Allow running this recipe directly for play testing.
+    
+    Usage:
+        uv run experiments/recipes/arena_easy_shaped.py [port] [num_agents_or_policy] [policy]
+        
+    Examples:
+        uv run experiments/recipes/arena_easy_shaped.py                    # Default: port 8001, 24 agents
+        uv run experiments/recipes/arena_easy_shaped.py 8002 6              # Port 8002, 6 agents
+        uv run experiments/recipes/arena_easy_shaped.py 8003 wandb://run/relh.easy_shaped.820.6
+    """
+    import os
+    import sys
+    
+    # Parse arguments
+    port = 8001
+    num_agents = 24
+    policy_uri = None
+    
+    if len(sys.argv) > 1:
+        try:
+            port = int(sys.argv[1])
+        except ValueError:
+            print(f"Invalid port: {sys.argv[1]}, using default {port}")
+    
+    if len(sys.argv) > 2:
+        arg = sys.argv[2]
+        if arg.startswith("wandb://") or arg.startswith("file://") or "/" in arg:
+            policy_uri = arg
+        else:
+            try:
+                num_agents = int(arg)
+                if num_agents % 6 != 0:
+                    num_agents = (num_agents // 6) * 6
+            except ValueError:
+                policy_uri = arg
+    
+    if len(sys.argv) > 3 and not policy_uri:
+        policy_uri = sys.argv[3]
+    
+    # Set server port
+    os.environ["METTASCOPE_PORT"] = str(port)
+    
+    # Run play
+    play_tool = play(num_agents=num_agents, policy_uri=policy_uri)
+    play_tool.invoke({}, [])
