@@ -7,7 +7,7 @@ defaults:
   - /sim/coop_rewardsharing@sim # Changed to use your 5-map eval suite
   - _self_
 
-run: krishnakanth.coop_rewardsharing_bucket.$(date +%m-%d).$(date +%H%M)
+run: krishnakanth.coop_rewardsharing_buckets.${now:%m%d_%H%M}
 cmd: train
 
 data_dir: ${oc.env:DATA_DIR,./train_dir}
