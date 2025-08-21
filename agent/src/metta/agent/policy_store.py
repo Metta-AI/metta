@@ -544,7 +544,12 @@ class PolicyStore:
         if self.initialize_empty_policy is None:
             raise ValueError("initialize_empty_policy must be set to load from safetensors format")
         pr = self.initialize_empty_policy.initialize_empty_policy(pr, self.base_path(path), self.checkpoint_name(path))
+
         self._cached_prs.put(path, pr)
+
+        if metadata_only:
+            pr._cached_policy = None
+
         return pr
 
     def _load_wandb_artifact(self, qualified_name: str):
