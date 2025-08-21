@@ -248,16 +248,19 @@ All tools are now run through `./tools/run.py` with recipe functions:
 
 ```bash
 # Training with arena recipe
-uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.train
+uv run ./tools/run.py experiments.recipes.arena.train --args run=my_experiment
 
-# Play/test a trained policy
-uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.play --policy_uri file://./checkpoints/policy.pt
+# Training with navigation recipe
+uv run ./tools/run.py experiments.recipes.navigation.train --args run=my_experiment
+
+# Play/test a trained policy (interactive browser)
+uv run ./tools/run.py experiments.recipes.arena.play
 
 # Run evaluation
-uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.evaluate --policy_uri file://./checkpoints/policy.pt
+uv run ./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=file://./checkpoints/policy.pt
 
 # View replays
-uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped.replay
+uv run ./tools/run.py experiments.recipes.arena.replay --overrides policy_uri=wandb://run/local.alice.1
 ```
 
 #### Configuration System
