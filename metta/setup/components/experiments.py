@@ -14,7 +14,7 @@ class ExperimentsSetup(SetupModule):
 
     @property
     def user_experiments_dir(self) -> Path:
-        return self.repo_root / "experiments" / "user"
+        return self.repo_root / "experiments" / "recipes" / "scratchpad"
 
     @property
     def _personal_experiments_path(self) -> Path:
