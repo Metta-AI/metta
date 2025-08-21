@@ -9,7 +9,7 @@ from metta.mettagrid.mettagrid_c import (
     dtype_truncations,
 )
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from metta.mettagrid.util.actions import (
+from metta.mettagrid.test_support.actions import (
     Orientation,
     get_agent_position,
     move,
@@ -43,7 +43,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         "actions": {
             "noop": {"enabled": True},
             "get_items": {"enabled": True},
-            "move_8way": {"enabled": True},
+            "move": {"enabled": True},
             "put_items": {"enabled": True},
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "swap": {"enabled": True},
@@ -107,7 +107,7 @@ def collect_heart_from_altar(env):
         if not move_result["success"]:
             return False, 0.0
 
-    # With move_8way, we don't need to rotate - just collect directly
+    # With move, we don't need to rotate - just collect directly
     # The get_items action will work from any adjacent position
 
     # Collect heart

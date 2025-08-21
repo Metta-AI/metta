@@ -26,7 +26,7 @@ def test_swap():
         "inventory_item_names": [],
         "actions": {
             "noop": {"enabled": True},
-            "move_8way": {"enabled": True},
+            "move": {"enabled": True},
             "swap": {
                 "enabled": True,
             },
@@ -81,13 +81,13 @@ def test_swap():
         pytest.fail("Swap with non-swappable wall should have failed!")
     print("  ✓ Swap correctly rejected (wall is not swappable)")
 
-    # Now use move_8way to face right (toward the block)
+    # Now use move to face right (toward the block)
     # Agent starts at (1,1) facing Up (orientation=0)
     # Block is at (1,2) to the right
-    # We can use move_8way with direction 2 (East) to face right
+    # We can use move with direction 2 (East) to face right
     # But since there's a block there, we'll just face that direction without moving
-    print("\nUsing move_8way to face right (toward block):")
-    move_idx = env.action_names().index("move_8way")
+    print("\nUsing move to face right (toward block):")
+    move_idx = env.action_names().index("move")
     actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # 2 = East in 8-way
     env.step(actions)
     # The move will fail (blocked by the block) but the agent will still turn to face East
@@ -128,7 +128,6 @@ def test_swap():
     print("\nSUCCESS: Layers were correctly preserved during swap!")
 
 
-# TODO -- consider moving this to actions integration test file
 def test_swap_frozen_agent_preserves_layers():
     """Test that swap_objects preserves layers when swapping with a frozen agent.
 
@@ -166,7 +165,8 @@ def test_swap_frozen_agent_preserves_layers():
         "inventory_item_names": ["laser"],
         "actions": {
             "noop": {"enabled": True},
-            "move_8way": {"enabled": True},
+            "move": {"enabled": True},
+            "rotate": {"enabled": True},
             "attack": {
                 "enabled": True,
             },
@@ -232,12 +232,13 @@ def test_swap_frozen_agent_preserves_layers():
     attack_idx = env.action_names().index("attack")
     swap_idx = env.action_names().index("swap")
     noop_idx = env.action_names().index("noop")
-    move_idx = env.action_names().index("move_8way")
+    move_idx = env.action_names().index("move")
+    rotate_idx = env.action_names().index("rotate")
 
     # Agent 0 needs to face right to attack agent 1
-    print("\nAgent 0 using move_8way to face right:")
+    print("\nAgent 0 using move to face right:")
     actions = np.zeros((2, 2), dtype=dtype_actions)
-    actions[0] = [move_idx, 2]  # Agent 0: move_8way East (will be blocked but turns to face right)
+    actions[0] = [rotate_idx, 3]  # Rotate to Right
     actions[1] = [noop_idx, 0]  # Agent 1: do nothing
     env.step(actions)
 
@@ -274,8 +275,8 @@ def test_swap_frozen_agent_preserves_layers():
     actions[1] = [noop_idx, 0]  # Agent 1: do nothing (frozen)
     env.step(actions)
 
-    # Use move_8way to face down (direction 4 = South)
-    actions[0] = [move_idx, 4]  # Agent 0: move_8way South (will be blocked but turns to face down)
+    # Use move to face down (direction 4 = South)
+    actions[0] = [move_idx, 4]  # Agent 0: move South (will be blocked but turns to face down)
     actions[1] = [noop_idx, 0]  # Agent 1: do nothing (frozen)
     env.step(actions)
 

@@ -9,7 +9,7 @@ from metta.mettagrid.mettagrid_c import (
     dtype_truncations,
 )
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from metta.mettagrid.util.actions import (
+from metta.mettagrid.test_support.actions import (
     Orientation,
     get_agent_position,
     move,
@@ -33,7 +33,7 @@ def base_config():
         "inventory_item_names": ["laser", "armor"],
         "actions": {
             "noop": {"enabled": True},
-            "move_8way": {"enabled": True},
+            "move": {"enabled": True},
             "get_items": {"enabled": True},  # maps to get_output
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "put_items": {"enabled": True},  # maps to get_recipe_items

@@ -34,7 +34,7 @@ class TestNewEnvironmentHierarchy:
             game=GameConfig(
                 num_agents=1,
                 actions=ActionsConfig(
-                    move_8way=ActionConfig(),
+                    move=ActionConfig(),
                     noop=ActionConfig(),
                     rotate=ActionConfig(),
                 ),
@@ -63,7 +63,7 @@ class TestNewEnvironmentHierarchy:
             game=GameConfig(
                 num_agents=1,
                 actions=ActionsConfig(
-                    move_8way=ActionConfig(),
+                    move=ActionConfig(),
                     noop=ActionConfig(),
                     rotate=ActionConfig(),
                 ),
@@ -106,7 +106,7 @@ class TestNewEnvironmentHierarchy:
             game=GameConfig(
                 num_agents=3,
                 actions=ActionsConfig(
-                    move_8way=ActionConfig(),
+                    move=ActionConfig(),
                     noop=ActionConfig(),
                     rotate=ActionConfig(),
                 ),
@@ -142,7 +142,7 @@ class TestNewEnvironmentHierarchy:
             game=GameConfig(
                 num_agents=3,
                 actions=ActionsConfig(
-                    move_8way=ActionConfig(),
+                    move=ActionConfig(),
                     noop=ActionConfig(),
                     rotate=ActionConfig(),
                 ),

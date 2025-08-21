@@ -77,7 +77,7 @@ def test_gym_env():
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
-                move_8way=ActionConfig(),
+                move=ActionConfig(),
                 noop=ActionConfig(),
                 rotate=ActionConfig(),
             ),
@@ -137,7 +137,7 @@ def test_pettingzoo_env():
         game=GameConfig(
             num_agents=3,
             actions=ActionsConfig(
-                move_8way=ActionConfig(),
+                move=ActionConfig(),
                 noop=ActionConfig(),
                 rotate=ActionConfig(),
             ),

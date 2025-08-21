@@ -51,7 +51,7 @@ def create_minimal_mettagrid_c_env(max_steps=10, width=5, height=5, config_overr
         "actions": {
             # don't really care about the actions for this test
             "noop": {"enabled": True},
-            "move_8way": {"enabled": True},
+            "move": {"enabled": True},
             "attack": {"enabled": False},
             "put_items": {"enabled": False},
             "get_items": {"enabled": False},

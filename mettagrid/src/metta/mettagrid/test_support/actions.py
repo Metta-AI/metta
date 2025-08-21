@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -8,43 +7,8 @@ from metta.mettagrid import (
     dtype_actions,
 )
 from metta.mettagrid.mettagrid_c import MettaGrid
-
-
-class Orientation(Enum):
-    UP = 0
-    DOWN = 1
-    LEFT = 2
-    RIGHT = 3
-
-    def __new__(cls, value):
-        """Create new Orientation instance."""
-        if isinstance(value, str):
-            # Handle string initialization like Orientation("up")
-            value = value.upper()
-            for member in cls:
-                if member.name == value:
-                    return member
-            raise ValueError(f"Invalid orientation string: '{value}'. Valid options: {[m.name.lower() for m in cls]}")
-
-        # Handle integer initialization (internal use)
-        obj = object.__new__(cls)
-        obj._value_ = value
-        return obj
-
-    def __str__(self) -> str:
-        """String representation for printing."""
-        return self.name.lower()
-
-    @property
-    def movement_delta(self) -> tuple[int, int]:
-        """Get the (row_delta, col_delta) for this orientation."""
-        deltas = {
-            Orientation.UP: (-1, 0),
-            Orientation.DOWN: (1, 0),
-            Orientation.LEFT: (0, -1),
-            Orientation.RIGHT: (0, 1),
-        }
-        return deltas[self]
+from metta.mettagrid.test_support.compass import Compass
+from metta.mettagrid.test_support.orientation import Orientation
 
 
 def generate_valid_random_actions(
@@ -110,20 +74,13 @@ def generate_valid_random_actions(
     return actions
 
 
-def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[str, Any]:
+def move(env: MettaGrid, direction: Compass, agent_idx: int = 0) -> Dict[str, Any]:
     """
-    Simple tank-style movement helper for tests.
-    For direct movement (cardinal/8way), tests should create actions explicitly.
-
-    Example for 8-way movement:
-        action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-        # Map orientation to 8-way indices: UP=0, RIGHT=2, DOWN=4, LEFT=6
-        action[0] = [env.action_names().index("move_8way"), 0]  # North
-        env.step(action)
+    Movement helper supporting all 8 compass directions.
 
     Args:
         env: MettaGrid environment
-        orientation: Direction to move (UP, DOWN, LEFT, RIGHT)
+        direction: Compass direction (N, NE, E, SE, S, SW, W, NW)
         agent_idx: Agent index (default 0)
 
     Returns:
@@ -132,32 +89,25 @@ def move(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict[s
     result = {"success": False, "error": None}
     action_names = env.action_names()
 
-    # This helper now uses 8-way movement
-    if "move_8way" not in action_names:
+    if "move" not in action_names:
         result["error"] = "8-way movement not available"
         return result
 
-    move_8way_idx = action_names.index("move_8way")
-
-    # Map orientations to 8-way movement indices
-    # 0=N, 1=NE, 2=E, 3=SE, 4=S, 5=SW, 6=W, 7=NW
-    orientation_to_8way = {
-        Orientation.UP: 0,  # North
-        Orientation.RIGHT: 2,  # East
-        Orientation.DOWN: 4,  # South
-        Orientation.LEFT: 6,  # West
-    }
+    move_idx = action_names.index("move")
 
     # Get initial position for verification
     position_before = get_agent_position(env, agent_idx)
 
-    # Use direct 8-way movement in the specified direction
+    # Compass values map directly to movement indices
+    movement_idx = direction.value
+
+    # Use direct 8-way movement
     move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
-    move_action[agent_idx] = [move_8way_idx, orientation_to_8way[orientation]]
+    move_action[agent_idx] = [move_idx, movement_idx]
     env.step(move_action)
 
     if not env.action_success()[agent_idx]:
-        result["error"] = "Failed to move forward"
+        result["error"] = f"Failed to move {str(direction)}"
         return result
 
     # Check if position changed
@@ -176,7 +126,7 @@ def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> Dict
 
     Args:
         env: MettaGrid environment
-        orientation: Orientation enum, string ("up", "down", "left", "right"), or int (0=Up, 1=Down, 2=Left, 3=Right)
+        orientation: Orientation enum (UP, DOWN, LEFT, RIGHT)
         agent_idx: Agent index (default 0)
 
     Returns:
