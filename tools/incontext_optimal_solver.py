@@ -330,7 +330,7 @@ class InContextOptimalSolver:
         action_cost = (
             successful_conversions * 2  # Put + get for each converter
             + failed_attempts  # Failed attempts
-            + expected_sink_hits * 3  # Sink hit + restart actions
+            + expected_sink_hits * 2  # Sink hit
         )
 
         total_cost = movement_cost + action_cost
