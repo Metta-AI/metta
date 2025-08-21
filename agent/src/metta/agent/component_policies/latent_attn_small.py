@@ -39,7 +39,7 @@ class LatentAttnSmall(ComponentPolicy):
             ),
             "obs_latent_query_attn": ObsLatentAttn(
                 name="obs_latent_query_attn",
-                out_dim=64,  # Scaled up from 32 for small model
+                out_dim=32,  # Per original YAML
                 use_mask=True,
                 num_query_tokens=10,
                 query_token_dim=32,
@@ -49,7 +49,7 @@ class LatentAttnSmall(ComponentPolicy):
             ),
             "obs_latent_self_attn": ObsSelfAttn(
                 name="obs_latent_self_attn",
-                out_dim=256,  # Scaled up from 128 to match hidden_size
+                out_dim=128,  # Per original YAML
                 num_heads=4,
                 num_layers=2,
                 qk_dim=32,
@@ -59,12 +59,12 @@ class LatentAttnSmall(ComponentPolicy):
             ),
             "_core_": LSTM(
                 name="_core_",
-                nn_params=DictConfig({"hidden_size": 256, "num_layers": 2}),  # 2x tiny for small model
+                nn_params=DictConfig({"hidden_size": 128, "num_layers": 2}),  # Per original YAML
                 sources=[{"name": "obs_latent_self_attn"}],
             ),
             "critic_1": Linear(
                 name="critic_1",
-                nn_params=DictConfig({"out_features": 2048}),  # Scaled for small model
+                nn_params=DictConfig({"out_features": 1024}),  # Per original YAML
                 sources=[{"name": "_core_"}],
                 nonlinearity="nn.Tanh",
                 effective_rank=True,
@@ -79,13 +79,13 @@ class LatentAttnSmall(ComponentPolicy):
             ),
             "actor_1": Linear(
                 name="actor_1",
-                nn_params=DictConfig({"out_features": 1024}),  # Scaled for small model
+                nn_params=DictConfig({"out_features": 512}),  # Per original YAML
                 sources=[{"name": "_core_"}],
                 **self.agent_attributes,
             ),
             "_action_embeds_": ActionEmbedding(
                 name="_action_embeds_",
-                nn_params=DictConfig({"num_embeddings": 100, "embedding_dim": 32}),  # Scaled for small model
+                nn_params=DictConfig({"num_embeddings": 100, "embedding_dim": 16}),  # Per original YAML
                 sources=None,
             ),
             "_action_": MettaActorSingleHead(

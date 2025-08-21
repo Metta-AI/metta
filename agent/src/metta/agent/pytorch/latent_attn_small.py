@@ -21,8 +21,8 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
         env,
         policy=None,
         cnn_channels=128,
-        input_size=256,  # 2x tiny for small model
-        hidden_size=256,  # 2x tiny for small model
+        input_size=128,  # Same as tiny per original YAML
+        hidden_size=128,  # Same as tiny per original YAML
         num_layers=2,
         **kwargs,
     ):
@@ -104,7 +104,7 @@ class LatentAttnSmall(PyTorchAgentMixin, LSTMWrapper):
 
 
 class Policy(nn.Module):
-    def __init__(self, env, input_size=256, hidden_size=256):  # 2x tiny for small model
+    def __init__(self, env, input_size=128, hidden_size=128):  # Same as tiny per original YAML
         super().__init__()
         self.hidden_size = hidden_size
         self.input_size = input_size
@@ -128,7 +128,7 @@ class Policy(nn.Module):
         )
 
         self.obs_latent_query_attn = ObsLatentAttn(
-            out_dim=64,  # Scaled up from 32 for small model
+            out_dim=32,  # Per original YAML
             _feat_dim=41,
             use_mask=True,
             num_query_tokens=10,
@@ -137,7 +137,7 @@ class Policy(nn.Module):
             num_layers=1,
         )
         self.obs_latent_self_attn = ObsSelfAttn(
-            out_dim=256,  # Scaled up from 128 to match hidden_size
+            out_dim=128,  # Per original YAML
             _feat_dim=32,
             num_heads=4,
             num_layers=2,
@@ -146,9 +146,9 @@ class Policy(nn.Module):
         )
 
         # Define layer dimensions as named attributes to avoid magic numbers
-        self.actor_hidden_dim = 1024  # Actor feature dimension (scaled for small)
-        self.action_embed_dim = 32  # Action embedding dimension (scaled for small)
-        self.critic_hidden_dim = 2048  # Critic hidden dimension (scaled for small)
+        self.actor_hidden_dim = 512  # Actor feature dimension (per original YAML)
+        self.action_embed_dim = 16  # Action embedding dimension (per original YAML)
+        self.critic_hidden_dim = 1024  # Critic hidden dimension (per original YAML)
 
         self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.critic_hidden_dim))
         self.value_head = pufferlib.pytorch.layer_init(nn.Linear(self.critic_hidden_dim, 1), std=1.0)

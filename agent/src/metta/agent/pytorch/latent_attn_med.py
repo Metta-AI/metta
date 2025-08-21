@@ -21,8 +21,8 @@ class LatentAttnMed(PyTorchAgentMixin, LSTMWrapper):
         env,
         policy=None,
         cnn_channels=128,
-        input_size=512,  # 4x tiny for medium model
-        hidden_size=512,  # 4x tiny for medium model
+        input_size=128,  # Same as tiny per original YAML
+        hidden_size=128,  # Same as tiny per original YAML
         num_layers=2,
         **kwargs,
     ):
@@ -104,7 +104,7 @@ class LatentAttnMed(PyTorchAgentMixin, LSTMWrapper):
 
 
 class Policy(nn.Module):
-    def __init__(self, env, input_size=512, hidden_size=512):  # 4x tiny for medium model
+    def __init__(self, env, input_size=128, hidden_size=128):  # Same as tiny per original YAML
         super().__init__()
         self.hidden_size = hidden_size
         self.input_size = input_size
@@ -128,16 +128,16 @@ class Policy(nn.Module):
         )
 
         self.obs_latent_query_attn = ObsLatentAttn(
-            out_dim=128,  # Scaled up from 32 for medium model
+            out_dim=32,  # Per original YAML
             _feat_dim=45,
             use_mask=True,
             num_query_tokens=10,
-            query_token_dim=64,  # Scaled up from 32
+            query_token_dim=32,  # Per original YAML
             num_heads=8,
             num_layers=3,
         )
         self.obs_latent_self_attn = ObsSelfAttn(
-            out_dim=512,  # Scaled up from 128 to match hidden_size
+            out_dim=128,  # Per original YAML
             _feat_dim=32,
             num_heads=8,
             num_layers=3,
@@ -146,9 +146,9 @@ class Policy(nn.Module):
         )
 
         # Define layer dimensions as named attributes to avoid magic numbers
-        self.actor_hidden_dim = 2048  # Actor feature dimension (scaled for medium)
-        self.action_embed_dim = 64  # Action embedding dimension (scaled for medium)
-        self.critic_hidden_dim = 4096  # Critic hidden dimension (scaled for medium)
+        self.actor_hidden_dim = 512  # Actor feature dimension (per original YAML)
+        self.action_embed_dim = 16  # Action embedding dimension (per original YAML)
+        self.critic_hidden_dim = 1024  # Critic hidden dimension (per original YAML)
 
         self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.critic_hidden_dim))
         self.value_head = pufferlib.pytorch.layer_init(nn.Linear(self.critic_hidden_dim, 1), std=1.0)
