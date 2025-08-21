@@ -19,128 +19,17 @@ def make_ascii_env(max_steps: int, ascii_map: str, border_width: int = 1) -> Env
     env.game.map_builder = MapGen.Config.with_ascii_uri(
         ascii_map, border_width=border_width
     )
+    return make_nav_eval_env(env)
+
+
+def ascii_eval_env(name: str, max_steps: int) -> EnvConfig:
+    ascii_map = f"mettagrid/configs/maps/navigation/{name}.map"
+    return make_ascii_env(max_steps=max_steps, ascii_map=ascii_map)
+
+
+def make_nav_eval_env(env: EnvConfig) -> EnvConfig:
     env.game.agent.rewards.inventory.heart = 0.333
     return env
-
-
-def make_corridors_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=450,
-        ascii_map="configs/env/mettagrid/maps/navigation/corridors.map",
-    )
-
-
-def make_cylinder_easy_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=250,
-        ascii_map="configs/env/mettagrid/maps/navigation/cylinder_easy.map",
-    )
-
-
-def make_cylinder_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=250,
-        border_width=10,  # I have no idea if this is important -- Slava
-        ascii_map="configs/env/mettagrid/maps/navigation/cylinder.map",
-    )
-
-
-def make_honeypot_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=300,
-        ascii_map="configs/env/mettagrid/maps/navigation/honeypot.map",
-    )
-
-
-def make_knotty_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=500,
-        ascii_map="configs/env/mettagrid/maps/navigation/knotty.map",
-    )
-
-
-def make_memory_palace_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=200,
-        ascii_map="configs/env/mettagrid/maps/navigation/memory_palace.map",
-    )
-
-
-def make_obstacles0_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=100,
-        ascii_map="configs/env/mettagrid/maps/navigation/obstacles0.map",
-    )
-
-
-def make_obstacles1_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=300,
-        ascii_map="configs/env/mettagrid/maps/navigation/obstacles1.map",
-    )
-
-
-def make_obstacles2_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=350,
-        ascii_map="configs/env/mettagrid/maps/navigation/obstacles2.map",
-    )
-
-
-def make_obstacles3_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=300,
-        ascii_map="configs/env/mettagrid/maps/navigation/obstacles3.map",
-    )
-
-
-def make_radial_large_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=1000,
-        ascii_map="configs/env/mettagrid/maps/navigation/radial_large.map",
-    )
-
-
-def make_radial_mini_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=150,
-        ascii_map="configs/env/mettagrid/maps/navigation/radial_mini.map",
-    )
-
-
-def make_radial_small_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=120,
-        ascii_map="configs/env/mettagrid/maps/navigation/radial_small.map",
-    )
-
-
-def make_radialmaze_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=200,
-        ascii_map="configs/env/mettagrid/maps/navigation/radial_maze.map",
-    )
-
-
-def make_swirls_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=350,
-        ascii_map="configs/env/mettagrid/maps/navigation/swirls.map",
-    )
-
-
-def make_thecube_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=350,
-        ascii_map="configs/env/mettagrid/maps/navigation/thecube.map",
-    )
-
-
-def make_walkaround_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=250,
-        ascii_map="configs/env/mettagrid/maps/navigation/walkaround.map",
-    )
 
 
 def make_walls_outofsight_env() -> EnvConfig:
@@ -157,8 +46,7 @@ def make_walls_outofsight_env() -> EnvConfig:
             )
         ),
     )
-    env.game.agent.rewards.inventory.heart = 0.333
-    return env
+    return make_nav_eval_env(env)
 
 
 def make_walls_sparse_env() -> EnvConfig:
@@ -175,8 +63,7 @@ def make_walls_sparse_env() -> EnvConfig:
             )
         ),
     )
-    env.game.agent.rewards.inventory.heart = 0.333
-    return env
+    return make_nav_eval_env(env)
 
 
 def make_walls_withinsight_env() -> EnvConfig:
@@ -193,15 +80,7 @@ def make_walls_withinsight_env() -> EnvConfig:
             )
         ),
     )
-    env.game.agent.rewards.inventory.heart = 0.333
-    return env
-
-
-def make_wanderout_env() -> EnvConfig:
-    return make_ascii_env(
-        max_steps=500,
-        ascii_map="configs/env/mettagrid/maps/navigation/wanderout.map",
-    )
+    return make_nav_eval_env(env)
 
 
 def make_emptyspace_outofsight_env() -> EnvConfig:
@@ -218,8 +97,7 @@ def make_emptyspace_outofsight_env() -> EnvConfig:
             )
         ),
     )
-    env.game.agent.rewards.inventory.heart = 0.333
-    return env
+    return make_nav_eval_env(env)
 
 
 def make_emptyspace_withinsight_env() -> EnvConfig:
@@ -236,8 +114,7 @@ def make_emptyspace_withinsight_env() -> EnvConfig:
             )
         ),
     )
-    env.game.agent.rewards.inventory.heart = 0.333
-    return env
+    return make_nav_eval_env(env)
 
 
 def make_emptyspace_sparse_medium_env() -> EnvConfig:
@@ -278,12 +155,11 @@ def make_emptyspace_sparse_medium_env() -> EnvConfig:
             ],
         ),
     )
-    env.game.agent.rewards.inventory.heart = 0.333
-    return env
+    return make_nav_eval_env(env)
 
 
 def make_emptyspace_sparse_env() -> EnvConfig:
-    env = make_navigation(num_agents=4)
+    env = make_navigation(num_agents=1)
     env.game.max_steps = 300
     env.game.map_builder = MapGen.Config(
         width=60,
@@ -296,8 +172,7 @@ def make_emptyspace_sparse_env() -> EnvConfig:
             )
         ),
     )
-    env.game.agent.rewards.inventory.heart = 0.333
-    return env
+    return make_nav_eval_env(env)
 
 
 def make_labyrinth_env() -> EnvConfig:
@@ -359,52 +234,45 @@ def make_labyrinth_env() -> EnvConfig:
             ],
         ),
     )
-    env.game.agent.rewards.inventory.heart = 0.333
-    return env
+    return make_nav_eval_env(env)
 
 
 def make_navigation_eval_suite() -> list[SimulationConfig]:
     return [
-        SimulationConfig(name="corridors", env=make_nav_ascii_env("corridors", 450)),
+        SimulationConfig(name="corridors", env=ascii_eval_env("corridors", 450)),
         SimulationConfig(
-            name="cylinder_easy", env=make_nav_ascii_env("cylinder_easy", 250)
+            name="cylinder_easy", env=ascii_eval_env("cylinder_easy", 250)
         ),
-        SimulationConfig(name="cylinder", env=make_nav_ascii_env("cylinder", 250)),
-        SimulationConfig(name="honeypot", env=make_nav_ascii_env("honeypot", 300)),
-        SimulationConfig(name="knotty", env=make_nav_ascii_env("knotty", 500)),
+        SimulationConfig(name="cylinder", env=ascii_eval_env("cylinder", 250)),
+        SimulationConfig(name="honeypot", env=ascii_eval_env("honeypot", 300)),
+        SimulationConfig(name="knotty", env=ascii_eval_env("knotty", 500)),
         SimulationConfig(
-            name="memory_palace", env=make_nav_ascii_env("memory_palace", 200)
+            name="memory_palace", env=ascii_eval_env("memory_palace", 200)
         ),
-        SimulationConfig(name="obstacles0", env=make_nav_ascii_env("obstacles0", 100)),
-        SimulationConfig(name="obstacles1", env=make_nav_ascii_env("obstacles1", 300)),
-        SimulationConfig(name="obstacles2", env=make_nav_ascii_env("obstacles2", 350)),
-        SimulationConfig(name="obstacles3", env=make_nav_ascii_env("obstacles3", 300)),
+        SimulationConfig(name="obstacles0", env=ascii_eval_env("obstacles0", 100)),
+        SimulationConfig(name="obstacles1", env=ascii_eval_env("obstacles1", 300)),
+        SimulationConfig(name="obstacles2", env=ascii_eval_env("obstacles2", 350)),
+        SimulationConfig(name="obstacles3", env=ascii_eval_env("obstacles3", 300)),
+        SimulationConfig(name="radial_large", env=ascii_eval_env("radial_large", 1000)),
+        SimulationConfig(name="radial_mini", env=ascii_eval_env("radial_mini", 150)),
+        SimulationConfig(name="radial_small", env=ascii_eval_env("radial_small", 120)),
+        SimulationConfig(name="radial_maze", env=ascii_eval_env("radial_maze", 200)),
+        SimulationConfig(name="swirls", env=ascii_eval_env("swirls", 350)),
+        SimulationConfig(name="thecube", env=ascii_eval_env("thecube", 350)),
+        SimulationConfig(name="walkaround", env=ascii_eval_env("walkaround", 250)),
+        SimulationConfig(name="wanderout", env=ascii_eval_env("wanderout", 500)),
         SimulationConfig(
-            name="radial_large", env=make_nav_ascii_env("radial_large", 1000)
+            name="emptyspace_outofsight", env=make_emptyspace_outofsight_env()
         ),
+        SimulationConfig(name="walls_outofsight", env=make_walls_outofsight_env()),
+        SimulationConfig(name="walls_sparse", env=make_walls_sparse_env()),
+        SimulationConfig(name="walls_withinsight", env=make_walls_withinsight_env()),
         SimulationConfig(
-            name="radial_mini", env=make_nav_ascii_env("radial_mini", 150)
-        ),
-        SimulationConfig(
-            name="radial_small", env=make_nav_ascii_env("radial_small", 120)
-        ),
-        SimulationConfig(
-            name="radial_maze", env=make_nav_ascii_env("radial_maze", 200)
-        ),
-        SimulationConfig(name="swirls", env=make_nav_ascii_env("swirls", 350)),
-        SimulationConfig(name="thecube", env=make_nav_ascii_env("thecube", 350)),
-        SimulationConfig(name="walkaround", env=make_nav_ascii_env("walkaround", 250)),
-        SimulationConfig(name="wanderout", env=make_nav_ascii_env("wanderout", 500)),
-        SimulationConfig(
-            name="emptyspace_outofsight",
-            env=make_nav_ascii_env("emptyspace_outofsight", 150),
+            name="emptyspace_withinsight", env=make_emptyspace_withinsight_env()
         ),
         SimulationConfig(
-            name="walls_outofsight", env=make_nav_ascii_env("walls_outofsight", 250)
+            name="emptyspace_sparse_medium", env=make_emptyspace_sparse_medium_env()
         ),
-        SimulationConfig(
-            name="walls_withinsight", env=make_nav_ascii_env("walls_withinsight", 120)
-        ),
-        SimulationConfig(name="labyrinth", env=make_nav_ascii_env("labyrinth", 250)),
         SimulationConfig(name="emptyspace_sparse", env=make_emptyspace_sparse_env()),
+        SimulationConfig(name="labyrinth", env=make_labyrinth_env()),
     ]
