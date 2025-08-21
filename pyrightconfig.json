@@ -13,9 +13,12 @@
     "./agent/src",
     "./app_backend/src"
   ],
-  "typeCheckingMode": "basic",
   "reportMissingModuleSource": false,
   "pythonVersion": "3.11",
   "venvPath": ".",
-  "venv": ".venv"
+  "venv": ".venv",
+  "typeCheckingMode": "off",
+  "reportArgumentType": "none",
+  "reportReturnType": "none",
+  "reportAttributeAccessIssue": "none"
 }

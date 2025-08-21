@@ -299,7 +299,7 @@ def train(
 
     # Instantiate world model used during rollout encoding/training
     world_model = WorldModel().to(device)
-    world_model_optimizer = torch.optim.Adam(world_model.parameters(), lr=0.001)
+    world_model_optimizer = torch.optim.Adam(world_model.parameters(), lr=0.0001)
 
     # World model pre-training phase
     world_model_pretraining_steps = 0
