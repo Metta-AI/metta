@@ -134,7 +134,7 @@ class SystemSetup(SetupModule):
         with open(pinned_deps_path, "r") as f:
             should_be_pinned = set([line.strip() for line in f if line.strip() and not line.strip().startswith("#")])
         result = self.run_command(["brew", "list", "--pinned"], capture_output=True)
-        currently_pinned = set(result.stdout.strip().split("\n")) if result.stdout.strip() else set()
+        currently_pinned = set(filter(None, result.stdout.strip().split("\n"))) if result.stdout.strip() else set()
         return list(should_be_pinned - currently_pinned)
 
     def _pin_formulae(self, formulae: list[str]) -> None:
