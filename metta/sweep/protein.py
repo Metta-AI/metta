@@ -311,6 +311,8 @@ def create_gp(x_dim, scale_length=1.0, device="cpu"):
     matern_kernel = gp.kernels.Matern32(input_dim=x_dim, lengthscale=scale_length * torch.ones(x_dim, device=device))
     linear_kernel = gp.kernels.Polynomial(input_dim=x_dim, degree=1)
     kernel = gp.kernels.Sum(linear_kernel, matern_kernel)
+    # Move kernel to device before creating model
+    kernel = kernel.to(device)
     model = gp.models.GPRegression(X, y, kernel=kernel, jitter=1.0e-3)  # Increased jitter for stability
     model = model.to(device)
     # Keep noise as a positive tensor (simpler & numerically stable)
