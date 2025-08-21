@@ -33,6 +33,7 @@ from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
+from metta.rl.policy_initializer import PolicyInitializer
 from metta.rl.policy_management import (
     initialize_policy_for_environment,
     wrap_agent_distributed,
@@ -142,6 +143,15 @@ def train(
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
+    # Load or initialize policy via TrainerInitializer
+    initializer = PolicyInitializer(
+        agent_cfg=agent_cfg,
+        system_cfg=system_cfg,
+        metta_grid_env=metta_grid_env,
+        is_master=torch_dist_cfg.is_master,
+        device=device,
+    )
+
     # Create checkpoint manager
     checkpoint_manager = CheckpointManager(
         policy_store=policy_store,
@@ -161,15 +171,6 @@ def train(
         logger.info(f"Restored from checkpoint at {agent_step} steps")
         if checkpoint.stopwatch_state is not None:
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
-
-    # Load or initialize policy with distributed coordination
-    initial_policy_record = latest_saved_policy_record = checkpoint_manager.load_or_create_policy(
-        agent_cfg=agent_cfg,
-        system_cfg=system_cfg,
-        trainer_cfg=trainer_cfg,
-        checkpoint=checkpoint,
-        metta_grid_env=metta_grid_env,
-    )
 
     # Don't proceed until all ranks have the policy
     if torch.distributed.is_initialized():
@@ -196,8 +197,11 @@ def train(
         policy_record=latest_saved_policy_record,
         metta_grid_env=metta_grid_env,
         device=device,
-        restore_feature_mapping=True,
     )
+
+    # warning - spaghetti code
+    policy_store.agent_factory = initializer.get_blank_policy
+    initial_policy_record, latest_saved_policy_record, policy = initializer.get_initial_policy()
 
     # Create kickstarter
     kickstarter = Kickstarter(

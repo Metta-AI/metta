@@ -14,12 +14,15 @@ import logging
 import os
 import random
 import sys
+from pathlib import Path
 from typing import Any, Literal
+from urllib.parse import urlparse
 
 import torch
 import wandb
 from omegaconf import DictConfig
 
+from metta.agent import policy_metadata_yaml_helper
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
@@ -27,6 +30,7 @@ from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config import Config
 from metta.common.wandb.wandb_context import WandbConfig, WandbRun
 from metta.rl.puffer_policy import load_pytorch_policy
+from metta.rl.trainer_config import CheckpointFileType
 from metta.sim.utils import get_pr_scores_from_stats_server
 
 logger = logging.getLogger("policy_store")
@@ -63,6 +67,7 @@ class PolicyStore:
         self._wandb_run: WandbRun | None = wandb_run
         self._cached_prs = PolicyCache(max_size=policy_cache_size)
         self._made_codebase_backwards_compatible = False
+        self.agent_factory = None
 
     def policy_record(
         self,
@@ -249,15 +254,15 @@ class PolicyStore:
             logger.warning(f"Metric '{metric}' not found in policy metadata")
             return {p: None for p in prs}
 
-    def make_model_name(self, epoch: int) -> str:
-        return f"model_{epoch:04d}.pt"
+    def make_model_name(self, epoch: int, model_suffix: str) -> str:
+        return f"model_{epoch:04d}{model_suffix}"
 
     def create_empty_policy_record(self, name: str, checkpoint_dir: str) -> PolicyRecord:
         path = os.path.join(checkpoint_dir, name)
         metadata = PolicyMetadata()
         return PolicyRecord(self, name, f"file://{path}", metadata)
 
-    def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
+    def save_to_pt_file(self, pr: PolicyRecord, path: str | None) -> str:
         """Save a policy record using the simple torch.save approach with atomic file operations."""
         if path is None:
             if hasattr(pr, "file_path"):
@@ -290,12 +295,44 @@ class PolicyStore:
                     os.remove(temp_path)
                 except OSError:
                     pass
+        return path
+
+    def save_to_safetensors_file(self, pr: PolicyRecord, path: str | None) -> str:
+        """Save a policy record using safetensors format with YAML metadata sidecar."""
+        if path is None:
+            if hasattr(pr, "file_path"):
+                path = pr.file_path
+            elif pr.uri is not None:
+                path = pr.uri[7:] if pr.uri.startswith("file://") else pr.uri
+            else:
+                raise ValueError("PolicyRecord has no file_path or uri")
+
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+
+        # Get checkpoint directory and name
+        checkpoint_dir = os.path.dirname(path)
+        checkpoint_name = os.path.splitext(os.path.basename(path))[0]
+
+        # Save .safetensors file (just the model weights/state dict)
+        safetensors_path = policy_metadata_yaml_helper.save_policy(pr, checkpoint_name, Path(checkpoint_dir))
+        return str(safetensors_path)
+
+    def save(
+        self, pr: PolicyRecord, checkpoint_file_type: CheckpointFileType = "pt", path: str | None = None
+    ) -> PolicyRecord:
+        # if saving both, take path from safetensors
+        if checkpoint_file_type in ["safetensors", "pt_also_emit_safetensors"]:
+            path = self.save_to_safetensors_file(pr, path)
+        if checkpoint_file_type in ["pt", "pt_also_emit_safetensors"]:
+            path = self.save_to_pt_file(pr, path)
 
         # Don't cache the policy that we just saved,
         # since it might be updated later. We always
         # load the policy from the file when needed.
         pr._cached_policy = None
-        self._cached_prs.put(path, pr)
+        if path is not None:
+            self._cached_prs.put(path, pr)
         return pr
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
@@ -327,9 +364,29 @@ class PolicyStore:
 
         if path.endswith(".pt"):
             paths.append(path)
+        elif path.endswith(".safetensors"):
+            paths.append(path)
         else:
-            paths.extend([os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")])
-        return [self._load_from_file(path, metadata_only=True) for path in paths]
+            # Look for both .pt and .safetensors files in directory
+            pt_files = [os.path.join(path, p) for p in os.listdir(path) if p.endswith(".pt")]
+            safetensors_files = [os.path.join(path, p) for p in os.listdir(path) if p.endswith(".safetensors")]
+            paths.extend(pt_files)
+            paths.extend(safetensors_files)
+
+        policy_records = []
+        for path in paths:
+            policy_records.append(self._load_from_file(path, metadata_only=True))
+
+        return policy_records
+
+    def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+        """Load a PolicyRecord from a file, automatically detecting format based on extension."""
+        if path.endswith(".pt"):
+            return self._load_from_pt_file(path, metadata_only)
+        elif path.endswith(".safetensors"):
+            return self._load_from_safetensorsfile(path, metadata_only)
+        else:
+            raise ValueError(f"Unsupported file format: {path}. Expected .pt or .safetensors")
 
     def _prs_from_wandb_artifact(self, uri: str, version: str | None = None) -> list[PolicyRecord]:
         """
@@ -361,7 +418,8 @@ class PolicyStore:
         if uri.startswith("wandb://"):
             return self._load_wandb_artifact(uri[len("wandb://") :])
         if uri.startswith("file://"):
-            return self._load_from_file(uri[len("file://") :])
+            file_path = uri[len("file://") :]
+            return self._load_from_file(file_path)
         if uri.startswith("pytorch://"):
             return self._load_from_pytorch(uri[len("pytorch://") :])
         if "://" not in uri:
@@ -423,7 +481,7 @@ class PolicyStore:
                 if submodule_name in sys.modules:
                     modules_queue.append(submodule_name)
 
-    def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+    def _load_from_pt_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a PolicyRecord from a file using simple torch.load."""
         cached_pr = self._cached_prs.get(path)
         if cached_pr is not None:
@@ -455,6 +513,32 @@ class PolicyStore:
         if metadata_only:
             pr._cached_policy = None
 
+        return pr
+
+    def checkpoint_name(self, url: str) -> str:
+        path = urlparse(url).path  # "/path/to/file.txt"
+        filename = os.path.basename(path)  # "file.txt"
+        name, _ = os.path.splitext(filename)  # ("file", ".txt")
+        return name
+
+    def base_path(self, url: str) -> str:
+        parsed = urlparse(url)
+        # Remove the last segment from the path
+        path = parsed.path.rsplit("/", 1)[0]
+        return parsed._replace(path=path).geturl()
+
+    def _load_from_safetensorsfile(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+        """Load a PolicyRecord from safetensors format with YAML metadata sidecar."""
+        path = str(Path(path))
+        cached_pr = self._cached_prs.get(path)
+        if cached_pr is not None:
+            if metadata_only or cached_pr._cached_policy is not None:
+                return cached_pr
+
+        pr = self.agent_factory()
+        policy_metadata_yaml_helper.restore_agent(pr.policy, self.checkpoint_name(path), Path(self.base_path(path)))
+
+        self._cached_prs.put(path, pr)
         return pr
 
     def _load_wandb_artifact(self, qualified_name: str):
