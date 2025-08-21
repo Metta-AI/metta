@@ -8,6 +8,7 @@ seeds across available devices for parallel execution.
 
 import argparse
 import os
+import sys
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -19,8 +20,12 @@ import torch
 import torch.distributed as dist
 from tabulate import tabulate
 
+# Add parent directory to path to import protein directly
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from protein import Protein  # Import directly to avoid sweep module conflicts
+
 from metta.common.wandb.wandb_context import WandbConfig, WandbContext
-from metta.sweep.protein import Protein
 
 
 @dataclass
@@ -482,7 +487,9 @@ def worker_process(
             combined_results = {}
             combined_elapsed = {}
             combined_iter_data = []
-            for worker_results, worker_elapsed, worker_iter_data in zip(all_results, all_elapsed, all_iter_data, strict=False):
+            for worker_results, worker_elapsed, worker_iter_data in zip(
+                all_results, all_elapsed, all_iter_data, strict=False
+            ):
                 combined_results.update(worker_results)
                 combined_elapsed.update(worker_elapsed)
                 combined_iter_data.extend(worker_iter_data)
@@ -572,7 +579,7 @@ def run_distributed(
     """Run distributed optimization if torch.distributed is available."""
     if "LOCAL_RANK" in os.environ:
         # Running in distributed mode
-        local_rank = int(os.environ["LOCAL_RANK"])
+        _ = int(os.environ["LOCAL_RANK"])  # Validate LOCAL_RANK exists
         if not dist.is_initialized():
             dist.init_process_group(backend="nccl")
         rank = dist.get_rank()
@@ -581,7 +588,6 @@ def run_distributed(
         # Running in single-process mode
         rank = 0
         world_size = 1
-        local_rank = 0
 
     # Run worker process
     df = worker_process(rank, world_size, problem, config, output_dir, verbose, wandb_config)
@@ -763,7 +769,25 @@ for parallel execution, significantly speeding up multi-seed experiments.
 
         # Create and save summary (only on rank 0 or single process)
         if all_results:
-            from protein_analysis import create_summary_table
+            try:
+                from protein_analysis import create_summary_table
+            except ImportError:
+                # If protein_analysis not available, create a simple summary
+                def create_summary_table(results, problem):
+                    import pandas as pd
+
+                    summary_data = []
+                    for config_name, df in results.items():
+                        summary_data.append(
+                            {
+                                "Config": config_name,
+                                "Final Best": df["best_median"].iloc[-1] if "best_median" in df else 0,
+                                "Error": abs(df["best_median"].iloc[-1] - problem.optimum_value)
+                                if "best_median" in df
+                                else 0,
+                            }
+                        )
+                    return pd.DataFrame(summary_data)
 
             summary_df = create_summary_table(all_results, problem)
             summary_path = problem_dir / "summary.csv"
