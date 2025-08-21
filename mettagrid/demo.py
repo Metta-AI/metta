@@ -15,7 +15,7 @@ env_config.game.map_builder = RandomMapBuilder.Config(
 )
 
 env_config.game.actions = ActionsConfig(
-    move=ActionConfig(enabled=True),
+    move_8way=ActionConfig(enabled=True),
     rotate=ActionConfig(enabled=True),
 )
 

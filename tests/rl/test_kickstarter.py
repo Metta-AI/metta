@@ -40,7 +40,7 @@ class TestKickstarter:
     def mock_metta_grid_env(self):
         """Create a mock MettaGridEnv for testing."""
         env = MagicMock()
-        env.action_names = ["move", "attack"]
+        env.action_names = ["move_8way", "attack"]
         env.max_action_args = [4, 2]
         env.get_observation_features.return_value = MagicMock()  # Mock features
         return env

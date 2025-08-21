@@ -8,8 +8,6 @@ from metta.setup.utils import info, success
 
 @register_module
 class ExperimentsSetup(SetupModule):
-    install_once = True
-
     @property
     def description(self) -> str:
         return "Experiments"

@@ -6,7 +6,7 @@ import pytest
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.test_support.actions import generate_valid_random_actions
+from metta.mettagrid.util.actions import generate_valid_random_actions
 
 
 @pytest.fixture

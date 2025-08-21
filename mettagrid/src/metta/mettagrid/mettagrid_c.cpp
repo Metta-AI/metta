@@ -5,9 +5,9 @@
 
 #include <algorithm>
 #include <cmath>
-#include <iostream>
 #include <numeric>
 #include <random>
+#include <iostream>
 
 #include "action_handler.hpp"
 #include "actions/attack.hpp"
@@ -15,20 +15,22 @@
 #include "actions/change_glyph.hpp"
 #include "actions/get_output.hpp"
 #include "actions/move.hpp"
+#include "actions/move_cardinal.hpp"
+#include "actions/move_8way.hpp"
 #include "actions/noop.hpp"
-#include "actions/place_box.hpp"
 #include "actions/put_recipe_items.hpp"
+#include "actions/place_box.hpp"
 #include "actions/rotate.hpp"
 #include "actions/swap.hpp"
 #include "event.hpp"
 #include "grid.hpp"
 #include "hash.hpp"
 #include "objects/agent.hpp"
-#include "objects/box.hpp"
 #include "objects/constants.hpp"
 #include "objects/converter.hpp"
 #include "objects/production_handler.hpp"
 #include "objects/wall.hpp"
+#include "objects/box.hpp"
 #include "observation_encoder.hpp"
 #include "packed_coordinate.hpp"
 #include "renderer/hermes.hpp"
@@ -46,8 +48,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       _global_obs_config(cfg.global_obs),
       _num_observation_tokens(cfg.num_observation_tokens),
       _track_movement_metrics(cfg.track_movement_metrics),
-      _resource_loss_prob(cfg.resource_loss_prob),
-      _no_agent_interference(cfg.no_agent_interference) {
+      _no_agent_interference(cfg.no_agent_interference),
+      _resource_loss_prob(cfg.resource_loss_prob) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -100,7 +102,11 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
     } else if (action_name_str == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name_str == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(*action_config, _no_agent_interference));
+      _action_handlers.push_back(std::make_unique<Move>(*action_config, _track_movement_metrics, _no_agent_interference));
+    } else if (action_name_str == "move_8way") {
+      _action_handlers.push_back(std::make_unique<Move8Way>(*action_config, _no_agent_interference));
+    } else if (action_name_str == "move_cardinal") {
+      _action_handlers.push_back(std::make_unique<MoveCardinal>(*action_config));
     } else if (action_name_str == "rotate") {
       _action_handlers.push_back(std::make_unique<Rotate>(*action_config, _track_movement_metrics));
     } else if (action_name_str == "attack") {
@@ -373,8 +379,7 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
     auto& agent = _agents[agent_idx];
     auto visitation_counts = agent->get_visitation_counts();
     for (size_t i = 0; i < 5; i++) {
-      global_tokens.push_back(
-          {ObservationFeature::VisitationCounts, static_cast<ObservationType>(visitation_counts[i])});
+      global_tokens.push_back({ObservationFeature::VisitationCounts, static_cast<ObservationType>(visitation_counts[i])});
     }
   }
 
@@ -520,28 +525,28 @@ void MettaGrid::_step(Actions actions) {
     }
   }
 
-  // Handle resource loss
-  for (auto& agent : _agents) {
-    if (_resource_loss_prob > 0.0f) {
-      // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
-      // Make a real copy of the agent's inventory map to avoid iterator invalidation
-      const auto inventory_copy = agent->inventory;
-      for (const auto& [item, qty] : inventory_copy) {
-        if (qty > 0) {
-          float loss = _resource_loss_prob * qty;
-          int lost = static_cast<int>(std::floor(loss));
-          // With probability equal to the fractional part, lose one more
-          if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
-            lost += 1;
-          }
+     // Handle resource loss
+   for (auto& agent : _agents) {
+     if (_resource_loss_prob > 0.0f) {
+       // For every resource in an agent's inventory, it should disappear with probability _resource_loss_prob
+       // Make a real copy of the agent's inventory map to avoid iterator invalidation
+       const auto inventory_copy = agent->inventory;
+       for (const auto& [item, qty] : inventory_copy) {
+         if (qty > 0) {
+           double loss = _resource_loss_prob * qty;
+           int lost = static_cast<int>(std::floor(loss));
+           // With probability equal to the fractional part, lose one more
+           if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
+             lost += 1;
+           }
 
-          if (lost > 0) {
+           if (lost > 0) {
             agent->update_inventory(item, -static_cast<InventoryDelta>(lost));
-          }
-        }
-      }
-    }
-  }
+           }
+         }
+       }
+     }
+   }
 
   // Compute observations for next step
   _compute_observations(actions);
@@ -992,7 +997,9 @@ PYBIND11_MODULE(mettagrid_c, m) {
       .def_readwrite("swappable", &WallConfig::swappable);
 
   py::class_<BoxConfig, GridObjectConfig, std::shared_ptr<BoxConfig>>(m, "BoxConfig")
-      .def(py::init<TypeId, const std::string&, const std::map<InventoryItem, InventoryQuantity>&>(),
+      .def(py::init<TypeId,
+                    const std::string&,
+                    const std::map<InventoryItem, InventoryQuantity>&>(),
            py::arg("type_id"),
            py::arg("type_name") = "box",
            py::arg("resources_to_create"))
@@ -1181,10 +1188,10 @@ PYBIND11_MODULE(mettagrid_c, m) {
   m.attr("dtype_masks") = dtype_masks();
   m.attr("dtype_success") = dtype_success();
 
-#ifdef METTA_WITH_RAYLIB
+  #ifdef METTA_WITH_RAYLIB
   py::class_<HermesPy>(m, "Hermes")
       .def(py::init<>())
       .def("update", &HermesPy::update, py::arg("env"))
       .def("render", &HermesPy::render);
-#endif
+  #endif
 }

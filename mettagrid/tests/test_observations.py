@@ -33,7 +33,7 @@ def basic_env() -> MettaGridCore:
             num_observation_tokens=NUM_OBS_TOKENS,
             actions=ActionsConfig(
                 noop=ActionConfig(),
-                move=ActionConfig(),
+                move_8way=ActionConfig(),
                 rotate=ActionConfig(),
                 get_items=ActionConfig(),
             ),
@@ -65,7 +65,7 @@ def adjacent_agents_env() -> MettaGridCore:
             num_observation_tokens=NUM_OBS_TOKENS,
             actions=ActionsConfig(
                 noop=ActionConfig(),
-                move=ActionConfig(),
+                move_8way=ActionConfig(),
                 rotate=ActionConfig(),
                 get_items=ActionConfig(),
             ),
@@ -247,7 +247,7 @@ class TestObservations:
                 num_observation_tokens=NUM_OBS_TOKENS,
                 actions=ActionsConfig(
                     noop=ActionConfig(),
-                    move=ActionConfig(),
+                    move_8way=ActionConfig(),
                     rotate=ActionConfig(),
                     get_items=ActionConfig(),
                 ),
@@ -407,7 +407,7 @@ class TestGlobalTokens:
                 num_observation_tokens=NUM_OBS_TOKENS,
                 actions=ActionsConfig(
                     noop=ActionConfig(),
-                    move=ActionConfig(),
+                    move_8way=ActionConfig(),
                     rotate=ActionConfig(),
                     get_items=ActionConfig(),
                 ),
@@ -453,8 +453,8 @@ class TestGlobalTokens:
         last_arg = helper.find_token_value_at_location(obs[0], global_x, global_y, TokenTypes.LAST_ACTION_ARG)
         assert last_arg == 0, f"Expected last action arg 0, got {last_arg}"
 
-        # Take a move action
-        move_idx = env.action_names.index("move")
+        # Take a move_8way action
+        move_idx = env.action_names.index("move_8way")
         actions = np.full((num_agents, 2), [move_idx, 1], dtype=dtype_actions)
         obs, _, _, _, _ = env.step(actions)
 
@@ -498,7 +498,7 @@ class TestGlobalTokens:
                 num_observation_tokens=NUM_OBS_TOKENS,
                 actions=ActionsConfig(
                     noop=ActionConfig(),
-                    move=ActionConfig(),
+                    move_8way=ActionConfig(),
                     rotate=ActionConfig(),
                     get_items=ActionConfig(),
                     change_glyph=ChangeGlyphActionConfig(enabled=True, number_of_glyphs=8),
@@ -816,7 +816,7 @@ class TestEdgeObservations:
                 num_observation_tokens=NUM_OBS_TOKENS,
                 actions=ActionsConfig(
                     noop=ActionConfig(),
-                    move=ActionConfig(),
+                    move_8way=ActionConfig(),
                     rotate=ActionConfig(),
                     get_items=ActionConfig(),
                 ),
@@ -843,7 +843,7 @@ class TestEdgeObservations:
         obs, _ = env.reset()
 
         # Get action indices
-        move_idx = env.action_names.index("move")
+        move_idx = env.action_names.index("move_8way")
 
         # Verify initial position - agent should be at center of observation
         agent_tokens = helper.find_tokens_at_location(obs[0], 3, 3)
@@ -857,7 +857,7 @@ class TestEdgeObservations:
 
         print("\nInitial state: Agent at (2,2), altar at (7,5) - not visible")
 
-        # Move right 3 steps using move (direction 2 = East)
+        # Move right 3 steps using move_8way (direction 2 = East)
         for step in range(3):
             actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # 2 = East
             obs, _, _, _, _ = env.step(actions)
@@ -940,7 +940,7 @@ class TestEdgeObservations:
             actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # 2 = East
             obs, _, _, _, _ = env.step(actions)
 
-        # Move down to y=8 using move (direction 4 = South)
+        # Move down to y=8 using move_8way (direction 4 = South)
         for _ in range(6):
             actions = np.array([[move_idx, 4]], dtype=dtype_actions)  # 4 = South
             obs, _, _, _, _ = env.step(actions)

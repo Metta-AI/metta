@@ -81,7 +81,6 @@ protected:
       actor->stats.add("box.opened", 1.0f);
       return true;
     }
-    return false;
   }
 };
 

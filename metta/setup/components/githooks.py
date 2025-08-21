@@ -35,31 +35,6 @@ class CommitHookMode(Enum):
             return cls.get_default()
 
 
-class GitLeaksMode(Enum):
-    NONE = "none"
-    CHECK = "check"
-    BLOCK = "block"
-
-    def get_description(self) -> str:
-        descriptions = {
-            GitLeaksMode.NONE: "No secrets scanning",
-            GitLeaksMode.CHECK: "Scan and warn about secrets (non-blocking)",
-            GitLeaksMode.BLOCK: "Scan and block commits with secrets",
-        }
-        return descriptions.get(self, self.value)
-
-    @classmethod
-    def get_default(cls) -> "GitLeaksMode":
-        return GitLeaksMode.BLOCK
-
-    @classmethod
-    def parse(cls, value: str | None) -> "GitLeaksMode":
-        try:
-            return GitLeaksMode(value)
-        except ValueError:
-            return cls.get_default()
-
-
 @register_module
 class GitHooksSetup(SetupModule):
     install_once = True
@@ -158,84 +133,31 @@ class GitHooksSetup(SetupModule):
     def get_configuration_options(self) -> dict[str, tuple[str, str]]:
         return {
             "commit_hook_mode": (CommitHookMode.CHECK.value, "Pre-commit hook behavior"),
-            "gitleaks_mode": (GitLeaksMode.BLOCK.value, "Gitleaks secrets scanning behavior"),
         }
 
     def configure(self) -> None:
         info("Configuring git commit hooks...")
 
-        current_commit = CommitHookMode.parse(self.get_setting("commit_hook_mode", default=None))
-        current_gitleaks = GitLeaksMode.parse(self.get_setting("gitleaks_mode", default=None))
+        current = CommitHookMode.parse(self.get_setting("commit_hook_mode", default=None))
 
-        # Prompt for new modes
+        # Prompt for new mode
         if os.environ.get("METTA_TEST_ENV") or os.environ.get("CI"):
-            commit_mode = CommitHookMode.get_default()
-            gitleaks_mode = GitLeaksMode.get_default()
+            mode = CommitHookMode.get_default()
         else:
-            commit_mode = prompt_choice(
+            mode = prompt_choice(
                 "Select pre-commit hook behavior:",
                 [(mode, mode.get_description()) for mode in CommitHookMode],
                 default=CommitHookMode.get_default(),
-                current=current_commit,
+                current=current,
             )
 
-            gitleaks_mode = prompt_choice(
-                "Select gitleaks secrets scanning behavior:",
-                [(mode, mode.get_description()) for mode in GitLeaksMode],
-                default=GitLeaksMode.get_default(),
-                current=current_gitleaks,
-            )
+        # Save the setting (only if non-default)
+        self.set_setting("commit_hook_mode", mode.value)
 
-        # Save the settings
-        self.set_setting("commit_hook_mode", commit_mode.value)
-        self.set_setting("gitleaks_mode", gitleaks_mode.value)
-
-        if commit_mode.value == CommitHookMode.CHECK.value:
+        if mode.value == CommitHookMode.CHECK.value:
             info("Using default mode: check only")
         else:
-            print(f"Commit hook mode set to: {green(commit_mode.get_description())}")
-
-        print(f"Gitleaks mode set to: {green(gitleaks_mode.get_description())}")
-
-    def _check_gitleaks_installed(self) -> bool:
-        try:
-            subprocess.run(
-                ["gitleaks", "version"],
-                capture_output=True,
-                check=True,
-            )
-            return True
-        except (subprocess.CalledProcessError, FileNotFoundError):
-            return False
-
-    def _run_gitleaks(self, gitleaks_mode: GitLeaksMode) -> bool:
-        if gitleaks_mode == GitLeaksMode.NONE:
-            return True
-
-        if not self._check_gitleaks_installed():
-            info("Gitleaks not installed. Install with: brew install gitleaks")
-            info("Skipping secrets scanning...")
-            return True
-
-        info("Scanning for secrets with gitleaks...")
-        try:
-            subprocess.run(
-                ["gitleaks", "protect", "--staged", "-v"],
-                cwd=self.repo_root,
-                check=True,
-            )
-            success("No secrets detected")
-            return True
-        except subprocess.CalledProcessError:
-            error("Gitleaks detected potential secrets in staged files!")
-            error("Review the output above and remove any secrets before committing.")
-
-            if gitleaks_mode == GitLeaksMode.BLOCK:
-                error("Commit blocked due to detected secrets.")
-                return False
-            else:
-                info("Warning: Proceeding despite detected secrets (check mode).")
-                return True
+            print(f"Commit hook mode set to: {green(mode.get_description())}")
 
     def run(self, args: list[str]) -> None:
         if not args or args[0] != "pre-commit":
@@ -243,11 +165,6 @@ class GitHooksSetup(SetupModule):
             sys.exit(1)
 
         hook_mode = CommitHookMode.parse(self.get_setting("commit_hook_mode", default=None))
-        gitleaks_mode = GitLeaksMode.parse(self.get_setting("gitleaks_mode", default=None))
-
-        # Run gitleaks check first
-        if not self._run_gitleaks(gitleaks_mode):
-            sys.exit(1)
 
         if hook_mode == CommitHookMode.NONE:
             sys.exit(0)

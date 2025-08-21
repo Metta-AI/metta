@@ -41,7 +41,7 @@ def create_stats_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         "inventory_item_names": ["laser", "armor"],
         "actions": {
             "noop": {"enabled": True},
-            "move": {"enabled": True},
+            "move_8way": {"enabled": True},
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
         },
         "groups": {
@@ -51,7 +51,7 @@ def create_stats_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
                     "rewards": {
                         "inventory": {},  # No inventory rewards
                         "stats": {
-                            "action.move.success": 0.1,  # 0.1 reward per successful move
+                            "action.move_8way.success": 0.1,  # 0.1 reward per successful move_8way
                             "action.attack.success": 1.0,  # 1.0 reward per successful attack
                             "action.attack.success_max": 5.0,  # Max 5.0 total reward from attacks
                         },
@@ -79,9 +79,9 @@ class TestStatsRewards:
 
         # Get action indices
         action_names = env.action_names()
-        move_idx = action_names.index("move")
+        move_idx = action_names.index("move_8way")
 
-        # No need to rotate with move - we can move directly in any direction
+        # No need to rotate with move_8way - we can move directly in any direction
 
         # Agent should get 0.1 reward per successful move
         actions = np.array([[move_idx, 4]], dtype=np.int32)  # Move down (South) in 8-way
@@ -99,25 +99,25 @@ class TestStatsRewards:
 
         # Get action indices
         action_names = env.action_names()
-        move_idx = action_names.index("move")
+        move_idx = action_names.index("move_8way")
 
         # Do several moves to accumulate move rewards
         total_reward = 0.0
         successful_moves = 0
 
-        # Move down using move (direction 4 = South)
+        # Move down using move_8way (direction 4 = South)
         _, rewards, _, _, _ = env.step(np.array([[move_idx, 4]], dtype=np.int32))
         if rewards[0] > 0:
             successful_moves += 1
             total_reward += rewards[0]
 
-        # Move right using move (direction 2 = East)
+        # Move right using move_8way (direction 2 = East)
         _, rewards, _, _, _ = env.step(np.array([[move_idx, 2]], dtype=np.int32))
         if rewards[0] > 0:
             successful_moves += 1
             total_reward += rewards[0]
 
-        # Move left using move (direction 6 = West)
+        # Move left using move_8way (direction 6 = West)
         _, rewards, _, _, _ = env.step(np.array([[move_idx, 6]], dtype=np.int32))
         if rewards[0] > 0:
             successful_moves += 1

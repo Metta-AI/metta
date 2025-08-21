@@ -110,7 +110,7 @@ class ActionsConfig(Config):
     """
 
     noop: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))  # Default movement action
+    move_8way: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=True))  # Default movement action
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     place_box: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
@@ -260,7 +260,7 @@ class EnvConfig(Config):
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
-            move=ActionConfig(),
+            move_8way=ActionConfig(),
             rotate=ActionConfig(),
         )
         objects = {}

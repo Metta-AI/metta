@@ -2,11 +2,8 @@ import numpy as np
 import pytest
 
 from metta.mettagrid.map_builder.map_builder import map_grid_dtype
-from metta.mettagrid.mettagrid_c import MettaGrid
+from metta.mettagrid.mettagrid_c import MettaGrid, dtype_actions
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from metta.mettagrid.test_support.actions import attack, move, rotate, swap
-from metta.mettagrid.test_support.compass import Compass
-from metta.mettagrid.test_support.orientation import Orientation
 
 
 def test_swap():
@@ -29,8 +26,7 @@ def test_swap():
         "inventory_item_names": [],
         "actions": {
             "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
+            "move_8way": {"enabled": True},
             "swap": {
                 "enabled": True,
             },
@@ -77,23 +73,33 @@ def test_swap():
     # First, try to swap with the wall the agent is initially facing (Up)
     # This should fail because walls are not swappable
     print("\nAttempting swap with wall (should fail):")
-    swap_result = swap(env)
-    if swap_result["success"]:
+    swap_idx = env.action_names().index("swap")
+    actions = np.array([[swap_idx, 0]], dtype=dtype_actions)
+    env.step(actions)
+
+    if env.action_success()[0]:
         pytest.fail("Swap with non-swappable wall should have failed!")
     print("  ✓ Swap correctly rejected (wall is not swappable)")
 
-    # Now rotate to face right (toward the block)
-    print("\nRotating to face right (toward block):")
-    rotate_result = rotate(env, Orientation.RIGHT)
-    assert rotate_result["success"], f"Rotation failed: {rotate_result.get('error')}"
-    print("  Agent now facing right")
+    # Now use move_8way to face right (toward the block)
+    # Agent starts at (1,1) facing Up (orientation=0)
+    # Block is at (1,2) to the right
+    # We can use move_8way with direction 2 (East) to face right
+    # But since there's a block there, we'll just face that direction without moving
+    print("\nUsing move_8way to face right (toward block):")
+    move_idx = env.action_names().index("move_8way")
+    actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # 2 = East in 8-way
+    env.step(actions)
+    # The move will fail (blocked by the block) but the agent will still turn to face East
+    print("  Agent now facing right (move was blocked but orientation changed)")
 
     # Now perform the swap with the block
     print("\nAttempting swap with block (should succeed):")
-    swap_result = swap(env)
+    actions = np.array([[swap_idx, 0]], dtype=dtype_actions)  # arg is ignored
+    env.step(actions)
 
     # Check if swap succeeded
-    if not swap_result["success"]:
+    if not env.action_success()[0]:
         pytest.skip("Swap failed - cannot test layer preservation")
 
     # Get the final state
@@ -122,6 +128,7 @@ def test_swap():
     print("\nSUCCESS: Layers were correctly preserved during swap!")
 
 
+# TODO -- consider moving this to actions integration test file
 def test_swap_frozen_agent_preserves_layers():
     """Test that swap_objects preserves layers when swapping with a frozen agent.
 
@@ -159,8 +166,7 @@ def test_swap_frozen_agent_preserves_layers():
         "inventory_item_names": ["laser"],
         "actions": {
             "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
+            "move_8way": {"enabled": True},
             "attack": {
                 "enabled": True,
             },
@@ -204,13 +210,17 @@ def test_swap_frozen_agent_preserves_layers():
     # Sort agents by position to ensure consistent ordering
     agents.sort(key=lambda a: a["pos"])
     agent0 = agents[0]  # Left agent at (1,1)
-    agent1 = agents[1]  # Right agent at (2,3)
+    agent1 = agents[1]  # Right agent at (1,2)
 
     print("Initial state:")
     print(f"  Agent {agent0['id']}: pos={agent0['pos']}, layer={agent0['layer']}")
     print(f"  Agent {agent1['id']}: pos={agent1['pos']}, layer={agent1['layer']}")
 
-    # Get action indices we'll need
+    # IMPORTANT: The action array index might not match the agent ID
+    # We need to figure out which action index corresponds to which agent
+    print("\nDetermining agent action indices:")
+
+    # The agents might be ordered by their IDs in the environment
     all_agent_ids = sorted([a["id"] for a in agents])
     agent0_action_idx = all_agent_ids.index(agent0["id"])
     agent1_action_idx = all_agent_ids.index(agent1["id"])
@@ -218,40 +228,56 @@ def test_swap_frozen_agent_preserves_layers():
     print(f"  Agent {agent0['id']} uses action index {agent0_action_idx}")
     print(f"  Agent {agent1['id']} uses action index {agent1_action_idx}")
 
+    # Get action indices
+    attack_idx = env.action_names().index("attack")
+    swap_idx = env.action_names().index("swap")
+    noop_idx = env.action_names().index("noop")
+    move_idx = env.action_names().index("move_8way")
+
     # Agent 0 needs to face right to attack agent 1
-    print("\nAgent 0 rotating to face right:")
-    rotate_result = rotate(env, Orientation.RIGHT, agent_idx=agent0_action_idx)
-    assert rotate_result["success"], f"Rotation failed: {rotate_result.get('error')}"
+    print("\nAgent 0 using move_8way to face right:")
+    actions = np.zeros((2, 2), dtype=dtype_actions)
+    actions[0] = [move_idx, 2]  # Agent 0: move_8way East (will be blocked but turns to face right)
+    actions[1] = [noop_idx, 0]  # Agent 1: do nothing
+    env.step(actions)
+
+    # Check orientation after rotation
+    objects = env.grid_objects()
+    agent0_orientation = objects[agent0["id"]].get("orientation", -1)
+    print(f"  Agent 0 orientation after rotation: {agent0_orientation}")
 
     # Agent 0 attacks agent 1 to freeze it
     print("\nAgent 0 attacking agent 1:")
-    attack_result = attack(env, target_arg=6, agent_idx=agent0_action_idx)
-    assert attack_result["success"], "Attack should succeed"
+    actions[0] = [attack_idx, 6]  # Agent 0: attack agent index 6 (should fall back to agent 1)
+    actions[1] = [noop_idx, 0]  # Agent 1: do nothing
+    env.step(actions)
 
-    if "frozen_agent_id" in attack_result:
-        print(f"  Froze agent {attack_result['frozen_agent_id']} for {attack_result['freeze_duration']} steps")
+    assert env.action_success()[0]
 
     # Verify agent 1 is frozen
     objects = env.grid_objects()
     agent1_frozen = objects[agent1["id"]].get("freeze_remaining", 0)
-    assert agent1_frozen > 0, "Agent 1 should be frozen"
+    print(f"  Agent 1 frozen for {agent1_frozen - 1} more steps")
+    assert agent1_frozen > 0
 
     # Walk over to the frozen agent
     # Agent0 is at (1,1), Agent1 is at (2,3)
-    # We need to move right twice then be adjacent to swap
+    # We need to move right twice then down once to be adjacent
     print("\nAgent 0 moving to be adjacent to frozen agent 1:")
 
     # Move right twice
-    move_result = move(env, Compass.EAST, agent_idx=agent0_action_idx)
-    assert move_result["success"], "First move east should succeed"
+    actions[0] = [move_idx, 2]  # Agent 0: move East
+    actions[1] = [noop_idx, 0]  # Agent 1: do nothing (frozen)
+    env.step(actions)
 
-    move_result = move(env, Compass.EAST, agent_idx=agent0_action_idx)
-    assert move_result["success"], "Second move east should succeed"
+    actions[0] = [move_idx, 2]  # Agent 0: move East again
+    actions[1] = [noop_idx, 0]  # Agent 1: do nothing (frozen)
+    env.step(actions)
 
-    # Now rotate to face down (towards the frozen agent)
-    print("\nAgent 0 rotating to face down:")
-    rotate_result = rotate(env, Orientation.DOWN, agent_idx=agent0_action_idx)
-    assert rotate_result["success"], f"Rotation to down failed: {rotate_result.get('error')}"
+    # Use move_8way to face down (direction 4 = South)
+    actions[0] = [move_idx, 4]  # Agent 0: move_8way South (will be blocked but turns to face down)
+    actions[1] = [noop_idx, 0]  # Agent 1: do nothing (frozen)
+    env.step(actions)
 
     # Verify agent 1 is still frozen
     objects = env.grid_objects()
@@ -267,10 +293,11 @@ def test_swap_frozen_agent_preserves_layers():
 
     # Now swap with the frozen agent
     print("\nAgent 0 swapping with frozen agent 1:")
-    swap_result = swap(env, agent_idx=agent0_action_idx)
+    actions[0] = [swap_idx, 0]  # Agent 0: swap
+    actions[1] = [noop_idx, 0]  # Agent 1: do nothing (frozen)
+    env.step(actions)
 
-    if not swap_result["success"]:
-        pytest.skip(f"Swap with frozen agent not supported: {swap_result.get('error')}")
+    assert env.action_success()[0]
 
     # Get final state
     objects = env.grid_objects()

@@ -5,7 +5,7 @@ import pytest
 from metta.map.mapgen import MapGen
 from metta.mettagrid.config.envs import make_arena
 from metta.mettagrid.mettagrid_env import MettaGridEnv
-from metta.mettagrid.test_support.actions import get_agent_position
+from metta.mettagrid.util.actions import get_agent_position
 
 
 @pytest.fixture
