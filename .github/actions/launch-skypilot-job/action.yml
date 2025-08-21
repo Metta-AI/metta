@@ -3,7 +3,7 @@ description: "Sets up and launches a SkyPilot job with necessary configurations.
 
 inputs:
   module_name:
-    description: "Module to launch with devops/run.sh (e.g., experiments.arena.train)"
+    description: "Module to launch with devops/run.sh (e.g., experiments.recipes.arena.train)"
     required: true
   timeout_hours:
     description: "Job timeout in hours"
