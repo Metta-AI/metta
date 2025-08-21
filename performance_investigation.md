@@ -270,11 +270,39 @@ self._pending_config = self._current_task.get_env_cfg()
    - Check if feature IDs are consistent
    - Ensure remapping isn't corrupting observations
 
+## Note: Hyperparameter Scheduler Was Already Disabled
+
+The hyperparameter scheduler in `/home/relh/Code/metta/metta/rl/hyperparameter_scheduler.py` is commented out, but this was already the case BEFORE dehydration (has `TODO(richard): #dehydration` comment). So this is NOT a cause of the performance regression.
+
+While old configs defined schedules:
+- CosineSchedule for learning rate
+- LogarithmicSchedule for PPO clip
+- LinearSchedule for entropy coefficient
+
+These weren't actually being used even before dehydration.
+
+## Status of All Fixes Applied
+
+### ✅ Fixed Issues
+1. **Environment recreation on every reset** - Fixed in core.py
+2. **desync_episodes implementation** - Fixed in mettagrid_env.py
+3. **CurriculumEnv performance** - Fixed using __getattr__ instead of __getattribute__
+4. **Arena recipe configuration** - Fixed with proper shaped rewards
+5. **Checkpoint intervals** - Fixed (5→50 epochs)
+6. **Evaluation settings** - Fixed (remote=True, local=False)
+7. **V-trace parameters** - Verified correct (1.0, 1.0)
+8. **Prioritized experience replay** - Verified correct (alpha=0.0)
+9. **Grad mean variance interval** - Fixed (default 0, disabled)
+10. **Profiler interval** - Fixed (0→10000 epochs)
+
+### ❌ Remaining Issues
+1. **Hyperparameter scheduler completely disabled** - Code commented out!
+2. **CurriculumEnv still calls set_env_config after every episode**
+3. **Map builder recreated when config changes**
+
 ## Next Steps
 
-1. **Run with verbose logging** to confirm environment config
-2. **Monitor resource collection** (ore, batteries) not just hearts
-3. **Try even easier altar** (maybe 0.5 batteries?)
-4. **Check if agents are exploring** or just stuck
-5. **Verify feature normalization** is working correctly
-6. **Test with MORE shaped rewards** to guide learning better
+1. **CRITICAL: Re-enable hyperparameter scheduler** - Uncomment and integrate the scheduler code
+2. **Run training with all fixes** to see if performance is restored
+3. **Monitor learning rate and clip coefficient** during training
+4. **Check if agents are now getting 15 heart.get like before**

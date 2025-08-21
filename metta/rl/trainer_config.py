@@ -50,10 +50,10 @@ class InitialPolicyConfig(Config):
 
 
 class CheckpointConfig(Config):
-    # Checkpoint every 5 epochs
-    checkpoint_interval: int = Field(default=5, ge=0)
-    # W&B every 5 epochs
-    wandb_checkpoint_interval: int = Field(default=5, ge=0)
+    # Checkpoint every 50 epochs (matching old default)
+    checkpoint_interval: int = Field(default=50, ge=0)
+    # W&B every 50 epochs (matching old default)
+    wandb_checkpoint_interval: int = Field(default=50, ge=0)
     checkpoint_dir: str | None = Field(default=None)
 
 
@@ -61,10 +61,11 @@ class EvaluationConfig(Config):
     simulations: List[SimulationConfig] = Field(default_factory=list)
     replay_dir: str | None = Field(default=None)
 
-    # Interval at which to evaluate and generate replays: Type 2 arbitrary default
+    # Interval at which to evaluate and generate replays (matching old default)
     evaluate_interval: int = Field(default=50, ge=0)  # 0 to disable
-    evaluate_remote: bool = Field(default=False)
-    evaluate_local: bool = Field(default=True)
+    # Match old defaults: remote=True, local=False
+    evaluate_remote: bool = Field(default=True)
+    evaluate_local: bool = Field(default=False)
     skip_git_check: bool = Field(default=False)
     git_hash: str | None = Field(default=None)
     num_training_tasks: int = Field(default=1)
@@ -103,7 +104,7 @@ class PPOConfig(Config):
 
 
 class TorchProfilerConfig(Config):
-    interval_epochs: int = Field(default=0, ge=0)  # 0 to disable
+    interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable, was 10000 pre-dehydration
     # Upload location: None disables uploads, supports s3:// or local paths
     profile_dir: str | None = Field(default=None)
 
