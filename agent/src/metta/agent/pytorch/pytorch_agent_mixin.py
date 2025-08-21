@@ -164,6 +164,7 @@ class PyTorchAgentMixin:
         # Ensure valid probabilities for multinomial sampling
         # Add small epsilon to prevent sampling issues with zero probabilities
         if (action_probs < 0).any() or (action_probs.sum(dim=-1) == 0).any() or torch.isnan(action_probs).any():
+            action_probs = torch.nan_to_num(action_probs, nan=1e-10)
             action_probs = action_probs.clamp(min=1e-10)
             action_probs = action_probs / action_probs.sum(dim=-1, keepdim=True)
 
