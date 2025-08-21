@@ -162,7 +162,7 @@ class LSTM(LayerBase):
 
         if TT == 1:
             self.iter += 1
-            print(f"!! iter: {self.iter}")
+            print(f"!! iter: {self.iter} and batch size: {B}")
             print(f"!! training_env_ids[-1]: {training_env_ids[-1]}")
             if training_env_ids[-1] >= self.lstm_h.size(1):
                 # we haven't allocated states for these envs (ie the very first epoch)
@@ -176,7 +176,7 @@ class LSTM(LayerBase):
             c_0 = self.lstm_c[:, training_env_ids]
 
         else:
-            print("!!")
+            print("!! in train with batch and tt of", B, TT)
             breakpoint()
 
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
