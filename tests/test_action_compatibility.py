@@ -179,7 +179,7 @@ def test_resource_requirement_changes():
     env1 = MettaGrid(from_mettagrid_config(config1), create_simple_map(), 42)  # Changed seed=42 to 42
     env1.reset()
 
-    move_idx = env1.action_names().index("move")
+    move_idx = env1.action_names().index("move_8way")
     move_action = np.array([[move_idx, 0]], dtype=np.int32)
 
     # Agent starts with no resources, so move should fail
