@@ -33,7 +33,7 @@ def basic_env() -> MettaGridCore:
             num_observation_tokens=NUM_OBS_TOKENS,
             actions=ActionsConfig(
                 noop=ActionConfig(),
-                move=ActionConfig(),
+                move_8way=ActionConfig(),
                 rotate=ActionConfig(),
                 get_items=ActionConfig(),
             ),
@@ -65,7 +65,7 @@ def adjacent_agents_env() -> MettaGridCore:
             num_observation_tokens=NUM_OBS_TOKENS,
             actions=ActionsConfig(
                 noop=ActionConfig(),
-                move=ActionConfig(),
+                move_8way=ActionConfig(),
                 rotate=ActionConfig(),
                 get_items=ActionConfig(),
             ),
@@ -247,7 +247,7 @@ class TestObservations:
                 num_observation_tokens=NUM_OBS_TOKENS,
                 actions=ActionsConfig(
                     noop=ActionConfig(),
-                    move=ActionConfig(),
+                    move_8way=ActionConfig(),
                     rotate=ActionConfig(),
                     get_items=ActionConfig(),
                 ),
@@ -407,7 +407,7 @@ class TestGlobalTokens:
                 num_observation_tokens=NUM_OBS_TOKENS,
                 actions=ActionsConfig(
                     noop=ActionConfig(),
-                    move=ActionConfig(),
+                    move_8way=ActionConfig(),
                     rotate=ActionConfig(),
                     get_items=ActionConfig(),
                 ),
@@ -498,7 +498,7 @@ class TestGlobalTokens:
                 num_observation_tokens=NUM_OBS_TOKENS,
                 actions=ActionsConfig(
                     noop=ActionConfig(),
-                    move=ActionConfig(),
+                    move_8way=ActionConfig(),
                     rotate=ActionConfig(),
                     get_items=ActionConfig(),
                     change_glyph=ChangeGlyphActionConfig(enabled=True, number_of_glyphs=8),
@@ -816,7 +816,7 @@ class TestEdgeObservations:
                 num_observation_tokens=NUM_OBS_TOKENS,
                 actions=ActionsConfig(
                     noop=ActionConfig(),
-                    move=ActionConfig(),
+                    move_8way=ActionConfig(),
                     rotate=ActionConfig(),
                     get_items=ActionConfig(),
                 ),

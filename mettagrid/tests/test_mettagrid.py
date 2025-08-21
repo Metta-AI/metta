@@ -21,7 +21,7 @@ def basic_env() -> MettaGrid:
             num_observation_tokens=NUM_OBS_TOKENS,
             actions=ActionsConfig(
                 noop=ActionConfig(),
-                move=ActionConfig(),
+                move_8way=ActionConfig(),
                 rotate=ActionConfig(),
             ),
             map_builder=RandomMapBuilder.Config(

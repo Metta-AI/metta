@@ -203,52 +203,6 @@ def test_orientation_changes_with_8way():
         )
 
 
-def test_cardinal_movement_changes_orientation():
-    """Test that cardinal movement changes orientation to match movement direction."""
-    env_cfg = EnvConfig(
-        game=GameConfig(
-            num_agents=1,
-            actions=ActionsConfig(
-                move_cardinal=ActionConfig(),
-                rotate=ActionConfig(),
-                noop=ActionConfig(),
-            ),
-            map_builder=AsciiMapBuilder.Config(
-                map_data=[
-                    [".", ".", ".", ".", "."],
-                    [".", "@", ".", ".", "."],
-                    [".", ".", ".", ".", "."],
-                ],
-            ),
-        )
-    )
-    env = MettaGridCore(env_cfg)
-    env.reset()
-
-    objects = env.grid_objects
-    agent_id = next(id for id, obj in objects.items() if obj["type_id"] == 0)  # type_id 0 is agent
-
-    action_names = env.action_names
-    move_cardinal_idx = action_names.index("move_cardinal")
-    rotate_idx = action_names.index("rotate")
-
-    # Rotate to face right
-    actions = np.zeros((1, 2), dtype=dtype_actions)
-    actions[0] = [rotate_idx, 3]  # Face right
-    env.step(actions)
-
-    objects = env.grid_objects
-    assert objects[agent_id]["orientation"] == 3
-
-    # Move north with cardinal movement
-    actions[0] = [move_cardinal_idx, 0]  # North
-    env.step(actions)
-
-    objects = env.grid_objects
-    assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (0, 1)
-    # Orientation should change to match movement direction (north = 0)
-    assert objects[agent_id]["orientation"] == 0
-
 
 def test_8way_movement_with_simple_environment():
     """Test 8-way movement using the simple environment builder."""
@@ -382,7 +336,6 @@ def test_orientation_changes_on_failed_8way_movement():
         game=GameConfig(
             num_agents=1,
             actions=ActionsConfig(
-                move=ActionConfig(enabled=False),
                 rotate=ActionConfig(enabled=True),  # Enable rotate to test orientation changes
                 move_8way=ActionConfig(enabled=True),
             ),

@@ -53,7 +53,7 @@ class TestRendererJob:
                         "altar": building.altar,
                     },
                     actions=ActionsConfig(
-                        move=ActionConfig(),
+                        move_8way=ActionConfig(),
                         rotate=ActionConfig(),
                         get_items=ActionConfig(),
                     ),
@@ -82,7 +82,7 @@ class TestRendererJob:
                         "wall": building.wall,
                     },
                     actions=ActionsConfig(
-                        move=ActionConfig(),
+                        move_8way=ActionConfig(),
                         rotate=ActionConfig(),
                     ),
                     agent=AgentConfig(
@@ -111,7 +111,7 @@ class TestRendererJob:
                         "altar": building.altar,
                     },
                     actions=ActionsConfig(
-                        move=ActionConfig(),
+                        move_8way=ActionConfig(),
                         rotate=ActionConfig(),
                         get_items=ActionConfig(),
                     ),
