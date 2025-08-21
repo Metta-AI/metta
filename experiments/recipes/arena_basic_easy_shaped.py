@@ -184,7 +184,7 @@ def train() -> TrainTool:
     print(f"  - Map has blocks: {'block' in env_cfg.game.objects}")
     print(f"  - Num agents: {env_cfg.game.num_agents}")
     print(f"  - Max steps: {env_cfg.game.max_steps}")
-    print("  - Actions enabled: move_cardinal, get_items, put_items, noop")
+    print("  - Actions enabled: move_8way, rotate, get_items, put_items, attack, swap, noop")
     print("\nKey fixes applied:")
     print("  ✓ initial_resource_count = 1 (immediate rewards)")
     print("  ✓ heart_max = 255 (was capped at 100)")

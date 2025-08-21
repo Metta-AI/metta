@@ -1,6 +1,7 @@
 import logging
 from typing import Optional
 
+import pufferlib.pytorch
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -75,6 +76,28 @@ class PyTorchAgentMixin:
 
         # Note: action_index_tensor and cum_action_max_params are set by
         # MettaAgent.initialize_to_environment() directly on the policy object
+
+    def create_action_heads(self, env, input_size: int = 512 + 16):
+        """
+        Create action heads based on the environment's action configuration.
+        
+        For multi-discrete action spaces, we create a single head with the total
+        flattened action space (sum of all action parameter ranges).
+        
+        Args:
+            env: Environment with action_names and max_action_args
+            input_size: Size of input features to the action heads
+            
+        Returns:
+            nn.ModuleList containing the action head(s)
+        """
+        # Calculate total flattened action space from environment
+        total_actions = sum(max_arg + 1 for max_arg in env.max_action_args)
+        
+        # Create a single head for the flattened action space
+        return nn.ModuleList([
+            pufferlib.pytorch.layer_init(nn.Linear(input_size, total_actions), std=0.01)
+        ])
 
     def clip_weights(self):
         """

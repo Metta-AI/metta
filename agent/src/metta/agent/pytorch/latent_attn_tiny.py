@@ -143,13 +143,10 @@ class Policy(nn.Module):
         self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
         self.action_embeddings = nn.Embedding(100, 16)
 
-        # Action heads - compute from environment's actual action configuration
-        # The total flattened action space is sum of (max_arg + 1) for each action
-        total_actions = sum(max_arg + 1 for max_arg in env.max_action_args)
-        
-        self.actor_heads = nn.ModuleList(
-            [pufferlib.pytorch.layer_init(nn.Linear(512 + 16, total_actions), std=0.01)]
-        )
+        # Create action heads using mixin pattern
+        from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
+
+        self.actor_heads = PyTorchAgentMixin.create_action_heads(self, env, input_size=512 + 16)
 
     def network_forward(self, x):
         x, mask, B_TT = self.obs_(x)
