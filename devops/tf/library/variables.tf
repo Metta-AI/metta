@@ -33,3 +33,8 @@ variable "amplify_github_access_token" {
   # https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/amplify_app#access_token-1
   description = "One-time only access token for Amplify to create a webhook"
 }
+
+variable "s3_buckets" {
+  type    = list(string)
+  default = ["softmax-library", "softmax-library-dev"]
+}

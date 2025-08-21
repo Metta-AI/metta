@@ -45,24 +45,24 @@ resource "aws_amplify_app" "library" {
   }
 
   build_spec = <<-EOT
-  version: 1
-    applications:
-      - appRoot: library
-        frontend:
-          phases:
-            preBuild:
-              commands: ['corepack enable', 'pnpm install']
-            build:
-              commands: ['pnpm run build']
-          artifacts:
-            baseDirectory: library/.next
-            files:
-              - '**/*'
-          cache:
-            paths:
-              - '.next/cache/**/*'
-              - 'node_modules/**/*'
-          buildPath: /
+version: 1
+applications:
+  - appRoot: library
+    frontend:
+      phases:
+        preBuild:
+          commands: ['corepack enable', 'pnpm install']
+        build:
+          commands: ['pnpm run build']
+      artifacts:
+        baseDirectory: library/.next
+        files:
+          - '**/*'
+      cache:
+        paths:
+          - '.next/cache/**/*'
+          - 'node_modules/**/*'
+      buildPath: /
   EOT
 }
 
