@@ -51,7 +51,7 @@ applications:
     frontend:
       phases:
         preBuild:
-          commands: ['corepack enable', 'pnpm install']
+          commands: ['corepack enable', 'pnpm install', 'pnpm run db:generate']
         build:
           commands: ['pnpm run build']
       artifacts:
