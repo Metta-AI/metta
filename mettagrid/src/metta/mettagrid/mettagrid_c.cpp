@@ -46,8 +46,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
       _global_obs_config(cfg.global_obs),
       _num_observation_tokens(cfg.num_observation_tokens),
       _track_movement_metrics(cfg.track_movement_metrics),
-      _no_agent_interference(cfg.no_agent_interference),
-      _resource_loss_prob(cfg.resource_loss_prob) {
+      _resource_loss_prob(cfg.resource_loss_prob),
+      _no_agent_interference(cfg.no_agent_interference) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
@@ -528,7 +528,7 @@ void MettaGrid::_step(Actions actions) {
       const auto inventory_copy = agent->inventory;
       for (const auto& [item, qty] : inventory_copy) {
         if (qty > 0) {
-          double loss = _resource_loss_prob * qty;
+          float loss = _resource_loss_prob * qty;
           int lost = static_cast<int>(std::floor(loss));
           // With probability equal to the fractional part, lose one more
           if (std::generate_canonical<float, 10>(_rng) < loss - lost) {

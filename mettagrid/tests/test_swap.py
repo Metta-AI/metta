@@ -128,7 +128,6 @@ def test_swap():
     print("\nSUCCESS: Layers were correctly preserved during swap!")
 
 
-# TODO -- consider moving this to actions integration test file
 def test_swap_frozen_agent_preserves_layers():
     """Test that swap_objects preserves layers when swapping with a frozen agent.
 
@@ -167,6 +166,7 @@ def test_swap_frozen_agent_preserves_layers():
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
+            "rotate": {"enabled": True},
             "attack": {
                 "enabled": True,
             },
@@ -233,11 +233,12 @@ def test_swap_frozen_agent_preserves_layers():
     swap_idx = env.action_names().index("swap")
     noop_idx = env.action_names().index("noop")
     move_idx = env.action_names().index("move")
+    rotate_idx = env.action_names().index("rotate")
 
     # Agent 0 needs to face right to attack agent 1
     print("\nAgent 0 using move to face right:")
     actions = np.zeros((2, 2), dtype=dtype_actions)
-    actions[0] = [move_idx, 2]  # Agent 0: move East (will be blocked but turns to face right)
+    actions[0] = [rotate_idx, 3]  # Rotate to Right
     actions[1] = [noop_idx, 0]  # Agent 1: do nothing
     env.step(actions)
 

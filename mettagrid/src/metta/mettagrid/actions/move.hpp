@@ -27,7 +27,7 @@ protected:
     // 6 A 2
     // 5 4 3
     //
-    // Final orientation: 0,1,7→Up  2,3→Right  4,5→Down  6→Left
+    // Final orientation: 0,1,7→Up  2→Right  5,4,3→Down  6→Left
 
     GridLocation current_location = actor->location;
     GridLocation target_location = current_location;
@@ -50,7 +50,7 @@ protected:
       case 3:  // Southeast
         target_location.r += 1;
         target_location.c += 1;
-        new_orientation = Orientation::Right;
+        new_orientation = Orientation::Down;
         break;
       case 4:  // South
         target_location.r += 1;
@@ -68,7 +68,7 @@ protected:
       case 7:  // Northwest
         target_location.r -= 1;
         target_location.c -= 1;
-        new_orientation = Orientation::Left;
+        new_orientation = Orientation::Up;
         break;
       default:
         return false;
