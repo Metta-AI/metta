@@ -133,7 +133,7 @@ uri: file:///path/to/policy.pt
         # Verify no policy_store or policy-related fields
         assert "policy_store" not in data
         assert "policy" not in data
-        assert "_cached_policy" not in data
+        assert "cached_policy" not in data
         assert "_policy_store" not in data
 
     def test_from_yaml_with_policy_store(self):

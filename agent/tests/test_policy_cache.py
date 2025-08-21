@@ -26,7 +26,7 @@ def policy_record_with_model():
     """Create a PolicyRecord with a loaded model."""
     metadata = PolicyMetadata(epoch=1, agent_step=100, generation=0, train_time=0.5)
     pr = PolicyRecord(None, "test_run", "file://test.pt", metadata)
-    pr._cached_policy = MockPolicy()
+    pr.cached_policy = MockPolicy()
     return pr
 
 
@@ -35,7 +35,7 @@ def policy_record_metadata_only():
     """Create a PolicyRecord without a loaded model (metadata only)."""
     metadata = PolicyMetadata(epoch=2, agent_step=200, generation=1, train_time=1.0)
     pr = PolicyRecord(None, "metadata_only", "file://metadata.pt", metadata)
-    # No _cached_policy set
+    # No cached_policy set
     return pr
 
 
@@ -46,7 +46,7 @@ def create_policy_record(name: str, uri: str, with_model: bool = True) -> Policy
     )
     pr = PolicyRecord(None, name, uri, metadata)
     if with_model:
-        pr._cached_policy = MockPolicy()
+        pr.cached_policy = MockPolicy()
     return pr
 
 

@@ -291,15 +291,12 @@ class PolicyStore:
         # Save to a temporary file first to ensure atomic writes
         temp_path = path + ".tmp"
 
-        # Temporarily remove the policy store reference to avoid pickling issues
-        pr._policy_store = None  # type: ignore
         try:
             torch.save(pr, temp_path)
             # Atomically replace the file (works even if target exists)
             # os.replace is atomic on POSIX systems and handles existing files
             os.replace(temp_path, path)
         finally:
-            pr._policy_store = self
             # Clean up temp file if it still exists (in case of error)
             if os.path.exists(temp_path):
                 try:
@@ -338,11 +335,6 @@ class PolicyStore:
         if checkpoint_file_type in ["pt", "pt_also_emit_safetensors"]:
             path = self.save_to_pt_file(pr, path)
 
-        # Don't cache the policy that we just saved,
-        # since it might be updated later. We always
-        # load the policy from the file when needed.
-        # pr._cached_policy = None
-        # !! i removed this - why was it here?
         if path is not None:
             self._cached_prs.put(path, pr)
         return pr
@@ -439,7 +431,7 @@ class PolicyStore:
         # action_names is optional and not used by pytorch:// checkpoints
         metadata = PolicyMetadata()
         pr = PolicyRecord(self, name, "pytorch://" + name, metadata)
-        pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
+        pr.cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
         return pr
 
     def _make_codebase_backwards_compatible(self):
@@ -491,7 +483,7 @@ class PolicyStore:
         """Load a PolicyRecord from a file using simple torch.load."""
         cached_pr = self._cached_prs.get(path)
         if cached_pr is not None:
-            if metadata_only or cached_pr._cached_policy is not None:
+            if metadata_only or cached_pr.cached_policy is not None:
                 return cached_pr
 
         if not path.endswith(".pt") and os.path.isdir(path):
@@ -512,12 +504,10 @@ class PolicyStore:
 
         # New format - PolicyRecord object
         pr = checkpoint
-        pr._policy_store = self
-
         self._cached_prs.put(path, pr)
 
         if metadata_only:
-            pr._cached_policy = None
+            pr.set_policy_deferred(lambda: self._load_from_pt_file(path, metadata_only=False).policy)
 
         return pr
 
@@ -537,7 +527,7 @@ class PolicyStore:
         """Load a PolicyRecord from safetensors format with YAML metadata sidecar."""
         cached_pr = self._cached_prs.get(path)
         if cached_pr is not None:
-            if metadata_only or cached_pr._cached_policy is not None:
+            if metadata_only or cached_pr.cached_policy is not None:
                 return cached_pr
 
         pr = self.create_empty_policy_record(self.checkpoint_name(path), self.base_path(path))
@@ -548,7 +538,7 @@ class PolicyStore:
         self._cached_prs.put(path, pr)
 
         if metadata_only:
-            pr._cached_policy = None
+            pr.set_policy_deferred(lambda: self._load_from_safetensors_file(path, metadata_only=False).policy)
 
         return pr
 

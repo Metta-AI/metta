@@ -151,10 +151,8 @@ def test_policy_record_backwards_compatibility():
         # Create a PolicyRecord without using the normal constructor
         # to simulate loading an old checkpoint
         pr = PolicyRecord.__new__(PolicyRecord)
-        pr._policy_store = policy_store
         pr.run_name = "test_policy"
-        pr.uri = "file:///tmp/test.pt"
-        pr._cached_policy = None
+        pr.cached_policy = None
 
         # Set metadata using the old attribute name
         old_metadata = {
@@ -187,10 +185,8 @@ def test_policy_record_backwards_compatibility():
 
     # Test with no metadata attribute at all
     pr_no_metadata = PolicyRecord.__new__(PolicyRecord)
-    pr_no_metadata._policy_store = policy_store
     pr_no_metadata.run_name = "test_policy"
-    pr_no_metadata.uri = "file:///tmp/test.pt"
-    pr_no_metadata._cached_policy = None
+    pr_no_metadata.cached_policy = None
 
     # This should raise AttributeError
     try:

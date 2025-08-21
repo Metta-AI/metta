@@ -12,7 +12,6 @@ from metta.agent.policy_metadata import PolicyMetadata
 
 if TYPE_CHECKING:
     from metta.agent.metta_agent import PolicyAgent
-    from metta.agent.policy_store import PolicyStore
 
 logger = logging.getLogger(__name__)
 
@@ -22,19 +21,17 @@ class PolicyRecord:
 
     def __init__(
         self,
-        policy_store: "PolicyStore",
         run_name: str,
         uri: str | None,
         metadata: PolicyMetadata | dict,
         policy: "PolicyAgent | None" = None,
     ):
-        self._policy_store = policy_store
         self.run_name = run_name  # Human-readable identifier (e.g., from wandb). Can include version
         self.uri: str | None = uri
 
         # Use the setter to ensure proper type
         self.metadata = metadata
-        self._cached_policy: "PolicyAgent | None" = policy
+        self._cached_policy: "PolicyAgent | None | callable" = policy
 
     def extract_wandb_run_info(self) -> tuple[str, str, str, str | None]:
         if self.uri is None or not self.uri.startswith("wandb://"):
@@ -112,23 +109,29 @@ class PolicyRecord:
     @property
     def policy(self) -> "PolicyAgent":
         """Load and return the policy, using cache if available."""
-        if self._cached_policy is None:
-            if self._policy_store is None:
-                # Standalone loading is not supported
-                raise ValueError(
-                    "Cannot load policy without a PolicyStore. "
-                    "PolicyRecord must be created through PolicyStore for loading functionality."
-                )
-            else:
-                if self.uri is None:
-                    raise ValueError("Cannot load policy without a valid URI.")
-                pr = self._policy_store.load_from_uri(self.uri)
-                if pr._cached_policy is None:
-                    raise ValueError(f"Policy loaded from {self.uri} has no cached policy!")
-                # access _cached_policy directly to avoid recursion
-                self._cached_policy = pr._cached_policy
+        if callable(self._cached_policy):
+            # Invoke the callable and set the result as the cached policy
+            self._cached_policy = self._cached_policy()
+        elif not isinstance(self._cached_policy, PolicyAgent):
+            raise TypeError(f"Expected PolicyAgent or callable, got {type(self._cached_policy).__name__}")
 
         return self._cached_policy
+
+    @property
+    def cached_policy(self) -> "PolicyAgent | None":
+        """Get the cached policy without loading."""
+        if callable(self._cached_policy):
+            return None
+        return self._cached_policy
+
+    @cached_policy.setter
+    def cached_policy(self, policy: "PolicyAgent") -> None:
+        """Set the cached policy directly."""
+        self._cached_policy = policy
+
+    def set_policy_deferred(self, policy_factory: callable) -> None:
+        """Set a callable that will create the policy when needed."""
+        self._cached_policy = policy_factory
 
     @policy.setter
     def policy(self, policy: "PolicyAgent") -> None:
@@ -165,11 +168,8 @@ class PolicyRecord:
         # Load policy if not already loaded
         policy = None
         if self._cached_policy is None:
-            try:
-                policy = self.policy
-            except Exception as e:
-                lines.append(f"Error loading policy: {str(e)}")
-                return "\n".join(lines)
+            lines.append("(deferred)")
+            return "\n".join(lines)
         else:
             policy = self._cached_policy
 
