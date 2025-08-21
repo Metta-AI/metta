@@ -329,8 +329,8 @@ def create_gp(x_dim, scale_length=1.0, device="cpu"):
 
     kernel = gp.kernels.Sum(linear_kernel, matern_kernel)
 
-    # Create model
-    model = gp.models.GPRegression(X, y, kernel=kernel, jitter=1.0e-3)  # Increased jitter for stability
+    # Create model with higher jitter for numerical stability
+    model = gp.models.GPRegression(X, y, kernel=kernel, jitter=1.0e-2)  # Further increased jitter
     model = model.to(device_obj)
 
     # Keep noise as a positive tensor (simpler & numerically stable)
