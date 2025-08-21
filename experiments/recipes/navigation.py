@@ -21,13 +21,8 @@ from experiments.evals.navigation import make_navigation_eval_suite
 
 
 def _get_user_identifier() -> str:
-    """Get user identifier, trying multiple environment variables."""
-    # Try common user environment variables across platforms
-    for var in ["USER", "USERNAME", "LOGNAME"]:
-        user = os.getenv(var)
-        if user and user.strip():
-            return user.strip()
-    return "unknown"
+    """Get user identifier from USER environment variable."""
+    return os.getenv("USER", "unknown")
 
 
 def _default_run_name() -> str:
