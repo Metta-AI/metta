@@ -8,7 +8,6 @@ on:
 
 jobs:
   check-container:
-    if: false # Workflow disabled #TODO(andre) #dehydration
     name: "Check Container Availability"
     runs-on: default
     outputs:
@@ -34,7 +33,6 @@ jobs:
           fi
 
   test:
-    if: false # Workflow disabled
     name: "Lint, Install, and Test"
     runs-on: default
     needs: check-container
@@ -87,14 +85,14 @@ jobs:
         run: |
           echo "::group::Training job"
           echo "Starting training job..."
-          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=smoke_test +user=ci wandb=off
+          METTA_USER=ci uv run --no-sync tools/run.py metta.tools.train.TrainTool --overrides run=smoke_test wandb.enabled=false system.vectorization=serial trainer.total_timesteps=16 trainer.minibatch_size=8 trainer.batch_size=1536 trainer.bptt_horizon=8 trainer.forward_pass_minibatch_target_size=192 trainer.checkpoint.checkpoint_interval=0 trainer.checkpoint.wandb_checkpoint_interval=0 trainer.evaluation.evaluate_interval=0
           echo "::endgroup::"
 
       - name: Generate replay
         run: |
           echo "::group::Replay generation"
           echo "Generating replay..."
-          uv run --no-sync tools/replay.py run=smoke_test +user=ci wandb=off
+          METTA_USER=ci uv run --no-sync tools/run.py metta.tools.replay.ReplayTool --args sim.name=replay_smoke sim.env.label=mettagrid --overrides wandb.enabled=false system.vectorization=serial open_browser_on_start=false
           echo "Replay generation completed"
           echo "::endgroup::"
 
@@ -107,7 +105,7 @@ jobs:
 
           # Start the backend with proper logging
           echo "Starting backend server..."
-          uv run --no-sync tools/play.py run=smoke_test +user=ci wandb=off replay_job.open_browser_on_start=false > "$BACKEND_LOG" 2>&1 &
+          METTA_USER=ci uv run --no-sync tools/run.py metta.tools.play.PlayTool --args sim.name=play_smoke sim.env.label=mettagrid --overrides wandb.enabled=false system.vectorization=serial open_browser_on_start=false > "$BACKEND_LOG" 2>&1 &
           BACKEND_PID=$!
           echo "Backend started with PID: $BACKEND_PID"
 
