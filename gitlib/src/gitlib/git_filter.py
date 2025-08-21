@@ -4,7 +4,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from .git import GitError, get_commit_count, get_file_list, run_git
+from gitlib.git import GitError, get_commit_count, get_file_list, run_git
 
 
 def filter_repo(source_path: Path, paths: list[str]) -> Path:
@@ -17,6 +17,7 @@ def filter_repo(source_path: Path, paths: list[str]) -> Path:
     Returns:
         Path to the filtered repository
     """
+
     if not (source_path / ".git").exists():
         raise ValueError(f"Not a git repository: {source_path}")
 

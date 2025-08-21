@@ -8,7 +8,7 @@ import sky.jobs
 import sky.server.common
 import wandb
 
-from metta.common.util.git import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
+from gitlib import get_commit_message, get_matched_pr, has_unstaged_changes, is_commit_pushed
 from metta.common.util.text_styles import blue, bold, cyan, green, red, yellow
 
 

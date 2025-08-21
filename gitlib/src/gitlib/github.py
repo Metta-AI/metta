@@ -1,10 +1,12 @@
+"""GitHub API utilities."""
+
 import logging
 import os
 from typing import Any, Dict, Optional
 
 import httpx
 
-from metta.common.util.constants import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
+from gitlib.git import METTA_GITHUB_ORGANIZATION, METTA_GITHUB_REPO
 
 
 def post_commit_status(

@@ -16,9 +16,9 @@ from devops.skypilot.utils import (
     launch_task,
     set_task_secrets,
 )
+from gitlib import get_current_commit, validate_git_ref
 from metta.common.util.cli import get_user_confirmation
 from metta.common.util.fs import cd_repo_root
-from metta.common.util.git import get_current_commit, validate_git_ref
 from metta.common.util.text_styles import red
 
 logger = logging.getLogger("launch.py")

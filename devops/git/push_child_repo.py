@@ -16,10 +16,9 @@ from pathlib import Path
 
 from pydantic import field_validator
 
+from gitlib import add_remote, filter_repo, get_commit_count, get_file_list, run_git, run_git_in_dir
 from metta.common.config import Config
 from metta.common.util.constants import METTA_GITHUB_ORGANIZATION
-from metta.common.util.git import add_remote, get_commit_count, get_file_list, run_git, run_git_in_dir
-from metta.common.util.git_filter import filter_repo
 
 
 class FilterRepoConfig(Config):
