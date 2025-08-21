@@ -188,7 +188,8 @@ def test_8way_movement_all_directions():
         }
         if direction in expected_orientations:
             assert objects[agent_id]["orientation"] == expected_orientations[direction], (
-                f"Direction {direction}: orientation should be {expected_orientations[direction]}, got {objects[agent_id]['orientation']}"
+                f"Direction {direction}: orientation should be {expected_orientations[direction]}, "
+                + "got {objects[agent_id]['orientation']}"
             )
 
 

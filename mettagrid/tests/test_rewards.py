@@ -102,7 +102,7 @@ def wait_for_heart_production(env, steps=5):
 def collect_heart_from_altar(env):
     """Move agent to altar (if needed) and collect a heart. Returns (success, reward)."""
     agent_pos = get_agent_position(env, 0)
-    altar_pos = (1, 3)  # Known altar position
+    _altar_pos = (1, 3)  # Known altar position
     target_pos = (1, 2)  # Position to the left of altar
 
     # Move to target position if not already there
