@@ -184,7 +184,7 @@ class TestTrainingRunsRoutes:
                 agent_metrics={0: metrics},
                 primary_policy_id=policy.id,
                 stats_epoch=epoch.id,
-                eval_name=eval_name,
+                sim_name=eval_name,
                 replay_url=f"https://replay.example.com/{policy_name}/{eval_name.replace('/', '_')}",
                 attributes=attributes,
             )
