@@ -9,6 +9,7 @@ from .curriculum import (
     DiscreteRandomCurriculum,
     DiscreteRandomHypers,
 )
+from .curriculum_env import CurriculumEnv
 from .curriculum_manager import (
     CurriculumManager,
     CurriculumManagerConfig,
@@ -45,6 +46,7 @@ __all__ = [
     "Curriculum",
     "CurriculumConfig",
     "CurriculumTask",
+    "CurriculumEnv",
     "CurriculumAlgorithm",
     "CurriculumAlgorithmHypers",
     "DiscreteRandomCurriculum",

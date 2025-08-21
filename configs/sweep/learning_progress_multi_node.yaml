@@ -1,0 +1,43 @@
+# Multi-node Learning Progress Training Configuration
+# Run with: sky launch configs/sweep/learning_progress_multi_node.yaml
+
+name: learning-progress-multi-node
+
+resources:
+  # Multi-node configuration
+  num_nodes: 4  # 4 nodes total
+  accelerators: L4:1  # 1 L4 GPU per node (4 GPUs total)
+  # Alternative: accelerators: A100:1  # 1 A100 per node
+  # Alternative: accelerators: L4:2  # 2 L4 GPUs per node (8 GPUs total)
+
+setup: |
+  # Setup commands run on each node
+  echo "Setting up multi-node learning progress training..."
+
+  # Install dependencies
+  pip install -r requirements.txt
+
+  # Setup distributed training environment
+  export WORLD_SIZE=4  # Total number of nodes
+  export MASTER_ADDR=$(hostname -I | awk '{print $1}')
+  export MASTER_PORT=29500
+
+run: |
+  # Main training script - runs on each node
+  echo "Starting distributed learning progress training..."
+
+  # Set node-specific environment variables
+  export RANK=$SKYPILOT_NODE_RANK  # SkyPilot provides this
+  export LOCAL_RANK=0  # Single GPU per node
+
+  # Run distributed training
+  python -m torch.distributed.launch \
+    --nproc_per_node=1 \
+    --nnodes=$WORLD_SIZE \
+    --node_rank=$RANK \
+    --master_addr=$MASTER_ADDR \
+    --master_port=$MASTER_PORT \
+    experiments/user/arena_lp_test.py \
+    --distributed \
+    --num_episodes=1000 \
+    --learning_progress=True
