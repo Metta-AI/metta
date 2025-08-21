@@ -24,8 +24,7 @@ class TestConverterObservations:
             "recipe_details_obs": False,  # Default to False
             "actions": {
                 "noop": {"enabled": True},
-                "move": {"enabled": True},
-                "rotate": {"enabled": True},
+                "move_8way": {"enabled": True},
                 "put_items": {"enabled": True},
                 "get_items": {"enabled": True},
                 "attack": {"enabled": False},

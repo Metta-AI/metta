@@ -44,8 +44,7 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         "actions": {
             "noop": {"enabled": True},
             "get_items": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
+            "move_8way": {"enabled": True},
             "put_items": {"enabled": True},
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "swap": {"enabled": True},

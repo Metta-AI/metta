@@ -26,8 +26,7 @@ def test_swap():
         "inventory_item_names": [],
         "actions": {
             "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
+            "move_8way": {"enabled": True},
             "swap": {
                 "enabled": True,
             },
@@ -165,8 +164,7 @@ def test_swap_frozen_agent_preserves_layers():
         "inventory_item_names": ["laser"],
         "actions": {
             "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
+            "move_8way": {"enabled": True},
             "attack": {
                 "enabled": True,
             },

@@ -41,8 +41,7 @@ def create_stats_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
         "inventory_item_names": ["laser", "armor"],
         "actions": {
             "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
+            "move_8way": {"enabled": True},
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
         },
         "groups": {
