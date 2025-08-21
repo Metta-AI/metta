@@ -14,7 +14,7 @@ game:
   # Configure team reward sharing
   groups:
     team_1:
-      group_reward_pct: 1.0 # 100% reward sharing within team
+      group_reward_pct: 0.8 # 80% reward sharing within team
 
   agent:
     rewards:
