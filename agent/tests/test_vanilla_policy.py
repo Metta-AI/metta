@@ -160,7 +160,7 @@ def test_metta_agent_with_mixin_policy():
 
 def test_mixin_provides_all_required_methods():
     """Test that the mixin provides all methods required by MettaAgent."""
-    
+
     # Create a more complex policy that uses mixin features
     class PolicyUsingMixinFeatures(PyTorchAgentMixin, torch.nn.Module):
         def __init__(self):
@@ -169,20 +169,20 @@ def test_mixin_provides_all_required_methods():
             self.linear1 = torch.nn.Linear(100, 50)
             self.linear2 = torch.nn.Linear(50, 10)
             self.init_mixin(clip_range=1.0)  # Enable weight clipping
-            
+
         def forward(self, td: TensorDict, state=None, action=None) -> TensorDict:
             batch_size = td.get("env_obs", torch.zeros(1, 10, 10, 3)).shape[0]
             td["actions"] = torch.zeros((batch_size, 2), dtype=torch.long)
             td["act_log_prob"] = torch.zeros((batch_size,))
             td["values"] = torch.zeros((batch_size,))
             return td
-            
+
         def reset_memory(self):
             pass
-            
+
         def get_memory(self) -> dict:
             return {}
-    
+
     # Create minimal environment
     class MinimalEnv:
         def __init__(self):
@@ -191,17 +191,17 @@ def test_mixin_provides_all_required_methods():
             self.obs_height = 10
             self.single_action_space = gym.spaces.Discrete(10)
             self.feature_normalizations = {}
-    
+
     system_cfg = SystemConfig(device="cpu")
     agent_cfg = DictConfig({"clip_range": 1.0})
-    
+
     policy = PolicyUsingMixinFeatures()
     agent = MettaAgent(MinimalEnv(), system_cfg, agent_cfg, policy=policy)
-    
+
     # Initialize environment
     features = {"test": {"id": 1, "type": "scalar"}}
     agent.initialize_to_environment(features, ["action"], [1], "cpu")
-    
+
     # Test weight clipping actually clips
     # First set some weights outside the clip range
     policy.linear1.weight.data.fill_(2.0)
@@ -209,17 +209,17 @@ def test_mixin_provides_all_required_methods():
     # Check weights were clipped to [-1.0, 1.0] range
     assert policy.linear1.weight.data.max() <= 1.0
     assert policy.linear1.weight.data.min() >= -1.0
-    
+
     # Test L2 init loss calculation
     loss = agent.l2_init_loss()
     assert isinstance(loss, torch.Tensor)
     assert loss.item() > 0  # Should be non-zero since we modified weights
-    
+
     # Test weight metrics computation
     metrics = agent.compute_weight_metrics()
     assert len(metrics) > 0  # Should have metrics for linear layers
     assert all("name" in m for m in metrics)
-    
+
     # Test action conversion methods work
     if hasattr(policy, "_convert_action_to_logit_index"):
         # These require the tensors set by initialize_to_environment
