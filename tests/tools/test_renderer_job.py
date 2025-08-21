@@ -152,7 +152,7 @@ class TestRendererJob:
         assert hasattr(env_config.game, "map_builder"), "Game missing map_builder config"
 
         # Validate actions are properly configured
-        assert env_config.game.actions.move is not None, "Move action not configured"
+        assert env_config.game.actions.move_8way is not None, "Move_8way action not configured"
         assert env_config.game.actions.rotate is not None, "Rotate action not configured"
 
     @pytest.mark.skip(reason="Renderer changed from Hydra to Pydantic config - needs refactor")
