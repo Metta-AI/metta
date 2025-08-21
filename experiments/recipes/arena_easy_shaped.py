@@ -1,0 +1,172 @@
+"""
+Arena Easy Shaped Rewards Recipe
+
+This recipe recreates the basic_easy_shaped configuration from the old YAML system.
+It includes:
+- Arena environment with 24 agents
+- Shaped rewards for ore, batteries, lasers, armor, and blueprints
+- Easy converter configuration (altar only needs 1 battery_red)
+- Standard training hyperparameters from the original config
+"""
+
+from typing import List, Optional
+
+import metta.cogworks.curriculum as cc
+import metta.mettagrid.config.envs as eb
+from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.rl.trainer_config import (
+    CheckpointConfig,
+    EvaluationConfig,
+    OptimizerConfig,
+    PPOConfig,
+    TrainerConfig,
+)
+from metta.sim.simulation_config import SimulationConfig
+from metta.tools.play import PlayTool
+from metta.tools.replay import ReplayTool
+from metta.tools.sim import SimTool
+from metta.tools.train import TrainTool
+
+
+def make_env(num_agents: int = 24) -> EnvConfig:
+    """Create the arena easy shaped rewards environment."""
+    # Start with the standard arena configuration
+    env_cfg = eb.make_arena(num_agents=num_agents, combat=False)
+
+    # Set shaped rewards (from configs/env/mettagrid/game/agent/rewards/shaped.yaml)
+    env_cfg.game.agent.rewards.inventory.ore_red = 0.1
+    env_cfg.game.agent.rewards.inventory.ore_red_max = 1
+
+    env_cfg.game.agent.rewards.inventory.battery_red = 0.8
+    env_cfg.game.agent.rewards.inventory.battery_red_max = 1
+
+    env_cfg.game.agent.rewards.inventory.laser = 0.5
+    env_cfg.game.agent.rewards.inventory.laser_max = 1
+
+    env_cfg.game.agent.rewards.inventory.armor = 0.5
+    env_cfg.game.agent.rewards.inventory.armor_max = 1
+
+    env_cfg.game.agent.rewards.inventory.blueprint = 0.5
+    env_cfg.game.agent.rewards.inventory.blueprint_max = 1
+
+    env_cfg.game.agent.rewards.inventory.heart = 1
+    env_cfg.game.agent.rewards.inventory.heart_max = 100
+
+    # Easy converter configuration (from configs/env/mettagrid/game/objects/basic_easy.yaml)
+    # Altar only needs 1 battery_red instead of the default (harder) requirement
+    env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
+
+    # Set label for clarity
+    env_cfg.label = "arena.easy_shaped"
+
+    return env_cfg
+
+
+def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
+    """Create evaluation environments for arena easy shaped."""
+    basic_env = env or make_env()
+
+    # Basic evaluation without combat
+    basic_env.game.actions.attack.consumed_resources["laser"] = 100
+
+    # Combat evaluation with attacks enabled
+    combat_env = basic_env.model_copy()
+    combat_env.game.actions.attack.consumed_resources["laser"] = 1
+
+    return [
+        SimulationConfig(name="arena_easy_shaped/basic", env=basic_env),
+        SimulationConfig(name="arena_easy_shaped/combat", env=combat_env),
+    ]
+
+
+def train() -> TrainTool:
+    """
+    Create training configuration for arena easy shaped rewards.
+
+    This matches the original train_job.yaml configuration:
+    - Uses the basic_easy_shaped environment
+    - Standard hyperparameters from configs/trainer/trainer.yaml
+    - Total timesteps: 10B (can be overridden at runtime)
+    """
+    env_cfg = make_env()
+
+    # Create trainer configuration with original hyperparameters
+    trainer_cfg = TrainerConfig(
+        # Environment
+        curriculum=cc.env_curriculum(env_cfg),
+        # Training duration
+        total_timesteps=10_000_000_000,
+        # Checkpointing (from original config)
+        checkpoint=CheckpointConfig(
+            checkpoint_interval=50,
+            wandb_checkpoint_interval=50,
+        ),
+        # Evaluation
+        evaluation=EvaluationConfig(
+            simulations=make_evals(env_cfg),
+            evaluate_interval=50,
+            evaluate_remote=True,
+            evaluate_local=False,
+        ),
+        # Optimizer settings (from original trainer.yaml)
+        optimizer=OptimizerConfig(
+            type="adam",
+            learning_rate=0.000457,
+            beta1=0.9,
+            beta2=0.999,
+            eps=1e-12,
+            weight_decay=0,
+        ),
+        # PPO hyperparameters (from original trainer.yaml)
+        ppo=PPOConfig(
+            clip_coef=0.1,
+            ent_coef=0.0021,
+            gae_lambda=0.916,
+            gamma=0.977,
+            max_grad_norm=0.5,
+            vf_clip_coef=0.1,
+            vf_coef=0.44,
+            l2_reg_loss_coef=0,
+            l2_init_loss_coef=0,
+            norm_adv=True,
+            clip_vloss=True,
+            target_kl=None,
+        ),
+        # Batch configuration (from original trainer.yaml)
+        batch_size=524288,
+        minibatch_size=16384,
+        bptt_horizon=64,
+        update_epochs=1,
+        # Performance settings
+        zero_copy=True,
+        require_contiguous_env_ids=False,
+        verbose=True,
+        cpu_offload=False,
+        compile=False,
+        compile_mode="reduce-overhead",
+        forward_pass_minibatch_target_size=4096,
+        async_factor=2,
+        scale_batches_by_world_size=False,
+    )
+
+    return TrainTool(trainer=trainer_cfg)
+
+
+def play(env: Optional[EnvConfig] = None) -> PlayTool:
+    """Interactive play tool for testing the environment."""
+    eval_env = env or make_env()
+    return PlayTool(sim=SimulationConfig(env=eval_env, name="arena_easy_shaped"))
+
+
+def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
+    """Replay tool for viewing recorded episodes."""
+    eval_env = env or make_env()
+    return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena_easy_shaped"))
+
+
+def evaluate(policy_uri: str) -> SimTool:
+    """Evaluate a trained policy on arena easy shaped environments."""
+    return SimTool(
+        simulations=make_evals(),
+        policy_uris=[policy_uri],
+    )
