@@ -11,18 +11,17 @@ from pathlib import Path
 import pytest
 
 from metta.common.util.fs import get_repo_root
-from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.mettagrid.config import building
+from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
     AgentRewards,
+    EnvConfig,
     GameConfig,
-    GroupConfig,
     InventoryRewards,
 )
-from metta.mettagrid.map_builder.random import RandomMapBuilder
 
 
 class TestRendererJob:
@@ -38,7 +37,7 @@ class TestRendererJob:
         "resource_collection": f"{REPO_ROOT}/configs/env/mettagrid/maps/debug/resource_collection.map",
         "mixed_objects": f"{REPO_ROOT}/configs/env/mettagrid/maps/debug/mixed_objects.map",
     }
-    
+
     @staticmethod
     def make_debug_env(name: str) -> EnvConfig:
         """Create a debug environment programmatically."""
@@ -144,14 +143,14 @@ class TestRendererJob:
         """Test that programmatically created debug environments are valid."""
         # Create and validate a debug environment
         env_config = self.make_debug_env("tiny_two_altars")
-        
+
         # Validate essential components
-        assert hasattr(env_config, 'game'), "Environment missing game config"
-        assert hasattr(env_config.game, 'actions'), "Game missing actions config"
-        assert hasattr(env_config.game, 'objects'), "Game missing objects config"
-        assert hasattr(env_config.game, 'agent'), "Game missing agent config"
-        assert hasattr(env_config.game, 'map_builder'), "Game missing map_builder config"
-        
+        assert hasattr(env_config, "game"), "Environment missing game config"
+        assert hasattr(env_config.game, "actions"), "Game missing actions config"
+        assert hasattr(env_config.game, "objects"), "Game missing objects config"
+        assert hasattr(env_config.game, "agent"), "Game missing agent config"
+        assert hasattr(env_config.game, "map_builder"), "Game missing map_builder config"
+
         # Validate actions are properly configured
         assert env_config.game.actions.move is not None, "Move action not configured"
         assert env_config.game.actions.rotate is not None, "Rotate action not configured"
@@ -197,29 +196,29 @@ class TestRendererJob:
         """Test that programmatically created environments work with MettaGridEnv."""
         try:
             from metta.mettagrid.mettagrid_env import MettaGridEnv
-            
+
             # Create a simple debug environment
             env_config = self.make_debug_env("tiny_two_altars")
-            
+
             # Initialize MettaGridEnv with the programmatic config
             env = MettaGridEnv(env_config)
-            
+
             # Test basic environment operations
             obs, info = env.reset()
             assert obs is not None, "Environment reset failed to return observation"
             assert obs.shape[0] == 2, "Observation should be for 2 agents"
-            
+
             # Test that action space is properly configured
             assert env.action_space is not None, "Action space not configured"
-            
+
             # Close the environment
             env.close()
-            
+
         except ImportError as e:
             pytest.fail(f"Failed to import MettaGridEnv: {str(e)}")
         except Exception as e:
             pytest.fail(f"Failed to create/use programmatic environment: {str(e)}")
-    
+
     def test_miniscope_renderer_imports(self):
         """Test that MiniscopeRenderer can be imported and initialized."""
         try:
@@ -248,13 +247,17 @@ class TestRendererJob:
         """Test that each debug environment has exactly 2 agents."""
         for env_name in ["tiny_two_altars", "simple_obstacles", "resource_collection", "mixed_objects"]:
             env_config = self.make_debug_env(env_name)
-            assert env_config.game.num_agents == 2, f"Environment {env_name} should have exactly 2 agents, but has {env_config.game.num_agents}"
+            assert env_config.game.num_agents == 2, (
+                f"Environment {env_name} should have exactly 2 agents, but has {env_config.game.num_agents}"
+            )
             # Also check map_builder agent count matches
-            if hasattr(env_config.game.map_builder, 'agents'):
+            if hasattr(env_config.game.map_builder, "agents"):
                 assert env_config.game.map_builder.agents == 2, f"Map builder for {env_name} should configure 2 agents"
 
     @pytest.mark.slow
-    @pytest.mark.parametrize("env_name", ["tiny_two_altars", "simple_obstacles", "resource_collection", "mixed_objects"])
+    @pytest.mark.parametrize(
+        "env_name", ["tiny_two_altars", "simple_obstacles", "resource_collection", "mixed_objects"]
+    )
     def test_basic_training_validation(self, env_name):
         """Test very basic training validation - just that the environment loads."""
         # Use a minimal training run that just validates environment loading
@@ -265,7 +268,7 @@ class TestRendererJob:
             print(f"Temp directory: {temp_dir}")
             print(f"Working directory: {Path.cwd()}")
             print(f"Creating environment programmatically: {env_name}")
-            
+
             # Create environment programmatically
             env_config = self.make_debug_env(env_name)
             print(f"Environment created: {env_config.label}")
