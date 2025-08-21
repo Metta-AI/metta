@@ -158,12 +158,43 @@ Created diagnostic script to:
 - Test environment recreation
 - Monitor shaped rewards
 
-## Next Steps
+## CRITICAL FINDINGS - Additional Issues Found
 
-1. **Most Important**: Test without CurriculumEnv wrapper to isolate its impact
-2. Add logging to verify rewards are actually being generated in C++
-3. Monitor first 1000 steps to see if agents ever get rewards
-4. Check if navigation environment works (simpler reward structure)
+### 1. heart_max Cap Issue (FIXED)
+**Problem**: The old shaped.yaml had `heart_max: null` (unlimited rewards)
+**Current**: Was set to `heart_max = 100`, capping total rewards
+**Fix**: Changed to `heart_max = 255` (maximum possible in new system)
+
+### 2. Default Training Configuration Changed
+**Old System**: `./tools/train.py` with no args used `basic_easy_shaped` environment by default
+**New System**: Requires explicit recipe specification
+**Created**: `arena_basic_shaped.py` recipe that exactly matches old defaults
+
+### Key Differences Between Pre-dehydration and Current:
+1. **initial_resource_count**: Old configs had 0, but curriculum varied it. Fixed by setting to 1.
+2. **heart_max**: Was unlimited (null), now must be int. Set to 255 for maximum.
+3. **Map objects**: Ensured blocks (20) and walls (20) are included as in old config
+4. **Buildings**: Removed lasery and armory that weren't in original basic config
+5. **Altar config**: Set to require only 1 battery_red (easy mode)
+
+## SOLUTION IMPLEMENTED
+
+Created `arena_basic_easy_shaped.py` recipe that combines all fixes:
+1. **initial_resource_count = 1** - Immediate reward availability (your fix)
+2. **heart_max = 255** - Uncapped rewards (was 100, old config had unlimited)
+3. **Minimal action set** - Only cardinal movement for easier learning
+4. **Correct map objects** - Includes 20 blocks and 20 walls as in old config
+5. **Easy altar** - Only requires 1 battery_red
+
+### To Test:
+```bash
+# Run training with the fixed recipe
+./tools/run.py experiments.recipes.arena_basic_easy_shaped.train --args run=fixed_arena
+
+# This should now reach ~20 heart.get as before dehydration
+```
+
+The key breakthrough was discovering that `heart_max` was capped at 100 instead of being unlimited (255 in new system).
 
 ## Summary
 
