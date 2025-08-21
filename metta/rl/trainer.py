@@ -728,12 +728,16 @@ def get_or_create_policy_record(
             f"Non-master rank {checkpoint_manager.rank} found without torch.distributed initialized. "
             "This likely indicates a configuration error in distributed training setup."
         )
-
     # Master determines the existing policy path
     if checkpoint_manager.is_master:
-        existing_policy_path: str | None = (checkpoint and checkpoint.policy_path) or (
-            trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri
-        )
+        if checkpoint and checkpoint.policy_path and trainer_cfg.checkpoint:
+            # Use directory from trainer_cfg.checkpoint and filename from checkpoint.policy_path
+            filename = os.path.basename(checkpoint.policy_path)
+            existing_policy_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, filename)
+        else:
+            existing_policy_path = (checkpoint and checkpoint.policy_path) or (
+                trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri
+            )
 
         # Only check default path if no explicit policy path was found
         if existing_policy_path is None:
