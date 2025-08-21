@@ -7,7 +7,6 @@ Initialize once with init_yaml_serializers() before use.
 
 import shutil
 import tempfile
-from pathlib import Path
 from typing import Any, Dict, Tuple
 
 import torch
@@ -41,15 +40,16 @@ def init_yaml_serializers():
         _yaml_serializers_initialized = True
 
 
-def save_policy(policy_record: PolicyRecord, checkpoint_name: str, base_path: Path) -> Path:
+def save_policy(policy_record: PolicyRecord, checkpoint_name: str, base_path: str) -> str:
     """Save policy record with sidecar pattern"""
     init_yaml_serializers()  # Ensure serializers are initialized
 
-    weights_ptx_path = base_path / f"{checkpoint_name}.safetensors"
-    metadata_path = base_path / f"{checkpoint_name}.yaml"
+    weights_ptx_path = f"{base_path}/{checkpoint_name}.safetensors"
+    metadata_path = f"{base_path}/{checkpoint_name}.yaml"
 
     # Extract state dict (handle DDP wrapper)
     state_dict = _get_state_dict(policy_record.policy)
+    # state_dict = {key.replace("policy.", ""): value for key, value in state_dict.items()}
 
     # Extract metadata from the policy record and agent
     metadata_dict = _extract_metadata_from_record(policy_record)
@@ -61,28 +61,28 @@ def save_policy(policy_record: PolicyRecord, checkpoint_name: str, base_path: Pa
     return safetensors_path
 
 
-def load_metadata_only(checkpoint_name: str, base_path: Path) -> Dict[str, Any]:
+def load_metadata_only(checkpoint_name: str, base_path: str) -> Dict[str, Any]:
     """Fast metadata loading without touching weights"""
     init_yaml_serializers()  # Ensure serializers are initialized
 
-    metadata_path = base_path / f"{checkpoint_name}.yaml"
+    metadata_path = f"{base_path}/{checkpoint_name}.yaml"
     with open(metadata_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 
-def load_weights_only(checkpoint_name: str, base_path: Path) -> Dict[str, torch.Tensor]:
+def load_weights_only(checkpoint_name: str, base_path: str) -> Dict[str, torch.Tensor]:
     """Load only model weights"""
-    weights_path = base_path / f"{checkpoint_name}.safetensors"
+    weights_path = f"{base_path}/{checkpoint_name}.safetensors"
     weights = load_file(weights_path)
     return weights
 
 
-def load_full(checkpoint_name: str, base_path: Path) -> Tuple[Dict[str, torch.Tensor], Dict[str, Any]]:
+def load_full(checkpoint_name: str, base_path: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, Any]]:
     """Load both weights and metadata"""
     return load_weights_only(checkpoint_name, base_path), load_metadata_only(checkpoint_name, base_path)
 
 
-def restore_agent(agent: PolicyAgent, checkpoint_name: str, base_path: Path):
+def restore_agent(agent: PolicyAgent, checkpoint_name: str, base_path: str):
     """Restore agent from checkpoint"""
     init_yaml_serializers()  # Ensure serializers are initialized
 
@@ -157,9 +157,11 @@ def _extract_metadata_from_record(policy_record: PolicyRecord) -> Dict[str, Any]
     return metadata_dict
 
 
-def _atomic_save_weights(sd: Dict, target_path: Path) -> Path:
+def _atomic_save_weights(sd: Dict, target_path: str) -> str:
     """Atomically save weights to prevent corruption"""
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pt", dir=target_path.parent) as tmp:
+    import os
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pt", dir=os.path.dirname(target_path)) as tmp:
         # (recommended) normalize tensors before saving - should I do this?
         sd = {k: v.detach().cpu().contiguous() for k, v in sd.items() if isinstance(v, torch.Tensor)}
         save_file(sd, tmp.name)
@@ -170,10 +172,12 @@ def _atomic_save_weights(sd: Dict, target_path: Path) -> Path:
         return target_path
 
 
-def _atomic_save_metadata(metadata: Dict, target_path: Path):
+def _atomic_save_metadata(metadata: Dict, target_path: str):
     """Atomically save metadata YAML"""
+    import os
+
     with tempfile.NamedTemporaryFile(
-        mode="w", delete=False, suffix=".yaml", dir=target_path.parent, encoding="utf-8"
+        mode="w", delete=False, suffix=".yaml", dir=os.path.dirname(target_path), encoding="utf-8"
     ) as tmp:
         yaml.safe_dump(metadata, tmp, default_flow_style=False, allow_unicode=True)
         tmp.flush()

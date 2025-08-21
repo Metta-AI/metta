@@ -10,8 +10,10 @@ from heavyball import ForeachMuon
 from torchrl.data import Composite
 
 from metta.agent.agent_config import AgentConfig
-from metta.agent.metta_agent import PolicyAgent
+from metta.agent.metta_agent import MettaAgent, PolicyAgent
+from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.agent.util.distribution_utils import get_from_master
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
@@ -33,9 +35,9 @@ from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
-from metta.rl.policy_initializer import PolicyInitializer
 from metta.rl.policy_management import (
     initialize_policy_for_environment,
+    validate_policy_environment_match,
     wrap_agent_distributed,
 )
 from metta.rl.rollout import get_observation, send_observation
@@ -139,6 +141,7 @@ def train(
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
     # Load or initialize policy via TrainerInitializer
+    """
     initializer = PolicyInitializer(
         agent_cfg=agent_cfg,
         system_cfg=system_cfg,
@@ -146,7 +149,8 @@ def train(
         is_master=torch_dist_cfg.is_master,
         device=device,
     )
-    policy_store.agent_factory = initializer.make_policy
+    """
+    policy_store.empty_agent_factory = lambda path: get_default_policy_agent(metta_grid_env, system_cfg, agent_cfg)
 
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
@@ -172,11 +176,18 @@ def train(
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
     # Load or initialize policy with distributed coordination
-    initial_policy_record = latest_saved_policy_record = checkpoint_manager.load_or_create_policy(
+    policy_path = get_initial_policy_path(
+        checkpoint_manager=checkpoint_manager,
+        trainer_cfg=trainer_cfg,
+        checkpoint=checkpoint,
+    )
+
+    initial_policy_record = latest_saved_policy_record = get_policy_record(
+        checkpoint_manager=checkpoint_manager,
         agent_cfg=agent_cfg,
         system_cfg=system_cfg,
         trainer_cfg=trainer_cfg,
-        checkpoint=checkpoint,
+        policy_path=policy_path,
         metta_grid_env=metta_grid_env,
     )
 
@@ -642,3 +653,112 @@ def train(
     if stats_client and stats_tracker and hasattr(stats_tracker, "stats_run_id"):
         return {"stats_run_id": stats_tracker.stats_run_id, "stats_client": stats_client, "logger": logger}
     return None
+
+
+def get_initial_policy_path(
+    checkpoint_manager: CheckpointManager,
+    trainer_cfg: TrainerConfig,
+    checkpoint: TrainerCheckpoint | None,
+) -> str | None:
+    """
+    Determine the initial policy path with distributed coordination.
+
+    Checks if there is an existing policy at any of:
+        - checkpoint.policy_path
+        - trainer_cfg.initial_policy.uri
+        - default_path (checkpoint_dir/model_{epoch}.pt)
+    Returns the policy path if found, None otherwise.
+    """
+    # Check if policy already exists at default path - all ranks check this
+    default_model_name = checkpoint_manager.policy_store.make_model_name(
+        0, checkpoint_manager.checkpoint_cfg.model_suffix()
+    )
+    default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, default_model_name)
+
+    # Master determines the policy path
+    if checkpoint_manager.is_master:
+        policy_path: str | None = (
+            (checkpoint and checkpoint.policy_path)
+            or (trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri)
+            or (default_path if os.path.exists(default_path) else None)
+        )
+    else:
+        policy_path = None
+
+    # Synchronize policy_path across all ranks if using distributed training
+    if torch.distributed.is_initialized():
+        policy_path = get_from_master(policy_path)
+        logger.info(f"Rank {checkpoint_manager.rank}: Synchronized policy_path = {policy_path}")
+    elif not checkpoint_manager.is_master:
+        # Non-master rank without distributed training should not happen
+        raise RuntimeError(
+            f"Non-master rank {checkpoint_manager.rank} found without torch.distributed initialized. "
+            "This likely indicates a configuration error in distributed training setup."
+        )
+
+    return policy_path
+
+
+def get_default_policy_agent(
+    metta_grid_env: MettaGridEnv, system_cfg: SystemConfig, agent_cfg: AgentConfig
+) -> MettaAgent:
+    return MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+
+
+def get_policy_record(
+    checkpoint_manager: CheckpointManager,
+    agent_cfg: AgentConfig,
+    system_cfg: SystemConfig,
+    trainer_cfg: TrainerConfig,
+    policy_path: str | None,
+    metta_grid_env: MettaGridEnv,
+) -> PolicyRecord:
+    """
+    Load or initialize policy with distributed coordination.
+
+    If policy_path is provided, loads the policy from that path.
+    If not, creates a new policy and saves it to the default path.
+    """
+
+    # Now all ranks have the same policy_path and can load/create consistently
+    if policy_path:
+        logger.info(f"Rank {checkpoint_manager.rank}: Loading policy from {policy_path}")
+        policy_record = checkpoint_manager.policy_store.policy_record(policy_path)
+    else:
+        # No existing policy - all ranks create new one with same structure
+        logger.info(f"Rank {checkpoint_manager.rank}: No existing policy found, creating new one")
+        default_model_name = checkpoint_manager.policy_store.make_model_name(
+            0, checkpoint_manager.checkpoint_cfg.model_suffix()
+        )
+        new_policy_record = checkpoint_manager.policy_store.create_empty_policy_record(
+            checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir, name=default_model_name
+        )
+        new_policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
+
+        # Only master saves the new policy to disk
+        if checkpoint_manager.is_master:
+            policy_record = checkpoint_manager.policy_store.save(
+                new_policy_record, trainer_cfg.checkpoint.checkpoint_file_type
+            )
+            logger.info(f"Master saved new policy to {policy_record.uri}")
+        else:
+            policy_record = new_policy_record
+            logger.info(f"Rank {checkpoint_manager.rank}: Created policy structure for DDP sync")
+
+    # Synchronize policy metadata from master using NCCL broadcast of objects.
+    # This avoids file I/O on non-master ranks while ensuring consistent metadata.
+    if torch.distributed.is_initialized():
+        try:
+            if policy_record is None:
+                raise RuntimeError("PolicyRecord was not initialized")
+            synced_metadata = get_from_master(policy_record.metadata if checkpoint_manager.is_master else None)
+            if synced_metadata is not None:
+                policy_record.metadata = synced_metadata
+        except Exception as e:
+            logger.warning(f"Rank {checkpoint_manager.rank}: Failed to sync policy metadata from master: {e}")
+
+    if policy_record is None:
+        raise RuntimeError("Failed to initialize policy record")
+
+    validate_policy_environment_match(policy_record.policy, metta_grid_env)
+    return policy_record

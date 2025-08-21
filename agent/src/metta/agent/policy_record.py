@@ -26,15 +26,15 @@ class PolicyRecord:
         run_name: str,
         uri: str | None,
         metadata: PolicyMetadata | dict,
-        policy: PolicyAgent | None = None,
+        policy: "PolicyAgent | None" = None,
     ):
         self._policy_store = policy_store
         self.run_name = run_name  # Human-readable identifier (e.g., from wandb). Can include version
         self.uri: str | None = uri
-        
+
         # Use the setter to ensure proper type
         self.metadata = metadata
-        self._cached_policy: PolicyAgent | None = policy
+        self._cached_policy: "PolicyAgent | None" = policy
 
     def extract_wandb_run_info(self) -> tuple[str, str, str, str | None]:
         if self.uri is None or not self.uri.startswith("wandb://"):

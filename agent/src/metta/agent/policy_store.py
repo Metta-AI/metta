@@ -14,7 +14,6 @@ import logging
 import os
 import random
 import sys
-from pathlib import Path
 from typing import Any, Literal
 from urllib.parse import urlparse
 
@@ -67,7 +66,7 @@ class PolicyStore:
         self._wandb_run: WandbRun | None = wandb_run
         self._cached_prs = PolicyCache(max_size=policy_cache_size)
         self._made_codebase_backwards_compatible = False
-        self.agent_factory = None
+        self.empty_agent_factory = None
 
     def policy_record(
         self,
@@ -315,8 +314,8 @@ class PolicyStore:
         checkpoint_name = os.path.splitext(os.path.basename(path))[0]
 
         # Save .safetensors file (just the model weights/state dict)
-        safetensors_path = policy_metadata_yaml_helper.save_policy(pr, checkpoint_name, Path(checkpoint_dir))
-        return str(safetensors_path)
+        safetensors_path = policy_metadata_yaml_helper.save_policy(pr, checkpoint_name, checkpoint_dir)
+        return safetensors_path
 
     def save(
         self, pr: PolicyRecord, checkpoint_file_type: CheckpointFileType = "pt", path: str | None = None
@@ -330,7 +329,8 @@ class PolicyStore:
         # Don't cache the policy that we just saved,
         # since it might be updated later. We always
         # load the policy from the file when needed.
-        pr._cached_policy = None
+        # pr._cached_policy = None
+        # !! i removed this - why was it here?
         if path is not None:
             self._cached_prs.put(path, pr)
         return pr
@@ -529,14 +529,15 @@ class PolicyStore:
 
     def _load_from_safetensorsfile(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a PolicyRecord from safetensors format with YAML metadata sidecar."""
-        path = str(Path(path))
         cached_pr = self._cached_prs.get(path)
         if cached_pr is not None:
             if metadata_only or cached_pr._cached_policy is not None:
                 return cached_pr
 
-        pr = self.agent_factory()
-        policy_metadata_yaml_helper.restore_agent(pr.policy, self.checkpoint_name(path), Path(self.base_path(path)))
+        agent = self.empty_agent_factory(path)
+        policy_metadata_yaml_helper.restore_agent(agent, self.checkpoint_name(path), self.base_path(path))
+        pr = self.create_empty_policy_record(self.checkpoint_name(path), self.base_path(path))
+        pr.policy = agent
 
         self._cached_prs.put(path, pr)
         return pr
