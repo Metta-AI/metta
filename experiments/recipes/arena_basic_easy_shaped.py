@@ -24,8 +24,6 @@ from metta.mettagrid.mettagrid_config import (
 from metta.rl.trainer_config import (
     CheckpointConfig,
     EvaluationConfig,
-    OptimizerConfig,
-    PPOConfig,
     TrainerConfig,
 )
 from metta.sim.simulation_config import SimulationConfig
@@ -70,9 +68,7 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     # Action configuration using move_8way for directional movement
     env_cfg.game.actions = ActionsConfig(
         noop=ActionConfig(enabled=True),
-        move_8way=ActionConfig(
-            enabled=True
-        ),  # 8-directional movement
+        move_8way=ActionConfig(enabled=True),  # 8-directional movement
         rotate=ActionConfig(enabled=True),  # Rotation action
         put_items=ActionConfig(enabled=True),
         get_items=ActionConfig(enabled=True),
