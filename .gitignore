@@ -86,8 +86,9 @@ sweep_id
 # Notebooks
 experiments/notebooks/.ipynb_checkpoints
 experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
-experiments/user/*.py
-!experiments/user/example.py
+experiments/recipes/scratchpad/*.py
+!experiments/recipes/scratchpad/README.md
+!experiments/recipes/scratchpad/example.py
 
 resources
 identified-figures/

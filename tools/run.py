@@ -1,6 +1,6 @@
 #!/usr/bin/env -S uv run
 import argparse
-import importlib
+import inspect
 import logging
 import os
 import signal
@@ -9,13 +9,13 @@ import warnings
 from typing import Any, cast
 
 from omegaconf import OmegaConf
-from pydantic import validate_call
 from typing_extensions import TypeVar
 
 from metta.common.config.config import Config
 from metta.common.config.tool import Tool
 from metta.common.util.logging_helpers import init_logging
 from metta.rl.system_config import seed_everything
+from metta.utils.module import load_function
 
 logger = logging.getLogger(__name__)
 
@@ -63,15 +63,23 @@ def main():
     args_conf = cast(dict[str, Any], args_conf)
 
     # Create the tool config object
-    module_name, func_name = args.make_tool_cfg_path.rsplit(".", 1)
-    make_tool_cfg = importlib.import_module(module_name).__getattribute__(func_name)
+    make_tool_cfg = load_function(args.make_tool_cfg_path)
 
     if issubclass(make_tool_cfg, Tool):
         # tool config constructor
         tool_cfg = make_tool_cfg(**args_conf)
     else:
         # function that makes a tool config
-        tool_cfg = validate_call(make_tool_cfg)(**args_conf)
+        make_tool_cfg_args = {}
+        for key in inspect.signature(make_tool_cfg).parameters.keys():
+            if key in args_conf:
+                make_tool_cfg_args[key] = args_conf[key]
+        tool_cfg = make_tool_cfg(**make_tool_cfg_args)
+        used_args = set(make_tool_cfg_args.keys())
+        used_args.update(tool_cfg.consumed_args)
+        unused_args = set(args_conf.keys()) - used_args
+        if unused_args:
+            raise ValueError(f"Unused arguments passed to {args.make_tool_cfg_path}: {unused_args}")
 
     if not isinstance(tool_cfg, Tool):
         raise ValueError(f"The result of running {args.make_tool_cfg_path} must be a ToolConfig, got {tool_cfg}")
@@ -97,7 +105,7 @@ def main():
         print(tool_cfg.model_dump_json(indent=2))
         sys.exit(0)
 
-    result = tool_cfg.invoke()
+    result = tool_cfg.invoke(args_conf, overrides)
 
     if result is not None:
         sys.exit(result)

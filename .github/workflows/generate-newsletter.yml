@@ -24,7 +24,7 @@ on:
 
 jobs:
   generate-newsletter:
-    runs-on: ubuntu-latest
+    runs-on: default
     steps:
       - name: Checkout
         uses: actions/checkout@v4

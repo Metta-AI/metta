@@ -75,7 +75,7 @@ class TestCurriculumConfig:
         config = CurriculumConfig(task_generator=task_gen_config)
 
         assert config.max_task_id == 1000000
-        assert config.num_active_tasks == 100
+        assert config.num_active_tasks == 10000
         assert config.new_task_rate == 0.01
 
     def test_curriculum_config_validation_num_active_tasks(self):
