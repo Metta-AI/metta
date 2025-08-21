@@ -320,8 +320,9 @@ class InContextOptimalSolver:
             movement_cost += (expected_attempts - 1) * avg_inter  # Inter-object movements
 
         # Add restart movement costs for sink hits
+        # so use average inter-converter distance
         if expected_sink_hits > 0:
-            restart_movement = expected_sink_hits * avg_from_agent
+            restart_movement = expected_sink_hits * avg_inter
             movement_cost += restart_movement
 
         # Calculate action costs
