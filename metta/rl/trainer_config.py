@@ -103,7 +103,7 @@ class PPOConfig(Config):
 
 
 class TorchProfilerConfig(Config):
-    interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable, 10000 is infrequent to minimize overhead
+    interval_epochs: int = Field(default=0, ge=0)  # 0 to disable profiling
     # Upload location: None disables uploads, supports s3:// or local paths
     profile_dir: str | None = Field(default=None)
 
@@ -113,8 +113,8 @@ class TorchProfilerConfig(Config):
 
     @model_validator(mode="after")
     def validate_fields(self) -> "TorchProfilerConfig":
-        if self.enabled:
-            assert self.profile_dir, "profile_dir must be set"
+        if self.enabled and not self.profile_dir:
+            raise ValueError("profile_dir must be set when profiler is enabled")
         return self
 
 

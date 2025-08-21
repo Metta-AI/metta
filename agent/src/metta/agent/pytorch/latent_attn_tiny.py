@@ -143,11 +143,12 @@ class Policy(nn.Module):
         self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512))
         self.action_embeddings = nn.Embedding(100, 16)
 
-        # Action heads - will be initialized based on action space
-        action_nvec = self.action_space.nvec if hasattr(self.action_space, "nvec") else [100]
-
+        # Action heads - compute from environment's actual action configuration
+        # The total flattened action space is sum of (max_arg + 1) for each action
+        total_actions = sum(max_arg + 1 for max_arg in env.max_action_args)
+        
         self.actor_heads = nn.ModuleList(
-            [pufferlib.pytorch.layer_init(nn.Linear(512 + 16, n), std=0.01) for n in action_nvec]
+            [pufferlib.pytorch.layer_init(nn.Linear(512 + 16, total_actions), std=0.01)]
         )
 
     def network_forward(self, x):
