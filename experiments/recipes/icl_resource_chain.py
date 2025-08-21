@@ -15,6 +15,8 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from pydantic import Field
 
+from experiments.evals.icl_resource_chain import make_icl_resource_chain_eval_suite
+
 CONVERTER_TYPES = {
     "mine_red": building.mine_red,
     "mine_blue": building.mine_blue,
@@ -24,10 +26,6 @@ CONVERTER_TYPES = {
     "generator_green": building.generator_green,
     "altar": building.altar,
     "lab": building.lab,
-    # leave these out for evals
-    # "factory": building.factory,
-    # "temple": building.temple,
-    # "lasery": building.lasery,
 }
 
 RESOURCE_TYPES = [
@@ -37,10 +35,6 @@ RESOURCE_TYPES = [
     "battery_red",
     "battery_blue",
     "battery_green",
-    # leave these out for evals
-    # "laser",
-    # "blueprint",
-    # "armor",
 ]
 
 
@@ -176,9 +170,7 @@ def make_curriculum() -> CurriculumConfig:
 def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
         curriculum=curriculum or make_curriculum(),
-        evaluation=EvaluationConfig(
-            # simulations=[SimulationConfig(env=task_generator.get_task(0), name="icl")],
-        ),
+        evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
 
     return TrainTool(trainer=trainer_cfg)
@@ -205,6 +197,4 @@ def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
 
 
 def eval() -> SimTool:
-    return SimTool(
-        simulations=[SimulationConfig(env=make_env(), name="in_context_resource_chain")]
-    )
+    return SimTool(simulations=make_icl_resource_chain_eval_suite())
