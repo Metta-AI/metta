@@ -22,14 +22,28 @@ class ParameterConfig(Config):
 class ProteinSettings(Config):
     """Settings for the Protein optimizer algorithm."""
 
+    # Common settings for all methods
     max_suggestion_cost: float = Field(default=3600, description="Maximum cost (in seconds) for a single suggestion")
-    resample_frequency: int = Field(default=0, description="How often to resample failed suggestions")
-    num_random_samples: int = Field(default=50, description="Number of random samples before using GP")
     global_search_scale: float = Field(default=1.0, description="Scale factor for global search")
     random_suggestions: int = Field(default=1024, description="Number of random suggestions to generate")
     suggestions_per_pareto: int = Field(default=256, description="Number of suggestions per Pareto point")
+
+    # Bayesian optimization specific settings
+    resample_frequency: int = Field(default=0, description="How often to resample failed suggestions")
+    num_random_samples: int = Field(default=50, description="Number of random samples before using GP")
     seed_with_search_center: bool = Field(default=True, description="Whether to seed with the search center")
     expansion_rate: float = Field(default=0.25, description="Rate of search space expansion")
+    acquisition_fn: Literal["naive", "ei", "ucb"] = Field(
+        default="naive", description="Acquisition function for Bayesian optimization"
+    )
+    ucb_beta: float = Field(default=2.0, description="Beta parameter for UCB acquisition function")
+    randomize_acquisition: bool = Field(
+        default=False, description="Whether to randomize acquisition function parameters for diversity"
+    )
+
+    # Genetic algorithm specific settings
+    bias_cost: bool = Field(default=True, description="Whether to bias selection based on cost (for genetic method)")
+    log_bias: bool = Field(default=False, description="Whether to use log-scale for cost bias (for genetic method)")
 
 
 class ProteinConfig(Config):

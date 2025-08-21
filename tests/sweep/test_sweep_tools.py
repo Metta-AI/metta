@@ -156,7 +156,14 @@ class TestProteinConfig:
 
     def test_protein_config_to_dict(self):
         """Test ProteinConfig conversion to Protein dict format."""
-        from metta.sweep.protein_config import ParameterConfig, ProteinConfig
+        from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
+
+        # Test with custom settings including new acquisition function
+        settings = ProteinSettings(
+            acquisition_fn="ucb",
+            ucb_beta=3.0,
+            num_random_samples=100,
+        )
 
         config = ProteinConfig(
             metric="arena",
@@ -173,6 +180,7 @@ class TestProteinConfig:
                     },
                 }
             },
+            settings=settings,
         )
 
         protein_dict = config.to_protein_dict()
@@ -184,6 +192,11 @@ class TestProteinConfig:
         assert protein_dict["trainer.optimizer.learning_rate"]["max"] == 1e-2
         assert "trainer.ppo.clip_coef" in protein_dict
         assert protein_dict["trainer.ppo.clip_coef"]["min"] == 0.1
+
+        # Verify settings are accessible
+        assert config.settings.acquisition_fn == "ucb"
+        assert config.settings.ucb_beta == 3.0
+        assert config.settings.num_random_samples == 100
 
     def test_parameter_config_creation(self):
         """Test ParameterConfig requires all fields."""
@@ -205,6 +218,81 @@ class TestProteinConfig:
             scale="auto",
         )
         assert log_param.mean == 1e-3
+
+    def test_different_optimization_methods(self):
+        """Test that different optimization methods are properly configured."""
+        from metta.sweep.protein import ParetoGenetic, Protein, Random
+        from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
+        from metta.sweep.protein_metta import MettaProtein
+
+        base_params = {"test_param": ParameterConfig(min=0, max=1, distribution="uniform", mean=0.5, scale="auto")}
+
+        # Test Bayesian optimization (default)
+        bayes_config = ProteinConfig(
+            metric="test",
+            goal="maximize",
+            method="bayes",
+            parameters=base_params,
+            settings=ProteinSettings(acquisition_fn="ei"),
+        )
+        bayes_optimizer = MettaProtein(bayes_config)
+        assert isinstance(bayes_optimizer._protein, Protein)
+
+        # Test Random optimization
+        random_config = ProteinConfig(
+            metric="test",
+            goal="maximize",
+            method="random",
+            parameters=base_params,
+        )
+        random_optimizer = MettaProtein(random_config)
+        assert isinstance(random_optimizer._protein, Random)
+
+        # Test Genetic optimization
+        genetic_config = ProteinConfig(
+            metric="test",
+            goal="maximize",
+            method="genetic",
+            parameters=base_params,
+            settings=ProteinSettings(bias_cost=False, log_bias=True),
+        )
+        genetic_optimizer = MettaProtein(genetic_config)
+        assert isinstance(genetic_optimizer._protein, ParetoGenetic)
+
+    def test_randomize_acquisition(self):
+        """Test that randomize_acquisition parameter works correctly."""
+        from metta.sweep.protein_config import ParameterConfig, ProteinConfig, ProteinSettings
+        from metta.sweep.protein_metta import MettaProtein
+
+        # Create config with randomize_acquisition enabled
+        config = ProteinConfig(
+            metric="test",
+            goal="maximize",
+            method="bayes",
+            parameters={"test_param": ParameterConfig(min=0, max=1, distribution="uniform", mean=0.5, scale="auto")},
+            settings=ProteinSettings(
+                acquisition_fn="ei",
+                randomize_acquisition=True,
+                num_random_samples=1,  # Skip random phase for testing
+            ),
+        )
+
+        optimizer = MettaProtein(config)
+
+        # Add some observations to get past random sampling phase
+        optimizer.observe({"test_param": 0.3}, 0.5, 1.0, False)
+        optimizer.observe({"test_param": 0.7}, 0.8, 1.0, False)
+
+        # Get a suggestion - should include randomization info
+        suggestion, info = optimizer.suggest()
+
+        # Verify that randomization is enabled
+        assert "randomize_acquisition" in info
+        assert info["randomize_acquisition"] is True
+
+        # When randomization is enabled with EI, we should get seed info
+        if "random_seed" in info:
+            assert isinstance(info["random_seed"], int)
 
 
 class TestSweepExperiments:
