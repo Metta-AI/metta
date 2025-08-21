@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Test the integration of curriculum algorithms into the main curriculum system."""
 
-
 from metta.cogworks.curriculum.curriculum import (
     CurriculumConfig,
     DiscreteRandomCurriculum,
