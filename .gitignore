@@ -92,3 +92,4 @@ experiments/recipes/scratchpad/*.py
 !experiments/recipes/scratchpad/ci.py
 
 resources
+identified-figures/
