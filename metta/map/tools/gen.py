@@ -1,5 +1,4 @@
 #!/usr/bin/env -S uv run
-import importlib
 import logging
 import random
 import string
@@ -8,6 +7,7 @@ from metta.common.config.tool import Tool
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
 from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.utils.module import load_function
 
 logger = logging.getLogger(__name__)
 
@@ -36,9 +36,7 @@ class GenTool(Tool):
         count = self.count
         env_fn_name = self.env_fn
 
-        module_name, class_name = env_fn_name.rsplit(".", 1)
-        module = importlib.import_module(module_name)
-        env_fn = getattr(module, class_name)
+        env_fn = load_function(env_fn_name)
 
         # TODO - support env_fn args?
         env_config = env_fn()
