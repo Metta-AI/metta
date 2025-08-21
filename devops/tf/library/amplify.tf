@@ -60,9 +60,9 @@ applications:
           - '**/*'
       cache:
         paths:
-          - '.next/cache/**/*'
+          - 'library/.next/cache/**/*'
           - 'node_modules/**/*'
-      buildPath: /
+          - 'library/node_modules/**/*'
   EOT
 }
 
