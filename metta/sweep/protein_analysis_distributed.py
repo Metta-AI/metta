@@ -514,9 +514,10 @@ def worker_process(
                 f"{config.total_iterations}iter"
             )
 
-            wandb_config = WandbConfig.Configured(
+            wandb_config = WandbConfig(
+                enabled=True,
                 project=wandb_config.project if hasattr(wandb_config, "project") else "metta",
-                entity=wandb_config.entity if hasattr(wandb_config, "entity") else None,
+                entity=wandb_config.entity if hasattr(wandb_config, "entity") else "",
                 name=run_name,
                 tags=["sweep", "protein-opt-diagnostics"],
                 group="protein-opt-diagnostics",
@@ -711,9 +712,10 @@ for parallel execution, significantly speeding up multi-seed experiments.
     # Set up wandb config if enabled
     wandb_config = None
     if args.wandb:
-        wandb_config = WandbConfig.Configured(
+        wandb_config = WandbConfig(
+            enabled=True,
             project=args.wandb_project,
-            entity=args.wandb_entity,
+            entity=args.wandb_entity if args.wandb_entity else "",
         )
 
     # Select problems
