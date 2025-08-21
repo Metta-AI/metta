@@ -26,7 +26,7 @@ env:
 
 jobs:
   launch-1-gpu-run:
-    runs-on: ubuntu-latest
+    runs-on: default
     permissions:
       contents: read
     outputs:
@@ -69,7 +69,7 @@ jobs:
           echo "Launched 1-GPU Run: ${{ steps.skylaunch_1gpu.outputs.run_name }}"
 
   launch-4-gpu-run:
-    runs-on: ubuntu-latest
+    runs-on: default
     permissions:
       contents: read
     outputs:
@@ -113,7 +113,7 @@ jobs:
   # Placeholder for future job that depends on the two launch jobs
   # compare-and-log-results:
   #   needs: [launch-1-gpu-run, launch-4-gpu-run]
-  #   runs-on: ubuntu-latest
+  #   runs-on: default
   #   steps:
   #     - name: Display Run Names
   #       run: |
