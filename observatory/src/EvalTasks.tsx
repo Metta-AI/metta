@@ -18,12 +18,13 @@ function InputGroup({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        display: 'flex',
+        display: 'grid',
+        gridTemplateColumns: '1.5fr 1fr 180px 140px', // ⬅️ same as labels
         alignItems: 'stretch',
         border: '1px solid #d1d5db',
         borderRadius: 8,
         background: '#fff',
-        overflow: 'visible', // allow dropdowns
+        overflow: 'visible', // allow dropdowns to escape
       }}
     >
       {children}
@@ -33,16 +34,16 @@ function InputGroup({ children }: { children: React.ReactNode }) {
 
 function GroupCell({
   children,
-  width,
   withDivider = false,
+  isFirst = false,
+  isLast = false,
 }: {
   children: React.ReactNode
-  width?: number | string
   withDivider?: boolean
+  isFirst?: boolean
+  isLast?: boolean
 }) {
   const [focused, setFocused] = React.useState(false)
-
-  const fixed = width ? (typeof width === 'number' ? `${width}px` : width) : undefined
 
   return (
     <div
@@ -52,13 +53,11 @@ function GroupCell({
         position: 'relative',
         display: 'flex',
         alignItems: 'center',
-        flex: fixed ? `0 0 ${fixed}` : '1 1 0',
-        width: fixed,
         height: 44,
         borderLeft: withDivider ? '1px solid #e5e7eb' : 'none',
       }}
     >
-      {/* focus ring lives on the CELL, not the input */}
+      {/* focus ring drawn on the CELL, with correct corner rounding */}
       <div
         aria-hidden
         style={{
@@ -66,8 +65,8 @@ function GroupCell({
           inset: 0,
           pointerEvents: 'none',
           boxShadow: focused ? 'inset 0 0 0 2px #007bff' : 'none',
-          borderRadius: 0,
-          zIndex: 1, // above dividers
+          borderRadius: isFirst ? '8px 0 0 8px' : isLast ? '0 8px 8px 0' : 0,
+          zIndex: 1,
         }}
       />
       <div style={{ position: 'relative', flex: 1, height: '100%' }}>{children}</div>
@@ -598,18 +597,18 @@ export function EvalTasks({ repo }: Props) {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: '1.5fr 1fr 180px 140px',
-            columnGap: 12,
+            gridTemplateColumns: '1.5fr 1fr 180px 140px', // ⬅️ match InputGroup
+            columnGap: 0, // ⬅️ no gap so columns line up perfectly
             marginBottom: 6,
           }}
         >
-          <label style={{ fontSize: 13, fontWeight: 500, color: '#555' }}>Policy Name or ID</label>
-          <label style={{ fontSize: 13, fontWeight: 500, color: '#555' }}>Git Commit</label>
-          <label style={{ fontSize: 13, fontWeight: 500, color: '#555' }}>Suite</label>
+          <label style={{ padding: '0 12px', fontSize: 13, fontWeight: 500, color: '#555' }}>Policy Name or ID</label>
+          <label style={{ padding: '0 12px', fontSize: 13, fontWeight: 500, color: '#555' }}>Git Commit</label>
+          <label style={{ padding: '0 12px', fontSize: 13, fontWeight: 500, color: '#555' }}>Suite</label>
           <span />
         </div>
         <InputGroup>
-          <GroupCell>
+          <GroupCell isFirst>
             <TypeaheadInput
               value={policyIdInput}
               onChange={setPolicyIdInput}
@@ -629,7 +628,7 @@ export function EvalTasks({ repo }: Props) {
             />
           </GroupCell>
 
-          <GroupCell width={180} withDivider>
+          <GroupCell withDivider>
             <TypeaheadInput
               value={simSuite}
               onChange={setSimSuite}
@@ -641,7 +640,7 @@ export function EvalTasks({ repo }: Props) {
             />
           </GroupCell>
 
-          <GroupCell width={140} withDivider>
+          <GroupCell withDivider isLast>
             <button
               onClick={handleCreateTask}
               disabled={loading || !policyIdInput.trim()}
@@ -651,7 +650,7 @@ export function EvalTasks({ repo }: Props) {
                 backgroundColor: loading || !policyIdInput.trim() ? '#9ca3af' : '#007bff',
                 color: 'white',
                 border: 'none',
-                borderRadius: 0,
+                borderRadius: '0 8px 8px 0', // ⬅️ match outer corners
                 cursor: loading || !policyIdInput.trim() ? 'not-allowed' : 'pointer',
                 fontSize: 14,
                 fontWeight: 500,
