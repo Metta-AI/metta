@@ -39,4 +39,9 @@ next-env.d.ts
 /prisma/*.db-journal
 
 # Prisma
-/prisma/migrations 
+/prisma/migrations
+
+# Debug PDF files (from Adobe/PDF processing issues)
+debug-adobe-error-*.pdf
+debug-textract-error-*.pdf
+temp-pdf-*.pdf
