@@ -61,7 +61,6 @@ class Simulation:
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,
-        sim_suite_name: str | None = None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
         stats_client: StatsClient | None = None,
@@ -71,7 +70,6 @@ class Simulation:
         episode_tags: list[str] | None = None,
     ):
         self._name = name
-        self._sim_suite_name = sim_suite_name
         self._config = cfg
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
@@ -272,7 +270,7 @@ class Simulation:
         # ---------------- forward passes ------------------------- #
         with torch.no_grad():
             # Candidate-policy agents
-            my_obs = self._obs[self._policy_idxs]
+            my_obs = self._obs[self._policy_idxs.cpu()]
             td = obs_to_td(my_obs, self._device)  # One-liner conversion
             policy = self._policy_pr.policy
             policy(td)
@@ -423,9 +421,13 @@ class Simulation:
             for idx in self._npc_idxs:
                 agent_map[int(idx.item())] = self._npc_pr
 
-        suite_name = "" if self._sim_suite_name is None else self._sim_suite_name
         db = SimulationStatsDB.from_shards_and_context(
-            self._id, self._stats_dir, agent_map, self._name, suite_name, self._policy_pr
+            sim_id=self._id,
+            dir_with_shards=self._stats_dir,
+            agent_map=agent_map,
+            sim_name=self._name,
+            sim_env=self._config.env.label,
+            policy_record=self._policy_pr,
         )
         return db
 
@@ -491,8 +493,8 @@ class Simulation:
                         agent_metrics=agent_metrics,
                         primary_policy_id=policy_ids[policy_name],
                         stats_epoch=self._stats_epoch_id,
-                        eval_name=self._name,
-                        simulation_suite="" if self._sim_suite_name is None else self._sim_suite_name,
+                        sim_name=self._name,
+                        env_label=self._config.env.label,
                         replay_url=episode_row.get("replay_url"),
                         attributes=attributes,
                         eval_task_id=self._eval_task_id,
