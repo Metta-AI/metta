@@ -159,12 +159,7 @@ def _configure_vecenv_settings(cfg: TrainTool) -> None:
         cfg.trainer.async_factor = 1
         return
 
-    num_gpus = torch.cuda.device_count()
-    if num_gpus > 0:
-        ideal_workers = (os.cpu_count() // 2) // num_gpus
-    else:
-        # CPU-only: use fewer workers
-        ideal_workers = min(4, os.cpu_count() // 2)
+    ideal_workers = (os.cpu_count() // 2) // torch.cuda.device_count()
     cfg.trainer.rollout_workers = max(1, ideal_workers)
 
 
