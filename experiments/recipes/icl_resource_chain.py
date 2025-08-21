@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Optional
 
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.cogworks.curriculum.task_generator import TaskGenerator, TaskGeneratorConfig
-from metta.mettagrid.config import building
+from metta.mettagrid.config import empty_converters
 from metta.mettagrid.config.envs import make_icl_resource_chain
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
@@ -18,14 +18,14 @@ from pydantic import Field
 from experiments.evals.icl_resource_chain import make_icl_resource_chain_eval_suite
 
 CONVERTER_TYPES = {
-    "mine_red": building.mine_red,
-    "mine_blue": building.mine_blue,
-    "mine_green": building.mine_green,
-    "generator_red": building.generator_red,
-    "generator_blue": building.generator_blue,
-    "generator_green": building.generator_green,
-    "altar": building.altar,
-    "lab": building.lab,
+    "mine_red": empty_converters.mine_red,
+    "mine_blue": empty_converters.mine_blue,
+    "mine_green": empty_converters.mine_green,
+    "generator_red": empty_converters.generator_red,
+    "generator_blue": empty_converters.generator_blue,
+    "generator_green": empty_converters.generator_green,
+    "altar": empty_converters.altar,
+    "lab": empty_converters.lab,
 }
 
 RESOURCE_TYPES = [

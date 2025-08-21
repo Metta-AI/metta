@@ -1,5 +1,5 @@
 from metta.map.mapgen import MapGen
-from metta.mettagrid.config import building
+from metta.mettagrid.config import empty_converters
 from metta.mettagrid.config.envs import make_icl_resource_chain
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -31,8 +31,8 @@ def make_icl_resource_chain_eval_env(
 def chain_length2_0sink_env(name: str, max_steps: int = 50) -> EnvConfig:
     # recipe is laser -> heart
     game_objects = {
-        "lasery": building.lasery,
-        "factory": building.factory,
+        "lasery": empty_converters.lasery,
+        "factory": empty_converters.factory,
     }
 
     map_builder_objects = {
@@ -55,9 +55,9 @@ def chain_length2_0sink_env(name: str, max_steps: int = 50) -> EnvConfig:
 
 def chain_length2_1sink_env(name: str, max_steps: int = 50) -> EnvConfig:
     game_objects = {
-        "lasery": building.lasery,
-        "factory": building.factory,
-        "mine_red": building.mine_red,
+        "lasery": empty_converters.lasery,
+        "factory": empty_converters.factory,
+        "mine_red": empty_converters.mine_red,
     }
 
     map_builder_objects = {
@@ -82,10 +82,10 @@ def chain_length2_1sink_env(name: str, max_steps: int = 50) -> EnvConfig:
 
 def chain_length2_2sink_env(name: str, max_steps: int = 50) -> EnvConfig:
     game_objects = {
-        "lasery": building.lasery,
-        "factory": building.factory,
-        "mine_red": building.mine_red,
-        "temple": building.temple,
+        "lasery": empty_converters.lasery,
+        "factory": empty_converters.factory,
+        "mine_red": empty_converters.mine_red,
+        "temple": empty_converters.temple,
     }
 
     map_builder_objects = {
@@ -113,9 +113,9 @@ def chain_length2_2sink_env(name: str, max_steps: int = 50) -> EnvConfig:
 def chain_length3_0sink_env(name: str, max_steps: int = 100) -> EnvConfig:
     # recipe is laser -> blueprint -> heart
     game_objects = {
-        "lasery": building.lasery,
-        "factory": building.factory,
-        "temple": building.temple,
+        "lasery": empty_converters.lasery,
+        "factory": empty_converters.factory,
+        "temple": empty_converters.temple,
     }
 
     map_builder_objects = {
@@ -142,10 +142,10 @@ def chain_length3_0sink_env(name: str, max_steps: int = 100) -> EnvConfig:
 def chain_length3_1sink_env(name: str, max_steps: int = 100) -> EnvConfig:
     # recipe is laser -> blueprint -> heart
     game_objects = {
-        "lasery": building.lasery,
-        "factory": building.factory,
-        "temple": building.temple,
-        "generator_blue": building.generator_blue,
+        "lasery": empty_converters.lasery,
+        "factory": empty_converters.factory,
+        "temple": empty_converters.temple,
+        "generator_blue": empty_converters.generator_blue,
     }
 
     map_builder_objects = {
@@ -175,11 +175,11 @@ def chain_length3_1sink_env(name: str, max_steps: int = 100) -> EnvConfig:
 def chain_length3_2sink_env(name: str, max_steps: int = 100) -> EnvConfig:
     # recipe is laser -> blueprint -> heart
     game_objects = {
-        "lasery": building.lasery,
-        "factory": building.factory,
-        "temple": building.temple,
-        "generator_blue": building.generator_blue,
-        "mine_red": building.mine_red,
+        "lasery": empty_converters.lasery,
+        "factory": empty_converters.factory,
+        "temple": empty_converters.temple,
+        "generator_blue": empty_converters.generator_blue,
+        "mine_red": empty_converters.mine_red,
     }
 
     map_builder_objects = {
@@ -212,10 +212,10 @@ def chain_length3_2sink_env(name: str, max_steps: int = 100) -> EnvConfig:
 def chain_length4_0sink_env(name: str, max_steps: int = 200) -> EnvConfig:
     # recipe is laser -> blueprint -> armor -> heart
     game_objects = {
-        "lasery": building.lasery,
-        "factory": building.factory,
-        "temple": building.temple,
-        "generator_blue": building.generator_blue,
+        "lasery": empty_converters.lasery,
+        "factory": empty_converters.factory,
+        "temple": empty_converters.temple,
+        "generator_blue": empty_converters.generator_blue,
     }
 
     map_builder_objects = {
@@ -245,11 +245,11 @@ def chain_length4_0sink_env(name: str, max_steps: int = 200) -> EnvConfig:
 def chain_length4_1sink_env(name: str, max_steps: int = 200) -> EnvConfig:
     # recipe is laser -> blueprint -> armor -> heart
     game_objects = {
-        "lasery": building.lasery,
-        "factory": building.factory,
-        "temple": building.temple,
-        "generator_blue": building.generator_blue,
-        "mine_red": building.mine_red,
+        "lasery": empty_converters.lasery,
+        "factory": empty_converters.factory,
+        "temple": empty_converters.temple,
+        "generator_blue": empty_converters.generator_blue,
+        "mine_red": empty_converters.mine_red,
     }
 
     map_builder_objects = {
