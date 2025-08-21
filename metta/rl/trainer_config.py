@@ -50,10 +50,10 @@ class InitialPolicyConfig(Config):
 
 
 class CheckpointConfig(Config):
-    # Checkpoint every 5 epochs
-    checkpoint_interval: int = Field(default=5, ge=0)
-    # W&B every 5 epochs
-    wandb_checkpoint_interval: int = Field(default=5, ge=0)
+    # Checkpoint every 50 epochs - balance between recovery granularity and I/O overhead
+    checkpoint_interval: int = Field(default=50, ge=0)
+    # W&B every 50 epochs - less frequent due to network overhead and storage costs
+    wandb_checkpoint_interval: int = Field(default=50, ge=0)
     checkpoint_dir: str | None = Field(default=None)
 
 
@@ -103,7 +103,7 @@ class PPOConfig(Config):
 
 
 class TorchProfilerConfig(Config):
-    interval_epochs: int = Field(default=0, ge=0)  # 0 to disable
+    interval_epochs: int = Field(default=10000, ge=0)  # 0 to disable, 10000 is infrequent to minimize overhead
     # Upload location: None disables uploads, supports s3:// or local paths
     profile_dir: str | None = Field(default=None)
 
@@ -208,6 +208,16 @@ class TrainerConfig(Config):
             raise ValueError("minibatch_size must be <= batch_size")
         if self.batch_size % self.minibatch_size != 0:
             raise ValueError("batch_size must be divisible by minibatch_size")
+
+        # Smart defaulting: set wandb_checkpoint_interval to checkpoint_interval if it's 0
+        if self.checkpoint.wandb_checkpoint_interval == 0:
+            self.checkpoint.wandb_checkpoint_interval = self.checkpoint.checkpoint_interval
+
+        # Smart defaulting: set evaluate_interval to max of checkpoint intervals if it's 0
+        if self.evaluation and self.evaluation.evaluate_interval == 0:
+            self.evaluation.evaluate_interval = max(
+                self.checkpoint.checkpoint_interval, self.checkpoint.wandb_checkpoint_interval
+            )
 
         # it doesn't make sense to evaluate more often than we checkpoint since we need a saved policy to evaluate
         if self.evaluation and self.evaluation.evaluate_interval != 0:
