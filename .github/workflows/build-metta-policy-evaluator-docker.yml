@@ -17,7 +17,7 @@ env:
 
 jobs:
   build-and-push-image:
-    runs-on: ubuntu-latest
+    runs-on: default
     permissions:
       id-token: write
       contents: read
@@ -42,8 +42,8 @@ jobs:
         with:
           images: ${{ steps.login-ecr.outputs.registry }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=sha
-            type=sha,format=long
+            type=sha,format=long,priority=1000
+            type=sha,priority=999
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Set up Docker Buildx
@@ -58,3 +58,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Deploy helm chart
+        if: github.ref == 'refs/heads/main'
+        run: |
+          aws eks update-kubeconfig --name main --region us-east-1
+          helm upgrade -n orchestrator orchestrator ./devops/charts/orchestrator \
+            --set image.tag=${{ steps.meta.outputs.version }}
