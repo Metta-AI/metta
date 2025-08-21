@@ -169,6 +169,8 @@ jobs:
           echo "Test files:"
           ls -la tests/*.test.ts || echo "No test files found!"
 
+          sleep 2 # sleep 2 seconds for good luck.
+
           # Run tests with more verbose output
           pnpm run test -- --reporter=list || TEST_FAILED=1
 
@@ -225,6 +227,8 @@ jobs:
             cat "$BACKEND_LOG_NULL"
             exit 1
           fi
+
+          sleep 2 # sleep 2 seconds for good luck.
 
           cd mettascope
           echo "Running existing Playwright smoke tests..."
