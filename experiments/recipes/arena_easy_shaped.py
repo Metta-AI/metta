@@ -16,7 +16,7 @@ import metta.map.scenes.random
 import metta.mettagrid.config.envs as eb
 from metta.map.mapgen import MapGen
 from metta.mettagrid.config import building
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import ActionsConfig, ActionConfig, EnvConfig
 from metta.rl.trainer_config import (
     CheckpointConfig,
     EvaluationConfig,
@@ -67,6 +67,30 @@ def make_env(num_agents: int = 24) -> EnvConfig:
         del env_cfg.game.objects["lasery"]
     if "armory" in env_cfg.game.objects:
         del env_cfg.game.objects["armory"]
+    
+    # MINIMAL ACTION SET: Only cardinal movement and resource collection
+    # This tests if learning works with the simplest possible action space
+    env_cfg.game.actions = ActionsConfig(
+        # Movement - ONLY cardinal movement
+        move_cardinal=ActionConfig(enabled=True),  # North/South/East/West movement only
+        
+        # Resource collection - essential actions only
+        get_items=ActionConfig(enabled=True),      # Collect from mines
+        get_output=ActionConfig(enabled=True),     # Get from generators  
+        put_items=ActionConfig(enabled=True),      # Put into buildings
+        put_recipe_items=ActionConfig(enabled=True),  # Put specific recipe items
+        
+        # EVERYTHING ELSE DISABLED
+        move=ActionConfig(enabled=False),          # Disable regular move
+        rotate=ActionConfig(enabled=False),        # No rotation needed with cardinal
+        move_8way=ActionConfig(enabled=False),     # No diagonal movement
+        attack=ActionConfig(enabled=False),        # No combat
+        attack_nearest=ActionConfig(enabled=False), # No auto-attack
+        swap=ActionConfig(enabled=False),          # No swapping
+        change_color=ActionConfig(enabled=False),  # No color changing
+        place_box=ActionConfig(enabled=False),     # No box placement
+        noop=ActionConfig(enabled=False),          # No idle action
+    )
 
     # Set shaped rewards (from configs/env/mettagrid/game/agent/rewards/shaped.yaml)
     env_cfg.game.agent.rewards.inventory.ore_red = 0.1
