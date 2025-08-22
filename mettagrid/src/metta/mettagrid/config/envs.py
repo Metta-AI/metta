@@ -2,7 +2,6 @@ import metta.map.scenes.random
 from metta.map.mapgen import MapGen
 from metta.mettagrid.config import building
 from metta.mettagrid.map_builder.map_builder import MapBuilderConfig
-from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
