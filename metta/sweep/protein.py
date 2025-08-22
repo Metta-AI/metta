@@ -403,18 +403,65 @@ class Protein:
             best_idx = np.random.randint(0, len(candidates))
             best = suggestions[best_idx]
             return self.hyperparameters.to_dict(best, fill), info
-        # === Train score GP on standardized outputs ===
+        # === Train score GP on standardized outputs with progressive fallback ===
         params = np.array([e["input"] for e in self.success_observations])
-        params_t = torch.from_numpy(params).float()
         y = np.array([e["output"] for e in self.success_observations])
-        y_mean = float(np.mean(y))
-        y_std = float(np.std(y) + 1e-12)
-        y_z = (y - y_mean) / y_std
 
-        self.gp_score.set_data(params_t, torch.from_numpy(y_z).float())
-        self.gp_score.train()
-        gp.util.train(self.gp_score, self.score_opt)
-        self.gp_score.eval()
+        # Progressive fallback: try with N, N/2, N/4, ... observations
+        n_obs = len(self.success_observations)
+        subset_size = n_obs
+        subset_indices = list(range(n_obs))  # Initialize with all indices
+        gp_trained = False
+
+        while subset_size >= 10 and not gp_trained:
+            try:
+                # Select subset of observations
+                if subset_size == n_obs:
+                    # Use all observations
+                    subset_indices = list(range(n_obs))
+                else:
+                    # Use best subset_size observations
+                    if self.hyperparameters.optimize_direction == 1:
+                        # Maximization: higher is better
+                        subset_indices = np.argsort(y)[-subset_size:]
+                    else:
+                        # Minimization: lower is better
+                        subset_indices = np.argsort(y)[:subset_size]
+
+                # Get subset data
+                params_subset = params[subset_indices]
+                y_subset = y[subset_indices]
+
+                # Standardize outputs
+                y_mean = float(np.mean(y_subset))
+                y_std = float(np.std(y_subset) + 1e-12)
+                y_z = (y_subset - y_mean) / y_std
+
+                # Convert to tensors
+                params_t = torch.from_numpy(params_subset).float()
+
+                # Try to train GP
+                self.gp_score.set_data(params_t, torch.from_numpy(y_z).float())
+                self.gp_score.train()
+                gp.util.train(self.gp_score, self.score_opt)
+                self.gp_score.eval()
+
+                gp_trained = True
+                if subset_size < n_obs:
+                    print(f"  [Protein] GP trained with {subset_size}/{n_obs} best observations")
+
+            except (torch._C._LinAlgError, RuntimeError):
+                # Cholesky decomposition failed, try with fewer observations
+                subset_size = subset_size // 2
+                if subset_size >= 10:
+                    print(f"  [Protein] GP failed with {subset_size * 2} observations, trying {subset_size}...")
+                continue
+
+        # If GP training failed completely, fall back to random sampling
+        if not gp_trained:
+            print("  [Protein] GP training failed, falling back to random sampling")
+            suggestion = self.hyperparameters.sample(n=1)[0]
+            return self.hyperparameters.to_dict(suggestion, fill), {"fallback": "random"}
 
         # === Build candidate suggestions from oriented Pareto centers ===
         candidates, pareto_idxs = pareto_points_oriented(
@@ -433,21 +480,34 @@ class Protein:
         sd = np.sqrt(np.maximum(var_t.numpy(), 1e-12))
 
         # For 'naive' normalization path (info/weighting)
-        min_y, max_y = np.min(y), np.max(y)
+        # Use subset statistics if subset was used
+        if subset_size < n_obs:
+            y_for_norm = y[subset_indices]
+        else:
+            y_for_norm = y
+        min_y, max_y = np.min(y_for_norm), np.max(y_for_norm)
         mu_raw = mu * y_std + y_mean
         gp_y_norm = (mu_raw - min_y) / (np.abs(max_y - min_y) + 1e-12)
 
         # === Cost handling: skip GP if constant cost ===
         c = np.array([e["cost"] for e in self.success_observations])
-        if np.max(c) - np.min(c) < 1e-12:
+
+        # Use same subset for cost GP as score GP (if subset was used)
+        if subset_size < n_obs:
+            c_subset = c[subset_indices]
+        else:
+            c_subset = c
+
+        if np.max(c_subset) - np.min(c_subset) < 1e-12:
             gp_log_c_norm = np.full(len(suggestions), 0.5)
-            gp_c = np.full(len(suggestions), c[0])
+            gp_c = np.full(len(suggestions), c_subset[0])
         else:
             EPS = 1e-12
-            log_c = np.log(np.maximum(c, EPS))
+            log_c = np.log(np.maximum(c_subset, EPS))
             lc_min, lc_max = np.min(log_c), np.max(log_c)
             lc_norm = (log_c - lc_min) / (lc_max - lc_min + 1e-12)
 
+            # params_t already points to the subset from score GP training
             self.gp_cost.set_data(params_t, torch.from_numpy(lc_norm).float())
             self.gp_cost.train()
             gp.util.train(self.gp_cost, self.cost_opt)
@@ -468,7 +528,12 @@ class Protein:
         if self.acquisition_fn == "ei":
             # EI in standardized units
             direction = self.hyperparameters.optimize_direction
-            best_obs = np.max(y) if direction == 1 else np.min(y)
+            # Use subset for best_obs if subset was used
+            if subset_size < n_obs:
+                y_for_best = y[subset_indices]
+            else:
+                y_for_best = y
+            best_obs = np.max(y_for_best) if direction == 1 else np.min(y_for_best)
             best_std = (best_obs - y_mean) / y_std
             impr = (mu - best_std) if direction == 1 else (best_std - mu)
             z = impr / sd
