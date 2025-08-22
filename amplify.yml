@@ -12,7 +12,7 @@ applications:
             - pnpm run db:generate
         build:
           commands:
-            - env | grep -e AWS_S3_BUCKET -e AWS_REGION >>.env.production
+            - env | grep -e S3_BUCKET >>.env.production
             - env | grep -e DATABASE_URL >>.env.production
             - env | grep -e DEV_MODE >>.env.production
             - env | grep -e AUTH_SECRET >>.env.production

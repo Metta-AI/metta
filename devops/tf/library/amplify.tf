@@ -121,10 +121,7 @@ resource "aws_amplify_app" "library" {
     AMPLIFY_MONOREPO_APP_ROOT = "library"
     DATABASE_URL              = local.postgres_url
     DEV_MODE                  = "false"
-
-    # AWS
-    AWS_REGION    = var.region
-    AWS_S3_BUCKET = var.main_s3_bucket
+    S3_BUCKET                 = var.main_s3_bucket
 
     # Auth
     AUTH_SECRET          = random_password.auth_secret.result
