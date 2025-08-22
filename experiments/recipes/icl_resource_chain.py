@@ -171,6 +171,9 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
     )
 
+    trainer_cfg.batch_size = 2064384
+    trainer_cfg.bptt_horizon = 256
+
     return TrainTool(trainer=trainer_cfg)
 
 
