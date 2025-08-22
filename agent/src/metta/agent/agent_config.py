@@ -11,6 +11,8 @@ from metta.agent.component_policies.latent_attn_small import LatentAttnSmall as 
 from metta.agent.component_policies.latent_attn_tiny import LatentAttnTiny as ComponentLatentAttnTiny
 
 # PyTorch implementations (vanilla models)
+from metta.agent.pytorch.agalite import AGaLiTe as PyTorchAGaLiTe
+from metta.agent.pytorch.agalite_improved import AGaLiTeImproved as PyTorchAGaLiTeImproved
 from metta.agent.pytorch.example import Example
 from metta.agent.pytorch.fast import Fast as PyTorchFast
 from metta.agent.pytorch.latent_attn_med import LatentAttnMed as PyTorchLatentAttnMed
@@ -32,6 +34,8 @@ class AgentConfig(Config):
         "pytorch/latent_attn_tiny",
         "pytorch/latent_attn_small",
         "pytorch/latent_attn_med",
+        "pytorch/agalite",
+        "pytorch/agalite_improved",
     ] = "fast"
 
     clip_range: float = 0
@@ -49,6 +53,8 @@ AGENT_REGISTRY = {
     "pytorch/latent_attn_tiny": PyTorchLatentAttnTiny,
     "pytorch/latent_attn_small": PyTorchLatentAttnSmall,
     "pytorch/latent_attn_med": PyTorchLatentAttnMed,
+    "pytorch/agalite": PyTorchAGaLiTe,
+    "pytorch/agalite_improved": PyTorchAGaLiTeImproved,
 }
 
 

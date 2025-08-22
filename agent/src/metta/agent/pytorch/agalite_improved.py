@@ -13,7 +13,8 @@ from pufferlib.pytorch import layer_init as init_layer
 from tensordict import TensorDict
 from torch import nn
 
-# Import fast implementation - required for AGaLiTe Improved
+# Import enhanced implementation - required for AGaLiTe Improved
+from metta.agent.modules.agalite_core_enhanced import EnhancedAGaLiTeCore
 from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
 from metta.agent.modules.agalite_layers import AttentionAGaLiTeLayer, RecurrentLinearTransformerEncoder
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
@@ -156,9 +157,10 @@ class AGaLiTePolicy(nn.Module):
         n_layers: int = 4,
         eta: int = 4,
         r: int = 8,
+        mode: str = "agalite",
         reset_on_terminate: bool = True,
         dropout: float = 0.0,
-        use_fast_mode: bool = False,
+        use_enhanced: bool = True,
     ):
         super().__init__()
         self.action_space = env.single_action_space
@@ -168,16 +170,10 @@ class AGaLiTePolicy(nn.Module):
         self.n_layers = n_layers
         self.n_heads = n_heads
         self.d_head = d_head
-        self.use_fast_mode = use_fast_mode
-
-        # Adjust parameters for fast mode
-        if use_fast_mode:
-            self.eta = min(eta, 2)
-            self.r = min(r, 4)
-        else:
-            self.eta = eta
-            self.r = r
-
+        self.eta = eta
+        self.r = r
+        self.mode = mode
+        self.use_enhanced = use_enhanced
         self.reset_on_terminate = reset_on_terminate
 
         # Required by TransformerWrapper
@@ -202,19 +198,37 @@ class AGaLiTePolicy(nn.Module):
         self.fc1 = init_layer(nn.Linear(self.flattened_size, 128))
         self.encoded_obs = init_layer(nn.Linear(128, d_model))
 
-        # Create the AGaLiTe transformer
-        self.transformer = AGaLiTeCore(
-            n_layers=n_layers,
-            d_model=d_model,
-            d_head=d_head,
-            d_ffc=d_ffc,
-            n_heads=n_heads,
-            eta=self.eta,  # Use adjusted values
-            r=self.r,  # Use adjusted values
-            reset_on_terminate=reset_on_terminate,
-            dropout=dropout,
-            use_fast_mode=use_fast_mode,
-        )
+        # Create the AGaLiTe transformer (use enhanced or legacy implementation)
+        if use_enhanced:
+            self.transformer = EnhancedAGaLiTeCore(
+                n_layers=n_layers,
+                d_model=d_model,
+                d_head=d_head,
+                d_ffc=d_ffc,
+                n_heads=n_heads,
+                eta=eta,
+                r=r,
+                mode=mode,
+                reset_on_terminate=reset_on_terminate,
+                dropout=dropout,
+            )
+        else:
+            # Legacy implementation for backward compatibility
+            use_fast_mode = mode == "fast"
+            adjusted_eta = min(eta, 2) if use_fast_mode else eta
+            adjusted_r = min(r, 4) if use_fast_mode else r
+            self.transformer = AGaLiTeCore(
+                n_layers=n_layers,
+                d_model=d_model,
+                d_head=d_head,
+                d_ffc=d_ffc,
+                n_heads=n_heads,
+                eta=adjusted_eta,
+                r=adjusted_r,
+                reset_on_terminate=reset_on_terminate,
+                dropout=dropout,
+                use_fast_mode=use_fast_mode,
+            )
 
         # Output heads
         # critic_1 uses std=sqrt(2) because it's followed by tanh
@@ -345,16 +359,7 @@ class AGaLiTePolicy(nn.Module):
         # Get device from model parameters
         device = next(self.parameters()).device
 
-        return AGaLiTeCore.initialize_memory(
-            batch_size=batch_size,
-            n_layers=self.n_layers,
-            n_heads=self.n_heads,
-            d_head=self.d_head,
-            eta=self.eta,
-            r=self.r,
-            device=device,
-            use_fast_mode=self.use_fast_mode,
-        )
+        return self.transformer.initialize_memory(batch_size=batch_size, device=device)
 
 
 class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
@@ -377,14 +382,15 @@ class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
         d_ffc: int = 1536,  # Scaled up (1.5x)
         n_heads: int = 8,  # More heads (2x)
         n_layers: int = 3,  # One more layer
-        eta: int = 4,  # Same as baseline
-        r: int = 8,  # Same as baseline
+        eta: int = 4,  # Full paper default (not reduced)
+        r: int = 8,  # Full paper default (not reduced)
+        mode: str = "agalite",  # "agalite", "galite", or "fast"
         reset_on_terminate: bool = True,
         dropout: float = 0.1,  # Small dropout for regularization
-        use_fast_mode: bool = True,  # Always use fast mode (proven to work)
+        use_enhanced: bool = True,  # Use enhanced implementation by default
         **kwargs,
     ):
-        """Initialize AGaLiTe Improved - beefier version of working baseline.
+        """Initialize AGaLiTe Improved with enhanced paper implementation.
 
         Args:
             env: Environment
@@ -393,11 +399,15 @@ class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
             d_ffc: Feedforward dimension (1536 - scaled up)
             n_heads: Number of attention heads (8 - more heads)
             n_layers: Number of transformer layers (3 - one more layer)
-            eta: AGaLiTe eta parameter (4 -> capped at 2 in fast mode)
-            r: AGaLiTe r parameter (8 -> capped at 4 in fast mode)
+            eta: AGaLiTe eta parameter (4 - full paper default)
+            r: AGaLiTe r parameter (8 - full paper default)
+            mode: Attention mode ("agalite", "galite", or "fast")
+                - "agalite": Full AGaLiTe with oscillatory approximation
+                - "galite": Exact linear attention without approximation
+                - "fast": Optimized fast mode with reduced parameters
             reset_on_terminate: Whether to reset memory on termination
             dropout: Dropout rate (0.1 for regularization)
-            use_fast_mode: Always True (using proven fast implementation)
+            use_enhanced: Use enhanced implementation with proper paper features
             **kwargs: Configuration parameters handled by mixin
         """
         # Extract mixin parameters before passing to parent
@@ -413,9 +423,10 @@ class AGaLiTeImproved(PyTorchAgentMixin, TransformerWrapper):
             n_layers=n_layers,
             eta=eta,
             r=r,
+            mode=mode,
             reset_on_terminate=reset_on_terminate,
             dropout=dropout,
-            use_fast_mode=use_fast_mode,
+            use_enhanced=use_enhanced,
         )
 
         # Initialize with TransformerWrapper
