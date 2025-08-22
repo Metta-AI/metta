@@ -21,10 +21,10 @@ def create_test_database(db_path: Path, num_episodes_requested: int, num_episode
     sim_id = uuid.uuid4().hex[:8]
     db.con.execute(
         """
-        INSERT INTO simulations (id, name, suite, env, policy_key, policy_version)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO simulations (id, name, env, policy_key, policy_version)
+        VALUES (?, ?, ?, ?, ?)
     """,
-        (sim_id, "test_sim", "test_suite", "test_env", "test_policy", 1),
+        (sim_id, "test_sim", "test_env", "test_policy", 1),
     )
 
     # Create episodes - THIS IS KEY: we might create records for all requested episodes
