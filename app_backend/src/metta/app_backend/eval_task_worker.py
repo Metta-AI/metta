@@ -9,6 +9,8 @@ Runs eval tasks inside a Docker container.
 """
 
 import asyncio
+import base64
+import json
 import logging
 import os
 import subprocess
@@ -48,9 +50,8 @@ class AbstractTaskExecutor(ABC):
 
 
 class SimTaskExecutor(AbstractTaskExecutor):
-    def __init__(self, backend_url: str, machine_token: str, logger: logging.Logger):
+    def __init__(self, backend_url: str, logger: logging.Logger):
         self._backend_url = backend_url
-        CLIAuthenticator(backend_url).save_token(machine_token)
         self._logger = logger
         self._logger.info(f"Backend URL: {self._backend_url}")
 
@@ -82,6 +83,8 @@ class SimTaskExecutor(AbstractTaskExecutor):
 
     def _upload_logs_to_s3(self, job_id: str, process: subprocess.CompletedProcess) -> None:
         self._logger.info(f"Uploading logs to S3: {job_id}")
+        self._logger.info(f"Stdout: {process.stdout}")
+        self._logger.info(f"Stderr: {process.stderr}")
         s3_client = boto3.client("s3")
         s3_client.put_object(
             Bucket=SOFTMAX_S3_BUCKET,
@@ -151,6 +154,12 @@ class SimTaskExecutor(AbstractTaskExecutor):
         policy_name = task.policy_name
         if not policy_name:
             raise RuntimeError(f"Policy name not found for task {task.id}")
+
+        # Convert simulations list to a base64-encoded JSON string to avoid parsing issues
+        simulations = task.attributes.get("simulations", [])
+        simulations_json = json.dumps(simulations)
+        simulations_base64 = base64.b64encode(simulations_json.encode()).decode()
+
         cmd = [
             "uv",
             "run",
@@ -158,7 +167,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "experiments.evals.run.eval",
             "--args",
             f"policy_uri=wandb://run/{policy_name}",
-            f"simulations_json={task.attributes.get('simulations')}",
+            f"simulations_json_base64={simulations_base64}",
             "--overrides",
             f"eval_task_id={str(task.id)}",
             f"stats_server_uri={self._backend_url}",
@@ -286,9 +295,9 @@ async def main() -> None:
     backend_url = os.environ["BACKEND_URL"]
     assignee = os.environ["WORKER_ASSIGNEE"]
     machine_token = os.environ["MACHINE_TOKEN"]
-
+    CLIAuthenticator(backend_url).save_token(machine_token)
     client = EvalTaskClient(backend_url)
-    task_executor = SimTaskExecutor(backend_url, machine_token, logger)
+    task_executor = SimTaskExecutor(backend_url, logger)
     async with EvalTaskWorker(client, task_executor, assignee, logger=logger) as worker:
         await worker.run()
 
