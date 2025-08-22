@@ -162,7 +162,7 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: ubuntu-16core
+    runs-on: ubuntu-8core
     timeout-minutes: 15
     strategy:
       matrix:
