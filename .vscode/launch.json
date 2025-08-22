@@ -8,6 +8,7 @@
       "request": "launch",
       "module": "tools.run",
       "args": ["experiments.recipes.scratchpad.${env:USER}.train"],
+      "args": ["experiments.recipes.arena.train"],
       "cwd": "${workspaceFolder}",
       "env": {
         "PYTHONPATH": "${workspaceFolder}",
