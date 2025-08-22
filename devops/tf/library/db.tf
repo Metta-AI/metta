@@ -41,3 +41,7 @@ resource "aws_db_instance" "postgres" {
   password = random_password.db.result
 
 }
+
+locals {
+  postgres_url = "postgresql://${aws_db_instance.postgres.username}:${random_password.db.result}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}"
+}

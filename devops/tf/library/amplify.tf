@@ -71,7 +71,7 @@ resource "aws_amplify_app" "library" {
   # App-level env vars (available to all branches; branch can override)
   environment_variables = {
     AMPLIFY_MONOREPO_APP_ROOT = "library"
-    DATABASE_URL              = "postgresql://${aws_db_instance.postgres.username}:${random_password.db.result}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}"
+    DATABASE_URL              = local.postgres_url
     DEV_MODE                  = "false"
 
     # Auth
