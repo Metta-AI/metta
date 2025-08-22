@@ -11,7 +11,7 @@ class PerimeterInContextMapBuilder(MapBuilder):
         """
         Configuration for building a mini in-context learning map.
 
-        Objects appear on the perimeter, and the agnet appears in the center.
+        Objects appear on the perimeter, and the agent appears in the center.
 
         Always a single agent in this map.
         """
