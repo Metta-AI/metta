@@ -151,8 +151,8 @@ def train() -> TrainTool:
     trainer_cfg = TrainerConfig(
         # Main training parameters
         total_timesteps=10_000_000_000,  # Total training steps
-        batch_size=65536,  # 524288,  # Number of steps collected before each update
-        minibatch_size=8192,  # 16384,  # Size of minibatches for gradient updates
+        batch_size=524288,  # Number of steps collected before each update
+        minibatch_size=16384,  # Size of minibatches for gradient updates
         update_epochs=1,  # Number of epochs to train on each batch
         # Number of parallel rollout workers (adjust based on your CPU cores)
         rollout_workers=32,  # 1,  # Increase for faster data collection
