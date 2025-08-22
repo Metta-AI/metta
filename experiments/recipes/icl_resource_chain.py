@@ -15,8 +15,6 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from pydantic import Field
 
-from experiments.evals.icl_resource_chain import make_icl_resource_chain_eval_suite
-
 CONVERTER_TYPES = {
     "mine_red": empty_converters.mine_red,
     "mine_blue": empty_converters.mine_blue,
@@ -141,7 +139,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
     def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
         chain_length = rng.choice(self.config.chain_lengths)
         num_sinks = rng.choice(self.config.num_sinks)
-        resource_chain = rng.sample(self.resource_types, chain_length)
+        resource_chain = rng.sample(list(self.resource_types.keys()), chain_length)
 
         icl_env = self._make_env_cfg(resource_chain, num_sinks, rng=rng)
 
@@ -166,6 +164,11 @@ def make_curriculum() -> CurriculumConfig:
 
 
 def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+    # Local import to avoid circular import at module load time
+    from experiments.evals.icl_resource_chain import (
+        make_icl_resource_chain_eval_suite,
+    )
+
     trainer_cfg = TrainerConfig(
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(simulations=make_icl_resource_chain_eval_suite()),
@@ -200,4 +203,14 @@ def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
 
 
 def eval() -> SimTool:
-    return SimTool(simulations=make_icl_resource_chain_eval_suite())
+    # Local import to avoid circular import at module load time
+    from experiments.evals.icl_resource_chain import (
+        make_icl_resource_chain_eval_suite,
+    )
+
+    return SimTool(
+        simulations=make_icl_resource_chain_eval_suite(),
+        policy_uris=[
+            "wandb://run/georgedeane.operant_conditioning.in_context_learning.all.0.1_progress_smoothing.08-19:v50"
+        ],
+    )
