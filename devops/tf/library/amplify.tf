@@ -144,7 +144,7 @@ resource "aws_amplify_app" "library" {
 
 resource "aws_amplify_branch" "main" {
   app_id            = aws_amplify_app.library.id
-  branch_name       = "library-deployment" # TODO: change to main
+  branch_name       = "main"
   stage             = "PRODUCTION"
   enable_auto_build = true
 }
