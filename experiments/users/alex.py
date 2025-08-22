@@ -3,7 +3,6 @@ from typing import List, Optional
 import metta.cogworks.curriculum as cc
 import metta.map.scenes.random
 import metta.mettagrid.config.envs as eb
-from experiments.recipes import arena
 from metta.map.mapgen import MapGen
 from metta.mettagrid.config import building
 from metta.mettagrid.mettagrid_config import (
@@ -14,26 +13,16 @@ from metta.mettagrid.mettagrid_config import (
     EnvConfig,
 )
 from metta.rl.loss.ppo_config import PPOConfig
-from metta.rl.trainer_config import CheckpointConfig, EvaluationConfig, TrainerConfig
+from metta.rl.trainer_config import (
+    CheckpointConfig,
+    EvaluationConfig,
+    TrainerConfig,
+)
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
-
-# This file is for local experimentation only. It is not checked in, and therefore won't be usable on skypilot
-
-# You can run these functions locally with e.g. `./tools/run.py experiments.recipes.scratchpad.alex.train`
-# The VSCode "Run and Debug" section supports options to run these functions.
-
-
-# def train() -> TrainTool:
-#     env = arena.make_env()
-#     env.game.max_steps = 100
-#     cfg = arena.train(
-#         curriculum=arena.make_curriculum(env),
-#     )
-#     return cfg
 
 
 def make_env(num_agents: int = 24) -> EnvConfig:
@@ -183,6 +172,7 @@ def train() -> TrainTool:
             simulations=make_evals(env_cfg),
             evaluate_remote=True,  # True instead of default False
             evaluate_local=False,  # False instead of default True
+            skip_git_check=True,
         ),
         # All optimizer, PPO, and batch settings use defaults which already match
         # the original trainer.yaml configuration
@@ -191,24 +181,57 @@ def train() -> TrainTool:
     return TrainTool(trainer=trainer_cfg)
 
 
-def play() -> PlayTool:
-    env = arena.make_evals()[0].env
-    env.game.max_steps = 100
-    cfg = arena.play(env)
-    return cfg
+def play(
+    env: Optional[EnvConfig] = None,
+    num_agents: int = 24,
+    policy_uri: Optional[str] = None,
+) -> PlayTool:
+    """Interactive play tool for testing the environment."""
+    if env is None:
+        eval_env = make_env(num_agents=num_agents)
+    else:
+        eval_env = env
+
+    return PlayTool(
+        sim=SimulationConfig(env=eval_env, name="arena_basic_easy_shaped"),
+        policy_uri=policy_uri,
+    )
 
 
-def replay() -> ReplayTool:
-    env = arena.make_env()
-    env.game.max_steps = 100
-    cfg = arena.replay(env)
-    # cfg.policy_uri = "wandb://run/daveey.combat.lpsm.8x4"
-    return cfg
+def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
+    """Replay tool for viewing recorded episodes."""
+    eval_env = env or make_env()
+    return ReplayTool(
+        sim=SimulationConfig(env=eval_env, name="arena_basic_easy_shaped")
+    )
 
 
-def evaluate(run: str = "local.alex.1") -> SimTool:
-    cfg = arena.evaluate(policy_uri=f"wandb://run/{run}")
+def evaluate(policy_uri: str) -> SimTool:
+    """Evaluate a trained policy on arena environments."""
+    return SimTool(
+        simulations=make_evals(),
+        policy_uris=[policy_uri],
+    )
 
-    # If your run doesn't exist, try this:
-    # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
-    return cfg
+
+# def play() -> PlayTool:
+#     env = arena.make_evals()[0].env
+#     env.game.max_steps = 100
+#     cfg = arena.play(env)
+#     return cfg
+
+
+# def replay() -> ReplayTool:
+#     env = arena.make_env()
+#     env.game.max_steps = 100
+#     cfg = arena.replay(env)
+#     # cfg.policy_uri = "wandb://run/daveey.combat.lpsm.8x4"
+#     return cfg
+
+
+# def evaluate(run: str = "local.alex.1") -> SimTool:
+#     cfg = arena.evaluate(policy_uri=f"wandb://run/{run}")
+
+#     # If your run doesn't exist, try this:
+#     # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
+#     return cfg
