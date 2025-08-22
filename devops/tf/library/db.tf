@@ -1,6 +1,6 @@
 resource "random_password" "db" {
   length  = 32
-  special = true
+  special = false
 }
 
 resource "aws_security_group" "rds_public" {
