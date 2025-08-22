@@ -172,22 +172,12 @@ class ReasoningAttnBlock(nn.Module):
     def forward(
         self, hidden_states: torch.Tensor, input_injection: torch.Tensor, cos_sin=None, **kwargs
     ) -> torch.Tensor:
-        # Post Norm
-        # hidden_states = rms_norm(
-        #     hidden_states + self.self_attn(cos_sin=cos_sin, hidden_states=hidden_states), variance_epsilon=self.norm_eps
-        # )
-        # # Fully Connected
-        # hidden_states = rms_norm(hidden_states + self.mlp(hidden_states), variance_epsilon=self.norm_eps)
-
         # Simple linear layer for simplicity
-
-        # Flatten the input
         batch_size, seq_len, hidden_dim = hidden_states.shape
         hidden_states = hidden_states.view(batch_size * seq_len, hidden_dim)
         linear_layer = nn.Linear(hidden_dim, hidden_dim).to(dtype=hidden_states.dtype, device=hidden_states.device)
         hidden_states = linear_layer(hidden_states)
         hidden_states = hidden_states.view(batch_size, seq_len, hidden_dim)
-        # hidden_states = self.mlp(hidden_states)
         return hidden_states
 
 
@@ -279,10 +269,10 @@ class HRM_ACTV1_Inner(nn.Module):
             trunc_normal_init_(torch.empty(self.hidden_size, dtype=self.forward_dtype), std=1), persistent=True
         )
 
-        # Observation encoding parameters (similar to fast.py)
-        self.num_layers = 8  # Number of observation layers
-        self.out_width = 16  # Spatial width
-        self.out_height = 16  # Spatial height
+        # Observation encoding parameters
+        self.num_layers = 8
+        self.out_width = 16
+        self.out_height = 16
 
         # Observation projection layer
         self.obs_projection = CastedLinear(
@@ -290,10 +280,9 @@ class HRM_ACTV1_Inner(nn.Module):
         )
 
         # Q head special init
-        # Init Q to (almost) zero for faster learning during bootstrapping
         with torch.no_grad():
             self.q_head.weight.zero_()
-            self.q_head.bias.fill_(-5)  # type: ignore
+            self.q_head.bias.fill_(-5)
 
     def _input_embeddings(self, input: torch.Tensor):
         # Check if input is observation features (shape [batch_size, seq_len, 3]) or token indices
@@ -370,15 +359,15 @@ class HRM_ACTV1_Inner(nn.Module):
 
         # Extract coordinates and attributes
         coords_byte = token_observations[..., 0].to(torch.uint8)
-        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
-        y_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
-        atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M]
-        atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
+        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()
+        y_coord_indices = (coords_byte & 0x0F).long()
+        atr_indices = token_observations[..., 1].long()
+        atr_values = token_observations[..., 2].float()
 
         # Create mask for valid tokens
         valid_tokens = coords_byte != 0xFF
 
-        # Additional validation: ensure atr_indices are within valid range
+        # Additional validation
         valid_atr = atr_indices < self.num_layers
         valid_mask = valid_tokens & valid_atr
 
@@ -392,9 +381,9 @@ class HRM_ACTV1_Inner(nn.Module):
                 stacklevel=2,
             )
 
-        flat_spatial_index = x_coord_indices * self.out_height + y_coord_indices  # [B_TT, M]
+        flat_spatial_index = x_coord_indices * self.out_height + y_coord_indices
         dim_per_layer = self.out_width * self.out_height
-        combined_index = atr_indices * dim_per_layer + flat_spatial_index  # [B_TT, M]
+        combined_index = atr_indices * dim_per_layer + flat_spatial_index
 
         safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
         safe_values = torch.where(valid_mask, atr_values, torch.zeros_like(atr_values))
@@ -407,10 +396,10 @@ class HRM_ACTV1_Inner(nn.Module):
         box_obs = box_flat.view(B_TT, self.num_layers, self.out_width, self.out_height)
 
         # Flatten spatial dimensions and project to hidden size
-        box_obs_flat = box_obs.view(B_TT, -1)  # [B_TT, num_layers * width * height]
+        box_obs_flat = box_obs.view(B_TT, -1)
 
         # Project to hidden size using the pre-initialized linear layer
-        encoded = self.obs_projection(box_obs_flat)  # [B_TT, hidden_size]
+        encoded = self.obs_projection(box_obs_flat)
 
         # Reshape back to [B, TT, hidden_size]
         if TT > 1:
@@ -420,7 +409,7 @@ class HRM_ACTV1_Inner(nn.Module):
 
 
 class HRMBackbone(nn.Module):
-    """Hierarchical Reasoning Backbone with ACT wrapper (no puzzle embedding)."""
+    """Hierarchical Reasoning Backbone with ACT wrapper."""
 
     def __init__(
         self,
@@ -459,7 +448,7 @@ class HRMBackbone(nn.Module):
             num_heads=num_heads,
         )
 
-    def initial_carry(self, batch: Dict[str, torch.Tensor]):
+    def initial_carry(self, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
         """Initialize carry (state) for a new batch."""
         batch_size = batch["env_obs"].shape[0]
         device = batch["env_obs"].device
@@ -467,7 +456,7 @@ class HRMBackbone(nn.Module):
         return {
             "inner_carry": self.inner.empty_carry(batch_size, device),
             "steps": torch.zeros((batch_size,), dtype=torch.int32, device=device),
-            "halted": torch.ones((batch_size,), dtype=torch.bool, device=device),  # start halted, reset on first step
+            "halted": torch.ones((batch_size,), dtype=torch.bool, device=device),
             "current_data": {
                 "env_obs": torch.empty_like(batch["env_obs"]),
                 "mask": torch.empty_like(
@@ -485,7 +474,6 @@ class HRMBackbone(nn.Module):
         new_inner_carry = self.inner.reset_carry(carry["halted"], carry["inner_carry"])
         new_steps = torch.where(carry["halted"], torch.zeros_like(carry["steps"]), carry["steps"])
 
-        print(f"carry['halted'].shape: {carry['halted'].shape}")
         # Update current data only for halted sequences
         new_current_data = {
             "env_obs": torch.where(
@@ -525,7 +513,7 @@ class HRMBackbone(nn.Module):
                 )
                 halted = halted & (new_steps >= min_halt_steps)
 
-                # Compute target Q (like PQN idea)
+                # Compute target Q
                 next_q_halt_logits, next_q_continue_logits = self.inner(new_inner_carry, new_current_data)[-1]
                 outputs["target_q_continue"] = torch.sigmoid(
                     torch.where(
@@ -547,29 +535,19 @@ class HRM(PyTorchAgentMixin, LSTMWrapper):
     """Hierarchical Reasoning Model with LSTM using PyTorchAgentMixin for shared functionality."""
 
     def __init__(self, env, policy=None, input_size=128, hidden_size=128, num_layers=2, **kwargs):
-        """Initialize HRM policy with mixin support.
-
-        Args:
-            env: Environment
-            policy: Optional inner policy
-            input_size: LSTM input size
-            hidden_size: LSTM hidden size
-            num_layers: Number of LSTM layers
-            **kwargs: Configuration parameters handled by mixin (clip_range, analyze_weights_interval, etc.)
-        """
+        """Initialize HRM policy with mixin support."""
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
 
         if policy is None:
             policy = Policy(env, input_size=input_size, hidden_size=hidden_size)
 
-        # Pass num_layers=2 to match YAML configuration
         super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
 
         # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
 
-    @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
+    @torch._dynamo.disable
     def forward(self, td: TensorDict, state=None, action=None):
         observations = td["env_obs"]
 
@@ -587,7 +565,7 @@ class HRM(PyTorchAgentMixin, LSTMWrapper):
             B = observations.shape[0]
             TT = 1
 
-        # Now set TensorDict fields with mixin (TD is already reshaped if needed)
+        # Now set TensorDict fields with mixin
         self.set_tensordict_fields(td, observations)
 
         # Encode obs
@@ -633,11 +611,9 @@ class Policy(nn.Module):
 
         # Dynamically determine num_layers from environment features
         if hasattr(env, "feature_normalizations"):
-            # self.num_layers = max(env.feature_normalizations.keys()) + 1
             self.num_layers = 25
         else:
-            # Fallback for environments without feature_normalizations
-            self.num_layers = 25  # Default value
+            self.num_layers = 25
 
         # HRM Backbone
         self.backbone = HRMBackbone(
@@ -646,7 +622,7 @@ class Policy(nn.Module):
             batch_size=1,
             pos_encodings="rope",
             rope_theta=10000,
-            seq_len=200,  # Changed to match typical observation sequence length
+            seq_len=200,
             forward_dtype="float16",
             H_layers=1,
             L_layers=1,
@@ -658,16 +634,13 @@ class Policy(nn.Module):
         )
 
         # Critic branch
-        # critic_1 uses gain=sqrt(2) because it's followed by tanh (YAML: nonlinearity: nn.Tanh)
         self.critic_1 = nn.Linear(hidden_size, 1024)
-        # value_head has no nonlinearity (YAML: nonlinearity: null), so gain=1
         self.value_head = nn.Linear(1024, 1)
 
         # Actor branch
-        # actor_1 uses gain=1 (YAML default for Linear layers with ReLU)
         self.actor_1 = nn.Linear(hidden_size, 512)
 
-        # Action embeddings - will be properly initialized via activate_action_embeddings
+        # Action embeddings
         self.action_embeddings = nn.Embedding(100, 16)
         self._initialize_action_embeddings()
 
@@ -680,13 +653,12 @@ class Policy(nn.Module):
 
         # Track active actions
         self.active_action_names = []
-        self.num_active_actions = 100  # Default
+        self.num_active_actions = 100
 
-        self.effective_rank_enabled = True  # For critic_1 matching YAML
+        self.effective_rank_enabled = True
 
     def _initialize_action_embeddings(self):
         """Initialize action embeddings to match YAML ActionEmbedding component."""
-        # Match the YAML component's initialization (orthogonal then scaled to max 0.1)
         nn.init.orthogonal_(self.action_embeddings.weight)
         with torch.no_grad():
             max_abs_value = torch.max(torch.abs(self.action_embeddings.weight))
@@ -694,13 +666,11 @@ class Policy(nn.Module):
 
     def _init_bilinear_actor(self):
         """Initialize bilinear actor head to match MettaActorSingleHead."""
-        # Bilinear parameters matching MettaActorSingleHead
         self.actor_W = nn.Parameter(
             torch.Tensor(1, self.actor_hidden_dim, self.action_embed_dim).to(dtype=torch.float32)
         )
         self.actor_bias = nn.Parameter(torch.Tensor(1).to(dtype=torch.float32))
 
-        # Kaiming (He) initialization
         bound = 1 / math.sqrt(self.actor_hidden_dim) if self.actor_hidden_dim > 0 else 0
         nn.init.uniform_(self.actor_W, -bound, bound)
         nn.init.uniform_(self.actor_bias, -bound, bound)
@@ -727,7 +697,7 @@ class Policy(nn.Module):
 
         # Initialize carry if not provided
         if state is None:
-            state = {"carry": None}
+            state = {}
 
         if state.get("carry") is None:
             batch = {"env_obs": observations}
@@ -744,36 +714,34 @@ class Policy(nn.Module):
 
     def decode_actions(self, hidden, batch_size):
         """Decode actions using bilinear interaction to match MettaActorSingleHead."""
-        # Critic branch (unchanged)
+        # Critic branch
         critic_features = torch.tanh(self.critic_1(hidden))
         value = self.value_head(critic_features)
 
         # Actor branch with bilinear interaction
-        actor_features = self.actor_1(hidden)  # [B*TT, 512]
-        actor_features = F.relu(actor_features)  # ComponentPolicy has ReLU after actor_1
+        actor_features = self.actor_1(hidden)
+        actor_features = F.relu(actor_features)
 
         # Get action embeddings for all actions
-        # Use only the active actions (first num_active_actions embeddings)
-        action_embeds = self.action_embeddings.weight[: self.num_active_actions]  # [num_actions, 16]
+        action_embeds = self.action_embeddings.weight[: self.num_active_actions]
 
         # Expand action embeddings for each batch element
-        action_embeds = action_embeds.unsqueeze(0).expand(batch_size, -1, -1)  # [B*TT, num_actions, 16]
+        action_embeds = action_embeds.unsqueeze(0).expand(batch_size, -1, -1)
 
         # Bilinear interaction matching MettaActorSingleHead
         num_actions = action_embeds.shape[1]
 
         # Reshape for bilinear calculation
-        # actor_features: [B*TT, 512] -> [B*TT * num_actions, 512]
-        actor_repeated = actor_features.unsqueeze(1).expand(-1, num_actions, -1)  # [B*TT, num_actions, 512]
-        actor_reshaped = actor_repeated.reshape(-1, self.actor_hidden_dim)  # [B*TT * num_actions, 512]
-        action_embeds_reshaped = action_embeds.reshape(-1, self.action_embed_dim)  # [B*TT * num_actions, 16]
+        actor_repeated = actor_features.unsqueeze(1).expand(-1, num_actions, -1)
+        actor_reshaped = actor_repeated.reshape(-1, self.actor_hidden_dim)
+        action_embeds_reshaped = action_embeds.reshape(-1, self.action_embed_dim)
 
-        # Perform bilinear operation using einsum (matching MettaActorSingleHead)
-        query = torch.einsum("n h, k h e -> n k e", actor_reshaped, self.actor_W)  # [N, 1, 16]
+        # Perform bilinear operation using einsum
+        query = torch.einsum("n h, k h e -> n k e", actor_reshaped, self.actor_W)
         query = torch.tanh(query)
-        scores = torch.einsum("n k e, n e -> n k", query, action_embeds_reshaped)  # [N, 1]
+        scores = torch.einsum("n k e, n e -> n k", query, action_embeds_reshaped)
 
-        biased_scores = scores + self.actor_bias  # [N, 1]
+        biased_scores = scores + self.actor_bias
 
         # Reshape back to [B*TT, num_actions]
         logits = biased_scores.reshape(batch_size, num_actions)
