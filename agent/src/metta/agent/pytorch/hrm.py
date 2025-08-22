@@ -75,12 +75,10 @@ class Attention(nn.Module):
         q = q.view(B, T, self.num_heads, self.head_dim).transpose(1, 2)  # (B, nh, T, d)
         k = k.view(B, T, self.num_heads, self.head_dim).transpose(1, 2)
         v = v.view(B, T, self.num_heads, self.head_dim).transpose(1, 2)
-        print(f"q shape: {q.shape}, k shape: {k.shape}, v shape: {v.shape}")
 
         # Apply rotary embeddings if passed
         if cos_sin is not None:
             q, k = apply_rotary_pos_emb(q, k, cos_sin)
-            print(f"After rotary: q shape: {q.shape}, k shape: {k.shape}")
 
         attn_scores = (q @ k.transpose(-2, -1)) * self.scale
         if self.causal:
@@ -89,10 +87,7 @@ class Attention(nn.Module):
             attn_scores = attn_scores + mask
 
         attn = attn_scores.softmax(dim=-1)
-        print(f"attn shape: {attn.shape}")
         out = (attn @ v).transpose(1, 2).contiguous().view(B, T, C)
-        print(f"out shape before view: {(attn @ v).transpose(1, 2).contiguous().shape}")
-        print(f"expected view shape: [{B}, {T}, {C}]")
         return self.proj(out)
 
 
@@ -186,7 +181,6 @@ class ReasoningAttnBlock(nn.Module):
 
         # Simple linear layer for simplicity
 
-        print(f"hidden_states shape: {hidden_states.shape}")
         # Flatten the input
         batch_size, seq_len, hidden_dim = hidden_states.shape
         hidden_states = hidden_states.view(batch_size * seq_len, hidden_dim)
@@ -346,8 +340,6 @@ class HRM_ACTV1_Inner(nn.Module):
 
         assert not z_H.requires_grad and not z_L.requires_grad
 
-        print(f"z_H shape: {z_H.shape}, z_L shape: {z_L.shape}")
-
         # 1-step grad
         z_L = self.L_level(z_L, z_H + input_embeddings, **seq_info)
         z_H = self.H_level(z_H, z_L, **seq_info)
@@ -358,10 +350,6 @@ class HRM_ACTV1_Inner(nn.Module):
 
         # Q head
         q_logits = self.q_head(z_H[:, 0]).to(torch.float32)
-
-        print(f"q_logits shape: {q_logits.shape}")
-        print(f"hidden_state shape: {hidden_state.shape}")
-
         return new_carry, hidden_state, (q_logits[..., 0], q_logits[..., 1])
 
     def encode_observations(self, observations):
@@ -493,11 +481,11 @@ class HRMBackbone(nn.Module):
     ) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         """Forward pass with ACT control."""
         device = batch["env_obs"].device
-
         # Reset halted sequences in carry
         new_inner_carry = self.inner.reset_carry(carry["halted"], carry["inner_carry"])
         new_steps = torch.where(carry["halted"], torch.zeros_like(carry["steps"]), carry["steps"])
 
+        print(f"carry['halted'].shape: {carry['halted'].shape}")
         # Update current data only for halted sequences
         new_current_data = {
             "env_obs": torch.where(
@@ -733,6 +721,10 @@ class Policy(nn.Module):
         Returns:
             hidden: Encoded representation, shape (B * TT, hidden_size)
         """
+
+        if len(observations.shape) == 4:
+            observations = observations.reshape(-1, 200, 3)
+
         # Initialize carry if not provided
         if state is None:
             state = {"carry": None}
@@ -829,6 +821,4 @@ if __name__ == "__main__":
         is_training=True,
     )
 
-    print(f"obs shape: {obs.shape}")
     output_td = agent(td)
-    print(f"Output TD keys: {output_td.keys()}")
