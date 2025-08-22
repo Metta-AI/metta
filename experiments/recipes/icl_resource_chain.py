@@ -213,4 +213,5 @@ def eval() -> SimTool:
         policy_uris=[
             "wandb://run/georgedeane.operant_conditioning.in_context_learning.all.0.1_progress_smoothing.08-19:v50"
         ],
+        stats_server_uri="https://api.observatory.softmax-research.net",
     )
