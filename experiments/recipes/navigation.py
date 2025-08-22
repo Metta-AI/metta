@@ -117,7 +117,6 @@ def train(
 
     return TrainTool(
         trainer=trainer_cfg,
-        run=run,
     )
 
 
