@@ -84,7 +84,6 @@ class SimulationStatsDB(EpisodeStatsDB):
         sim_name: str,
         sim_env: str,
         policy_record: PolicyRecord,
-        env_label: str,
     ) -> "SimulationStatsDB":
         dir_with_shards = Path(dir_with_shards).expanduser().resolve()
         merged_path = dir_with_shards / "merged.duckdb"
