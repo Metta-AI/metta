@@ -13,12 +13,11 @@ from pufferlib.pytorch import layer_init as init_layer
 from tensordict import TensorDict
 from torch import nn
 
+# Import fast implementation - required for AGaLiTe
+from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
 from metta.agent.modules.agalite_layers import AttentionAGaLiTeLayer, RecurrentLinearTransformerEncoder
 from metta.agent.modules.transformer_wrapper import TransformerWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
-
-# Import fast implementation - required for AGaLiTe
-from metta.agent.modules.agalite_fast import FastAGaLiTeLayer
 
 logger = logging.getLogger(__name__)
 
