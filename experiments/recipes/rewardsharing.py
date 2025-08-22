@@ -4,7 +4,6 @@ import metta.cogworks.curriculum as cc
 from metta.common.config import Config
 from metta.map.mapgen import MapGen
 from metta.map.scene import ChildrenAction, Scene
-from metta.map.scenes.random import Random
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.types import AreaWhere
 from metta.mettagrid.config.envs import make_arena
@@ -21,6 +20,94 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
+
+
+class SafePlacementParams(Config):
+    """Parameters for safe placement of objects and agents that won't block generator access."""
+
+    objects: dict[str, int] = {}
+    agents: int = 0
+    prefer_corners: bool = True  # Place objects in corners when possible
+
+
+class SafePlacement(Scene[SafePlacementParams]):
+    """
+    Places objects and agents in a way that avoids blocking access to the center column
+    where the generator opening will be located.
+    """
+
+    def render(self):
+        height, width = self.grid.shape
+
+        # Identify center column(s) to avoid
+        center_col = width // 2
+        # For even width, we have two center columns
+        avoid_cols = [center_col]
+        if width % 2 == 0:
+            avoid_cols.append(center_col - 1)
+
+        # Collect positions, prioritizing corners and edges
+        positions = []
+
+        if self.params.prefer_corners:
+            # Add corner positions first (most out of the way)
+            corners = [(0, 0), (0, width - 1), (height - 1, 0), (height - 1, width - 1)]
+            for r, c in corners:
+                if self.grid[r, c] == "empty":
+                    positions.append((r, c, 0))  # Priority 0 for corners
+
+            # Add edge positions (avoiding center columns)
+            for r in range(1, height - 1):
+                for c in [0, width - 1]:  # Left and right edges
+                    if self.grid[r, c] == "empty":
+                        positions.append((r, c, 1))  # Priority 1 for edges
+
+            for c in range(1, width - 1):
+                if c not in avoid_cols:  # Avoid center columns
+                    for r in [0, height - 1]:  # Top and bottom edges
+                        if self.grid[r, c] == "empty":
+                            positions.append((r, c, 1))
+
+        # Add remaining positions (avoiding center columns)
+        for r in range(height):
+            for c in range(width):
+                if c not in avoid_cols and self.grid[r, c] == "empty":
+                    # Check if not already added
+                    if not any(pos[0] == r and pos[1] == c for pos in positions):
+                        # Interior positions get lower priority
+                        priority = (
+                            2 if (0 < r < height - 1 and 0 < c < width - 1) else 1
+                        )
+                        positions.append((r, c, priority))
+
+        # If we still need more positions, reluctantly use center columns
+        # but prefer positions farther from the middle row
+        if len(positions) < self.params.agents + sum(self.params.objects.values()):
+            for c in avoid_cols:
+                for r in range(height):
+                    if self.grid[r, c] == "empty":
+                        # Penalize positions near the middle row where generator will be
+                        distance_from_middle = abs(r - height // 2)
+                        priority = 3 + (
+                            height - distance_from_middle
+                        )  # Higher number = lower priority
+                        positions.append((r, c, priority))
+
+        # Sort by priority (lower numbers first)
+        positions.sort(key=lambda x: x[2])
+
+        # Place agents first (they need to move around)
+        for _ in range(self.params.agents):
+            if positions:
+                r, c, _ = positions.pop(0)
+                self.grid[r, c] = "agent.agent"
+
+        # Place objects
+        for obj_name, count in self.params.objects.items():
+            for _ in range(count):
+                if positions:
+                    r, c, _ = positions.pop(0)
+                    self.grid[r, c] = obj_name
 
 
 class PlaceGeneratorInWallParams(Config):
@@ -86,14 +173,22 @@ def make_env() -> EnvConfig:
             border_object="wall",
         ),
         children_actions=[
-            # Top room: 1 agent + 1 mine
+            # Top room: 1 agent + 1 mine (placed safely away from center)
             ChildrenAction(
-                scene=Random.factory(Random.Params(objects={"mine_red": 1}, agents=1)),
+                scene=SafePlacement.factory(
+                    SafePlacementParams(
+                        objects={"mine_red": 1}, agents=1, prefer_corners=True
+                    )
+                ),
                 where=AreaWhere(tags=["room_0_0"]),
             ),
-            # Bottom room: 1 agent + 1 altar
+            # Bottom room: 1 agent + 1 altar (placed safely away from center)
             ChildrenAction(
-                scene=Random.factory(Random.Params(objects={"altar": 1}, agents=1)),
+                scene=SafePlacement.factory(
+                    SafePlacementParams(
+                        objects={"altar": 1}, agents=1, prefer_corners=True
+                    )
+                ),
                 where=AreaWhere(tags=["room_1_0"]),
             ),
             # Place generator in the divider wall (creates an opening)
