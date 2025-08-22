@@ -57,7 +57,7 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
 
     return [
         SimulationConfig(name="arena/basic", env=basic_env),
-        SimulationConfig(name="arena/combat", env=basic_env),
+        SimulationConfig(name="arena/combat", env=combat_env),  # Fixed: was using basic_env instead of combat_env
     ]
 
 

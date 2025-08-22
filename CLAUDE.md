@@ -288,10 +288,9 @@ The project now uses Pydantic-based configuration instead of Hydra/YAML. Configu
 
 #### Debugging Training Issues
 
-1. Enable debug logging: `HYDRA_FULL_ERROR=1`
-2. Use smaller batch sizes for debugging
-3. Check wandb logs for metrics anomalies
-4. Use `tools/play.py` for interactive debugging (Note: Less useful in Claude Code due to interactive nature)
+1. Use smaller batch sizes for debugging
+2. Check wandb logs for metrics anomalies
+3. Use `tools/play.py` for interactive debugging (Note: Less useful in Claude Code due to interactive nature)
 
 #### Performance Profiling
 
