@@ -130,3 +130,55 @@ def make_navigation(num_agents: int) -> EnvConfig:
         )
     )
     return cfg
+
+
+def make_memory_sequence(num_agents: int = 1) -> EnvConfig:
+    altar = building.altar.model_copy()
+    altar.input_resources = {"battery_red": 1}
+    altar.output_resources = {"heart": 1}
+    altar.max_output = 1
+    altar.conversion_ticks = 1
+    altar.cooldown = 255
+    altar.initial_resource_count = 0
+
+    mine_red = building.mine_red.model_copy()
+    mine_red.output_resources = {"ore_red": 1}
+    mine_red.max_output = 1
+    mine_red.conversion_ticks = 1
+    mine_red.cooldown = 10
+    mine_red.initial_resource_count = 1
+    mine_red.color = 0
+
+    generator_red = building.generator_red.model_copy()
+    generator_red.input_resources = {"ore_red": 1}
+    generator_red.output_resources = {"battery_red": 1}
+    generator_red.max_output = 1
+    generator_red.conversion_ticks = 1
+    generator_red.cooldown = 10
+    generator_red.initial_resource_count = 0
+    generator_red.color = 0
+
+    return EnvConfig(
+        game=GameConfig(
+            num_agents=num_agents,
+            max_steps=150,
+            objects={
+                "altar": altar,
+                "mine_red": mine_red,
+                "mine_green": building.mine_green,
+                "generator_red": generator_red,
+                "wall": building.wall,
+            },
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                rotate=ActionConfig(),
+                put_items=ActionConfig(),
+                get_items=ActionConfig(),
+            ),
+            agent=AgentConfig(
+                rewards=AgentRewards(
+                    inventory=InventoryRewards(heart=1, ore_red=0, battery_red=0),
+                ),
+            ),
+        )
+    )

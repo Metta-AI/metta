@@ -14,5 +14,5 @@ def make_memory_eval_suite() -> list[SimulationConfig]:
     return mem_evals.make_memory_sequence_eval_suite()
 
 
-def evaluate() -> SimTool:
-    return SimTool(simulations=make_memory_eval_suite())
+def evaluate(policy_uri: str) -> SimTool:
+    return SimTool(simulations=make_memory_eval_suite(), policy_uris=[policy_uri])
