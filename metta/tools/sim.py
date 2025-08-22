@@ -54,6 +54,7 @@ class SimTool(Tool):
     replay_dir: str = Field(default=f"{SOFTMAX_S3_BASE}/replays/{str(uuid.uuid4())}")
 
     wandb: WandbConfig = auto_wandb_config()
+    consumed_args: list[str] = []
 
     selector_type: PolicySelectorType = "top"
     stats_dir: str | None = None  # The (local) directory where stats should be stored

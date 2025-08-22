@@ -132,5 +132,5 @@ def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
     )
 
 
-def eval() -> SimTool:
-    return SimTool(simulations=make_navigation_eval_suite())
+def evaluate(policy_uri: str) -> SimTool:
+    return SimTool(simulations=make_navigation_eval_suite(), policy_uris=[policy_uri])
