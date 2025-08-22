@@ -3,15 +3,6 @@ resource "random_password" "db" {
   special = true
 }
 
-resource "aws_db_parameter_group" "pg_ssl" {
-  name   = "softmax-library-pg-ssl"
-  family = "postgres17"
-  parameter {
-    name  = "rds.force_ssl"
-    value = "1"
-  }
-}
-
 resource "aws_security_group" "rds_public" {
   name = "softmax-library-pg-sg"
 
@@ -42,7 +33,6 @@ resource "aws_db_instance" "postgres" {
 
   publicly_accessible    = true
   vpc_security_group_ids = [aws_security_group.rds_public.id]
-  parameter_group_name   = aws_db_parameter_group.pg_ssl.name
 
   backup_retention_period = 7
 
