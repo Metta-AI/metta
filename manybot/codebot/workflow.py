@@ -47,14 +47,28 @@ class FileChange(BaseModel):
             return f"WRITE: {self.filepath}\n" + "\n".join(f"+ {line}" for line in preview_lines)
 
 
+class PromptContext(BaseModel):
+    """Context passed to commands"""
+
+    role_prompt: str = ""
+    task_prompt: str = ""
+    git_diff: str = ""
+    clipboard: str = ""
+    files: Dict[str, str] = Field(default_factory=dict)
+    working_directory: Path
+    token_count: int = 0
+
+
 class ExecutionContext(BaseModel):
     """Context passed to commands"""
 
-    git_diff: str = ""
-    clipboard: str = ""
-    files: Dict[str, str] = {}
-    working_directory: Path
-    token_count: int = 0
+    mode: Literal["oneshot", "claudesdk", "interactive"] = "oneshot"
+    # Optional future knobs:
+    model: Optional[str] = None
+    temperature: Optional[float] = None
+    max_output_tokens: Optional[int] = None
+    retries: int = 0
+    dry_run: bool = False
 
 
 class CommandOutput(BaseModel):
@@ -69,100 +83,128 @@ T = TypeVar("T", bound=BaseModel)
 
 
 class Command(BaseModel):
-    """Base class for AI-powered commands using PydanticAI agents"""
+    """Base class for AI-powered commands using PydanticAI agents with role + task pattern"""
 
     name: str
-    prompt_template: str
     default_paths: List[str] = Field(default_factory=list)
     result_type: type[BaseModel] = CommandOutput
 
-    def build_agent(self) -> Agent[T]:
+    def build_agent(self, role_prompt: str) -> Agent[T]:
         """Build PydanticAI agent for this command"""
-        return Agent(result_type=self.result_type, system_prompt=self.prompt_template)
+        return Agent(result_type=self.result_type, system_prompt=role_prompt)
 
-    async def execute(self, context: ExecutionContext, mode: Optional[str] = None) -> CommandOutput:
+    async def execute(self, prompt_context: PromptContext, execution_context: ExecutionContext) -> CommandOutput:
         """Execute command using appropriate mode"""
 
-        # Build agent
-        agent = self.build_agent()
+        # Build agent with role from context
+        agent = self.build_agent(prompt_context.role_prompt)
 
-        # Prepare context
-        agent_context = self._format_context(context)
+        # Use task prompt from context
+        task_instructions = prompt_context.task_prompt
 
         # Execute based on mode
-        if mode == "interactive":
-            return await self._execute_interactive(agent_context)
-        elif mode == "claudesdk":
-            return await self._execute_claudesdk(agent, agent_context)
+        if execution_context.mode == "oneshot":
+            result = await agent.run(task_instructions, files=prompt_context.files)
         else:
-            # Default oneshot execution with PydanticAI
-            result = await agent.run(agent_context)
-            return self._process_result(result.data)
+            logger.warning(f"{execution_context.mode} mode not yet implemented, falling back to oneshot")
+            result = await agent.run(task_instructions, files=prompt_context.files)
 
-    def _format_context(self, context: ExecutionContext) -> Dict[str, Any]:
-        """Format context for agent consumption"""
-        formatted = {"files": context.files, "working_directory": str(context.working_directory)}
-
-        if context.git_diff:
-            formatted["git_diff"] = context.git_diff
-
-        if context.clipboard:
-            formatted["error_output"] = context.clipboard
-
-        return formatted
+        return self._process_result(result.data)
 
     def _process_result(self, result: Any) -> CommandOutput:
         """Process agent result into CommandOutput"""
         if isinstance(result, CommandOutput):
             return result
 
-        # Default implementation - subclasses should override for custom result types
-        return CommandOutput(summary=str(result), metadata={"raw_result": result})
+        # For structured results, convert to CommandOutput
+        if hasattr(result, 'to_markdown'):
+            # For results that can be converted to markdown
+            content = result.to_markdown()
+            return CommandOutput(
+                file_changes=[FileChange(filepath=f".codebot/{self.name}/latest.md", content=content)],
+                summary=f"Generated {type(result).__name__}",
+                metadata={"result_type": type(result).__name__}
+            )
 
-    async def _execute_interactive(self, agent_context: Dict[str, Any]) -> CommandOutput:
-        """Execute in interactive mode (placeholder)"""
-        # TODO: Implement interactive mode
-        logger.warning("Interactive mode not yet implemented, falling back to oneshot")
-        agent = self.build_agent()
-        result = await agent.run(agent_context)
-        return self._process_result(result.data)
-
-    async def _execute_claudesdk(self, agent: Agent, agent_context: Dict[str, Any]) -> CommandOutput:
-        """Execute via Claude SDK mode (placeholder)"""
-        # TODO: Implement Claude SDK mode
-        logger.warning("Claude SDK mode not yet implemented, falling back to oneshot")
-        result = await agent.run(agent_context)
-        return self._process_result(result.data)
+        # Default fallback
+        return CommandOutput(
+            summary=str(result),
+            metadata={"raw_result": result}
+        )
 
 
 class ContextManager:
     """Smart context gathering using codeclip"""
 
-    def gather_context(self, paths: List[str]) -> ExecutionContext:
-        """Gather files using codeclip with intelligent prioritization:
+    def _load_prompt_file(self, prompt_file: str, fallback: str) -> str:
+        """Load prompt from file with fallback"""
+        try:
+            prompt_path = Path(__file__).parent / "prompts" / prompt_file
+            return prompt_path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            logger.warning(f"Prompt file {prompt_file} not found, using fallback")
+            return fallback
 
-        1. Git diff files (10x weight)
-        2. Test files for source (2x weight)
-        3. Import relationships (1.5x weight)
-        4. Recently modified (1.2x weight)
-        5. Smaller files when equal priority
+    def gather_context(
+        self,
+        paths: List[str],
+        role_file: str,
+        task_file: str,
+        mode: Literal["oneshot", "claudesdk", "interactive"] = "oneshot",
+        dry_run: bool = False,
+        **execution_kwargs
+    ) -> tuple[PromptContext, ExecutionContext]:
         """
+        Gather files using codeclip with intelligent prioritization and create execution context
+        Returns:
+            Tuple of (PromptContext, ExecutionContext)
+        """
+
+        # Load role and task prompts
+        role_prompt = self._load_prompt_file(
+            role_file,
+            "You are a senior software engineer with expertise in code analysis and documentation."
+        )
+        task_prompt = self._load_prompt_file(
+            task_file,
+            "Analyze the provided code and create a structured summary."
+        )
+
+        # Create execution context
+        execution_context = ExecutionContext(
+            mode=mode,
+            dry_run=dry_run,
+            **execution_kwargs
+        )
+
         try:
             # Import here to avoid circular dependencies
             from .codeclip.codeclip.file import get_context
 
-            content, token_info = get_context(paths=paths)
+            content, token_info = get_context(paths=[Path(p) for p in paths] if paths else None)
 
-            return ExecutionContext(
+            prompt_context = PromptContext(
+                role_prompt=role_prompt,
+                task_prompt=task_prompt,
                 files=self._parse_files_from_content(content),
                 token_count=token_info["total_tokens"],
                 working_directory=Path.cwd(),
                 git_diff=self._get_git_diff(),
                 clipboard=self._get_clipboard(),
             )
+
+            return prompt_context, execution_context
+
         except ImportError as e:
             logger.warning(f"Could not import codeclip: {e}")
-            return ExecutionContext(files={}, token_count=0, working_directory=Path.cwd())
+            prompt_context = PromptContext(
+                role_prompt=role_prompt,
+                task_prompt=task_prompt,
+                files={},
+                token_count=0,
+                working_directory=Path.cwd()
+            )
+            return prompt_context, execution_context
 
 
     def _parse_files_from_content(self, xml_text: str) -> Dict[str, str]:

@@ -13,8 +13,9 @@ from typing import List, Optional
 
 import typer
 from typing_extensions import Annotated
+from pathlib import Path
 
-from .workflow import CommandOutput, ContextManager
+from .workflow import CommandOutput, ContextManager, ExecutionContext
 from .workflows.summarize import SummarizeCommand, SummaryCache
 
 # Configure logging
@@ -52,86 +53,58 @@ def main(
         logging.getLogger().setLevel(logging.DEBUG)
 
 
-@app.command()
-def summarize(
-    paths: Annotated[Optional[List[str]], typer.Argument(help="Paths to analyze")] = None,
-    token_limit: Annotated[int, typer.Option("--token-limit", "-t", help="Token limit for summary")] = 2000,
-    output: Annotated[Optional[str], typer.Option("--output", "-o", help="Output file path")] = None,
-    mode: Annotated[str, typer.Option("--mode", "-m", help="Execution mode")] = "oneshot",
-    cached: Annotated[bool, typer.Option("--cached/--no-cache", help="Use cached results when available")] = True,
-):
-    """Create a structured summary of code optimized for AI consumption.
-
-    The summarizer analyzes code to identify key components, patterns, and
-    dependencies, producing a token-constrained summary perfect for providing
-    context to other AI operations.
-
-    Examples:
-        codebot summarize                    # Summarize current directory
-        codebot summarize src/ tests/        # Summarize specific paths
-        codebot summarize -t 5000            # Higher token limit
-        codebot summarize --no-cache         # Force regeneration
-    """
-
-    def handle_result(result: CommandOutput):
-        """Handle CommandOutput consistently for both cached and fresh results"""
-        # Handle custom output path if specified
-        if output and result.file_changes:
-            result.file_changes[0].filepath = output
-
-        # Apply all file changes
+def handle_result(result, dry_run: bool = False):
+    """Handle command output consistently"""
+    if dry_run:
+        typer.echo("DRY RUN - Changes would be:")
+        for change in result.file_changes:
+            typer.echo(change.preview())
+    else:
+        # Apply file changes
         for change in result.file_changes:
             change.apply()
+            typer.echo(f"✓ {change.operation.upper()}: {change.filepath}")
 
-        # Output results
-        typer.echo("✅ " + result.summary)
+    # Always show summary
+    if result.summary:
+        typer.echo(f"\n{result.summary}")
 
-        if result.file_changes:
-            for change in result.file_changes:
-                typer.echo(f"📁 Created: {change.filepath}")
 
-        # Show metadata
-        if result.metadata:
-            metadata = result.metadata
-            typer.echo(f"📊 Components: {metadata.get('component_count', 'N/A')}")
-            typer.echo(f"📦 Dependencies: {metadata.get('dependency_count', 'N/A')}")
-            typer.echo(f"🔍 Patterns: {metadata.get('pattern_count', 'N/A')}")
-            typer.echo(f"🎯 Token limit: {token_limit}")
+@app.command()
+def summarize(
+    paths: List[str] = typer.Argument(default=[], help="Files or directories to analyze"),
+    max_tokens: int = typer.Option(10000, "--max_tokens", help="Maximum tokens for summary"),
+    role: Optional[str] = typer.Option(None, "--role", help="Role file to use (e.g., 'roles/architect.md')"),
+    task: Optional[str] = typer.Option(None, "--task", help="Task file to use (e.g., 'tasks/refactor.md')"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without making changes"),
+):
+    """Generate AI-powered code summaries"""
+
+    # Set defaults for summarize command
+    role_file = role or "roles/engineer.md"
+    task_file = task or "tasks/summarize.md"
+
+    # Gather both prompt and execution contexts
+    context_manager = ContextManager()
+    prompt_context, execution_context = context_manager.gather_context(
+        paths,
+        role_file=role_file,
+        task_file=task_file,
+        dry_run=dry_run
+    )
+
+    # Use cache for efficiency
+    cache = SummaryCache()
 
     try:
-        path_list = paths if paths else ["."]
+        import asyncio
 
-        async def run_summarize():
-            # Always gather context first
-            context_manager = ContextManager()
-            context = context_manager.gather_context(path_list)
-
-            logger.info(f"Analyzing {len(context.files)} files ({context.token_count:,} input tokens)")
-
-            result = None
-
-            if cached:
-                # Try cache first
-                try:
-                    cache = SummaryCache()
-                    result = await cache.get_or_create_summary(context, token_limit)
-                except Exception as e:
-                    logger.warning(f"Cache failed, running fresh: {e}")
-
-            # Fallback to fresh summarization if cache failed or disabled
-            if result is None:
-                summarize_cmd = SummarizeCommand()
-                result = await summarize_cmd.execute(context, token_limit=token_limit)
-
-            # Handle result consistently
-            handle_result(result)
-
-        asyncio.run(run_summarize())
+        # Run async function
+        result = asyncio.run(cache.get_or_create_summary(prompt_context, execution_context, max_tokens))
+        handle_result(result, dry_run)
 
     except Exception as e:
-        typer.echo(f"❌ Error: {e}", err=True)
-        if logger.isEnabledFor(logging.DEBUG):
-            logger.exception("Detailed error:")
+        typer.echo(f"Error: {e}", err=True)
         raise typer.Exit(1) from None
 
 

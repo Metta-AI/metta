@@ -12,7 +12,7 @@ from typing import List, Literal
 from pydantic import BaseModel, Field, validator
 from pydantic_ai import Agent, ModelRetry
 
-from manybot.codebot.workflow import Command, CommandOutput, ExecutionContext, FileChange
+from manybot.codebot.workflow import Command, CommandOutput, PromptContext, FileChange, ExecutionContext
 
 logger = logging.getLogger(__name__)
 
@@ -64,39 +64,43 @@ class SummaryResult(BaseModel):
 
 
 class SummarizeCommand(Command):
-    """Implementation using PydanticAI agents"""
+    """Implementation using PydanticAI agents with role + task pattern"""
 
     name: str = "summarize"
-    prompt_template: str = """Analyze code to create a structured summary optimized for AI consumption.
-    Focus on architecture, key components, and patterns that would help another AI understand the codebase quickly.
-    Keep the total summary under {token_limit} tokens."""
     result_type: type[BaseModel] = SummaryResult
 
-    async def execute(self, context: ExecutionContext, token_limit: int = 2000) -> CommandOutput:
+    async def execute(self, prompt_context: PromptContext, execution_context: ExecutionContext, token_limit: int = 10000) -> CommandOutput:
         """Execute summarization using structured PydanticAI agent"""
 
-        # Create agent with structured result type
+        # Create agent with role from context
         summarizer = Agent(
             result_type=SummaryResult,
-            system_prompt=self.prompt_template.format(token_limit=token_limit),
+            system_prompt=prompt_context.role_prompt,
         )
+
+        # Format task instructions with parameters
+        formatted_task = prompt_context.task_prompt.format(token_limit=token_limit)
 
         # Run agent with retry logic
         try:
-            result = await summarizer.run({"files": context.files})
-            summary = result.data
+            if execution_context.mode == "oneshot":
+                result = await summarizer.run(formatted_task, files=prompt_context.files)
+            else:
+                # Default oneshot execution with PydanticAI
+                logger.warning(f"{execution_context.mode} mode not yet implemented, falling back to oneshot")
+                result = await summarizer.run(formatted_task, files=prompt_context.files)
 
             # Convert to markdown
-            summary_content = summary.to_markdown()
+            summary_content = result.data.to_markdown()
 
             # Create output file
             return CommandOutput(
                 file_changes=[FileChange(filepath=".codebot/summaries/latest.md", content=summary_content)],
-                summary=f"Analyzed {len(context.files)} files, found {len(summary.components)} key components",
+                summary=f"Analyzed {len(prompt_context.files)} files, found {len(result.data.components)} key components",
                 metadata={
-                    "component_count": len(summary.components),
-                    "dependency_count": len(summary.external_dependencies),
-                    "pattern_count": len(summary.patterns),
+                    "component_count": len(result.data.components),
+                    "dependency_count": len(result.data.external_dependencies),
+                    "pattern_count": len(result.data.patterns),
                 },
             )
 
@@ -135,11 +139,11 @@ class SummaryCache:
         cache_input = f"{token_limit}:" + "|".join(file_info)
         return hashlib.md5(cache_input.encode()).hexdigest()
 
-    async def get_or_create_summary(self, context: ExecutionContext, token_limit: int = 2000) -> CommandOutput:
+    async def get_or_create_summary(self, prompt_context: PromptContext, execution_context: ExecutionContext, token_limit: int = 10000) -> CommandOutput:
         """Get cached summary or create new one using SummarizeCommand"""
 
         # Generate cache key from file paths + modification times + token limit
-        cache_key = self._generate_cache_key(list(context.files.keys()), token_limit)
+        cache_key = self._generate_cache_key(list(prompt_context.files.keys()), token_limit)
         cache_path = self.cache_dir / f"{cache_key}.md"
 
         if cache_path.exists():
@@ -147,13 +151,12 @@ class SummaryCache:
             cached_content = cache_path.read_text()
             return CommandOutput(
                 file_changes=[FileChange(filepath=".codebot/summaries/latest.md", content=cached_content)],
-                summary=f"Retrieved cached summary for {len(context.files)} files",
                 metadata={"cached": True, "cache_key": cache_key},
             )
 
         # Cache miss - delegate to SummarizeCommand for actual AI work
         logger.info(f"Cache miss for key {cache_key}, generating new summary")
-        result = await self.summarize_command.execute(context, token_limit)
+        result = await self.summarize_command.execute(prompt_context, execution_context, token_limit)
 
         # Cache the generated summary
         if result.file_changes:
