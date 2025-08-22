@@ -1,5 +1,6 @@
 import math
 import warnings
+from types import SimpleNamespace
 from typing import Dict, List, Tuple
 
 import einops
@@ -300,76 +301,6 @@ class HRM_ACTV1_Inner(nn.Module):
             self.q_head.weight.zero_()
             self.q_head.bias.fill_(-5)  # type: ignore
 
-    def encode_observations(self, observations):
-        """
-        Encode observations into a hidden representation.
-
-        Input: observations with shape [batch_size, seq_len, 3]
-        Output: encoded features with shape [batch_size, seq_len, hidden_size]
-        """
-        token_observations = observations
-        B = token_observations.shape[0]
-        TT = token_observations.shape[1] if token_observations.dim() == 3 else 1
-        B_TT = B * TT
-
-        if token_observations.dim() != 3:
-            token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
-
-        assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
-
-        # Extract coordinates and attributes
-        coords_byte = token_observations[..., 0].to(torch.uint8)
-        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
-        y_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
-        atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M]
-        atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
-
-        # Create mask for valid tokens
-        valid_tokens = coords_byte != 0xFF
-
-        # Additional validation: ensure atr_indices are within valid range
-        valid_atr = atr_indices < self.num_layers
-        valid_mask = valid_tokens & valid_atr
-
-        # Log warning for out-of-bounds indices
-        invalid_atr_mask = valid_tokens & ~valid_atr
-        if invalid_atr_mask.any():
-            invalid_indices = atr_indices[invalid_atr_mask].unique()
-            warnings.warn(
-                f"Found observation attribute indices {sorted(invalid_indices.tolist())} "
-                f">= num_layers ({self.num_layers}). These tokens will be ignored.",
-                stacklevel=2,
-            )
-
-        # Use scatter-based write to avoid multi-dim advanced indexing
-        # Compute flattened spatial index and a combined index that encodes (layer, x, y)
-        flat_spatial_index = x_coord_indices * self.out_height + y_coord_indices  # [B_TT, M]
-        dim_per_layer = self.out_width * self.out_height
-        combined_index = atr_indices * dim_per_layer + flat_spatial_index  # [B_TT, M]
-
-        # Mask out invalid entries by directing them to index 0 with value 0
-        safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
-        safe_values = torch.where(valid_mask, atr_values, torch.zeros_like(atr_values))
-
-        # Scatter values into a flattened buffer, then reshape to [B_TT, L, W, H]
-        box_flat = torch.zeros(
-            (B_TT, self.num_layers * dim_per_layer), dtype=atr_values.dtype, device=token_observations.device
-        )
-        box_flat.scatter_(1, safe_index, safe_values)
-        box_obs = box_flat.view(B_TT, self.num_layers, self.out_width, self.out_height)
-
-        # Flatten spatial dimensions and project to hidden size
-        box_obs_flat = box_obs.view(B_TT, -1)  # [B_TT, num_layers * width * height]
-
-        # Project to hidden size using the pre-initialized linear layer
-        encoded = self.obs_projection(box_obs_flat)  # [B_TT, hidden_size]
-
-        # Reshape back to [B, TT, hidden_size]
-        if TT > 1:
-            encoded = encoded.view(B, TT, self.hidden_size)
-
-        return encoded
-
     def _input_embeddings(self, input: torch.Tensor):
         # Check if input is observation features (shape [batch_size, seq_len, 3]) or token indices
         if input.shape[-1] == 3:
@@ -427,6 +358,8 @@ class HRM_ACTV1_Inner(nn.Module):
 
         assert not z_H.requires_grad and not z_L.requires_grad
 
+        print(f"z_H shape: {z_H.shape}, z_L shape: {z_L.shape}")
+
         # 1-step grad
         z_L = self.L_level(z_L, z_H + input_embeddings, **seq_info)
         z_H = self.H_level(z_H, z_L, **seq_info)
@@ -434,9 +367,16 @@ class HRM_ACTV1_Inner(nn.Module):
         # LM Outputs
         new_carry = type("Carry", (), {"z_H": z_H.detach(), "z_L": z_L.detach()})()  # New carry no grad
         output = self.lm_head(z_H)
+        output = nn.Linear(output.shape[-1], self.hidden_size, bias=False).to(dtype=output.dtype, device=output.device)(
+            output
+        )
+        output = output.mean(dim=1)
 
         # Q head
         q_logits = self.q_head(z_H[:, 0]).to(torch.float32)
+
+        print(f"q_logits shape: {q_logits.shape}")
+        print(f"output shape: {output.shape}")
 
         return new_carry, output, (q_logits[..., 0], q_logits[..., 1])
 
@@ -563,29 +503,167 @@ class HRMBackbone(nn.Module):
         }, outputs
 
 
+class HRMPolicy(nn.Module):
+    def __init__(self, env):
+        super().__init__()
+
+        self.backbone = HRMBackbone(
+            hidden_size=128,
+            vocab_size=10000,
+            batch_size=1,
+            pos_encodings="rope",
+            rope_theta=10000,
+            seq_len=200,  # Changed to match typical observation sequence length
+            forward_dtype="float16",
+            H_layers=1,
+            L_layers=1,
+            H_cycles=1,
+            L_cycles=1,
+            num_heads=1,
+            halt_max_steps=10,
+            halt_exploration_prob=0.1,
+        )
+
+        self.num_layers = 25
+        self.is_continuous = False
+        self.action_space = env.single_action_space
+
+        self.out_width = env.obs_width if hasattr(env, "obs_width") else 11
+        self.out_height = env.obs_height if hasattr(env, "obs_height") else 11
+
+    def encode_observations(self, observations, state=None):
+        """
+        Encode observations into a hidden representation.
+
+        This implementation matches ComponentPolicy's ObsTokenToBoxShaper exactly,
+        using scatter operation for efficient token placement.
+        """
+        token_observations = observations
+        B = token_observations.shape[0]
+        TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]
+        B_TT = B * TT
+
+        if token_observations.dim() != 3:
+            token_observations = einops.rearrange(token_observations, "b t m c -> (b t) m c")
+
+        assert token_observations.shape[-1] == 3, f"Expected 3 channels per token. Got shape {token_observations.shape}"
+
+        # Don't modify original tensor - ComponentPolicy doesn't do this
+        # token_observations[token_observations == 255] = 0  # REMOVED
+
+        # Extract coordinates and attributes (matching ObsTokenToBoxShaper exactly)
+        coords_byte = token_observations[..., 0].to(torch.uint8)
+        x_coord_indices = ((coords_byte >> 4) & 0x0F).long()  # Shape: [B_TT, M]
+        y_coord_indices = (coords_byte & 0x0F).long()  # Shape: [B_TT, M]
+        atr_indices = token_observations[..., 1].long()  # Shape: [B_TT, M]
+        atr_values = token_observations[..., 2].float()  # Shape: [B_TT, M]
+
+        # Create mask for valid tokens (matching ComponentPolicy)
+        valid_tokens = coords_byte != 0xFF
+
+        # Additional validation: ensure atr_indices are within valid range
+        valid_atr = atr_indices < self.num_layers
+        valid_mask = valid_tokens & valid_atr
+
+        # Log warning for out-of-bounds indices (matching ComponentPolicy)
+        invalid_atr_mask = valid_tokens & ~valid_atr
+        if invalid_atr_mask.any():
+            invalid_indices = atr_indices[invalid_atr_mask].unique()
+            warnings.warn(
+                f"Found observation attribute indices {sorted(invalid_indices.tolist())} "
+                f">= num_layers ({self.num_layers}). These tokens will be ignored. "
+                f"This may indicate the policy was trained with fewer observation channels.",
+                stacklevel=2,
+            )
+
+        # Use scatter-based write to avoid multi-dim advanced indexing (matching ComponentPolicy)
+        # Compute flattened spatial index and a combined index that encodes (layer, x, y)
+        flat_spatial_index = x_coord_indices * self.out_height + y_coord_indices  # [B_TT, M]
+        dim_per_layer = self.out_width * self.out_height
+        combined_index = atr_indices * dim_per_layer + flat_spatial_index  # [B_TT, M]
+
+        # Mask out invalid entries by directing them to index 0 with value 0
+        safe_index = torch.where(valid_mask, combined_index, torch.zeros_like(combined_index))
+        safe_values = torch.where(valid_mask, atr_values, torch.zeros_like(atr_values))
+
+        # Scatter values into a flattened buffer, then reshape to [B_TT, L, W, H]
+        box_flat = torch.zeros(
+            (B_TT, self.num_layers * dim_per_layer), dtype=atr_values.dtype, device=token_observations.device
+        )
+        box_flat.scatter_(1, safe_index, safe_values)
+        box_obs = box_flat.view(B_TT, self.num_layers, self.out_width, self.out_height)
+
+        print(f"Box Obs: {box_obs.shape}")
+
+        self.cnn1 = nn.Conv2d(in_channels=self.num_layers, out_channels=64, kernel_size=5, stride=3)
+        self.cnn2 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1)
+
+        test_input = torch.zeros(1, self.num_layers, self.out_width, self.out_height)
+        with torch.no_grad():
+            test_output = self.cnn2(self.cnn1(test_input))
+            self.flattened_size = test_output.numel() // test_output.shape[0]
+
+        self.flatten = nn.Flatten()
+
+        # Match YAML: Linear layers use orthogonal with gain=1
+        self.fc1 = nn.Linear(self.flattened_size, 128)
+        self.encoded_obs = nn.Linear(128, 128)
+
+        box_obs = self.cnn2(self.cnn1(box_obs))
+        box_obs = self.flatten(box_obs)
+        box_obs = self.fc1(box_obs)
+        encoded = self.encoded_obs(box_obs)
+
+        return encoded
+
+    def forward(self, obs: torch.Tensor):
+        encoded = self.encode_observations(obs)
+        return encoded
+
+
 if __name__ == "__main__":
-    hrm = HRMBackbone(
-        hidden_size=128,
-        vocab_size=10000,
-        batch_size=1,
-        pos_encodings="rope",
-        rope_theta=10000,
-        seq_len=200,  # Changed to match typical observation sequence length
-        forward_dtype="float16",
-        H_layers=1,
-        L_layers=1,
-        H_cycles=1,
-        L_cycles=1,
-        num_heads=1,
-        halt_max_steps=10,
-        halt_exploration_prob=0.1,
+    import gymnasium as gym
+    import numpy as np
+
+    obs_shape = [34, 11, 11]
+    env = SimpleNamespace(
+        single_observation_space=gym.spaces.Box(low=0, high=255, shape=obs_shape, dtype=np.uint8),
+        obs_width=obs_shape[1],
+        obs_height=obs_shape[2],
+        single_action_space=gym.spaces.MultiDiscrete([9, 10]),
+        feature_normalizations={},
+        global_features=[],
     )
 
-    # Test with observation features [batch_size, seq_len, 3]
-    # Use smaller values to avoid the warning about attribute indices >= num_layers
-    obs_features = torch.randint(0, 8, (1, 200, 3), dtype=torch.uint8)  # [1, 200, 3]
-    carry = hrm.initial_carry({"env_obs": obs_features})
-    new_carry, outputs = hrm(carry, {"env_obs": obs_features})
-    print(f"New carry keys: {new_carry.keys()}")
-    print(f"Outputs keys: {outputs.keys()}")
-    print(f"Logits shape: {outputs['logits'].shape}")
+    policy = HRMPolicy(env)
+    obs = torch.randint(0, 8, (24, 200, 3), dtype=torch.uint8)
+    print(f"obs shape: {obs.shape}")
+    encoded = policy.encode_observations(obs)
+    print(f"encoded shape: {encoded.shape}")
+
+    # hrm = HRMBackbone(
+    #     hidden_size=128,
+    #     vocab_size=10000,
+    #     batch_size=1,
+    #     pos_encodings="rope",
+    #     rope_theta=10000,
+    #     seq_len=200,  # Changed to match typical observation sequence length
+    #     forward_dtype="float16",
+    #     H_layers=1,
+    #     L_layers=1,
+    #     H_cycles=1,
+    #     L_cycles=1,
+    #     num_heads=1,
+    #     halt_max_steps=10,
+    #     halt_exploration_prob=0.1,
+    # )
+
+    # # Test with observation features [batch_size, seq_len, 3]
+    # # Use smaller values to avoid the warning about attribute indices >= num_layers
+    # obs_features = torch.randint(0, 8, (1, 200, 3), dtype=torch.uint8)  # [1, 200, 3]
+    # carry = hrm.initial_carry({"env_obs": obs_features})
+
+    # new_carry, outputs = hrm(carry, {"env_obs": obs_features})
+    # print(f"New carry keys: {new_carry.keys()}")
+    # print(f"Outputs keys: {outputs.keys()}")
+    # print(f"Logits shape: {outputs['logits'].shape}")
