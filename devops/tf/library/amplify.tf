@@ -61,7 +61,7 @@ resource "aws_amplify_app" "library" {
 
   access_token = var.amplify_github_access_token
 
-  compute_role_arn = aws_iam_role.amplify_service_role.arn
+  iam_service_role_arn = aws_iam_role.amplify_service_role.arn
 
   # App-level env vars (available to all branches; branch can override)
   environment_variables = {
