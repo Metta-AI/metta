@@ -355,7 +355,6 @@ def _(RendererToolConfig):
     env_config.game.actions.noop.enabled = True
     env_config.game.actions.move_8way.enabled = False
     env_config.game.actions.move.enabled = False
-    env_config.game.actions.put_items.enabled = False
     env_config.game.actions.change_color.enabled = False
     env_config.game.actions.change_glyph.enabled = False
     env_config.game.actions.swap.enabled = False
@@ -365,9 +364,9 @@ def _(RendererToolConfig):
     env_config.game.agent.rewards = AgentRewards(
         inventory=InventoryRewards(
             ore_red=0.1,
-            ore_red_max=1000,
+            ore_red_max=255,
             battery_red=0.8,
-            battery_red_max=1000,
+            battery_red_max=255,
         ),
     )
 
@@ -390,7 +389,6 @@ def _(RendererToolConfig):
     env_config.desync_episodes = True  # Changes max_steps for first episode only
     env_config.game.track_movement_metrics = True
     env_config.game.no_agent_interference = False
-    env_config.game.resource_loss_prob = 0.0
     env_config.game.recipe_details_obs = False
 
     # Global observation tokens from old config
@@ -697,17 +695,17 @@ def _(datetime, env_config, mo, os, train_button):
         # Batch sizes optimized for Mac CPU/Metal - larger than demo but reasonable for local machine
         trainer_config = TrainerConfig(
             curriculum=curriculum,
-            total_timesteps=100000,  # Small demo run
+            total_timesteps=1000000,  # Small demo run
             # total_timesteps=1000,  # DEBUG run
-            batch_size=16384,  # Increased from 256, reduced from default 524288 for Mac
-            minibatch_size=256,  # Increased from 256, reduced from default 16384 for Mac
-            rollout_workers=1,  # Single worker for Mac
-            forward_pass_minibatch_target_size=256,  # Increased from 2 - better GPU utilization
+            batch_size=65536,  # Increased from 256, reduced from default 524288 for Mac
+            minibatch_size=512,  # Increased from 256, reduced from default 16384 for Mac
+            rollout_workers=14,  # Single worker for Mac
+            forward_pass_minibatch_target_size=512,  # Increased from 2 - better GPU utilization
             # Adjusted learning rate for smaller batch size (scaled down from default 0.000457)
             # Using sqrt(2048/524288) ≈ 0.0625 scaling factor
-            optimizer={
-                "learning_rate": 0.00003
-            },  # Reduced from default for smaller batch
+            #optimizer={
+            #    "learning_rate": 0.00003
+            #},  # Reduced from default for smaller batch
             checkpoint=CheckpointConfig(
                 checkpoint_interval=50,  # Checkpoint every n epochs
                 wandb_checkpoint_interval=50,
