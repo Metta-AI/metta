@@ -63,5 +63,6 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: |
           aws eks update-kubeconfig --name main --region us-east-1
+          helm dependency build ./devops/charts/orchestrator
           helm upgrade -n orchestrator orchestrator ./devops/charts/orchestrator \
             --set image.tag=${{ steps.meta.outputs.version }}
