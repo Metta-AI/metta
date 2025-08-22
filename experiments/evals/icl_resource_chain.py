@@ -30,7 +30,8 @@ def make_icl_resource_chain_eval_env(
 
     return env
 
-def update_recipe(converter, input_resource = None, output_resource = None):
+
+def update_recipe(converter, input_resource=None, output_resource=None):
     if input_resource is not None:
         converter.input_resources = {input_resource: 1}
     if output_resource is not None:
@@ -46,7 +47,9 @@ def chain_length2_0sink_env(name: str, max_steps: int = 50) -> EnvConfig:
 
     game_objects = {
         "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
-        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="heart"),
+        "factory": update_recipe(
+            empty_converters.factory, input_resource="laser", output_resource="heart"
+        ),
     }
 
     return make_icl_resource_chain_eval_env(
@@ -68,7 +71,9 @@ def chain_length2_1sink_env(name: str, max_steps: int = 50) -> EnvConfig:
 
     game_objects = {
         "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
-        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="heart"),
+        "factory": update_recipe(
+            empty_converters.factory, input_resource="laser", output_resource="heart"
+        ),
         "mine_red": update_recipe(empty_converters.mine_red, input_resource="laser"),
     }
 
@@ -85,7 +90,9 @@ def chain_length2_2sink_env(name: str, max_steps: int = 50) -> EnvConfig:
     # recipe is laser -> heart, two sinks
     game_objects = {
         "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
-        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="heart"),
+        "factory": update_recipe(
+            empty_converters.factory, input_resource="laser", output_resource="heart"
+        ),
         "mine_red": update_recipe(empty_converters.mine_red, input_resource="laser"),
         "temple": update_recipe(empty_converters.temple, input_resource="laser"),
     }
@@ -110,8 +117,14 @@ def chain_length3_0sink_env(name: str, max_steps: int = 100) -> EnvConfig:
     # recipe is laser -> blueprint -> heart
     game_objects = {
         "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
-        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="blueprint"),
-        "temple": update_recipe(empty_converters.temple, input_resource="blueprint", output_resource="heart"),
+        "factory": update_recipe(
+            empty_converters.factory,
+            input_resource="laser",
+            output_resource="blueprint",
+        ),
+        "temple": update_recipe(
+            empty_converters.temple, input_resource="blueprint", output_resource="heart"
+        ),
     }
 
     map_builder_objects = {
@@ -133,9 +146,17 @@ def chain_length3_1sink_env(name: str, max_steps: int = 100) -> EnvConfig:
     # recipe is laser -> blueprint -> heart
     game_objects = {
         "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
-        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="blueprint"),
-        "temple": update_recipe(empty_converters.temple, input_resource="blueprint", output_resource="heart"),
-        "generator_blue": update_recipe(empty_converters.generator_blue, input_resource="blueprint"),
+        "factory": update_recipe(
+            empty_converters.factory,
+            input_resource="laser",
+            output_resource="blueprint",
+        ),
+        "temple": update_recipe(
+            empty_converters.temple, input_resource="blueprint", output_resource="heart"
+        ),
+        "generator_blue": update_recipe(
+            empty_converters.generator_blue, input_resource="blueprint"
+        ),
     }
 
     map_builder_objects = {
@@ -158,9 +179,17 @@ def chain_length3_2sink_env(name: str, max_steps: int = 100) -> EnvConfig:
     # recipe is laser -> blueprint -> heart
     game_objects = {
         "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
-        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="blueprint"),
-        "temple": update_recipe(empty_converters.temple, input_resource="blueprint", output_resource="heart"),
-        "generator_blue": update_recipe(empty_converters.generator_blue, input_resource="blueprint"),
+        "factory": update_recipe(
+            empty_converters.factory,
+            input_resource="laser",
+            output_resource="blueprint",
+        ),
+        "temple": update_recipe(
+            empty_converters.temple, input_resource="blueprint", output_resource="heart"
+        ),
+        "generator_blue": update_recipe(
+            empty_converters.generator_blue, input_resource="blueprint"
+        ),
         "mine_red": update_recipe(empty_converters.mine_red, input_resource="laser"),
     }
 
@@ -185,9 +214,19 @@ def chain_length4_0sink_env(name: str, max_steps: int = 200) -> EnvConfig:
     # recipe is laser -> blueprint -> armor -> heart
     game_objects = {
         "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
-        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="blueprint"),
-        "temple": update_recipe(empty_converters.temple, input_resource="blueprint", output_resource="armor"),
-        "generator_blue": update_recipe(empty_converters.generator_blue, input_resource="armor", output_resource="heart"),
+        "factory": update_recipe(
+            empty_converters.factory,
+            input_resource="laser",
+            output_resource="blueprint",
+        ),
+        "temple": update_recipe(
+            empty_converters.temple, input_resource="blueprint", output_resource="armor"
+        ),
+        "generator_blue": update_recipe(
+            empty_converters.generator_blue,
+            input_resource="armor",
+            output_resource="heart",
+        ),
     }
 
     map_builder_objects = {
@@ -210,9 +249,19 @@ def chain_length4_1sink_env(name: str, max_steps: int = 200) -> EnvConfig:
     # recipe is laser -> blueprint -> armor -> heart
     game_objects = {
         "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
-        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="blueprint"),
-        "temple": update_recipe(empty_converters.temple, input_resource="blueprint", output_resource="armor"),
-        "generator_blue": update_recipe(empty_converters.generator_blue, input_resource="armor", output_resource="heart"),
+        "factory": update_recipe(
+            empty_converters.factory,
+            input_resource="laser",
+            output_resource="blueprint",
+        ),
+        "temple": update_recipe(
+            empty_converters.temple, input_resource="blueprint", output_resource="armor"
+        ),
+        "generator_blue": update_recipe(
+            empty_converters.generator_blue,
+            input_resource="armor",
+            output_resource="heart",
+        ),
         "mine_red": update_recipe(empty_converters.mine_red, input_resource="laser"),
     }
 
