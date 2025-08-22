@@ -39,6 +39,11 @@ variable "s3_buckets" {
   default = ["softmax-library", "softmax-library-dev"]
 }
 
+variable "main_s3_bucket" {
+  type    = string
+  default = "softmax-library"
+}
+
 variable "domain" {
   type    = string
   default = "library.softmax-research.net"

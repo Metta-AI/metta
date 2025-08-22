@@ -19,7 +19,7 @@ resource "random_password" "auth_secret" {
   special = true
 }
 
-# ---- IAM role Amplify will assume to push SSR runtime logs to CloudWatch ----
+# ---- Amplify service role ----
 resource "aws_iam_role" "amplify_service_role" {
   name = "amplify-service-role"
 
@@ -57,6 +57,53 @@ resource "aws_iam_role_policy_attachment" "amplify_logs_attach" {
   policy_arn = aws_iam_policy.amplify_cloudwatch_logs.arn
 }
 
+# ---- Amplify compute role ----
+resource "aws_iam_role" "amplify_compute_role" {
+  name = "amplify-compute-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect    = "Allow",
+      Action    = "sts:AssumeRole",
+      Principal = { Service = "amplify.amazonaws.com" }
+    }]
+  })
+}
+
+data "aws_iam_policy_document" "amplify_backend_access" {
+  statement {
+    effect = "Allow"
+    actions = [
+      "textract:AnalyzeDocument",
+      "textract:DetectDocumentText",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:DeleteObject",
+    ]
+    resources = [
+      for bucket in var.s3_buckets : "arn:aws:s3:::${bucket}/*"
+    ]
+  }
+}
+
+resource "aws_iam_policy" "amplify_backend_access" {
+  name   = "amplify-next-backend-textract-s3"
+  policy = data.aws_iam_policy_document.amplify_backend_access.json
+}
+
+resource "aws_iam_role_policy_attachment" "amplify_backend_access_attach" {
+  role       = aws_iam_role.amplify_compute_role.name
+  policy_arn = aws_iam_policy.amplify_backend_access.arn
+}
+
 # ---- Amplify App ----
 resource "aws_amplify_app" "library" {
   name       = "softmax-library"
@@ -67,12 +114,17 @@ resource "aws_amplify_app" "library" {
   access_token = var.amplify_github_access_token
 
   iam_service_role_arn = aws_iam_role.amplify_service_role.arn
+  compute_role_arn     = aws_iam_role.amplify_compute_role.arn
 
   # App-level env vars (available to all branches; branch can override)
   environment_variables = {
     AMPLIFY_MONOREPO_APP_ROOT = "library"
     DATABASE_URL              = local.postgres_url
     DEV_MODE                  = "false"
+
+    # AWS
+    AWS_REGION    = var.region
+    AWS_S3_BUCKET = var.main_s3_bucket
 
     # Auth
     AUTH_SECRET          = random_password.auth_secret.result
