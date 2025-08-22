@@ -232,6 +232,25 @@ jobs:
           chmod +x .github/scripts/upload_codecov.py
           SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
 
+  unit-tests-summary:
+    name: "Tests"
+    needs: [unit-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check test results
+        run: |
+          echo "Test job results: ${{ toJSON(needs) }}"
+          if [ "${{ contains(join(needs.*.result, ','), 'failure') }}" == "true" ]; then
+            echo "One or more test jobs failed"
+            exit 1
+          elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
+            echo "One or more test jobs were cancelled"
+            exit 1
+          else
+            echo "All test jobs completed successfully"
+          fi
+
   mettagrid-cpp-build:
     name: "MettaGrid C++ Build & Coverage"
     needs: [graphite-ci-optimizer, setup-checks]
