@@ -252,7 +252,9 @@ jobs:
       - name: Build MettaGrid C++ (with coverage)
         id: mettagrid_build_check
         run: |
-          .github/scripts/mettagrid_build.py coverage --max-warnings 50
+          cd mettagrid
+          make coverage VERBOSE=1
+          # .github/scripts/mettagrid_build.py coverage --max-warnings 50
 
       - name: Upload MettaGrid C++ coverage to Codecov
         if: needs.setup-checks.outputs.is_external != 'true' && steps.mettagrid_build_check.outputs.build_success == 'true'
@@ -267,7 +269,7 @@ jobs:
 
   # TODO: fix and reenable smoke tests
   smoke-test:
-    name: "Smoke Tests"
+    name: "Smoke Tests - ${{ matrix.test_type }}"
     if: |
       false && (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
     needs: [graphite-ci-optimizer, setup-checks]
