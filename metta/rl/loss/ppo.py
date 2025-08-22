@@ -30,9 +30,9 @@ class PPO(BaseLoss):
         vec_env: Any,
         device: torch.device,
         policy_store: PolicyStore,
-        loss_instance_name: str,
+        instance_name: str,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, policy_store, loss_instance_name)
+        super().__init__(policy, trainer_cfg, vec_env, device, policy_store, instance_name)
         self.advantages = torch.tensor(0.0, device=self.device)
         self.anneal_beta = 0.0
 
@@ -57,10 +57,14 @@ class PPO(BaseLoss):
     # BaseLoss calls this method
     def run_rollout(self, td: TensorDict, trainer_state: TrainerState) -> None:
         with torch.no_grad():
-            self.policy(td)
+            output_td = self.policy(td)
 
-            # Store experience
-            self.policy.replay.store(data_td=td, env_id=trainer_state.training_env_id)
+        # Store experience
+        self.replay.store(data_td=td, env_id=trainer_state.training_env_id)
+        # if self.replay.buffer.is_full():
+        #     trainer_state.stop_rollout = True
+
+        return output_td
 
     # BaseLoss calls this method
     def run_train(self, shared_loss_data: TensorDict, trainer_state: TrainerState) -> tuple[Tensor, TensorDict]:
@@ -105,16 +109,16 @@ class PPO(BaseLoss):
 
     def on_train_phase_end(self, trainer_state: TrainerState) -> None:
         with torch.no_grad():
-            y_pred = self.policy.replay.buffer["values"].flatten()
-            y_true = self.advantages.flatten() + self.policy.replay.buffer["values"].flatten()
+            y_pred = self.replay.buffer["values"].flatten()
+            y_true = self.advantages.flatten() + self.replay.buffer["values"].flatten()
             var_y = y_true.var()
             ev = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
             self.loss_tracker["explained_variance"].append(float(ev))
 
     def _on_first_mb(self, trainer_state: TrainerState) -> tuple[Tensor, float]:
         # reset importance sampling ratio
-        if "ratio" in self.policy.replay.buffer.keys():
-            self.policy.replay.buffer["ratio"].fill_(1.0)
+        if "ratio" in self.replay.buffer.keys():
+            self.replay.buffer["ratio"].fill_(1.0)
 
         with torch.no_grad():
             anneal_beta = calculate_prioritized_sampling_params(
@@ -126,13 +130,13 @@ class PPO(BaseLoss):
             )
 
             # Compute initial advantages
-            advantages = torch.zeros(self.policy.replay.buffer["values"].shape, device=self.device)
-            initial_importance_sampling_ratio = torch.ones_like(self.policy.replay.buffer["values"])
+            advantages = torch.zeros(self.replay.buffer["values"].shape, device=self.device)
+            initial_importance_sampling_ratio = torch.ones_like(self.replay.buffer["values"])
 
             advantages = compute_advantage(
-                self.policy.replay.buffer["values"],
-                self.policy.replay.buffer["rewards"],
-                self.policy.replay.buffer["dones"],
+                self.replay.buffer["values"],
+                self.replay.buffer["rewards"],
+                self.replay.buffer["dones"],
                 initial_importance_sampling_ratio,
                 advantages,
                 self.loss_cfg.gamma,
@@ -194,7 +198,7 @@ class PPO(BaseLoss):
             {"values": newvalue.view(minibatch["values"].shape).detach(), "ratio": importance_sampling_ratio.detach()},
             batch_size=minibatch.batch_size,
         )
-        self.policy.replay.update(indices, update_td)
+        self.replay.update(indices, update_td)
 
         # Update loss tracking
         self.loss_tracker["policy_loss"].append(float(pg_loss.item()))
@@ -267,12 +271,12 @@ class PPO(BaseLoss):
         prio_probs = (prio_weights + 1e-6) / (prio_weights.sum() + 1e-6)
 
         # Sample segment indices
-        idx = torch.multinomial(prio_probs, self.policy.replay.minibatch_segments)
+        idx = torch.multinomial(prio_probs, self.replay.minibatch_segments)
 
-        minibatch = self.policy.replay.buffer[idx]
+        minibatch = self.replay.buffer[idx]
 
         with torch.no_grad():
             minibatch["advantages"] = advantages[idx]
             minibatch["returns"] = advantages[idx] + minibatch["values"]
-            prio_weights = (self.policy.replay.segments * prio_probs[idx, None]) ** -prio_beta
+            prio_weights = (self.replay.segments * prio_probs[idx, None]) ** -prio_beta
         return minibatch.clone(), idx, prio_weights

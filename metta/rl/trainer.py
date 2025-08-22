@@ -1,4 +1,3 @@
-import importlib
 import logging
 import os
 from collections import defaultdict
@@ -176,7 +175,6 @@ def train(
         torch.distributed.barrier()
 
     policy: PolicyAgent = latest_saved_policy_record.policy
-    policy_cfg = policy.get_cfg()
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")
@@ -205,19 +203,19 @@ def train(
     if optimizer_type == "adam":
         optimizer = torch.optim.Adam(
             policy.parameters(),
-            lr=policy_cfg.optimizer.learning_rate,
-            betas=(policy_cfg.optimizer.beta1, policy_cfg.optimizer.beta2),
-            eps=policy_cfg.optimizer.eps,
-            weight_decay=policy_cfg.optimizer.weight_decay,
+            lr=trainer_cfg.optimizer.learning_rate,
+            betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
+            eps=trainer_cfg.optimizer.eps,
+            weight_decay=trainer_cfg.optimizer.weight_decay,
         )
     elif optimizer_type == "muon":
         # ForeachMuon expects int for weight_decay
         optimizer = ForeachMuon(
             policy.parameters(),
-            lr=policy_cfg.optimizer.learning_rate,
-            betas=(policy_cfg.optimizer.beta1, policy_cfg.optimizer.beta2),
-            eps=policy_cfg.optimizer.eps,
-            weight_decay=int(policy_cfg.optimizer.weight_decay),
+            lr=trainer_cfg.optimizer.learning_rate,
+            betas=(trainer_cfg.optimizer.beta1, trainer_cfg.optimizer.beta2),
+            eps=trainer_cfg.optimizer.eps,
+            weight_decay=int(trainer_cfg.optimizer.weight_decay),
         )
     else:
         raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
@@ -225,11 +223,8 @@ def train(
     # Instantiate configured losses dynamically by class name
     # TODO: AV refactor once the dust settles on configs 8-17-25
     loss_instances: dict[str, BaseLoss] = {}
-    for loss_instance_name, loss_config in policy_cfg.losses.items():
-        module_path, class_name = loss_config["path"].rsplit(".", 1)
-        module = importlib.import_module(module_path)
-        loss_cls = getattr(module, class_name)
-        loss_instances[loss_instance_name] = loss_cls(
+    for loss_instance_name, loss_config in trainer_cfg.losses.items():
+        loss_instances[loss_instance_name] = loss_config.init_loss(
             policy,
             trainer_cfg,
             vecenv,
@@ -256,7 +251,8 @@ def train(
         experience_spec=Composite(merged_spec_dict),
         device=device,
     )
-    policy.attach_replay_buffer(experience)
+    for loss_instance in loss_instances.values():
+        loss_instance.attach_replay_buffer(experience)
 
     if checkpoint and checkpoint.optimizer_state_dict:
         try:
@@ -319,7 +315,7 @@ def train(
             steps_before = agent_step
             trainer_state.agent_step = agent_step
             trainer_state.epoch = epoch
-            policy_losses = policy.get_cfg().losses
+            all_losses = list(loss_instances.keys())
             shared_loss_mb_data = experience.give_me_empty_md_td()
             policy.on_new_training_run()
             for _loss_name in loss_instances.keys():
@@ -332,13 +328,13 @@ def train(
                     raw_infos = []
                     total_steps = 0
                     experience.reset_for_rollout()
-                    for _loss_name in list(policy_losses):
+                    for _loss_name in list(all_losses):
                         loss_instances[_loss_name].on_rollout_start(trainer_state)
 
                     buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
                     buffer_step = buffer_step.select(*policy_spec.keys())
 
-                    while not experience.ready_for_training:
+                    while not experience.ready_for_training and not trainer_state.stop_rollout:
                         # Get observation
                         o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
                         total_steps += num_steps
@@ -364,15 +360,15 @@ def train(
                         # We want this because this allows other parts of the network to only run what's needed on
                         # these obs, efficiently reusing hiddens within the network. Other losses should clear fields
                         # and/or clone as necessary.
-                        for _lname in list(policy_losses):
+                        for _lname in list(all_losses):
                             loss_obj = loss_instances[_lname]
                             loss_obj.rollout(td, trainer_state)
 
                             # Send observation
-                            send_observation(vecenv, td["actions"], dtype_actions, timer)
+                        send_observation(vecenv, td["actions"], dtype_actions, timer)
 
-                            if info:
-                                raw_infos.extend(info)
+                        if info:
+                            raw_infos.extend(info)
 
                         agent_step += total_steps * torch_dist_cfg.world_size
                     accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
@@ -383,7 +379,7 @@ def train(
 
                     # Train for multiple epochs
                     epochs_trained = 0
-                    for _lname in list(policy_losses):
+                    for _lname in list(all_losses):
                         loss_obj = loss_instances[_lname]
                         loss_obj.zero_loss_tracker()
 
@@ -391,14 +387,14 @@ def train(
                         trainer_state.update_epoch = _update_epoch
                         for mb_idx in range(experience.num_minibatches):
                             trainer_state.mb_idx = mb_idx
-                            trainer_state.early_stop_update_epoch = False
+                            trainer_state.stop_update_epoch = False
                             total_loss = torch.tensor(0.0, device=device)
-                            for _lname in list(policy_losses):
+                            for _lname in list(all_losses):
                                 loss_obj = loss_instances[_lname]
                                 loss_val, shared_loss_mb_data = loss_obj.train(shared_loss_mb_data, trainer_state)
                                 total_loss = total_loss + loss_val
 
-                            if trainer_state.early_stop_update_epoch:
+                            if trainer_state.stop_update_epoch:
                                 break
 
                             # Optimizer step
@@ -408,19 +404,19 @@ def train(
                             total_loss.backward()
 
                             if (mb_idx + 1) % experience.accumulate_minibatches == 0:
-                                torch.nn.utils.clip_grad_norm_(policy.parameters(), policy_cfg.losses.PPO.max_grad_norm)
+                                torch.nn.utils.clip_grad_norm_(policy.parameters(), 0.5)  # av fix this
                                 optimizer.step()
 
                                 if device.type == "cuda":
                                     torch.cuda.synchronize()
 
-                            for _lname in list(policy_losses):
+                            for _lname in list(all_losses):
                                 loss_obj = loss_instances[_lname]
                                 loss_obj.on_mb_end(trainer_state)
 
                         epochs_trained += 1
 
-                    for _lname in list(policy_losses):
+                    for _lname in list(all_losses):
                         loss_obj = loss_instances[_lname]
                         loss_obj.on_train_phase_end(trainer_state)
 
@@ -439,7 +435,7 @@ def train(
             torch_profiler.on_epoch_end(epoch)
 
             losses_stats = {}
-            for _lname in list(policy_losses):
+            for _lname in list(all_losses):
                 loss_obj = loss_instances[_lname]
                 losses_stats.update(loss_obj.stats())
 

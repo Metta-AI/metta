@@ -6,7 +6,6 @@ from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
 from metta.common.config import Config
 from metta.mettagrid.config.envs import make_arena
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
-from metta.rl.kickstarter_config import KickstartConfig
 from metta.sim.simulation_config import SimulationConfig
 
 
@@ -22,20 +21,6 @@ class OptimizerConfig(Config):
     eps: float = Field(default=1e-12, gt=0)
     # Weight decay: Disabled by default, common practice for RL to avoid over-regularization
     weight_decay: float = Field(default=0, ge=0)
-
-
-class PrioritizedExperienceReplayConfig(Config):
-    # Alpha=0 disables prioritization (uniform sampling), Type 2 default to be updated by sweep
-    prio_alpha: float = Field(default=0.0, ge=0, le=1.0)
-    # Beta0=0.6: From Schaul et al. (2016) "Prioritized Experience Replay" paper
-    prio_beta0: float = Field(default=0.6, ge=0, le=1.0)
-
-
-class VTraceConfig(Config):
-    # V-trace rho clipping at 1.0: From IMPALA paper (Espeholt et al., 2018), standard for on-policy
-    vtrace_rho_clip: float = Field(default=1.0, gt=0)
-    # V-trace c clipping at 1.0: From IMPALA paper (Espeholt et al., 2018), standard for on-policy
-    vtrace_c_clip: float = Field(default=1.0, gt=0)
 
 
 class InitialPolicyConfig(Config):
@@ -70,38 +55,6 @@ class EvaluationConfig(Config):
     num_training_tasks: int = Field(default=1)
 
 
-class PPOConfig(Config):
-    # PPO hyperparameters
-    # Clip coefficient: 0.1 is conservative, common range 0.1-0.3 from PPO paper (Schulman et al., 2017)
-    clip_coef: float = Field(default=0.1, gt=0, le=1.0)
-    # Entropy coefficient: Type 2 default chosen from sweep
-    ent_coef: float = Field(default=0.0021, ge=0)
-    # GAE lambda: Type 2 default chosen from sweep, deviates from typical 0.95, bias/variance tradeoff
-    gae_lambda: float = Field(default=0.916, ge=0, le=1.0)
-    # Gamma: Type 2 default chosen from sweep, deviates from typical 0.99, suggests shorter
-    # effective horizon for multi-agent
-    gamma: float = Field(default=0.977, ge=0, le=1.0)
-
-    # Training parameters
-    # Gradient clipping: 0.5 is standard PPO default to prevent instability
-    max_grad_norm: float = Field(default=0.5, gt=0)
-    # Value function clipping: Matches policy clip for consistency
-    vf_clip_coef: float = Field(default=0.1, ge=0)
-    # Value coefficient: Type 2 default chosen from sweep, balances policy vs value loss
-    vf_coef: float = Field(default=0.44, ge=0)
-    # L2 regularization: Disabled by default, common in RL
-    l2_reg_loss_coef: float = Field(default=0, ge=0)
-    l2_init_loss_coef: float = Field(default=0, ge=0)
-
-    # Normalization and clipping
-    # Advantage normalization: Standard PPO practice for stability
-    norm_adv: bool = True
-    # Value loss clipping: PPO best practice from implementation details
-    clip_vloss: bool = True
-    # Target KL: None allows unlimited updates, common for stable environments
-    target_kl: float | None = None
-
-
 class TorchProfilerConfig(Config):
     interval_epochs: int = Field(default=0, ge=0)  # 0 to disable
     # Upload location: None disables uploads, supports s3:// or local paths
@@ -123,19 +76,11 @@ class TrainerConfig(Config):
     # Total timesteps: Type 2 arbitrary default
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
 
-    # PPO configuration
-    ppo: PPOConfig = Field(default_factory=PPOConfig)
+    # Losses
+    losses: dict[str, object] = Field(default_factory=dict)
 
     # Optimizer and scheduler
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)
-
-    # Experience replay
-    prioritized_experience_replay: PrioritizedExperienceReplayConfig = Field(
-        default_factory=PrioritizedExperienceReplayConfig
-    )
-
-    # V-trace
-    vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
 
     # System configuration
     # Zero copy: Performance optimization to avoid memory copies (default assumes multiprocessing)
@@ -173,9 +118,6 @@ class TrainerConfig(Config):
 
     # scheduler registry
     hyperparameter_scheduler: HyperparameterSchedulerConfig = Field(default_factory=HyperparameterSchedulerConfig)
-
-    # Kickstart
-    kickstart: KickstartConfig = Field(default_factory=KickstartConfig)
 
     # Base trainer fields
     # Number of parallel workers: No default, must be set based on hardware

@@ -60,7 +60,7 @@ class ComponentPolicy(nn.Module, ABC):
         self.components.update(components)
 
         # Setup components by triggering leaf node setup
-        for component_name in self.cfg.output_heads:
+        for component_name in self._get_output_heads():
             component = self.components[component_name]
             self._setup_components(component)
 
@@ -85,6 +85,11 @@ class ComponentPolicy(nn.Module, ABC):
     @abstractmethod
     def _build_components(self) -> dict:
         """Build the component dictionary. Must be implemented by subclasses to define architecture."""
+        pass
+
+    @abstractmethod
+    def _get_output_heads(self) -> list[str]:
+        """Get the output heads for the policy."""
         pass
 
     def _setup_components(self, component):

@@ -4,6 +4,7 @@ import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.rl.loss.ppo_config import PPOConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -62,7 +63,10 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
 
 
 def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+    losses = {}
+    losses["PPO"] = PPOConfig()
     trainer_cfg = TrainerConfig(
+        losses=losses,
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
             simulations=[

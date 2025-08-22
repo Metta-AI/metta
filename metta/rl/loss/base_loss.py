@@ -8,6 +8,7 @@ from torchrl.data import Composite
 
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
+from metta.rl.experience import Experience
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
 
@@ -24,6 +25,7 @@ class BaseLoss:
 
     __slots__ = (
         "policy",
+        "replay",
         "policy_experience_spec",
         "trainer_cfg",
         "vec_env",
@@ -53,15 +55,15 @@ class BaseLoss:
         instance_name: str,
     ):
         self.policy = policy
-        self.policy_experience_spec = self.policy.get_agent_experience_spec()
         self.trainer_cfg = trainer_cfg
-        self.policy_cfg = self.policy.get_cfg()
         self.vec_env = vec_env
         self.device = device
-        self.loss_tracker = defaultdict(list)
         self.policy_store = policy_store
         self.instance_name = instance_name
-        self.loss_cfg = self.policy_cfg.losses.get(self.instance_name, {})
+        self.loss_cfg = self.trainer_cfg.losses.get(self.instance_name, {})
+        # self.policy_cfg = self.policy.get_cfg()
+        self.policy_experience_spec = self.policy.get_agent_experience_spec()
+        self.loss_tracker = defaultdict(list)
 
         self._get_schedule()
 
@@ -69,17 +71,17 @@ class BaseLoss:
         """Optional extension of the experience replay buffer spec required by this loss."""
         return Composite()
 
+    def attach_replay_buffer(self, experience: Experience) -> None:
+        """Attach the replay buffer to the loss."""
+        self.replay = experience
+
     # ------------------------ UTILITY METHODS -----------------------------
 
     def stats(self) -> dict[str, float]:
         """Cycles through keys in self.loss_tracker, calculates the mean of the list of floats, and returns a dictionary
         of metrics to track. It's safe to call this method multiple times as it doesn't mutate the state of the loss
         tracker. It also gracefully handles the case where a list is empty, returning 0.0 in that case."""
-        return {
-            k: sum(v) / len(v) if v else 0.0
-            for k, v in self.loss_tracker.items()
-            # return {k: v for k, v in self.loss_tracker.items()} # av shouldn't this just return the stats dict?
-        }
+        return {k: sum(v) / len(v) if v else 0.0 for k, v in self.loss_tracker.items()}
 
     def zero_loss_tracker(self):
         """Zero all values in the loss tracker."""
@@ -180,7 +182,7 @@ class BaseLoss:
 
     def _get_schedule(self):
         """Helper for initializing variables used in scheduling logic."""
-        schedule_cfg = self.loss_cfg.get("schedule") or {}
+        schedule_cfg = {}  # self.loss_cfg.schedule or  TODO: implement this
 
         rollout_cfg = schedule_cfg.get("rollout") or {}
         self.rollout_start_epoch = rollout_cfg.get("begin_at_epoch", 0)

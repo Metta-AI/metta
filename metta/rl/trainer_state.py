@@ -16,4 +16,5 @@ class TrainerState:
     training_env_id: slice | None = None
 
     # Control flags and scratch metrics
-    early_stop_update_epoch: bool = False
+    stop_rollout: bool = False
+    stop_update_epoch: bool = False
