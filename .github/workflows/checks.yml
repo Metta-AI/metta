@@ -162,7 +162,7 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: default
+    runs-on: ubuntu-4core
     timeout-minutes: 15
     strategy:
       matrix:
@@ -257,7 +257,7 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: default
+    runs-on: ubuntu-4core
     timeout-minutes: 10
     steps:
       - name: Checkout code
