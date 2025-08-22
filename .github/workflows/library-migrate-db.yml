@@ -1,6 +1,9 @@
 name: Migrate Library DB
 
 on:
+  # tmp
+  pull_request:
+    types: [opened, synchronize, reopened]
   workflow_dispatch: {}
 
 jobs:
