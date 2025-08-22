@@ -11,11 +11,11 @@ initial_policy:
 
 checkpoint:
   checkpoint_dir: ${run_dir}/checkpoints
-  checkpoint_interval: 50
+  checkpoint_interval: 200
   wandb_checkpoint_interval: null # Defaults to checkpoint_interval
 
 simulation:
-  evaluate_interval: null # Defaults to checkpoint.checkpoint_interval
+  evaluate_interval: 0 # Defaults to checkpoint.checkpoint_interval
   replay_dir: s3://softmax-public/replays/${run}
   evaluate_remote: true
   evaluate_local: false
