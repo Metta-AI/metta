@@ -579,10 +579,79 @@ class HRMPolicy(nn.Module):
         self.out_width = env.obs_width if hasattr(env, "obs_width") else 11
         self.out_height = env.obs_height if hasattr(env, "obs_height") else 11
 
+        # Critic branch
+        # critic_1 uses gain=sqrt(2) because it's followed by tanh (YAML: nonlinearity: nn.Tanh)
+        self.critic_1 = nn.Linear(128, 1024)
+        # value_head has no nonlinearity (YAML: nonlinearity: null), so gain=1
+        self.value_head = nn.Linear(1024, 1)
+
+        # Actor branch
+        # actor_1 uses gain=1 (YAML default for Linear layers with ReLU)
+        self.actor_1 = nn.Linear(128, 512)
+
+        # Action embeddings - will be properly initialized via activate_action_embeddings
+        self.action_embeddings = nn.Embedding(100, 16)
+
+        self.actor_bias = nn.Parameter(torch.zeros(1, 1))
+        self.actor_W = nn.Parameter(torch.randn(1, 1, 16))
+
+        # Store for dynamic action head
+        self.action_embed_dim = 16
+        self.actor_hidden_dim = 512
+
+        # Track active actions
+        self.active_action_names = []
+        self.num_active_actions = 100  # Default
+
+        self.effective_rank_enabled = True  # For critic_1 matching YAML
+
     def forward(self, carry, batch: Dict[str, torch.Tensor]):
         new_carry, outputs = self.backbone(carry, batch)
 
+        logits, value = self.decode_actions(outputs["hidden_state"].to(torch.float32), batch["env_obs"].shape[0])
+
+        print(f"logits shape: {logits.shape}")
+        print(f"value shape: {value.shape}")
+
         return new_carry, outputs
+
+    def decode_actions(self, hidden, batch_size):
+        """Decode actions using bilinear interaction to match MettaActorSingleHead."""
+        # Critic branch (unchanged)
+        critic_features = torch.tanh(self.critic_1(hidden))
+        value = self.value_head(critic_features)
+
+        # Actor branch with bilinear interaction
+        actor_features = self.actor_1(hidden)  # [B*TT, 512]
+        actor_features = F.relu(actor_features)  # ComponentPolicy has ReLU after actor_1
+
+        # Get action embeddings for all actions
+        # Use only the active actions (first num_active_actions embeddings)
+        action_embeds = self.action_embeddings.weight[: self.num_active_actions]  # [num_actions, 16]
+
+        # Expand action embeddings for each batch element
+        action_embeds = action_embeds.unsqueeze(0).expand(batch_size, -1, -1)  # [B*TT, num_actions, 16]
+
+        # Bilinear interaction matching MettaActorSingleHead
+        num_actions = action_embeds.shape[1]
+
+        # Reshape for bilinear calculation
+        # actor_features: [B*TT, 512] -> [B*TT * num_actions, 512]
+        actor_repeated = actor_features.unsqueeze(1).expand(-1, num_actions, -1)  # [B*TT, num_actions, 512]
+        actor_reshaped = actor_repeated.reshape(-1, self.actor_hidden_dim)  # [B*TT * num_actions, 512]
+        action_embeds_reshaped = action_embeds.reshape(-1, self.action_embed_dim)  # [B*TT * num_actions, 16]
+
+        # Perform bilinear operation using einsum (matching MettaActorSingleHead)
+        query = torch.einsum("n h, k h e -> n k e", actor_reshaped, self.actor_W)  # [N, 1, 16]
+        query = torch.tanh(query)
+        scores = torch.einsum("n k e, n e -> n k", query, action_embeds_reshaped)  # [N, 1]
+
+        biased_scores = scores + self.actor_bias  # [N, 1]
+
+        # Reshape back to [B*TT, num_actions]
+        logits = biased_scores.reshape(batch_size, num_actions)
+
+        return logits, value
 
 
 if __name__ == "__main__":
@@ -606,10 +675,6 @@ if __name__ == "__main__":
     carry = policy.backbone.initial_carry({"env_obs": obs})
     print(f"obs shape: {obs.shape}")
     new_carry, outputs = policy(carry, batch)
-    print(f"outputs keys: {outputs.keys()}")
-    print(f"outputs['hidden_state'] shape: {outputs['hidden_state'].shape}")
-    print(f"outputs['q_halt_logits'] shape: {outputs['q_halt_logits'].shape}")
-    print(f"outputs['q_continue_logits'] shape: {outputs['q_continue_logits'].shape}")
     # print(f"hidden_state shape: {hidden_state.shape}")
 
     # hrm = HRMBackbone(
