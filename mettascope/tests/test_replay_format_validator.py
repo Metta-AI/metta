@@ -6,6 +6,8 @@ Validates that replay files match the format specification in `mettascope/docs/r
 from __future__ import annotations
 
 import json
+import subprocess
+import tempfile
 import zlib
 from pathlib import Path
 from typing import Any
@@ -494,41 +496,39 @@ def test_validate_replay_schema_invalid(mutation, error_substr: str) -> None:
         validate_replay_schema(replay_dict)
 
 
-# TODO(andre): #dehydration
-# def test_validate_real_generated_replay() -> None:
-#     """Generate a fresh replay using the CI setup and validate it against the strict schema."""
-#     with tempfile.TemporaryDirectory() as tmp_dir:
-#         # Generate a replay using the same command as CI but with a custom output directory.
-#         cmd = [
-#             "uv",
-#             "run",
-#             "--no-sync",
-#             "tools/run.py",
-#             "+user=ci",
-#             "wandb=off",
-#             f"replay_job.replay_dir={tmp_dir}",
-#             f"replay_job.stats_dir={tmp_dir}",
-#             "replay_job.policy_uri=null",
-#             "run=test_validator",
-#         ]
+def test_validate_real_generated_replay() -> None:
+    """Generate a fresh replay using the CI setup and validate it against the strict schema."""
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        # Generate a replay using the same command as CI but with a custom output directory.
+        cmd = [
+            "uv",
+            "run",
+            "--no-sync",
+            "tools/run.py",
+            "experiments.recipes.scratchpad.ci.play_null",
+            "--override",
+            f"replay_job.replay_dir={tmp_dir}",
+            f"replay_job.stats_dir={tmp_dir}",
+            "run=test_validator",
+        ]
 
-#         # Run from the project root (parent of mettascope).
-#         project_root = Path(__file__).parent.parent.parent
-#         result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=120)
+        # Run from the project root (parent of mettascope).
+        project_root = Path(__file__).parent.parent.parent
+        result = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=120)
 
-#         replay_files = list(Path(tmp_dir).glob("**/*.json.z"))
-#         if len(replay_files) == 0:
-#             raise AssertionError(
-#                 f"No replay files were generated. Process exited with code {result.returncode}. "
-#                 f"Error output: {result.stderr}"
-#             )
+        replay_files = list(Path(tmp_dir).glob("**/*.json.z"))
+        if len(replay_files) == 0:
+            raise AssertionError(
+                f"No replay files were generated. Process exited with code {result.returncode}. "
+                f"Error output: {result.stderr}"
+            )
 
-#         # Should have exactly one replay file.
-#         assert len(replay_files) == 1, f"Expected exactly 1 replay file, found {len(replay_files)}: {replay_files}"
+        # Should have exactly one replay file.
+        assert len(replay_files) == 1, f"Expected exactly 1 replay file, found {len(replay_files)}: {replay_files}"
 
-#         # Validate the replay file.
-#         replay_path = replay_files[0]
-#         loaded_replay = load_replay(replay_path)
-#         validate_replay_schema(loaded_replay)
+        # Validate the replay file.
+        replay_path = replay_files[0]
+        loaded_replay = load_replay(replay_path)
+        validate_replay_schema(loaded_replay)
 
-#         print(f"✓ Successfully generated and validated fresh replay: {replay_path.name}")
+        print(f"✓ Successfully generated and validated fresh replay: {replay_path.name}")
