@@ -571,21 +571,21 @@ class HRM(PyTorchAgentMixin, LSTMWrapper):
         # Encode obs
         hidden = self.policy.encode_observations(observations, state)
 
-        # Use base class method for LSTM state management
-        lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
-        lstm_state = (lstm_h, lstm_c)
+        # # Use base class method for LSTM state management
+        # lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
+        # lstm_state = (lstm_h, lstm_c)
 
-        # Forward LSTM
-        hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, in_size)
-        lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden.to(torch.float32), lstm_state)
+        # # Forward LSTM
+        # hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, in_size)
+        # lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden.to(torch.float32), lstm_state)
 
-        # Use base class method to store state with automatic detachment
-        self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
+        # # Use base class method to store state with automatic detachment
+        # self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
 
-        flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
+        # flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
 
         # Decode
-        logits_list, value = self.policy.decode_actions(flat_hidden, B * TT)
+        logits_list, value = self.policy.decode_actions(hidden.to(torch.float32), B * TT)
 
         # Use mixin for mode-specific processing
         if action is None:
