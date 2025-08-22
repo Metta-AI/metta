@@ -8,6 +8,8 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
+
 # ------------------
 # Utility functions
 # ------------------
@@ -549,6 +551,160 @@ class HRMBackbone(nn.Module):
             "halted": halted,
             "current_data": new_current_data,
         }, outputs
+
+
+class HRM(PyTorchAgentMixin, nn.Module):
+    """
+    Hierarchical Reasoning Model with PyTorch mixin integration.
+
+    This class inherits from PyTorchAgentMixin to provide shared functionality
+    like weight clipping, TensorDict management, and action conversion utilities.
+    """
+
+    def __init__(self, env, **kwargs):
+        # Extract mixin parameters
+        mixin_params = self.extract_mixin_params(kwargs)
+
+        # Initialize nn.Module
+        nn.Module.__init__(self)
+
+        # Initialize the policy
+        self.policy = HRMPolicy(env, **kwargs)
+
+        # Initialize mixin
+        self.init_mixin(**mixin_params)
+
+        # Set device
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.to(self.device)
+
+    def activate_actions(self, action_names, action_max_params, device):
+        """
+        Initialize the action space, similar to MettaAgent.activate_actions.
+
+        Args:
+            action_names: List of action names
+            action_max_params: List of maximum parameters for each action head
+            device: Device to place tensors on
+        """
+        assert isinstance(action_max_params, list), "action_max_params must be a list"
+        self.device = device
+        self.action_max_params = action_max_params
+        self.action_names = action_names
+        self.active_actions = list(zip(action_names, action_max_params, strict=False))
+
+        # Precompute cumulative sums for action index conversion
+        self.cum_action_max_params = torch.cumsum(
+            torch.tensor([0] + action_max_params, device=self.device, dtype=torch.long),
+            dim=0,
+        )
+
+        # Create action_index tensor for conversion
+        action_index = []
+        for action_type_idx, max_param in enumerate(action_max_params):
+            for j in range(max_param + 1):
+                action_index.append([action_type_idx, j])
+        self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
+
+        # Set these on the policy as well for the mixin methods
+        self.policy.action_index_tensor = self.action_index_tensor
+        self.policy.cum_action_max_params = self.cum_action_max_params
+
+        # Activate action embeddings on policy
+        if hasattr(self.policy, "activate_action_embeddings"):
+            self.policy.activate_action_embeddings(action_names, device)
+
+    def forward(self, observations, state=None, action=None):
+        """
+        Forward pass through the HRM model.
+
+        Args:
+            observations: Input observation tensor, shape (B, TT, M, 3) or (B, M, 3)
+            state: Dictionary with LSTM state and HRM carry
+            action: Optional action tensor for training, shape (B, T, num_action_heads)
+
+        Returns:
+            Tuple of (actions, action_log_prob, entropy, value, logits_list)
+        """
+        if state is None:
+            state = {"lstm_h": None, "lstm_c": None, "hidden": None, "carry": None}
+
+        observations = observations.to(self.device)
+
+        # Initialize carry if not provided
+        if state.get("carry") is None:
+            batch = {"env_obs": observations}
+            state["carry"] = self.policy.backbone.initial_carry(batch)
+
+        # Forward through policy
+        new_carry, outputs = self.policy(state["carry"], {"env_obs": observations})
+
+        # Extract logits and value
+        logits = outputs["logits"]
+        value = outputs["value"]
+
+        # Handle training vs inference
+        if action is not None:
+            # Training mode - use provided action
+            return self._forward_training(observations, action, logits, value)
+        else:
+            # Inference mode - sample actions
+            return self._forward_inference(observations, logits, value)
+
+    def _forward_training(self, observations, action, logits, value):
+        """Forward pass for training mode."""
+        # Reshape action if needed
+        if action.dim() == 3:  # (B, T, A) -> (BT, A)
+            batch_size_orig, time_steps, A = action.shape
+            action = action.view(batch_size_orig * time_steps, A)
+
+        # Convert action to logit index
+        action_logit_index = self._convert_action_to_logit_index(action)
+
+        # Calculate log probs and entropy
+        action_log_probs = F.log_softmax(logits, dim=-1)
+        action_probs = torch.exp(action_log_probs)
+
+        batch_indices = torch.arange(action_logit_index.shape[0], device=action_logit_index.device)
+        selected_log_probs = action_log_probs[batch_indices, action_logit_index]
+        entropy = -(action_probs * action_log_probs).sum(dim=-1)
+
+        # Return in expected format
+        return (
+            action,  # actions
+            selected_log_probs,  # action_log_prob
+            entropy,  # entropy
+            value,  # value
+            logits,  # logits_list
+        )
+
+    def _forward_inference(self, observations, logits, value):
+        """Forward pass for inference mode."""
+        # Sample actions
+        log_probs = F.log_softmax(logits, dim=-1)
+        action_probs = torch.exp(log_probs)
+
+        actions = torch.multinomial(action_probs, num_samples=1).view(-1)
+        batch_indices = torch.arange(actions.shape[0], device=actions.device)
+        selected_log_probs = log_probs[batch_indices, actions]
+
+        # Convert to action format
+        action = self._convert_logit_index_to_action(actions)
+
+        # Calculate entropy
+        entropy = -(action_probs * log_probs).sum(dim=-1)
+
+        return (
+            action,  # actions
+            selected_log_probs,  # action_log_prob
+            entropy,  # entropy
+            value,  # value
+            logits,  # logits_list
+        )
+
+    def encode_observations(self, observations, state=None):
+        """Encode observations using the policy's encoding method."""
+        return self.policy.encode_observations(observations, state)
 
 
 class HRMPolicy(nn.Module):
