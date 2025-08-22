@@ -6,7 +6,7 @@ import numpy.typing as npt
 from pydantic import SerializeAsAny, WrapValidator, model_serializer, model_validator
 
 from metta.common.config import Config
-from metta.utils.module import load_function
+from metta.utils.module import load_symbol
 
 # We store maps as 2D arrays of object names.
 # "empty" means an empty cell; "wall" means a wall, etc. See `metta.mettagrid.char_encoder` for the full list.
@@ -121,7 +121,7 @@ def _validate_open_map_builder(v: Any, handler):
             return handler(v)
 
         # Import the symbol named in 'type'
-        target = load_function(t) if isinstance(t, str) else t
+        target = load_symbol(t) if isinstance(t, str) else t
 
         # If it's a Builder, use its nested Config
         if isinstance(target, type) and issubclass(target, MapBuilder):

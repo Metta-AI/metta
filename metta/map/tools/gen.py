@@ -7,7 +7,7 @@ from metta.common.config.tool import Tool
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
 from metta.mettagrid.mettagrid_config import EnvConfig
-from metta.utils.module import load_function
+from metta.utils.module import load_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,10 @@ class GenTool(Tool):
         count = self.count
         env_fn_name = self.env_fn
 
-        env_fn = load_function(env_fn_name)
+        env_fn = load_symbol(env_fn_name)
+
+        if not callable(env_fn):
+            raise ValueError(f"Env {env_fn_name} is not callable")
 
         # TODO - support env_fn args?
         env_config = env_fn()

@@ -17,7 +17,7 @@ from typing_extensions import Generic
 
 from metta.common.config import Config
 from metta.mettagrid.mettagrid_config import EnvConfig
-from metta.utils.module import load_class
+from metta.utils.module import load_symbol
 
 if TYPE_CHECKING:
     from metta.cogworks.curriculum.curriculum import CurriculumConfig
@@ -309,7 +309,7 @@ def _validate_open_task_generator(v: Any, handler):
             return handler(v)
 
         # Import the symbol named in 'type'
-        target = load_class(t) if isinstance(t, str) else t
+        target = load_symbol(t) if isinstance(t, str) else t
 
         # If it's a Generator, use its nested Config
         if isinstance(target, type) and issubclass(target, TaskGenerator):

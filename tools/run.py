@@ -15,7 +15,7 @@ from metta.common.config.config import Config
 from metta.common.config.tool import Tool
 from metta.common.util.logging_helpers import init_logging
 from metta.rl.system_config import seed_everything
-from metta.utils.module import load_function
+from metta.utils.module import load_symbol
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,7 @@ def main():
     args_conf = cast(dict[str, Any], args_conf)
 
     # Create the tool config object
-    make_tool_cfg = load_function(args.make_tool_cfg_path)
+    make_tool_cfg = load_symbol(args.make_tool_cfg_path)
 
     if issubclass(make_tool_cfg, Tool):
         # tool config constructor
