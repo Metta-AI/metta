@@ -21,7 +21,6 @@ env:
 secrets:
   wandb: "wandb-api-secret"
   machineToken: "machine-token-secret"
-  datadog: "datadog-secret"
 
 resources:
   requests:
@@ -31,26 +30,8 @@ resources:
     cpu: 1000m
     memory: 4Gi
 
+# Datadog agent is deployed as a separate service
+# This controls how the orchestrator connects to Datadog
 datadog:
   enabled: true
   env: "production"
-  datadog:
-    apiKeyExistingSecret: datadog-secret
-    clusterName: "main"
-    site: datadoghq.com
-    apm:
-      portEnabled: true
-      port: 8126
-    logs:
-      enabled: true
-      containerCollectAll: true
-    processAgent:
-      enabled: true
-      processCollection: true
-    orchestratorExplorer:
-      enabled: true
-    tags:
-      - "env:production"
-  agents:
-    enabled: true
-    useHostNetwork: true

@@ -3,6 +3,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from metta.common.util.collections import remove_none_values
 from metta.common.wandb.wandb_context import WandbConfig
+from metta.setup.components.aws import AWSSetup
 from metta.setup.components.observatory_key import ObservatoryKeySetup
 from metta.setup.components.wandb import WandbSetup
 
@@ -71,3 +72,25 @@ def auto_stats_server_uri() -> str | None:
         **ObservatoryKeySetup().to_config_settings(),  # type: ignore
         **supported_observatory_env_overrides.to_config_settings(),
     }.get("stats_server_uri")
+
+
+class SupportedAwsEnvOverrides(BaseSettings):
+    model_config = SettingsConfigDict(
+        extra="ignore",
+    )
+
+    REPLAY_DIR: str | None = Field(default=None, description="Replay directory")
+
+    def to_config_settings(self) -> dict[str, str]:
+        return remove_none_values({"replay_dir": self.REPLAY_DIR})
+
+
+supported_aws_env_overrides = SupportedAwsEnvOverrides()
+
+
+def auto_replay_dir() -> str:
+    aws_setup_module = AWSSetup()
+    return {
+        **aws_setup_module.to_config_settings(),  # type: ignore
+        **supported_aws_env_overrides.to_config_settings(),
+    }.get("replay_dir")
