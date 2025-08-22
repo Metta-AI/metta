@@ -43,27 +43,10 @@ lasery = ConverterConfig(
     output_resources={"laser": 1},
     cooldown=10,
 )
+
 armory = ConverterConfig(
     type_id=16,
     input_resources={"ore_red": 3},
     output_resources={"armor": 1},
-    cooldown=10,
-)
-lab = ConverterConfig(
-    type_id=17,
-    input_resources={"battery_red": 1, "ore_red": 2},
-    output_resources={"blueprint": 1},
-    cooldown=10,
-)
-factory = ConverterConfig(
-    type_id=18,
-    input_resources={"battery_red": 1, "ore_red": 2},
-    output_resources={"blueprint": 1},
-    cooldown=10,
-)
-temple = ConverterConfig(
-    type_id=19,
-    input_resources={"battery_red": 1, "ore_red": 2},
-    output_resources={"blueprint": 1},
     cooldown=10,
 )
