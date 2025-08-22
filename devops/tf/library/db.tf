@@ -3,6 +3,34 @@ resource "random_password" "db" {
   special = true
 }
 
+resource "aws_db_parameter_group" "pg_ssl" {
+  name   = "softmax-library-pg-ssl"
+  family = "postgres17"
+  parameter {
+    name  = "rds.force_ssl"
+    value = "1"
+  }
+}
+
+resource "aws_security_group" "rds_public" {
+  name = "softmax-library-pg-sg"
+
+  # TEMP: open to world. Necessary for Amplify (unless we configure lambda proxy).
+  ingress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
 resource "aws_db_instance" "postgres" {
   identifier     = "softmax-library-pg"
   engine         = "postgres"
@@ -12,7 +40,11 @@ resource "aws_db_instance" "postgres" {
   allocated_storage = var.db_allocated_storage
   multi_az          = true
 
-  publicly_accessible = true
+  publicly_accessible    = true
+  vpc_security_group_ids = [aws_security_group.rds_public.id]
+  parameter_group_name   = aws_db_parameter_group.pg_ssl.name
+
+  backup_retention_period = 7
 
   db_name  = "softmax_library"
   username = "softmax_library"
