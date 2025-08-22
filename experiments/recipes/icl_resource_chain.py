@@ -24,6 +24,9 @@ CONVERTER_TYPES = {
     "generator_green": empty_converters.generator_green,
     "altar": empty_converters.altar,
     "lab": empty_converters.lab,
+    "lasery": empty_converters.lasery,
+    "factory": empty_converters.factory,
+    "temple": empty_converters.temple,
 }
 
 RESOURCE_TYPES = [
@@ -33,6 +36,9 @@ RESOURCE_TYPES = [
     "battery_red",
     "battery_blue",
     "battery_green",
+    "laser",
+    "blueprint",
+    "armor",
 ]
 
 
@@ -148,8 +154,8 @@ class ConverterChainTaskGenerator(TaskGenerator):
 
 def make_env() -> EnvConfig:
     task_generator_cfg = ConverterChainTaskGenerator.Config(
-        chain_lengths=[2, 3, 4, 5],
-        num_sinks=[0, 1, 2],
+        chain_lengths=[6],
+        num_sinks=[2],
     )
     task_generator = ConverterChainTaskGenerator(task_generator_cfg)
     return task_generator.get_task(0)

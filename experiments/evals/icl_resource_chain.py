@@ -1,32 +1,7 @@
-from metta.mettagrid.config import empty_converters
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.sim.simulation_config import SimulationConfig
 
 from experiments.recipes.icl_resource_chain import ConverterChainTaskGenerator
-
-CONVERTER_TYPES = {
-    "lasery": empty_converters.lasery,
-    "factory": empty_converters.factory,
-    "temple": empty_converters.temple,
-    "mine_red": empty_converters.mine_red,
-    "mine_blue": empty_converters.mine_blue,
-    "mine_green": empty_converters.mine_green,
-    "generator_red": empty_converters.generator_red,
-    "generator_blue": empty_converters.generator_blue,
-    "generator_green": empty_converters.generator_green,
-    "altar": empty_converters.altar,
-    "lab": empty_converters.lab,
-}
-
-RESOURCE_TYPES = [
-    "laser",
-    "blueprint",
-    "armor",
-    "ore_red",
-    "ore_blue",
-    "ore_green",
-    "battery_red",
-]
 
 
 def icl_resource_chain_eval_env(env: EnvConfig) -> EnvConfig:
@@ -49,8 +24,6 @@ def make_icl_resource_chain_eval_env(chain_length: int, num_sinks: int) -> EnvCo
     )
     task_generator = ConverterChainTaskGenerator(task_generator_cfg)
     # different set of resources and converters for evals
-    task_generator.resource_types = RESOURCE_TYPES
-    task_generator.converter_types = CONVERTER_TYPES
     return task_generator.get_task(0)
 
 
