@@ -16,6 +16,8 @@ from metta.agent.pytorch.fast import Fast as PyTorchFast
 from metta.agent.pytorch.latent_attn_med import LatentAttnMed as PyTorchLatentAttnMed
 from metta.agent.pytorch.latent_attn_small import LatentAttnSmall as PyTorchLatentAttnSmall
 from metta.agent.pytorch.latent_attn_tiny import LatentAttnTiny as PyTorchLatentAttnTiny
+from metta.agent.pytorch.transformer import Transformer
+from metta.agent.pytorch.transformer_improved import TransformerImproved
 from metta.common.config import Config
 
 
@@ -32,6 +34,8 @@ class AgentConfig(Config):
         "pytorch/latent_attn_tiny",
         "pytorch/latent_attn_small",
         "pytorch/latent_attn_med",
+        "pytorch/transformer",
+        "pytorch/transformer_improved",
     ] = "fast"
 
     clip_range: float = 0
@@ -49,6 +53,8 @@ AGENT_REGISTRY = {
     "pytorch/latent_attn_tiny": PyTorchLatentAttnTiny,
     "pytorch/latent_attn_small": PyTorchLatentAttnSmall,
     "pytorch/latent_attn_med": PyTorchLatentAttnMed,
+    "pytorch/transformer": Transformer,
+    "pytorch/transformer_improved": TransformerImproved,
 }
 
 

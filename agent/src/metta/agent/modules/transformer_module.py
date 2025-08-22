@@ -62,7 +62,7 @@ class FusedGRUGating(nn.Module):
 
         Args:
             d_model: Model dimension
-            bg: Bias for update gate (reduced for better gradient flow)
+            bg: Bias for update gate (higher values favor identity mapping for GTrXL)
         """
         super().__init__()
         # Fused projection for all gates (more efficient)
@@ -190,7 +190,7 @@ class TransformerBlock(nn.Module):
         super().__init__()
         self.use_gating = use_gating
 
-        # Post-normalization (matching AGaLiTe architecture)
+        # Pre-normalization (GTrXL Identity Map Reordering)
         self.norm1 = nn.LayerNorm(d_model)
         self.norm2 = nn.LayerNorm(d_model)
 
@@ -210,41 +210,39 @@ class TransformerBlock(nn.Module):
                 nn.init.xavier_uniform_(module.weight, gain=1.0)
                 nn.init.constant_(module.bias, 0)
 
-        # Gating mechanisms (instead of residual connections)
+        # GTrXL gating mechanisms with identity initialization
         if use_gating:
-            self.gate1 = FusedGRUGating(d_model, bg=0.5)  # Reduced bias
-            self.gate2 = FusedGRUGating(d_model, bg=0.5)  # Reduced bias
+            self.gate1 = FusedGRUGating(d_model, bg=2.0)  # Higher bias for identity mapping
+            self.gate2 = FusedGRUGating(d_model, bg=2.0)  # Higher bias for identity mapping
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """Process batch of sequences from multiple environments/agents.
 
-        Following AGaLiTe architecture:
-        1. LayerNorm -> Attention -> ReLU -> GRU Gate
-        2. LayerNorm -> FFN -> ReLU -> GRU Gate
+        GTrXL architecture with Identity Map Reordering:
+        1. LayerNorm(x) -> Attention -> GRU Gate(x, attn)
+        2. LayerNorm(h1) -> FFN -> GRU Gate(h1, ffn)
+
+        Key insight: Pre-normalization creates identity path from input to output
         """
-        # Layer norm + attention (post-norm style like AGaLiTe)
-        ln1_out = self.norm1(x)
-        attn_out = self.attention(ln1_out)
-        attn_out = F.relu(attn_out)  # ReLU activation after attention like AGaLiTe
+        # PRE-normalization: LayerNorm -> Attention -> Gate
+        attn_out = self.attention(self.norm1(x))  # Pre-norm for identity mapping
 
-        # First GRU gating
+        # First GRU gating: combines original input x with attention output
         if self.use_gating:
-            gating1_out = self.gate1(x, attn_out)
+            h1 = self.gate1(x, attn_out)  # Identity path preserved through gating
         else:
-            gating1_out = x + attn_out
+            h1 = x + attn_out  # Standard residual connection
 
-        # Layer norm + feed-forward
-        ln2_out = self.norm2(gating1_out)
-        ff_out = self.feed_forward(ln2_out)
-        ff_out = F.relu(ff_out)  # ReLU activation after FFN like AGaLiTe
+        # PRE-normalization: LayerNorm -> FFN -> Gate
+        ff_out = self.feed_forward(self.norm2(h1))  # Pre-norm for identity mapping
 
-        # Second GRU gating
+        # Second GRU gating: combines h1 with feed-forward output
         if self.use_gating:
-            out = self.gate2(gating1_out, ff_out)
+            h2 = self.gate2(h1, ff_out)  # Identity path continues through second gate
         else:
-            out = gating1_out + ff_out
+            h2 = h1 + ff_out  # Standard residual connection
 
-        return out
+        return h2  # Clear identity path from x -> h1 -> h2
 
 
 class TransformerModule(nn.Module):
@@ -321,12 +319,12 @@ class TransformerModule(nn.Module):
     def _init_gates_for_identity(self):
         """Initialize gates to favor identity mapping at start of training.
 
-        The GRU gates are already initialized with:
+        GTrXL gating initialization:
         - Orthogonal weight init (gain=1.0) for stability
-        - Bias bg=0.5 for update gate to allow gradient flow
-        This provides better gradient flow for transformers.
+        - Higher bias values (bg=2.0) to favor identity mapping initially
+        - This creates a clear identity path from input to output
         """
-        # No additional modification needed - gates are properly initialized
+        # Gates are initialized with appropriate bias during construction
         pass
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
