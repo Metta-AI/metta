@@ -421,49 +421,13 @@ def train(
                 total_steps = 0
 
                 policy.on_rollout_start()
-                buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
-
-                # Precompute agent split per-env and publish to env for logging
-                npc_mask_per_env: torch.Tensor | None = None
-                agents_per_env = metta_grid_env.num_agents
-                if trainer_cfg.dual_policy.enabled and agents_per_env > 0:
-                    npc_count = int(round(agents_per_env * (1.0 - trainer_cfg.dual_policy.training_agents_pct)))
-                    # Ensure at least 1 student agent and at most agents_per_env-1 NPCs
-                    npc_count = max(0, min(npc_count, agents_per_env - 1))
-                    npc_mask_per_env = torch.zeros(agents_per_env, dtype=torch.bool, device=device)
-                    if npc_count > 0:
-                        # Contiguous split: first N agents are NPCs
-                        npc_indices = torch.arange(npc_count, device=device)
-                        npc_mask_per_env[npc_indices] = True
-                    # let env know grouping for logging (indices are per single env)
-                    try:
-                        npc_agents = torch.nonzero(npc_mask_per_env, as_tuple=False).flatten().tolist()
-                        trained_agents = torch.nonzero(~npc_mask_per_env, as_tuple=False).flatten().tolist()
-                        metta_grid_env._dual_policy_agent_groups = [npc_agents, trained_agents]
-                        if is_master:
-                            logger.info(f"Dual policy groups: NPC={len(npc_agents)}, Trained={len(trained_agents)}")
-                    except Exception as e:
-                        # Treat group assignment failure as critical to training integrity
-                        if is_master:
-                            logger.error(
-                                f"Failed to set dual policy groups: {e}. Disabling dual policy training.",
-                                exc_info=True,
-                            )
-                        trainer_cfg.dual_policy.enabled = False
-                        # Disable env-side dual policy flags as well
-                        try:
-                            metta_grid_env._dual_policy_enabled = False
-                            metta_grid_env._dual_policy_agent_groups = [[], []]
-                        except Exception:
-                            pass
-                        # Reset mask so all agents are treated as students downstream
-                        npc_mask_per_env = None
 
                 while not experience.ready_for_training:
                     # Get observation
                     o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
                     total_steps += num_steps
 
+                    buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
                     td = buffer_step[training_env_id].clone()
                     td["env_obs"] = o
                     td["rewards"] = r
@@ -473,73 +437,8 @@ def train(
                         training_env_id.start, training_env_id.stop, dtype=torch.long, device=device
                     )
 
-                    # Inference
                     with torch.no_grad():
-                        # Default: student policy acts for all agents
-                        policy(td)
-
-                        # Create student agent mask (inverse of NPC mask)
-                        if npc_mask_per_env is not None and agents_per_env > 0:
-                            student_mask = ~npc_mask_per_env
-                            # Expand mask to match batch size
-                            if td["actions"].ndim == 2:
-                                # Shape like [B*agents_per_env, action_components]
-                                total = td["actions"].shape[0]
-                                if agents_per_env > 0 and total % agents_per_env == 0:
-                                    repeats = total // agents_per_env
-                                    student_mask_flat = student_mask.repeat(repeats)
-                                    td["is_student_agent"] = student_mask_flat.float()
-                                else:
-                                    # Default to all students if can't determine structure
-                                    td["is_student_agent"] = torch.ones(total, device=device, dtype=torch.float32)
-                            else:
-                                # For other shapes, use per-env mask
-                                td["is_student_agent"] = student_mask.float()
-                        else:
-                            # No NPCs, all agents are students
-                            td["is_student_agent"] = torch.ones(td.batch_size[0], device=device, dtype=torch.float32)
-
-                        # If dual-policy is enabled and npc_policy is available, overwrite NPC agents' actions
-                        if (
-                            trainer_cfg.dual_policy.enabled
-                            and npc_policy is not None
-                            and npc_mask_per_env is not None
-                            and npc_mask_per_env.any().item()
-                        ):
-                            td_npc = td.clone()
-                            npc_policy(td_npc)
-                            actions = td["actions"].clone()
-                            # Merge NPC actions depending on action tensor shape
-                            if actions.ndim >= 3:
-                                # Shape like [B, num_agents, action_components]
-                                actions[..., npc_mask_per_env, :] = td_npc["actions"][..., npc_mask_per_env, :]
-                            elif actions.ndim == 2:
-                                # Shape like [B*agents_per_env, action_components]
-                                total = actions.shape[0]
-                                if agents_per_env > 0:
-                                    if total % agents_per_env == 0:
-                                        repeats = total // agents_per_env
-                                        npc_mask_flat = npc_mask_per_env.repeat(repeats)
-                                        # Validate shapes before indexing
-                                        if npc_mask_flat.shape[0] == total and td_npc["actions"].shape[0] == total:
-                                            actions[npc_mask_flat, :] = td_npc["actions"][npc_mask_flat, :]
-                                        else:
-                                            logger.warning(
-                                                "Skipping NPC action assignment due to shape mismatch: "
-                                                f"mask={npc_mask_flat.shape[0]}, actions={total}, "
-                                                f"npc_actions={td_npc['actions'].shape[0]}"
-                                            )
-                                    else:
-                                        logger.warning(
-                                            "Skipping NPC action assignment: total agents "
-                                            f"{total} not divisible by agents_per_env {agents_per_env}"
-                                        )
-                                else:
-                                    logger.warning("Skipping NPC action assignment: agents_per_env <= 0")
-                            else:
-                                # Unsupported shape; skip merge
-                                pass
-                            td["actions"] = actions
+                        td = policy(td)
 
                     # Store experience
                     experience.store(

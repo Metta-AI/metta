@@ -80,20 +80,16 @@ class LSTM(LayerBase):
         self.reset_memory()
 
     def on_rollout_start(self):
-        self.reset_memory()
+        pass
 
     def on_train_phase_start(self):
-        self.reset_memory()
+        pass
 
     def on_mb_start(self):
-        if self.reset_in_training:
-            # If ^ true then you want to save state across mbs so don't reset memory here.
-            # Resetting is only when a done or truncated is encountered and that's handled in _forward_train_step.
-            pass
-        else:
-            self.reset_memory()
+        pass
 
     def on_eval_start(self):
+        # Note, this will affect the agent when you go back to training (you just wiped its memory)
         self.reset_memory()
 
     def has_memory(self):
@@ -143,7 +139,6 @@ class LSTM(LayerBase):
         self.lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
         self.training_lstm_h = torch.empty(self.num_layers, 0, self.hidden_size)
         self.training_lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
-        self.iter = 0
 
         return None
 
@@ -153,9 +148,9 @@ class LSTM(LayerBase):
 
         TT = td["bptt"][0]
         B = td["batch"][0]
-
         segment_ids = td.get("segment_ids", None)
         if segment_ids is None:
+            # then we are in eval or similar. we just need indices for storing memory for the batch
             segment_ids = torch.arange(B, device=latent.device)
 
         dones = td.get("dones", None)
@@ -166,12 +161,8 @@ class LSTM(LayerBase):
             reset_mask = torch.ones(1, B, 1, device=latent.device)
 
         if TT == 1:
-            self.iter += 1
-            print(f"!! iter: {self.iter} and batch size: {B}")
-            print(f"!! training_env_ids[-1]: {segment_ids[-1]}")
-            if segment_ids[-1] >= self.lstm_h.size(1):
+            if segment_ids.max() >= self.lstm_h.size(1):
                 # we haven't allocated states for these envs (ie the very first epoch or rollout)
-                # NOTE: this rests on the assumption that envIDs come in contiguous chunks
                 h_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
                 c_0 = torch.zeros(self.num_layers, B, self.hidden_size, device=latent.device)
                 self.lstm_h = torch.cat([self.lstm_h, h_0.detach()], dim=1)
@@ -184,6 +175,7 @@ class LSTM(LayerBase):
 
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
         if self.reset_in_training and TT != 1:
+            segment_ids = segment_ids.reshape(B, TT)[:, 0]
             h_0 = self.training_lstm_h[:, segment_ids]
             c_0 = self.training_lstm_c[:, segment_ids]
             hidden, (h_n, c_n) = self._forward_train_step(latent, h_0, c_0, reset_mask)
