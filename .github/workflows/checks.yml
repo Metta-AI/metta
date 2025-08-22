@@ -291,7 +291,7 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true')
-    runs-on: ubuntu-16core
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout code
@@ -323,7 +323,7 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true')
-    runs-on: ubuntu-16core
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout code
