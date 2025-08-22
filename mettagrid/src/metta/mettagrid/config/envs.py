@@ -150,7 +150,7 @@ def make_icl_resource_chain(num_agents: int, max_steps, game_objects: dict, map_
             map_builder=MapGen.Config(
                 instances=num_agents,
                 instance_map=PerimeterInContextMapBuilder.Config(
-                    agents=1, width=7, height=7, objects=map_builder_objects
+                    agents=1, width=6, height=6, objects=map_builder_objects
                 ),
             ),
             actions=ActionsConfig(
