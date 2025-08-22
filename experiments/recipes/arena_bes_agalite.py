@@ -177,8 +177,8 @@ def train() -> TrainTool:
         # the original trainer.yaml configuration
     )
 
-    # Configure AGaLiTe agent
-    agent_config = AgentConfig(name="pytorch/agalite")
+    # Configure enhanced AGaLiTe agent
+    agent_config = AgentConfig(name="pytorch/agalite_improved")
 
     return TrainTool(
         trainer=trainer_cfg,
