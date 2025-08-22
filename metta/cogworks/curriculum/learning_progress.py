@@ -1,4 +1,4 @@
-"""Learning progress curriculum implementation following codebase patterns."""
+"""Learning progress curriculum implementation."""
 
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class LearningProgressCurriculumConfig(CurriculumConfig):
-    """Configuration for LearningProgressCurriculum following the discriminated union pattern."""
+    """Configuration for LearningProgressCurriculum."""
 
     # Override the task_generator_config to use our learning progress specific config
     task_generator_config: AnyTaskGeneratorConfig = Field(
