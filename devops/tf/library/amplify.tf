@@ -14,6 +14,11 @@ data "aws_secretsmanager_secret_version" "library_secrets" {
   secret_id = data.aws_secretsmanager_secret.library_secrets.id
 }
 
+resource "random_password" "auth_secret" {
+  length  = 32
+  special = true
+}
+
 # ---- IAM role Amplify will assume to push SSR runtime logs to CloudWatch ----
 resource "aws_iam_role" "amplify_service_role" {
   name = "amplify-service-role"
@@ -69,9 +74,11 @@ resource "aws_amplify_app" "library" {
     DATABASE_URL              = "postgresql://${aws_db_instance.postgres.username}:${random_password.db.result}@${aws_db_instance.postgres.endpoint}/${aws_db_instance.postgres.db_name}"
     DEV_MODE                  = "false"
 
-    # Google OAuth Configuration (for production authentication)
+    # Auth
+    AUTH_SECRET          = random_password.auth_secret.result
     GOOGLE_CLIENT_ID     = jsondecode(data.aws_secretsmanager_secret_version.oauth_secret.secret_string)["client-id"]
     GOOGLE_CLIENT_SECRET = jsondecode(data.aws_secretsmanager_secret_version.oauth_secret.secret_string)["client-secret"]
+
     # Asana Configuration
     ASANA_API_KEY           = jsondecode(data.aws_secretsmanager_secret_version.library_secrets.secret_string)["ASANA_API_KEY"]
     ASANA_PAPERS_PROJECT_ID = jsondecode(data.aws_secretsmanager_secret_version.library_secrets.secret_string)["ASANA_PAPERS_PROJECT_ID"]
