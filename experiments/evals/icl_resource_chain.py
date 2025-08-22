@@ -21,28 +21,33 @@ def make_icl_resource_chain_eval_env(
         map_builder_objects=map_builder_objects,
     )
     env.game.max_steps = max_steps
-    env.game.map_builder = MapGen.Config(instances=num_agents, instance_map=MapGen.Config.with_ascii_uri(ascii_map, border_width=border_width)  )
+    env.game.map_builder = MapGen.Config(
+        instances=num_agents,
+        instance_map=MapGen.Config.with_ascii_uri(ascii_map, border_width=border_width),
+    )
 
     env.game.agent.resource_limits["heart"] = 5
 
     return env
 
+def update_recipe(converter, input_resource = None, output_resource = None):
+    if input_resource is not None:
+        converter.input_resources = {input_resource: 1}
+    if output_resource is not None:
+        converter.output_resources = {output_resource: 1}
+
 
 def chain_length2_0sink_env(name: str, max_steps: int = 50) -> EnvConfig:
     # recipe is laser -> heart
-    game_objects = {
-        "lasery": empty_converters.lasery,
-        "factory": empty_converters.factory,
-    }
-
     map_builder_objects = {
         "lasery": 1,
         "factory": 1,
     }
 
-    game_objects["lasery"].output_resources = {"laser": 1}
-    game_objects["factory"].input_resources = {"laser": 1}
-    game_objects["factory"].output_resources = {"heart": 1}
+    game_objects = {
+        "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
+        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="heart"),
+    }
 
     return make_icl_resource_chain_eval_env(
         name="2chain0sink",
@@ -54,22 +59,18 @@ def chain_length2_0sink_env(name: str, max_steps: int = 50) -> EnvConfig:
 
 
 def chain_length2_1sink_env(name: str, max_steps: int = 50) -> EnvConfig:
-    game_objects = {
-        "lasery": empty_converters.lasery,
-        "factory": empty_converters.factory,
-        "mine_red": empty_converters.mine_red,
-    }
-
+    # recipe is laser -> heart
     map_builder_objects = {
         "lasery": 1,
         "factory": 1,
         "mine_red": 1,
     }
 
-    game_objects["lasery"].output_resources = {"laser": 1}
-    game_objects["factory"].input_resources = {"laser": 1}
-    game_objects["factory"].output_resources = {"heart": 1}
-    game_objects["mine_red"].input_resources = {"laser": 1}  # sink
+    game_objects = {
+        "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
+        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="heart"),
+        "mine_red": update_recipe(empty_converters.mine_red, input_resource="laser"),
+    }
 
     return make_icl_resource_chain_eval_env(
         name="2chain1sink",
@@ -81,11 +82,12 @@ def chain_length2_1sink_env(name: str, max_steps: int = 50) -> EnvConfig:
 
 
 def chain_length2_2sink_env(name: str, max_steps: int = 50) -> EnvConfig:
+    # recipe is laser -> heart, two sinks
     game_objects = {
-        "lasery": empty_converters.lasery,
-        "factory": empty_converters.factory,
-        "mine_red": empty_converters.mine_red,
-        "temple": empty_converters.temple,
+        "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
+        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="heart"),
+        "mine_red": update_recipe(empty_converters.mine_red, input_resource="laser"),
+        "temple": update_recipe(empty_converters.temple, input_resource="laser"),
     }
 
     map_builder_objects = {
@@ -94,12 +96,6 @@ def chain_length2_2sink_env(name: str, max_steps: int = 50) -> EnvConfig:
         "mine_red": 1,
         "temple": 1,
     }
-
-    game_objects["lasery"].output_resources = {"laser": 1}
-    game_objects["factory"].input_resources = {"laser": 1}
-    game_objects["factory"].output_resources = {"heart": 1}
-    game_objects["mine_red"].input_resources = {"laser": 1}  # sink
-    game_objects["temple"].input_resources = {"laser": 1}  # sink
 
     return make_icl_resource_chain_eval_env(
         name="2chain2sink",
@@ -113,9 +109,9 @@ def chain_length2_2sink_env(name: str, max_steps: int = 50) -> EnvConfig:
 def chain_length3_0sink_env(name: str, max_steps: int = 100) -> EnvConfig:
     # recipe is laser -> blueprint -> heart
     game_objects = {
-        "lasery": empty_converters.lasery,
-        "factory": empty_converters.factory,
-        "temple": empty_converters.temple,
+        "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
+        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="blueprint"),
+        "temple": update_recipe(empty_converters.temple, input_resource="blueprint", output_resource="heart"),
     }
 
     map_builder_objects = {
@@ -123,12 +119,6 @@ def chain_length3_0sink_env(name: str, max_steps: int = 100) -> EnvConfig:
         "factory": 1,
         "temple": 1,
     }
-
-    game_objects["lasery"].output_resources = {"laser": 1}
-    game_objects["factory"].input_resources = {"laser": 1}
-    game_objects["factory"].output_resources = {"blueprint": 1}
-    game_objects["temple"].input_resources = {"blueprint": 1}
-    game_objects["temple"].output_resources = {"heart": 1}
 
     return make_icl_resource_chain_eval_env(
         name="3chain0sink",
@@ -142,10 +132,10 @@ def chain_length3_0sink_env(name: str, max_steps: int = 100) -> EnvConfig:
 def chain_length3_1sink_env(name: str, max_steps: int = 100) -> EnvConfig:
     # recipe is laser -> blueprint -> heart
     game_objects = {
-        "lasery": empty_converters.lasery,
-        "factory": empty_converters.factory,
-        "temple": empty_converters.temple,
-        "generator_blue": empty_converters.generator_blue,
+        "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
+        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="blueprint"),
+        "temple": update_recipe(empty_converters.temple, input_resource="blueprint", output_resource="heart"),
+        "generator_blue": update_recipe(empty_converters.generator_blue, input_resource="blueprint"),
     }
 
     map_builder_objects = {
@@ -154,14 +144,6 @@ def chain_length3_1sink_env(name: str, max_steps: int = 100) -> EnvConfig:
         "temple": 1,
         "generator_blue": 1,
     }
-
-    game_objects["lasery"].output_resources = {"laser": 1}
-    game_objects["factory"].input_resources = {"laser": 1}
-    game_objects["factory"].output_resources = {"blueprint": 1}
-    game_objects["temple"].input_resources = {"blueprint": 1}
-    game_objects["temple"].output_resources = {"heart": 1}
-    game_objects["generator_blue"].input_resources = {"blueprint": 1}  # sink
-    game_objects["generator_blue"].input_resources = {"laser": 1}  # sink
 
     return make_icl_resource_chain_eval_env(
         name="3chain1sink",
@@ -175,11 +157,11 @@ def chain_length3_1sink_env(name: str, max_steps: int = 100) -> EnvConfig:
 def chain_length3_2sink_env(name: str, max_steps: int = 100) -> EnvConfig:
     # recipe is laser -> blueprint -> heart
     game_objects = {
-        "lasery": empty_converters.lasery,
-        "factory": empty_converters.factory,
-        "temple": empty_converters.temple,
-        "generator_blue": empty_converters.generator_blue,
-        "mine_red": empty_converters.mine_red,
+        "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
+        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="blueprint"),
+        "temple": update_recipe(empty_converters.temple, input_resource="blueprint", output_resource="heart"),
+        "generator_blue": update_recipe(empty_converters.generator_blue, input_resource="blueprint"),
+        "mine_red": update_recipe(empty_converters.mine_red, input_resource="laser"),
     }
 
     map_builder_objects = {
@@ -189,16 +171,6 @@ def chain_length3_2sink_env(name: str, max_steps: int = 100) -> EnvConfig:
         "generator_blue": 1,
         "mine_red": 1,
     }
-
-    game_objects["lasery"].output_resources = {"laser": 1}
-    game_objects["factory"].input_resources = {"laser": 1}
-    game_objects["factory"].output_resources = {"blueprint": 1}
-    game_objects["temple"].input_resources = {"blueprint": 1}
-    game_objects["temple"].output_resources = {"heart": 1}
-    game_objects["generator_blue"].input_resources = {"blueprint": 1}  # sink
-    game_objects["generator_blue"].input_resources = {"laser": 1}  # sink
-    game_objects["mine_red"].input_resources = {"laser": 1}  # sink
-    game_objects["mine_red"].input_resources = {"blueprint": 1}  # sink
 
     return make_icl_resource_chain_eval_env(
         name="3chain2sink",
@@ -212,10 +184,10 @@ def chain_length3_2sink_env(name: str, max_steps: int = 100) -> EnvConfig:
 def chain_length4_0sink_env(name: str, max_steps: int = 200) -> EnvConfig:
     # recipe is laser -> blueprint -> armor -> heart
     game_objects = {
-        "lasery": empty_converters.lasery,
-        "factory": empty_converters.factory,
-        "temple": empty_converters.temple,
-        "generator_blue": empty_converters.generator_blue,
+        "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
+        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="blueprint"),
+        "temple": update_recipe(empty_converters.temple, input_resource="blueprint", output_resource="armor"),
+        "generator_blue": update_recipe(empty_converters.generator_blue, input_resource="armor", output_resource="heart"),
     }
 
     map_builder_objects = {
@@ -224,14 +196,6 @@ def chain_length4_0sink_env(name: str, max_steps: int = 200) -> EnvConfig:
         "temple": 1,
         "generator_blue": 1,
     }
-
-    game_objects["lasery"].output_resources = {"laser": 1}
-    game_objects["factory"].input_resources = {"laser": 1}
-    game_objects["factory"].output_resources = {"blueprint": 1}
-    game_objects["temple"].input_resources = {"blueprint": 1}
-    game_objects["temple"].output_resources = {"armor": 1}
-    game_objects["generator_blue"].input_resources = {"armor": 1}
-    game_objects["generator_blue"].output_resources = {"heart": 1}
 
     return make_icl_resource_chain_eval_env(
         name="4chain0sink",
@@ -245,11 +209,11 @@ def chain_length4_0sink_env(name: str, max_steps: int = 200) -> EnvConfig:
 def chain_length4_1sink_env(name: str, max_steps: int = 200) -> EnvConfig:
     # recipe is laser -> blueprint -> armor -> heart
     game_objects = {
-        "lasery": empty_converters.lasery,
-        "factory": empty_converters.factory,
-        "temple": empty_converters.temple,
-        "generator_blue": empty_converters.generator_blue,
-        "mine_red": empty_converters.mine_red,
+        "lasery": update_recipe(empty_converters.lasery, output_resource="laser"),
+        "factory": update_recipe(empty_converters.factory, input_resource="laser", output_resource="blueprint"),
+        "temple": update_recipe(empty_converters.temple, input_resource="blueprint", output_resource="armor"),
+        "generator_blue": update_recipe(empty_converters.generator_blue, input_resource="armor", output_resource="heart"),
+        "mine_red": update_recipe(empty_converters.mine_red, input_resource="laser"),
     }
 
     map_builder_objects = {
@@ -259,17 +223,6 @@ def chain_length4_1sink_env(name: str, max_steps: int = 200) -> EnvConfig:
         "generator_blue": 1,
         "mine_red": 1,
     }
-
-    game_objects["lasery"].output_resources = {"laser": 1}
-    game_objects["factory"].input_resources = {"laser": 1}
-    game_objects["factory"].output_resources = {"blueprint": 1}
-    game_objects["temple"].input_resources = {"blueprint": 1}
-    game_objects["temple"].output_resources = {"armor": 1}
-    game_objects["generator_blue"].input_resources = {"armor": 1}
-    game_objects["generator_blue"].output_resources = {"heart": 1}
-    game_objects["mine_red"].input_resources = {"laser": 1}  # sink
-    game_objects["mine_red"].input_resources = {"blueprint": 1}  # sink
-    game_objects["mine_red"].input_resources = {"armor": 1}  # sink
 
     return make_icl_resource_chain_eval_env(
         name="4chain1sink",
