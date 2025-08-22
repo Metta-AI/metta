@@ -76,6 +76,7 @@ resource "aws_amplify_app" "library" {
 
     # Auth
     AUTH_SECRET          = random_password.auth_secret.result
+    NEXTAUTH_URL         = "https://${var.domain}"
     GOOGLE_CLIENT_ID     = jsondecode(data.aws_secretsmanager_secret_version.oauth_secret.secret_string)["client-id"]
     GOOGLE_CLIENT_SECRET = jsondecode(data.aws_secretsmanager_secret_version.oauth_secret.secret_string)["client-secret"]
 
@@ -101,7 +102,7 @@ resource "aws_amplify_branch" "main" {
 
 resource "aws_amplify_domain_association" "domain" {
   app_id      = aws_amplify_app.library.id
-  domain_name = "library.softmax-research.net"
+  domain_name = var.domain
 
   sub_domain {
     branch_name = aws_amplify_branch.main.branch_name

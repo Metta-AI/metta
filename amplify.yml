@@ -15,6 +15,7 @@ applications:
             - env | grep -e DATABASE_URL >>.env.production
             - env | grep -e DEV_MODE >>.env.production
             - env | grep -e AUTH_SECRET >>.env.production
+            - env | grep -e NEXTAUTH_URL >>.env.production
             - env | grep -e GOOGLE_CLIENT_ID -e GOOGLE_CLIENT_SECRET >>.env.production
             - env | grep -e ASANA_API_KEY -e ASANA_PAPERS_PROJECT_ID >>.env.production
             - env | grep -e ADOBE_CLIENT_ID -e ADOBE_CLIENT_SECRET >>.env.production

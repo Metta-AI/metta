@@ -38,3 +38,8 @@ variable "s3_buckets" {
   type    = list(string)
   default = ["softmax-library", "softmax-library-dev"]
 }
+
+variable "domain" {
+  type    = string
+  default = "library.softmax-research.net"
+}
