@@ -89,37 +89,28 @@ def train(
     return TrainTool(trainer=trainer_cfg)
 
 
-def train_shaped(
-    run: str,
-    rewards: bool = True,
-    converters: bool = True,
-) -> TrainTool:
+def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     env_cfg = make_env()
     env_cfg.game.agent.rewards.inventory.heart = 1
     env_cfg.game.agent.rewards.inventory.heart_max = 100
 
     if rewards:
         env_cfg.game.agent.rewards.inventory.ore_red = 0.1
-        env_cfg.game.agent.rewards.inventory.ore_red_max = 10
-        env_cfg.game.agent.rewards.inventory.battery_red = 0.1
-        env_cfg.game.agent.rewards.inventory.battery_red_max = 10
-        env_cfg.game.agent.rewards.inventory.laser = 0.1
-        env_cfg.game.agent.rewards.inventory.laser_max = 10
-        env_cfg.game.agent.rewards.inventory.armor = 0.1
-        env_cfg.game.agent.rewards.inventory.armor_max = 10
-        env_cfg.game.agent.rewards.inventory.blueprint = 0.1
+        env_cfg.game.agent.rewards.inventory.ore_red_max = 1
+        env_cfg.game.agent.rewards.inventory.battery_red = 0.8
+        env_cfg.game.agent.rewards.inventory.battery_red_max = 1
+        env_cfg.game.agent.rewards.inventory.laser = 0.5
+        env_cfg.game.agent.rewards.inventory.laser_max = 1
+        env_cfg.game.agent.rewards.inventory.armor = 0.5
+        env_cfg.game.agent.rewards.inventory.armor_max = 1
+        env_cfg.game.agent.rewards.inventory.blueprint = 0.5
         env_cfg.game.agent.rewards.inventory.blueprint_max = 1
 
     if converters:
-        # Set altar input resources for battery_red conversion
-        altar_obj = env_cfg.game.objects["altar"]
-        if hasattr(altar_obj, "input_resources"):
-            altar_obj.input_resources["battery_red"] = 1
-
-    curriculum = cc.env_curriculum(env_cfg)
+        env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
 
     trainer_cfg = TrainerConfig(
-        curriculum=curriculum,
+        curriculum=cc.env_curriculum(env_cfg),
         evaluation=EvaluationConfig(
             simulations=make_evals(),
         ),
