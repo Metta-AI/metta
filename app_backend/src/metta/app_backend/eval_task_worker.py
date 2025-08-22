@@ -57,7 +57,6 @@ class SimTaskExecutor(AbstractTaskExecutor):
     def _run_cmd_from_versioned_checkout(
         self,
         cmd: list[str],
-        error_msg: str,
         capture_output: bool = True,
     ) -> subprocess.CompletedProcess:
         """Run a command from the versioned checkout with a clean environment."""
@@ -131,11 +130,10 @@ class SimTaskExecutor(AbstractTaskExecutor):
         self._logger.info("Installing dependencies in versioned checkout...")
         self._run_cmd_from_versioned_checkout(
             ["uv", "run", "metta", "configure", "--profile=softmax-docker"],
-            "Failed to configure dependencies",
+            capture_output=True,
         )
         self._run_cmd_from_versioned_checkout(
             ["uv", "run", "metta", "install"],
-            "Failed to install dependencies",
         )
 
         self._logger.info(f"Successfully set up versioned checkout at {self._versioned_path}")
@@ -168,10 +166,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
         ]
         self._logger.info(f"Running command: {' '.join(cmd)}")
 
-        result = self._run_cmd_from_versioned_checkout(
-            cmd,
-            "sim.py failed with exit code",
-        )
+        result = self._run_cmd_from_versioned_checkout(cmd)
 
         self._upload_logs_to_s3(str(task.id), result)
 
@@ -241,9 +236,6 @@ class EvalTaskWorker:
     async def run(self) -> None:
         self._logger.info("Starting eval worker")
         self._logger.info(f"Worker id: {self._assignee}")
-
-        self._logger.info("Worker running from main branch, sim.py will use git hash")
-
         while True:
             loop_start_time = datetime.now()
             try:
