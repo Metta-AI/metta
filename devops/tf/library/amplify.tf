@@ -14,7 +14,45 @@ data "aws_secretsmanager_secret_version" "library_secrets" {
   secret_id = data.aws_secretsmanager_secret.library_secrets.id
 }
 
+# ---- IAM role Amplify will assume to push SSR runtime logs to CloudWatch ----
+resource "aws_iam_role" "amplify_service_role" {
+  name = "amplify-service-role"
 
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect    = "Allow",
+      Action    = "sts:AssumeRole",
+      Principal = { Service = "amplify.amazonaws.com" }
+    }]
+  })
+}
+
+resource "aws_iam_policy" "amplify_cloudwatch_logs" {
+  name        = "amplify-cloudwatch-logs"
+  description = "Allow Amplify Hosting to create/write CloudWatch Logs for SSR runtime"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [{
+      Effect = "Allow",
+      Action = [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:DescribeLogGroups",
+        "logs:PutLogEvents"
+      ],
+      Resource = "*"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "amplify_logs_attach" {
+  role       = aws_iam_role.amplify_service_role.name
+  policy_arn = aws_iam_policy.amplify_cloudwatch_logs.arn
+}
+
+# ---- Amplify App ----
 resource "aws_amplify_app" "library" {
   name       = "softmax-library"
   repository = "https://github.com/Metta-AI/metta.git"
