@@ -139,7 +139,7 @@ class ConverterChainTaskGenerator(TaskGenerator):
     def _generate_task(self, task_id: int, rng: random.Random) -> EnvConfig:
         chain_length = rng.choice(self.config.chain_lengths)
         num_sinks = rng.choice(self.config.num_sinks)
-        resource_chain = rng.sample(list(self.resource_types.keys()), chain_length)
+        resource_chain = rng.sample(self.resource_types, chain_length)
 
         icl_env = self._make_env_cfg(resource_chain, num_sinks, rng=rng)
 

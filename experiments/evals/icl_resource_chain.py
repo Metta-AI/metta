@@ -18,15 +18,15 @@ CONVERTER_TYPES = {
     "lab": empty_converters.lab,
 }
 
-RESOURCE_TYPES = {
-    "laser": 1,
-    "blueprint": 1,
-    "armor": 1,
-    "ore_red": 1,
-    "ore_blue": 1,
-    "ore_green": 1,
-    "battery_red": 1,
-}
+RESOURCE_TYPES = [
+    "laser",
+    "blueprint",
+    "armor",
+    "ore_red",
+    "ore_blue",
+    "ore_green",
+    "battery_red",
+]
 
 
 def icl_resource_chain_eval_env(env: EnvConfig) -> EnvConfig:
