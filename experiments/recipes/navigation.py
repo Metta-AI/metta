@@ -92,7 +92,6 @@ def make_curriculum(
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
-    # Use the updated to_curriculum method that defaults to learning progress
     return nav_tasks.to_curriculum(
         num_tasks=16, use_learning_progress=use_learning_progress
     )
