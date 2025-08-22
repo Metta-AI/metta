@@ -103,11 +103,9 @@ def make_arena(
 
 
 def make_navigation(num_agents: int) -> EnvConfig:
-    # Use the standard altar configuration
-    altar = building.altar.model_copy()  # Make a copy to avoid modifying the global object
-    altar.cooldown = 100  # Cooldown between conversions
+    altar = building.altar.model_copy()
+    altar.cooldown = 255  # Maximum cooldown
     altar.initial_resource_count = 1
-
     cfg = EnvConfig(
         game=GameConfig(
             num_agents=num_agents,
@@ -127,13 +125,8 @@ def make_navigation(num_agents: int) -> EnvConfig:
                     ),
                 ),
             ),
-            map_builder=RandomMapBuilder.Config(
-                agents=num_agents,
-                width=25,
-                height=25,
-                border_object="wall",
-                border_width=1,
-            ),
+            # always override the map builder
+            map_builder={},
         )
     )
     return cfg
