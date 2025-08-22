@@ -6,8 +6,10 @@ from typing import Dict, List, Tuple
 import einops
 import torch
 import torch.nn.functional as F
+from tensordict import TensorDict
 from torch import nn
 
+from metta.agent.pytorch.base import LSTMWrapper
 from metta.agent.pytorch.pytorch_agent_mixin import PyTorchAgentMixin
 
 # ------------------
@@ -553,166 +555,105 @@ class HRMBackbone(nn.Module):
         }, outputs
 
 
-class HRM(PyTorchAgentMixin, nn.Module):
-    """
-    Hierarchical Reasoning Model with PyTorch mixin integration.
+class HRM(PyTorchAgentMixin, LSTMWrapper):
+    """Hierarchical Reasoning Model with LSTM using PyTorchAgentMixin for shared functionality."""
 
-    This class inherits from PyTorchAgentMixin to provide shared functionality
-    like weight clipping, TensorDict management, and action conversion utilities.
-    """
+    def __init__(self, env, policy=None, input_size=128, hidden_size=128, num_layers=2, **kwargs):
+        """Initialize HRM policy with mixin support.
 
-    def __init__(self, env, **kwargs):
-        # Extract mixin parameters
+        Args:
+            env: Environment
+            policy: Optional inner policy
+            input_size: LSTM input size
+            hidden_size: LSTM hidden size
+            num_layers: Number of LSTM layers
+            **kwargs: Configuration parameters handled by mixin (clip_range, analyze_weights_interval, etc.)
+        """
+        # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
 
-        # Initialize nn.Module
-        nn.Module.__init__(self)
+        if policy is None:
+            policy = Policy(env, input_size=input_size, hidden_size=hidden_size)
 
-        # Initialize the policy
-        self.policy = HRMPolicy(env, **kwargs)
+        # Pass num_layers=2 to match YAML configuration
+        super().__init__(env, policy, input_size, hidden_size, num_layers=num_layers)
 
-        # Initialize mixin
+        # Initialize mixin with configuration parameters
         self.init_mixin(**mixin_params)
 
-        # Set device
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.to(self.device)
+    @torch._dynamo.disable  # Exclude LSTM forward from Dynamo to avoid graph breaks
+    def forward(self, td: TensorDict, state=None, action=None):
+        observations = td["env_obs"]
 
-    def activate_actions(self, action_names, action_max_params, device):
-        """
-        Initialize the action space, similar to MettaAgent.activate_actions.
-
-        Args:
-            action_names: List of action names
-            action_max_params: List of maximum parameters for each action head
-            device: Device to place tensors on
-        """
-        assert isinstance(action_max_params, list), "action_max_params must be a list"
-        self.device = device
-        self.action_max_params = action_max_params
-        self.action_names = action_names
-        self.active_actions = list(zip(action_names, action_max_params, strict=False))
-
-        # Precompute cumulative sums for action index conversion
-        self.cum_action_max_params = torch.cumsum(
-            torch.tensor([0] + action_max_params, device=self.device, dtype=torch.long),
-            dim=0,
-        )
-
-        # Create action_index tensor for conversion
-        action_index = []
-        for action_type_idx, max_param in enumerate(action_max_params):
-            for j in range(max_param + 1):
-                action_index.append([action_type_idx, j])
-        self.action_index_tensor = torch.tensor(action_index, device=self.device, dtype=torch.int32)
-
-        # Set these on the policy as well for the mixin methods
-        self.policy.action_index_tensor = self.action_index_tensor
-        self.policy.cum_action_max_params = self.cum_action_max_params
-
-        # Activate action embeddings on policy
-        if hasattr(self.policy, "activate_action_embeddings"):
-            self.policy.activate_action_embeddings(action_names, device)
-
-    def forward(self, observations, state=None, action=None):
-        """
-        Forward pass through the HRM model.
-
-        Args:
-            observations: Input observation tensor, shape (B, TT, M, 3) or (B, M, 3)
-            state: Dictionary with LSTM state and HRM carry
-            action: Optional action tensor for training, shape (B, T, num_action_heads)
-
-        Returns:
-            Tuple of (actions, action_log_prob, entropy, value, logits_list)
-        """
         if state is None:
-            state = {"lstm_h": None, "lstm_c": None, "hidden": None, "carry": None}
+            state = {"lstm_h": None, "lstm_c": None, "hidden": None}
 
-        observations = observations.to(self.device)
+        # Determine dimensions from observations
+        if observations.dim() == 4:  # Training
+            B = observations.shape[0]
+            TT = observations.shape[1]
+            # Reshape TD for training if needed
+            if td.batch_dims > 1:
+                td = td.reshape(B * TT)
+        else:  # Inference
+            B = observations.shape[0]
+            TT = 1
 
-        # Initialize carry if not provided
-        if state.get("carry") is None:
-            batch = {"env_obs": observations}
-            state["carry"] = self.policy.backbone.initial_carry(batch)
+        # Now set TensorDict fields with mixin (TD is already reshaped if needed)
+        self.set_tensordict_fields(td, observations)
 
-        # Forward through policy
-        new_carry, outputs = self.policy(state["carry"], {"env_obs": observations})
+        # Encode obs
+        hidden = self.policy.encode_observations(observations, state)
 
-        # Extract logits and value
-        logits = outputs["logits"]
-        value = outputs["value"]
+        # Use base class method for LSTM state management
+        lstm_h, lstm_c, env_id = self._manage_lstm_state(td, B, TT, observations.device)
+        lstm_state = (lstm_h, lstm_c)
 
-        # Handle training vs inference
-        if action is not None:
-            # Training mode - use provided action
-            return self._forward_training(observations, action, logits, value)
+        # Forward LSTM
+        hidden = hidden.view(B, TT, -1).transpose(0, 1)  # (TT, B, in_size)
+        lstm_output, (new_lstm_h, new_lstm_c) = self.lstm(hidden.to(torch.float32), lstm_state)
+
+        # Use base class method to store state with automatic detachment
+        self._store_lstm_state(new_lstm_h, new_lstm_c, env_id)
+
+        flat_hidden = lstm_output.transpose(0, 1).reshape(B * TT, -1)
+
+        # Decode
+        logits_list, value = self.policy.decode_actions(flat_hidden, B * TT)
+
+        # Use mixin for mode-specific processing
+        if action is None:
+            # Mixin handles inference mode
+            td = self.forward_inference(td, logits_list, value)
         else:
-            # Inference mode - sample actions
-            return self._forward_inference(observations, logits, value)
+            # Mixin handles training mode with proper reshaping
+            td = self.forward_training(td, action, logits_list, value)
 
-    def _forward_training(self, observations, action, logits, value):
-        """Forward pass for training mode."""
-        # Reshape action if needed
-        if action.dim() == 3:  # (B, T, A) -> (BT, A)
-            batch_size_orig, time_steps, A = action.shape
-            action = action.view(batch_size_orig * time_steps, A)
-
-        # Convert action to logit index
-        action_logit_index = self._convert_action_to_logit_index(action)
-
-        # Calculate log probs and entropy
-        action_log_probs = F.log_softmax(logits, dim=-1)
-        action_probs = torch.exp(action_log_probs)
-
-        batch_indices = torch.arange(action_logit_index.shape[0], device=action_logit_index.device)
-        selected_log_probs = action_log_probs[batch_indices, action_logit_index]
-        entropy = -(action_probs * action_log_probs).sum(dim=-1)
-
-        # Return in expected format
-        return (
-            action,  # actions
-            selected_log_probs,  # action_log_prob
-            entropy,  # entropy
-            value,  # value
-            logits,  # logits_list
-        )
-
-    def _forward_inference(self, observations, logits, value):
-        """Forward pass for inference mode."""
-        # Sample actions
-        log_probs = F.log_softmax(logits, dim=-1)
-        action_probs = torch.exp(log_probs)
-
-        actions = torch.multinomial(action_probs, num_samples=1).view(-1)
-        batch_indices = torch.arange(actions.shape[0], device=actions.device)
-        selected_log_probs = log_probs[batch_indices, actions]
-
-        # Convert to action format
-        action = self._convert_logit_index_to_action(actions)
-
-        # Calculate entropy
-        entropy = -(action_probs * log_probs).sum(dim=-1)
-
-        return (
-            action,  # actions
-            selected_log_probs,  # action_log_prob
-            entropy,  # entropy
-            value,  # value
-            logits,  # logits_list
-        )
-
-    def encode_observations(self, observations, state=None):
-        """Encode observations using the policy's encoding method."""
-        return self.policy.encode_observations(observations, state)
+        return td
 
 
-class HRMPolicy(nn.Module):
-    def __init__(self, env):
+class Policy(nn.Module):
+    def __init__(self, env, input_size=128, hidden_size=128):
         super().__init__()
+        self.hidden_size = hidden_size
+        self.input_size = input_size
+        self.is_continuous = False
+        self.action_space = env.single_action_space
 
+        self.out_width = env.obs_width if hasattr(env, "obs_width") else 11
+        self.out_height = env.obs_height if hasattr(env, "obs_height") else 11
+
+        # Dynamically determine num_layers from environment features
+        if hasattr(env, "feature_normalizations"):
+            # self.num_layers = max(env.feature_normalizations.keys()) + 1
+            self.num_layers = 25
+        else:
+            # Fallback for environments without feature_normalizations
+            self.num_layers = 25  # Default value
+
+        # HRM Backbone
         self.backbone = HRMBackbone(
-            hidden_size=128,
+            hidden_size=hidden_size,
             vocab_size=10000,
             batch_size=1,
             pos_encodings="rope",
@@ -728,32 +669,26 @@ class HRMPolicy(nn.Module):
             halt_exploration_prob=0.1,
         )
 
-        self.num_layers = 25
-        self.is_continuous = False
-        self.action_space = env.single_action_space
-
-        self.out_width = env.obs_width if hasattr(env, "obs_width") else 11
-        self.out_height = env.obs_height if hasattr(env, "obs_height") else 11
-
         # Critic branch
         # critic_1 uses gain=sqrt(2) because it's followed by tanh (YAML: nonlinearity: nn.Tanh)
-        self.critic_1 = nn.Linear(128, 1024)
+        self.critic_1 = nn.Linear(hidden_size, 1024)
         # value_head has no nonlinearity (YAML: nonlinearity: null), so gain=1
         self.value_head = nn.Linear(1024, 1)
 
         # Actor branch
         # actor_1 uses gain=1 (YAML default for Linear layers with ReLU)
-        self.actor_1 = nn.Linear(128, 512)
+        self.actor_1 = nn.Linear(hidden_size, 512)
 
         # Action embeddings - will be properly initialized via activate_action_embeddings
         self.action_embeddings = nn.Embedding(100, 16)
-
-        self.actor_bias = nn.Parameter(torch.zeros(1, 1))
-        self.actor_W = nn.Parameter(torch.randn(1, 1, 16))
+        self._initialize_action_embeddings()
 
         # Store for dynamic action head
         self.action_embed_dim = 16
         self.actor_hidden_dim = 512
+
+        # Bilinear layer to match MettaActorSingleHead
+        self._init_bilinear_actor()
 
         # Track active actions
         self.active_action_names = []
@@ -761,15 +696,59 @@ class HRMPolicy(nn.Module):
 
         self.effective_rank_enabled = True  # For critic_1 matching YAML
 
-    def forward(self, carry, batch: Dict[str, torch.Tensor]):
-        new_carry, outputs = self.backbone(carry, batch)
+    def _initialize_action_embeddings(self):
+        """Initialize action embeddings to match YAML ActionEmbedding component."""
+        # Match the YAML component's initialization (orthogonal then scaled to max 0.1)
+        nn.init.orthogonal_(self.action_embeddings.weight)
+        with torch.no_grad():
+            max_abs_value = torch.max(torch.abs(self.action_embeddings.weight))
+            self.action_embeddings.weight.mul_(0.1 / max_abs_value)
 
-        logits, value = self.decode_actions(outputs["hidden_state"].to(torch.float32), batch["env_obs"].shape[0])
+    def _init_bilinear_actor(self):
+        """Initialize bilinear actor head to match MettaActorSingleHead."""
+        # Bilinear parameters matching MettaActorSingleHead
+        self.actor_W = nn.Parameter(
+            torch.Tensor(1, self.actor_hidden_dim, self.action_embed_dim).to(dtype=torch.float32)
+        )
+        self.actor_bias = nn.Parameter(torch.Tensor(1).to(dtype=torch.float32))
 
-        print(f"logits shape: {logits.shape}")
-        print(f"value shape: {value.shape}")
+        # Kaiming (He) initialization
+        bound = 1 / math.sqrt(self.actor_hidden_dim) if self.actor_hidden_dim > 0 else 0
+        nn.init.uniform_(self.actor_W, -bound, bound)
+        nn.init.uniform_(self.actor_bias, -bound, bound)
 
-        return new_carry, outputs
+    def activate_action_embeddings(self, full_action_names: list[str], device):
+        """Activate action embeddings, matching the YAML ActionEmbedding component behavior."""
+        self.active_action_names = full_action_names
+        self.num_active_actions = len(full_action_names)
+
+    def encode_observations(self, observations, state=None):
+        """
+        Encode observations using the HRM backbone.
+
+        Args:
+            observations: Input observation tensor, shape (B, TT, M, 3) or (B, M, 3)
+            state: Optional state dictionary
+
+        Returns:
+            hidden: Encoded representation, shape (B * TT, hidden_size)
+        """
+        # Initialize carry if not provided
+        if state is None:
+            state = {"carry": None}
+
+        if state.get("carry") is None:
+            batch = {"env_obs": observations}
+            state["carry"] = self.backbone.initial_carry(batch)
+
+        # Forward through backbone
+        new_carry, outputs = self.backbone(state["carry"], {"env_obs": observations})
+
+        # Update state
+        state["carry"] = new_carry
+
+        # Return hidden state
+        return outputs["hidden_state"]
 
     def decode_actions(self, hidden, batch_size):
         """Decode actions using bilinear interaction to match MettaActorSingleHead."""
@@ -813,6 +792,10 @@ class HRMPolicy(nn.Module):
 if __name__ == "__main__":
     import gymnasium as gym
     import numpy as np
+    from omegaconf import DictConfig
+
+    from metta.agent.metta_agent import MettaAgent
+    from metta.rl.system_config import SystemConfig
 
     obs_shape = [34, 11, 11]
     env = SimpleNamespace(
@@ -824,38 +807,28 @@ if __name__ == "__main__":
         global_features=[],
     )
 
-    policy = HRMPolicy(env)
+    # Test the HRM model
+    hrm = HRM(env)
 
+    # Test observations
     obs = torch.randint(0, 8, (24, 200, 3), dtype=torch.uint8)
-    batch = {"env_obs": obs}
-    carry = policy.backbone.initial_carry({"env_obs": obs})
+    td = TensorDict({"env_obs": obs}, batch_size=obs.shape[:2])
+
+    agent = MettaAgent(
+        env,
+        policy=HRM(env),
+        system_cfg=SystemConfig(device="cpu"),
+        agent_cfg=DictConfig({"clip_range": 0.0}),
+    )
+
+    agent.initialize_to_environment(
+        features={},
+        action_names=["move", "attack", "heal"],
+        action_max_params=[10, 10, 10],
+        device=torch.device("cpu"),
+        is_training=True,
+    )
+
     print(f"obs shape: {obs.shape}")
-    new_carry, outputs = policy(carry, batch)
-    # print(f"hidden_state shape: {hidden_state.shape}")
-
-    # hrm = HRMBackbone(
-    #     hidden_size=128,
-    #     vocab_size=10000,
-    #     batch_size=1,
-    #     pos_encodings="rope",
-    #     rope_theta=10000,
-    #     seq_len=200,  # Changed to match typical observation sequence length
-    #     forward_dtype="float16",
-    #     H_layers=1,
-    #     L_layers=1,
-    #     H_cycles=1,
-    #     L_cycles=1,
-    #     num_heads=1,
-    #     halt_max_steps=10,
-    #     halt_exploration_prob=0.1,
-    # )
-
-    # # Test with observation features [batch_size, seq_len, 3]
-    # # Use smaller values to avoid the warning about attribute indices >= num_layers
-    # obs_features = torch.randint(0, 8, (1, 200, 3), dtype=torch.uint8)  # [1, 200, 3]
-    # carry = hrm.initial_carry({"env_obs": obs_features})
-
-    # new_carry, outputs = hrm(carry, {"env_obs": obs_features})
-    # print(f"New carry keys: {new_carry.keys()}")
-    # print(f"Outputs keys: {outputs.keys()}")
-    # print(f"Logits shape: {outputs['logits'].shape}")
+    output_td = agent(td)
+    print(f"Output TD keys: {output_td.keys()}")
