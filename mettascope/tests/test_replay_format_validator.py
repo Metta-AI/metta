@@ -54,6 +54,7 @@ _OPTIONAL_KEYS = {
     "file_name",
     "group_names",
     "reward_sharing_matrix",
+    "env_config",
 }
 
 
@@ -87,12 +88,21 @@ def _validate_non_negative_number(value: Any, field_name: str) -> None:
     assert value >= 0, f"'{field_name}' must be non-negative, got {value}"
 
 
-def _validate_string_list(lst: Any, field_name: str, allow_empty: bool = False) -> None:
-    """Validate that value is a list of non-empty strings."""
+def _validate_string_list(lst: Any, field_name: str, allow_empty_strings: bool = False) -> None:
+    """Validate that value is a list of strings."""
     _validate_type(lst, list, field_name)
-    if not allow_empty:
-        assert len(lst) > 0, f"'{field_name}' must not be empty"
-    assert all(isinstance(s, str) and s for s in lst), f"'{field_name}' must contain non-empty strings"
+    assert len(lst) > 0, f"'{field_name}' must not be empty"
+    invalid_entries: list[str] = []
+    for idx, value in enumerate(lst):
+        if not isinstance(value, str):
+            invalid_entries.append(f"index {idx}: expected str, got {type(value).__name__} ({value!r})")
+        elif not value and not allow_empty_strings:
+            invalid_entries.append(f"index {idx}: empty string")
+    if invalid_entries:
+        requirement = "strings" if allow_empty_strings else "non-empty strings"
+        raise AssertionError(
+            f"'{field_name}' must contain {requirement}; invalid entries: {', '.join(invalid_entries)}"
+        )
 
 
 def _validate_static_value(value: Any, field_name: str, expected_type: type | tuple[type, ...]) -> None:
@@ -197,7 +207,7 @@ def validate_replay_schema(data: dict[str, Any]) -> None:
 
     # Required string lists.
     for field in ["action_names", "item_names", "type_names"]:
-        _validate_string_list(data[field], field)
+        _validate_string_list(data[field], field, allow_empty_strings=True)
 
     # Optional file_name validation.
     if "file_name" in data:
@@ -207,7 +217,7 @@ def validate_replay_schema(data: dict[str, Any]) -> None:
 
     # Optional string lists.
     if "group_names" in data:
-        _validate_string_list(data["group_names"], "group_names", allow_empty=True)
+        _validate_string_list(data["group_names"], "group_names", allow_empty_strings=True)
 
     # Optional reward sharing matrix.
     if "reward_sharing_matrix" in data:
@@ -483,7 +493,7 @@ def test_validate_replay_schema_valid() -> None:
         (lambda r: r.update({"num_agents": -1}), "'num_agents' must be positive"),
         (lambda r: r.update({"map_size": [0, 5]}), "'map_size\\[0\\]' must be positive"),
         (lambda r: r.update({"file_name": ""}), "'file_name' must be non-empty"),
-        (lambda r: r.update({"action_names": ["", "collect"]}), "'action_names' must contain non-empty strings"),
+        (lambda r: r.update({"action_names": ["collect", 1]}), "'action_names' must contain strings"),
         (lambda r: r.update({"objects": [123]}), "'objects' must contain dictionaries"),
     ],
 )
@@ -505,11 +515,10 @@ def test_validate_real_generated_replay() -> None:
             "run",
             "--no-sync",
             "tools/run.py",
-            "experiments.recipes.scratchpad.ci.play_null",
-            "--override",
-            f"replay_job.replay_dir={tmp_dir}",
-            f"replay_job.stats_dir={tmp_dir}",
-            "run=test_validator",
+            "experiments.recipes.scratchpad.ci.replay_null",
+            "--overrides",
+            f"replay_dir={tmp_dir}",
+            f"stats_dir={tmp_dir}",
         ]
 
         # Run from the project root (parent of mettascope).
