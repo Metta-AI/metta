@@ -155,7 +155,7 @@ class SimTaskExecutor(AbstractTaskExecutor):
             "uv",
             "run",
             "tools/run.py",
-            "experiments.evals.run",
+            "experiments.evals.run.eval",
             "--args",
             f"policy_uri=wandb://run/{policy_name}",
             f"simulations_json={task.attributes.get('simulations')}",
