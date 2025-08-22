@@ -326,7 +326,6 @@ def train(
                 # ---- ROLLOUT PHASE ----
                 with timer("_rollout"):
                     raw_infos = []
-                    total_steps = 0
                     experience.reset_for_rollout()
                     for _loss_name in list(all_losses):
                         loss_instances[_loss_name].on_rollout_start(trainer_state)
@@ -337,7 +336,6 @@ def train(
                     while not experience.ready_for_training and not trainer_state.stop_rollout:
                         # Get observation
                         o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
-                        total_steps += num_steps
 
                         trainer_state.training_env_id = training_env_id
                         td = buffer_step[training_env_id].clone()
@@ -370,7 +368,7 @@ def train(
                         if info:
                             raw_infos.extend(info)
 
-                        agent_step += total_steps * torch_dist_cfg.world_size
+                        agent_step += num_steps * torch_dist_cfg.world_size
                     accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
 
                 # ---- TRAINING PHASE ----
