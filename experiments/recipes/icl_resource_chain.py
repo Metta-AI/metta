@@ -195,6 +195,7 @@ def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
             env=eval_env,
             name="in_context_resource_chain",
         ),
+        policy_uri="wandb://run/georgedeane.operant_conditioning.in_context_learning.all.0.1_progress_smoothing.08-19:v50",
     )
 
 
