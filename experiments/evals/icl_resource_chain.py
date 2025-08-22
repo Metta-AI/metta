@@ -36,6 +36,7 @@ def update_recipe(converter, input_resource=None, output_resource=None):
         converter.input_resources = {input_resource: 1}
     if output_resource is not None:
         converter.output_resources = {output_resource: 1}
+    return converter
 
 
 def chain_length2_0sink_env(name: str, max_steps: int = 50) -> EnvConfig:
