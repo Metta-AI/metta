@@ -24,8 +24,8 @@ class TestScoreRoutes:
             agent_metrics={0: {"reward": 10.0, "score": 30.0}},
             primary_policy_id=policies[0].id,
             stats_epoch=epochs[0].id,
-            eval_name=eval_name,
-            simulation_suite="agg_suite",
+            sim_name=eval_name,
+            env_label="test_env",
             replay_url="https://example.com/replay/p0_e1",
         )
         stats_client.record_episode(
@@ -33,8 +33,8 @@ class TestScoreRoutes:
             agent_metrics={0: {"reward": 20.0, "score": 50.0}},
             primary_policy_id=policies[0].id,
             stats_epoch=epochs[0].id,
-            eval_name=eval_name,
-            simulation_suite="agg_suite",
+            sim_name=eval_name,
+            env_label="test_env",
             replay_url="https://example.com/replay/p0_e2",
         )
 
@@ -44,8 +44,8 @@ class TestScoreRoutes:
             agent_metrics={0: {"reward": 40.0, "score": 100.0}},
             primary_policy_id=policies[1].id,
             stats_epoch=epochs[1].id,
-            eval_name=eval_name,
-            simulation_suite="agg_suite",
+            sim_name=eval_name,
+            env_label="test_env",
             replay_url="https://example.com/replay/p1_e1",
         )
         stats_client.record_episode(
@@ -53,8 +53,8 @@ class TestScoreRoutes:
             agent_metrics={0: {"reward": 60.0, "score": 200.0}},
             primary_policy_id=policies[1].id,
             stats_epoch=epochs[1].id,
-            eval_name=eval_name,
-            simulation_suite="agg_suite",
+            sim_name=eval_name,
+            env_label="test_env",
             replay_url="https://example.com/replay/p1_e2",
         )
 

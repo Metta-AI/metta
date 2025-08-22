@@ -4,15 +4,17 @@ import datetime
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, Generator, List
 
 import pytest
 
 from metta.eval.dashboard_data import PolicyEvalMetric, get_policy_eval_metrics
 from metta.sim.simulation_stats_db import SimulationStatsDB
 
+TestSimStatsDb = tuple[SimulationStatsDB, list[str], str]
 
-def _create_test_db_with_metrics(db_path: Path) -> Tuple[SimulationStatsDB, List[str], str]:
+
+def _create_test_db_with_metrics(db_path: Path) -> TestSimStatsDb:
     db = SimulationStatsDB(db_path)
 
     sim_id = str(uuid.uuid4())
@@ -22,10 +24,10 @@ def _create_test_db_with_metrics(db_path: Path) -> Tuple[SimulationStatsDB, List
     # Create simulation
     db.con.execute(
         """
-        INSERT INTO simulations (id, name, suite, env, policy_key, policy_version)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO simulations (id, name, env, policy_key, policy_version)
+        VALUES (?, ?, ?, ?, ?)
         """,
-        (sim_id, "test_sim", "test_suite", "test_env", policy_key, policy_version),
+        (sim_id, "test_sim", "test_env", policy_key, policy_version),
     )
 
     episodes: List[str] = []
@@ -71,7 +73,7 @@ def _create_test_db_with_metrics(db_path: Path) -> Tuple[SimulationStatsDB, List
 
 
 @pytest.fixture
-def test_db():
+def test_db() -> Generator[TestSimStatsDb, None, None]:
     with tempfile.TemporaryDirectory() as tmp:
         p = Path(tmp) / f"{uuid.uuid4().hex}.duckdb"
         db, eps, sid = _create_test_db_with_metrics(p)
@@ -79,7 +81,7 @@ def test_db():
         db.close()
 
 
-def test_get_policy_eval_metrics(test_db):
+def test_get_policy_eval_metrics(test_db: TestSimStatsDb) -> None:
     db, _, _ = test_db
     policy_evals = get_policy_eval_metrics(db)
 
@@ -91,7 +93,6 @@ def test_get_policy_eval_metrics(test_db):
     assert policy_eval.policy_key == "test_policy"
     assert policy_eval.policy_version == 1
     assert policy_eval.eval_name == "test_sim"
-    assert policy_eval.suite == "test_suite"
     assert policy_eval.replay_url is not None
     assert "http://replay/" in policy_eval.replay_url
 

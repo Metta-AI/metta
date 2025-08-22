@@ -29,7 +29,6 @@ SIMULATION_DB_TABLES = {
     CREATE TABLE IF NOT EXISTS simulations (
         id   TEXT PRIMARY KEY,
         name TEXT NOT NULL,
-        suite TEXT NOT NULL,
         env TEXT NOT NULL,
         policy_key     TEXT NOT NULL,
         policy_version INT NOT NULL,
@@ -78,11 +77,12 @@ class SimulationStatsDB(EpisodeStatsDB):
 
     @staticmethod
     def from_shards_and_context(
+        *,
         sim_id: str,
         dir_with_shards: Union[str, Path],
         agent_map: Dict[int, PolicyRecord],
         sim_name: str,
-        sim_suite: str,
+        sim_env: str,
         policy_record: PolicyRecord,
         env_label: str,
     ) -> "SimulationStatsDB":
@@ -104,8 +104,13 @@ class SimulationStatsDB(EpisodeStatsDB):
         merged = SimulationStatsDB(merged_path)
 
         policy_key, policy_version = merged.key_and_version(policy_record)
-        # Use the env_label from EnvConfig to identify the environment configuration
-        merged._insert_simulation(sim_id, sim_name, sim_suite, env_label, policy_key, policy_version)
+        merged._insert_simulation(
+            sim_id=sim_id,
+            name=sim_name,
+            env_name=sim_env,
+            policy_key=policy_key,
+            policy_version=policy_version,
+        )
 
         # Merge each shard
         for shard_path in shards:
@@ -182,14 +187,14 @@ class SimulationStatsDB(EpisodeStatsDB):
         return [f"{row[0]}:v{row[1]}" for row in result]
 
     def _insert_simulation(
-        self, sim_id: str, name: str, suite: str, env_name: str, policy_key: str, policy_version: int
+        self, *, sim_id: str, name: str, env_name: str, policy_key: str, policy_version: int
     ) -> None:
         self.con.execute(
             """
-            INSERT OR REPLACE INTO simulations (id, name, suite, env, policy_key, policy_version)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO simulations (id, name, env, policy_key, policy_version)
+            VALUES (?, ?, ?, ?, ?)
             """,
-            (sim_id, name, suite, env_name, policy_key, policy_version),
+            (sim_id, name, env_name, policy_key, policy_version),
         )
 
     def _insert_agent_policies(
