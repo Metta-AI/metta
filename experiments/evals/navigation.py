@@ -11,28 +11,37 @@ def make_nav_eval_env(env: EnvConfig) -> EnvConfig:
     return env
 
 
-def make_nav_ascii_env(name: str, max_steps: int, border_width: int = 1) -> EnvConfig:
+def make_nav_ascii_env(
+    name: str, max_steps: int, border_width: int = 1, num_agents=4
+) -> EnvConfig:
     ascii_map = f"mettagrid/configs/maps/navigation/{name}.map"
-    env = make_navigation(num_agents=1)
+    env = make_navigation(num_agents=num_agents)
     env.game.max_steps = max_steps
-    env.game.map_builder = MapGen.Config.with_ascii_uri(
-        ascii_map, border_width=border_width
+    env.game.map_builder = MapGen.Config(
+        instances=num_agents,
+        border_width=6,
+        instance_border_width=3,
+        instance_map=MapGen.Config.with_ascii_uri(ascii_map, border_width=border_width),
     )
+
     return make_nav_eval_env(env)
 
 
 def make_emptyspace_sparse_env() -> EnvConfig:
-    env = make_navigation(num_agents=1)
+    env = make_navigation(num_agents=4)
     env.game.max_steps = 300
     env.game.map_builder = MapGen.Config(
-        width=60,
-        height=60,
-        border_width=3,
-        root=MeanDistance.factory(
-            params=MeanDistance.Params(
-                mean_distance=30,
-                objects={"altar": 3},
-            )
+        instances=4,
+        instance_map=MapGen.Config(
+            width=60,
+            height=60,
+            border_width=3,
+            root=MeanDistance.factory(
+                params=MeanDistance.Params(
+                    mean_distance=30,
+                    objects={"altar": 3},
+                )
+            ),
         ),
     )
     return make_nav_eval_env(env)
