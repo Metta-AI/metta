@@ -476,7 +476,7 @@ async function processWithTextract(
         region: process.env.AWS_REGION || "us-east-1",
       });
 
-      bucketName = process.env.AWS_S3_BUCKET || "metta-pdf-processing";
+      bucketName = process.env.S3_BUCKET || "metta-pdf-processing";
       s3Key = `temp-pdfs/${uuidv4()}.pdf`;
 
       console.log(

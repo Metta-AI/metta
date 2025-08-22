@@ -1,3 +1,5 @@
+import os
+from datetime import datetime
 from typing import Optional
 
 import metta.cogworks.curriculum as cc
@@ -16,6 +18,32 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 
 from experiments.evals.navigation import make_navigation_eval_suite
+
+
+def _get_user_identifier() -> str:
+    """Get user identifier from USER environment variable."""
+    return os.getenv("USER", "unknown")
+
+
+def _default_run_name() -> str:
+    """Generate a robust run name following the pattern: navigation.{user}.{date}.{unique_id}
+
+    Format: navigation.{username}.MMDD-HHMMSS.{git_hash_short} or navigation.{username}.MMDD-HHMMSS
+    Example: navigation.alice.0820-143052.a1b2c3d or navigation.alice.0820-143052
+    """
+    user = _get_user_identifier()
+    now = datetime.now()
+    timestamp = now.strftime("%m%d-%H%M%S")
+
+    # Try to get git hash (7 chars like CI) for better tracking
+    try:
+        from metta.common.util.git import get_current_commit
+
+        git_hash = get_current_commit()[:7]
+        return f"navigation.{user}.{timestamp}.{git_hash}"
+    except Exception:
+        # Fallback: use timestamp
+        return f"navigation.{user}.{timestamp}"
 
 
 def make_env(num_agents: int = 4) -> EnvConfig:
@@ -65,7 +93,12 @@ def make_curriculum(nav_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     return nav_tasks.to_curriculum()
 
 
-def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(
+    run: Optional[str] = None, curriculum: Optional[CurriculumConfig] = None
+) -> TrainTool:
+    # Generate structured run name if not provided
+    if run is None:
+        run = _default_run_name()
     trainer_cfg = TrainerConfig(
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
@@ -73,7 +106,10 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
         ),
     )
 
-    return TrainTool(trainer=trainer_cfg)
+    return TrainTool(
+        trainer=trainer_cfg,
+        run=run,
+    )
 
 
 def play(env: Optional[EnvConfig] = None) -> PlayTool:

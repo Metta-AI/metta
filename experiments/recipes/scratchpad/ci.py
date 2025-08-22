@@ -36,6 +36,12 @@ def replay() -> ReplayTool:
     return cfg
 
 
+def replay_null() -> ReplayTool:
+    cfg = replay()
+    cfg.policy_uri = None
+    return cfg
+
+
 def play() -> PlayTool:
     env = arena.make_env()
     env.game.max_steps = 100

@@ -1,0 +1,41 @@
+# Datadog Agent configuration for Metta infrastructure
+# Environment tag for all metrics and traces
+env: "production"
+
+datadog:
+  # API key should be stored in a Kubernetes secret
+  apiKeyExistingSecret: datadog-secret
+
+  # Cluster name for identification
+  clusterName: "main"
+
+  # Datadog site (US instance)
+  site: datadoghq.com
+
+  # APM configuration for distributed tracing
+  apm:
+    portEnabled: true
+    port: 8126
+
+  # Log collection configuration
+  logs:
+    enabled: true
+    containerCollectAll: true
+
+  # Process monitoring
+  processAgent:
+    enabled: true
+    processCollection: true
+
+  # Kubernetes orchestrator explorer
+  orchestratorExplorer:
+    enabled: true
+
+  # Global tags applied to all metrics
+  tags:
+    - "env:production"
+
+# DaemonSet agent configuration
+agents:
+  enabled: true
+  useHostNetwork: true

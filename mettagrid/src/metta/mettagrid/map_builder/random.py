@@ -26,6 +26,10 @@ class RandomMapBuilder(MapBuilder):
         self._rng = np.random.default_rng(self._config.seed)
 
     def build(self):
+        # Reset RNG to ensure deterministic builds across multiple calls
+        if self._config.seed is not None:
+            self._rng = np.random.default_rng(self._config.seed)
+
         # Create empty grid
         grid = np.full((self._config.height, self._config.width), "empty", dtype="<U50")
 

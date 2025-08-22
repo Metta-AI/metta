@@ -53,3 +53,9 @@ class AWSSetup(SetupModule):
             return response["Account"]
         except Exception:
             return None
+
+    def to_config_settings(self) -> dict[str, str | bool]:
+        saved_settings = get_saved_settings()
+        if saved_settings.user_type.is_softmax:
+            return dict(replay_dir="s3://softmax-public/replays/")
+        return dict(replay_dir="./train_dir/replays/")

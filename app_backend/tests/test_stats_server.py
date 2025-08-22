@@ -47,6 +47,7 @@ class TestStatsServerSimple:
         # 5. Record an episode
         episode = stats_client.record_episode(
             agent_policies={0: policy.id, 1: policy2.id},
+            env_label="mettagrid",
             agent_metrics={
                 0: {"reward": 100.5, "steps": 50.0, "success_rate": 0.8},
                 1: {"reward": 85.2, "steps": 45.0, "success_rate": 0.7},
