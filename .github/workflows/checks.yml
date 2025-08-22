@@ -47,7 +47,7 @@ jobs:
       github.event_name == 'push' ||
       github.event_name == 'workflow_dispatch' ||
       github.event_name == 'merge_group'
-    runs-on: default
+    runs-on: ubuntu-latest
     outputs:
       should_skip: ${{ steps.graphite_ci.outputs.skip }}
     steps:
@@ -71,7 +71,7 @@ jobs:
        github.event_name == 'push' ||
        github.event_name == 'workflow_dispatch' ||
        github.event_name == 'merge_group')
-    runs-on: default
+    runs-on: ubuntu-latest
     outputs:
       has_relevant_changes: ${{ steps.check_py_files.outputs.has_relevant_changes }}
       run_lint: ${{ steps.determine_tasks.outputs.run_lint }}
@@ -131,7 +131,7 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_lint == 'true')
-    runs-on: default
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -156,47 +156,18 @@ jobs:
       - name: Run cpplint
         run: ./mettagrid/tests/cpplint.sh
 
-  setup-matrix:
-    name: "Setup Test Matrix"
-    runs-on: default
-    outputs:
-      matrix: ${{ steps.create-matrix.outputs.matrix }}
-    steps:
-      - name: Checkout scripts
-        uses: actions/checkout@v4
-        with:
-          sparse-checkout: |
-            .github/scripts/expand_test_matrix.py
-          sparse-checkout-cone-mode: false
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v3
-        with:
-          version: "latest"
-
-      - name: Create test matrix
-        id: create-matrix
-        run: |
-          # Define the test configuration and pipe it to the script
-          echo '[
-            {"name": "agent", "package": "agent", "shards": 1},
-            {"name": "common", "package": "common", "shards": 1},
-            {"name": "app_backend", "package": "app_backend", "shards": 3},
-            {"name": "mettagrid", "package": "mettagrid", "shards": 2},
-            {"name": "core", "package": "core", "shards": 8}
-          ]' | python .github/scripts/expand_test_matrix.py >> $GITHUB_OUTPUT
-
-  test-matrix:
-    name: "Unit Tests - ${{ matrix.name }}"
-    needs: [setup-matrix, graphite-ci-optimizer, setup-checks]
+  unit-tests:
+    name: "Unit Tests - ${{ matrix.package }}"
+    needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: default
+    runs-on: ubuntu-16core
     timeout-minutes: 15
     strategy:
+      matrix:
+        package: [agent, common, app_backend, mettagrid, core]
       fail-fast: false
-      matrix: ${{ fromJSON(needs.setup-matrix.outputs.matrix) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -206,30 +177,11 @@ jobs:
         with:
           install-mode: "testing"
 
-      - name: Free disk space
-        uses: ./.github/actions/disk-cleanup
-
       - name: Run tests
         run: |
 
           # Base pytest arguments (without coverage file specification)
           PYTEST_BASE_ARGS="-n ${{ env.PYTEST_WORKERS }} --cov --cov-branch --benchmark-skip --maxfail=1 --disable-warnings --durations=10 -v"
-
-          COVERAGE_SUFFIX="-shard${{ matrix.shard_id }}"
-
-          # Handle sharding for larger packages
-          if [ -n "${{ matrix.shard_id }}" ] && [ -n "${{ matrix.num_shards }}" ]; then
-            echo "Running shard ${{ matrix.shard_id }} of ${{ matrix.num_shards }}"
-
-            COVERAGE_SUFFIX="-shard${{ matrix.shard_id }}"
-
-            # Set environment variables for the sharding plugin
-            export PYTEST_SHARD_ID=${{ matrix.shard_id }}
-            export PYTEST_NUM_SHARDS=${{ matrix.num_shards }}
-
-            # Use the sharding plugin from common package
-            PYTEST_BASE_ARGS="$PYTEST_BASE_ARGS -p no:cacheprovider -p metta.common.test_support.pytest_shard"
-          fi
 
           if [ "${{ matrix.package }}" != "core" ]; then
             # Navigate to package directory
@@ -280,32 +232,13 @@ jobs:
           chmod +x .github/scripts/upload_codecov.py
           SUBPACKAGES="${{ matrix.package }}" .github/scripts/upload_codecov.py
 
-  tests-summary:
-    name: "Tests"
-    needs: [test-matrix]
-    if: always()
-    runs-on: default
-    steps:
-      - name: Check test results
-        run: |
-          echo "Test job results: ${{ toJSON(needs) }}"
-          if [ "${{ contains(join(needs.*.result, ','), 'failure') }}" == "true" ]; then
-            echo "One or more test jobs failed"
-            exit 1
-          elif [ "${{ contains(join(needs.*.result, ','), 'cancelled') }}" == "true" ]; then
-            echo "One or more test jobs were cancelled"
-            exit 1
-          else
-            echo "All test jobs completed successfully"
-          fi
-
   mettagrid-cpp-build:
     name: "MettaGrid C++ Build & Coverage"
     needs: [graphite-ci-optimizer, setup-checks]
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_test == 'true')
-    runs-on: default
+    runs-on: ubuntu-16core
     timeout-minutes: 10
     steps:
       - name: Checkout code
@@ -338,7 +271,7 @@ jobs:
     if: |
       false && (needs.graphite-ci-optimizer.outputs.should_skip == 'false')
     needs: [graphite-ci-optimizer, setup-checks]
-    runs-on: default
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
       matrix:
@@ -450,7 +383,7 @@ jobs:
     name: "Collect Smoke Test Results"
     if: always()
     needs: [smoke-test]
-    runs-on: default
+    runs-on: ubuntu-latest
     steps:
       - name: Download all benchmark artifacts
         uses: actions/download-artifact@v4
@@ -469,7 +402,7 @@ jobs:
     name: "Smoke Tests"
     needs: [smoke-test]
     if: always()
-    runs-on: default
+    runs-on: ubuntu-latest
     steps:
       - name: Check test results
         run: |
@@ -490,7 +423,7 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true')
-    runs-on: default
+    runs-on: ubuntu-16core
     timeout-minutes: 10
     steps:
       - name: Checkout code
@@ -522,7 +455,7 @@ jobs:
     if: |
       (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
       (needs.setup-checks.outputs.run_benchmark == 'true')
-    runs-on: default
+    runs-on: ubuntu-16core
     timeout-minutes: 10
     steps:
       - name: Checkout code
@@ -558,7 +491,7 @@ jobs:
     if: |
       (needs.setup-checks.outputs.run_benchmark == 'true') &&
       (always() && (needs.python-benchmark.result == 'success' || needs.cpp-benchmark.result == 'success'))
-    runs-on: default
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout code
