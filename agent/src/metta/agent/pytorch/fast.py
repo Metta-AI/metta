@@ -116,15 +116,21 @@ class Policy(nn.Module):
             # Fallback for environments without feature_normalizations
             self.num_layers = 25  # Default value
 
+        # Define layer dimensions that are used multiple times
+        self.cnn_channels = 64  # Used in cnn1 and cnn2
+        self.critic_hidden_dim = 1024  # Used in critic_1 and value_head
+        self.actor_hidden_dim = 512  # Used in actor_1, actor_W, and bilinear calculations
+        self.action_embed_dim = 16  # Used in action_embeddings, actor_W, and bilinear calculations
+
         # Match YAML component initialization more closely
         # Use dynamically determined num_layers as input channels
         # Note: YAML uses orthogonal with gain=1, not sqrt(2) like pufferlib default
         self.cnn1 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(in_channels=self.num_layers, out_channels=64, kernel_size=5, stride=3),
+            nn.Conv2d(in_channels=self.num_layers, out_channels=self.cnn_channels, kernel_size=5, stride=3),
             std=1.0,  # Match YAML orthogonal gain=1
         )
         self.cnn2 = pufferlib.pytorch.layer_init(
-            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1),
+            nn.Conv2d(in_channels=self.cnn_channels, out_channels=self.cnn_channels, kernel_size=3, stride=1),
             std=1.0,  # Match YAML orthogonal gain=1
         )
 
@@ -137,25 +143,23 @@ class Policy(nn.Module):
 
         # Match YAML: Linear layers use orthogonal with gain=1
         self.fc1 = pufferlib.pytorch.layer_init(nn.Linear(self.flattened_size, 128), std=1.0)
-        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, 128), std=1.0)
+        self.encoded_obs = pufferlib.pytorch.layer_init(nn.Linear(128, self.input_size), std=1.0)
 
         # Critic branch
         # critic_1 uses gain=sqrt(2) because it's followed by tanh (YAML: nonlinearity: nn.Tanh)
-        self.critic_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 1024), std=np.sqrt(2))
+        self.critic_1 = pufferlib.pytorch.layer_init(
+            nn.Linear(self.hidden_size, self.critic_hidden_dim), std=np.sqrt(2)
+        )
         # value_head has no nonlinearity (YAML: nonlinearity: null), so gain=1
-        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(1024, 1), std=1.0)
+        self.value_head = pufferlib.pytorch.layer_init(nn.Linear(self.critic_hidden_dim, 1), std=1.0)
 
         # Actor branch
         # actor_1 uses gain=1 (YAML default for Linear layers with ReLU)
-        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, 512), std=1.0)
+        self.actor_1 = pufferlib.pytorch.layer_init(nn.Linear(self.hidden_size, self.actor_hidden_dim), std=1.0)
 
         # Action embeddings - will be properly initialized via activate_action_embeddings
-        self.action_embeddings = nn.Embedding(100, 16)
+        self.action_embeddings = nn.Embedding(100, self.action_embed_dim)
         self._initialize_action_embeddings()
-
-        # Store for dynamic action head
-        self.action_embed_dim = 16
-        self.actor_hidden_dim = 512
 
         # Bilinear layer to match MettaActorSingleHead
         self._init_bilinear_actor()
