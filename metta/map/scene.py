@@ -7,10 +7,10 @@ from omegaconf import DictConfig, OmegaConf
 from pydantic import FieldSerializationInfo, ValidationInfo, field_serializer, field_validator
 
 from metta.common.config import Config
+from metta.common.util.module import load_symbol
 from metta.map.config import scenes_root
 from metta.map.random.int import MaybeSeed
 from metta.map.types import Area, AreaQuery, MapGrid
-from metta.utils.module import load_symbol
 
 ParamsT = TypeVar("ParamsT", bound=Config)
 

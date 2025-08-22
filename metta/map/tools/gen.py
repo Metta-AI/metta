@@ -4,10 +4,10 @@ import random
 import string
 
 from metta.common.config.tool import Tool
+from metta.common.util.module import load_symbol
 from metta.map.utils.show import ShowMode, show_map
 from metta.map.utils.storable_map import StorableMap
 from metta.mettagrid.mettagrid_config import EnvConfig
-from metta.utils.module import load_symbol
 
 logger = logging.getLogger(__name__)
 

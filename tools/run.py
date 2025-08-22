@@ -14,8 +14,8 @@ from typing_extensions import TypeVar
 from metta.common.config.config import Config
 from metta.common.config.tool import Tool
 from metta.common.util.logging_helpers import init_logging
+from metta.common.util.module import load_symbol
 from metta.rl.system_config import seed_everything
-from metta.utils.module import load_symbol
 
 logger = logging.getLogger(__name__)
 

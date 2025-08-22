@@ -2,6 +2,16 @@ import importlib
 
 
 def load_symbol(full_name: str):
+    """
+    Load a symbol from a full name, for example:
+    "metta.common.config.tool.Tool" -> Tool
+
+    Args:
+        full_name: The full name of the symbol to load.
+
+    Returns:
+        The loaded symbol.
+    """
     parts = full_name.rsplit(".", 1)
     if len(parts) != 2:
         raise ValueError(f"Invalid symbol name: {full_name}")
