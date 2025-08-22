@@ -52,9 +52,9 @@ class EpisodeCreate(BaseModel):
     # agent_id -> metric_name -> metric_value
     agent_metrics: dict[int, dict[str, float]]
     primary_policy_id: uuid.UUID
+    sim_name: str
+    env_label: str
     stats_epoch: uuid.UUID | None = None
-    sim_name: str | None = None
-    env_label: str | None = None
     replay_url: str | None = None
     attributes: dict[str, Any] = Field(default_factory=dict)
     eval_task_id: uuid.UUID | None = None
