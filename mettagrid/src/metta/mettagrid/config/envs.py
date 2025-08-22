@@ -126,41 +126,8 @@ def make_navigation(num_agents: int) -> EnvConfig:
                     ),
                 ),
             ),
-            # Always provide a concrete map builder config so tests can set width/height
-            map_builder=RandomMapBuilder.Config(agents=num_agents),
-        )
-    )
-    return cfg
-
-
-def make_icl_resource_chain(num_agents: int, max_steps, game_objects: dict, map_builder_objects: dict) -> EnvConfig:
-    game_objects["wall"] = empty_converters.wall
-    cfg = EnvConfig(
-        game=GameConfig(
-            max_steps=max_steps,
-            num_agents=num_agents,
-            objects=game_objects,
-            map_builder=MapGen.Config(
-                instances=num_agents,
-                instance_map=PerimeterInContextMapBuilder.Config(
-                    agents=1, width=6, height=6, objects=map_builder_objects
-                ),
-            ),
-            actions=ActionsConfig(
-                move=ActionConfig(),
-                rotate=ActionConfig(),
-                get_items=ActionConfig(),
-                put_items=ActionConfig(),
-            ),
-            agent=AgentConfig(
-                rewards=AgentRewards(
-                    inventory=InventoryRewards(
-                        heart=1,
-                    ),
-                ),
-                default_resource_limit=1,
-                resource_limits={"heart": 15},
-            ),
+            # always override the map builder
+            map_builder={},
         )
     )
     return cfg
