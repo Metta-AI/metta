@@ -1,5 +1,6 @@
 """Improved transformer agent leveraging batched GTrXL architecture."""
 
+import math
 from typing import Optional
 
 import torch
@@ -160,42 +161,48 @@ class ImprovedPolicy(nn.Module):
         # Value head
         values = self.critic(hidden).squeeze(-1)
 
-        # Multi-head attention-based action selection
-        # Prepare action embeddings as keys and values
+        # Fully vectorized multi-head attention-based action selection
         action_embeds = self.action_embeddings.weight[: self.num_active_actions]  # (num_actions, action_embed_dim)
         num_actions = action_embeds.shape[0]
 
-        # Project hidden state to query
-        query = self.action_query_proj(hidden).unsqueeze(1)  # (B, 1, hidden_size)
+        # Project hidden state to query (B, hidden_size) -> (B, hidden_size)
+        query_proj = self.action_query_proj(hidden)  # (B, hidden_size)
 
-        # Project action embeddings to keys and values
-        keys = (
-            self.action_key_proj(action_embeds).unsqueeze(0).expand(batch_size, -1, -1)
-        )  # (B, num_actions, hidden_size)
-        vals = (
-            self.action_value_proj(action_embeds).unsqueeze(0).expand(batch_size, -1, -1)
-        )  # (B, num_actions, hidden_size)
+        # Project action embeddings to keys and values (vectorized)
+        keys = self.action_key_proj(action_embeds)  # (num_actions, hidden_size)
+        vals = self.action_value_proj(action_embeds)  # (num_actions, hidden_size)
 
-        # Apply multi-head attention: query attends to all possible actions
-        attended_actions, attention_weights = self.action_attention(
-            query, keys, vals
-        )  # (B, 1, hidden_size), (B, 1, num_actions)
+        # Compute attention scores between each query and all action keys
+        # Using scaled dot-product attention: Q @ K^T / sqrt(d_k)
+        scale = 1.0 / math.sqrt(self.hidden_size)
+        attention_scores = torch.matmul(query_proj, keys.t()) * scale  # (B, num_actions)
+        attention_weights = F.softmax(attention_scores, dim=-1)  # (B, num_actions)
 
-        # Project attended actions to logits
-        attended_actions = attended_actions.squeeze(1)  # (B, hidden_size)
+        # Compute attended values for each query-action pair
+        # Reshape for batch matrix multiply: (B, 1, hidden_size) x (B, num_actions, hidden_size)
+        query_expanded = query_proj.unsqueeze(1)  # (B, 1, hidden_size)
+        vals_expanded = vals.unsqueeze(0).expand(batch_size, -1, -1)  # (B, num_actions, hidden_size)
 
-        # Compute action logits by attending to each action individually
-        action_scores = []
-        for i in range(num_actions):
-            action_key = keys[:, i : i + 1, :]  # (B, 1, hidden_size)
-            action_val = vals[:, i : i + 1, :]  # (B, 1, hidden_size)
+        # Apply attention weights to values (fully vectorized)
+        attended_vals = torch.bmm(
+            attention_weights.unsqueeze(1),  # (B, 1, num_actions)
+            vals_expanded,  # (B, num_actions, hidden_size)
+        ).squeeze(1)  # (B, hidden_size)
 
-            # Attention between current hidden state and this specific action
-            action_attended, _ = self.action_attention(query, action_key, action_val)  # (B, 1, hidden_size)
-            action_score = self.action_logits_proj(action_attended.squeeze(1))  # (B, 1)
-            action_scores.append(action_score)
+        # Combine query and attended values for final action scoring
+        action_features = query_proj + attended_vals  # (B, hidden_size)
 
-        logits = torch.cat(action_scores, dim=1)  # (B, num_actions)
+        # Multi-head attention refinement (optional - can simplify further)
+        query_mha = action_features.unsqueeze(1)  # (B, 1, hidden_size)
+        keys_mha = vals_expanded  # (B, num_actions, hidden_size)
+        vals_mha = vals_expanded  # (B, num_actions, hidden_size)
+
+        refined_features, _ = self.action_attention(query_mha, keys_mha, vals_mha)  # (B, 1, hidden_size)
+        refined_features = refined_features.squeeze(1)  # (B, hidden_size)
+
+        # Final logits projection (vectorized)
+        # Compute similarity between refined features and each action
+        logits = torch.matmul(refined_features.unsqueeze(1), vals.t().unsqueeze(0)).squeeze(1)  # (B, num_actions)
 
         return logits, values
 
