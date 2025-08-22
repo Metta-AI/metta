@@ -130,12 +130,13 @@ class StatsClient:
 
     def record_episode(
         self,
+        *,
         agent_policies: dict[int, uuid.UUID],
         agent_metrics: dict[int, dict[str, float]],
         primary_policy_id: uuid.UUID,
+        sim_name: str,
+        env_label: str,
         stats_epoch: uuid.UUID | None = None,
-        sim_name: str | None = None,
-        env_label: str | None = None,
         replay_url: str | None = None,
         attributes: dict[str, Any] | None = None,
         eval_task_id: uuid.UUID | None = None,
