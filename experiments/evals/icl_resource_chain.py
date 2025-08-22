@@ -21,9 +21,8 @@ def make_icl_resource_chain_eval_env(
         map_builder_objects=map_builder_objects,
     )
     env.game.max_steps = max_steps
-    env.game.map_builder = MapGen.Config.with_ascii_uri(
-        ascii_map, border_width=border_width
-    )
+    env.game.map_builder = MapGen.Config(instances=num_agents, instance_map=MapGen.Config.with_ascii_uri(ascii_map, border_width=border_width)  )
+
     env.game.agent.resource_limits["heart"] = 5
 
     return env
@@ -47,7 +46,7 @@ def chain_length2_0sink_env(name: str, max_steps: int = 50) -> EnvConfig:
 
     return make_icl_resource_chain_eval_env(
         name="2chain0sink",
-        num_agents=1,
+        num_agents=24,
         max_steps=max_steps,
         game_objects=game_objects,
         map_builder_objects=map_builder_objects,
@@ -74,7 +73,7 @@ def chain_length2_1sink_env(name: str, max_steps: int = 50) -> EnvConfig:
 
     return make_icl_resource_chain_eval_env(
         name="2chain1sink",
-        num_agents=1,
+        num_agents=24,
         max_steps=max_steps,
         game_objects=game_objects,
         map_builder_objects=map_builder_objects,
@@ -104,7 +103,7 @@ def chain_length2_2sink_env(name: str, max_steps: int = 50) -> EnvConfig:
 
     return make_icl_resource_chain_eval_env(
         name="2chain2sink",
-        num_agents=1,
+        num_agents=24,
         max_steps=max_steps,
         game_objects=game_objects,
         map_builder_objects=map_builder_objects,
@@ -133,7 +132,7 @@ def chain_length3_0sink_env(name: str, max_steps: int = 100) -> EnvConfig:
 
     return make_icl_resource_chain_eval_env(
         name="3chain0sink",
-        num_agents=1,
+        num_agents=24,
         max_steps=max_steps,
         game_objects=game_objects,
         map_builder_objects=map_builder_objects,
@@ -166,7 +165,7 @@ def chain_length3_1sink_env(name: str, max_steps: int = 100) -> EnvConfig:
 
     return make_icl_resource_chain_eval_env(
         name="3chain1sink",
-        num_agents=1,
+        num_agents=24,
         max_steps=max_steps,
         game_objects=game_objects,
         map_builder_objects=map_builder_objects,
@@ -203,7 +202,7 @@ def chain_length3_2sink_env(name: str, max_steps: int = 100) -> EnvConfig:
 
     return make_icl_resource_chain_eval_env(
         name="3chain2sink",
-        num_agents=1,
+        num_agents=24,
         max_steps=max_steps,
         game_objects=game_objects,
         map_builder_objects=map_builder_objects,
@@ -236,7 +235,7 @@ def chain_length4_0sink_env(name: str, max_steps: int = 200) -> EnvConfig:
 
     return make_icl_resource_chain_eval_env(
         name="4chain0sink",
-        num_agents=1,
+        num_agents=24,
         max_steps=max_steps,
         game_objects=game_objects,
         map_builder_objects=map_builder_objects,
@@ -274,7 +273,7 @@ def chain_length4_1sink_env(name: str, max_steps: int = 200) -> EnvConfig:
 
     return make_icl_resource_chain_eval_env(
         name="4chain1sink",
-        num_agents=1,
+        num_agents=24,
         max_steps=max_steps,
         game_objects=game_objects,
         map_builder_objects=map_builder_objects,
