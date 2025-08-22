@@ -103,15 +103,11 @@ class LSTM(LayerBase):
         self.lstm_h, self.lstm_c = memory[0], memory[1]
 
     def reset_memory(self):
-        try:
-            device = next(self.lstm.parameters()).device
-            self.lstm_h = torch.empty(self.num_layers, 0, self.hidden_size, device=device)
-            self.lstm_c = torch.empty(self.num_layers, 0, self.hidden_size, device=device)
-            self.training_lstm_h = torch.empty(self.num_layers, 0, self.hidden_size, device=device)
-            self.training_lstm_c = torch.empty(self.num_layers, 0, self.hidden_size, device=device)
-        except (AttributeError, StopIteration):
-            # self.lstm not initialized yet
-            pass
+        device = next(self.lstm.parameters()).device
+        self.lstm_h = torch.empty(self.num_layers, 0, self.hidden_size, device=device)
+        self.lstm_c = torch.empty(self.num_layers, 0, self.hidden_size, device=device)
+        self.training_lstm_h = torch.empty(self.num_layers, 0, self.hidden_size, device=device)
+        self.training_lstm_c = torch.empty(self.num_layers, 0, self.hidden_size, device=device)
 
     def setup(self, source_components):
         """Setup the layer and create the network."""
