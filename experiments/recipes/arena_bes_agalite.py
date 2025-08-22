@@ -152,7 +152,7 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
     ]
 
 
-def train() -> TrainTool:
+def train(test_mode: bool = False) -> TrainTool:
     """
     Create training configuration using AGaLiTe agent.
 
@@ -163,15 +163,20 @@ def train() -> TrainTool:
     # Create trainer configuration, only overriding non-default values
     trainer_cfg = TrainerConfig(
         curriculum=cc.env_curriculum(env_cfg),
-        total_timesteps=10_000_000_000,  # 10B instead of default 50B
+        total_timesteps=1000
+        if test_mode
+        else 10_000_000_000,  # 1K for testing, 10B for full training
         checkpoint=CheckpointConfig(
             checkpoint_interval=50,  # 50 instead of default 5
             wandb_checkpoint_interval=50,  # 50 instead of default 5
         ),
-        evaluation=EvaluationConfig(
+        evaluation=None
+        if test_mode
+        else EvaluationConfig(
             simulations=make_evals(env_cfg),
             evaluate_remote=True,  # True instead of default False
             evaluate_local=False,  # False instead of default True
+            skip_git_check=True,  # Skip git check for testing
         ),
         # All optimizer, PPO, and batch settings use defaults which already match
         # the original trainer.yaml configuration

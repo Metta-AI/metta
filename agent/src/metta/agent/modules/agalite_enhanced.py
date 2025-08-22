@@ -41,12 +41,6 @@ class EnhancedGRUGatingUnit(nn.Module):
     def forward(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
         """
         Enhanced GRU forward with dropout.
-
-        Args:
-            x: Previous hidden state (*, input_dim)
-            y: Current input (*, input_dim)
-        Returns:
-            Gated output with same shape as input
         """
         # Reset gate
         r = torch.sigmoid(self.Wr(y) + self.Ur(x))
@@ -131,17 +125,8 @@ class GaLiTeAttentionLayer(nn.Module):
     ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
         """
         GaLiTe attention forward pass.
-
-        Args:
-            inputs: Input tensor (T, B, input_dim)
-            terminations: Termination flags (T, B)
-            memory: (kv_state, norm_state) from previous step
-
-        Returns:
-            (output, new_memory)
         """
         T, B, _ = inputs.shape
-        device = inputs.device
 
         kv_state_prev, norm_state_prev = memory
 
@@ -180,10 +165,8 @@ class GaLiTeAttentionLayer(nn.Module):
         if self.reset_hidden_on_terminate:
             term_mask = (1 - terminations.float()).unsqueeze(-1).unsqueeze(-1)  # (T, B, 1, 1)
             discount_gamma = (1 - gamma_feat) * term_mask  # (T, B, head_num, head_dim * eta)
-            discount_beta = (1 - beta) * term_mask  # (T, B, head_num, head_dim)
         else:
             discount_gamma = 1 - gamma_feat
-            discount_beta = 1 - beta
 
         # Update states using discounted sum
         # KV state: (B, head_num, head_dim * eta, head_dim)
@@ -304,14 +287,6 @@ class AGaLiTeAttentionLayer(nn.Module):
     ) -> Tuple[torch.Tensor, Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]]:
         """
         AGaLiTe attention forward pass with oscillatory approximation.
-
-        Args:
-            inputs: Input tensor (T, B, input_dim)
-            terminations: Termination flags (T, B)
-            memory: (tilde_k_prev, tilde_v_prev, s_prev, tick) from previous step
-
-        Returns:
-            (output, new_memory)
         """
         T, B, _ = inputs.shape
         device = inputs.device
