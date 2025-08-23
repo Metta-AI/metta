@@ -76,6 +76,8 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     env_cfg.game.actions = ActionsConfig(
         noop=ActionConfig(enabled=True),
         move=ActionConfig(enabled=True),  # 4-directional movement (matching old config)
+        move_8way=ActionConfig(enabled=False),  # Explicitly disabled
+        move_cardinal=ActionConfig(enabled=False),  # Explicitly disabled
         rotate=ActionConfig(enabled=True),
         put_items=ActionConfig(enabled=True),
         get_items=ActionConfig(enabled=True),
@@ -107,10 +109,10 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     env_cfg.game.agent.rewards.inventory.blueprint = 0.5
     env_cfg.game.agent.rewards.inventory.blueprint_max = 1
 
-    # Heart reward - unbounded (null in old shaped.yaml means no max)
+    # Heart reward - effectively unbounded (null in old shaped.yaml means very high limit)
     env_cfg.game.agent.rewards.inventory.heart = 1
     env_cfg.game.agent.rewards.inventory.heart_max = (
-        None  # Unbounded, matching old shaped.yaml
+        999999  # Very high limit to simulate unbounded
     )
 
     # Easy converter configuration (from configs/env/mettagrid/game/objects/basic_easy.yaml)
