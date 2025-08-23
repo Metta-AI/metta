@@ -9,7 +9,8 @@ from torch.nn import functional as F
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.rl.loss.base_loss import BaseLoss
-from metta.rl.trainer_config import TrainerConfig
+
+# from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
 
 
@@ -23,13 +24,14 @@ class EMA(BaseLoss):
     def __init__(
         self,
         policy: PolicyAgent,
-        trainer_cfg: TrainerConfig,
+        trainer_cfg: Any,
         vec_env: Any,
         device: torch.device,
         policy_store: PolicyStore,
         instance_name: str,
+        loss_config: Any,
     ):
-        super().__init__(policy, trainer_cfg, vec_env, device, policy_store, instance_name)
+        super().__init__(policy, trainer_cfg, vec_env, device, policy_store, instance_name, loss_config)
 
         self.target_model = copy.deepcopy(self.policy)
         for param in self.target_model.parameters():

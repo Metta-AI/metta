@@ -19,7 +19,7 @@ class Fast(ComponentPolicy):
     """
 
     def _get_output_heads(self) -> list[str]:
-        return ["_action_", "_value_"]
+        return ["_action_", "_value_", "returns_pred", "reward_pred"]
 
     def _build_components(self) -> dict:
         """Build components for Fast CNN architecture."""
@@ -103,5 +103,19 @@ class Fast(ComponentPolicy):
             "_action_": MettaActorKeySingleHead(
                 name="_action_",
                 sources=[{"name": "actor_query"}, {"name": "_action_embeds_"}],
+            ),
+            "returns_pred": Linear(
+                name="returns_pred",
+                nn_params=DictConfig({"out_features": 1}),
+                sources=[{"name": "critic_1"}],
+                nonlinearity=None,
+                **self.agent_attributes,
+            ),
+            "reward_pred": Linear(
+                name="reward_pred",
+                nn_params=DictConfig({"out_features": 1}),
+                sources=[{"name": "critic_1"}],
+                nonlinearity=None,
+                **self.agent_attributes,
             ),
         }

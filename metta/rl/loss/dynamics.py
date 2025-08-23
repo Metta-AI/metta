@@ -20,6 +20,8 @@ class Dynamics(BaseLoss):
         self.policy.policy.components["reward_pred"](policy_td)
         returns_pred: Tensor = policy_td["returns_pred"].to(dtype=torch.float32)
         reward_pred: Tensor = policy_td["reward_pred"].to(dtype=torch.float32)
+
+        # need to reshape from (B, T, 1) to (B, T)
         returns_pred = einops.rearrange(returns_pred, "b t 1 -> b (t 1)")
         reward_pred = einops.rearrange(reward_pred, "b t 1 -> b (t 1)")
 

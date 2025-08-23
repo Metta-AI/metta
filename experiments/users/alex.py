@@ -12,7 +12,7 @@ from metta.mettagrid.mettagrid_config import (
     ChangeGlyphActionConfig,
     EnvConfig,
 )
-from metta.rl.loss.ppo_config import PPOConfig
+from metta.rl.loss.loss_config import LossConfig
 from metta.rl.trainer_config import (
     CheckpointConfig,
     EvaluationConfig,
@@ -158,10 +158,8 @@ def train() -> TrainTool:
     env_cfg = make_env()
 
     # Create trainer configuration, only overriding non-default values
-    losses = {}
-    losses["PPO"] = PPOConfig()
     trainer_cfg = TrainerConfig(
-        losses=losses,
+        losses=LossConfig(),
         curriculum=cc.env_curriculum(env_cfg),
         total_timesteps=10_000_000_000,  # 10B instead of default 50B
         checkpoint=CheckpointConfig(

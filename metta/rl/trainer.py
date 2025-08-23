@@ -27,7 +27,6 @@ from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
-from metta.rl.loss.base_loss import BaseLoss
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
@@ -222,16 +221,17 @@ def train(
 
     # Instantiate configured losses dynamically by class name
     # TODO: AV refactor once the dust settles on configs 8-17-25
-    loss_instances: dict[str, BaseLoss] = {}
-    for loss_instance_name, loss_config in trainer_cfg.losses.items():
-        loss_instances[loss_instance_name] = loss_config.init_loss(
-            policy,
-            trainer_cfg,
-            vecenv,
-            device,
-            policy_store,
-            loss_instance_name,
-        )
+    # loss_instances: dict[str, BaseLoss] = {}
+    loss_instances = trainer_cfg.losses.init_losses(policy, trainer_cfg, vecenv, device, policy_store)
+    # for loss_instance_name, loss_config in trainer_cfg.losses.items():
+    #     loss_instances[loss_instance_name] = loss_config.init_loss(
+    #         policy,
+    #         trainer_cfg,
+    #         vecenv,
+    #         device,
+    #         policy_store,
+    #         loss_instance_name,
+    #     )
 
     # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()
@@ -334,6 +334,7 @@ def train(
                     buffer_step = buffer_step.select(*policy_spec.keys())
 
                     while not experience.ready_for_training and not trainer_state.stop_rollout:
+                        # TODO: the rollout loop should change to a spec provided by losses
                         # Get observation
                         o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
 

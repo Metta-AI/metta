@@ -6,14 +6,15 @@ from pydantic import Field
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.common.config import Config
-from metta.rl.loss.ema import EMA
+from metta.rl.loss.dynamics import Dynamics
 
 # from metta.rl.trainer_config import TrainerConfig
 
 
-class EMAConfig(Config):
-    decay: float = Field(default=0.995, ge=0, le=1.0)
-    loss_coef: float = Field(default=1.0, ge=0, le=1.0)
+class DynamicsConfig(Config):
+    returns_step_look_ahead: int = Field(default=1)
+    returns_pred_coef: float = Field(default=1.0, ge=0, le=1.0)
+    reward_pred_coef: float = Field(default=1.0, ge=0, le=1.0)
 
     def init_loss(
         self,
@@ -26,6 +27,6 @@ class EMAConfig(Config):
         loss_config: Any,
     ):
         """Points to the EMA class for initialization."""
-        return EMA(
+        return Dynamics(
             policy, trainer_cfg, vec_env, device, policy_store, instance_name=instance_name, loss_config=loss_config
         )

@@ -378,14 +378,14 @@ def process_stats(
     memory_stats = memory_monitor.stats()
 
     # Current hyperparameter values (after potential scheduler updates)
-    # TODO: please don't hardcode PPO-specific hyperparameters. Also, why plot these when they're in the config?
+    # TODO: please don't hardcode PPO-specific hyperparameters.
     hyperparameters = {
         "learning_rate": parameters["learning_rate"],
-        "ppo_clip_coef": trainer_cfg.losses["PPO"].clip_coef,
-        "ppo_vf_clip_coef": trainer_cfg.losses["PPO"].vf_clip_coef,
-        "ppo_ent_coef": trainer_cfg.losses["PPO"].ent_coef,
-        "ppo_l2_reg_loss_coef": trainer_cfg.losses["PPO"].l2_reg_loss_coef,
-        "ppo_l2_init_loss_coef": trainer_cfg.losses["PPO"].l2_init_loss_coef,
+        "ppo_clip_coef": trainer_cfg.losses.loss_configs["ppo"].clip_coef,
+        "ppo_vf_clip_coef": trainer_cfg.losses.loss_configs["ppo"].vf_clip_coef,
+        "ppo_ent_coef": trainer_cfg.losses.loss_configs["ppo"].ent_coef,
+        "ppo_l2_reg_loss_coef": trainer_cfg.losses.loss_configs["ppo"].l2_reg_loss_coef,
+        "ppo_l2_init_loss_coef": trainer_cfg.losses.loss_configs["ppo"].l2_init_loss_coef,
     }
 
     # Build complete stats

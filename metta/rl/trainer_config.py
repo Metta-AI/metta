@@ -6,6 +6,7 @@ from metta.cogworks.curriculum import CurriculumConfig, env_curriculum
 from metta.common.config import Config
 from metta.mettagrid.config.envs import make_arena
 from metta.rl.hyperparameter_scheduler_config import HyperparameterSchedulerConfig
+from metta.rl.loss.loss_config import LossConfig
 from metta.sim.simulation_config import SimulationConfig
 
 
@@ -77,7 +78,7 @@ class TrainerConfig(Config):
     total_timesteps: int = Field(default=50_000_000_000, gt=0)
 
     # Losses
-    losses: dict[str, object] = Field(default_factory=dict)
+    losses: LossConfig = Field(default_factory=LossConfig)
 
     # Optimizer and scheduler
     optimizer: OptimizerConfig = Field(default_factory=OptimizerConfig)

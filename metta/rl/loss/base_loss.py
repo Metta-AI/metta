@@ -9,7 +9,8 @@ from torchrl.data import Composite
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.rl.experience import Experience
-from metta.rl.trainer_config import TrainerConfig
+
+# from metta.rl.trainer_config import TrainerConfig
 from metta.rl.trainer_state import TrainerState
 
 
@@ -48,11 +49,12 @@ class BaseLoss:
     def __init__(
         self,
         policy: PolicyAgent,
-        trainer_cfg: TrainerConfig,
+        trainer_cfg: Any,
         vec_env: Any,
         device: torch.device,
         policy_store: PolicyStore,
         instance_name: str,
+        loss_config: Any,
     ):
         self.policy = policy
         self.trainer_cfg = trainer_cfg
@@ -60,7 +62,7 @@ class BaseLoss:
         self.device = device
         self.policy_store = policy_store
         self.instance_name = instance_name
-        self.loss_cfg = self.trainer_cfg.losses.get(self.instance_name, {})
+        self.loss_cfg = loss_config
         # self.policy_cfg = self.policy.get_cfg()
         self.policy_experience_spec = self.policy.get_agent_experience_spec()
         self.loss_tracker = defaultdict(list)
@@ -70,25 +72,6 @@ class BaseLoss:
     def get_experience_spec(self) -> Composite:
         """Optional extension of the experience replay buffer spec required by this loss."""
         return Composite()
-
-    def attach_replay_buffer(self, experience: Experience) -> None:
-        """Attach the replay buffer to the loss."""
-        self.replay = experience
-
-    # ------------------------ UTILITY METHODS -----------------------------
-
-    def stats(self) -> dict[str, float]:
-        """Cycles through keys in self.loss_tracker, calculates the mean of the list of floats, and returns a dictionary
-        of metrics to track. It's safe to call this method multiple times as it doesn't mutate the state of the loss
-        tracker. It also gracefully handles the case where a list is empty, returning 0.0 in that case."""
-        return {k: sum(v) / len(v) if v else 0.0 for k, v in self.loss_tracker.items()}
-
-    def zero_loss_tracker(self):
-        """Zero all values in the loss tracker."""
-        for k in self.loss_tracker.keys():
-            self.loss_tracker[k].clear()
-
-    # ------------------------ END UTILITY METHODS -----------------------------
 
     # ======================================================================
     # ============================ CONTROL FLOW ============================
@@ -195,3 +178,22 @@ class BaseLoss:
         self.train_end_epoch = train_cfg.get("end_at_epoch", float("inf"))
         self.train_cycle_length = train_cfg.get("cycle_length")
         self.train_active_in_cycle = train_cfg.get("active_in_cycle")
+
+    # ------------------------ UTILITY METHODS -----------------------------
+
+    def stats(self) -> dict[str, float]:
+        """Cycles through keys in self.loss_tracker, calculates the mean of the list of floats, and returns a dictionary
+        of metrics to track. It's safe to call this method multiple times as it doesn't mutate the state of the loss
+        tracker. It also gracefully handles the case where a list is empty, returning 0.0 in that case."""
+        return {k: sum(v) / len(v) if v else 0.0 for k, v in self.loss_tracker.items()}
+
+    def zero_loss_tracker(self):
+        """Zero all values in the loss tracker."""
+        for k in self.loss_tracker.keys():
+            self.loss_tracker[k].clear()
+
+    def attach_replay_buffer(self, experience: Experience) -> None:
+        """Attach the replay buffer to the loss."""
+        self.replay = experience
+
+    # ------------------------ END UTILITY METHODS -----------------------------

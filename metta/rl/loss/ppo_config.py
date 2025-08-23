@@ -7,7 +7,8 @@ from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.common.config import Config
 from metta.rl.loss.ppo import PPO
-from metta.rl.trainer_config import TrainerConfig
+
+# from metta.rl.trainer_config import TrainerConfig
 
 
 class OptimizerConfig(Config):
@@ -79,11 +80,14 @@ class PPOConfig(Config):
     def init_loss(
         self,
         policy: PolicyAgent,
-        trainer_cfg: TrainerConfig,
+        trainer_cfg: Any,
         vec_env: Any,
         device: torch.device,
         policy_store: PolicyStore,
         instance_name: str,
+        loss_config: Any,
     ):
         """Points to the PPO class for initialization."""
-        return PPO(policy, trainer_cfg, vec_env, device, policy_store, instance_name=instance_name)
+        return PPO(
+            policy, trainer_cfg, vec_env, device, policy_store, instance_name=instance_name, loss_config=loss_config
+        )
