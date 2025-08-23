@@ -17,12 +17,15 @@ from typing import Any, Literal
 import wandb
 from omegaconf import DictConfig
 
+from metta.agent.agent_config import AgentConfig
 from metta.agent.policy_loader import EmptyPolicyInitializer, PolicyLoader
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config import Config
 from metta.common.wandb.wandb_context import WandbConfig, WandbRun
+from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.rl.system_config import SystemConfig
 from metta.rl.trainer_config import CheckpointFileType
 from metta.sim.utils import get_pr_scores_from_stats_server
 
@@ -326,7 +329,12 @@ class PolicyStore:
             paths.append(path)
         else:
             checkpoint_files = [p for p in os.listdir(path) if p.endswith(".pt") or p.endswith(".safetensors")]
-            checkpoint_files.sort(key=lambda f: int(f[6:-3]) if f.startswith("model_") else -1, reverse=True)
+            checkpoint_files.sort(
+                key=lambda f: int(os.path.splitext(f)[0][6:])
+                if f.startswith("model_") and os.path.splitext(f)[0][6:].isdigit()
+                else -1,
+                reverse=True,
+            )
             paths.extend([os.path.join(path, p) for p in checkpoint_files])
 
         return list([self._policy_loader.load_from_file(path, metadata_only=True) for path in paths])
@@ -370,12 +378,6 @@ class PolicyStore:
 
         raise ValueError(f"Invalid URI: {uri}")
 
-    def checkpoint_name(self, url: str) -> str:
-        return self._policy_loader.checkpoint_name(url)
-
-    def base_path(self, url: str) -> str:
-        return self._policy_loader.base_path(url)
-
     @classmethod
     def create(
         cls,
@@ -383,6 +385,9 @@ class PolicyStore:
         data_dir: str,
         wandb_config: WandbConfig,
         wandb_run: WandbRun | None = None,
+        system_cfg: SystemConfig | None = None,
+        agent_cfg: AgentConfig | None = None,
+        env_cfg: EnvConfig | None = None,
     ) -> "PolicyStore":
         """Create a PolicyStore from a WandbConfig.
 

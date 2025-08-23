@@ -76,6 +76,9 @@ class SimTool(Tool):
             wandb_config=self.wandb,
             data_dir=self.system.data_dir,
             wandb_run=None,
+            system_cfg=self.system,
+            agent_cfg=None,
+            env_cfg=None,
         )
         stats_client: StatsClient | None = None
         if self.stats_server_uri is not None:

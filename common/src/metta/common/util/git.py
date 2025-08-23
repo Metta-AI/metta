@@ -233,6 +233,7 @@ def get_git_hash_for_remote_task(
 
     on_skypilot = bool(os.getenv("SKYPILOT_TASK_ID"))
     has_changes, status_output = has_unstaged_changes()
+    skip_git_check = True
     if has_changes:
         if logger:
             logger.warning("Working tree has unstaged changes.\n" + status_output)

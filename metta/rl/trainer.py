@@ -12,8 +12,9 @@ from torchrl.data import Composite
 from metta.agent import policy_metadata_yaml_helper
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent, PolicyAgent
+from metta.agent.policy_loader import PolicyLoader
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import EmptyPolicyInitializer, PolicyStore
+from metta.agent.policy_store import EmptyPolicyInitializer
 from metta.agent.util.distribution_utils import get_from_master
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
@@ -98,7 +99,7 @@ def train(
     device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,
-    policy_store: PolicyStore,
+    policy_loader: PolicyLoader,
     stats_client: StatsClient | None,
     torch_dist_cfg: TorchDistributedConfig,
 ) -> None:
@@ -158,14 +159,14 @@ def train(
                 policy_record=policy_record,
             )
 
-    policy_store.initialize_empty_policy = TrainerEmptyPolicyInitializer()
+    policy_loader.initialize_empty_policy = TrainerEmptyPolicyInitializer()
 
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
     # Create checkpoint manager
     checkpoint_manager = CheckpointManager(
-        policy_store=policy_store,
+        policy_loader=policy_loader,
         checkpoint_config=trainer_cfg.checkpoint,
         device=device,
         is_master=torch_dist_cfg.is_master,
@@ -228,7 +229,7 @@ def train(
     kickstarter = Kickstarter(
         cfg=trainer_cfg.kickstart,
         device=device,
-        policy_store=policy_store,
+        policy_loader=policy_loader,
         metta_grid_env=metta_grid_env,
     )
 
@@ -574,7 +575,7 @@ def train(
                             replay_dir=trainer_cfg.evaluation.replay_dir,
                             stats_epoch_id=stats_tracker.stats_epoch_id,
                             wandb_policy_name=wandb_policy_name,
-                            policy_store=policy_store,
+                            policy_loader=policy_loader,
                             stats_client=stats_client,
                             logger=logger,
                         )
@@ -741,9 +742,7 @@ def get_or_create_policy_record(
 
         # Only check default path if no explicit policy path was found
         if existing_policy_path is None:
-            default_model_name = checkpoint_manager.policy_store.make_model_name(
-                0, checkpoint_manager.checkpoint_cfg.model_suffix()
-            )
+            default_model_name = checkpoint_manager.make_model_name(0, checkpoint_manager.checkpoint_cfg.model_suffix())
             default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, default_model_name)
             existing_policy_path = default_path if os.path.exists(default_path) else None
     else:
@@ -754,24 +753,26 @@ def get_or_create_policy_record(
     # Now all ranks have the same existing_policy_path and can load/create consistently
     if existing_policy_path:
         logger.info(f"Rank {checkpoint_manager.rank}: Loading policy from {existing_policy_path}")
-        policy_record = checkpoint_manager.policy_store.policy_record(existing_policy_path)
+        policy_record = checkpoint_manager.policy_loader.load_from_file(existing_policy_path)
     else:
         # No existing policy - all ranks create new one with same structure
         logger.info(f"Rank {checkpoint_manager.rank}: No existing policy found, creating new one")
-        default_model_name = checkpoint_manager.policy_store.make_model_name(
-            0, checkpoint_manager.checkpoint_cfg.model_suffix()
-        )
-        policy_record = checkpoint_manager.policy_store.create_policy_record(
-            checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir,
+        default_model_name = checkpoint_manager.make_model_name(0, checkpoint_manager.checkpoint_cfg.model_suffix())
+        if trainer_cfg.checkpoint.checkpoint_dir is None:
+            raise ValueError("checkpoint_dir must be set in trainer_cfg.checkpoint to create policy records")
+        policy_record = checkpoint_manager.policy_loader.create_empty_policy_record(
             name=default_model_name,
-            policy=MettaAgent(metta_grid_env, system_cfg, agent_cfg),
+            checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir,
         )
+        policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
 
         # Only master saves the new policy to disk
         if checkpoint_manager.is_master:
-            policy_record = checkpoint_manager.policy_store.save(
-                policy_record, trainer_cfg.checkpoint.checkpoint_file_type
-            )
+            if trainer_cfg.checkpoint.checkpoint_file_type == "safetensors":
+                saved_path = checkpoint_manager.policy_loader.save_to_safetensors_file(policy_record, None)
+            else:
+                saved_path = checkpoint_manager.policy_loader.save_to_pt_file(policy_record, None)
+            policy_record.uri = f"file://{saved_path}"
             logger.info(f"Master saved new policy to {policy_record.uri}")
         else:
             logger.info(f"Rank {checkpoint_manager.rank}: Created policy structure for DDP sync")

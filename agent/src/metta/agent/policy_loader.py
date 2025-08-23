@@ -7,6 +7,7 @@ import logging
 import os
 import sys
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 import torch
@@ -19,7 +20,57 @@ from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 from metta.rl.puffer_policy import load_pytorch_policy
 
+if TYPE_CHECKING:
+    from metta.common.wandb.wandb_context import WandbRun
+    from metta.rl.system_config import SystemConfig
+
 logger = logging.getLogger("policy_loader")
+
+
+def make_codebase_backwards_compatible():
+    """
+    torch.load expects the codebase to be in the same structure as when the model was saved.
+    We can use this function to alias old layout structures. For now we are supporting:
+    - agent --> metta.agent
+    """
+    # Use a module-level flag to memoize
+    if hasattr(make_codebase_backwards_compatible, "_made_compatible"):
+        return
+    make_codebase_backwards_compatible._made_compatible = False
+
+    # Handle agent --> metta.agent
+    sys.modules["agent"] = sys.modules["metta.agent"]
+    modules_queue = collections.deque(["metta.agent"])
+
+    processed = set()
+    while modules_queue:
+        module_name = modules_queue.popleft()
+        if module_name in processed:
+            continue
+        processed.add(module_name)
+
+        if module_name not in sys.modules:
+            continue
+        module = sys.modules[module_name]
+        old_name = module_name.replace("metta.agent", "agent")
+        sys.modules[old_name] = module
+
+        # Find all submodules
+        for attr_name in dir(module):
+            try:
+                attr = getattr(module, attr_name)
+            except (ImportError, AttributeError):
+                continue
+            if hasattr(attr, "__module__"):
+                attr_module = getattr(attr, "__module__", None)
+
+                # If it's a module and part of metta.agent, queue it
+                if attr_module and attr_module.startswith("metta.agent"):
+                    modules_queue.append(attr_module)
+
+            submodule_name = f"{module_name}.{attr_name}"
+            if submodule_name in sys.modules:
+                modules_queue.append(submodule_name)
 
 
 class EmptyPolicyInitializer(ABC):
@@ -42,29 +93,73 @@ class PolicyLoader:
         data_dir: str | None = None,
         pytorch_cfg: DictConfig | None = None,
         policy_cache_size: int = 10,
+        wandb_run: "WandbRun | None" = None,
     ) -> None:
         self._device = device or "cpu"
         self._data_dir = data_dir or "./train_dir"
         self._pytorch_cfg = pytorch_cfg
         self._cached_prs = PolicyCache(max_size=policy_cache_size)
-        self._made_codebase_backwards_compatible = False
+        self._wandb_run = wandb_run
         self.initialize_empty_policy: EmptyPolicyInitializer | None = None
 
-    def load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+    @classmethod
+    def create(
+        cls,
+        device: str,
+        data_dir: str,
+        system_cfg: "SystemConfig | None" = None,
+        wandb_run: "WandbRun | None" = None,
+    ) -> "PolicyLoader":
+        """Create a PolicyLoader with the specified configuration.
+
+        Args:
+            device: Device to load policies on (e.g., "cpu", "cuda")
+            data_dir: Directory for storing policy artifacts
+            system_cfg: Optional system configuration
+            wandb_run: Optional wandb run for uploading artifacts
+
+        Returns:
+            Configured PolicyLoader instance
+        """
+        return cls(
+            device=device,
+            data_dir=data_dir,
+            pytorch_cfg=getattr(system_cfg, "pytorch", None) if system_cfg else None,
+            wandb_run=wandb_run,
+        )
+
+    def load_from_uri(self, uri: str) -> PolicyRecord:
+        """Load a PolicyHandle from various URI types.
+
+        Args:
+            uri: URI to load from (file://, wandb://, pytorch://, or direct path)
+
+        Returns:
+            PolicyHandle with appropriate factory function
+        """
+        if uri.startswith("wandb://"):
+            return self._load_from_wandb_uri(uri)
+        elif uri.startswith("file://"):
+            return self.load_from_file(uri[len("file://") :])
+        elif uri.startswith("pytorch://"):
+            return self._load_from_pytorch_uri(uri)
+        else:
+            return self.load_from_file(uri)
+
+    def load_from_file(self, path: str) -> PolicyRecord:
         """Load a PolicyRecord from a file, automatically detecting format based on extension."""
         if path.endswith(".pt"):
-            return self._load_from_pt_file(path, metadata_only)
+            return self._load_from_pt_file(path)
         elif path.endswith(".safetensors"):
-            return self._load_from_safetensors_file(path, metadata_only)
+            return self._load_from_safetensors_file(path)
         else:
             raise ValueError(f"Unsupported file format: {path}. Expected .pt or .safetensors")
 
-    def _load_from_pt_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+    def _load_from_pt_file(self, path: str) -> PolicyRecord:
         """Load a PolicyRecord from a file using simple torch.load."""
         cached_pr = self._cached_prs.get(path)
         if cached_pr is not None:
-            if metadata_only or cached_pr.cached_policy is not None:
-                return cached_pr
+            return cached_pr
 
         if not path.endswith(".pt") and os.path.isdir(path):
             path = os.path.join(path, os.listdir(path)[-1])
@@ -86,17 +181,13 @@ class PolicyLoader:
         pr = checkpoint
         self._cached_prs.put(path, pr)
 
-        if metadata_only:
-            pr.set_policy_deferred(lambda: self._load_from_pt_file(path, metadata_only=False).policy)
-
         return pr
 
-    def _load_from_safetensors_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
+    def _load_from_safetensors_file(self, path: str) -> PolicyRecord:
         """Load a PolicyRecord from safetensors format with YAML metadata sidecar."""
         cached_pr = self._cached_prs.get(path)
         if cached_pr is not None:
-            if metadata_only or cached_pr.cached_policy is not None:
-                return cached_pr
+            return cached_pr
 
         pr = self.create_empty_policy_record(self.checkpoint_name(path), self.base_path(path))
         if self.initialize_empty_policy is None:
@@ -105,19 +196,30 @@ class PolicyLoader:
 
         self._cached_prs.put(path, pr)
 
-        if metadata_only:
-            pr.set_policy_deferred(lambda: self._load_from_safetensors_file(path, metadata_only=False).policy)
-
         return pr
 
-    def _load_from_pytorch(self, path: str) -> PolicyRecord:
+    def _load_from_pytorch_uri(self, path: str) -> PolicyRecord:
         name = os.path.basename(path)
         # PolicyMetadata only requires: agent_step, epoch, generation, train_time
         # action_names is optional and not used by pytorch:// checkpoints
         metadata = PolicyMetadata()
-        pr = PolicyRecord(self, name, "pytorch://" + name, metadata)
+        pr = PolicyRecord(name, "pytorch://" + name, metadata)
         pr.cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
         return pr
+
+    def _load_from_wandb_uri(self, uri: str) -> PolicyRecord:
+        """Load a PolicyRecord from a wandb URI.
+
+        Args:
+            uri: Wandb URI to load from (e.g., wandb://entity/project/artifact_type/name)
+
+        Returns:
+            PolicyRecord loaded from wandb
+
+        Raises:
+            NotImplementedError: Wandb loading is not implemented yet
+        """
+        raise NotImplementedError("wandb not implemented yet")
 
     def _load_wandb_artifact(self, qualified_name: str):
         logger.info(f"Loading policy from wandb artifact {qualified_name}")
@@ -189,49 +291,8 @@ class PolicyLoader:
         return safetensors_path
 
     def _make_codebase_backwards_compatible(self):
-        """
-        torch.load expects the codebase to be in the same structure as when the model was saved.
-        We can use this function to alias old layout structures. For now we are supporting:
-        - agent --> metta.agent
-        """
-        # Memoize
-        if self._made_codebase_backwards_compatible:
-            return
-        self._made_codebase_backwards_compatible = True
-
-        # Handle agent --> metta.agent
-        sys.modules["agent"] = sys.modules["metta.agent"]
-        modules_queue = collections.deque(["metta.agent"])
-
-        processed = set()
-        while modules_queue:
-            module_name = modules_queue.popleft()
-            if module_name in processed:
-                continue
-            processed.add(module_name)
-
-            if module_name not in sys.modules:
-                continue
-            module = sys.modules[module_name]
-            old_name = module_name.replace("metta.agent", "agent")
-            sys.modules[old_name] = module
-
-            # Find all submodules
-            for attr_name in dir(module):
-                try:
-                    attr = getattr(module, attr_name)
-                except (ImportError, AttributeError):
-                    continue
-                if hasattr(attr, "__module__"):
-                    attr_module = getattr(attr, "__module__", None)
-
-                    # If it's a module and part of metta.agent, queue it
-                    if attr_module and attr_module.startswith("metta.agent"):
-                        modules_queue.append(attr_module)
-
-                submodule_name = f"{module_name}.{attr_name}"
-                if submodule_name in sys.modules:
-                    modules_queue.append(submodule_name)
+        """Call the module-level function to make codebase backwards compatible."""
+        make_codebase_backwards_compatible()
 
     def checkpoint_name(self, url: str) -> str:
         path = urlparse(url).path  # "/path/to/file.txt"
@@ -254,3 +315,36 @@ class PolicyLoader:
             f"file://{path}",
             metadata,
         )
+
+    def _load_from_pytorch(self, path: str) -> PolicyRecord:
+        name = os.path.basename(path)
+        # PolicyMetadata only requires: agent_step, epoch, generation, train_time
+        # action_names is optional and not used by pytorch:// checkpoints
+        metadata = PolicyMetadata()
+        pr = PolicyRecord(name, "pytorch://" + name, metadata)
+        pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
+        return pr
+
+    def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
+        return self.add_to_wandb_artifact(run_id, "model", pr.metadata, pr.file_path, additional_files)
+
+    def add_to_wandb_sweep(self, sweep_name: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
+        return self.add_to_wandb_artifact(sweep_name, "sweep_model", pr.metadata, pr.file_path, additional_files)
+
+    def add_to_wandb_artifact(
+        self, name: str, type: str, metadata: dict[str, Any], file_path: str, additional_files: list[str] | None = None
+    ) -> str:
+        if self._wandb_run is None:
+            raise ValueError("PolicyStore was not initialized with a wandb run")
+
+        additional_files = additional_files or []
+
+        artifact = wandb.Artifact(name, type=type, metadata=metadata)
+        artifact.add_file(file_path, name="model.pt")
+        for file in additional_files:
+            artifact.add_file(file)
+        artifact.save()
+        artifact.wait()
+        logger.info(f"Added artifact {artifact.qualified_name}")
+        self._wandb_run.log_artifact(artifact)
+        return artifact.qualified_name

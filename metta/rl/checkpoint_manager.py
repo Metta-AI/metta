@@ -6,8 +6,8 @@ from pathlib import Path
 import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
+from metta.agent.policy_loader import PolicyLoader
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.collections import remove_none_values
 from metta.common.util.heartbeat import record_heartbeat
@@ -28,7 +28,7 @@ class CheckpointManager:
 
     def __init__(
         self,
-        policy_store: PolicyStore,
+        policy_loader: PolicyLoader,
         checkpoint_config: CheckpointConfig,
         device: torch.device,
         is_master: bool,
@@ -38,15 +38,14 @@ class CheckpointManager:
         """Initialize checkpoint manager.
 
         Args:
-            checkpoint_dir: Directory to save checkpoints
-            policy_store: PolicyStore instance for saving/loading policies
-            trainer_cfg: Trainer configuration
+            policy_loader: PolicyLoader instance for saving/loading policies
+            checkpoint_config: Checkpoint configuration
             device: Training device
             is_master: Whether this is the master process
             rank: Process rank for distributed training
             run_name: Name of the current run
         """
-        self.policy_store = policy_store
+        self.policy_loader = policy_loader
         self.checkpoint_cfg = checkpoint_config
         self.device = device
         self.is_master = is_master
@@ -54,7 +53,12 @@ class CheckpointManager:
         self.run_name = run_name
 
         # Ensure checkpoint directory exists
-        Path(self.checkpoint_cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
+        if self.checkpoint_cfg.checkpoint_dir is not None:
+            Path(self.checkpoint_cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
+
+    def make_model_name(self, epoch: int, model_suffix: str) -> str:
+        """Create a model name for the given epoch."""
+        return f"model_{epoch:04d}{model_suffix}"
 
     def save_checkpoint(
         self,
@@ -99,7 +103,7 @@ class CheckpointManager:
         policy_to_save: MettaAgent = policy.module if isinstance(policy, DistributedMettaAgent) else policy
 
         # Build metadata
-        name = self.policy_store.make_model_name(epoch, self.checkpoint_cfg.model_suffix())
+        name = self.make_model_name(epoch, self.checkpoint_cfg.model_suffix())
 
         # Base metadata without evaluation scores
         metadata = {
@@ -149,14 +153,27 @@ class CheckpointManager:
                 )
 
         # Create and save policy record
-        policy_record = self.policy_store.create_policy_record(
-            name=name, checkpoint_dir=self.checkpoint_cfg.checkpoint_dir, metadata=metadata, policy=policy_to_save
-        )
+        if self.checkpoint_cfg.checkpoint_dir is None:
+            raise ValueError("checkpoint_dir must be set in checkpoint_config to save policies")
 
-        saved_policy_record = self.policy_store.save(policy_record, self.checkpoint_cfg.checkpoint_file_type)
+        policy_record = self.policy_loader.create_empty_policy_record(
+            name=name, checkpoint_dir=self.checkpoint_cfg.checkpoint_dir
+        )
+        policy_record.metadata = metadata
+        policy_record.policy = policy_to_save
+
+        # Save the policy record
+        if self.checkpoint_cfg.checkpoint_file_type == "safetensors":
+            saved_path = self.policy_loader.save_to_safetensors_file(policy_record, None)
+        else:
+            saved_path = self.policy_loader.save_to_pt_file(policy_record, None)
+
+        # Update the policy record with the saved path
+        policy_record.uri = f"file://{saved_path}"
+
         logger.info(f"Successfully saved policy at epoch {epoch}")
 
-        return saved_policy_record
+        return policy_record
 
 
 def maybe_establish_checkpoint(
@@ -210,10 +227,10 @@ def maybe_establish_checkpoint(
     # TODO: enforce that wandb_checkpoint_interval is a multiple of checkpoint_interval
     if should_run(epoch, cfg.wandb_checkpoint_interval, force=force):
         record_heartbeat()
-        wandb_policy_name = upload_policy_artifact(wandb_run, checkpoint_manager.policy_store, new_record)
+        wandb_policy_name = upload_policy_artifact(wandb_run, checkpoint_manager.policy_loader, new_record)
 
     # Clean up old policies every 10 times we write
-    if should_run(epoch, cfg.checkpoint_interval * 10, force=force):
-        cleanup_old_policies(checkpoint_manager.checkpoint_cfg.checkpoint_dir)
+    if should_run(epoch, cfg.checkpoint_interval * 10, force=force) and cfg.checkpoint_dir is not None:
+        cleanup_old_policies(cfg.checkpoint_dir)
 
     return new_record, wandb_policy_name

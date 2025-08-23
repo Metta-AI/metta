@@ -21,8 +21,9 @@ import numpy as np
 import torch
 from einops import rearrange
 
+from metta.agent.mocks.mock_policy_record import MockPolicyRecord
+from metta.agent.policy_loader import PolicyLoader
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.heartbeat import record_heartbeat
@@ -58,7 +59,7 @@ class Simulation:
         name: str,
         cfg: SimulationConfig,
         policy_pr: PolicyRecord,
-        policy_store: PolicyStore,
+        policy_loader: PolicyLoader,
         device: torch.device,
         vectorization: str,
         stats_dir: str = "/tmp/stats",
@@ -122,8 +123,8 @@ class Simulation:
 
         # ---------------- policies ------------------------------------- #
         self._policy_pr = policy_pr
-        self._policy_store = policy_store
-        self._npc_pr = policy_store.policy_record(cfg.npc_policy_uri) if cfg.npc_policy_uri else None
+        self._policy_loader = policy_loader
+        self._npc_pr = policy_loader.load_from_uri(cfg.npc_policy_uri) if cfg.npc_policy_uri else None
         self._policy_agents_pct = cfg.policy_agents_pct if self._npc_pr is not None else 1.0
 
         self._stats_client: StatsClient | None = stats_client
@@ -169,7 +170,7 @@ class Simulation:
     def create(
         cls,
         sim_config: SimulationConfig,
-        policy_store: PolicyStore,
+        policy_loader: PolicyLoader,
         device: str,
         vectorization: str,
         stats_dir: str = "./train_dir/stats",
@@ -181,7 +182,7 @@ class Simulation:
 
         Args:
             sim_config: Simulation configuration with environment settings
-            policy_store: PolicyStore instance for managing policies
+            policy_loader: PolicyLoader instance for managing policies
             device: Device to run on (e.g., "cpu", "cuda")
             vectorization: Vectorization backend (e.g., "serial", "multiprocessing")
             stats_dir: Directory for simulation statistics
@@ -193,7 +194,7 @@ class Simulation:
             Configured Simulation instance
         """
         # Get policy record or create a mock
-        policy_record = policy_store.policy_record_or_mock(policy_uri, run_name)
+        policy_record = cls._policy_record_or_mock(policy_loader, policy_uri, run_name)
 
         # Create replay directory path with simulation name
         full_replay_dir = f"{replay_dir}/{sim_config.name}"
@@ -203,12 +204,33 @@ class Simulation:
             sim_config.name,
             sim_config,
             policy_record,
-            policy_store,
+            policy_loader,
             device=torch.device(device),
             vectorization=vectorization,
             stats_dir=stats_dir,
             replay_dir=full_replay_dir,
         )
+
+    @staticmethod
+    def _policy_record_or_mock(
+        policy_loader: PolicyLoader,
+        policy_uri: str | None,
+        run_name: str = "mock_run",
+    ) -> PolicyRecord:
+        """Get a policy record or create a mock if no URI provided.
+
+        Args:
+            policy_loader: PolicyLoader instance for loading policies
+            policy_uri: Optional policy URI to load
+            run_name: Name for the mock run if no URI provided
+
+        Returns:
+            PolicyRecord from URI or MockPolicyRecord
+        """
+        if policy_uri is not None:
+            return policy_loader.load_from_uri(policy_uri)
+        else:
+            return MockPolicyRecord(run_name=run_name, uri=None)
 
     def start_simulation(self) -> None:
         """

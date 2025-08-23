@@ -12,8 +12,9 @@ from omegaconf import DictConfig
 from pydantic import BaseModel, model_validator
 from pydantic.fields import Field
 
+from metta.agent.policy_finder import PolicyFinder, PolicyMissingError, PolicySelectorType
+from metta.agent.policy_handle import PolicyHandle
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyMissingError, PolicySelectorType, PolicyStore
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import TaskStatus
@@ -76,7 +77,7 @@ class EvalRequest(BaseModel):
 
 
 def _get_policy_records_for_uri(
-    policy_store: PolicyStore,
+    policy_finder: PolicyFinder,
     policy_uri: str,
     selector_type: PolicySelectorType,
     select_num: int,
@@ -84,9 +85,9 @@ def _get_policy_records_for_uri(
     disallow_missing_policies: bool = False,
     stats_client: StatsClient | None = None,
     eval_name: str | None = None,
-) -> tuple[str, list[PolicyRecord] | None]:
+) -> tuple[str, list[PolicyHandle] | None]:
     try:
-        records = policy_store.policy_records(
+        records = policy_finder.policy_records(
             uri_or_config=policy_uri,
             selector_type=selector_type,
             n=select_num,
@@ -112,7 +113,7 @@ async def _create_remote_eval_tasks(
         warning("No stats client found")
         return
 
-    policy_store = PolicyStore(
+    policy_finder = PolicyFinder.create(
         wandb_entity=request.wandb_entity,
         wandb_project=request.wandb_project,
     )
@@ -123,7 +124,7 @@ async def _create_remote_eval_tasks(
         future_to_uri = {
             executor.submit(
                 _get_policy_records_for_uri,
-                policy_store=policy_store,
+                policy_finder=policy_finder,
                 policy_uri=policy_uri,
                 selector_type=request.policy_select_type,
                 select_num=request.policy_select_num,
@@ -135,7 +136,7 @@ async def _create_remote_eval_tasks(
             for policy_uri in request.policies
         }
 
-        policy_records_by_uri: dict[str, list[PolicyRecord]] = {}
+        policy_records_by_uri: dict[str, list[PolicyHandle]] = {}
         for future in concurrent.futures.as_completed(future_to_uri):
             policy_uri, records = future.result()
             if records is not None:

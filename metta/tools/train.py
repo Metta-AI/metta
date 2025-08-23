@@ -8,7 +8,7 @@ from typing import Optional
 import torch
 
 from metta.agent.agent_config import AgentConfig
-from metta.agent.policy_store import PolicyStore
+from metta.agent.policy_loader import PolicyLoader
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.git import get_git_hash_for_remote_task
@@ -121,10 +121,10 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // torch_dist_cfg.world_size
 
-    policy_store = PolicyStore.create(
+    policy_loader = PolicyLoader.create(
         device=cfg.system.device,
         data_dir=cfg.system.data_dir,
-        wandb_config=cfg.wandb,
+        system_cfg=cfg.system,
         wandb_run=wandb_run,
     )
 
@@ -146,7 +146,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         device=torch.device(cfg.system.device),
         trainer_cfg=cfg.trainer,
         wandb_run=wandb_run,
-        policy_store=policy_store,
+        policy_loader=policy_loader,
         stats_client=stats_client,
         torch_dist_cfg=torch_dist_cfg,
     )

@@ -1,6 +1,5 @@
 """
 PolicyRecord: A lightweight data structure for storing policy metadata and references.
-This is separated from PolicyStore to enable cleaner packaging of saved policies.
 """
 
 import logging
@@ -22,9 +21,13 @@ class PolicyRecord:
         uri: str | None,
         metadata: PolicyMetadata | dict,
         policy: "PolicyAgent | None" = None,
+        wandb_entity: str | None = None,  # for loading policies from wandb
+        wandb_project: str | None = None,  # for loading policies from wandb
     ):
         self.run_name = run_name  # Human-readable identifier (e.g., from wandb). Can include version
         self.uri: str | None = uri
+        self.wandb_entity = wandb_entity
+        self.wandb_project = wandb_project
 
         # Use the setter to ensure proper type
         self.metadata = metadata

@@ -33,6 +33,9 @@ class ReplayTool(Tool):
             wandb_config=self.wandb,
             data_dir=self.system.data_dir,
             wandb_run=None,
+            system_cfg=self.system,
+            agent_cfg=None,
+            env_cfg=None,
         )
 
         # Create simulation using the helper method with explicit parameters
