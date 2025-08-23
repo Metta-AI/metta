@@ -390,6 +390,9 @@ def train(
                     epochs_trained = 0
                     policy_spec = policy.get_agent_experience_spec()
 
+                    # Clear gradients at the start of training
+                    optimizer.zero_grad()
+
                     for _update_epoch in range(trainer_cfg.update_epochs):
                         for _ in range(experience.num_minibatches):
                             policy.reset_memory()
@@ -418,8 +421,9 @@ def train(
                                 device=device,
                             )
 
-                            # Optimizer step
-                            optimizer.zero_grad()
+                            # Scale loss for gradient accumulation
+                            if experience.accumulate_minibatches > 1:
+                                loss = loss / experience.accumulate_minibatches
 
                             # This also serves as a barrier for all ranks
                             loss.backward()
@@ -427,6 +431,7 @@ def train(
                             if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
                                 torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
                                 optimizer.step()
+                                optimizer.zero_grad()
 
                                 # Optional weight clipping
                                 policy.clip_weights()
