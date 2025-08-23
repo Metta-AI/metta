@@ -8,24 +8,32 @@ After removing Hydra and YAML configurations from the Metta codebase (post-commi
 
 ## Critical Findings Summary
 
-### 🔴 CRITICAL ISSUES (definitely causing performance regression):
+### ⚠️ UPDATE: Recipe Already Fixes Most Issues!
 
-1. **Learning Rate Scheduling Completely Disabled**
-   - Old: Used CosineSchedule for LR (0.000457 → 0.00003), LogarithmicSchedule for clip_coef, LinearSchedule for others
-   - New: ALL schedules commented out with `# TODO(richard): #dehydration`
-   - **Impact**: Learning rate stays constant at 0.000457 instead of decreasing! This prevents convergence!
+The `arena_basic_easy_shaped.py` recipe ALREADY sets:
+- ✅ `total_timesteps=10B` (matches old default)
+- ✅ `checkpoint_interval=50` (matches old default)  
+- ✅ `evaluate_local=False` (matches old default)
+- ✅ All shaped rewards (ore_red, battery_red, etc.)
+- ⚠️ `heart_max=255` (still different from old `null`)
 
-2. **Default Curriculum Lost Shaped Rewards**
-   - Old default: `/env/mettagrid/arena/basic_easy_shaped` with shaped rewards
-   - New default: Plain `make_arena()` with ONLY heart rewards
-   - **Missing rewards**: ore_red (0.1), battery_red (0.8), laser (0.5), armor (0.5), blueprint (0.5)
-   - **Impact**: Agents lose intermediate reward signals critical for learning!
+### 🔴 REMAINING ISSUES (not fixed by recipe):
 
-3. **Heart Reward Capping Mechanism**
-   - Old: `heart_max: null` (unlimited)
-   - New: `heart_max: 255` (capped)
-   - **Deeper Finding**: The C++ code applies `std::min(reward, reward_max)` to each resource
-   - Even if agents only get 15 hearts, this changes the reward calculation logic
+1. **Learning Rate Scheduling NOT USED in Old System Either**
+   - Old: Defined schedules but NEVER instantiated or used in trainer.py
+   - New: Schedules commented out with `# TODO(richard): #dehydration`
+   - **Finding**: This is NOT the regression cause - neither system uses LR scheduling!
+
+2. **Subtle Implementation Differences**:
+   - **Gradient clearing**: New system calls `zero_grad()` twice (start + after step)
+   - **Returns calculation**: Uses `original_values` instead of current values
+   - **Dual-policy code**: Removed entirely (shouldn't matter if not using NPCs)
+
+3. **Config System Changes**:
+   - Old: Hydra instantiated objects via `_target_` fields
+   - New: Creates Config objects, instantiated later with `.create()`
+   - Old: Had custom resolvers (div, multiply, etc.) for config calculations
+   - New: Direct Python code instead of resolver expressions
 
 ### 🟡 SIGNIFICANT DIFFERENCES (may affect performance):
 
