@@ -382,6 +382,9 @@ def train(
                         device,
                     )
 
+                    # Store original values for computing returns (before any updates)
+                    original_values = experience.buffer["values"].clone()
+
                     # Train for multiple epochs
                     minibatch_idx = 0
                     epochs_trained = 0
@@ -395,6 +398,7 @@ def train(
                                 advantages=advantages,
                                 prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
                                 prio_beta=anneal_beta,
+                                original_values=original_values,
                             )
 
                             policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
