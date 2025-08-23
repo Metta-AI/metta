@@ -1,3 +1,13 @@
+import {
+  getFont,
+  getGlyph,
+  getKerning,
+  getSpriteBounds,
+  getWhiteUV,
+  hasSprite,
+  loadAtlas,
+  type Atlas,
+} from './atlas.js'
 import { Mesh } from './mesh.js'
 import { Mat3f, Vec2f } from './vector_math.js'
 
@@ -24,53 +34,15 @@ const VERTEX_SHADER_SOURCE = `
 
 const FRAGMENT_SHADER_SOURCE = `
   precision mediump float;
-
   uniform sampler2D u_sampler;
-
   varying vec2 v_texcoord;
   varying vec4 v_color;
-
   void main() {
     vec4 texColor = texture2D(u_sampler, v_texcoord);
-    // Do the premultiplied alpha conversion.
-    vec4 premultipliedColor = vec4(texColor.rgb * texColor.a, texColor.a);
-    gl_FragColor = premultipliedColor * v_color;
+    // texColor is already premultiplied, just multiply by vertex color
+    gl_FragColor = texColor * v_color;
   }
 `
-
-// Font atlas metadata types
-interface Glyph {
-  rect: [number, number, number, number]
-  advance: number
-  bearingX: number
-  bearingY: number
-}
-
-interface FontKerningRow {
-  [rightLabel: string]: number
-}
-
-interface Font {
-  ascent: number
-  descent: number
-  lineHeight: number
-  glyphs: { [label: string]: Glyph }
-  kerning: { [leftLabel: string]: FontKerningRow }
-  fontName: string
-  fontPath: string
-  fontSize: number
-  fontCharset: string
-  glyphInnerPadding: number
-  fontPathMtime: number | null
-  fontPathSize: number | null
-  fontConfigHash: string
-}
-
-/** Type definition for atlas data. */
-interface AtlasData {
-  images: { [key: string]: [number, number, number, number] }
-  fonts: { [fontName: string]: Font }
-}
 
 /** Clamp a value between a minimum and maximum. */
 export function clamp(value: number, min: number, max: number): number {
@@ -83,13 +55,12 @@ export class Context3d {
   public gl: WebGLRenderingContext
   public ready = false
   public dpr = 1
-  public atlasData: AtlasData | null = null
+  public atlas: Atlas | null = null
+
+  private texture: WebGLTexture | null = null // The WebGL texture containing all sprites
 
   // WebGL rendering state
   private shaderProgram: WebGLProgram | null = null
-  private atlasTexture: WebGLTexture | null = null
-  private textureSize: Vec2f = new Vec2f(0, 0)
-  private atlasMargin = 4
 
   // Shader locations
   private positionLocation = -1
@@ -149,7 +120,6 @@ export class Context3d {
   /** Sets the scissor rect for the current mesh. */
   setScissorRect(x: number, y: number, width: number, height: number) {
     this.ensureMeshSelected()
-
     this.currentMesh!.scissorEnabled = true
     this.currentMesh!.scissorRect = [x, y, width, height]
   }
@@ -237,18 +207,13 @@ export class Context3d {
       this.dpr = 2.0 // Retina display only, we don't support other DPI scales.
     }
 
-    // Load Atlas and Texture.
-    const [atlasData, source] = await Promise.all([
-      this.loadAtlasJson(atlasJsonUrl),
-      this.loadAtlasImage(atlasImageUrl),
-    ])
-
-    if (!atlasData || !source) {
-      this.fail('Failed to load atlas or texture')
+    const result = await loadAtlas(this.gl, atlasJsonUrl, atlasImageUrl)
+    if (!result || !result.atlas || !result.texture) {
+      this.fail('Failed to load atlas')
       return false
     }
-    this.atlasData = atlasData
-    this.textureSize = new Vec2f(source.width, source.height)
+    this.atlas = result.atlas
+    this.texture = result.texture
 
     // Create and compile shaders
     const vertexShader = this.createShader(this.gl.VERTEX_SHADER, VERTEX_SHADER_SOURCE)
@@ -273,26 +238,6 @@ export class Context3d {
     this.canvasSizeLocation = this.gl.getUniformLocation(this.shaderProgram, 'u_canvasSize')
     this.samplerLocation = this.gl.getUniformLocation(this.shaderProgram, 'u_sampler')
 
-    // Create texture
-    this.atlasTexture = this.gl.createTexture()
-    if (!this.atlasTexture) {
-      this.fail('Failed to create texture')
-      return false
-    }
-
-    // Upload texture data
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.atlasTexture)
-    this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, this.gl.RGBA, this.gl.UNSIGNED_BYTE, source)
-
-    // Generate mipmaps
-    this.gl.generateMipmap(this.gl.TEXTURE_2D)
-
-    // Set texture parameters
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.REPEAT)
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.REPEAT)
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR_MIPMAP_LINEAR)
-    this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR)
-
     // Enable blending for premultiplied alpha
     this.gl.enable(this.gl.BLEND)
     this.gl.blendFunc(this.gl.ONE, this.gl.ONE_MINUS_SRC_ALPHA)
@@ -308,39 +253,6 @@ export class Context3d {
     failDiv.id = 'fail'
     failDiv.textContent = `Initialization Error: ${msg}. See console for details.`
     document.body.appendChild(failDiv)
-  }
-
-  /** Load the atlas image. */
-  private async loadAtlasImage(url: string): Promise<ImageBitmap | null> {
-    try {
-      const res = await fetch(url)
-      if (!res.ok) {
-        throw new Error(`Failed to fetch image: ${res.statusText}`)
-      }
-      const blob = await res.blob()
-      // Use premultiplied alpha to fix border issues
-      return await createImageBitmap(blob, {
-        colorSpaceConversion: 'none',
-        premultiplyAlpha: 'premultiply',
-      })
-    } catch (err) {
-      console.error(`Error loading image ${url}:`, err)
-      return null
-    }
-  }
-
-  /** Load the atlas JSON. */
-  private async loadAtlasJson(url: string): Promise<AtlasData | null> {
-    try {
-      const res = await fetch(url)
-      if (!res.ok) {
-        throw new Error(`Failed to fetch atlas: ${res.statusText}`)
-      }
-      return await res.json()
-    } catch (err) {
-      console.error(`Error loading atlas ${url}:`, err)
-      return null
-    }
   }
 
   /** Create and compile a shader. */
@@ -418,8 +330,7 @@ export class Context3d {
 
     const pos = new Vec2f(x, y)
 
-    // Calculate vertex positions (screen pixels, origin top-left)
-    // We'll make 4 vertices for a quad
+    // Calculate vertex positions (screen pixels, origin top-left) - 4 vertices for a quad.
     const untransformedTopLeft = pos
     const untransformedBottomLeft = new Vec2f(pos.x(), pos.y() + height)
     const untransformedTopRight = new Vec2f(pos.x() + width, pos.y())
@@ -437,100 +348,51 @@ export class Context3d {
 
   /** Check if the image is in the atlas. */
   hasImage(imageName: string): boolean {
-    return this.atlasData?.images[imageName] !== undefined
+    if (this.atlas) {
+      return hasSprite(this.atlas, imageName)
+    }
+    return false
   }
 
-  /** Draws an image from the atlas with its top-right corner at (x, y). */
+  /** Draws an image from the atlas with its top-left corner at (x, y). */
   drawImage(imageName: string, x: number, y: number, color: number[] = [1, 1, 1, 1]) {
-    if (!this.ready) {
+    if (!this.ready || !this.atlas) {
       throw new Error('Drawer not initialized')
     }
 
     this.ensureMeshSelected()
 
-    const rect = this.atlasData?.images[imageName]
-    if (!rect) {
+    const bounds = getSpriteBounds(this.atlas, imageName)
+    if (!bounds) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
     }
-
-    const [sx, sy, sw, sh] = rect
-    const m = this.atlasMargin
-
-    // Calculate UV coordinates (normalized 0.0 to 1.0).
-    // Add the margin to allow texture filtering to handle edge anti-aliasing.
-    const u0 = (sx - m) / this.textureSize.x()
-    const v0 = (sy - m) / this.textureSize.y()
-    const u1 = (sx + sw + m) / this.textureSize.x()
-    const v1 = (sy + sh + m) / this.textureSize.y()
 
     // Draw the rectangle with the image's texture coordinates.
-    // Adjust both UVs and vertex positions by the margin.
-    this.drawRect(
-      x - m, // Adjust x position by adding margin (from the right).
-      y - m, // Adjust y position by adding margin.
-      sw + 2 * m, // Reduce width by twice the margin (left and right).
-      sh + 2 * m, // Reduce height by twice the margin (top and bottom).
-      u0,
-      v0,
-      u1,
-      v1,
-      color
-    )
+    // Note: bounds x,y already include margin, but we need to offset back for correct positioning
+    this.drawRect(x, y, bounds.width, bounds.height, bounds.u0, bounds.v0, bounds.u1, bounds.v1, color)
   }
 
-  /*
-   * Draws a sprite from the texture atlas centered at the specified position.
-   *
-   * @param imageName - Name of the image in the atlas (e.g., 'player.png')
-   * @param x - X coordinate of the sprite's center
-   * @param y - Y coordinate of the sprite's center
-   * @param color - RGBA color multiplier [r, g, b, a] where each component is 0.0-1.0
-   * @param scale - Uniform scale (number) or non-uniform scale [scaleX, scaleY]
-   * @param rotation - Rotation angle in radians (positive = clockwise)
-   *
-   * @example
-   * // Draw at original size
-   * ctx.drawSprite('player.png', 100, 200)
-   *
-   * // Draw with uniform scale
-   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 2)
-   *
-   * // Draw mirrored horizontally
-   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], [-1, 1])
-   *
-   * // Draw with rotation (45 degrees)
-   * ctx.drawSprite('player.png', 100, 200, [1, 1, 1, 1], 1, Math.PI / 4)
-   */
+  /* Draws a sprite from the texture atlas with its center at (centerX, centerY). */
   drawSprite(
-    imageName: string,
-    x: number,
-    y: number,
-    color: number[] = [1, 1, 1, 1],
-    scale: number | [number, number] = 1,
-    rotation = 0
+    imageName: string, // Name of the image in the atlas (e.g., 'player.png')
+    centerX: number, // X coordinate of the sprite's center
+    centerY: number, // Y coordinate of the sprite's center
+    color: number[] = [1, 1, 1, 1], // RGBA color multiplier [r, g, b, a] where each component is 0.0-1.0
+    scale: number | [number, number] = 1, // Uniform scale (number) or non-uniform scale [scaleX, scaleY]
+    rotation = 0 // Rotation angle in radians (positive = clockwise)
   ) {
-    if (!this.ready) {
+    if (!this.ready || !this.atlas) {
       throw new Error('Drawer not initialized')
     }
 
     this.ensureMeshSelected()
 
-    const rect = this.atlasData?.images[imageName]
-    if (!rect) {
+    const bounds = getSpriteBounds(this.atlas, imageName)
+    if (!bounds) {
       console.error(`Image "${imageName}" not found in atlas`)
       return
     }
-
-    const [sx, sy, sw, sh] = rect
-    const m = this.atlasMargin
-
-    // Calculate UV coordinates for the sprite in the texture atlas.
-    // The margin (m) is added to prevent texture bleeding at sprite edges.
-    const u0 = (sx - m) / this.textureSize.x()
-    const v0 = (sy - m) / this.textureSize.y()
-    const u1 = (sx + sw + m) / this.textureSize.x()
-    const v1 = (sy + sh + m) / this.textureSize.y()
 
     // Parse scale parameter - convert uniform scale to [scaleX, scaleY]
     const [scaleX, scaleY] = typeof scale === 'number' ? [scale, scale] : scale
@@ -538,32 +400,32 @@ export class Context3d {
     // Apply transformations if needed (scale or rotation)
     if (scaleX !== 1 || scaleY !== 1 || rotation !== 0) {
       this.save()
-      this.translate(x, y) // Move origin to sprite center
+      this.translate(centerX, centerY) // Move origin to sprite center
       this.rotate(rotation) // Apply rotation
       this.scale(scaleX, scaleY) // Apply scaling
       this.drawRect(
-        -sw / 2 - m, // Left edge: center minus half width minus margin
-        -sh / 2 - m, // Top edge: center minus half height minus margin
-        sw + 2 * m, // Total width including margins on both sides
-        sh + 2 * m, // Total height including margins on both sides
-        u0,
-        v0,
-        u1,
-        v1,
+        -bounds.width / 2, // Left edge: center minus half width
+        -bounds.height / 2, // Top edge: center minus half height
+        bounds.width, // Total width
+        bounds.height, // Total height
+        bounds.u0,
+        bounds.v0,
+        bounds.u1,
+        bounds.v1,
         color
       )
       this.restore()
     } else {
-      // Fast path: no transformations needed, draw directly
+      // Fast path: no transformations needed, draw centered
       this.drawRect(
-        x - sw / 2 - m, // Left edge position
-        y - sh / 2 - m, // Top edge position
-        sw + 2 * m, // Total width including margins
-        sh + 2 * m, // Total height including margins
-        u0,
-        v0,
-        u1,
-        v1,
+        centerX - bounds.width / 2, // Left edge position
+        centerY - bounds.height / 2, // Top edge position
+        bounds.width, // Total width
+        bounds.height, // Total height
+        bounds.u0,
+        bounds.v0,
+        bounds.u1,
+        bounds.v1,
         color
       )
     }
@@ -571,23 +433,19 @@ export class Context3d {
 
   /** Draws a solid filled rectangle. */
   drawSolidRect(x: number, y: number, width: number, height: number, color: number[]) {
-    if (!this.ready) {
+    if (!this.ready || !this.atlas) {
       throw new Error('Drawer not initialized')
     }
 
     this.ensureMeshSelected()
 
-    const imageName = 'white.png'
-    const rect = this.atlasData?.images[imageName]
-    if (!rect) {
-      throw new Error(`Image "${imageName}" not found in atlas`)
+    const whiteUV = getWhiteUV(this.atlas)
+    if (!whiteUV) {
+      console.error('White pixel sprite not found in atlas')
+      return
     }
 
-    // Get the middle of the white texture.
-    const [sx, sy, sw, sh] = rect
-    const uvx = (sx + sw / 2) / this.textureSize.x()
-    const uvy = (sy + sh / 2) / this.textureSize.y()
-    this.drawRect(x, y, width, height, uvx, uvy, uvx, uvy, color)
+    this.drawRect(x, y, width, height, whiteUV.u, whiteUV.v, whiteUV.u, whiteUV.v, color)
   }
 
   /** Draws a stroked rectangle with set stroke width. */
@@ -610,15 +468,19 @@ export class Context3d {
    * fonts are generated by gen_atlas.py.
    */
   drawText(fontName: string, text: string, x: number, y: number, color: number[] = [1, 1, 1, 1], scale = 1) {
-    if (!this.ready) {
+    if (!this.ready || !this.atlas) {
       throw new Error('Drawer not initialized')
     }
     this.ensureMeshSelected()
 
-    const fonts = this.atlasData!.fonts
-    const font = fonts[fontName]
+    const font = getFont(this.atlas, fontName)
+    if (!font) {
+      console.error(`Font "${fontName}" not found in atlas`)
+      return
+    }
+
     const glyphInnerPadding = font.glyphInnerPadding
-    const mBase = this.atlasMargin
+    const mBase = this.atlas.margin
 
     // Draw relative to (0,0) under a local transform anchored at (x,y)
     this.save()
@@ -629,60 +491,55 @@ export class Context3d {
 
     let penX = 0
     let penY = 0
-    let prevLabel: string | null = null
-
-    const toLabel = (cp: number): string => `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`
+    let prevChar: string | null = null
 
     for (const ch of text) {
       if (ch === '\n') {
         penX = 0
         penY += font.lineHeight
-        prevLabel = null
+        prevChar = null
         continue
       }
 
-      const cp = ch.codePointAt(0)!
-      const label = toLabel(cp)
-      const glyph = font.glyphs[label]
+      const glyph = getGlyph(this.atlas, fontName, ch)
 
       // Special handling: advance for spaces/tabs without rendering a quad.
       if (ch === ' ') {
         penX += glyph ? glyph.advance : 0
-        prevLabel = label
+        prevChar = ch
         continue
       }
       if (ch === '\t') {
-        const space = font.glyphs['U+0020']
-        const tabAdvance = (space ? space.advance : glyph ? glyph.advance : 0) * 4
+        const spaceGlyph = getGlyph(this.atlas, fontName, ' ')
+        const tabAdvance = (spaceGlyph ? spaceGlyph.advance : glyph ? glyph.advance : 0) * 4
         penX += tabAdvance
-        prevLabel = label
+        prevChar = ch
         continue
       }
 
       if (!glyph) {
-        throw new Error(`Glyph "${label}" not found in font "${fontName}"`)
+        console.warn(`Glyph for character "${ch}" not found in font "${fontName}"`)
+        continue
       }
       if (!glyph.rect) {
-        throw new Error(`Glyph "${label}" has no rect in font "${fontName}"`)
+        // Glyph has no visible pixels, just advance
+        penX += glyph.advance
+        prevChar = ch
+        continue
       }
 
-      // Kerning adjustment from previous glyph (already in pixels at atlas size).
-      if (prevLabel) {
-        const row = font.kerning[prevLabel]
-        if (row) {
-          const adjust = row[label]
-          if (adjust) {
-            penX += adjust
-          }
-        }
+      // Kerning adjustment from previous glyph
+      if (prevChar) {
+        const kerning = getKerning(this.atlas, fontName, prevChar, ch)
+        penX += kerning
       }
 
       const [sx, sy, sw, sh] = glyph.rect
       const m = mBase
-      const u0 = (sx - mBase) / this.textureSize.x()
-      const v0 = (sy - mBase) / this.textureSize.y()
-      const u1 = (sx + sw + mBase) / this.textureSize.x()
-      const v1 = (sy + sh + mBase) / this.textureSize.y()
+      const u0 = (sx - mBase) / this.atlas.atlasWidth
+      const v0 = (sy - mBase) / this.atlas.atlasHeight
+      const u1 = (sx + sw + mBase) / this.atlas.atlasWidth
+      const v1 = (sy + sh + mBase) / this.atlas.atlasHeight
 
       // Position the glyph image so that its baseline aligns at (penX, penY).
       const drawX = penX + glyph.bearingX - glyphInnerPadding - m
@@ -693,9 +550,9 @@ export class Context3d {
       // Main glyph.
       this.drawRect(drawX, drawY, drawW, drawH, u0, v0, u1, v1, color)
 
-      // Advance pen position (already in pixels at atlas size).
+      // Advance pen position
       penX += glyph.advance
-      prevLabel = label
+      prevChar = ch
     }
 
     this.restore()
@@ -703,7 +560,7 @@ export class Context3d {
 
   /** Flushes all non-empty meshes to the screen. */
   flush() {
-    if (!this.ready || !this.gl || !this.shaderProgram) {
+    if (!this.ready || !this.gl || !this.shaderProgram || !this.atlas || !this.texture) {
       return
     }
 
@@ -737,7 +594,7 @@ export class Context3d {
 
     // Bind texture
     this.gl.activeTexture(this.gl.TEXTURE0)
-    this.gl.bindTexture(this.gl.TEXTURE_2D, this.atlasTexture)
+    this.gl.bindTexture(this.gl.TEXTURE_2D, this.texture)
     this.gl.uniform1i(this.samplerLocation, 0)
 
     // Draw each mesh that has quads
