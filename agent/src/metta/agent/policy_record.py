@@ -51,6 +51,7 @@ class PolicyRecord:
             # Try backwards compatibility names
             old_metadata_names = ["checkpoint"]
             for name in old_metadata_names:
+                # ?? this should be removed
                 if hasattr(self, name):
                     logger.warning(
                         f"Found metadata under old attribute name '{name}'. "

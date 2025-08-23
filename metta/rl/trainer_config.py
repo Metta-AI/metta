@@ -57,7 +57,7 @@ class CheckpointConfig(Config):
     # W&B every 5 epochs
     wandb_checkpoint_interval: int = Field(default=5, ge=0)
     checkpoint_dir: str | None = Field(default=None)
-    checkpoint_file_type: CheckpointFileType = Field(default="pt")
+    checkpoint_file_type: CheckpointFileType = Field(default="safetensors")
 
     def model_suffix(self) -> str:
         if self.checkpoint_file_type == "safetensors":

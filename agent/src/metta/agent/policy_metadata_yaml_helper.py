@@ -130,14 +130,15 @@ def _extract_agent_attributes(agent: PolicyAgent) -> Dict[str, Any]:
     # Get the actual agent (unwrap DDP if needed)
     actual_agent = agent.module if isinstance(agent, DistributedMettaAgent) else agent
 
-    # Check if agent has agent_attributes and it's a dict
-    if hasattr(actual_agent, "agent_attributes"):
-        value = actual_agent.agent_attributes
-        if isinstance(value, dict) and _is_serializable(value):
-            return value
+    # Check if policy has agent_attributes
+    attr_dict = {}
+    if hasattr(actual_agent.policy, "agent_attributes"):
+        value = actual_agent.policy.agent_attributes
+        if isinstance(value, dict):
+            attr_dict["agent_attributes"] = value
 
     # Return empty dict if no valid attributes found
-    return {}
+    return attr_dict
 
 
 def _extract_metadata_from_record(policy_record: PolicyRecord) -> Dict[str, Any]:
