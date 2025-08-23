@@ -66,7 +66,7 @@ class ComponentPolicy(nn.Module, ABC):
 
         for name, component in self.components.items():
             if not getattr(component, "ready", False):
-                raise RuntimeError(f"Component {name} in {self.__class__.__name__} policy  was never setup.")
+                raise RuntimeError(f"Component {name} in {self.__class__.__name__} policy was never setup.")
 
         # Check for duplicate component names
         all_names = [c._name for c in self.components.values() if hasattr(c, "_name")]
