@@ -175,7 +175,7 @@ class MettaGridEnv(MettaGridPufferBase):
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self.num_agents
-
+        
         # Add attributes
         attributes: Dict[str, Any] = {
             "seed": self._current_seed,
