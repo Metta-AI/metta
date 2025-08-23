@@ -93,7 +93,7 @@ class LatentAttnSmall(ComponentPolicy):
             ),
             "actor_query": MettaActorQuerySingleHead(
                 name="actor_query",
-                sources=[{"name": "actor_1"}],
+                sources=[{"name": "actor_1"}, {"name": "_action_embeds_"}],
             ),
             "_action_": MettaActorKeySingleHead(
                 name="_action_",
