@@ -290,6 +290,7 @@ def train(
         torch.distributed.barrier()
 
     policy: PolicyAgent = latest_saved_policy_record.policy
+    policy.component["_core_"].training_TT = trainer_cfg.bptt_horizon  # make the LSTM class find this out on its own
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")
