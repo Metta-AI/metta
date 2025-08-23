@@ -9,40 +9,27 @@ proc rect*(rect: IRect): Rect =
 
 proc beginPanAndZoom*(panel: Panel) =
   ## Pan and zoom the map.
+  if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
+    panel.vel = window.mouseDelta.vec2
+  else:
+    panel.vel *= 0.9
+
+  panel.pos += panel.vel
+
+  if window.scrollDelta.y != 0:
+    panel.zoomVel = window.scrollDelta.y * 0.03
+  else:
+    panel.zoomVel *= 0.9
 
   bxy.saveTransform()
 
-  let box = Rect(
-    x: panel.rect.x.float32,
-    y: panel.rect.y.float32,
-    w: panel.rect.w.float32,
-    h: panel.rect.h.float32
-  )
-
-  if window.mousePos.vec2.overlaps(box):
-    if window.buttonDown[MouseLeft] or window.buttonDown[MouseMiddle]:
-      panel.vel = window.mouseDelta.vec2
-    else:
-      panel.vel *= 0.9
-
-    panel.pos += panel.vel
-
-    if window.scrollDelta.y != 0:
-      when defined(emscripten):
-        let scrollK = 0.0003
-      else:
-        let scrollK = 0.03
-      panel.zoomVel = window.scrollDelta.y * scrollK
-    else:
-      panel.zoomVel *= 0.8
-
-    let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
-    panel.zoom += panel.zoomVel
-    panel.zoom = clamp(panel.zoom, 0.3, 100)
-    let newMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
-    let newAt = newMat.inverse() * window.mousePos.vec2
-    let oldAt = oldMat.inverse() * window.mousePos.vec2
-    panel.pos -= (oldAt - newAt).xy * (panel.zoom*panel.zoom)
+  let oldMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+  panel.zoom += panel.zoomVel
+  panel.zoom = clamp(panel.zoom, 0.3, 100)
+  let newMat = translate(vec2(panel.pos.x, panel.pos.y)) * scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
+  let newAt = newMat.inverse() * window.mousePos.vec2
+  let oldAt = oldMat.inverse() * window.mousePos.vec2
+  panel.pos -= (oldAt - newAt).xy * (panel.zoom*panel.zoom)
 
   bxy.translate(panel.pos)
   bxy.scale(vec2(panel.zoom*panel.zoom, panel.zoom*panel.zoom))
@@ -55,6 +42,7 @@ proc beginDraw*(panel: Panel) =
   bxy.saveTransform()
 
   bxy.translate(vec2(panel.rect.x.float32, panel.rect.y.float32))
+
 
 proc endDraw*(panel: Panel) =
 
@@ -100,7 +88,7 @@ proc drawFrame*(area: Area) =
       w: area.rect.w.float32,
       h: HeaderSize.float32
     ),
-    color = color(0, 0, 0, 1)
+    color = color(0, 0, 0, 0)
   )
 
   var x = 10.0
@@ -137,6 +125,3 @@ proc drawFrame*(area: Area) =
     x += width + 10
 
   bxy.restoreTransform()
-
-  for subarea in area.areas:
-    drawFrame(subarea)

@@ -1,16 +1,14 @@
 import std/[random, os, times, strformat, strutils],
-  boxy, opengl, windy, windy/http, chroma, vmath,
-  mettascope/[replays, common, panels, utils, header, footer, timeline,
-  worldmap, minimap, agenttable, agenttraces, envconfig]
+  boxy, opengl, windy, chroma, vmath,
+  mettascope/[sim, actions, replays, common, panels, utils, worldmap, minimap, header, footer, timeline]
 
 window = newWindow("MettaScope in Nim", ivec2(1280, 800))
 makeContextCurrent(window)
 
-when not defined(emscripten):
-  loadExtensions()
+loadExtensions()
 
-bxy = newBoxy(quadsPerBatch = 10921)
-
+bxy = newBoxy()
+env = newEnvironment()
 rootArea = Area(layout: Horizontal)
 worldMapPanel = Panel(panelType: WorldMap, name: "World Map")
 minimapPanel = Panel(panelType: Minimap, name: "Minimap")
@@ -34,6 +32,25 @@ bottomArea.panels.add(agentTracesPanel)
 bottomArea.panels.add(envConfigPanel)
 
 proc display() =
+  if window.buttonPressed[KeySpace]:
+    play = false
+  if window.buttonPressed[KeyMinus]:
+    playSpeed *= 0.5
+    playSpeed = clamp(playSpeed, 0.00001, 60.0)
+    play = true
+  if window.buttonPressed[KeyEqual]:
+    playSpeed *= 2
+    playSpeed = clamp(playSpeed, 0.00001, 60.0)
+    play = true
+
+  if window.buttonPressed[KeyN]:
+    dec settings.showObservations
+    echo "showObservations: ", settings.showObservations
+  if window.buttonPressed[KeyM]:
+    inc settings.showObservations
+    echo "showObservations: ", settings.showObservations
+  settings.showObservations = clamp(settings.showObservations, -1, 23)
+
   let now = epochTime()
 
   bxy.beginFrame(window.size)
@@ -91,12 +108,6 @@ for path in walkDirRec("data/"):
     echo path
     bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
 
-when defined(emscripten):
-  common.replay = loadReplay("replays/pens.json.z")
-  proc main() {.cdecl.} =
-    display()
-    pollEvents()
-  window.run(main)
 
 else:
   import cligen, puppy

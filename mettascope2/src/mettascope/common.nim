@@ -1,5 +1,5 @@
 import std/[times],
-  boxy, windy, vmath, replays
+  sim, boxy, windy, vmath
 
 type
   IRect* = object
@@ -53,6 +53,8 @@ var
   rootArea*: Area
   bxy*: Boxy
   frame*: int
+  env*: Environment
+
 
   globalTimelinePanel*: Panel
   globalFooterPanel*: Panel
@@ -65,21 +67,9 @@ var
   envConfigPanel*: Panel
 
   settings* = Settings()
-  selection*: Entity
 
-  step*: int = 0
-  stepFloat*: float32 = 0
-  replay*: Replay
+  selection*: Thing
+
   play*: bool
-  playSpeed*: float32 = 0.1
+  playSpeed*: float32 = 1/60.0
   lastSimTime*: float64 = epochTime()
-
-proc at*[T](sequence: seq[T], step: int): T =
-  # Get the value at the given step.
-  if sequence.len == 0:
-    return default(T)
-  sequence[step.clamp(0, sequence.len - 1)]
-
-proc at*[T](sequence: seq[T]): T =
-  # Get the value at the current step.
-  sequence.at(step)
