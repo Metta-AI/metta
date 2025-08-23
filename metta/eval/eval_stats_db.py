@@ -36,7 +36,6 @@ EVAL_DB_VIEWS: Dict[str, str] = {
       SELECT
           ap.policy_key,
           ap.policy_version,
-          s.suite  AS sim_suite,
           s.name   AS sim_name,
           s.env    AS sim_env,
           ap.episode_id,
@@ -51,7 +50,6 @@ EVAL_DB_VIEWS: Dict[str, str] = {
       SELECT
           ap.policy_key,
           ap.policy_version,
-          s.suite  AS sim_suite,
           s.name   AS sim_name,
           s.env    AS sim_env,
           am.metric,
@@ -218,7 +216,6 @@ class EvalStatsDB(SimulationStatsDB):
     def sample_count(
         self,
         policy_record: Optional[PolicyRecord] = None,
-        sim_suite: Optional[str] = None,
         sim_name: Optional[str] = None,
         sim_env: Optional[str] = None,
     ) -> int:
@@ -227,79 +224,28 @@ class EvalStatsDB(SimulationStatsDB):
         if policy_record:
             pk, pv = self.key_and_version(policy_record)
             q += f" AND policy_key = '{pk}' AND policy_version = {pv}"
-        if sim_suite:
-            q += f" AND sim_suite = '{sim_suite}'"
         if sim_name:
             q += f" AND sim_name  = '{sim_name}'"
         if sim_env:
             q += f" AND sim_env   = '{sim_env}'"
         return int(self.query(q)["cnt"].iloc[0])
 
-    def simulation_scores(self, policy_record: PolicyRecord, metric: str) -> Dict[tuple[str, str, str], float]:
-        """Return { (suite,name,env) : normalized mean(metric) }."""
+    def simulation_scores(self, policy_record: PolicyRecord, metric: str) -> Dict[tuple[str, str], float]:
+        """Return { (name,env) : normalized mean(metric) }."""
         pk, pv = self.key_and_version(policy_record)
         sim_rows = self.query(f"""
-            SELECT DISTINCT sim_suite, sim_name, sim_env
+            SELECT DISTINCT sim_name, sim_env
               FROM policy_simulation_agent_samples
              WHERE policy_key     = '{pk}'
                AND policy_version =  {pv}
         """)
-        scores: Dict[tuple[str, str, str], float] = {}
+        scores: Dict[tuple[str, str], float] = {}
         for _, row in sim_rows.iterrows():
-            cond = f"sim_suite = '{row.sim_suite}' AND sim_name  = '{row.sim_name}'  AND sim_env   = '{row.sim_env}'"
+            cond = f"sim_name  = '{row.sim_name}'  AND sim_env   = '{row.sim_env}'"
             val = self._normalized_value(pk, pv, metric, "AVG", cond)
             if val is not None:
-                scores[(row.sim_suite, row.sim_name, row.sim_env)] = val
+                scores[(row.sim_name, row.sim_env)] = val
         return scores
-
-    def metric_by_policy_eval(
-        self,
-        metric: str,
-        policy_record: PolicyRecord | None = None,
-    ) -> pd.DataFrame:
-        """
-        Return a DataFrame with columns
-            policy_uri | eval_name | value
-
-        * `policy_uri` →  "key:v<version>"
-        * `eval_name`  →  `sim_env`
-        * `value`      →  normalized mean of *metric*
-        """
-        if policy_record is not None:
-            pk, pv = self.key_and_version(policy_record)
-            policy_clause = f"policy_key = '{pk}' AND policy_version = {pv}"
-        else:
-            # All policies
-            policy_clause = "1=1"
-
-        sql = f"""
-        WITH potential AS (
-            SELECT policy_key, policy_version, sim_env, COUNT(*) AS potential_cnt
-              FROM policy_simulation_agent_samples
-             WHERE {policy_clause}
-             GROUP BY policy_key, policy_version, sim_env
-        ),
-        recorded AS (
-            SELECT policy_key,
-                   policy_version,
-                   sim_env,
-                   SUM(value) AS recorded_sum
-              FROM policy_simulation_agent_metrics
-             WHERE metric = '{metric}'
-               AND {policy_clause}
-             GROUP BY policy_key, policy_version, sim_env
-        )
-        SELECT
-            potential.policy_key || ':v' || potential.policy_version AS policy_uri,
-            potential.sim_env                              AS eval_name,
-            COALESCE(recorded.recorded_sum, 0) * 1.0
-                   / potential.potential_cnt               AS value
-        FROM potential
-        LEFT JOIN recorded
-          USING (policy_key, policy_version, sim_env)
-        ORDER BY policy_uri, eval_name
-        """
-        return self.query(sql)
 
     def key_and_version(self, pr: PolicyRecord) -> tuple[str, int]:
         if pr.uri is None:
