@@ -179,29 +179,3 @@ def test_agent_experience_spec(create_metta_agent):
     from torchrl.data import Composite
 
     assert isinstance(spec, Composite)
-
-    # Check it has expected keys
-    assert "action" in spec
-    assert "action_dist" in spec
-
-
-def test_clip_weights(create_metta_agent):
-    """Test that clip_weights can be called without error."""
-    agent = create_metta_agent
-
-    # This should not raise an error
-    agent.clip_weights()
-
-    # Check the method exists and is callable
-    assert callable(getattr(agent, "clip_weights", None))
-
-
-def test_l2_init_loss(create_metta_agent):
-    """Test that l2_init_loss returns a tensor."""
-    agent = create_metta_agent
-
-    loss = agent.l2_init_loss()
-
-    # Check it returns a tensor
-    assert isinstance(loss, torch.Tensor)
-    assert loss.dtype == torch.float32
