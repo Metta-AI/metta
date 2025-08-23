@@ -10,6 +10,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torchrl.data import Composite, UnboundedContinuous, UnboundedDiscrete
 
 from metta.agent.agent_config import AgentConfig, create_agent
+from metta.agent.policy_metadata import PolicyMetadata
 from metta.rl.system_config import SystemConfig
 
 logger = logging.getLogger("metta_agent")
@@ -65,10 +66,31 @@ class MettaAgent(nn.Module):
         system_cfg: SystemConfig,
         policy_architecture_cfg: AgentConfig,
         policy: Optional[nn.Module] = None,
+        run_name: str | None = None,
+        uri: str | None = None,
+        metadata: PolicyMetadata | dict | None = None,
+        wandb_entity: str | None = None,
+        wandb_project: str | None = None,
     ):
         super().__init__()
         self.cfg = policy_architecture_cfg
         self.device = system_cfg.device
+
+        # PolicyRecord properties
+        self.run_name: str = run_name or "unnamed_policy"
+        self.uri: str | None = uri
+        self.wandb_entity: str | None = wandb_entity
+        self.wandb_project: str | None = wandb_project
+
+        # Set metadata
+        if metadata is None:
+            self._metadata = PolicyMetadata()
+        elif isinstance(metadata, PolicyMetadata):
+            self._metadata = metadata
+        elif isinstance(metadata, dict):
+            self._metadata = PolicyMetadata(**metadata)
+        else:
+            raise TypeError(f"metadata must be PolicyMetadata or dict, got {type(metadata).__name__}")
 
         # Create observation space
         self.obs_space = gym.spaces.Dict(
@@ -97,6 +119,31 @@ class MettaAgent(nn.Module):
 
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
+
+    def set_policy_record_properties(
+        self,
+        run_name: str | None = None,
+        uri: str | None = None,
+        metadata: PolicyMetadata | dict | None = None,
+        wandb_entity: str | None = None,
+        wandb_project: str | None = None,
+    ) -> None:
+        """Set PolicyRecord properties on this MettaAgent."""
+        if run_name is not None:
+            self.run_name = run_name
+        if uri is not None:
+            self.uri = uri
+        if wandb_entity is not None:
+            self.wandb_entity = wandb_entity
+        if wandb_project is not None:
+            self.wandb_project = wandb_project
+        if metadata is not None:
+            if isinstance(metadata, PolicyMetadata):
+                self._metadata = metadata
+            elif isinstance(metadata, dict):
+                self._metadata = PolicyMetadata(**metadata)
+            else:
+                raise TypeError(f"metadata must be PolicyMetadata or dict, got {type(metadata).__name__}")
 
     def _create_policy(self, agent_cfg: AgentConfig, env, system_cfg: SystemConfig) -> nn.Module:
         """Create the appropriate policy based on configuration."""
@@ -422,6 +469,146 @@ class MettaAgent(nn.Module):
         else:
             # Normal checkpoint restoration
             self.__dict__.update(state)
+
+    # PolicyRecord methods
+    def extract_wandb_run_info(self) -> tuple[str, str, str, str | None]:
+        """Extract wandb run info from URI."""
+        if self.uri is None or not self.uri.startswith("wandb://"):
+            raise ValueError("Cannot get wandb info without a valid URI.")
+        try:
+            entity, project, name = self.uri[len("wandb://") :].split("/")
+            version: str | None = None
+            if ":" in name:
+                name, version = name.split(":")
+            return entity, project, name, version
+        except ValueError as e:
+            raise ValueError(
+                f"Failed to parse wandb URI: {self.uri}. Expected format: wandb://<entity>/<project>/<name>"
+            ) from e
+
+    @property
+    def metadata(self) -> PolicyMetadata:
+        """Get the metadata."""
+        return self._metadata
+
+    @property
+    def file_path(self) -> str:
+        """Extract the file_path from the URI"""
+        file_uri_prefix = "file://"
+        if self.uri is None:
+            raise ValueError("Cannot get file_path without a valid URI.")
+        if not self.uri.startswith(file_uri_prefix):
+            raise ValueError(f"file_path() only applies to {file_uri_prefix} URIs, but got: {self.uri}.")
+
+        return self.uri[len(file_uri_prefix) :]
+
+    def num_params(self) -> int:
+        """Count the number of trainable parameters."""
+        return sum(p.numel() for p in self.parameters() if p.requires_grad)
+
+    def __repr__(self):
+        """Generate a detailed representation of the MettaAgent."""
+        # Basic agent info
+        lines = [f"MettaAgent(name={self.run_name}, uri={self.uri})"]
+
+        # Add key metadata if available
+        important_keys = ["epoch", "agent_step", "generation", "score"]
+        metadata_items = []
+        for k in important_keys:
+            if k in self.metadata:
+                metadata_items.append(f"{k}={self.metadata[k]}")
+
+        if metadata_items:
+            lines.append(f"Metadata: {', '.join(metadata_items)}")
+
+        # Add total parameter count
+        total_params = sum(p.numel() for p in self.parameters())
+        trainable_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        lines.append(f"Total parameters: {total_params:,} (trainable: {trainable_params:,})")
+
+        # Check if this is a legacy checkpoint wrapped in adapter
+        try:
+            from metta.agent.legacy_adapter import LegacyMettaAgentAdapter
+
+            if hasattr(self.policy, "policy") and isinstance(self.policy.policy, LegacyMettaAgentAdapter):
+                lines.append("\nNOTE: Legacy checkpoint loaded via LegacyMettaAgentAdapter for backwards compatibility")
+        except ImportError:
+            # Legacy adapter not available, skip this check
+            pass
+
+        # Add module structure with detailed weight shapes
+        lines.append("\nModule Structure with Weight Shapes:")
+
+        for name, module in self.named_modules():
+            # Skip top-level module
+            if name == "":
+                continue
+
+            # Create indentation based on module hierarchy
+            indent = "  " * name.count(".")
+
+            # Get module type
+            module_type = module.__class__.__name__
+
+            # Start building the module info line
+            module_info = f"{indent}{name}: {module_type}"
+
+            # Get parameters for this module (non-recursive)
+            params = list(module.named_parameters(recurse=False))
+
+            # Add detailed parameter information
+            if params:
+                # For common layer types, add specialized shape information
+                if isinstance(module, torch.nn.Conv2d):
+                    weight = next((p for pname, p in params if pname == "weight"), None)
+                    if weight is not None:
+                        out_channels, in_channels, kernel_h, kernel_w = weight.shape
+                        module_info += " ["
+                        module_info += f"out_channels={out_channels}, "
+                        module_info += f"in_channels={in_channels}, "
+                        module_info += f"kernel=({kernel_h}, {kernel_w})"
+                        module_info += "]"
+
+                elif isinstance(module, torch.nn.Linear):
+                    weight = next((p for pname, p in params if pname == "weight"), None)
+                    if weight is not None:
+                        out_features, in_features = weight.shape
+                        module_info += f" [in_features={in_features}, out_features={out_features}]"
+
+                elif isinstance(module, torch.nn.LSTM):
+                    module_info += " ["
+                    module_info += f"input_size={module.input_size}, "
+                    module_info += f"hidden_size={module.hidden_size}, "
+                    module_info += f"num_layers={module.num_layers}"
+                    module_info += "]"
+
+                elif isinstance(module, torch.nn.Embedding):
+                    weight = next((p for pname, p in params if pname == "weight"), None)
+                    if weight is not None:
+                        num_embeddings, embedding_dim = weight.shape
+                        module_info += f" [num_embeddings={num_embeddings}, embedding_dim={embedding_dim}]"
+
+                # Add all parameter shapes
+                param_shapes = []
+                for param_name, param in params:
+                    param_shapes.append(f"{param_name}={list(param.shape)}")
+
+                if param_shapes and not any(
+                    x in module_info for x in ["out_channels", "in_features", "hidden_size", "num_embeddings"]
+                ):
+                    module_info += f" ({', '.join(param_shapes)})"
+
+            # Add formatted module info to output
+            lines.append(module_info)
+
+        # Add section for buffer shapes (non-parameter tensors like running_mean in BatchNorm)
+        buffers = list(self.named_buffers())
+        if buffers:
+            lines.append("\nBuffer Shapes:")
+            for name, buffer in buffers:
+                lines.append(f"  {name}: {list(buffer.shape)}")
+
+        return "\n".join(lines)
 
 
 PolicyAgent = MettaAgent | DistributedMettaAgent
