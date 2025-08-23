@@ -34,7 +34,7 @@ env:
   HYDRA_FULL_ERROR: 1
   VENV_PATH: .venv
   PYTEST_WORKERS: auto
-  EVAL_SMOKE_TEST_POLICY: m.av.replay.probe.751 # just the name, no need to include any uri preamble like "wandb://run/"
+  EVAL_SMOKE_TEST_POLICY: m.av.bffls.004 # just the name, no need to include any uri preamble like "wandb://run/"
   EVAL_SMOKE_TEST_MAX_ATTEMPTS: 3
   EVAL_SMOKE_TEST_MIN_REWARD: 0.0
 

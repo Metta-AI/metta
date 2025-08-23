@@ -50,7 +50,7 @@ class TLKickstarter(BaseLoss):
     def get_experience_spec(self) -> Composite:
         return self.teacher_policy_spec
 
-    def on_rollout_start(self) -> None:
+    def on_rollout_start(self, trainer_state: TrainerState) -> None:
         self.teacher_policy.on_rollout_start()
         return
 

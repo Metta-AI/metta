@@ -117,8 +117,7 @@ class BaseLoss:
         return
 
     def on_train_phase_end(self, trainer_state: TrainerState) -> None:
-        """We've completed the train phase and will be transitioning to the next rollout phase. Average stats then call
-        internal method _on_train_phase_end."""
+        """We've completed the train phase and will be transitioning to the next rollout phase."""
 
     def save_loss_states(self):
         # TODO: Implement this
