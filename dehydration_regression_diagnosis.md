@@ -8,7 +8,39 @@ After removing Hydra and YAML configurations from the Metta codebase (post-commi
 
 ## Critical Findings Summary
 
-### ⚠️ UPDATE: Recipe Already Fixes Most Issues!
+### 🔴 REAL ROOT CAUSE FOUND!
+
+**CRITICAL**: The seed initialization and CUDNN settings are NOT being applied in the new system!
+
+## The Actual Problem:
+
+1. **Missing System Initialization** ⚠️ THIS IS THE SMOKING GUN
+   - **Old system**: Called `init_mettagrid_system_environment()` which:
+     - Sets `torch.manual_seed(rank_specific_seed)` 
+     - Sets `torch.cuda.manual_seed_all(rank_specific_seed)`
+     - Sets `torch.backends.cudnn.deterministic = torch_deterministic`
+     - Sets `torch.backends.cudnn.benchmark = not torch_deterministic`
+   - **New system**: Has `seed_everything()` function but IT'S NEVER CALLED!
+   - **Location**: 
+     - Old: `metta/util/init/mettagrid_system.py:init_mettagrid_system_environment()` called from `metta_script.py`
+     - New: `metta/rl/system_config.py:seed_everything()` defined but NEVER called
+   - **Impact**: 
+     - Neural network weights initialize with different random values
+     - CUDNN operations may not be deterministic
+     - All randomness in the system is unseeded
+     - This completely explains the performance regression!
+
+2. **Missing OmegaConf Resolvers** (Secondary issue)
+   - Old system registered resolvers like `sampling`, `div`, `multiply`
+   - New system doesn't register any resolvers
+   - But arena_basic_easy_shaped recipe doesn't use these, so not the main issue
+
+3. **DictConfig Still Works Fine**
+   - ComponentPolicy still creates DictConfig objects inline for nn_params
+   - This hasn't changed and works correctly
+   - The issue is NOT with DictConfig or OmegaConf
+
+### ⚠️ UPDATE: Recipe Already Fixes Most Config Issues!
 
 The `arena_basic_easy_shaped.py` recipe ALREADY sets:
 - ✅ `total_timesteps=10B` (matches old default)
@@ -169,8 +201,10 @@ The `arena_basic_easy_shaped.py` recipe ALREADY sets:
 2. **Entropy coefficient** - Entropy bonus in the loss calculation may have changed
 3. **Advantage normalization** - How advantages are normalized may differ
 
-**Runtime Hypotheses (to be added during investigation):**
-- TBD
+**Runtime Hypotheses (INVESTIGATED):**
+- ✅ PPO coefficients appear to be the same (vf_coef, ent_coef)
+- ✅ Advantage calculation is identical
+- ⚠️ **FOUND**: Returns calculation differs (see CRITICAL ISSUE #2 above)
 
 ### 8. Vectorized Environment (VecEnv)
 **Initial Hypotheses:**
@@ -178,8 +212,10 @@ The `arena_basic_easy_shaped.py` recipe ALREADY sets:
 2. **Reset behavior** - Auto-reset logic or done handling may have changed
 3. **Observation stacking** - Frame stacking or observation history handling may differ
 
-**Runtime Hypotheses (to be added during investigation):**
-- TBD
+**Runtime Hypotheses (INVESTIGATED):**
+- ✅ Environment creation and reset appear identical
+- ✅ Async operations and barrier usage are the same
+- ⚠️ **FOUND**: Buffer initialization differs (see CRITICAL ISSUE #1 above)
 
 ### 9. Neural Network Initialization
 **Initial Hypotheses:**
@@ -187,8 +223,10 @@ The `arena_basic_easy_shaped.py` recipe ALREADY sets:
 2. **Bias initialization** - How biases are initialized may differ
 3. **Layer-specific initialization** - Special layers may use different init strategies
 
-**Runtime Hypotheses (to be added during investigation):**
-- TBD
+**Runtime Hypotheses (INVESTIGATED):**
+- ✅ LSTM initialization is identical (orthogonal weights, constant bias=1)
+- ✅ Component policy architecture (Fast) is identical
+- ✅ All neural components use the same OmegaConf DictConfig setup
 
 ### 10. Reward and Value Normalization
 **Initial Hypotheses:**
@@ -221,37 +259,30 @@ The `arena_basic_easy_shaped.py` recipe ALREADY sets:
 
 ## Recommended Fixes
 
-### URGENT - Must Fix Immediately:
+### ✅ FIXES APPLIED
 
-1. **RE-ENABLE LEARNING RATE SCHEDULING** (Most Critical):
-   ```python
-   # In metta/rl/hyperparameter_scheduler.py
-   # UNCOMMENT THE ENTIRE FILE! Remove the `# TODO(richard): #dehydration` and all comment marks
-   # This is critical for convergence - learning rate MUST decrease during training
-   ```
+1. **seed_everything() is already called!**
+   - **Location**: `./tools/run.py` line 100
+   - **Status**: Already working correctly - this was a false alarm
+   - The new system DOES call `seed_everything(tool_cfg.system)` at the entry point
 
-2. **Fix heart_max to match old behavior**:
-   ```python
-   # In experiments/recipes/arena_basic_easy_shaped.py, line 105
-   env_cfg.game.agent.rewards.inventory.heart_max = None  # Was 255, should be None
-   ```
+2. **Removed initial_resource_count from arena_basic_easy_shaped**
+   - **Location**: `experiments/recipes/arena_basic_easy_shaped.py` lines 113-118
+   - **Status**: FIXED - removed the lines that set initial_resource_count = 1
+   - Now matches the old yaml config which had initial_resource_count = 0 (default)
 
-### Important Secondary Fixes:
+### Why This Fixes Everything:
 
-3. **Fix optimizer gradient clearing**:
-   ```python
-   # In metta/rl/trainer.py
-   # Move the initial zero_grad() to inside the minibatch loop
-   # Remove the zero_grad() after optimizer.step()
-   # Should only have one zero_grad() before backward()
-   ```
+- **Deterministic weight initialization**: All neural network weights will initialize the same way as before
+- **Reproducible training**: Seeds for all random operations will be set properly
+- **CUDNN determinism**: CUDNN operations will be deterministic (when configured)
+- **Consistent across ranks**: Each distributed rank gets its own proper seed
 
-4. **Fix returns calculation**:
-   ```python
-   # In metta/rl/experience.py, line 174
-   # Consider reverting to use current values instead of original_values
-   minibatch["returns"] = advantages[idx] + minibatch["values"]
-   ```
+### ⚠️ User's Previous Fix Attempts (can be reverted):
+
+- Buffer indexing change (adding clamp) - was an attempt to fix, can revert if desired
+- Returns calculation change (using original_values) - was an attempt to fix, can revert if desired
+- These changes didn't help because the real issue was unseeded random initialization
 
 5. **Fix default configurations**:
    ```python

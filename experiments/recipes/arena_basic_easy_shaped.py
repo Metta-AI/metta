@@ -110,12 +110,6 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     altar_copy.input_resources = {"battery_red": 1}
     env_cfg.game.objects["altar"] = altar_copy
 
-    # Set initial resource counts for immediate availability
-    for obj_name in ["mine_red", "generator_red", "altar"]:
-        if obj_name in env_cfg.game.objects:
-            obj_copy = env_cfg.game.objects[obj_name].model_copy(deep=True)
-            obj_copy.initial_resource_count = 1
-            env_cfg.game.objects[obj_name] = obj_copy
 
     # Set label for clarity
     env_cfg.label = "arena.basic_easy_shaped"
