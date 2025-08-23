@@ -220,18 +220,7 @@ def train(
         raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
 
     # Instantiate configured losses dynamically by class name
-    # TODO: AV refactor once the dust settles on configs 8-17-25
-    # loss_instances: dict[str, BaseLoss] = {}
     loss_instances = trainer_cfg.losses.init_losses(policy, trainer_cfg, vecenv, device, policy_store)
-    # for loss_instance_name, loss_config in trainer_cfg.losses.items():
-    #     loss_instances[loss_instance_name] = loss_config.init_loss(
-    #         policy,
-    #         trainer_cfg,
-    #         vecenv,
-    #         device,
-    #         policy_store,
-    #         loss_instance_name,
-    #     )
 
     # Get the experience buffer specification from the policy
     policy_spec = policy.get_agent_experience_spec()
