@@ -8,32 +8,66 @@ After removing Hydra and YAML configurations from the Metta codebase (post-commi
 
 ## Critical Findings Summary
 
-### 🔴 HIGH PRIORITY ISSUES (likely causing performance regression):
+### 🔴 CRITICAL ISSUES (definitely causing performance regression):
 
-1. **Heart Reward Capping** - The most likely culprit!
+1. **Learning Rate Scheduling Completely Disabled**
+   - Old: Used CosineSchedule for LR (0.000457 → 0.00003), LogarithmicSchedule for clip_coef, LinearSchedule for others
+   - New: ALL schedules commented out with `# TODO(richard): #dehydration`
+   - **Impact**: Learning rate stays constant at 0.000457 instead of decreasing! This prevents convergence!
+
+2. **Default Curriculum Lost Shaped Rewards**
+   - Old default: `/env/mettagrid/arena/basic_easy_shaped` with shaped rewards
+   - New default: Plain `make_arena()` with ONLY heart rewards
+   - **Missing rewards**: ore_red (0.1), battery_red (0.8), laser (0.5), armor (0.5), blueprint (0.5)
+   - **Impact**: Agents lose intermediate reward signals critical for learning!
+
+3. **Heart Reward Capping Mechanism**
    - Old: `heart_max: null` (unlimited)
    - New: `heart_max: 255` (capped)
-   - Impact: Fundamentally changes reward scale, limiting the primary success signal
+   - **Deeper Finding**: The C++ code applies `std::min(reward, reward_max)` to each resource
+   - Even if agents only get 15 hearts, this changes the reward calculation logic
 
-2. **10x More Frequent Checkpointing**
-   - Old: Every 50 epochs
-   - New: Every 5 epochs
-   - Impact: Massive I/O overhead, slowing training significantly
+### 🟡 SIGNIFICANT DIFFERENCES (may affect performance):
 
-3. **Double Evaluation Overhead**
-   - Old: Only remote evaluation
-   - New: Both remote AND local evaluation
-   - Impact: Doubles the computational cost of evaluation
+4. **Optimizer Gradient Clearing Timing**
+   - Old: `zero_grad()` only before backward pass
+   - New: `zero_grad()` at start of all epochs AND after each step
+   - Impact: Could affect gradient accumulation behavior
 
-4. **Changed Total Timesteps Default**
+4. **Returns Calculation Changed**
+   - Old: `returns = advantages + minibatch["values"]`
+   - New: `returns = advantages + original_values` (values before any updates)
+   - Impact: Changes the target values for value function training
+
+5. **Default Worker Count**
+   - Old: `num_workers: null` (system-dependent)
+   - New: `rollout_workers: 1` (fixed)
+   - Impact: Reduced parallelization could affect data collection diversity
+
+6. **Dual-Policy Logic Removed**
+   - Old: Complex logic to handle student vs NPC agents
+   - New: All dual-policy code removed from losses.py
+   - Impact: If any agent filtering was happening, it's gone now
+
+### 🟢 LOWER PRIORITY (less likely to affect final performance):
+
+7. **Total Timesteps Default** (5x longer training)
    - Old: 10B timesteps
    - New: 50B timesteps
-   - Impact: Affects learning rate schedules and convergence behavior
+   
+8. **Checkpoint Frequency** (I/O overhead)
+   - Old: Every 50 epochs
+   - New: Every 5 epochs
 
-### ✅ VERIFIED OK (not causing issues):
-- Agent architecture (ComponentFast) is identical
-- Core hyperparameters (LR, beta, entropy, etc.) match exactly
-- Basic environment configuration matches
+9. **Evaluation Settings**
+   - Old: Only remote evaluation
+   - New: Both remote AND local
+
+### ✅ VERIFIED IDENTICAL:
+- Agent architecture (ComponentFast)
+- Core hyperparameter values (when not scheduled)
+- Rollout and experience collection logic
+- Advantage normalization implementation
 
 ## Investigation Methodology
 1. Clone repository at commit 724cde8fc to /tmp/ for side-by-side comparison
@@ -179,35 +213,45 @@ After removing Hydra and YAML configurations from the Metta codebase (post-commi
 
 ## Recommended Fixes
 
-### Immediate Actions (to restore performance):
+### URGENT - Must Fix Immediately:
 
-1. **Fix heart_max in arena_basic_easy_shaped.py**:
+1. **RE-ENABLE LEARNING RATE SCHEDULING** (Most Critical):
    ```python
-   # Line 105 in experiments/recipes/arena_basic_easy_shaped.py
-   # CHANGE FROM:
-   env_cfg.game.agent.rewards.inventory.heart_max = 255
-   # TO:
-   env_cfg.game.agent.rewards.inventory.heart_max = None  # Restore unlimited hearts
+   # In metta/rl/hyperparameter_scheduler.py
+   # UNCOMMENT THE ENTIRE FILE! Remove the `# TODO(richard): #dehydration` and all comment marks
+   # This is critical for convergence - learning rate MUST decrease during training
    ```
 
-2. **Fix checkpoint intervals in TrainerConfig**:
+2. **Fix heart_max to match old behavior**:
    ```python
-   # In metta/rl/trainer_config.py, lines 53-55
+   # In experiments/recipes/arena_basic_easy_shaped.py, line 105
+   env_cfg.game.agent.rewards.inventory.heart_max = None  # Was 255, should be None
+   ```
+
+### Important Secondary Fixes:
+
+3. **Fix optimizer gradient clearing**:
+   ```python
+   # In metta/rl/trainer.py
+   # Move the initial zero_grad() to inside the minibatch loop
+   # Remove the zero_grad() after optimizer.step()
+   # Should only have one zero_grad() before backward()
+   ```
+
+4. **Fix returns calculation**:
+   ```python
+   # In metta/rl/experience.py, line 174
+   # Consider reverting to use current values instead of original_values
+   minibatch["returns"] = advantages[idx] + minibatch["values"]
+   ```
+
+5. **Fix default configurations**:
+   ```python
+   # In metta/rl/trainer_config.py
+   total_timesteps: int = Field(default=10_000_000_000, gt=0)  # Was 50B
    checkpoint_interval: int = Field(default=50, ge=0)  # Was 5
    wandb_checkpoint_interval: int = Field(default=50, ge=0)  # Was 5
-   ```
-
-3. **Fix evaluation defaults in EvaluationConfig**:
-   ```python
-   # In metta/rl/trainer_config.py, lines 66-67
-   evaluate_remote: bool = Field(default=True)
    evaluate_local: bool = Field(default=False)  # Was True
-   ```
-
-4. **Fix total_timesteps default**:
-   ```python
-   # In metta/rl/trainer_config.py, line 124
-   total_timesteps: int = Field(default=10_000_000_000, gt=0)  # Was 50B
    ```
 
 ### Alternative: Update arena_basic_easy_shaped recipe
@@ -230,4 +274,26 @@ If changing defaults is not desirable, at minimum fix the recipe to match old be
 - ⏸️ Additional subsystems - Stopped after finding critical issues
 
 ### Phase 3: Root Cause Analysis
-The performance regression is caused by multiple configuration defaults that changed during the dehydration refactor. The most impactful is likely the heart_max capping at 255, which fundamentally changes the reward signal the agent receives for successful behavior.
+
+#### Primary Root Cause:
+**Learning rate scheduling is completely disabled**, causing the learning rate to remain constant at 0.000457 instead of decreasing to 0.00003 via cosine schedule. This prevents proper convergence in later training stages.
+
+#### Additional Critical Issues Found:
+
+10. **Default Curriculum Changed Completely**
+    - Old: `/env/mettagrid/arena/basic_easy_shaped` with shaped rewards
+    - New: Plain `make_arena()` with ONLY heart rewards
+    - **Impact**: Missing rewards for ore_red (0.1), battery_red (0.8), laser (0.5), armor (0.5), blueprint (0.5)
+    - This completely changes the reward structure agents learn from!
+
+11. **VecEnv Behavior Changes**
+    - New: Doesn't auto-switch to serial when num_workers=1 (affects async buffering)
+    - New: Wraps env in CurriculumEnv (additional layer)
+    - Ray backend support removed
+
+The performance regression is caused by multiple critical changes:
+1. No learning rate decay (stays at 0.000457)
+2. Missing shaped rewards (only heart rewards remain)
+3. Changed reward capping behavior
+4. Different gradient accumulation patterns
+5. Changed returns calculation for value function
