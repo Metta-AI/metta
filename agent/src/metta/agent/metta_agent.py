@@ -141,14 +141,14 @@ class MettaAgent(nn.Module):
             self.policy.on_eval_start()
 
     # need to revisit these methods
-    # def reset_memory(self) -> None:
-    #     """Reset memory - delegates to policy if it supports memory."""
-    #     if hasattr(self.policy, "reset_memory"):
-    #         self.policy.reset_memory()
+    def reset_memory(self) -> None:
+        """Reset memory - delegates to policy if it supports memory."""
+        if hasattr(self.policy, "reset_memory"):
+            self.policy.reset_memory()
 
-    # def get_memory(self) -> dict:
-    #     """Get memory state - delegates to policy if it supports memory."""
-    #     return getattr(self.policy, "get_memory", lambda: {})()
+    def get_memory(self) -> dict:
+        """Get memory state - delegates to policy if it supports memory."""
+        return getattr(self.policy, "get_memory", lambda: {})()
 
     def get_agent_experience_spec(self) -> Composite:
         if hasattr(self.policy, "get_agent_experience_spec"):
