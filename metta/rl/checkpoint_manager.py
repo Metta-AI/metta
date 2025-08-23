@@ -157,10 +157,8 @@ class CheckpointManager:
             raise ValueError("checkpoint_dir must be set in checkpoint_config to save policies")
 
         policy_record = self.policy_loader.create_empty_policy_record(
-            name=name, checkpoint_dir=self.checkpoint_cfg.checkpoint_dir
+            name=name, checkpoint_dir=self.checkpoint_cfg.checkpoint_dir, policy=policy_to_save, metadata=metadata
         )
-        policy_record.metadata = metadata
-        policy_record.policy = policy_to_save
 
         # Save the policy record
         if self.checkpoint_cfg.checkpoint_file_type == "safetensors":

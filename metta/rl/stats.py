@@ -12,7 +12,7 @@ import wandb
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyRecord
+from metta.agent.policy_record import PolicyRecord
 from metta.common.profiling.memory_monitor import MemoryMonitor
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.system_monitor import SystemMonitor

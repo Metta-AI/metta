@@ -21,6 +21,7 @@ from metta.agent.policy_record import PolicyRecord
 from metta.rl.puffer_policy import load_pytorch_policy
 
 if TYPE_CHECKING:
+    from metta.agent.metta_agent import PolicyAgent
     from metta.common.wandb.wandb_context import WandbRun
     from metta.rl.system_config import SystemConfig
 
@@ -307,13 +308,27 @@ class PolicyLoader:
         return parsed._replace(path=path).geturl()
 
     # note that you should set policy after this
-    def create_empty_policy_record(self, name: str, checkpoint_dir: str) -> PolicyRecord:
+    def create_empty_policy_record(
+        self,
+        name: str,
+        checkpoint_dir: str,
+        policy: "PolicyAgent | None" = None,
+        metadata: "PolicyMetadata | dict | None" = None,
+    ) -> PolicyRecord:
         path = os.path.join(checkpoint_dir, name)
-        metadata = PolicyMetadata()
+        if metadata is None:
+            metadata = PolicyMetadata()
+        if policy is None:
+            # For backwards compatibility, create a temporary policy that will be replaced
+            # This should be removed once all callers are updated
+            from metta.agent.mocks.mock_agent import MockAgent
+
+            policy = MockAgent()
         return PolicyRecord(
             name,
             f"file://{path}",
             metadata,
+            policy,
         )
 
     def _load_from_pytorch(self, path: str) -> PolicyRecord:
@@ -321,9 +336,8 @@ class PolicyLoader:
         # PolicyMetadata only requires: agent_step, epoch, generation, train_time
         # action_names is optional and not used by pytorch:// checkpoints
         metadata = PolicyMetadata()
-        pr = PolicyRecord(name, "pytorch://" + name, metadata)
-        pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
-        return pr
+        loaded_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
+        return PolicyRecord(name, "pytorch://" + name, metadata, loaded_policy)
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
         return self.add_to_wandb_artifact(run_id, "model", pr.metadata, pr.file_path, additional_files)
