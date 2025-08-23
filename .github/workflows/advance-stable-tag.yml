@@ -1,0 +1,475 @@
+name: "Advance Stable Tag"
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: "Skip tests and advance tag immediately (use with caution)"
+        type: boolean
+        default: false
+      grace_period_minutes:
+        description: "Grace period in minutes before advancing tag"
+        type: number
+        default: 30
+
+permissions:
+  contents: write
+  checks: read
+  pull-requests: read
+
+env:
+  HYDRA_FULL_ERROR: 1
+  VENV_PATH: .venv
+  PYTEST_WORKERS: auto
+
+jobs:
+  comprehensive-tests:
+    name: "Run Comprehensive Tests"
+    if: ${{ !inputs.skip_tests }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      tests_passed: ${{ steps.test_summary.outputs.all_passed }}
+      test_results: ${{ steps.test_summary.outputs.results }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup uv
+        uses: ./.github/actions/setup-uv
+        with:
+          install-mode: "training"
+
+      - name: Run full test suite
+        id: full_tests
+        continue-on-error: true
+        run: |
+          echo "::notice title=Running Full Test Suite::Including integration tests and expensive tests"
+          
+          # Run all tests including integration tests
+          PYTEST_ARGS="--cov --cov-branch --maxfail=10 --disable-warnings --durations=20 -v"
+          
+          # Run core tests
+          echo "Running core tests..."
+          uv run pytest $PYTEST_ARGS tests/ -m "not expensive" > core_test_results.txt 2>&1
+          CORE_EXIT=$?
+          
+          # Run expensive/integration tests
+          echo "Running expensive/integration tests..."
+          uv run pytest $PYTEST_ARGS tests/ -m "expensive or integration" > integration_test_results.txt 2>&1
+          INTEGRATION_EXIT=$?
+          
+          # Combine exit codes
+          if [ $CORE_EXIT -eq 0 ] && [ $INTEGRATION_EXIT -eq 0 ]; then
+            echo "all_tests_passed=true" >> $GITHUB_OUTPUT
+            exit 0
+          else
+            echo "all_tests_passed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+
+      - name: Run performance benchmarks
+        id: benchmarks
+        continue-on-error: true
+        run: |
+          echo "::notice title=Running Performance Benchmarks::Checking for performance regressions"
+          
+          # Run Python benchmarks
+          pytest --benchmark-only --benchmark-json=benchmark_results.json --benchmark-compare-fail=min:10%
+          BENCHMARK_EXIT=$?
+          
+          # Run C++ benchmarks if they exist
+          if [ -d "mettagrid" ]; then
+            cd mettagrid
+            cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
+            cmake --build build-release --target all
+            
+            mkdir -p benchmark_output
+            for f in build-release/benchmarks/*_benchmark; do
+              if [ -f "$f" ]; then
+                "$f" --benchmark_format=json > benchmark_output/$(basename $f).json || true
+              fi
+            done
+            cd ..
+          fi
+          
+          echo "benchmark_passed=$([[ $BENCHMARK_EXIT -eq 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+
+      - name: Validate configs
+        id: validate_configs
+        continue-on-error: true
+        run: |
+          echo "::notice title=Validating Configs::Ensuring all configs load correctly"
+          
+          # Test that all yaml configs can be loaded
+          uv run python -c "
+          import os
+          import yaml
+          from pathlib import Path
+          
+          errors = []
+          for config_file in Path('configs').rglob('*.yaml'):
+              try:
+                  with open(config_file) as f:
+                      yaml.safe_load(f)
+              except Exception as e:
+                  errors.append(f'{config_file}: {e}')
+          
+          if errors:
+              print('Config validation errors:')
+              for error in errors:
+                  print(f'  ❌ {error}')
+              exit(1)
+          else:
+              print('✅ All configs validated successfully')
+          "
+          CONFIG_EXIT=$?
+          echo "configs_valid=$([[ $CONFIG_EXIT -eq 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+
+      - name: Test example training scripts
+        id: test_examples
+        continue-on-error: true
+        run: |
+          echo "::notice title=Testing Example Scripts::Ensuring training scripts work"
+          
+          # Test a minimal training run
+          uv run python tools/train.py \
+            trainer.total_env_steps=1000 \
+            trainer.eval_interval=500 \
+            hardware=github \
+            wandb.mode=disabled \
+            > example_train_results.txt 2>&1
+          
+          EXAMPLE_EXIT=$?
+          echo "examples_passed=$([[ $EXAMPLE_EXIT -eq 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+
+      - name: Summarize test results
+        id: test_summary
+        if: always()
+        run: |
+          # Collect all test results
+          ALL_PASSED=true
+          RESULTS=""
+          
+          if [[ "${{ steps.full_tests.outputs.all_tests_passed }}" != "true" ]]; then
+            ALL_PASSED=false
+            RESULTS="${RESULTS}❌ Full test suite failed\n"
+          else
+            RESULTS="${RESULTS}✅ Full test suite passed\n"
+          fi
+          
+          if [[ "${{ steps.benchmarks.outputs.benchmark_passed }}" != "true" ]]; then
+            ALL_PASSED=false
+            RESULTS="${RESULTS}❌ Performance benchmarks failed (regression detected)\n"
+          else
+            RESULTS="${RESULTS}✅ Performance benchmarks passed\n"
+          fi
+          
+          if [[ "${{ steps.validate_configs.outputs.configs_valid }}" != "true" ]]; then
+            ALL_PASSED=false
+            RESULTS="${RESULTS}❌ Config validation failed\n"
+          else
+            RESULTS="${RESULTS}✅ All configs validated\n"
+          fi
+          
+          if [[ "${{ steps.test_examples.outputs.examples_passed }}" != "true" ]]; then
+            ALL_PASSED=false
+            RESULTS="${RESULTS}❌ Example training scripts failed\n"
+          else
+            RESULTS="${RESULTS}✅ Example training scripts passed\n"
+          fi
+          
+          echo "all_passed=$ALL_PASSED" >> $GITHUB_OUTPUT
+          echo "results<<EOF" >> $GITHUB_OUTPUT
+          echo -e "$RESULTS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: comprehensive-test-results
+          path: |
+            *_test_results.txt
+            *_results.json
+            benchmark_results.json
+            benchmark_output/
+
+  grace-period:
+    name: "Grace Period"
+    needs: [comprehensive-tests]
+    if: |
+      always() &&
+      (inputs.skip_tests || needs.comprehensive-tests.outputs.tests_passed == 'true')
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.wait.outputs.proceed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Start grace period
+        id: grace_start
+        run: |
+          GRACE_MINUTES="${{ inputs.grace_period_minutes || 30 }}"
+          echo "::notice title=Grace Period Started::Waiting ${GRACE_MINUTES} minutes before advancing stable tag"
+          echo "grace_minutes=$GRACE_MINUTES" >> $GITHUB_OUTPUT
+          
+          # Calculate advance time for Discord timestamp
+          ADVANCE_TIME=$(($(date +%s) + (GRACE_MINUTES * 60)))
+          echo "advance_time=$ADVANCE_TIME" >> $GITHUB_OUTPUT
+          
+          # Create a temporary file to track grace period
+          echo "${{ github.sha }}" > /tmp/stable_tag_grace_period
+          echo "Grace period started at $(date)" >> /tmp/stable_tag_grace_period
+
+      - name: Post initial notification
+        uses: ./.github/actions/discord-webhook
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          content: |
+            🏷️ **Stable Tag Update Pending**
+            
+            Commit: `${{ github.sha }}`
+            Tests: ${{ inputs.skip_tests && '⚠️ Skipped' || '✅ Passed' }}
+            
+            Grace period: ${{ steps.grace_start.outputs.grace_minutes }} minutes
+            Tag will be advanced at: <t:${{ steps.grace_start.outputs.advance_time }}:R>
+            
+            To cancel, push a commit with `[skip-stable]` in the message or manually delete the workflow run.
+
+      - name: Wait for grace period
+        id: wait
+        run: |
+          GRACE_SECONDS=$(({{ steps.grace_start.outputs.grace_minutes }} * 60))
+          echo "Waiting for $GRACE_SECONDS seconds..."
+          
+          # Check every minute for cancellation signal
+          for i in $(seq 1 {{ steps.grace_start.outputs.grace_minutes }}); do
+            sleep 60
+            
+            # Check if a new commit with [skip-stable] was pushed
+            LATEST_COMMIT=$(git ls-remote origin main | cut -f1)
+            LATEST_MESSAGE=$(git log --format=%B -n 1 $LATEST_COMMIT)
+            
+            if [[ "$LATEST_MESSAGE" == *"[skip-stable]"* ]]; then
+              echo "::warning title=Grace Period Cancelled::Found [skip-stable] in commit message"
+              echo "proceed=false" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            
+            echo "Grace period: $i/${{ steps.grace_start.outputs.grace_minutes }} minutes elapsed"
+          done
+          
+          echo "proceed=true" >> $GITHUB_OUTPUT
+
+  advance-stable-tag:
+    name: "Advance Stable Tag"
+    needs: [comprehensive-tests, grace-period]
+    if: |
+      always() &&
+      needs.grace-period.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Get previous stable tag info
+        id: prev_stable
+        run: |
+          # Get the current stable tag if it exists
+          if git tag -l | grep -q "^stable$"; then
+            PREV_COMMIT=$(git rev-list -n 1 stable)
+            PREV_DATE=$(git log -1 --format=%cd --date=iso $PREV_COMMIT)
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "commit=$PREV_COMMIT" >> $GITHUB_OUTPUT
+            echo "date=$PREV_DATE" >> $GITHUB_OUTPUT
+            
+            # Get commit count between tags
+            COMMIT_COUNT=$(git rev-list --count $PREV_COMMIT..${{ github.sha }})
+            echo "commits_since=$COMMIT_COUNT" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "commits_since=0" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update stable tag
+        id: update_tag
+        run: |
+          # Delete existing stable tag if it exists
+          if git tag -l | grep -q "^stable$"; then
+            git tag -d stable
+            git push origin :refs/tags/stable || true
+          fi
+          
+          # Create new stable tag
+          git tag -a stable -m "Stable release after comprehensive testing
+          
+          Test Results:
+          ${{ needs.comprehensive-tests.outputs.test_results }}
+          
+          Commit: ${{ github.sha }}
+          Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")"
+          
+          git push origin stable
+          
+          echo "✅ Updated stable tag to commit ${{ github.sha }}"
+
+      - name: Update stability dashboard
+        run: |
+          # Create or update the stability dashboard
+          mkdir -p docs/stability
+          
+          DASHBOARD_FILE="docs/stability/dashboard.md"
+          HISTORY_FILE="docs/stability/history.json"
+          
+          # Initialize files if they don't exist
+          if [ ! -f "$DASHBOARD_FILE" ]; then
+            echo "# Metta Stability Dashboard" > "$DASHBOARD_FILE"
+            echo "" >> "$DASHBOARD_FILE"
+            echo "This dashboard tracks the history of stable releases and test health." >> "$DASHBOARD_FILE"
+            echo "" >> "$DASHBOARD_FILE"
+          fi
+          
+          if [ ! -f "$HISTORY_FILE" ]; then
+            echo "[]" > "$HISTORY_FILE"
+          fi
+          
+          # Add new entry to history
+          uv run python -c "
+          import json
+          from datetime import datetime
+          
+          with open('$HISTORY_FILE', 'r') as f:
+              history = json.load(f)
+          
+          new_entry = {
+              'commit': '${{ github.sha }}',
+              'date': datetime.utcnow().isoformat(),
+              'prev_stable_commit': '${{ steps.prev_stable.outputs.commit }}' or None,
+              'commits_since_last': ${{ steps.prev_stable.outputs.commits_since }},
+              'tests_skipped': ${{ inputs.skip_tests || false }},
+              'test_results': '''${{ needs.comprehensive-tests.outputs.test_results }}'''.strip()
+          }
+          
+          history.append(new_entry)
+          
+          # Keep last 50 entries
+          history = history[-50:]
+          
+          with open('$HISTORY_FILE', 'w') as f:
+              json.dump(history, f, indent=2)
+          
+          # Update dashboard
+          with open('$DASHBOARD_FILE', 'w') as f:
+              f.write('# Metta Stability Dashboard\\n\\n')
+              f.write('This dashboard tracks the history of stable releases and test health.\\n\\n')
+              
+              f.write('## Current Stable Release\\n\\n')
+              f.write(f'- **Commit**: \`{new_entry[\"commit\"][:8]}\`\\n')
+              f.write(f'- **Date**: {new_entry[\"date\"]}\\n')
+              f.write(f'- **Commits since last stable**: {new_entry[\"commits_since_last\"]}\\n\\n')
+              
+              f.write('## Test Results\\n\\n')
+              f.write('\`\`\`\\n')
+              f.write(new_entry['test_results'])
+              f.write('\\n\`\`\`\\n\\n')
+              
+              f.write('## Recent History\\n\\n')
+              f.write('| Date | Commit | Commits Since Last | Tests |\\n')
+              f.write('|------|--------|-------------------|-------|\\n')
+              
+              for entry in reversed(history[-10:]):
+                  date = entry['date'][:10]
+                  commit = entry['commit'][:8]
+                  commits = entry['commits_since_last']
+                  tests = '⚠️ Skipped' if entry.get('tests_skipped') else '✅ Passed'
+                  f.write(f'| {date} | \`{commit}\` | {commits} | {tests} |\\n')
+              
+              f.write('\\n## Statistics\\n\\n')
+              
+              # Calculate statistics
+              total_releases = len(history)
+              avg_commits = sum(e['commits_since_last'] for e in history) / len(history) if history else 0
+              
+              f.write(f'- **Total stable releases**: {total_releases}\\n')
+              f.write(f'- **Average commits between releases**: {avg_commits:.1f}\\n')
+          "
+
+          # Commit dashboard updates
+          if git diff --quiet; then
+            echo "No changes to dashboard"
+          else
+            git add docs/stability/
+            git commit -m "Update stability dashboard for stable tag ${{ github.sha }}"
+            git push origin main
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Generate changelog since last stable
+          if [[ "${{ steps.prev_stable.outputs.exists }}" == "true" ]]; then
+            echo "Generating changelog from ${{ steps.prev_stable.outputs.commit }} to ${{ github.sha }}"
+            
+            CHANGELOG=$(git log --pretty=format:"- %s (%an)" ${{ steps.prev_stable.outputs.commit }}..${{ github.sha }} | head -20)
+            
+            echo "changelog<<EOF" >> $GITHUB_OUTPUT
+            echo "$CHANGELOG" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          else
+            echo "changelog=Initial stable release" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Post success notification
+        uses: ./.github/actions/discord-webhook
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          content: |
+            ✅ **Stable Tag Advanced Successfully**
+            
+            **New Stable**: `${{ github.sha }}`
+            **Previous Stable**: ${{ steps.prev_stable.outputs.exists == 'true' && steps.prev_stable.outputs.commit || 'None' }}
+            **Commits Since Last**: ${{ steps.prev_stable.outputs.commits_since }}
+            
+            **Test Results**:
+            ${{ needs.comprehensive-tests.outputs.test_results }}
+            
+            **Recent Changes**:
+            ${{ steps.changelog.outputs.changelog }}
+            
+            [View Stability Dashboard](https://github.com/${{ github.repository }}/blob/main/docs/stability/dashboard.md)
+
+  notify-failure:
+    name: "Notify Test Failure"
+    needs: [comprehensive-tests]
+    if: |
+      always() &&
+      needs.comprehensive-tests.result == 'failure'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post failure notification
+        uses: ./.github/actions/discord-webhook
+        with:
+          webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          content: |
+            ❌ **Stable Tag Update Failed**
+            
+            Commit: `${{ github.sha }}`
+            
+            **Test Results**:
+            ${{ needs.comprehensive-tests.outputs.test_results }}
+            
+            The stable tag was not advanced due to test failures.
