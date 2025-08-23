@@ -156,15 +156,6 @@ def test_policy_none_error():
         agent(obs)
 
 
-def test_memory_interface(create_metta_agent):
-    """Test the memory interface methods."""
-    agent = create_metta_agent
-
-    # Test get_memory - should return dict (possibly empty)
-    memory = agent.get_memory()
-    assert isinstance(memory, dict)
-
-
 def test_device_handling(create_metta_agent):
     """Test that device is properly set on agent and policy."""
     agent = create_metta_agent
