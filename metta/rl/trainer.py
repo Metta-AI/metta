@@ -376,7 +376,7 @@ def train(
                         for mb_idx in range(experience.num_minibatches):
                             trainer_state.mb_idx = mb_idx
                             trainer_state.stop_update_epoch = False
-                            total_loss = torch.tensor(0.0, device=device)
+                            total_loss = torch.tensor(0.0, dtype=torch.float32, device=device)
                             for _lname in list(all_losses):
                                 loss_obj = loss_instances[_lname]
                                 loss_val, shared_loss_mb_data = loss_obj.train(shared_loss_mb_data, trainer_state)

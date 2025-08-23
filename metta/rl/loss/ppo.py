@@ -35,7 +35,7 @@ class PPO(BaseLoss):
         loss_config: Any,
     ):
         super().__init__(policy, trainer_cfg, vec_env, device, policy_store, instance_name, loss_config)
-        self.advantages = torch.tensor(0.0, device=self.device)
+        self.advantages = torch.tensor(0.0, dtype=torch.float32, device=self.device)
         self.anneal_beta = 0.0
 
     def get_experience_spec(self) -> Composite:
