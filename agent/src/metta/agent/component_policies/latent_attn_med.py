@@ -18,6 +18,9 @@ class LatentAttnMed(ComponentPolicy):
     Latent attention medium model - most expressive attention-based model with highest sample efficiency.
     """
 
+    def _get_output_heads(self) -> list[str]:
+        return ["_action_", "_value_"]
+
     def _build_components(self) -> dict:
         """Build components for LatentAttnMed architecture."""
         return {

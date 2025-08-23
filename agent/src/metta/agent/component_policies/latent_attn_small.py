@@ -18,6 +18,9 @@ class LatentAttnSmall(ComponentPolicy):
     Latent attention small model - sweet spot between performance and expressivity.
     """
 
+    def _get_output_heads(self) -> list[str]:
+        return ["_action_", "_value_"]
+
     def _build_components(self) -> dict:
         """Build components for LatentAttnSmall architecture."""
         return {

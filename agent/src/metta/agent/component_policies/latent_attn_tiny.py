@@ -18,6 +18,9 @@ class LatentAttnTiny(ComponentPolicy):
     Latent attention tiny model - fastest attention-based model with minimal expressivity.
     """
 
+    def _get_output_heads(self) -> list[str]:
+        return ["_action_", "_value_"]
+
     def _build_components(self) -> dict:
         """Build components for LatentAttnTiny architecture."""
         return {
