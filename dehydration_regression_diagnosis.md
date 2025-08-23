@@ -312,7 +312,34 @@ If changing defaults is not desirable, at minimum fix the recipe to match old be
 - ✅ Environment configuration - Found heart_max issue
 - ⏸️ Additional subsystems - Stopped after finding critical issues
 
-### Phase 3: Root Cause Analysis
+### Phase 3: Root Cause Analysis  
+
+#### Map Configuration Differences Found:
+
+1. **Action space difference**: 
+   - Old: `move` (4-directional movement)
+   - New: Was using `move_8way` (8-directional)
+   - **Status**: FIXED - Changed back to `move`
+
+2. **Instances not explicitly set**:
+   - Old: `instances: ${div:${..num_agents},6}` = 4 instances
+   - New: Was relying on auto-detection from MapGen
+   - **Status**: FIXED - Now explicitly setting `instances=num_agents // 6`
+
+3. **Combat buildings on map**:
+   - Old basic.yaml: Only places mine_red, generator_red, altar, block, wall
+   - New make_arena(): Was adding lasery and armory to map
+   - **Status**: FIXED - Removed combat buildings from map placement
+
+4. **Heart reward max**:
+   - Old shaped.yaml: `heart_max: null` (unbounded)
+   - New: Was setting `heart_max = 255`
+   - **Status**: FIXED - Changed to `heart_max = None`
+
+5. **Lasery recipe inverted** (may affect gameplay):
+   - Old: ore_red:1, battery_red:2
+   - New: battery_red:1, ore_red:2
+   - **Status**: NOT FIXED - Could affect resource economy
 
 #### Primary Root Cause:
 **Learning rate scheduling is completely disabled**, causing the learning rate to remain constant at 0.000457 instead of decreasing to 0.00003 via cosine schedule. This prevents proper convergence in later training stages.
