@@ -55,6 +55,9 @@ export const FeedPostsPage: FC<{
   // User card state
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
+  // Global comment expansion state - only one post can have expanded comments at a time
+  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
+
   // Handle paper click using overlay navigation
   const handlePaperClick = (paperId: string) => {
     const paper = papersData.papers.find((p) => p.id === paperId);
@@ -80,6 +83,11 @@ export const FeedPostsPage: FC<{
   // Handle user card close
   const handleUserCardClose = () => {
     setSelectedUser(null);
+  };
+
+  // Handle comment toggle - only one post can have expanded comments
+  const handleCommentToggle = (postId: string) => {
+    setExpandedPostId((current) => (current === postId ? null : postId));
   };
 
   // Handle toggle star
@@ -127,22 +135,26 @@ export const FeedPostsPage: FC<{
       {/* Post Composition */}
       <NewPostForm />
       {/* Feed with Infinite Scroll */}
-      <div ref={feedRef} className="mx-auto max-w-2xl">
+      <div ref={feedRef} className="mx-auto mt-6 max-w-2xl">
         {page.items.length > 0 ? (
           <InfiniteScroll
             loadNext={page.loadNext!}
             hasMore={!!page.loadNext}
             loading={page.loading}
           >
-            {page.items.map((post) => (
-              <FeedPost
-                key={post.id}
-                post={post}
-                onPaperClick={handlePaperClick}
-                onUserClick={handleUserClick}
-                currentUser={currentUser}
-              />
-            ))}
+            <div className="flex flex-col gap-4">
+              {page.items.map((post) => (
+                <FeedPost
+                  key={post.id}
+                  post={post}
+                  onPaperClick={handlePaperClick}
+                  onUserClick={handleUserClick}
+                  currentUser={currentUser}
+                  isCommentsExpanded={expandedPostId === post.id}
+                  onCommentToggle={() => handleCommentToggle(post.id)}
+                />
+              ))}
+            </div>
           </InfiniteScroll>
         ) : (
           <div className="rounded-lg border border-gray-200 bg-white p-8 text-center">
