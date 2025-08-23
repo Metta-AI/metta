@@ -14,7 +14,6 @@ import wandb
 from omegaconf import DictConfig
 
 from metta.agent.policy_handle import PolicyHandle
-from metta.agent.policy_loader import PolicyLoader
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.sim.utils import get_pr_scores_from_stats_server
@@ -54,15 +53,7 @@ class PolicyFinder:
         self._wandb_project = wandb_project
 
     @classmethod
-    def create(
-        cls,
-        wandb_entity: str | None = None,
-        wandb_project: str | None = None,
-        device: str = "cpu",
-        data_dir: str = "./train_dir",
-        pytorch_cfg: DictConfig | None = None,
-        policy_cache_size: int = 10,
-    ) -> "PolicyFinder":
+    def create(cls, wandb_entity: str | None = None, wandb_project: str | None = None) -> "PolicyFinder":
         """Create a PolicyFinder with default settings.
 
         Args:
@@ -76,14 +67,8 @@ class PolicyFinder:
         Returns:
             Configured PolicyFinder instance
         """
-        policy_loader = PolicyLoader(
-            device=device,
-            data_dir=data_dir,
-            pytorch_cfg=pytorch_cfg,
-            policy_cache_size=policy_cache_size,
-        )
+
         return cls(
-            policy_loader=policy_loader,
             wandb_entity=wandb_entity,
             wandb_project=wandb_project,
         )

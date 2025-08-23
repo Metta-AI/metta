@@ -5,7 +5,7 @@ import platform
 from urllib.parse import quote
 
 import mettascope.server as server
-from metta.agent.policy_store import PolicyStore
+from metta.agent.policy_loader import PolicyLoader
 from metta.common.config.tool import Tool
 from metta.common.util.constants import DEV_METTASCOPE_FRONTEND_URL
 from metta.common.wandb.wandb_context import WandbConfig
@@ -27,21 +27,17 @@ class ReplayTool(Tool):
     open_browser_on_start: bool = True
 
     def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
-        # Create policy store directly without WandbContext
-        policy_store = PolicyStore.create(
+        # Create policy loader directly without WandbContext
+        policy_loader = PolicyLoader.create(
             device=self.system.device,
-            wandb_config=self.wandb,
             data_dir=self.system.data_dir,
-            wandb_run=None,
             system_cfg=self.system,
-            agent_cfg=None,
-            env_cfg=None,
         )
 
         # Create simulation using the helper method with explicit parameters
         sim = Simulation.create(
             sim_config=self.sim,
-            policy_store=policy_store,
+            policy_loader=policy_loader,
             device=self.system.device,
             vectorization=self.system.vectorization,
             stats_dir=self.stats_dir,

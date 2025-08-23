@@ -18,8 +18,10 @@ from typing import Sequence
 import torch
 from pydantic import Field
 
+from agent.src.metta.agent.policy_finder import PolicyFinder
+from agent.src.metta.agent.policy_loader import PolicyLoader
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicySelectorType, PolicyStore
+from metta.agent.policy_store import PolicySelectorType
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.constants import SOFTMAX_S3_BASE
@@ -71,26 +73,31 @@ class SimTool(Tool):
             self.policy_uris = [self.policy_uris]
 
         # TODO(daveey): #dehydration
-        policy_store = PolicyStore.create(
-            device=self.system.device,
-            wandb_config=self.wandb,
-            data_dir=self.system.data_dir,
-            wandb_run=None,
-            system_cfg=self.system,
-            agent_cfg=None,
-            env_cfg=None,
+        policy_finder = PolicyFinder.create(
+            wandb_entity=self.wandb.entity if self.wandb.enabled else None,
+            wandb_project=self.wandb.project if self.wandb.enabled else None,
         )
         stats_client: StatsClient | None = None
         if self.stats_server_uri is not None:
             stats_client = StatsClient.create(self.stats_server_uri)
 
+        # Create a PolicyLoader to convert PolicyHandle to PolicyRecord
+        policy_loader = PolicyLoader.create(
+            device=self.system.device,
+            data_dir=self.system.data_dir,
+            system_cfg=self.system,
+        )
+
         policy_records_by_uri: dict[str, list[PolicyRecord]] = {
-            policy_uri: policy_store.policy_records(
-                uri_or_config=policy_uri,
-                selector_type=self.selector_type,
-                n=1,
-                metric=self.simulations[0].name + "_score",
-            )
+            policy_uri: [
+                ph.load(policy_loader)
+                for ph in policy_finder.policy_records(
+                    uri_or_config=policy_uri,
+                    selector_type=self.selector_type,
+                    n=1,
+                    metric=self.simulations[0].name + "_score",
+                )
+            ]
             for policy_uri in self.policy_uris
         }
 
@@ -114,7 +121,7 @@ class SimTool(Tool):
                     device=device,
                     vectorization=self.system.vectorization,
                     export_stats_db_uri=self.stats_db_uri,
-                    policy_store=policy_store,
+                    policy_loader=policy_loader,
                     stats_client=stats_client,
                     logger=logger,
                     eval_task_id=eval_task_id,
