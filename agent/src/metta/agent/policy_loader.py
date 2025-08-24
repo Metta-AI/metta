@@ -204,12 +204,8 @@ class PolicyLoader:
         # PolicyMetadata only requires: agent_step, epoch, generation, train_time
         # action_names is optional and not used by pytorch:// checkpoints
         metadata = PolicyMetadata()
-        pr = PolicyRecord(
-            name,
-            "pytorch://" + name,
-            metadata,
-            load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg),
-        )
+        pr = PolicyRecord(name, "pytorch://" + name, metadata)
+        pr.cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
         return pr
 
     def _load_from_wandb_uri(self, uri: str) -> PolicyRecord:
