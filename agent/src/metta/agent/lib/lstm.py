@@ -83,17 +83,9 @@ class LSTM(LayerBase):
 
     def on_rollout_start(self):
         self.reset_memory()
-        # if self.max_num_envs > 0:
-        #     # take the last self.max_num_envs Seg IDs of self.train_output_lstm_h and self.train_output_lstm_c
-        #     # and set as self.lstm_h and self.lstm_c
-        #     self.lstm_h = self.train_output_lstm_h[:, -self.max_num_envs :]
-        #     self.lstm_c = self.train_output_lstm_c[:, -self.max_num_envs :]
 
     def on_train_phase_start(self):
         pass
-        # if self.train_input_lstm_h.size(1) != self.train_output_lstm_h.size(1):
-        #     self.train_output_lstm_h = self.train_input_lstm_h
-        #     self.train_output_lstm_c = self.train_input_lstm_c
 
     def on_mb_start(self):
         pass
@@ -186,8 +178,6 @@ class LSTM(LayerBase):
                 c_0 = torch.zeros(self.num_layers, self.max_num_envs, self.hidden_size, device=latent.device)
                 self.lstm_h = torch.cat([self.lstm_h, h_0.detach()], dim=1)
                 self.lstm_c = torch.cat([self.lstm_c, c_0.detach()], dim=1)
-                # self.training_lstm_h = torch.cat([self.training_lstm_h, h_0.detach()], dim=1)
-                # self.training_lstm_c = torch.cat([self.training_lstm_c, c_0.detach()], dim=1)
 
             h_0 = self.lstm_h[:, training_env_ids]
             c_0 = self.lstm_c[:, training_env_ids]
@@ -195,28 +185,31 @@ class LSTM(LayerBase):
             if self.burn_in < 2 * self.training_TT:
                 self.burn_in += 1
             elif self.iter % self.training_TT == 0:
-                self.train_input_lstm_h = torch.cat([self.train_input_lstm_h, h_0.detach()], dim=1)
-                self.train_input_lstm_c = torch.cat([self.train_input_lstm_c, c_0.detach()], dim=1)
+                pass
+                # self.train_input_lstm_h = torch.cat([self.train_input_lstm_h, h_0.detach()], dim=1)
+                # self.train_input_lstm_c = torch.cat([self.train_input_lstm_c, c_0.detach()], dim=1)
 
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
         if self.reset_in_training and TT != 1:
             self.iter = -1
             self.burn_in = 0
-            # segment_ids = segment_ids.reshape(B, TT)[:, 0] // TT
-            # training_env_ids = training_env_ids.reshape(B, TT)[:, 0]
+
             segment_ids = segment_ids.reshape(B, TT)[:, 0]
-            # h_0 = self.train_input_lstm_h[segment_ids, :, training_env_ids]
-            # c_0 = self.train_input_lstm_c[segment_ids, :, training_env_ids]
-            h_0 = self.train_input_lstm_h[:, segment_ids]
-            c_0 = self.train_input_lstm_c[:, segment_ids]
+            h_0 = td["lstm_h"]
+            c_0 = td["lstm_c"]
+            h_0 = rearrange(h_0, "(b t) x y -> b t x y", b=B, t=TT)[:, 0].permute(1, 0, 2)
+            c_0 = rearrange(c_0, "(b t) x y -> b t x y", b=B, t=TT)[:, 0].permute(1, 0, 2)
+
+            # h_0 = self.train_input_lstm_h[:, segment_ids]
+            # c_0 = self.train_input_lstm_c[:, segment_ids]
             hidden, (h_n, c_n) = self._forward_train_step(latent, h_0, c_0, reset_mask)
-            # self.train_output_lstm_h[:, segment_ids] = h_n.detach()
-            # self.train_output_lstm_c[:, segment_ids] = c_n.detach()
 
         else:
             hidden, (h_n, c_n) = self.lstm(latent, (h_0, c_0))
             self.lstm_h[:, training_env_ids] = h_n.detach()
             self.lstm_c[:, training_env_ids] = c_n.detach()
+            td["lstm_h"] = h_n.permute(1, 0, 2).detach()
+            td["lstm_c"] = c_n.permute(1, 0, 2).detach()
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
