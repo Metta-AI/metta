@@ -154,7 +154,7 @@ class LocalCommands:
         # Lazy imports
         import wandb
 
-        from metta.agent.policy_store import PolicyStore
+        from agent.src.metta.agent.policy_finder import PolicyFinder
         from metta.common.wandb.wandb_runs import find_training_runs
         from metta.sim.utils import get_or_create_policy_ids
 
@@ -205,15 +205,15 @@ class LocalCommands:
             limit=args.limit,
             run_names=[args.run_name] if args.run_name else None,
         )
-        policy_store = PolicyStore(wandb_entity=entity, wandb_project=project)
-        policy_records = []
+        policy_finder = PolicyFinder.create(wandb_entity=entity, wandb_project=project)
+        policy_handles = []
         for run in runs:
             uri = f"wandb://run/{run.name}"
             # n and metric are ignored
-            policy_records.extend(policy_store.policy_records(uri, selector_type="all", n=1, metric="top"))
+            policy_handles.extend(policy_finder.policy_records(uri, selector_type="all", n=1, metric="top"))
         policy_ids = get_or_create_policy_ids(
             stats_client,
-            [(pr.run_name, pr.uri, None) for pr in policy_records],
+            [(ph.run_name, ph.uri, None) for ph in policy_handles],
         )
         json_repr = json.dumps({name: str(pid) for name, pid in policy_ids.items()}, indent=2)
         print(f"Ensured {len(policy_ids)} policy IDs: {json_repr}")

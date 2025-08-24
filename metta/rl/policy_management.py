@@ -6,24 +6,22 @@ from pathlib import Path
 import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
-from metta.agent.policy_record import PolicyRecord
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 
 logger = logging.getLogger(__name__)
 
 
 def initialize_policy_for_environment(
-    policy_record: PolicyRecord,
+    policy: PolicyAgent,
     metta_grid_env: MettaGridEnv,
     device: torch.device,
     restore_feature_mapping: bool = True,
+    metadata: dict | None = None,
 ) -> None:
-    policy = policy_record.policy
-
     # Restore original_feature_mapping from metadata if available
     if restore_feature_mapping and hasattr(policy, "restore_original_feature_mapping"):
-        if "original_feature_mapping" in policy_record.metadata:
-            policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
+        if metadata and "original_feature_mapping" in metadata:
+            policy.restore_original_feature_mapping(metadata["original_feature_mapping"])
             logger.info("Restored original_feature_mapping")
 
     # Initialize policy to environment

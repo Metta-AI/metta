@@ -11,7 +11,7 @@ from torchrl.data import Composite
 
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyStore
+from metta.agent.policy_loader import PolicyLoader
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
@@ -45,6 +45,7 @@ from metta.rl.stats import (
 )
 from metta.rl.system_config import SystemConfig
 from metta.rl.torch_profiler import TorchProfiler
+from metta.rl.trainer_agent_builder import TrainerAgentBuilder
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
 from metta.rl.trainer_config import TrainerConfig
 from metta.rl.utils import (
@@ -85,21 +86,31 @@ def _update_training_status_on_failure(stats_client: StatsClient | None, stats_r
             logger.warning(f"Failed to update training run status to failed: {e}", exc_info=True)
 
 
+def initialize_train():
+    pass
+
+
 # TODO: dehydrate to just take in an agent and curriculum
 def train(
     run_dir: str,
     run: str,
     system_cfg: SystemConfig,
     agent_cfg: AgentConfig,
-    device: torch.device,
     trainer_cfg: TrainerConfig,
     wandb_run: WandbRun | None,
-    policy_store: PolicyStore,
     stats_client: StatsClient | None,
     torch_dist_cfg: TorchDistributedConfig,
 ) -> None:
     """Main training loop for Metta agents."""
     logger.info(f"run_dir = {run_dir}")
+
+    # -- begin environment initialization code
+
+    # ?? why can trainer_cfg.checkpoint.checkpoint_dir be None - this seems wrong
+    if trainer_cfg.checkpoint.checkpoint_dir is None:
+        raise ValueError("checkpoint_dir must be set in trainer_cfg.checkpoint to handle checkpoints")
+
+    device = torch.device(system_cfg.device)
 
     # Log recent checkpoints for debugging
     checkpoints_dir = trainer_cfg.checkpoint.checkpoint_dir
@@ -139,18 +150,36 @@ def train(
 
     metta_grid_env: MettaGridEnv = vecenv.driver_env  # type: ignore[attr-defined]
 
+    agent_builder = TrainerAgentBuilder(
+        metta_grid_env=metta_grid_env,
+        system_cfg=system_cfg,
+        agent_cfg=agent_cfg,
+        device=device,
+        torch_dist_cfg=torch_dist_cfg,
+    )
+
+    policy_loader = PolicyLoader.create(
+        device=system_cfg.device,
+        data_dir=system_cfg.data_dir,
+        system_cfg=system_cfg,
+        wandb_run=wandb_run,
+        agent_builder=agent_builder,
+    )
+
     # Initialize state containers
     eval_scores = EvalRewardSummary()  # Initialize eval_scores with empty summary
 
     # Create checkpoint manager
     checkpoint_manager = CheckpointManager(
-        policy_store=policy_store,
+        policy_loader=policy_loader,
         checkpoint_config=trainer_cfg.checkpoint,
         device=device,
         is_master=torch_dist_cfg.is_master,
         rank=torch_dist_cfg.rank,
         run_name=run,
     )
+
+    # -- end environment initialization code
 
     # Load checkpoint if it exists
     checkpoint = TrainerCheckpoint.load(run_dir)
@@ -162,14 +191,24 @@ def train(
         if checkpoint.stopwatch_state is not None:
             timer.load_state(checkpoint.stopwatch_state, resume_running=True)
 
-    # Load or initialize policy with distributed coordination
-    initial_policy_record = latest_saved_policy_record = checkpoint_manager.load_or_create_policy(
-        agent_cfg=agent_cfg,
-        system_cfg=system_cfg,
+    policy_path, should_create = get_policy_path(
+        torch_dist_cfg.is_master,
+        torch_dist_cfg.rank,
+        trainer_cfg.checkpoint,
+        trainer_cfg,
+        checkpoint,
+        checkpoint_manager,
+    )
+
+    latest_saved_policy_record = checkpoint_manager.get_or_create_policy_record(
+        agent_builder=agent_builder,
         trainer_cfg=trainer_cfg,
-        checkpoint=checkpoint,
+        policy_path=policy_path,
+        should_create=should_create,
         metta_grid_env=metta_grid_env,
     )
+
+    initial_policy_uri = latest_saved_policy_record.uri
 
     # Don't proceed until all ranks have the policy
     if torch.distributed.is_initialized():
@@ -193,17 +232,18 @@ def train(
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
     initialize_policy_for_environment(
-        policy_record=latest_saved_policy_record,
+        policy=policy,
         metta_grid_env=metta_grid_env,
         device=device,
         restore_feature_mapping=True,
+        metadata=latest_saved_policy_record.metadata,
     )
 
     # Create kickstarter
     kickstarter = Kickstarter(
         cfg=trainer_cfg.kickstart,
         device=device,
-        policy_store=policy_store,
+        policy_loader=policy_loader,
         metta_grid_env=metta_grid_env,
     )
 
@@ -499,7 +539,7 @@ def train(
                 agent_step=agent_step,
                 eval_scores=eval_scores,
                 timer=timer,
-                initial_policy_record=initial_policy_record,
+                initial_policy_uri=initial_policy_uri,
                 optimizer=optimizer,
                 run_dir=run_dir,
                 kickstarter=kickstarter,
@@ -549,7 +589,7 @@ def train(
                             replay_dir=trainer_cfg.evaluation.replay_dir,
                             stats_epoch_id=stats_tracker.stats_epoch_id,
                             wandb_policy_name=wandb_policy_name,
-                            policy_store=policy_store,
+                            policy_loader=policy_loader,
                             stats_client=stats_client,
                             logger=logger,
                         )
@@ -619,7 +659,7 @@ def train(
         agent_step=agent_step,
         eval_scores=eval_scores,
         timer=timer,
-        initial_policy_record=initial_policy_record,
+        initial_policy_uri=initial_policy_uri,
         optimizer=optimizer,
         run_dir=run_dir,
         kickstarter=kickstarter,
@@ -633,3 +673,50 @@ def train(
     if stats_client and stats_tracker and hasattr(stats_tracker, "stats_run_id"):
         return {"stats_run_id": stats_tracker.stats_run_id, "stats_client": stats_client, "logger": logger}
     return None
+
+
+def get_policy_path(
+    is_master: bool,
+    rank: int,
+    checkpoint_cfg,
+    trainer_cfg: TrainerConfig,
+    checkpoint: TrainerCheckpoint | None,
+    checkpoint_manager: CheckpointManager,
+) -> tuple[str, bool]:
+    """Determine the path to an existing policy if one exists, or default path for creation."""
+    if is_master:
+        if checkpoint and checkpoint.policy_path and trainer_cfg.checkpoint:
+            # Use directory from trainer_cfg.checkpoint and filename from checkpoint.policy_path
+            filename = os.path.basename(checkpoint.policy_path)
+            existing_policy_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, filename)
+        else:
+            existing_policy_path = (checkpoint and checkpoint.policy_path) or (
+                trainer_cfg.initial_policy and trainer_cfg.initial_policy.uri
+            )
+
+        # Only check default path if no explicit policy path was found
+        if existing_policy_path is None:
+            default_model_name = checkpoint_manager.make_model_name(0, checkpoint_cfg.model_suffix())
+            default_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, default_model_name)
+            existing_policy_path = default_path if os.path.exists(default_path) else None
+    else:
+        # Synchronize existing_policy_path from master
+        # ?? are we always passing None in here? code from my copy of main seems to say so
+        existing_policy_path = None
+        from metta.agent.util.distribution_utils import get_from_master
+
+        existing_policy_path = get_from_master(existing_policy_path)
+        logger.info(f"Rank {rank}: Synchronized existing_policy_path = {existing_policy_path}")
+
+    # Determine if we should create a new policy or load existing
+    if existing_policy_path is None:
+        # Create new policy - determine default path
+        default_model_name = checkpoint_manager.make_model_name(0, checkpoint_cfg.model_suffix())
+        policy_path = os.path.join(trainer_cfg.checkpoint.checkpoint_dir, default_model_name)
+        should_create = True
+    else:
+        # Load existing policy
+        policy_path = existing_policy_path
+        should_create = False
+
+    return policy_path, should_create

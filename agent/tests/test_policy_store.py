@@ -37,11 +37,12 @@ def test_policy_save_load_without_pydantic():
     try:
         print(temp_path)
         # Create a policy record
-        pr = policy_store.create_empty_policy_record(
-            name=os.path.basename(temp_path), checkpoint_dir=os.path.dirname(temp_path)
+        pr = policy_store.create_policy_record(
+            name=os.path.basename(temp_path),
+            checkpoint_dir=os.path.dirname(temp_path),
+            metadata=metadata,
+            policy=policy,
         )
-        pr.metadata = metadata
-        pr.policy = policy
 
         # Save
         policy_store.save(pr)
@@ -112,11 +113,12 @@ def test_policy_save_load_with_dict_metadata():
 
     try:
         # Create a policy record
-        pr = policy_store.create_empty_policy_record(
-            name=os.path.basename(temp_path), checkpoint_dir=os.path.dirname(temp_path)
+        pr = policy_store.create_policy_record(
+            name=os.path.basename(temp_path),
+            checkpoint_dir=os.path.dirname(temp_path),
+            metadata=metadata,
+            policy=policy,
         )
-        pr.metadata = metadata
-        pr.policy = policy
 
         # Save
         policy_store.save(pr)
@@ -151,9 +153,7 @@ def test_policy_record_backwards_compatibility():
         # Create a PolicyRecord without using the normal constructor
         # to simulate loading an old checkpoint
         pr = PolicyRecord.__new__(PolicyRecord)
-        pr._policy_store = policy_store
         pr.run_name = "test_policy"
-        pr.uri = "file:///tmp/test.pt"
         pr._cached_policy = None
 
         # Set metadata using the old attribute name
@@ -187,9 +187,7 @@ def test_policy_record_backwards_compatibility():
 
     # Test with no metadata attribute at all
     pr_no_metadata = PolicyRecord.__new__(PolicyRecord)
-    pr_no_metadata._policy_store = policy_store
     pr_no_metadata.run_name = "test_policy"
-    pr_no_metadata.uri = "file:///tmp/test.pt"
     pr_no_metadata._cached_policy = None
 
     # This should raise AttributeError

@@ -4,8 +4,8 @@ from pathlib import Path
 
 import torch
 
+from metta.agent.policy_loader import PolicyLoader
 from metta.agent.policy_record import PolicyRecord
-from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.collections import is_unique
 from metta.common.util.heartbeat import record_heartbeat
@@ -28,7 +28,7 @@ def evaluate_policy(
     stats_epoch_id: uuid.UUID | None = None,
     wandb_policy_name: str | None = None,
     eval_task_id: uuid.UUID | None = None,
-    policy_store: PolicyStore,
+    policy_loader: PolicyLoader,
     stats_client: StatsClient | None,
     logger: logging.Logger,
 ) -> EvalResults:
@@ -49,12 +49,14 @@ def evaluate_policy(
     if not is_unique([sim.name for sim in simulations]):
         raise ValueError("Simulation names must be unique")
 
+    # Use the provided PolicyLoader for Simulation
+
     sims = [
         Simulation(
             name=sim.name,
             cfg=sim,
             policy_pr=pr,
-            policy_store=policy_store,
+            policy_loader=policy_loader,
             replay_dir=replay_dir,
             stats_dir=stats_dir,
             device=device,
