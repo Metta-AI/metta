@@ -28,6 +28,7 @@ from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
+from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
@@ -254,6 +255,14 @@ def train(
         except ValueError:
             logger.warning("Optimizer state dict doesn't match. Starting with fresh optimizer state.")
 
+    # Initialize hyperparameter scheduler
+    hyperparameter_scheduler = HyperparameterScheduler.from_trainer_config(
+        trainer_cfg=trainer_cfg,
+        optimizer=optimizer,
+        total_timesteps=trainer_cfg.total_timesteps,
+        logger=logger,
+    )
+
     # Set up monitoring (master only)
     if torch_dist_cfg.is_master:
         logger.info("Starting training")
@@ -445,6 +454,21 @@ def train(
                     var_y = y_true.var()
                     losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
                 epoch += epochs_trained
+
+            # Update hyperparameters using scheduler
+            if torch_dist_cfg.is_master:
+                # Create update callbacks for trainer config
+                update_callbacks = {
+                    "ppo_clip_coef": lambda v: setattr(trainer_cfg.ppo, "clip_coef", v),
+                    "ppo_vf_clip_coef": lambda v: setattr(trainer_cfg.ppo, "vf_clip_coef", v),
+                    "ppo_ent_coef": lambda v: setattr(trainer_cfg.ppo, "ent_coef", v),
+                    "ppo_l2_reg_loss_coef": lambda v: setattr(trainer_cfg.ppo, "l2_reg_loss_coef", v),
+                    "ppo_l2_init_loss_coef": lambda v: setattr(trainer_cfg.ppo, "l2_init_loss_coef", v),
+                }
+
+                hyperparameter_updates = hyperparameter_scheduler.step(agent_step, update_callbacks)
+                if hyperparameter_updates:
+                    logger.info(f"Updated hyperparameters at step {agent_step}: {hyperparameter_updates}")
 
             # Safe to proceed to next rollout phase only once all ranks have completed training
             if torch.distributed.is_initialized():
