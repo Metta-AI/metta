@@ -290,7 +290,8 @@ def train(
         torch.distributed.barrier()
 
     policy: PolicyAgent = latest_saved_policy_record.policy
-    policy.component["_core_"].training_TT = trainer_cfg.bptt_horizon  # make the LSTM class find this out on its own
+    policy.policy.components["_core_"].training_TT = trainer_cfg.bptt_horizon
+    # make the LSTM class find this out on its own
 
     if trainer_cfg.compile:
         logger.info("Compiling policy")
@@ -422,7 +423,7 @@ def train(
                 total_steps = 0
 
                 policy.on_rollout_start()
-
+                burn_in = 0
                 while not experience.ready_for_training:
                     # Get observation
                     o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
@@ -436,16 +437,19 @@ def train(
                     td["truncateds"] = t.float()
                     td["training_env_ids"] = torch.arange(
                         training_env_id.start, training_env_id.stop, dtype=torch.long, device=device
-                    )
+                    ).unsqueeze(1)
 
                     with torch.no_grad():
                         td = policy(td)
 
                     # Store experience
-                    experience.store(
-                        data_td=td,
-                        env_id=training_env_id,
-                    )
+                    if burn_in < 2 * trainer_cfg.bptt_horizon:
+                        burn_in += 1
+                    else:
+                        experience.store(
+                            data_td=td,
+                            env_id=training_env_id,
+                        )
 
                     # Send observation
                     send_observation(vecenv, td["actions"], dtype_actions, timer)

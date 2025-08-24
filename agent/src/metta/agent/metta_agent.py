@@ -166,7 +166,7 @@ class MettaAgent(nn.Module):
             dones=UnboundedContinuous(shape=torch.Size([1]), dtype=torch.float32),
             truncateds=UnboundedContinuous(shape=torch.Size([1]), dtype=torch.float32),
             segment_ids=UnboundedDiscreteTensorSpec(shape=(), dtype=torch.int32),
-            # training_env_ids=UnboundedDiscrete(shape=torch.Size([1]), dtype=torch.long),
+            training_env_ids=UnboundedDiscrete(shape=torch.Size([1]), dtype=torch.long),
         )
 
     def initialize_to_environment(

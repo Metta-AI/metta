@@ -71,8 +71,8 @@ class LSTM(LayerBase):
         self.lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
         self.train_input_lstm_h = torch.empty(self.num_layers, 0, self.hidden_size)
         self.train_input_lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
-        self.train_output_lstm_h = torch.empty(self.num_layers, 0, self.hidden_size)
-        self.train_output_lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
+        # self.train_output_lstm_h = torch.empty(self.num_layers, 0, self.hidden_size)
+        # self.train_output_lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
 
     def __setstate__(self, state):
         """Ensure LSTM hidden states are properly initialized after loading from checkpoint."""
@@ -82,16 +82,18 @@ class LSTM(LayerBase):
         self.reset_memory()
 
     def on_rollout_start(self):
-        if self.max_num_envs > 0:
-            # take the last self.max_num_envs Seg IDs of self.train_output_lstm_h and self.train_output_lstm_c
-            # and set as self.lstm_h and self.lstm_c
-            self.lstm_h = self.train_output_lstm_h[:, -self.max_num_envs :]
-            self.lstm_c = self.train_output_lstm_c[:, -self.max_num_envs :]
+        self.reset_memory()
+        # if self.max_num_envs > 0:
+        #     # take the last self.max_num_envs Seg IDs of self.train_output_lstm_h and self.train_output_lstm_c
+        #     # and set as self.lstm_h and self.lstm_c
+        #     self.lstm_h = self.train_output_lstm_h[:, -self.max_num_envs :]
+        #     self.lstm_c = self.train_output_lstm_c[:, -self.max_num_envs :]
 
     def on_train_phase_start(self):
-        if self.train_input_lstm_h.size(1) != self.train_output_lstm_h.size(1):
-            self.train_output_lstm_h = self.train_input_lstm_h
-            self.train_output_lstm_c = self.train_input_lstm_c
+        pass
+        # if self.train_input_lstm_h.size(1) != self.train_output_lstm_h.size(1):
+        #     self.train_output_lstm_h = self.train_input_lstm_h
+        #     self.train_output_lstm_c = self.train_input_lstm_c
 
     def on_mb_start(self):
         pass
@@ -144,6 +146,7 @@ class LSTM(LayerBase):
         self.train_input_lstm_h = torch.empty(self.num_layers, 0, self.hidden_size)
         self.train_input_lstm_c = torch.empty(self.num_layers, 0, self.hidden_size)
         self.iter = -1
+        self.burn_in = 0
         self.max_num_envs = 0
         self.training_TT = 8
 
@@ -163,6 +166,8 @@ class LSTM(LayerBase):
             segment_ids = torch.arange(B, device=latent.device)
         if training_env_ids is None:
             training_env_ids = torch.arange(B, device=latent.device)
+        else:
+            training_env_ids = training_env_ids.reshape(B * TT)
 
         dones = td.get("dones", None)
         truncateds = td.get("truncateds", None)
@@ -175,7 +180,7 @@ class LSTM(LayerBase):
             self.iter += 1
             # if segment_ids.max() >= self.lstm_h.size(1):
             self.max_num_envs = training_env_ids.max() + 1
-            if self.max_num_envs >= self.lstm_h.size(1):
+            if self.max_num_envs > self.lstm_h.size(1):
                 # we haven't allocated states for these envs (ie the very first epoch or rollout)
                 h_0 = torch.zeros(self.num_layers, self.max_num_envs, self.hidden_size, device=latent.device)
                 c_0 = torch.zeros(self.num_layers, self.max_num_envs, self.hidden_size, device=latent.device)
@@ -187,24 +192,31 @@ class LSTM(LayerBase):
             h_0 = self.lstm_h[:, training_env_ids]
             c_0 = self.lstm_c[:, training_env_ids]
 
-            if self.iter % self.training_TT == 0:
-                self.train_input_lstm_h = torch.stack([self.train_input_lstm_h, h_0.detach()], dim=2)
-                self.train_input_lstm_c = torch.stack([self.train_input_lstm_c, c_0.detach()], dim=2)
+            if self.burn_in < 2 * self.training_TT:
+                self.burn_in += 1
+            elif self.iter % self.training_TT == 0:
+                self.train_input_lstm_h = torch.cat([self.train_input_lstm_h, h_0.detach()], dim=1)
+                self.train_input_lstm_c = torch.cat([self.train_input_lstm_c, c_0.detach()], dim=1)
 
         latent = rearrange(latent, "(b t) h -> t b h", b=B, t=TT)
         if self.reset_in_training and TT != 1:
-            segment_ids = segment_ids.reshape(B, TT)[:, 0] // TT
-            training_env_ids = training_env_ids.reshape(B, TT)[:, 0] // TT
-            h_0 = self.train_input_lstm_h[:, segment_ids, training_env_ids]
-            c_0 = self.train_input_lstm_c[:, segment_ids, training_env_ids]
+            self.iter = -1
+            self.burn_in = 0
+            # segment_ids = segment_ids.reshape(B, TT)[:, 0] // TT
+            # training_env_ids = training_env_ids.reshape(B, TT)[:, 0]
+            segment_ids = segment_ids.reshape(B, TT)[:, 0]
+            # h_0 = self.train_input_lstm_h[segment_ids, :, training_env_ids]
+            # c_0 = self.train_input_lstm_c[segment_ids, :, training_env_ids]
+            h_0 = self.train_input_lstm_h[:, segment_ids]
+            c_0 = self.train_input_lstm_c[:, segment_ids]
             hidden, (h_n, c_n) = self._forward_train_step(latent, h_0, c_0, reset_mask)
-            self.train_output_lstm_h[:, segment_ids, training_env_ids] = h_n.detach()
-            self.train_output_lstm_c[:, segment_ids, training_env_ids] = c_n.detach()
+            # self.train_output_lstm_h[:, segment_ids] = h_n.detach()
+            # self.train_output_lstm_c[:, segment_ids] = c_n.detach()
 
         else:
             hidden, (h_n, c_n) = self.lstm(latent, (h_0, c_0))
-            self.lstm_h[:, segment_ids] = h_n.detach()
-            self.lstm_c[:, segment_ids] = c_n.detach()
+            self.lstm_h[:, training_env_ids] = h_n.detach()
+            self.lstm_c[:, training_env_ids] = c_n.detach()
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 

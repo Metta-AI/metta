@@ -60,7 +60,8 @@ class Experience:
                 f"Please set trainer.batch_size >= {mini_batch_size} in your configuration."
             )
 
-        experience_spec["segment_ids"] = UnboundedDiscreteTensorSpec(shape=(), dtype=torch.int32)
+        # this is duplicated by ep_indices
+        experience_spec["segment_ids"] = UnboundedDiscreteTensorSpec(shape=(), dtype=torch.int32, device=device)
 
         spec = experience_spec.expand((self.segments, self.bptt_horizon)).to(self.device)
         self.buffer = spec.zero()
@@ -122,6 +123,12 @@ class Experience:
         assert isinstance(env_id, slice), (
             f"TypeError: env_id expected to be a slice for segmented storage. Got {type(env_id).__name__} instead."
         )
+        span = env_id.stop - env_id.start
+        available_space = self.segments - self.free_idx
+        if available_space < span:
+            data_td = data_td[:available_space]
+            env_id = slice(env_id.start, env_id.start + available_space)
+
         episode_lengths = self.ep_lengths[env_id.start].item()
         indices = self.ep_indices[env_id]
 
@@ -135,7 +142,7 @@ class Experience:
         if episode_lengths + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
 
-    def _reset_completed_episodes(self, env_id) -> None:  # av used to be not tensor
+    def _reset_completed_episodes(self, env_id) -> None:
         """Reset episode tracking for completed episodes."""
         num_full = env_id.stop - env_id.start
         self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
