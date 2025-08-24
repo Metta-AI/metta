@@ -181,6 +181,8 @@ class LSTM(LayerBase):
 
             h_0 = self.lstm_h[:, training_env_ids]
             c_0 = self.lstm_c[:, training_env_ids]
+            td["lstm_h"] = h_0.permute(1, 0, 2).detach()
+            td["lstm_c"] = c_0.permute(1, 0, 2).detach()
 
             if self.burn_in < 2 * self.training_TT:
                 self.burn_in += 1
@@ -208,8 +210,6 @@ class LSTM(LayerBase):
             hidden, (h_n, c_n) = self.lstm(latent, (h_0, c_0))
             self.lstm_h[:, training_env_ids] = h_n.detach()
             self.lstm_c[:, training_env_ids] = c_n.detach()
-            td["lstm_h"] = h_n.permute(1, 0, 2).detach()
-            td["lstm_c"] = c_n.permute(1, 0, 2).detach()
 
         hidden = rearrange(hidden, "t b h -> (b t) h")
 
