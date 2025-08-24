@@ -165,6 +165,8 @@ class ConverterConfig(Config):
     cooldown: int = Field(ge=0)
     initial_resource_count: int = Field(ge=0, default=0)
     color: int = Field(default=0, ge=0, le=255)
+    can_transmit: bool = Field(default=False)
+    transmission_radius: int = Field(default=0)
 
 
 class GameConfig(Config):
