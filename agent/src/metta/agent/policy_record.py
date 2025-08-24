@@ -20,7 +20,7 @@ class PolicyRecord:
         run_name: str,
         uri: str | None,
         metadata: PolicyMetadata | dict,
-        policy: "PolicyAgent | None" = None,
+        policy: "PolicyAgent",
         wandb_entity: str | None = None,  # for loading policies from wandb
         wandb_project: str | None = None,  # for loading policies from wandb
     ):
@@ -31,7 +31,7 @@ class PolicyRecord:
 
         # Use the setter to ensure proper type
         self.metadata = metadata
-        self._cached_policy: "PolicyAgent | None | callable" = policy
+        self._cached_policy: "PolicyAgent | None" = policy
 
     def extract_wandb_run_info(self) -> tuple[str, str, str, str | None]:
         if self.uri is None or not self.uri.startswith("wandb://"):
@@ -112,13 +112,8 @@ class PolicyRecord:
         """Load and return the policy, using cache if available."""
         if isinstance(self._cached_policy, PolicyAgent):
             return self._cached_policy
-        elif callable(self._cached_policy):
-            # Invoke the callable and set the result as the cached policy
-            self._cached_policy = self._cached_policy()
         else:
-            raise TypeError(f"Expected PolicyAgent or callable, got {type(self._cached_policy).__name__}")
-
-        return self._cached_policy
+            raise TypeError(f"Expected PolicyAgent, got {type(self._cached_policy).__name__}")
 
     @property
     def cached_policy(self) -> "PolicyAgent | None":
@@ -127,28 +122,6 @@ class PolicyRecord:
             return self._cached_policy
         else:
             return None
-
-    @cached_policy.setter
-    def cached_policy(self, policy: "PolicyAgent") -> None:
-        """Set the cached policy directly."""
-        self._cached_policy = policy
-
-    def set_policy_deferred(self, policy_factory: callable) -> None:
-        """Set a callable that will create the policy when needed."""
-        self._cached_policy = policy_factory
-
-    @policy.setter
-    def policy(self, policy: "PolicyAgent") -> None:
-        """Set or overwrite the policy.
-
-        Args:
-            policy: The PyTorch module to set as the policy.
-
-        Raises:
-            TypeError: If policy is not a nn.Module.
-        """
-        self._cached_policy = policy
-        logger.info(f"Policy overwritten for {self.run_name}")
 
     def num_params(self) -> int:
         """Count the number of trainable parameters."""

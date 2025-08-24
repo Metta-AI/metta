@@ -17,21 +17,25 @@ class MockPolicyRecord(PolicyRecord):
 
     def __init__(
         self,
-        policy_store: PolicyStore = MockPolicyStore,
         run_name: str = "mock_run",
         uri: str | None = "mock://policy",
         metadata: PolicyMetadata = MockPolicyMetadata,
+        policy: "PolicyAgent | None" = None,
+        wandb_entity: str | None = None,
+        wandb_project: str | None = None,
     ):
         """Initialize a mock policy record.
 
         Args:
-            policy_store: Optional policy store (defaults to None)
             run_name: Run name (defaults to "mock_run")
             uri: Policy URI (defaults to "mock://policy")
             metadata: PolicyMetadata instance (creates default if None)
+            policy: Optional policy agent
+            wandb_entity: Optional wandb entity
+            wandb_project: Optional wandb project
         """
 
-        super().__init__(policy_store, run_name, uri, metadata)
+        super().__init__(run_name, uri, metadata, policy, wandb_entity, wandb_project)
 
     @classmethod
     def from_key_and_version(

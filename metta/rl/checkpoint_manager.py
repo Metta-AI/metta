@@ -1,22 +1,26 @@
 """Checkpoint management for Metta training."""
 
 import logging
+import os
 from pathlib import Path
 
 import torch
 
 from metta.agent.metta_agent import DistributedMettaAgent, MettaAgent, PolicyAgent
-from metta.agent.policy_loader import PolicyLoader
+from metta.agent.policy_loader import AgentBuilder, PolicyLoader
+from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
+from metta.agent.util.distribution_utils import get_from_master
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.collections import remove_none_values
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.wandb_context import WandbRun
 from metta.eval.eval_request_config import EvalRewardSummary
+from metta.mettagrid import MettaGridEnv
 from metta.rl.kickstarter import Kickstarter
-from metta.rl.policy_management import cleanup_old_policies
+from metta.rl.policy_management import cleanup_old_policies, validate_policy_environment_match
 from metta.rl.trainer_checkpoint import TrainerCheckpoint
-from metta.rl.trainer_config import CheckpointConfig
+from metta.rl.trainer_config import CheckpointConfig, TrainerConfig
 from metta.rl.utils import should_run
 from metta.rl.wandb import upload_policy_artifact
 
@@ -156,23 +160,92 @@ class CheckpointManager:
         if self.checkpoint_cfg.checkpoint_dir is None:
             raise ValueError("checkpoint_dir must be set in checkpoint_config to save policies")
 
-        policy_record = self.policy_loader.create_empty_policy_record(
-            name=name, checkpoint_dir=self.checkpoint_cfg.checkpoint_dir
+        policy_record_to_save = PolicyRecord(
+            run_name=name,
+            uri=f"file://{self.checkpoint_cfg.checkpoint_dir}/{name}",
+            metadata=metadata,
+            policy=policy_to_save,
         )
-        policy_record.metadata = metadata
-        policy_record.policy = policy_to_save
 
         # Save the policy record
         if self.checkpoint_cfg.checkpoint_file_type == "safetensors":
-            saved_path = self.policy_loader.save_to_safetensors_file(policy_record, None)
+            path = self.policy_loader.save_to_safetensors_file(policy_record_to_save, None)
+            policy_record_to_save.uri = f"file://{path}"
         else:
-            saved_path = self.policy_loader.save_to_pt_file(policy_record, None)
-
-        # Update the policy record with the saved path
-        policy_record.uri = f"file://{saved_path}"
+            path = self.policy_loader.save_to_pt_file(policy_record_to_save, None)
+            policy_record_to_save.uri = f"file://{path}"
 
         logger.info(f"Successfully saved policy at epoch {epoch}")
+        return policy_record_to_save
 
+    def get_or_create_policy_record(
+        self,
+        agent_builder: AgentBuilder,
+        trainer_cfg: TrainerConfig,  # this arg is only needed to distinguish between pt and safetensors
+        policy_path: str,
+        should_create: bool,
+        metta_grid_env: MettaGridEnv,
+    ) -> PolicyRecord:
+        """
+        Load or initialize policy with distributed coordination.
+
+        Args:
+            agent_builder: Builder for creating new agents
+            trainer_cfg: Trainer configuration
+            policy_path: Path to the policy (always provided)
+            should_create: If True, create new policy; if False, load existing policy
+            metta_grid_env: Environment for validation
+        """
+
+        # Check for distributed training configuration error early
+        if not self.is_master and not torch.distributed.is_initialized():
+            raise RuntimeError(
+                f"Non-master rank {self.rank} found without torch.distributed initialized. "
+                "This likely indicates a configuration error in distributed training setup."
+            )
+        # from here, not(checkpoint_manager.is_master) == torch.distributed.is_initialized()
+
+        if should_create:
+            # Create new policy
+            logger.info(f"Rank {self.rank}: Creating new policy")
+            agent = agent_builder.initialize_agent(PolicyMetadata(), None)
+            policy_record = PolicyRecord(
+                run_name=os.path.basename(policy_path),
+                uri=f"file://{policy_path}",
+                metadata=PolicyMetadata(),
+                policy=agent,
+            )
+
+            # Only master saves the new policy to disk
+            if self.is_master:
+                if trainer_cfg.checkpoint.checkpoint_file_type == "safetensors":
+                    saved_path = self.policy_loader.save_to_safetensors_file(policy_record, None)
+                else:
+                    saved_path = self.policy_loader.save_to_pt_file(policy_record, None)
+                policy_record.uri = f"file://{saved_path}"
+                logger.info(f"Master saved new policy to {policy_record.uri}")
+            else:
+                logger.info(f"Rank {self.rank}: Created policy structure for DDP sync")
+        else:
+            # Load existing policy
+            logger.info(f"Rank {self.rank}: Loading policy from {policy_path}")
+            policy_record = self.policy_loader.load_from_file(policy_path)
+
+        if policy_record is None:
+            raise RuntimeError("Failed to initialize policy record")
+
+        # Synchronize policy metadata from master using NCCL broadcast of objects.
+        # This avoids file I/O on non-master ranks while ensuring consistent metadata.
+        # ?? should this code move to AgentBuilder?
+        if not self.is_master:
+            try:
+                synced_metadata = get_from_master(policy_record.metadata if self.is_master else None)
+                if synced_metadata is not None:
+                    policy_record.metadata = synced_metadata
+            except Exception as e:
+                logger.warning(f"Rank {self.rank}: Failed to sync policy metadata from master: {e}")
+
+        validate_policy_environment_match(policy_record.policy, metta_grid_env)
         return policy_record
 
 

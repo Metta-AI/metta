@@ -7,17 +7,18 @@ import logging
 import os
 import sys
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict
 from urllib.parse import urlparse
 
 import torch
 import wandb
 from omegaconf import DictConfig
+from safetensors.torch import load_file
 
 from metta.agent import policy_metadata_yaml_helper
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
-from metta.agent.policy_record import PolicyRecord
+from metta.agent.policy_record import PolicyAgent, PolicyRecord
 from metta.rl.puffer_policy import load_pytorch_policy
 
 if TYPE_CHECKING:
@@ -73,13 +74,11 @@ def make_codebase_backwards_compatible():
                 modules_queue.append(submodule_name)
 
 
-class EmptyPolicyInitializer(ABC):
-    """Abstract class for initializing empty policies."""
+class AgentBuilder(ABC):
+    """Abstract class for building policy agents."""
 
     @abstractmethod
-    def initialize_empty_policy(
-        self, policy_record: "PolicyRecord", base_path: str, checkpoint_name: str
-    ) -> "PolicyRecord":
+    def initialize_agent(self, policy_metadata: PolicyMetadata, weights: Dict[str, torch.Tensor] | None) -> PolicyAgent:
         """Initialize an empty policy with the given parameters."""
         pass
 
@@ -100,15 +99,17 @@ class PolicyLoader:
         self._pytorch_cfg = pytorch_cfg
         self._cached_prs = PolicyCache(max_size=policy_cache_size)
         self._wandb_run = wandb_run
-        self.initialize_empty_policy: EmptyPolicyInitializer | None = None
+        self.agent_builder: AgentBuilder | None = None
 
     @classmethod
+    # ?? todo: clean up pytorch_cfg here - then remove SystemConfig arg
     def create(
         cls,
         device: str,
         data_dir: str,
         system_cfg: "SystemConfig | None" = None,
         wandb_run: "WandbRun | None" = None,
+        agent_builder: "AgentBuilder | None" = None,
     ) -> "PolicyLoader":
         """Create a PolicyLoader with the specified configuration.
 
@@ -117,16 +118,20 @@ class PolicyLoader:
             data_dir: Directory for storing policy artifacts
             system_cfg: Optional system configuration
             wandb_run: Optional wandb run for uploading artifacts
+            agent_builder: Optional agent builder for creating new agents
 
         Returns:
             Configured PolicyLoader instance
         """
-        return cls(
+        loader = cls(
             device=device,
             data_dir=data_dir,
             pytorch_cfg=getattr(system_cfg, "pytorch", None) if system_cfg else None,
             wandb_run=wandb_run,
         )
+        if agent_builder is not None:
+            loader.agent_builder = agent_builder
+        return loader
 
     def load_from_uri(self, uri: str) -> PolicyRecord:
         """Load a PolicyHandle from various URI types.
@@ -189,10 +194,14 @@ class PolicyLoader:
         if cached_pr is not None:
             return cached_pr
 
-        pr = self.create_empty_policy_record(self.checkpoint_name(path), self.base_path(path))
-        if self.initialize_empty_policy is None:
-            raise ValueError("initialize_empty_policy must be set to load from safetensors format")
-        pr = self.initialize_empty_policy.initialize_empty_policy(pr, self.base_path(path), self.checkpoint_name(path))
+        if self.agent_builder is None:
+            raise ValueError("agent_builder must be set to load from safetensors format")
+
+        weights = load_file(path)
+        metadata = policy_metadata_yaml_helper.get_metadata(self.checkpoint_name(path), self.base_path(path))
+        policy = self.agent_builder.initialize_agent(metadata, weights)
+
+        pr = PolicyRecord(self.checkpoint_name(path), f"file://{path}", metadata, policy)
 
         self._cached_prs.put(path, pr)
 
@@ -203,8 +212,9 @@ class PolicyLoader:
         # PolicyMetadata only requires: agent_step, epoch, generation, train_time
         # action_names is optional and not used by pytorch:// checkpoints
         metadata = PolicyMetadata()
-        pr = PolicyRecord(name, "pytorch://" + name, metadata)
-        pr.cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
+        pr = PolicyRecord(
+            name, "pytorch://" + name, metadata, load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
+        )
         return pr
 
     def _load_from_wandb_uri(self, uri: str) -> PolicyRecord:
@@ -306,23 +316,13 @@ class PolicyLoader:
         path = parsed.path.rsplit("/", 1)[0]
         return parsed._replace(path=path).geturl()
 
-    # note that you should set policy after this
-    def create_empty_policy_record(self, name: str, checkpoint_dir: str) -> PolicyRecord:
-        path = os.path.join(checkpoint_dir, name)
-        metadata = PolicyMetadata()
-        return PolicyRecord(
-            name,
-            f"file://{path}",
-            metadata,
-        )
-
     def _load_from_pytorch(self, path: str) -> PolicyRecord:
         name = os.path.basename(path)
         # PolicyMetadata only requires: agent_step, epoch, generation, train_time
         # action_names is optional and not used by pytorch:// checkpoints
         metadata = PolicyMetadata()
-        pr = PolicyRecord(name, "pytorch://" + name, metadata)
-        pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
+        cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
+        pr = PolicyRecord(name, "pytorch://" + name, metadata, cached_policy)
         return pr
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:

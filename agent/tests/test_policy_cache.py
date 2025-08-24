@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from metta.agent.mocks import MockPolicy
+from metta.agent.mocks.mock_agent import MockAgent
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
@@ -25,8 +25,7 @@ def cache():
 def policy_record_with_model():
     """Create a PolicyRecord with a loaded model."""
     metadata = PolicyMetadata(epoch=1, agent_step=100, generation=0, train_time=0.5)
-    pr = PolicyRecord(None, "test_run", "file://test.pt", metadata)
-    pr.cached_policy = MockPolicy()
+    pr = PolicyRecord("test_run", "file://test.pt", metadata, policy=MockAgent())
     return pr
 
 
@@ -34,7 +33,7 @@ def policy_record_with_model():
 def policy_record_metadata_only():
     """Create a PolicyRecord without a loaded model (metadata only)."""
     metadata = PolicyMetadata(epoch=2, agent_step=200, generation=1, train_time=1.0)
-    pr = PolicyRecord(None, "metadata_only", "file://metadata.pt", metadata)
+    pr = PolicyRecord("metadata_only", "file://metadata.pt", metadata, policy=MockAgent())
     # No cached_policy set
     return pr
 
@@ -44,9 +43,10 @@ def create_policy_record(name: str, uri: str, with_model: bool = True) -> Policy
     metadata = PolicyMetadata(
         epoch=int(name[-1]) if name[-1].isdigit() else 0, agent_step=100, generation=0, train_time=0.5
     )
-    pr = PolicyRecord(None, name, uri, metadata)
     if with_model:
-        pr.cached_policy = MockPolicy()
+        pr = PolicyRecord(name, uri, metadata, policy=MockAgent())
+    else:
+        pr = PolicyRecord(name, uri, metadata, policy=MockAgent())
     return pr
 
 

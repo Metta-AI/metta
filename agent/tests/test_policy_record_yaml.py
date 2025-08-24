@@ -4,6 +4,7 @@
 import pytest
 import yaml
 
+from metta.agent.mocks.mock_agent import MockAgent
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 
@@ -21,7 +22,7 @@ class TestPolicyRecordYAML:
         )
 
         policy_record = PolicyRecord(
-            policy_store=None, run_name="test_policy", uri="file:///path/to/policy.pt", metadata=metadata
+            run_name="test_policy", uri="file:///path/to/policy.pt", metadata=metadata, policy=MockAgent()
         )
 
         yaml_str = policy_record.to_yaml()
@@ -66,7 +67,7 @@ metadata:
         )
 
         original_record = PolicyRecord(
-            policy_store=None, run_name="test_policy_v1", uri="file:///path/to/policy.pt", metadata=metadata
+            run_name="test_policy_v1", uri="file:///path/to/policy.pt", metadata=metadata, policy=MockAgent()
         )
 
         # Serialize to YAML
@@ -120,7 +121,7 @@ uri: file:///path/to/policy.pt
         )
 
         policy_record = PolicyRecord(
-            policy_store=None, run_name="test_policy", uri="file:///path/to/policy.pt", metadata=metadata
+            run_name="test_policy", uri="file:///path/to/policy.pt", metadata=metadata, policy=MockAgent()
         )
 
         yaml_str = policy_record.to_yaml()

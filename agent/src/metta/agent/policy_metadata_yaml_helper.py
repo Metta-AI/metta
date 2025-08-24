@@ -7,7 +7,7 @@ Initialize once with init_yaml_serializers() before use.
 
 import shutil
 import tempfile
-from typing import Any, Dict, Tuple
+from typing import Any, Dict
 
 import torch
 import yaml
@@ -15,6 +15,7 @@ from gymnasium.spaces import MultiDiscrete
 from safetensors.torch import load_file, save_file
 
 from metta.agent.metta_agent import DistributedMettaAgent, PolicyAgent
+from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyRecord
 
 # Module-level initialization flag
@@ -61,61 +62,30 @@ def save_policy(policy_record: PolicyRecord, checkpoint_name: str, base_path: st
     return safetensors_path
 
 
-def load_metadata_only(checkpoint_name: str, base_path: str) -> Dict[str, Any]:
+def get_metadata(checkpoint_name: str, base_path: str) -> PolicyMetadata:
     """Fast metadata loading without touching weights"""
     init_yaml_serializers()  # Ensure serializers are initialized
 
     metadata_path = f"{base_path}/{checkpoint_name}.yaml"
     with open(metadata_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+        metadata_dict = yaml.safe_load(f)
+        if metadata_dict:
+            return PolicyMetadata(**metadata_dict)
+        else:
+            return PolicyMetadata()
 
 
-def load_weights_only(checkpoint_name: str, base_path: str) -> Dict[str, torch.Tensor]:
-    """Load only model weights"""
-    weights_path = f"{base_path}/{checkpoint_name}.safetensors"
-    weights = load_file(weights_path)
-    return weights
-
-
-def load_full(checkpoint_name: str, base_path: str) -> Tuple[Dict[str, torch.Tensor], Dict[str, Any]]:
-    """Load both weights and metadata"""
-    return load_weights_only(checkpoint_name, base_path), load_metadata_only(checkpoint_name, base_path)
-
-
-def restore_agent(agent: PolicyAgent, checkpoint_name: str, base_path: str):
-    """Restore agent from checkpoint"""
+def restore_weights(agent: PolicyAgent, path: str) -> None:
+    """Restore agent weights from checkpoint"""
     init_yaml_serializers()  # Ensure serializers are initialized
 
-    weights, metadata = load_full(checkpoint_name, base_path)
+    weights = load_file(path)
 
     # Load weights (handle DDP)
     if isinstance(agent, DistributedMettaAgent):
         agent.module.load_state_dict(weights)
-        actual_agent = agent.module
     else:
         agent.load_state_dict(weights)
-        actual_agent = agent
-
-    # Restore agent attributes from the new hierarchical structure
-    if "agent" in metadata:
-        agent_metadata = metadata["agent"]
-
-        # Restore agent attributes that exist on the actual agent
-        for attr_name, attr_value in agent_metadata.items():
-            if hasattr(actual_agent, attr_name):
-                try:
-                    setattr(actual_agent, attr_name, attr_value)
-                except Exception as e:
-                    print(f"Failed to restore attribute {attr_name}: {e}")
-            else:
-                print(f"Warning: Agent does not have attribute {attr_name}")
-
-    # Restore metadata from the policy record if needed
-    if "metadata" in metadata:
-        policy_metadata = metadata["metadata"]
-        # Note: PolicyRecord metadata is typically not restored to the agent
-        # as it represents training state, not agent state
-        print(f"Policy metadata available: {list(policy_metadata.keys())}")
 
 
 # Private helper functions

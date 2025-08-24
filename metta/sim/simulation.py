@@ -136,19 +136,21 @@ class Simulation:
 
         # Initialize policy to environment
         initialize_policy_for_environment(
-            policy_record=self._policy_pr,
+            policy=self._policy_pr.policy,
             metta_grid_env=metta_grid_env,
             device=self._device,
             restore_feature_mapping=True,
+            metadata=self._policy_pr.metadata,
         )
 
         if self._npc_pr is not None:
             # Initialize NPC policy to environment
             initialize_policy_for_environment(
-                policy_record=self._npc_pr,
+                policy=self._npc_pr.policy,
                 metta_grid_env=metta_grid_env,
                 device=self._device,
                 restore_feature_mapping=True,
+                metadata=self._npc_pr.metadata,
             )
 
         # ---------------- agent-index bookkeeping ---------------------- #

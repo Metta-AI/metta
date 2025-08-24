@@ -14,7 +14,6 @@ from typing import Literal
 
 from omegaconf import DictConfig
 
-from metta.agent.policy_loader import EmptyPolicyInitializer, PolicyLoader
 from metta.common.config import Config
 from metta.common.wandb.wandb_context import WandbRun
 
@@ -44,16 +43,4 @@ class PolicyStore:
         pytorch_cfg: DictConfig | None = None,  # for loading pytorch policies
         policy_cache_size: int = 10,  # num policies to keep in memory
     ) -> None:
-        self._device = device or "cpu"
-        self._data_dir = data_dir or "./train_dir"
-        self._wandb_entity = wandb_entity
-        self._wandb_project = wandb_project
-        self._pytorch_cfg = pytorch_cfg
-        self._wandb_run: WandbRun | None = wandb_run
-        self._policy_loader = PolicyLoader(
-            device=device,
-            data_dir=data_dir,
-            pytorch_cfg=pytorch_cfg,
-            policy_cache_size=policy_cache_size,
-        )
-        self._initialize_empty_policy: EmptyPolicyInitializer | None = None
+        pass

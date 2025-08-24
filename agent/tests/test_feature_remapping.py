@@ -334,15 +334,13 @@ def test_end_to_end_initialize_to_environment_workflow():
         # Simulate saving by creating a PolicyRecord
         save_path = Path(tmpdir) / "test_policy.pt"
         pr = PolicyRecord(
-            policy_store=None,  # We don't need a real PolicyStore for this test
             run_name="test_policy",
             uri=f"file://{save_path}",
             metadata=metadata,
+            policy=policy,
         )
-        pr.cached_policy = policy
 
         # Save using torch.save (mimicking what PolicyStore.save does)
-        pr._policy_store = None  # Remove circular reference
         torch.save(pr, save_path)
 
         # Step 2: Load the policy in a new environment with different feature IDs

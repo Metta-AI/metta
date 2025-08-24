@@ -8,7 +8,6 @@ from typing import Optional
 import torch
 
 from metta.agent.agent_config import AgentConfig
-from metta.agent.policy_loader import PolicyLoader
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.util.git import get_git_hash_for_remote_task
@@ -98,6 +97,7 @@ class TrainTool(Tool):
         else:
             handle_train(self, torch_dist_cfg, None, logger)
 
+        # ?? should be in finally block?
         if torch.distributed.is_initialized():
             torch.distributed.destroy_process_group()
 
@@ -121,13 +121,6 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
             )
             cfg.trainer.batch_size = cfg.trainer.batch_size // torch_dist_cfg.world_size
 
-    policy_loader = PolicyLoader.create(
-        device=cfg.system.device,
-        data_dir=cfg.system.data_dir,
-        system_cfg=cfg.system,
-        wandb_run=wandb_run,
-    )
-
     if platform.system() == "Darwin":
         cfg = _minimize_config_for_debugging(cfg)
 
@@ -143,10 +136,8 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         run_dir=run_dir,
         system_cfg=cfg.system,
         agent_cfg=cfg.policy_architecture,
-        device=torch.device(cfg.system.device),
         trainer_cfg=cfg.trainer,
         wandb_run=wandb_run,
-        policy_loader=policy_loader,
         stats_client=stats_client,
         torch_dist_cfg=torch_dist_cfg,
     )
