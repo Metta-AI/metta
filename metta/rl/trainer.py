@@ -667,7 +667,6 @@ def get_default_policy_agent(
     return MettaAgent(metta_grid_env, system_cfg, agent_cfg)
 
 
-# ?? todo we should return the policy record sent in - there should be a way to do that
 def load_from_safetensors_checkpoint(
     checkpoint_name: str,
     base_path: str,
@@ -687,35 +686,26 @@ def load_from_safetensors_checkpoint(
         is_training=True,
     )
     policy_metadata_yaml_helper.restore_agent(agent, checkpoint_name, base_path)
+    policy_record.policy = agent
 
     # Wrap in DDP if distributed
     if torch.distributed.is_initialized():
         if torch_dist_cfg.is_master:
             logger.info("Initializing DistributedDataParallel")
         torch.distributed.barrier()
-        agent = wrap_agent_distributed(agent, device)
+        policy_record.policy = wrap_agent_distributed(agent, device)
         torch.distributed.barrier()
-
-    # Create a new PolicyRecord with the updated policy
-    updated_policy_record = PolicyRecord(
-        policy_record.run_name,
-        policy_record.uri,
-        policy_record.metadata,
-        agent,
-        policy_record.wandb_entity,
-        policy_record.wandb_project,
-    )
 
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
     initialize_policy_for_environment(
-        policy_record=updated_policy_record,
+        policy_record=policy_record,
         metta_grid_env=metta_grid_env,
         device=device,
         restore_feature_mapping=True,
     )
 
-    return updated_policy_record
+    return policy_record
 
 
 def get_or_create_policy_record(
@@ -773,8 +763,8 @@ def get_or_create_policy_record(
         policy_record = checkpoint_manager.policy_loader.create_empty_policy_record(
             name=default_model_name,
             checkpoint_dir=trainer_cfg.checkpoint.checkpoint_dir,
-            policy=MettaAgent(metta_grid_env, system_cfg, agent_cfg),
         )
+        policy_record.policy = MettaAgent(metta_grid_env, system_cfg, agent_cfg)
 
         # Only master saves the new policy to disk
         if checkpoint_manager.is_master:
@@ -796,15 +786,7 @@ def get_or_create_policy_record(
         try:
             synced_metadata = get_from_master(policy_record.metadata if checkpoint_manager.is_master else None)
             if synced_metadata is not None:
-                # Create a new PolicyRecord with the synced metadata
-                policy_record = PolicyRecord(
-                    policy_record.run_name,
-                    policy_record.uri,
-                    synced_metadata,
-                    policy_record.policy,
-                    policy_record.wandb_entity,
-                    policy_record.wandb_project,
-                )
+                policy_record.metadata = synced_metadata
         except Exception as e:
             logger.warning(f"Rank {checkpoint_manager.rank}: Failed to sync policy metadata from master: {e}")
 

@@ -20,7 +20,7 @@ class PolicyRecord:
         run_name: str,
         uri: str | None,
         metadata: PolicyMetadata | dict,
-        policy: "PolicyAgent",
+        policy: "PolicyAgent | None" = None,
         wandb_entity: str | None = None,  # for loading policies from wandb
         wandb_project: str | None = None,  # for loading policies from wandb
     ):
@@ -29,19 +29,9 @@ class PolicyRecord:
         self.wandb_entity = wandb_entity
         self.wandb_project = wandb_project
 
-        # Set metadata directly - must be PolicyMetadata or dict
-        if isinstance(metadata, PolicyMetadata):
-            self._metadata = metadata
-        elif isinstance(metadata, dict):
-            # Automatically convert dict to PolicyMetadata
-            self._metadata = PolicyMetadata(**metadata)
-        else:
-            raise TypeError(f"metadata must be PolicyMetadata or dict, got {type(metadata).__name__}")
-
-        # Set policy directly - must be a PolicyAgent
-        if not isinstance(policy, PolicyAgent):
-            raise TypeError(f"policy must be a PolicyAgent, got {type(policy).__name__}")
-        self._cached_policy: "PolicyAgent" = policy
+        # Use the setter to ensure proper type
+        self.metadata = metadata
+        self._cached_policy: "PolicyAgent | None | callable" = policy
 
     def extract_wandb_run_info(self) -> tuple[str, str, str, str | None]:
         if self.uri is None or not self.uri.startswith("wandb://"):
@@ -71,16 +61,8 @@ class PolicyRecord:
                         f"This PolicyRecord was saved with an older version of the code. "
                         f"Converting to new format."
                     )
-                    # Convert old metadata to new format
-                    old_metadata = getattr(self, name)
-                    if isinstance(old_metadata, PolicyMetadata):
-                        self._metadata = old_metadata
-                    elif isinstance(old_metadata, dict):
-                        self._metadata = PolicyMetadata(**old_metadata)
-                    else:
-                        raise TypeError(
-                            f"Old metadata must be PolicyMetadata or dict, got {type(old_metadata).__name__}"
-                        )
+                    # Set using the property setter for proper conversion
+                    self.metadata = getattr(self, name)
                     return self._metadata
 
             # If no old names found, collect available attributes
@@ -103,6 +85,17 @@ class PolicyRecord:
             )
         return self._metadata
 
+    @metadata.setter
+    def metadata(self, value: PolicyMetadata | dict) -> None:
+        """Set metadata, ensuring it's a PolicyMetadata instance."""
+        if isinstance(value, PolicyMetadata):
+            self._metadata = value
+        elif isinstance(value, dict):
+            # Automatically convert dict to PolicyMetadata
+            self._metadata = PolicyMetadata(**value)
+        else:
+            raise TypeError(f"metadata must be PolicyMetadata or dict, got {type(value).__name__}")
+
     @property
     def file_path(self) -> str:
         """Extract the file_path from the URI"""
@@ -116,20 +109,46 @@ class PolicyRecord:
 
     @property
     def policy(self) -> "PolicyAgent":
-        """Get the policy."""
+        """Load and return the policy, using cache if available."""
+        if isinstance(self._cached_policy, PolicyAgent):
+            return self._cached_policy
+        elif callable(self._cached_policy):
+            # Invoke the callable and set the result as the cached policy
+            self._cached_policy = self._cached_policy()
+        else:
+            raise TypeError(f"Expected PolicyAgent or callable, got {type(self._cached_policy).__name__}")
+
         return self._cached_policy
 
     @property
-    def cached_policy(self) -> "PolicyAgent":
-        """Get the cached policy."""
-        return self._cached_policy
+    def cached_policy(self) -> "PolicyAgent | None":
+        """Get the cached policy without loading."""
+        if isinstance(self._cached_policy, PolicyAgent):
+            return self._cached_policy
+        else:
+            return None
 
     @cached_policy.setter
     def cached_policy(self, policy: "PolicyAgent") -> None:
         """Set the cached policy directly."""
-        if not isinstance(policy, PolicyAgent):
-            raise TypeError(f"cached_policy must be a PolicyAgent, got {type(policy).__name__}")
         self._cached_policy = policy
+
+    def set_policy_deferred(self, policy_factory: callable) -> None:
+        """Set a callable that will create the policy when needed."""
+        self._cached_policy = policy_factory
+
+    @policy.setter
+    def policy(self, policy: "PolicyAgent") -> None:
+        """Set or overwrite the policy.
+
+        Args:
+            policy: The PyTorch module to set as the policy.
+
+        Raises:
+            TypeError: If policy is not a nn.Module.
+        """
+        self._cached_policy = policy
+        logger.info(f"Policy overwritten for {self.run_name}")
 
     def num_params(self) -> int:
         """Count the number of trainable parameters."""
@@ -150,7 +169,13 @@ class PolicyRecord:
         if metadata_items:
             lines.append(f"Metadata: {', '.join(metadata_items)}")
 
-        policy = self._cached_policy
+        # Load policy if not already loaded
+        policy = None
+        if self._cached_policy is None:
+            lines.append("(deferred)")
+            return "\n".join(lines)
+        else:
+            policy = self._cached_policy
 
         # Add total parameter count
         total_params = sum(p.numel() for p in policy.parameters())
@@ -158,14 +183,10 @@ class PolicyRecord:
         lines.append(f"Total parameters: {total_params:,} (trainable: {trainable_params:,})")
 
         # Check if this is a legacy checkpoint wrapped in adapter
-        try:
-            from metta.agent.legacy_adapter import LegacyMettaAgentAdapter
+        from metta.agent.legacy_adapter import LegacyMettaAgentAdapter
 
-            if hasattr(policy, "policy") and isinstance(policy.policy, LegacyMettaAgentAdapter):
-                lines.append("\nNOTE: Legacy checkpoint loaded via LegacyMettaAgentAdapter for backwards compatibility")
-        except ImportError:
-            # Legacy adapter not available, skip this check
-            pass
+        if hasattr(policy, "policy") and isinstance(policy.policy, LegacyMettaAgentAdapter):
+            lines.append("\nNOTE: Legacy checkpoint loaded via LegacyMettaAgentAdapter for backwards compatibility")
 
         # Add module structure with detailed weight shapes
         lines.append("\nModule Structure with Weight Shapes:")
