@@ -133,9 +133,6 @@ def train(
         num_workers=trainer_cfg.rollout_workers,
         zero_copy=trainer_cfg.zero_copy,
         is_training=True,
-        # CRITICAL FIX: Ensure dual-policy flags reach subprocess envs so they can log metrics
-        dual_policy_enabled=trainer_cfg.dual_policy.enabled,
-        dual_policy_training_agents_pct=trainer_cfg.dual_policy.training_agents_pct,
     )
 
     vecenv.async_reset(system_cfg.seed + torch_dist_cfg.rank)

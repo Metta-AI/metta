@@ -306,10 +306,66 @@ After removing Hydra and YAML configuration support from the Metta codebase, tra
 
 ---
 
-### 12. Additional Subsystems
+### 12. Training Loop and Experience Buffer
+**Status**: ❌ **Critical Issues Found** → 🔧 **Fix Applied**
+
+**Initial Hypotheses**
+- H12.1: Experience buffer management or indexing changed
+- H12.2: Training loop parameter passing inconsistencies
+- H12.3: Buffer state access patterns modified
+
+**Runtime Hypotheses**
+- R12.1: ❌ **CRITICAL**: Buffer indexing uses `torch.clamp(experience.ep_lengths - 1, min=0)` vs reference `experience.ep_lengths - 1`
+- R12.2: ❌ **CRITICAL**: Trainer passes unused `original_values` parameter to `sample_minibatch()`
+- R12.3: ❌ **POTENTIAL**: Different buffer state access for zero-length episodes
+
+**Investigation Results**
+- ❌ **Buffer Indexing Change**: 
+  - **Old**: `buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]`
+  - **New**: `buffer_step = experience.buffer[experience.ep_indices, torch.clamp(experience.ep_lengths - 1, min=0)]`
+  - **Impact**: Changes which buffer states are accessed when `ep_lengths` is 0 (negative indexing vs index 0)
+- ❌ **Parameter Inconsistency**:
+  - Trainer passes `original_values=original_values` to `experience.sample_minibatch()` 
+  - But `experience.py` was reverted to not use this parameter
+  - Creates parameter mismatch between trainer and experience modules
+
+**Fix Applied**: 🔧 Restored reference behavior
+- Removed `torch.clamp()` from buffer indexing to match reference behavior
+- Removed unused `original_values` parameter from `sample_minibatch()` call
+- **Validation**: Buffer indexing now matches pre-dehydration behavior exactly
+
+---
+
+### 13. Vectorized Environment Architecture
+**Status**: ⚠️ **Major Architectural Change** (Not Fixed)
+
+**Initial Hypotheses**
+- H13.1: Vectorization settings or batch processing changed
+- H13.2: Environment creation or initialization differs
+- H13.3: Multi-worker coordination modified
+
+**Runtime Hypotheses**
+- R13.1: ⚠️ **MAJOR**: Curriculum handling moved from integrated to wrapper-based architecture
+- R13.2: ⚠️ **POTENTIAL**: Missing `register_resolvers()` calls (OmegaConf resolvers completely removed)
+
+**Investigation Results**
+- ⚠️ **Curriculum Architecture Change**: 
+  - **Old**: `MettaGridEnv(curriculum, ...)` - curriculum integrated directly into environment
+  - **New**: `CurriculumEnv(MettaGridEnv(curriculum.get_task().get_env_cfg(), ...), curriculum)` - wrapper-based
+  - **Impact**: Changes task switching timing, environment reset behavior, state consistency
+- ⚠️ **Missing OmegaConf Resolvers**:
+  - **Old**: `register_resolvers()` called to set up `${div:${..num_agents},6}` etc.
+  - **New**: No resolver registration (moved to Pydantic, resolvers not needed)
+  - **Impact**: Should be fine since Pydantic configs replace OmegaConf, but represents major system change
+
+**Status**: Major architectural change - wrapper-based curriculum may be correct design but fundamentally different from reference
+
+---
+
+### 14. Additional Subsystems
 **Status**: ⏳ **Lower Priority**
 
-Remaining subsystems (vectorized environments, memory management, distributed training, etc.) are lower priority given the critical issues already found and fixed.
+Remaining subsystems (memory management, distributed training, etc.) are lower priority given the critical issues already found and fixed.
 
 ---
 
@@ -322,26 +378,33 @@ Remaining subsystems (vectorized environments, memory management, distributed tr
 4. **PPO Returns Calculation**: Reverted to use current values instead of mathematically correct original values
 5. **Hyperparameter Scheduling**: Restored entire scheduling system (CosineSchedule learning rate, LogarithmicSchedule PPO clip, LinearSchedule entropy)
 6. **Stats Accumulation Bug**: Fixed critical bug corrupting reward metrics that broke `overview/reward` calculation
+7. **Buffer Indexing Bug**: Fixed experience buffer indexing affecting zero-length episodes
+8. **Training Parameter Inconsistency**: Removed unused `original_values` parameter from minibatch sampling
 
 ### ⏳ **High Priority Remaining Issues**
 1. **Default Configuration Changes**: Other recipes/configs might be affected by changed defaults
+2. **Curriculum Architecture**: Major wrapper-based vs integrated curriculum architecture change (may be correct but fundamentally different)
 
 ### 📊 **Testing Results**
 - ✅ **Training Validation**: 1000-step training run completed successfully with reverted changes
 - ✅ **Code Quality**: All changes pass linting and formatting checks
-- 🔍 **Performance Validation**: Longer training runs needed to confirm heart.get metric restoration
+- ✅ **Stats Accumulation**: Fixed accumulation works correctly with mixed data types
+- ✅ **Buffer Indexing**: Restored reference behavior for zero-length episodes
+- ✅ **Parameter Consistency**: Removed unused parameters from training loop
+- 🔍 **Performance Validation**: Extended training runs needed to confirm full performance and metric smoothness restoration
 
 ## Next Steps
 
 ### Immediate Actions
-1. **Validate Performance**: Run extended training (10M+ timesteps) to confirm heart.get metrics restored
-2. **Hyperparameter Scheduling**: Investigate and restore missing scheduler functionality
+1. **Validate Performance**: Run extended training (10M+ timesteps) to confirm heart.get metrics restored and performance regression eliminated
+2. **Test Metric Smoothness**: Verify `overview/reward` appears instead of jagged `env_agent/heart.get` in WandB
 3. **Configuration Audit**: Review other recipes for default configuration impacts
 
 ### Long-term Actions  
 1. **A/B Testing**: Set up systematic comparison between "correct" and "reverted" algorithms
-2. **Documentation**: Update CLAUDE.md with findings about training algorithm sensitivity
-3. **Monitoring**: Add alerts for future performance regressions
+2. **Architecture Review**: Evaluate if wrapper-based curriculum architecture has any performance implications
+3. **Documentation**: Update CLAUDE.md with findings about training algorithm sensitivity
+4. **Monitoring**: Add alerts for future performance regressions
 
 ## Key Insights
 
