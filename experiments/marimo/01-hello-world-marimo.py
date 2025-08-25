@@ -75,6 +75,24 @@ def _():
         replay_available = False
         print("⚠️ MettaScope replay viewer not available")
 
+    from metta.agent.policy_store import PolicyStore
+
+    from metta.common.wandb.wandb_context import WandbConfig
+    from metta.rl.policy_management import initialize_policy_for_environment
+    import torch
+
+    from tensordict import TensorDict
+
+    import logging
+    from metta.tools.train import TrainTool
+    from metta.rl.trainer_config import (
+        TrainerConfig,
+        CheckpointConfig,
+        EvaluationConfig,
+    )
+
+    from metta.cogworks.curriculum import env_curriculum
+
     # Define a minimal HTML widget using anywidget so we can drop ipywidgets
     class HTMLWidget(anywidget.AnyWidget):
         """A simple widget that renders arbitrary HTML content.
@@ -251,14 +269,24 @@ def _():
 
     print("Setup done")
     return (
+        CheckpointConfig,
+        EvaluationConfig,
         MettaGridEnv,
         Path,
+        PolicyStore,
         RendererToolConfig,
+        TensorDict,
+        TrainTool,
+        TrainerConfig,
+        WandbConfig,
         contextlib,
         datetime,
         display,
+        env_curriculum,
         get_policy,
+        initialize_policy_for_environment,
         io,
+        logging,
         mo,
         np,
         os,
@@ -266,6 +294,7 @@ def _():
         replay_available,
         show_replay,
         time,
+        torch,
         widgets,
     )
 
@@ -666,18 +695,19 @@ def _(mo):
 
 
 @app.cell
-def _(datetime, env_config, mo, os, train_button):
-    # Import training modules
-    import logging
-    from metta.tools.train import TrainTool
-    from metta.rl.trainer_config import (
-        TrainerConfig,
-        CheckpointConfig,
-        EvaluationConfig,
-    )
-
-    from metta.cogworks.curriculum import env_curriculum
-
+def _(
+    CheckpointConfig,
+    EvaluationConfig,
+    TrainTool,
+    TrainerConfig,
+    datetime,
+    env_config,
+    env_curriculum,
+    logging,
+    mo,
+    os,
+    train_button,
+):
     username = os.environ.get("USER", "metta_user")
 
     # Unique run name (so multiple notebook runs don't collide)
@@ -687,7 +717,7 @@ def _(datetime, env_config, mo, os, train_button):
 
     print(f"🚀 Starting training run: {run_name}")
 
-    def _():
+    def train_agent():
         # Create a simple curriculum with our hallway environment
         curriculum = env_curriculum(env_config)
 
@@ -741,17 +771,8 @@ def _(datetime, env_config, mo, os, train_button):
             traceback.print_exc()
 
     mo.stop(not train_button.value)
-    _()
-    return (
-        CheckpointConfig,
-        EvaluationConfig,
-        TrainTool,
-        TrainerConfig,
-        env_curriculum,
-        logging,
-        run_name,
-        username,
-    )
+    train_agent()
+    return run_name, username
 
 
 @app.cell(hide_code=True)
@@ -797,10 +818,14 @@ def _(
     EVAL_EPISODES,
     MettaGridEnv,
     Path,
+    PolicyStore,
+    TensorDict,
+    WandbConfig,
     contextlib,
     display,
     env_config,
     eval_trained_button,
+    initialize_policy_for_environment,
     io,
     mo,
     np,
@@ -808,20 +833,13 @@ def _(
     renderer_config,
     run_name,
     time,
+    torch,
     widgets,
 ):
     # Load trained policy using repo's PolicyStore approach (like tools/sim.py)
-    from metta.agent.policy_store import PolicyStore
-
-    from metta.common.wandb.wandb_context import WandbConfig
-    from metta.rl.policy_management import initialize_policy_for_environment
-    import torch
-
-    from tensordict import TensorDict
-
     mo.stop(not eval_trained_button.value or not run_name)
 
-    def _():
+    def evaluate_agent():
         # Find the latest checkpoint
         ckpt_dir = Path("train_dir") / run_name / "checkpoints"
         latest_ckpt = max(ckpt_dir.glob("*.pt"), key=lambda p: p.stat().st_mtime)
@@ -966,8 +984,8 @@ def _(
         )
         print(f"📊 Compare with opportunistic baseline from earlier evaluation!")
 
-    _()
-    return PolicyStore, WandbConfig, initialize_policy_for_environment, torch
+    evaluate_agent()
+    return
 
 
 @app.cell(hide_code=True)
@@ -1145,7 +1163,7 @@ def _(
 ):
     mo.stop(not observe_button2.value)
 
-    def _():
+    def observe_agent2():
         # Create environment with proper EnvConfig
         env = MettaGridEnv(env_config2, render_mode="human")
         policy = get_policy(renderer_config2.policy_type, env, renderer_config2)
@@ -1179,7 +1197,7 @@ def _(
             time.sleep(renderer_config2.sleep_time)
         env.close()
 
-    _()
+    observe_agent2()
     return
 
 
@@ -1206,7 +1224,7 @@ def _(
 ):
     mo.stop(not train_button2.value)
 
-    def _():
+    def train_agent2():
         # Create a simple curriculum with our hallway environment
         curriculum = env_curriculum(env_config2)
 
@@ -1216,24 +1234,24 @@ def _(
         # Batch sizes optimized for Mac CPU/Metal - larger than first demo but still reasonable
         trainer_config = TrainerConfig(
             curriculum=curriculum,
-            total_timesteps=100000,  # Longer training run
+            total_timesteps=2000000,  # Small demo run
             # total_timesteps=1000,  # DEBUG run
-            batch_size=4096,  # Increased from 256 - better for longer training
-            minibatch_size=1024,  # Increased from 256 - good for 100k timesteps
-            rollout_workers=1,  # Single worker for Mac
-            forward_pass_minibatch_target_size=512,  # Increased from 2 - better throughput
+            batch_size=65536,  # Increased from 256, reduced from default 524288 for Mac
+            minibatch_size=512,  # Increased from 256, reduced from default 16384 for Mac
+            rollout_workers=14,  # Single worker for Mac
+            forward_pass_minibatch_target_size=512,  # Increased from 2 - better GPU utilization
             # Adjusted learning rate for smaller batch size (scaled down from default 0.000457)
             # Using sqrt(4096/524288) ≈ 0.088 scaling factor
             optimizer={
                 "learning_rate": 0.00004
             },  # Reduced from default for smaller batch
             checkpoint=CheckpointConfig(
-                checkpoint_interval=50,  # Checkpoint every n epochs
-                wandb_checkpoint_interval=50,
+                checkpoint_interval=10,  # Checkpoint every n epochs
+                wandb_checkpoint_interval=10,
             ),
             # Enable replay generation for MettaScope visualization
             evaluation=EvaluationConfig(
-                evaluate_interval=50,  # Generate replays every 50 steps (matches checkpoint interval)
+                evaluate_interval=10,  # Generate replays every 50 steps (matches checkpoint interval)
                 evaluate_remote=False,  # Run locally or you'll have to wait
                 evaluate_local=True,
                 replay_dir=f"s3://softmax-public/replays/{run_name2}",  # Store replays on S3
@@ -1263,7 +1281,7 @@ def _(
 
         return run_name2
 
-    run_name2 = _()
+    run_name2 = train_agent2()
     return (run_name2,)
 
 
@@ -1280,6 +1298,7 @@ def _(
     MettaGridEnv,
     Path,
     PolicyStore,
+    TensorDict,
     WandbConfig,
     contextlib,
     display,
@@ -1298,7 +1317,7 @@ def _(
 ):
     mo.stop(not eval_trained_button2.value or not run_name2)
 
-    def _():
+    def evaluate_agent2():
         # Find the latest checkpoint
         ckpt_dir = Path("train_dir") / run_name2 / "checkpoints"
         latest_ckpt = max(ckpt_dir.glob("*.pt"), key=lambda p: p.stat().st_mtime)
@@ -1366,8 +1385,6 @@ def _(
             steps = 1000
             for _step in range(steps):  # Same number of steps as opportunistic
                 # Use TensorDict format for trained policy (same as simulation.py:272-275)
-                from tensordict import TensorDict
-
                 td = TensorDict({"env_obs": obs_tensor}, batch_size=obs_tensor.shape[0])
                 trained_policy(td)
                 _actions = td["actions"].cpu().numpy()
@@ -1458,7 +1475,7 @@ def _(
         )
         print(f"📊 Compare with opportunistic baseline from earlier evaluation!")
 
-    _()
+    evaluate_agent2()
     return
 
 
