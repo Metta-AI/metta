@@ -360,7 +360,6 @@ def process_stats(
     latest_saved_policy_record: PolicyRecord,
     optimizer: torch.optim.Optimizer,
     kickstarter: Kickstarter | None = None,
-    hyperparameter_updates: dict[str, float] | None = None,
 ) -> None:
     """Process and log training statistics."""
     if not wandb_run:
@@ -412,14 +411,6 @@ def process_stats(
         "ppo_l2_reg_loss_coef": trainer_cfg.ppo.l2_reg_loss_coef,
         "ppo_l2_init_loss_coef": trainer_cfg.ppo.l2_init_loss_coef,
     }
-    
-    # Update with scheduler values if provided
-    if hyperparameter_updates:
-        for key, value in hyperparameter_updates.items():
-            if key == "learning_rate":
-                hyperparameters["learning_rate"] = value
-            elif key in hyperparameters:
-                hyperparameters[key] = value
 
     # Build complete stats
     all_stats = build_wandb_stats(

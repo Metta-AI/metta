@@ -28,7 +28,6 @@ from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
-from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
@@ -248,13 +247,6 @@ def train(
     else:
         raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
 
-    # Create hyperparameter scheduler (disabled to match pre-dehydration behavior)
-    # hyperparameter_scheduler = HyperparameterScheduler.from_trainer_config(
-    #     trainer_cfg=trainer_cfg,
-    #     optimizer=optimizer,
-    #     total_timesteps=trainer_cfg.total_timesteps,
-    #     logger=logger,
-    # )
 
     if checkpoint and checkpoint.optimizer_state_dict:
         try:
@@ -457,9 +449,6 @@ def train(
                     losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
                 epoch += epochs_trained
 
-            # Update hyperparameters based on current agent step (disabled to match pre-dehydration behavior)
-            # hyperparameter_updates = hyperparameter_scheduler.step(agent_step)
-            hyperparameter_updates = {}
 
             # Safe to proceed to next rollout phase only once all ranks have completed training
             if torch.distributed.is_initialized():
@@ -492,7 +481,6 @@ def train(
                         latest_saved_policy_record=latest_saved_policy_record,
                         optimizer=optimizer,
                         kickstarter=kickstarter,
-                        hyperparameter_updates=hyperparameter_updates,
                     )
                 # Clear stats after processing
                 stats_tracker.clear_rollout_stats()

@@ -59,11 +59,7 @@ def make_vecenv(
     **kwargs,
 ) -> Any:  # Returns pufferlib VecEnv instance
     # Determine the vectorization class
-    # IMPORTANT: Don't use Serial mode just because num_workers=1
-    # Multiprocessing mode with 1 worker still supports async double buffering!
-    is_serial = vectorization == "serial"
-    
-    logger.info(f"DEBUG: make_vecenv called with num_workers={num_workers}, num_envs={num_envs}, batch_size={batch_size}, is_serial={is_serial}")
+    is_serial = vectorization == "serial" or num_workers == 1
 
     if is_serial:
         vectorizer_cls = pufferlib.vector.Serial

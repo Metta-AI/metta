@@ -61,12 +61,12 @@ def normalize_advantage_distributed(adv: Tensor, norm_adv: bool = True) -> Tenso
     if torch.distributed.is_initialized():
         # Compute local statistics
         adv_flat = adv.view(-1)
-        local_sum = adv_flat.sum()
-        local_sq_sum = (adv_flat * adv_flat).sum()
-        local_count = torch.tensor(adv_flat.numel(), dtype=adv.dtype, device=adv.device)
+        local_sum = einops.rearrange(adv_flat.sum(), "-> 1")
+        local_sq_sum = einops.rearrange((adv_flat * adv_flat).sum(), "-> 1")
+        local_count = torch.tensor([adv_flat.numel()], dtype=adv.dtype, device=adv.device)
 
         # Combine statistics for single all_reduce
-        stats = torch.stack([local_sum, local_sq_sum, local_count])
+        stats = einops.rearrange([local_sum, local_sq_sum, local_count], "one float -> (float one)")
         torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
 
         # Extract global statistics

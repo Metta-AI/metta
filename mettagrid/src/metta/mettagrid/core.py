@@ -71,7 +71,6 @@ class MettaGridCore:
         self._renderer = None
         self._current_seed: int = 0
         self._map_builder = self.__env_config.game.map_builder.create()
-        self._cached_map = None  # Cache the built map to avoid rebuilding on every reset
 
         # Set by PufferBase
         self.observations: np.ndarray
@@ -95,7 +94,6 @@ class MettaGridCore:
         """Set the environment configuration."""
         self.__env_config = env_config
         self._map_builder = self.__env_config.game.map_builder.create()
-        self._cached_map = None  # Clear cache when config changes
 
     @property
     def c_env(self) -> MettaGridCpp:
@@ -119,10 +117,7 @@ class MettaGridCore:
             self._renderer_class = MiniscopeRenderer
 
     def _create_c_env(self) -> MettaGridCpp:
-        # Use cached map if available, otherwise build and cache
-        if self._cached_map is None:
-            self._cached_map = self._map_builder.build()
-        game_map = self._cached_map
+        game_map = self._map_builder.build()
 
         # Validate number of agents
         level_agents = np.count_nonzero(np.char.startswith(game_map.grid, "agent"))
