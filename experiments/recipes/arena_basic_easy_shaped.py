@@ -179,6 +179,11 @@ def train() -> TrainTool:
     small_env = env_cfg.model_copy(deep=True)
     small_env.label = "arena.basic_easy_shaped.small"
 
+    # CRITICAL: Ensure initial_resource_count = 1 is preserved in small_env (should be inherited)
+    assert small_env.game.objects["generator_red"].initial_resource_count == 1, (
+        "Small env missing initial_resource_count"
+    )
+
     # Create a larger variant for map diversity (50x50 = 2500 area = still "small" but different)
     medium_env = env_cfg.model_copy(deep=True)
     medium_env.label = "arena.basic_easy_shaped.medium"
@@ -187,6 +192,11 @@ def train() -> TrainTool:
     # Clear the explicit instances setting to let MapGen derive it automatically
     # This avoids the ValueError from conflicting explicit vs derived instances
     medium_env.game.map_builder.instances = None
+
+    # CRITICAL: Ensure initial_resource_count = 1 is preserved in medium_env (should be inherited)
+    assert medium_env.game.objects["generator_red"].initial_resource_count == 1, (
+        "Medium env missing initial_resource_count"
+    )
 
     # Create curriculum with both map variants to restore pre-dehydration map diversity
     curriculum_cfg = cc.CurriculumConfig(
