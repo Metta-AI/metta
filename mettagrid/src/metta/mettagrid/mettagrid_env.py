@@ -88,6 +88,40 @@ class MettaGridEnv(MettaGridPufferBase):
         """Generate unique episode ID."""
         return str(uuid.uuid4())
 
+    def _get_map_labels(self) -> list[str]:
+        """Generate map labels for tracking different map types like pre-dehydration system."""
+        labels = []
+
+        # Add config-based labels from env config
+        config_labels = getattr(self.env_config, "labels", [])
+        if config_labels:
+            labels.extend(config_labels)
+
+        # Add map builder class name (like "Random" from Random scene)
+        if hasattr(self.env_config.game, "map_builder"):
+            map_builder_name = self.env_config.game.map_builder.__class__.__name__
+            if map_builder_name != "Config":  # Skip generic Config class name
+                labels.append(map_builder_name)
+
+        # Add size-based labels like old system (based on map area)
+        if hasattr(self.env_config.game.map_builder, "width") and hasattr(self.env_config.game.map_builder, "height"):
+            width = self.env_config.game.map_builder.width
+            height = self.env_config.game.map_builder.height
+            area = width * height
+            if area < 1000:
+                labels.append("small")
+            elif area < 3000:
+                labels.append("medium")
+            else:
+                labels.append("large")
+
+        # Default to "Random" if no specific labels found (matches old arena behavior)
+        if not labels:
+            labels.append("Random")
+            labels.append("small")  # Default arena maps were small
+
+        return labels
+
     @override
     @with_instance_timer("reset")
     def reset(self, seed: Optional[int] = None) -> Tuple[np.ndarray, Dict[str, Any]]:
@@ -211,6 +245,12 @@ class MettaGridEnv(MettaGridPufferBase):
                 f"task_timing/{task_name}/init_time_msec": task_init_time_msec,
             }
         )
+
+        # RESTORED: Add map-specific reward tracking like pre-dehydration system
+        # This restores env_map_reward/{label} metrics for different map types
+        map_labels = self._get_map_labels()
+        for label in map_labels:
+            infos[f"env_map_reward/{label}"] = episode_rewards_mean
 
         # Add timing information
         self._add_timing_info(infos)
