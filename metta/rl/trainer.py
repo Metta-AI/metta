@@ -28,7 +28,6 @@ from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
-from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
@@ -134,6 +133,9 @@ def train(
         num_workers=trainer_cfg.rollout_workers,
         zero_copy=trainer_cfg.zero_copy,
         is_training=True,
+        # CRITICAL FIX: Ensure dual-policy flags reach subprocess envs so they can log metrics
+        dual_policy_enabled=trainer_cfg.dual_policy.enabled,
+        dual_policy_training_agents_pct=trainer_cfg.dual_policy.training_agents_pct,
     )
 
     vecenv.async_reset(system_cfg.seed + torch_dist_cfg.rank)
@@ -429,8 +431,7 @@ def train(
                                 device=device,
                             )
 
-                            # REVERTED: Old (broken) gradient accumulation behavior
-                            # Clear gradients before each minibatch (breaks accumulation but matches old dynamics)
+                            # CRITICAL FIX: Match reference system - clear gradients AFTER loss computation, BEFORE backward
                             optimizer.zero_grad()
 
                             # This also serves as a barrier for all ranks

@@ -119,6 +119,12 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     altar_copy.input_resources = {"battery_red": 1}
     env_cfg.game.objects["altar"] = altar_copy
 
+    # PERFORMANCE BOOST: Set initial resource count to 1 for generators
+    # This bootstraps the economy and helps training performance significantly
+    generator_red_copy = env_cfg.game.objects["generator_red"].model_copy(deep=True)
+    generator_red_copy.initial_resource_count = 1
+    env_cfg.game.objects["generator_red"] = generator_red_copy
+
     # Set label for clarity
     env_cfg.label = "arena.basic_easy_shaped"
 
