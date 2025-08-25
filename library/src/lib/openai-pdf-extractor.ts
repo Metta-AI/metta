@@ -1852,8 +1852,14 @@ CRITICAL:
 
     let figuresWithImages: OpenAIPdfFigure[] = [];
 
-    // Step 2-4: Semantic figure extraction (if figures were identified)
+    // Check if figure extraction is disabled
+    if (process.env.ENABLE_FIGURE_EXTRACTION !== "true") {
+      console.log("🚫 Figure extraction disabled via ENABLE_FIGURE_EXTRACTION environment variable");
+    }
+
+    // Step 2-4: Semantic figure extraction (if figures were identified AND enabled)
     if (
+      process.env.ENABLE_FIGURE_EXTRACTION === "true" &&
       summaryResult.object.keyFigures &&
       summaryResult.object.keyFigures.length > 0
     ) {
