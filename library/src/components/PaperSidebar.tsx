@@ -412,68 +412,7 @@ const LLMAbstractView: FC<LLMAbstractViewProps> = ({
             </p>
           </div>
 
-          {/* Key Figures */}
-          {llmAbstract.figuresWithImages.length > 0 && (
-            <div>
-              <div className="mb-1 text-[12px] font-semibold text-neutral-700">
-                Key Figures ({llmAbstract.figuresWithImages.length})
-              </div>
-              <div className="space-y-3">
-                {llmAbstract.figuresWithImages.map((figure, index) => (
-                  <figure key={index} className="rounded-xl border p-3">
-                    <div className="flex items-center gap-2 text-[12px] text-neutral-700">
-                      <span className="font-semibold">
-                        {figure.figureNumber}
-                      </span>
-                      <span>• Page {figure.pageNumber}</span>
-                      <span>
-                        • Confidence: {Math.round(figure.confidence * 100)}%
-                      </span>
-                    </div>
-                    <div className="mt-2 text-[13px] font-medium text-neutral-900">
-                      {figure.caption}
-                    </div>
-                    {/* Preview placeholder or actual image */}
-                    {figure.imageData ? (
-                      <div className="mt-2">
-                        <img
-                          src={`data:image/${figure.imageType || "png"};base64,${figure.imageData}`}
-                          alt={figure.caption}
-                          className="h-24 w-full cursor-pointer rounded-lg object-cover"
-                          onClick={(e) => {
-                            // Create a downloadable blob URL for better viewing
-                            const byteCharacters = atob(figure.imageData!);
-                            const byteNumbers = new Array(
-                              byteCharacters.length
-                            );
-                            for (let i = 0; i < byteCharacters.length; i++) {
-                              byteNumbers[i] = byteCharacters.charCodeAt(i);
-                            }
-                            const byteArray = new Uint8Array(byteNumbers);
-                            const blob = new Blob([byteArray], {
-                              type: `image/${figure.imageType || "png"}`,
-                            });
-                            const url = URL.createObjectURL(blob);
-                            window.open(url, "_blank");
-                            // Clean up the URL after a delay
-                            setTimeout(() => URL.revokeObjectURL(url), 1000);
-                          }}
-                          title="Click to open in new tab"
-                        />
-                      </div>
-                    ) : (
-                      <div className="mt-2 grid h-24 place-content-center rounded-lg bg-neutral-100 text-[12px] text-neutral-500">
-                        preview
-                      </div>
-                    )}
-                    <figcaption className="mt-2 text-[13px] text-neutral-900">
-                      {figure.explanation}
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
-            </div>
-          )}
+
         </section>
       ) : (
         <section className="mt-4 text-[13.5px] leading-[1.6] text-neutral-800">
