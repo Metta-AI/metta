@@ -45,6 +45,8 @@ if defined(emscripten):
     """.replace("\n", " ")
   )
 
+if defined(macosx):
+  --passC:"-Wno-incompatible-function-pointer-types"
 
 --gc:arc # GC:arc is friendlier with crazy platforms.
 --exceptions:goto # Goto exceptions are friendlier with crazy platforms.
