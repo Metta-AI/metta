@@ -14,7 +14,6 @@ import numpy as np
 from gymnasium import spaces
 
 from metta.mettagrid.mettagrid_c import (
-    GameConfig,
     dtype_actions,
     dtype_observations,
     dtype_rewards,
@@ -22,6 +21,7 @@ from metta.mettagrid.mettagrid_c import (
     dtype_truncations,
 )
 from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
+from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 # Type compatibility assertions - ensure C++ types match PufferLib expectations
@@ -129,7 +129,7 @@ class MettaGridCore:
 
         # Create C++ config
         try:
-            c_cfg = GameConfig(**game_config_dict)
+            c_cfg = from_mettagrid_config(game_config_dict)
         except Exception as e:
             logger.error(f"Error creating C++ config: {e}")
             logger.error(f"Game config: {game_config_dict}")
