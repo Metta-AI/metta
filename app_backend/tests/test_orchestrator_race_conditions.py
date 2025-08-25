@@ -14,7 +14,7 @@ from http_env import HttpEvalTaskClientEnv
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator, FixedScaler
-from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker
+from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker, TaskResult
 from metta.app_backend.routes.eval_task_routes import (
     TaskClaimRequest,
     TaskCreateRequest,
@@ -34,11 +34,12 @@ class SlowTaskExecutor(AbstractTaskExecutor):
         self.should_fail = should_fail
         self.executions = 0
 
-    async def execute_task(self, task: TaskResponse) -> None:
+    async def execute_task(self, task: TaskResponse) -> TaskResult:
         self.executions += 1
         await asyncio.sleep(self.delay)
         if self.should_fail:
             raise Exception(f"Simulated failure for task {task.id}")
+        return TaskResult(success=True)
 
 
 class TestOrchestratorRaceConditions:

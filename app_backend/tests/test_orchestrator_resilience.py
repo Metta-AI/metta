@@ -14,7 +14,7 @@ import pytest
 from httpx import ConnectError, HTTPStatusError
 
 from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator, FixedScaler
-from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker
+from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker, TaskResult
 from metta.app_backend.routes.eval_task_routes import (
     TaskCreateRequest,
     TaskFilterParams,
@@ -33,7 +33,7 @@ class FlakyTaskExecutor(AbstractTaskExecutor):
         self.attempts = 0
         self.successes = 0
 
-    async def execute_task(self, task: TaskResponse) -> None:
+    async def execute_task(self, task: TaskResponse) -> TaskResult:
         self.attempts += 1
         await asyncio.sleep(self.delay)
 
@@ -44,6 +44,7 @@ class FlakyTaskExecutor(AbstractTaskExecutor):
             raise Exception(f"Flaky failure on attempt {self.attempts}")
 
         self.successes += 1
+        return TaskResult(success=True)
 
 
 class ReliableTaskExecutor(AbstractTaskExecutor):
@@ -53,9 +54,10 @@ class ReliableTaskExecutor(AbstractTaskExecutor):
         self.delay = delay
         self.executed_tasks = 0
 
-    async def execute_task(self, task: TaskResponse) -> None:
+    async def execute_task(self, task: TaskResponse) -> TaskResult:
         await asyncio.sleep(self.delay)
         self.executed_tasks += 1
+        return TaskResult(success=True)
 
 
 class TestOrchestratorResilience:
