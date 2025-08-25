@@ -79,10 +79,10 @@ def test_rotation_functionality(configured_env, simple_game_map):
     env = configured_env(simple_game_map)
 
     orientations = [
-        Orientation.UP,
+        Orientation.NORTH,
         Orientation.EAST,
-        Orientation.DOWN,
-        Orientation.LEFT,
+        Orientation.SOUTH,
+        Orientation.WEST,
     ]
 
     for orientation in orientations:
@@ -98,15 +98,15 @@ def test_rotation_cycle(configured_env, simple_game_map):
     env = configured_env(simple_game_map)
 
     # Start by setting a known orientation
-    initial_result = rotate(env, Orientation.UP)
+    initial_result = rotate(env, Orientation.NORTH)
     assert initial_result["success"], "Initial rotation should succeed"
 
     # Rotate through all orientations
     orientations = [
         Orientation.EAST,
-        Orientation.DOWN,
-        Orientation.LEFT,
-        Orientation.UP,
+        Orientation.SOUTH,
+        Orientation.WEST,
+        Orientation.NORTH,
     ]
 
     for orientation in orientations:
@@ -132,10 +132,10 @@ def test_rotation_preserves_position(configured_env, simple_game_map):
 
     # Rotate through all orientations
     orientations = [
-        Orientation.UP,
+        Orientation.NORTH,
         Orientation.EAST,
-        Orientation.DOWN,
-        Orientation.LEFT,
+        Orientation.SOUTH,
+        Orientation.WEST,
     ]
 
     for orientation in orientations:
@@ -168,7 +168,7 @@ def test_multiple_agents_rotation(configured_env):
 
     # Rotate each agent to different orientations
     result0 = rotate(env, Orientation.EAST, agent_idx=0)
-    result1 = rotate(env, Orientation.DOWN, agent_idx=1)
+    result1 = rotate(env, Orientation.SOUTH, agent_idx=1)
 
     assert result0["success"], "Agent 0 rotation should succeed"
     assert result1["success"], "Agent 1 rotation should succeed"
@@ -178,25 +178,25 @@ def test_multiple_agents_rotation(configured_env):
     orientation1 = get_agent_orientation(env, 1)
 
     assert orientation0 == Orientation.EAST.value, f"Agent 0 should face RIGHT, got {orientation0}"
-    assert orientation1 == Orientation.DOWN.value, f"Agent 1 should face DOWN, got {orientation1}"
+    assert orientation1 == Orientation.SOUTH.value, f"Agent 1 should face DOWN, got {orientation1}"
 
 
 def test_orientation_enum_functionality():
     """Test that the Orientation enum works as expected."""
-    assert Orientation.UP.value == 0
-    assert Orientation.DOWN.value == 1
-    assert Orientation.LEFT.value == 2
+    assert Orientation.NORTH.value == 0
+    assert Orientation.SOUTH.value == 1
+    assert Orientation.WEST.value == 2
     assert Orientation.EAST.value == 3
 
-    assert str(Orientation.UP) == "up"
-    assert str(Orientation.DOWN) == "down"
-    assert str(Orientation.LEFT) == "left"
+    assert str(Orientation.NORTH) == "up"
+    assert str(Orientation.SOUTH) == "down"
+    assert str(Orientation.WEST) == "left"
     assert str(Orientation.EAST) == "right"
 
     # Test movement_delta property
-    assert Orientation.UP.movement_delta == (-1, 0)
-    assert Orientation.DOWN.movement_delta == (1, 0)
-    assert Orientation.LEFT.movement_delta == (0, -1)
+    assert Orientation.NORTH.movement_delta == (-1, 0)
+    assert Orientation.SOUTH.movement_delta == (1, 0)
+    assert Orientation.WEST.movement_delta == (0, -1)
     assert Orientation.EAST.movement_delta == (0, 1)
 
 
@@ -208,7 +208,7 @@ def test_rotation_helper_return_values(configured_env, simple_game_map):
     initial_orientation = get_agent_orientation(env, 0)
 
     # Rotate to a different orientation
-    target_orientation = Orientation.EAST if initial_orientation != 3 else Orientation.LEFT
+    target_orientation = Orientation.EAST if initial_orientation != 3 else Orientation.WEST
     result = rotate(env, target_orientation)
 
     # Check all return values
