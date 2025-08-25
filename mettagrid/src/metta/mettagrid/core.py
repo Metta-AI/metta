@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 import numpy as np
 from gymnasium import spaces
 
-from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from metta.mettagrid.mettagrid_c import (
     GameConfig,
     dtype_actions,
@@ -22,6 +21,7 @@ from metta.mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
+from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 # Type compatibility assertions - ensure C++ types match PufferLib expectations

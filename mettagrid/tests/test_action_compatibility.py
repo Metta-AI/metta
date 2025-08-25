@@ -249,7 +249,7 @@ class TestResourceRequirements:
         initial_obs = get_current_observation(env, agent_idx=0)
 
         # Get inventory item names to know the expected feature IDs
-        inventory_names = env.inventory_item_names()
+        _inventory_names = env.inventory_item_names()
 
         # Feature IDs for inventory items start at 15 (ObservationFeatureCount)
         ore_feature_id = 15
