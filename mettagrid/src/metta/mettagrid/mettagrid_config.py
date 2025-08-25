@@ -128,6 +128,7 @@ class GlobalObsConfig(Config):
 
     # Controls both last_action and last_action_arg
     last_action: bool = Field(default=True)
+
     last_reward: bool = Field(default=True)
 
     # Controls whether resource rewards are included in observations
@@ -197,24 +198,28 @@ class GameConfig(Config):
     groups: dict[str, GroupConfig] = Field(default_factory=lambda: {"agent": GroupConfig()}, min_length=1)
     actions: ActionsConfig = Field(default_factory=lambda: ActionsConfig(noop=ActionConfig()))
     global_obs: GlobalObsConfig = Field(default_factory=GlobalObsConfig)
-    recipe_details_obs: bool = Field(default=False)
     objects: dict[str, ConverterConfig | WallConfig | BoxConfig] = Field(default_factory=dict)
     # these are not used in the C++ code, but we allow them to be set for other uses.
     # E.g., templates can use params as a place where values are expected to be written,
     # and other parts of the template can read from there.
     params: Optional[Any] = None
 
+    resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
+
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)
 
-    # Movement metrics configuration
+    # Feature Flags
     track_movement_metrics: bool = Field(
         default=True, description="Enable movement metrics tracking (sequential rotations)"
     )
     no_agent_interference: bool = Field(
         default=False, description="Enable agents to move through and not observe each other"
     )
-    resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
+    recipe_details_obs: bool = Field(
+        default=False, description="Converters show their recipe inputs and outputs when observed"
+    )
+    allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 
 
 class EnvConfig(Config):

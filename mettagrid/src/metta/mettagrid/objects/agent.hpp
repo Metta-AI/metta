@@ -7,51 +7,11 @@
 #include <string>
 #include <vector>
 
-#include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
+#include "agent_config.hpp"
 #include "constants.hpp"
 #include "objects/box.hpp"
 #include "types.hpp"
-
-// #MettagridConfig
-struct AgentConfig : public GridObjectConfig {
-  AgentConfig(TypeId type_id,
-              const std::string& type_name,
-              unsigned char group_id,
-              const std::string& group_name,
-              unsigned char freeze_duration,
-              float action_failure_penalty,
-              const std::map<InventoryItem, InventoryQuantity>& resource_limits,
-              const std::map<InventoryItem, RewardType>& resource_rewards,
-              const std::map<InventoryItem, RewardType>& resource_reward_max,
-              const std::map<std::string, RewardType>& stat_rewards,
-              const std::map<std::string, RewardType>& stat_reward_max,
-              float group_reward_pct,
-              const std::map<InventoryItem, InventoryQuantity>& initial_inventory)
-      : GridObjectConfig(type_id, type_name),
-        group_id(group_id),
-        group_name(group_name),
-        freeze_duration(freeze_duration),
-        action_failure_penalty(action_failure_penalty),
-        resource_limits(resource_limits),
-        resource_rewards(resource_rewards),
-        resource_reward_max(resource_reward_max),
-        stat_rewards(stat_rewards),
-        stat_reward_max(stat_reward_max),
-        group_reward_pct(group_reward_pct),
-        initial_inventory(initial_inventory) {}
-  unsigned char group_id;
-  std::string group_name;
-  short freeze_duration;
-  float action_failure_penalty;
-  std::map<InventoryItem, InventoryQuantity> resource_limits;
-  std::map<InventoryItem, RewardType> resource_rewards;
-  std::map<InventoryItem, RewardType> resource_reward_max;
-  std::map<std::string, RewardType> stat_rewards;
-  std::map<std::string, RewardType> stat_reward_max;
-  float group_reward_pct;
-  std::map<InventoryItem, InventoryQuantity> initial_inventory;
-};
 
 class Agent : public GridObject {
 public:

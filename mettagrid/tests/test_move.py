@@ -22,7 +22,7 @@ from metta.mettagrid.mettagrid_config import (
     WallConfig,
 )
 from metta.mettagrid.test_support.actions import get_agent_position, move
-from metta.mettagrid.test_support.compass import Compass
+from metta.mettagrid.test_support.orientation import Orientation
 
 
 # Test fixtures for MettaGrid environments
@@ -46,6 +46,7 @@ def base_config():
             "wall": {"type_id": 1},
         },
         "agent": {"rewards": {}},
+        "allow_diagonals": True,
     }
 
 
@@ -152,26 +153,26 @@ def test_8way_movement_all_directions():
     action_names = env.action_names
     move_8dir_idx = action_names.index("move")
 
-    # Test all 8 directions
+    # (direction, (dest row, dest col))
     moves = [
-        (0, (1, 2)),  # North
-        (1, (0, 3)),  # Northeast (from 1,2)
-        (4, (1, 3)),  # South (back to center-ish)
-        (6, (1, 2)),  # West
-        (3, (2, 3)),  # Southeast
-        (7, (1, 2)),  # Northwest
-        (2, (1, 3)),  # East
-        (5, (2, 2)),  # Southwest (back to start)
+        (Orientation.NORTH, (1, 2)),  # North
+        (Orientation.NORTHEAST, (0, 3)),  # Northeast - from (1,2)
+        (Orientation.SOUTH, (1, 3)),  # South - back to center-ish
+        (Orientation.WEST, (1, 2)),  # West
+        (Orientation.SOUTHEAST, (2, 3)),  # Southeast
+        (Orientation.NORTHWEST, (1, 2)),  # Northwest
+        (Orientation.EAST, (1, 3)),  # East
+        (Orientation.SOUTHWEST, (2, 2)),  # Southwest - back to start
     ]
 
     for direction, expected_pos in moves:
         actions = np.zeros((1, 2), dtype=dtype_actions)
-        actions[0] = [move_8dir_idx, direction]
+        actions[0] = [move_8dir_idx, direction.value]  # Use .value to get the integer
         env.step(actions)
 
         objects = env.grid_objects
         actual_pos = (objects[agent_id]["r"], objects[agent_id]["c"])
-        assert actual_pos == expected_pos, f"Direction {direction}: expected {expected_pos}, got {actual_pos}"
+        assert actual_pos == expected_pos, f"Direction {direction.name}: expected {expected_pos}, got {actual_pos}"
 
         # Verify orientation has changed to match movement direction
         # Based on move.hpp implementation:
@@ -515,19 +516,19 @@ def test_move_all_directions(configured_env, movement_game_map):
 
     # Test cardinal directions first
     cardinal_tests = [
-        (Compass.NORTH, (-1, 0)),
-        (Compass.EAST, (0, 1)),
-        (Compass.SOUTH, (1, 0)),
-        (Compass.WEST, (0, -1)),
+        (Orientation.NORTH, (-1, 0)),
+        (Orientation.EAST, (0, 1)),
+        (Orientation.SOUTH, (1, 0)),
+        (Orientation.WEST, (0, -1)),
     ]
 
-    for compass_dir, (expected_dr, expected_dc) in cardinal_tests:
-        direction_name = str(compass_dir)
+    for orientation, (expected_dr, expected_dc) in cardinal_tests:
+        direction_name = str(orientation)
 
-        print(f"Testing move {direction_name} (value {compass_dir.value})")
+        print(f"Testing move {direction_name} (value {orientation.value})")
 
         position_before = get_agent_position(env, 0)
-        result = move(env, compass_dir)
+        result = move(env, orientation)
         position_after = get_agent_position(env, 0)
 
         # Assert movement was successful
@@ -550,21 +551,21 @@ def test_move_diagonal_directions(configured_env, movement_game_map):
 
     # Test diagonal directions
     diagonal_tests = [
-        (Compass.NORTHEAST, (-1, 1)),
-        (Compass.SOUTHEAST, (1, 1)),
-        (Compass.SOUTHWEST, (1, -1)),
-        (Compass.NORTHWEST, (-1, -1)),
+        (Orientation.NORTHEAST, (-1, 1)),
+        (Orientation.SOUTHEAST, (1, 1)),
+        (Orientation.SOUTHWEST, (1, -1)),
+        (Orientation.NORTHWEST, (-1, -1)),
     ]
 
-    for compass_dir, (expected_dr, expected_dc) in diagonal_tests:
+    for orientation, (expected_dr, expected_dc) in diagonal_tests:
         # Reset to center for each test
         env = configured_env(movement_game_map)
 
-        direction_name = str(compass_dir)
-        print(f"Testing diagonal move {direction_name} (value {compass_dir.value})")
+        direction_name = str(orientation)
+        print(f"Testing diagonal move {direction_name} (value {orientation.value})")
 
         position_before = get_agent_position(env, 0)
-        result = move(env, compass_dir)
+        result = move(env, orientation)
         position_after = get_agent_position(env, 0)
 
         # Assert movement was successful
@@ -588,7 +589,7 @@ def test_move_up(configured_env, small_movement_game_map):
     # Get position before move
     position_before = get_agent_position(env, 0)
 
-    result = move(env, Compass.NORTH)  # Use Compass.NORTH for moving up
+    result = move(env, Orientation.NORTH)  # Use Orientation.NORTH for moving up
 
     assert result["success"], f"Move north should succeed. Error: {result.get('error')}"
 
@@ -602,17 +603,17 @@ def test_move_blocked_by_wall(configured_env, blocked_game_map):
     env = configured_env(blocked_game_map, {"max_steps": 10})
 
     directions = [
-        Compass.NORTH,
-        Compass.EAST,
-        Compass.SOUTH,
-        Compass.WEST,
+        Orientation.NORTH,
+        Orientation.EAST,
+        Orientation.SOUTH,
+        Orientation.WEST,
     ]
 
-    for compass_dir in directions:
+    for orientation in directions:
         position_before = get_agent_position(env, 0)
-        result = move(env, compass_dir)
+        result = move(env, orientation)
         position_after = get_agent_position(env, 0)
-        direction_name = str(compass_dir)
+        direction_name = str(orientation)
 
         # Movement should fail or position should remain unchanged
         if result["success"]:
@@ -633,15 +634,15 @@ def test_move_returns_to_center(configured_env, movement_game_map):
 
     # Move in a square: north, east, south, west
     moves = [
-        Compass.NORTH,
-        Compass.EAST,
-        Compass.SOUTH,
-        Compass.WEST,
+        Orientation.NORTH,
+        Orientation.EAST,
+        Orientation.SOUTH,
+        Orientation.WEST,
     ]
 
-    for compass_dir in moves:
-        result = move(env, compass_dir)
-        direction_name = str(compass_dir)
+    for orientation in moves:
+        result = move(env, orientation)
+        direction_name = str(orientation)
 
         assert result["success"], f"Move {direction_name} should succeed"
 
@@ -670,7 +671,7 @@ def test_agent_walks_across_room(configured_env, corridor_game_map):
     print(f"Environment created: {env.map_width}x{env.map_height}")
     print(f"Initial timestep: {env.current_step}")
 
-    # Find a working direction using Compass enum
+    # Find a working direction using Orientation enum
     successful_moves = []
     total_moves = 0
 
@@ -679,22 +680,22 @@ def test_agent_walks_across_room(configured_env, corridor_game_map):
 
     # Test all cardinal directions
     directions = [
-        Compass.NORTH,
-        Compass.EAST,
-        Compass.SOUTH,
-        Compass.WEST,
+        Orientation.NORTH,
+        Orientation.EAST,
+        Orientation.SOUTH,
+        Orientation.WEST,
     ]
 
-    for compass_dir in directions:
-        direction_name = str(compass_dir)
+    for orientation in directions:
+        direction_name = str(orientation)
 
         print(f"\nTesting movement {direction_name}...")
 
-        result = move(env, compass_dir, agent_idx=0)
+        result = move(env, orientation, agent_idx=0)
 
         if result["success"]:
             print(f"✔ Found working direction: {direction_name}")
-            working_direction = compass_dir
+            working_direction = orientation
             working_direction_str = direction_name
             break
         else:
@@ -764,24 +765,24 @@ def test_agent_walks_in_all_cardinal_directions(configured_env, corridor_game_ma
     successful_directions = []
     failed_directions = []
 
-    # Test all cardinal directions using Compass
+    # Test all cardinal directions using Orientation
     directions = [
-        Compass.NORTH,
-        Compass.EAST,
-        Compass.SOUTH,
-        Compass.WEST,
+        Orientation.NORTH,
+        Orientation.EAST,
+        Orientation.SOUTH,
+        Orientation.WEST,
     ]
 
-    for compass_dir in directions:
-        direction_name = str(compass_dir)
+    for orientation in directions:
+        direction_name = str(orientation)
 
-        print(f"\nTesting {direction_name} (value {compass_dir.value})...")
+        print(f"\nTesting {direction_name} (value {orientation.value})...")
 
         # Reset environment for each direction test
         env = configured_env(corridor_game_map, {"max_steps": 20})
 
         position_before = get_agent_position(env, 0)
-        result = move(env, compass_dir, agent_idx=0)
+        result = move(env, orientation, agent_idx=0)
         position_after = get_agent_position(env, 0)
 
         if result["success"] and position_before != position_after:
@@ -807,18 +808,18 @@ def test_agent_walks_in_all_cardinal_directions(configured_env, corridor_game_ma
         print("Warning: East movement failed, which is unexpected in this corridor layout")
 
 
-def test_compass_enum_functionality():
-    """Test that the Compass enum works as expected."""
-    assert Compass.NORTH.value == 0
-    assert Compass.NORTHEAST.value == 1
-    assert Compass.EAST.value == 2
-    assert Compass.SOUTHEAST.value == 3
-    assert Compass.SOUTH.value == 4
-    assert Compass.SOUTHWEST.value == 5
-    assert Compass.WEST.value == 6
-    assert Compass.NORTHWEST.value == 7
+def test_orientation_enum_functionality():
+    """Test that the Orientation enum works as expected."""
+    assert Orientation.NORTH.value == 0
+    assert Orientation.SOUTH.value == 1
+    assert Orientation.WEST.value == 2
+    assert Orientation.EAST.value == 3
+    assert Orientation.NORTHWEST.value == 4
+    assert Orientation.NORTHEAST.value == 5
+    assert Orientation.SOUTHWEST.value == 6
+    assert Orientation.SOUTHEAST.value == 7
 
-    assert str(Compass.NORTH) == "north"
-    assert str(Compass.EAST) == "east"
-    assert str(Compass.SOUTH) == "south"
-    assert str(Compass.WEST) == "west"
+    assert str(Orientation.NORTH) == "north"
+    assert str(Orientation.EAST) == "east"
+    assert str(Orientation.SOUTH) == "south"
+    assert str(Orientation.WEST) == "west"

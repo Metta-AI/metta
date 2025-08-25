@@ -1,13 +1,16 @@
 #ifndef ACTIONS_ATTACK_HPP_
 #define ACTIONS_ATTACK_HPP_
 
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+
 #include <map>
 #include <string>
 #include <vector>
 
 #include "action_handler.hpp"
-#include "config.hpp"
 #include "grid_object.hpp"
+#include "mettagrid_config.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "types.hpp"
@@ -215,5 +218,18 @@ private:
     actor.stats.add(_action_prefix(actor_group) + "steals." + item_name + ".from." + target_group, amount);
   }
 };
+
+namespace py = pybind11;
+
+inline void bind_attack_action_config(py::module& m) {
+  py::class_<AttackActionConfig, ActionConfig, std::shared_ptr<AttackActionConfig>>(m, "AttackActionConfig")
+      .def(py::init<const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&,
+                    const std::map<InventoryItem, InventoryQuantity>&>(),
+           py::arg("required_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("consumed_resources") = std::map<InventoryItem, InventoryQuantity>(),
+           py::arg("defense_resources") = std::map<InventoryItem, InventoryQuantity>())
+      .def_readwrite("defense_resources", &AttackActionConfig::defense_resources);
+}
 
 #endif  // ACTIONS_ATTACK_HPP_

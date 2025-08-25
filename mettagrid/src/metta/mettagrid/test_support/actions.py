@@ -7,7 +7,6 @@ from metta.mettagrid import (
     dtype_actions,
 )
 from metta.mettagrid.mettagrid_c import MettaGrid
-from metta.mettagrid.test_support.compass import Compass
 from metta.mettagrid.test_support.orientation import Orientation
 
 
@@ -74,13 +73,13 @@ def generate_valid_random_actions(
     return actions
 
 
-def move(env: MettaGrid, direction: Compass, agent_idx: int = 0) -> dict[str, Any]:
+def move(env: MettaGrid, direction: Orientation, agent_idx: int = 0) -> dict[str, Any]:
     """
-    Movement helper supporting all 8 compass directions.
+    Movement helper supporting all 8 orientation directions.
 
     Args:
         env: MettaGrid environment
-        direction: Compass direction (N, NE, E, SE, S, SW, W, NW)
+        direction: Orientation direction (NORTH, NORTHEAST, EAST, SOUTHEAST, SOUTH, SOUTHWEST, WEST, NORTHWEST)
         agent_idx: Agent index (default 0)
 
     Returns:
@@ -98,7 +97,7 @@ def move(env: MettaGrid, direction: Compass, agent_idx: int = 0) -> dict[str, An
     # Get initial position for verification
     position_before = get_agent_position(env, agent_idx)
 
-    # Compass values map directly to movement indices
+    # Orientation values map directly to movement indices
     movement_idx = direction.value
 
     # Use direct 8-way movement
@@ -126,7 +125,7 @@ def rotate(env: MettaGrid, orientation: Orientation, agent_idx: int = 0) -> dict
 
     Args:
         env: MettaGrid environment
-        orientation: Orientation enum (UP, DOWN, LEFT, RIGHT)
+        orientation: Orientation enum (NORTH, SOUTH, WEST, EAST for cardinal directions)
         agent_idx: Agent index (default 0)
 
     Returns:
@@ -336,20 +335,6 @@ def attack(env: MettaGrid, target_arg: int = 0, agent_idx: int = 0) -> dict[str,
                             result["resources_gained"] = result.get("resources_gained", {})
                             result["resources_gained"][item] = gain
                 break
-
-        # Map target_arg to attack position for clarity
-        attack_positions = {
-            0: "front-center",
-            1: "front-left",
-            2: "front-right",
-            3: "mid-center",
-            4: "mid-left",
-            5: "mid-right",
-            6: "far-center",
-            7: "far-left",
-            8: "far-right",
-        }
-        result["attack_position"] = attack_positions.get(target_arg, f"position-{target_arg}")
 
     else:
         result["error"] = "Attack action failed (no valid target found or blocked)"

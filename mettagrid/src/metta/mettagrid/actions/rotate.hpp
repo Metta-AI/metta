@@ -5,7 +5,7 @@
 
 #include "action_handler.hpp"
 #include "actions/orientation.hpp"
-#include "config.hpp"
+#include "mettagrid_config.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "types.hpp"

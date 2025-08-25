@@ -19,8 +19,8 @@
 #include <string>
 #include <vector>
 
-#include "config.hpp"
 #include "grid_object.hpp"
+#include "mettagrid_config.hpp"
 #include "packed_coordinate.hpp"
 #include "types.hpp"
 
