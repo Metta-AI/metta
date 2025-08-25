@@ -83,7 +83,7 @@ def test_swap():
 
     # Now rotate to face right (toward the block)
     print("\nRotating to face right (toward block):")
-    rotate_result = rotate(env, Orientation.RIGHT)
+    rotate_result = rotate(env, Orientation.EAST)
     assert rotate_result["success"], f"Rotation failed: {rotate_result.get('error')}"
     print("  Agent now facing right")
 
@@ -219,7 +219,7 @@ def test_swap_frozen_agent_preserves_layers():
 
     # Agent 0 needs to face right to attack agent 1
     print("\nAgent 0 rotating to face right:")
-    rotate_result = rotate(env, Orientation.RIGHT, agent_idx=agent0_action_idx)
+    rotate_result = rotate(env, Orientation.EAST, agent_idx=agent0_action_idx)
     assert rotate_result["success"], f"Rotation failed: {rotate_result.get('error')}"
 
     # Agent 0 attacks agent 1 to freeze it
