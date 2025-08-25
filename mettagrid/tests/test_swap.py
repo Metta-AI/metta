@@ -5,7 +5,6 @@ from metta.mettagrid.map_builder.map_builder import map_grid_dtype
 from metta.mettagrid.mettagrid_c import MettaGrid
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.test_support.actions import attack, move, rotate, swap
-from metta.mettagrid.test_support.compass import Compass
 from metta.mettagrid.test_support.orientation import Orientation
 
 
@@ -242,15 +241,15 @@ def test_swap_frozen_agent_preserves_layers():
     print("\nAgent 0 moving to be adjacent to frozen agent 1:")
 
     # Move right twice
-    move_result = move(env, Compass.EAST, agent_idx=agent0_action_idx)
+    move_result = move(env, Orientation.EAST, agent_idx=agent0_action_idx)
     assert move_result["success"], "First move east should succeed"
 
-    move_result = move(env, Compass.EAST, agent_idx=agent0_action_idx)
+    move_result = move(env, Orientation.EAST, agent_idx=agent0_action_idx)
     assert move_result["success"], "Second move east should succeed"
 
     # Now rotate to face down (towards the frozen agent)
     print("\nAgent 0 rotating to face down:")
-    rotate_result = rotate(env, Orientation.DOWN, agent_idx=agent0_action_idx)
+    rotate_result = rotate(env, Orientation.SOUTH, agent_idx=agent0_action_idx)
     assert rotate_result["success"], f"Rotation to down failed: {rotate_result.get('error')}"
 
     # Verify agent 1 is still frozen

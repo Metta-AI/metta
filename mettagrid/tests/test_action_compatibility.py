@@ -5,44 +5,42 @@ import pytest
 
 from metta.mettagrid.mettagrid_c import MettaGrid, dtype_actions
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from metta.mettagrid.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    AgentRewards,
+    AttackActionConfig,
+    GameConfig,
+    GroupConfig,
+    InventoryRewards,
+    StatsRewards,
+    WallConfig,
+)
 from metta.mettagrid.test_support.actions import get_agent_position, get_current_observation
 
 
-def create_basic_config():
+def create_basic_config() -> GameConfig:
     """Create a minimal valid game configuration."""
-    return {
-        "inventory_item_names": ["ore", "wood"],
-        "num_agents": 1,
-        "max_steps": 100,
-        "obs_width": 7,
-        "obs_height": 7,
-        "num_observation_tokens": 50,
-        "agent": {
-            "freeze_duration": 0,
-            "resource_limits": {"ore": 10, "wood": 10},
-            "rewards": {
-                "inventory": {},
-                "stats": {},
-            },
-        },
-        "groups": {
-            "default": {
-                "id": 0,
-                "group_reward_pct": 1.0,
-            }
-        },
-        "actions": {
-            "move": {"enabled": True},
-            "noop": {"enabled": True},
-            "rotate": {"enabled": True},
-        },
-        "objects": {
-            "wall": {
-                "type_id": 1,
-                "swappable": False,
-            }
-        },
-    }
+    return GameConfig(
+        inventory_item_names=["ore", "wood"],
+        num_agents=1,
+        max_steps=100,
+        obs_width=7,
+        obs_height=7,
+        num_observation_tokens=50,
+        agent=AgentConfig(
+            freeze_duration=0,
+            resource_limits={"ore": 10, "wood": 10},
+            rewards=AgentRewards(inventory=InventoryRewards(), stats=StatsRewards()),
+        ),
+        groups={"default": GroupConfig(id=0, group_reward_pct=1.0)},
+        actions=ActionsConfig(
+            move=ActionConfig(enabled=True), noop=ActionConfig(enabled=True), rotate=ActionConfig(enabled=True)
+        ),
+        objects={"wall": WallConfig(type_id=1, swappable=False)},
+        allow_diagonals=True,
+    )
 
 
 def create_simple_map():
@@ -96,13 +94,22 @@ class TestActionOrdering:
         env1 = MettaGrid(from_mettagrid_config(basic_config), simple_map, 42)
         action_names1 = env1.action_names()
 
-        # Create config with different action order in the dictionary
-        reordered_config = basic_config.copy()
-        reordered_config["actions"] = {
-            "rotate": basic_config["actions"]["rotate"],
-            "noop": basic_config["actions"]["noop"],
-            "move": basic_config["actions"]["move"],
-        }
+        # Create config with different action order
+        reordered_config = GameConfig(
+            inventory_item_names=basic_config.inventory_item_names,
+            num_agents=basic_config.num_agents,
+            max_steps=basic_config.max_steps,
+            obs_width=basic_config.obs_width,
+            obs_height=basic_config.obs_height,
+            num_observation_tokens=basic_config.num_observation_tokens,
+            agent=basic_config.agent,
+            groups=basic_config.groups,
+            actions=ActionsConfig(
+                rotate=ActionConfig(enabled=True), noop=ActionConfig(enabled=True), move=ActionConfig(enabled=True)
+            ),
+            objects=basic_config.objects,
+            allow_diagonals=basic_config.allow_diagonals,
+        )
 
         env2 = MettaGrid(from_mettagrid_config(reordered_config), simple_map, 42)
         action_names2 = env2.action_names()
@@ -170,9 +177,10 @@ class TestActionValidation:
         noop_idx = action_names.index("noop")
         rotate_idx = action_names.index("rotate")
 
-        assert max_args[move_idx] == 7, "Move should have max_arg=7 (8 directions)"
+        assert basic_config.allow_diagonals, "tests assume diagonals are allowed"
+        assert max_args[move_idx] == 7, "Move should have max_arg=7 (8 orientations)"
         assert max_args[noop_idx] == 0, "Noop should have max_arg=0"
-        assert max_args[rotate_idx] == 3, "Rotate should have max_arg=3 (4 orientations)"
+        assert max_args[rotate_idx] == 7, "Rotate should have max_arg=7 (8 orientations)"
 
 
 class TestResourceRequirements:
@@ -180,9 +188,24 @@ class TestResourceRequirements:
 
     def test_action_with_resource_requirement(self, basic_config, simple_map):
         """Test that actions fail when resource requirements aren't met."""
-        # Add resource requirement to move
-        config = basic_config.copy()
-        config["actions"]["move"]["required_resources"] = {"ore": 1}
+        # Create new config with resource requirement
+        config = GameConfig(
+            inventory_item_names=basic_config.inventory_item_names,
+            num_agents=basic_config.num_agents,
+            max_steps=basic_config.max_steps,
+            obs_width=basic_config.obs_width,
+            obs_height=basic_config.obs_height,
+            num_observation_tokens=basic_config.num_observation_tokens,
+            agent=basic_config.agent,
+            groups=basic_config.groups,
+            actions=ActionsConfig(
+                move=ActionConfig(enabled=True, required_resources={"ore": 1}),
+                noop=ActionConfig(enabled=True),
+                rotate=ActionConfig(enabled=True),
+            ),
+            objects=basic_config.objects,
+            allow_diagonals=basic_config.allow_diagonals,
+        )
 
         env = MettaGrid(from_mettagrid_config(config), simple_map, 42)
         env.reset()
@@ -194,44 +217,45 @@ class TestResourceRequirements:
         env.step(move_action)
         assert not env.action_success()[0], "Move should fail without required resources"
 
-        # Give agent resources and try again
-        # Note: This would require a way to add resources to agent
-        # which depends on the environment setup
-
     def test_action_consumes_resources(self, basic_config, simple_map):
         """Test that actions consume resources when configured."""
-        config = basic_config.copy()
-        config["actions"]["move"]["consumed_resources"] = {"ore": 1}
+        config = GameConfig(
+            inventory_item_names=basic_config.inventory_item_names,
+            num_agents=basic_config.num_agents,
+            max_steps=basic_config.max_steps,
+            obs_width=basic_config.obs_width,
+            obs_height=basic_config.obs_height,
+            num_observation_tokens=basic_config.num_observation_tokens,
+            agent=AgentConfig(
+                freeze_duration=0,
+                resource_limits={"ore": 10, "wood": 10},
+                initial_inventory={"ore": 5, "wood": 3},
+                rewards=AgentRewards(inventory=InventoryRewards(), stats=StatsRewards()),
+            ),
+            groups=basic_config.groups,
+            actions=ActionsConfig(
+                move=ActionConfig(enabled=True, consumed_resources={"ore": 1}),
+                noop=ActionConfig(enabled=True),
+                rotate=ActionConfig(enabled=True),
+            ),
+            objects=basic_config.objects,
+            allow_diagonals=basic_config.allow_diagonals,
+        )
 
-        # Give agent initial ore to test consumption
-        config["agent"]["initial_inventory"] = {"ore": 5, "wood": 3}
-
-        # Create simple map
         env = MettaGrid(from_mettagrid_config(config), simple_map, 42)
         env.reset()
 
         # Get initial observation
         initial_obs = get_current_observation(env, agent_idx=0)
-        print(f"Observation shape: {initial_obs.shape}")
-
-        # Extract inventory tokens using ObservationHelper
-        # First, let's see all tokens to understand the structure
-        print("\nAll tokens in observation:")
-        for i in range(min(20, initial_obs.shape[1])):
-            token = initial_obs[0, i, :]
-            print(f"  Token {i}: {token}")
 
         # Get inventory item names to know the expected feature IDs
         inventory_names = env.inventory_item_names()
-        print(f"\nInventory item names: {inventory_names}")
 
         # Feature IDs for inventory items start at 15 (ObservationFeatureCount)
-        # ore should be feature ID 15, wood should be 16
         ore_feature_id = 15
         wood_feature_id = 16
 
         # Find inventory tokens by feature type
-        print("\nLooking for inventory tokens...")
         initial_ore_count = None
         initial_wood_count = None
 
@@ -239,34 +263,26 @@ class TestResourceRequirements:
             token = initial_obs[0, i, :]
             if token[1] == ore_feature_id:
                 initial_ore_count = token[2]
-                print(f"  Found ore token: {token} - count: {initial_ore_count}")
             elif token[1] == wood_feature_id:
                 initial_wood_count = token[2]
-                print(f"  Found wood token: {token} - count: {initial_wood_count}")
 
         # Verify initial inventory
         assert initial_ore_count == 5, f"Expected initial ore to be 5, got {initial_ore_count}"
         assert initial_wood_count == 3, f"Expected initial wood to be 3, got {initial_wood_count}"
-        print(f"\nInitial inventory verified: ore={initial_ore_count}, wood={initial_wood_count}")
 
         # Get agent position
         agent_pos = get_agent_position(env, 0)
-        print(f"\nAgent position: {agent_pos}")
 
         # Move east (direction 2)
         move_idx = env.action_names().index("move")
         move_action = np.array([[move_idx, 2]], dtype=dtype_actions)
 
-        print("\nPerforming move action...")
         obs_after, _rewards, _dones, _truncs, _infos = env.step(move_action)
         action_success = env.action_success()[0]
-        print(f"Move action success: {action_success}")
 
         # Check new position
         new_pos = get_agent_position(env, 0)
-        print(f"New agent position: {new_pos}")
         position_changed = new_pos != agent_pos
-        print(f"Position changed: {position_changed}")
 
         # Get final inventory counts
         final_ore_count = None
@@ -279,21 +295,13 @@ class TestResourceRequirements:
             elif token[1] == wood_feature_id:
                 final_wood_count = token[2]
 
-        print(f"\nFinal inventory: ore={final_ore_count}, wood={final_wood_count}")
-
         # Verify resource consumption
         if action_success and position_changed:
-            assert final_ore_count == initial_ore_count - 1, (
-                f"Ore should be consumed on successful move: expected {initial_ore_count - 1}, got {final_ore_count}"
-            )
-            assert final_wood_count == initial_wood_count, (
-                f"Wood should not be consumed: expected {initial_wood_count}, got {final_wood_count}"
-            )
-            print("✓ Resources consumed correctly (ore decreased by 1, wood unchanged)")
+            assert final_ore_count == initial_ore_count - 1
+            assert final_wood_count == initial_wood_count
         else:
-            assert final_ore_count == initial_ore_count, "Ore shouldn't be consumed on failed/blocked move"
-            assert final_wood_count == initial_wood_count, "Wood shouldn't be consumed on failed/blocked move"
-            print("✓ Resources not consumed (move failed/blocked)")
+            assert final_ore_count == initial_ore_count
+            assert final_wood_count == initial_wood_count
 
 
 class TestActionSpace:
@@ -321,8 +329,19 @@ class TestActionSpace:
 
     def test_single_action_space(self, basic_config, multi_agent_map):
         """Test action space for multi-agent environment."""
-        config = basic_config.copy()
-        config["num_agents"] = 3
+        config = GameConfig(
+            inventory_item_names=basic_config.inventory_item_names,
+            num_agents=3,
+            max_steps=basic_config.max_steps,
+            obs_width=basic_config.obs_width,
+            obs_height=basic_config.obs_height,
+            num_observation_tokens=basic_config.num_observation_tokens,
+            agent=basic_config.agent,
+            groups=basic_config.groups,
+            actions=basic_config.actions,
+            objects=basic_config.objects,
+            allow_diagonals=basic_config.allow_diagonals,
+        )
 
         env = MettaGrid(from_mettagrid_config(config), multi_agent_map, 42)
 
@@ -364,13 +383,26 @@ class TestSpecialActions:
 
     def test_attack_action_registration(self, basic_config, simple_map):
         """Test that attack action is properly registered when enabled."""
-        config = basic_config.copy()
-        config["actions"]["attack"] = {
-            "enabled": True,
-            "required_resources": {},
-            "consumed_resources": {},
-            "defense_resources": {},
-        }
+        config = GameConfig(
+            inventory_item_names=basic_config.inventory_item_names,
+            num_agents=basic_config.num_agents,
+            max_steps=basic_config.max_steps,
+            obs_width=basic_config.obs_width,
+            obs_height=basic_config.obs_height,
+            num_observation_tokens=basic_config.num_observation_tokens,
+            agent=basic_config.agent,
+            groups=basic_config.groups,
+            actions=ActionsConfig(
+                attack=AttackActionConfig(
+                    enabled=True, required_resources={}, consumed_resources={}, defense_resources={}
+                ),
+                move=ActionConfig(enabled=True),
+                noop=ActionConfig(enabled=True),
+                rotate=ActionConfig(enabled=True),
+            ),
+            objects=basic_config.objects,
+            allow_diagonals=basic_config.allow_diagonals,
+        )
 
         env = MettaGrid(from_mettagrid_config(config), simple_map, 42)
         action_names = env.action_names()
@@ -384,8 +416,24 @@ class TestSpecialActions:
 
     def test_swap_action_registration(self, basic_config, simple_map):
         """Test that swap action is properly registered when enabled."""
-        config = basic_config.copy()
-        config["actions"]["swap"] = {"enabled": True}
+        config = GameConfig(
+            inventory_item_names=basic_config.inventory_item_names,
+            num_agents=basic_config.num_agents,
+            max_steps=basic_config.max_steps,
+            obs_width=basic_config.obs_width,
+            obs_height=basic_config.obs_height,
+            num_observation_tokens=basic_config.num_observation_tokens,
+            agent=basic_config.agent,
+            groups=basic_config.groups,
+            actions=ActionsConfig(
+                swap=ActionConfig(enabled=True),
+                move=ActionConfig(enabled=True),
+                noop=ActionConfig(enabled=True),
+                rotate=ActionConfig(enabled=True),
+            ),
+            objects=basic_config.objects,
+            allow_diagonals=basic_config.allow_diagonals,
+        )
 
         env = MettaGrid(from_mettagrid_config(config), simple_map, 42)
         action_names = env.action_names()
@@ -399,12 +447,34 @@ class TestInventoryItemOrdering:
     def test_inventory_item_order(self, basic_config, simple_map):
         """Test that inventory items maintain their order."""
         # Config with ore first
-        config1 = basic_config.copy()
-        config1["inventory_item_names"] = ["ore", "wood"]
+        config1 = GameConfig(
+            inventory_item_names=["ore", "wood"],
+            num_agents=basic_config.num_agents,
+            max_steps=basic_config.max_steps,
+            obs_width=basic_config.obs_width,
+            obs_height=basic_config.obs_height,
+            num_observation_tokens=basic_config.num_observation_tokens,
+            agent=basic_config.agent,
+            groups=basic_config.groups,
+            actions=basic_config.actions,
+            objects=basic_config.objects,
+            allow_diagonals=basic_config.allow_diagonals,
+        )
 
         # Config with wood first
-        config2 = basic_config.copy()
-        config2["inventory_item_names"] = ["wood", "ore"]
+        config2 = GameConfig(
+            inventory_item_names=["wood", "ore"],
+            num_agents=basic_config.num_agents,
+            max_steps=basic_config.max_steps,
+            obs_width=basic_config.obs_width,
+            obs_height=basic_config.obs_height,
+            num_observation_tokens=basic_config.num_observation_tokens,
+            agent=basic_config.agent,
+            groups=basic_config.groups,
+            actions=basic_config.actions,
+            objects=basic_config.objects,
+            allow_diagonals=basic_config.allow_diagonals,
+        )
 
         env1 = MettaGrid(from_mettagrid_config(config1), simple_map, 42)
         env2 = MettaGrid(from_mettagrid_config(config2), simple_map, 42)

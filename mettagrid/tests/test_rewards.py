@@ -15,7 +15,6 @@ from metta.mettagrid.test_support.actions import (
     noop,
     rotate,
 )
-from metta.mettagrid.test_support.compass import Compass
 from metta.mettagrid.test_support.orientation import Orientation
 
 NUM_AGENTS = 1
@@ -108,12 +107,12 @@ def collect_heart_from_altar(env):
     # Move to target position if not already there
     if agent_pos != target_pos:
         # Agent starts at (1, 1), needs to move right to (1, 2)
-        move_result = move(env, Compass.EAST, agent_idx=0)
+        move_result = move(env, Orientation.EAST, agent_idx=0)
         if not move_result["success"]:
             return False, 0.0
 
     # Now we're at (1, 2), need to face right to interact with altar at (1, 3)
-    rotate_result = rotate(env, Orientation.RIGHT, agent_idx=0)
+    rotate_result = rotate(env, Orientation.WEST, agent_idx=0)
     if not rotate_result["success"]:
         return False, 0.0
 

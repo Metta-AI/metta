@@ -79,7 +79,7 @@ def move(env: MettaGrid, direction: Orientation, agent_idx: int = 0) -> dict[str
 
     Args:
         env: MettaGrid environment
-        direction: Orientation direction (NORTH, NORTHEAST, EAST, SOUTHEAST, SOUTH, SOUTHWEST, WEST, NORTHWEST)
+        direction: Orientation direction
         agent_idx: Agent index (default 0)
 
     Returns:
@@ -89,7 +89,7 @@ def move(env: MettaGrid, direction: Orientation, agent_idx: int = 0) -> dict[str
     action_names = env.action_names()
 
     if "move" not in action_names:
-        result["error"] = "8-way movement not available"
+        result["error"] = "move not available"
         return result
 
     move_idx = action_names.index("move")
