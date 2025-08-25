@@ -94,7 +94,9 @@ def make_curriculum(
 
 
 def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
-    base_env = env or make_env(num_agents=24)  # Use our custom make_env with proper groups
+    base_env = env or make_env(
+        num_agents=24
+    )  # Use our custom make_env with proper groups
     return [SimulationConfig(name="arena/combat", env=base_env)]
 
 
