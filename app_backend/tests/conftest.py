@@ -14,59 +14,14 @@ from fastapi.testclient import TestClient
 from httpx import AsyncClient
 from testcontainers.postgres import PostgresContainer
 
-from metta.app_backend.clients.eval_task_client import EvalTaskClient
+from app_backend.tests.http_env import HttpAsyncStatsClientEnv, HttpEvalTaskClientEnv, TestClientStatsEnv
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.server import create_app
-from metta.app_backend.test_support import create_test_stats_client
 from metta.common.test_support import docker_client_fixture, isolated_test_schema_uri
 
 # Register the docker_client fixture
 docker_client = docker_client_fixture()
-
-
-# HTTP Testing Infrastructure for EvalTaskOrchestrator tests
-
-
-class HttpEvalTaskClientEnv:
-    """Environment for HTTP-based eval task client tests."""
-
-    def __init__(self, base_url: str, token: str):
-        self.base_url = base_url
-        self.token = token
-        self._httpx_clients = []
-
-    def make_client(self) -> EvalTaskClient:
-        """Create a new EvalTaskClient instance."""
-        client = EvalTaskClient.__new__(EvalTaskClient)
-        httpx_client = AsyncClient(base_url=self.base_url)
-        client._http_client = httpx_client
-        client._machine_token = self.token
-        self._httpx_clients.append(httpx_client)
-        return client
-
-    async def aclose_all(self):
-        await asyncio.gather(*(cl.aclose() for cl in self._httpx_clients), return_exceptions=True)
-
-
-class TestClientStatsEnv:
-    """Environment for TestClient-based stats client tests."""
-
-    def __init__(self, test_client: TestClient, token: str):
-        self.test_client = test_client
-        self.token = token
-        self._clients = []
-
-    def make_client(self) -> StatsClient:
-        """Create a new StatsClient instance using TestClient."""
-        client = create_test_stats_client(self.test_client, self.token)
-        self._clients.append(client)
-        return client
-
-    def close_all(self):
-        """Clean up all clients if needed."""
-        # TestClient cleanup happens automatically
-        pass
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -128,6 +83,9 @@ def test_user_headers() -> Dict[str, str]:
 def auth_headers() -> Dict[str, str]:
     """Authentication headers for requests (alias for test_user_headers)."""
     return {"X-Auth-Request-Email": "test@example.com"}
+
+
+# http_stats_client fixture removed due to sync/async compatibility issues
 
 
 @pytest.fixture
@@ -233,6 +191,164 @@ def create_test_data(stats_client: StatsClient):
 
 
 @pytest.fixture
+def async_create_test_data(http_async_stats_env: HttpAsyncStatsClientEnv):
+    async def _create(
+        run_name: str,
+        num_policies: int = 2,
+        create_run_free_policies: int = 0,
+        overriding_async_stats_client=None,
+    ) -> dict[str, Any]:
+        use_stats_client = overriding_async_stats_client or http_async_stats_env.make_client()
+        data: dict[str, Any] = {"policies": [], "policy_names": []}
+
+        if num_policies > 0:
+            timestamp = int(time.time() * 1_000_000)
+            training_run = await use_stats_client.create_training_run(
+                name=f"{run_name}_{timestamp}",
+                attributes={"environment": "test_env", "algorithm": "test_alg"},
+                url="https://example.com/run",
+                tags=["test_tag", "scorecard_test"],
+            )
+
+            epoch1 = await use_stats_client.create_epoch(
+                run_id=training_run.id,
+                start_training_epoch=0,
+                end_training_epoch=100,
+                attributes={"learning_rate": "0.001"},
+            )
+            epoch2 = await use_stats_client.create_epoch(
+                run_id=training_run.id,
+                start_training_epoch=100,
+                end_training_epoch=200,
+                attributes={"learning_rate": "0.0005"},
+            )
+
+            data["training_run"] = training_run
+            data["epochs"] = [epoch1, epoch2]
+
+            timestamp = int(time.time() * 1_000_000)
+            for i in range(num_policies):
+                epoch = epoch1 if i == 0 else epoch2
+                policy_name = f"policy_{run_name}_{i}_{timestamp}"
+                policy = await use_stats_client.create_policy(
+                    name=policy_name,
+                    description=f"Test policy {i} for {run_name}",
+                    epoch_id=epoch.id,
+                )
+                data["policies"].append(policy)
+                data["policy_names"].append(policy_name)
+
+        timestamp = int(time.time() * 1_000_000)
+        for i in range(create_run_free_policies):
+            policy_name = f"runfree_policy_{run_name}_{i}_{timestamp}"
+            policy = await use_stats_client.create_policy(
+                name=policy_name,
+                description=f"Run-free test policy {i} for {run_name}",
+                epoch_id=None,
+            )
+            data["policies"].append(policy)
+            data["policy_names"].append(policy_name)
+
+        return data
+
+    return _create
+
+
+@pytest.fixture
+def isolated_async_create_test_data(isolated_http_async_stats_env: HttpAsyncStatsClientEnv):
+    async def _create(
+        run_name: str,
+        num_policies: int = 2,
+        create_run_free_policies: int = 0,
+        overriding_async_stats_client=None,
+    ) -> dict[str, Any]:
+        use_stats_client = overriding_async_stats_client or isolated_http_async_stats_env.make_client()
+        data: dict[str, Any] = {"policies": [], "policy_names": []}
+
+        if num_policies > 0:
+            timestamp = int(time.time() * 1_000_000)
+            training_run = await use_stats_client.create_training_run(
+                name=f"{run_name}_{timestamp}",
+                attributes={"environment": "test_env", "algorithm": "test_alg"},
+                url="https://example.com/run",
+                tags=["test_tag", "scorecard_test"],
+            )
+
+            epoch1 = await use_stats_client.create_epoch(
+                run_id=training_run.id,
+                start_training_epoch=0,
+                end_training_epoch=100,
+                attributes={"learning_rate": "0.001"},
+            )
+            epoch2 = await use_stats_client.create_epoch(
+                run_id=training_run.id,
+                start_training_epoch=100,
+                end_training_epoch=200,
+                attributes={"learning_rate": "0.0005"},
+            )
+
+            data["training_run"] = training_run
+            data["epochs"] = [epoch1, epoch2]
+
+            timestamp = int(time.time() * 1_000_000)
+            for i in range(num_policies):
+                epoch = epoch1 if i == 0 else epoch2
+                policy_name = f"policy_{run_name}_{i}_{timestamp}"
+                policy = await use_stats_client.create_policy(
+                    name=policy_name,
+                    description=f"Test policy {i} for {run_name}",
+                    epoch_id=epoch.id,
+                )
+                data["policies"].append(policy)
+                data["policy_names"].append(policy_name)
+
+        timestamp = int(time.time() * 1_000_000)
+        for i in range(create_run_free_policies):
+            policy_name = f"runfree_policy_{run_name}_{i}_{timestamp}"
+            policy = await use_stats_client.create_policy(
+                name=policy_name,
+                description=f"Run-free test policy {i} for {run_name}",
+                epoch_id=None,
+            )
+            data["policies"].append(policy)
+            data["policy_names"].append(policy_name)
+
+        return data
+
+    return _create
+
+
+@pytest.fixture
+def isolated_async_record_episodes(isolated_http_async_stats_env: HttpAsyncStatsClientEnv):
+    async def _record(
+        test_data: dict,
+        eval_category: str,
+        env_names: list[str],
+        metric_values: dict[str, float],
+        overriding_async_stats_client=None,
+    ) -> None:
+        use_stats_client = overriding_async_stats_client or isolated_http_async_stats_env.make_client()
+        epochs = test_data.get("epochs", [])
+        for i, policy in enumerate(test_data["policies"]):
+            epoch_id = epochs[i % len(epochs)].id if epochs and i < len(epochs) else None
+            for env_name in env_names:
+                eval_name = f"{eval_category}/{env_name}"
+                metric_key = f"policy_{i}_{env_name}"
+                metric_value = metric_values.get(metric_key, 50.0)
+                await use_stats_client.record_episode(
+                    agent_policies={0: policy.id},
+                    agent_metrics={0: {"reward": metric_value}},
+                    primary_policy_id=policy.id,
+                    stats_epoch=epoch_id,
+                    eval_name=eval_name,
+                    simulation_suite=eval_category,
+                    replay_url=f"https://example.com/replay/{policy.id}/{eval_name}",
+                )
+
+    return _record
+
+
+@pytest.fixture
 def record_episodes(stats_client: StatsClient):
     def _record(
         test_data: dict,
@@ -257,6 +373,36 @@ def record_episodes(stats_client: StatsClient):
                     sim_name=sim_name,
                     env_label=env_name,
                     replay_url=f"https://example.com/replay/{policy.id}/{sim_name}",
+                )
+
+    return _record
+
+
+@pytest.fixture
+def async_record_episodes(http_async_stats_env: HttpAsyncStatsClientEnv):
+    async def _record(
+        test_data: dict,
+        eval_category: str,
+        env_names: list[str],
+        metric_values: dict[str, float],
+        overriding_async_stats_client=None,
+    ) -> None:
+        use_stats_client = overriding_async_stats_client or http_async_stats_env.make_client()
+        epochs = test_data.get("epochs", [])
+        for i, policy in enumerate(test_data["policies"]):
+            epoch_id = epochs[i % len(epochs)].id if epochs and i < len(epochs) else None
+            for env_name in env_names:
+                eval_name = f"{eval_category}/{env_name}"
+                metric_key = f"policy_{i}_{env_name}"
+                metric_value = metric_values.get(metric_key, 50.0)
+                await use_stats_client.record_episode(
+                    agent_policies={0: policy.id},
+                    agent_metrics={0: {"reward": metric_value}},
+                    primary_policy_id=policy.id,
+                    stats_epoch=epoch_id,
+                    eval_name=eval_name,
+                    simulation_suite=eval_category,
+                    replay_url=f"https://example.com/replay/{policy.id}/{eval_name}",
                 )
 
     return _record
@@ -300,7 +446,7 @@ async def _http_server(test_app: FastAPI):
 
 
 @pytest_asyncio.fixture
-async def http_eval_task_env(test_app: FastAPI, test_client: TestClient) -> AsyncGenerator[HttpEvalTaskClientEnv, Any]:
+async def http_eval_task_env(test_app: FastAPI) -> AsyncGenerator[HttpEvalTaskClientEnv, Any]:
     """Create an HTTP environment for eval task client tests."""
     async with _http_server(test_app) as base_url:
         async with AsyncClient(base_url=base_url) as tmp:
@@ -331,6 +477,44 @@ async def isolated_http_eval_task_env(isolated_test_app: FastAPI) -> AsyncGenera
             r.raise_for_status()
             token = r.json()["token"]
         env = HttpEvalTaskClientEnv(base_url=base_url, token=token)
+        try:
+            yield env
+        finally:
+            await env.aclose_all()
+
+
+@pytest_asyncio.fixture
+async def http_async_stats_env(test_app: FastAPI) -> AsyncGenerator[HttpAsyncStatsClientEnv, Any]:
+    """Create an HTTP environment for async stats client tests."""
+    async with _http_server(test_app) as base_url:
+        async with AsyncClient(base_url=base_url) as tmp:
+            r = await tmp.post(
+                "/tokens",
+                json={"name": "http_async_stats_token", "permissions": ["read", "write"]},
+                headers={"X-Auth-Request-Email": "test_user@example.com"},
+            )
+            r.raise_for_status()
+            token = r.json()["token"]
+        env = HttpAsyncStatsClientEnv(base_url=base_url, token=token)
+        try:
+            yield env
+        finally:
+            await env.aclose_all()
+
+
+@pytest_asyncio.fixture
+async def isolated_http_async_stats_env(isolated_test_app: FastAPI) -> AsyncGenerator[HttpAsyncStatsClientEnv, Any]:
+    """Create an HTTP environment for isolated async stats client tests."""
+    async with _http_server(isolated_test_app) as base_url:
+        async with AsyncClient(base_url=base_url) as tmp:
+            r = await tmp.post(
+                "/tokens",
+                json={"name": "isolated_http_async_stats_token", "permissions": ["read", "write"]},
+                headers={"X-Auth-Request-Email": "test_user@example.com"},
+            )
+            r.raise_for_status()
+            token = r.json()["token"]
+        env = HttpAsyncStatsClientEnv(base_url=base_url, token=token)
         try:
             yield env
         finally:

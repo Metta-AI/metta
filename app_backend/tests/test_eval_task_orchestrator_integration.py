@@ -6,8 +6,8 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from http_env import HttpEvalTaskClientEnv
 
-from conftest import HttpEvalTaskClientEnv
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator, FixedScaler, WorkerInfo

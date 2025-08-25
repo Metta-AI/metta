@@ -4,7 +4,6 @@ import uuid
 import pytest
 from fastapi.testclient import TestClient
 
-from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 
 
@@ -12,13 +11,16 @@ from metta.app_backend.metta_repo import MettaRepo
 class TestPolicyScorecardRoutes:
     """Integration tests for policy-based scorecard routes."""
 
-    def test_get_policies_basic(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+    @pytest.mark.asyncio
+    async def test_get_policies_basic(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
+    ) -> None:
         """Test basic functionality of getting policies and training runs."""
         # Create test data with both training run and run-free policies
-        test_data = create_test_data("get_policies_basic", num_policies=2, create_run_free_policies=1)
+        test_data = await async_create_test_data("get_policies_basic", num_policies=2, create_run_free_policies=1)
 
         # Record episodes so policies appear in wide_episodes view
-        record_episodes(
+        await async_record_episodes(
             test_data,
             eval_category="navigation",
             env_names=["test_env"],
@@ -62,24 +64,25 @@ class TestPolicyScorecardRoutes:
         assert isinstance(policy["tags"], list)
         assert policy["tags"] == []  # Run-free policies have empty tags
 
-    def test_get_eval_categories(
+    @pytest.mark.asyncio
+    async def test_get_eval_categories(
         self,
         test_client: TestClient,
-        create_test_data,
-        record_episodes,
+        async_create_test_data,
+        async_record_episodes,
     ) -> None:
         """Test getting evaluation categories for selected policies."""
-        test_data = create_test_data("eval_categories_test", num_policies=2)
+        test_data = await async_create_test_data("eval_categories_test", num_policies=2)
 
         # Record episodes with different categories and environments
-        record_episodes(
+        await async_record_episodes(
             test_data,
             "navigation",
             ["maze1", "maze2"],
             {"policy_0_maze1": 80.0, "policy_0_maze2": 75.0, "policy_1_maze1": 85.0, "policy_1_maze2": 90.0},
         )
 
-        record_episodes(test_data, "combat", ["arena1"], {"policy_0_arena1": 70.0, "policy_1_arena1": 88.0})
+        await async_record_episodes(test_data, "combat", ["arena1"], {"policy_0_arena1": 70.0, "policy_1_arena1": 88.0})
 
         # Get eval names for this training run
         training_run_id = str(test_data["training_run"].id)
@@ -100,21 +103,23 @@ class TestPolicyScorecardRoutes:
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_get_available_metrics(
+    @pytest.mark.asyncio
+    async def test_get_available_metrics(
         self,
         test_client: TestClient,
-        stats_client: StatsClient,
-        create_test_data,
+        http_async_stats_env,
+        async_create_test_data,
     ) -> None:
         """Test getting available metrics for selected policies and evaluations."""
-        test_data = create_test_data("metrics_test", num_policies=1)
+        stats_client = http_async_stats_env.make_client()
+        test_data = await async_create_test_data("metrics_test", num_policies=1)
 
         # Record episodes with different metrics
         policy = test_data["policies"][0]
         epoch = test_data["epochs"][0]
 
         # Record episode with multiple metrics
-        stats_client.record_episode(
+        await stats_client.record_episode(
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 80.0, "survival_time": 120.0, "score": 95.0}},
             primary_policy_id=policy.id,
@@ -164,20 +169,21 @@ class TestPolicyScorecardRoutes:
         assert response.status_code == 200
         assert response.json() == []
 
-    def test_generate_policy_scorecard_latest_selector(
-        self, test_client: TestClient, create_test_data, record_episodes
+    @pytest.mark.asyncio
+    async def test_generate_policy_scorecard_latest_selector(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
     ) -> None:
         """Test generating scorecard with latest policy selector."""
         # Create two training runs with multiple policies each
-        test_data1 = create_test_data("heatmap_latest_1", num_policies=2)
-        test_data2 = create_test_data("heatmap_latest_2", num_policies=2)
+        test_data1 = await async_create_test_data("heatmap_latest_1", num_policies=2)
+        test_data2 = await async_create_test_data("heatmap_latest_2", num_policies=2)
 
         # Record episodes for both runs
         metrics1 = {"policy_0_env1": 70.0, "policy_0_env2": 75.0, "policy_1_env1": 85.0, "policy_1_env2": 90.0}
         metrics2 = {"policy_0_env1": 80.0, "policy_0_env2": 85.0, "policy_1_env1": 90.0, "policy_1_env2": 95.0}
 
-        record_episodes(test_data1, "test_suite", ["env1", "env2"], metrics1)
-        record_episodes(test_data2, "test_suite", ["env1", "env2"], metrics2)
+        await async_record_episodes(test_data1, "test_suite", ["env1", "env2"], metrics1)
+        await async_record_episodes(test_data2, "test_suite", ["env1", "env2"], metrics2)
 
         # Get training run IDs
         training_run_ids = [str(test_data1["training_run"].id), str(test_data2["training_run"].id)]
@@ -216,11 +222,12 @@ class TestPolicyScorecardRoutes:
                 assert "value" in heatmap["cells"][policy_name][eval_name]
                 assert "replayUrl" in heatmap["cells"][policy_name][eval_name]
 
-    def test_generate_policy_scorecard_best_selector(
-        self, test_client: TestClient, create_test_data, record_episodes
+    @pytest.mark.asyncio
+    async def test_generate_policy_scorecard_best_selector(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
     ) -> None:
         """Test generating scorecard with best policy selector."""
-        test_data = create_test_data("heatmap_best", num_policies=3)
+        test_data = await async_create_test_data("heatmap_best", num_policies=3)
 
         # Record episodes where policy performance varies
         # Policy 0: average = (60 + 70) / 2 = 65
@@ -235,7 +242,7 @@ class TestPolicyScorecardRoutes:
             "policy_2_env2": 60.0,
         }
 
-        record_episodes(test_data, "best_suite", ["env1", "env2"], metrics)
+        await async_record_episodes(test_data, "best_suite", ["env1", "env2"], metrics)
 
         # Generate scorecard with best selector
         response = test_client.post(
@@ -263,12 +270,13 @@ class TestPolicyScorecardRoutes:
         # Verify average score
         assert abs(heatmap["policyAverageScores"][best_policy_name] - 85.0) < 0.01
 
-    def test_generate_policy_scorecard_with_run_free_policies(
-        self, test_client: TestClient, create_test_data, record_episodes
+    @pytest.mark.asyncio
+    async def test_generate_policy_scorecard_with_run_free_policies(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
     ) -> None:
         """Test scorecard generation includes run-free policies correctly."""
         # Create mix of training run and run-free policies
-        test_data = create_test_data("mixed_policies", num_policies=1, create_run_free_policies=2)
+        test_data = await async_create_test_data("mixed_policies", num_policies=1, create_run_free_policies=2)
 
         # Record episodes for all policies
         metrics = {
@@ -276,7 +284,7 @@ class TestPolicyScorecardRoutes:
             "policy_1_env1": 85.0,  # Run-free policy 1
             "policy_2_env1": 90.0,  # Run-free policy 2
         }
-        record_episodes(test_data, "mixed_suite", ["env1"], metrics)
+        await async_record_episodes(test_data, "mixed_suite", ["env1"], metrics)
 
         # Run-free policies are the last 2 policies (since create_run_free_policies=2)
         run_free_policy_ids = [str(p.id) for p in test_data["policies"][1:]]  # Skip first policy (training run policy)
@@ -341,13 +349,14 @@ class TestPolicyScorecardRoutes:
         )
         assert response.status_code == 400
 
-    def test_generate_policy_heatmap_empty_result(
+    @pytest.mark.asyncio
+    async def test_generate_policy_heatmap_empty_result(
         self,
         test_client: TestClient,
-        create_test_data,
+        async_create_test_data,
     ) -> None:
         """Test heatmap generation when no matching data exists."""
-        test_data = create_test_data("empty_result", num_policies=1)
+        test_data = await async_create_test_data("empty_result", num_policies=1)
 
         # Don't record any episodes, so no data should be found
 
@@ -372,16 +381,21 @@ class TestPolicyScorecardRoutes:
         assert heatmap["evalAverageScores"] == {}
         assert heatmap["evalMaxScores"] == {}
 
-    def test_generate_policy_heatmap_multiple_categories(
-        self, test_client: TestClient, create_test_data, record_episodes
+    @pytest.mark.asyncio
+    async def test_generate_policy_heatmap_multiple_categories(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
     ) -> None:
         """Test heatmap generation with multiple evaluation categories."""
-        test_data = create_test_data("multi_category", num_policies=1)
+        test_data = await async_create_test_data("multi_category", num_policies=1)
 
         # Record episodes across multiple categories
-        record_episodes(test_data, "navigation", ["maze1", "maze2"], {"policy_0_maze1": 80.0, "policy_0_maze2": 85.0})
-        record_episodes(test_data, "combat", ["arena1"], {"policy_0_arena1": 90.0})
-        record_episodes(test_data, "cooperation", ["team1", "team2"], {"policy_0_team1": 75.0, "policy_0_team2": 88.0})
+        await async_record_episodes(
+            test_data, "navigation", ["maze1", "maze2"], {"policy_0_maze1": 80.0, "policy_0_maze2": 85.0}
+        )
+        await async_record_episodes(test_data, "combat", ["arena1"], {"policy_0_arena1": 90.0})
+        await async_record_episodes(
+            test_data, "cooperation", ["team1", "team2"], {"policy_0_team1": 75.0, "policy_0_team2": 88.0}
+        )
 
         response = test_client.post(
             "/scorecard/scorecard",
@@ -416,20 +430,22 @@ class TestPolicyScorecardRoutes:
         assert heatmap["cells"][policy_name]["combat/arena1"]["value"] == 90.0
         assert heatmap["cells"][policy_name]["cooperation/team1"]["value"] == 75.0
 
-    def test_generate_policy_heatmap_aggregation(
+    @pytest.mark.asyncio
+    async def test_generate_policy_heatmap_aggregation(
         self,
         test_client: TestClient,
-        stats_client: StatsClient,
-        create_test_data,
+        http_async_stats_env,
+        async_create_test_data,
     ) -> None:
         """Test that multiple episodes are properly aggregated."""
-        test_data = create_test_data("aggregation", num_policies=1)
+        stats_client = http_async_stats_env.make_client()
+        test_data = await async_create_test_data("aggregation", num_policies=1)
         policy = test_data["policies"][0]
         epoch = test_data["epochs"][0]
 
         # Record multiple episodes for the same policy/eval combination
         for i, reward_value in enumerate([80.0, 90.0, 100.0]):
-            stats_client.record_episode(
+            await stats_client.record_episode(
                 agent_policies={0: policy.id},
                 agent_metrics={0: {"reward": reward_value}},
                 primary_policy_id=policy.id,
@@ -470,7 +486,10 @@ class TestPolicyScorecardRoutes:
         )
         assert response.status_code == 422  # Validation error
 
-    def test_policy_search_ordering(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+    @pytest.mark.asyncio
+    async def test_policy_search_ordering(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
+    ) -> None:
         """Test that policies are returned in descending date order."""
         # Create policies with different timestamps by creating them sequentially
         base_name = "ordering_test"
@@ -478,11 +497,11 @@ class TestPolicyScorecardRoutes:
         # Create policies in sequence to ensure different timestamps
         policy_names = []
         for i in range(3):
-            test_data = create_test_data(f"{base_name}_{i}", num_policies=1)
+            test_data = await async_create_test_data(f"{base_name}_{i}", num_policies=1)
             policy_names.extend(test_data["policy_names"])
 
             # Record episodes so policies appear in wide_episodes view
-            record_episodes(
+            await async_record_episodes(
                 test_data,
                 eval_category="navigation",
                 env_names=["test_env"],
@@ -504,17 +523,19 @@ class TestPolicyScorecardRoutes:
         sorted_timestamps = sorted(timestamps, reverse=True)
         assert timestamps == sorted_timestamps
 
-    def test_complex_heatmap_aggregation_scenarios(
-        self, test_client: TestClient, stats_client: StatsClient, create_test_data, record_episodes
+    @pytest.mark.asyncio
+    async def test_complex_heatmap_aggregation_scenarios(
+        self, test_client: TestClient, http_async_stats_env, async_create_test_data, async_record_episodes
     ) -> None:
         """Test complex heatmap generation with multiple policies, runs, and aggregations."""
+        stats_client = http_async_stats_env.make_client()
         # Create three separate training runs with different characteristics
-        test_data1 = create_test_data("complex_heatmap_run1", num_policies=3)
-        test_data2 = create_test_data("complex_heatmap_run2", num_policies=2)
-        test_data3 = create_test_data("complex_heatmap_run3", num_policies=2)
+        test_data1 = await async_create_test_data("complex_heatmap_run1", num_policies=3)
+        test_data2 = await async_create_test_data("complex_heatmap_run2", num_policies=2)
+        test_data3 = await async_create_test_data("complex_heatmap_run3", num_policies=2)
 
         # Also create some run-free policies
-        run_free_data = create_test_data("run_free_policies", num_policies=0, create_run_free_policies=2)
+        run_free_data = await async_create_test_data("run_free_policies", num_policies=0, create_run_free_policies=2)
 
         # Different evaluation categories and environments for comprehensive testing
         navigation_envs = ["maze1", "maze2", "maze3"]
@@ -547,9 +568,9 @@ class TestPolicyScorecardRoutes:
             "policy_2_team1": 70.0,  # Policy 2 decent at cooperation
         }
 
-        record_episodes(test_data1, "navigation", navigation_envs, run1_navigation_metrics)
-        record_episodes(test_data1, "combat", combat_envs, run1_combat_metrics)
-        record_episodes(test_data1, "cooperation", cooperation_envs, run1_cooperation_metrics)
+        await async_record_episodes(test_data1, "navigation", navigation_envs, run1_navigation_metrics)
+        await async_record_episodes(test_data1, "combat", combat_envs, run1_combat_metrics)
+        await async_record_episodes(test_data1, "cooperation", cooperation_envs, run1_cooperation_metrics)
 
         # Record episodes for run2 - different performance profile
         run2_navigation_metrics = {
@@ -571,9 +592,9 @@ class TestPolicyScorecardRoutes:
             "policy_1_team1": 85.0,  # Good cooperation
         }
 
-        record_episodes(test_data2, "navigation", navigation_envs, run2_navigation_metrics)
-        record_episodes(test_data2, "combat", combat_envs, run2_combat_metrics)
-        record_episodes(test_data2, "cooperation", cooperation_envs, run2_cooperation_metrics)
+        await async_record_episodes(test_data2, "navigation", navigation_envs, run2_navigation_metrics)
+        await async_record_episodes(test_data2, "combat", combat_envs, run2_combat_metrics)
+        await async_record_episodes(test_data2, "cooperation", cooperation_envs, run2_cooperation_metrics)
 
         # Record episodes for run3 - balanced performance
         run3_metrics = {
@@ -590,9 +611,9 @@ class TestPolicyScorecardRoutes:
             "policy_0_team1": 82.0,  # Good cooperation
             "policy_1_team1": 78.0,  # Good cooperation
         }
-        record_episodes(test_data3, "navigation", navigation_envs, run3_metrics)
-        record_episodes(test_data3, "combat", combat_envs, run3_metrics)
-        record_episodes(test_data3, "cooperation", cooperation_envs, run3_metrics)
+        await async_record_episodes(test_data3, "navigation", navigation_envs, run3_metrics)
+        await async_record_episodes(test_data3, "combat", combat_envs, run3_metrics)
+        await async_record_episodes(test_data3, "cooperation", cooperation_envs, run3_metrics)
 
         # Record episodes for run-free policies - high performance standalone policies
         run_free_metrics = {
@@ -609,9 +630,9 @@ class TestPolicyScorecardRoutes:
             "policy_0_team1": 96.0,  # Excellent cooperation
             "policy_1_team1": 89.0,  # Good cooperation
         }
-        record_episodes(run_free_data, "navigation", navigation_envs, run_free_metrics)
-        record_episodes(run_free_data, "combat", combat_envs, run_free_metrics)
-        record_episodes(run_free_data, "cooperation", cooperation_envs, run_free_metrics)
+        await async_record_episodes(run_free_data, "navigation", navigation_envs, run_free_metrics)
+        await async_record_episodes(run_free_data, "combat", combat_envs, run_free_metrics)
+        await async_record_episodes(run_free_data, "cooperation", cooperation_envs, run_free_metrics)
 
         # Get all policy IDs
         training_run_ids = [
@@ -726,7 +747,7 @@ class TestPolicyScorecardRoutes:
         epoch_0_run1 = test_data1["epochs"][0]
 
         for env_name in navigation_envs:
-            stats_client.record_episode(
+            await stats_client.record_episode(
                 agent_policies={0: policy_0_run1.id},
                 agent_metrics={0: {"reward": additional_high_scores[f"policy_0_{env_name}"]}},
                 primary_policy_id=policy_0_run1.id,
@@ -737,7 +758,7 @@ class TestPolicyScorecardRoutes:
             )
 
         for env_name in combat_envs:
-            stats_client.record_episode(
+            await stats_client.record_episode(
                 agent_policies={0: policy_0_run1.id},
                 agent_metrics={0: {"reward": additional_high_scores[f"policy_0_{env_name}"]}},
                 primary_policy_id=policy_0_run1.id,
@@ -747,7 +768,7 @@ class TestPolicyScorecardRoutes:
                 replay_url=f"https://example.com/replay/boost/{env_name}",
             )
 
-        stats_client.record_episode(
+        await stats_client.record_episode(
             agent_policies={0: policy_0_run1.id},
             agent_metrics={0: {"reward": additional_high_scores["policy_0_team1"]}},
             primary_policy_id=policy_0_run1.id,
@@ -791,7 +812,7 @@ class TestPolicyScorecardRoutes:
 
         # Test 6: Multi-agent aggregation with different agent counts
         # Add an episode with multiple agents to test proper averaging
-        stats_client.record_episode(
+        await stats_client.record_episode(
             agent_policies={0: policy_0_run1.id, 1: policy_0_run1.id, 2: policy_0_run1.id},
             agent_metrics={
                 0: {"reward": 90.0},
@@ -830,12 +851,15 @@ class TestPolicyScorecardRoutes:
         assert multi_agent_value <= 100.0  # Not better than the best episode
         assert multi_agent_value > 75.0  # Should be influenced by the higher values
 
-    def test_policy_heatmap_edge_cases(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+    @pytest.mark.asyncio
+    async def test_policy_heatmap_edge_cases(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
+    ) -> None:
         """Test edge cases in policy heatmap generation."""
 
         # Test 1: Single policy, single evaluation
-        single_data = create_test_data("single_test", num_policies=1)
-        record_episodes(single_data, "simple", ["env1"], {"policy_0_env1": 75.0})
+        single_data = await async_create_test_data("single_test", num_policies=1)
+        await async_record_episodes(single_data, "simple", ["env1"], {"policy_0_env1": 75.0})
 
         response_single = test_client.post(
             "/scorecard/scorecard",
@@ -861,7 +885,7 @@ class TestPolicyScorecardRoutes:
         assert heatmap_single["evalMaxScores"]["simple/env1"] == 75.0
 
         # Test 2: Run-free policies only
-        run_free_only_data = create_test_data("run_free_only", num_policies=0, create_run_free_policies=3)
+        run_free_only_data = await async_create_test_data("run_free_only", num_policies=0, create_run_free_policies=3)
         run_free_metrics = {
             "policy_0_env1": 80.0,
             "policy_0_env2": 85.0,
@@ -870,7 +894,7 @@ class TestPolicyScorecardRoutes:
             "policy_2_env1": 90.0,
             "policy_2_env2": 95.0,
         }
-        record_episodes(run_free_only_data, "run_free_suite", ["env1", "env2"], run_free_metrics)
+        await async_record_episodes(run_free_only_data, "run_free_suite", ["env1", "env2"], run_free_metrics)
 
         run_free_policy_ids = [str(p.id) for p in run_free_only_data["policies"]]
 
@@ -895,8 +919,8 @@ class TestPolicyScorecardRoutes:
             assert set(heatmap["policyNames"]) == expected_names
 
         # Test 3: Zero values and missing data
-        zero_data = create_test_data("zero_test", num_policies=1)
-        record_episodes(zero_data, "zero_suite", ["env1"], {"policy_0_env1": 0.0})
+        zero_data = await async_create_test_data("zero_test", num_policies=1)
+        await async_record_episodes(zero_data, "zero_suite", ["env1"], {"policy_0_env1": 0.0})
 
         response_zero = test_client.post(
             "/scorecard/scorecard",
@@ -915,7 +939,7 @@ class TestPolicyScorecardRoutes:
         assert heatmap_zero["cells"][policy_name]["zero_suite/env1"]["value"] == 0.0
 
         # Test 4: Large number of evaluations and categories
-        large_data = create_test_data("large_test", num_policies=1)
+        large_data = await async_create_test_data("large_test", num_policies=1)
         large_categories = ["cat1", "cat2", "cat3", "cat4", "cat5"]
         large_envs_per_cat = ["env1", "env2", "env3", "env4"]
         large_metrics = {}
@@ -926,7 +950,7 @@ class TestPolicyScorecardRoutes:
                 score = 50.0 + (cat_idx * 10) + (env_idx * 2.5)  # 50-90 range
                 large_metrics[f"policy_0_{env}"] = score
 
-            record_episodes(large_data, category, large_envs_per_cat, large_metrics)
+            await async_record_episodes(large_data, category, large_envs_per_cat, large_metrics)
 
         response_large = test_client.post(
             "/scorecard/scorecard",
@@ -952,13 +976,14 @@ class TestPolicyScorecardRoutes:
         expected_large_evals = {f"{cat}/{env}" for cat in large_categories for env in large_envs_per_cat}
         assert set(heatmap_large["evalNames"]) == expected_large_evals
 
-    def test_policy_heatmap_performance_ordering(
-        self, test_client: TestClient, create_test_data, record_episodes
+    @pytest.mark.asyncio
+    async def test_policy_heatmap_performance_ordering(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
     ) -> None:
         """Test that policies are correctly ordered by performance in best selector."""
 
         # Create training run with 5 policies having clearly different performance levels
-        perf_data = create_test_data("performance_test", num_policies=5)
+        perf_data = await async_create_test_data("performance_test", num_policies=5)
 
         # Create performance tiers: Excellent, Good, Average, Poor, Terrible
         performance_tiers = {
@@ -974,8 +999,8 @@ class TestPolicyScorecardRoutes:
             perf_metrics[f"{policy_key}_nav"] = scores["nav"]
             perf_metrics[f"{policy_key}_combat"] = scores["combat"]
 
-        record_episodes(perf_data, "navigation", ["nav"], perf_metrics)
-        record_episodes(perf_data, "combat", ["combat"], perf_metrics)
+        await async_record_episodes(perf_data, "navigation", ["nav"], perf_metrics)
+        await async_record_episodes(perf_data, "combat", ["combat"], perf_metrics)
 
         response_best_perf = test_client.post(
             "/scorecard/scorecard",
@@ -1024,15 +1049,17 @@ class TestPolicyScorecardRoutes:
         latest_policy_name = perf_data["policy_names"][1]  # Policies 1-4 are in epoch2, policy1 is first alphabetically
         assert latest_policy_name in heatmap_latest_perf["policyNames"]
 
-    def test_policy_deduplication_with_multiple_episodes(
+    @pytest.mark.asyncio
+    async def test_policy_deduplication_with_multiple_episodes(
         self,
         test_client: TestClient,
-        stats_client: StatsClient,
-        create_test_data,
+        http_async_stats_env,
+        async_create_test_data,
     ) -> None:
         """Test that policies are properly deduplicated and aggregated across multiple episodes."""
+        stats_client = http_async_stats_env.make_client()
         # Create test data with multiple episodes per policy/eval combination
-        test_data = create_test_data("dedup_test", num_policies=2)
+        test_data = await async_create_test_data("dedup_test", num_policies=2)
         policy1 = test_data["policies"][0]
         policy2 = test_data["policies"][1]
         epoch1 = test_data["epochs"][0]
@@ -1041,7 +1068,7 @@ class TestPolicyScorecardRoutes:
         # Record multiple episodes for the same policy/eval combination
         # Policy 1, Environment 1: Episodes with scores [80, 90, 70] -> avg = 80.0
         for score in [80.0, 90.0, 70.0]:
-            stats_client.record_episode(
+            await stats_client.record_episode(
                 agent_policies={0: policy1.id},
                 agent_metrics={0: {"reward": score}},
                 primary_policy_id=policy1.id,
@@ -1053,7 +1080,7 @@ class TestPolicyScorecardRoutes:
 
         # Policy 1, Environment 2: Episodes with scores [60, 70, 80] -> avg = 70.0
         for score in [60.0, 70.0, 80.0]:
-            stats_client.record_episode(
+            await stats_client.record_episode(
                 agent_policies={0: policy1.id},
                 agent_metrics={0: {"reward": score}},
                 primary_policy_id=policy1.id,
@@ -1065,7 +1092,7 @@ class TestPolicyScorecardRoutes:
 
         # Policy 2, Environment 1: Episodes with scores [85, 95] -> avg = 90.0
         for score in [85.0, 95.0]:
-            stats_client.record_episode(
+            await stats_client.record_episode(
                 agent_policies={0: policy2.id},
                 agent_metrics={0: {"reward": score}},
                 primary_policy_id=policy2.id,
@@ -1077,7 +1104,7 @@ class TestPolicyScorecardRoutes:
 
         # Policy 2, Environment 2: Episodes with scores [90, 100, 80, 70] -> avg = 85.0
         for score in [90.0, 100.0, 80.0, 70.0]:
-            stats_client.record_episode(
+            await stats_client.record_episode(
                 agent_policies={0: policy2.id},
                 agent_metrics={0: {"reward": score}},
                 primary_policy_id=policy2.id,
@@ -1132,16 +1159,19 @@ class TestPolicyScorecardRoutes:
         assert best_policy_name in heatmap_best["policyNames"]
         assert abs(heatmap_best["policyAverageScores"][best_policy_name] - 87.5) < 0.01
 
-    def test_mixed_training_run_and_run_free_policies_complex(
-        self, test_client: TestClient, create_test_data, record_episodes
+    @pytest.mark.asyncio
+    async def test_mixed_training_run_and_run_free_policies_complex(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
     ) -> None:
         """Test complex scenarios mixing training run policies and run-free policies."""
         # Create multiple training runs with different characteristics
-        train_run1 = create_test_data("mixed_complex_run1", num_policies=2)
-        train_run2 = create_test_data("mixed_complex_run2", num_policies=3)
+        train_run1 = await async_create_test_data("mixed_complex_run1", num_policies=2)
+        train_run2 = await async_create_test_data("mixed_complex_run2", num_policies=3)
 
         # Create run-free policies with high performance
-        run_free_policies = create_test_data("mixed_complex_runfree", num_policies=0, create_run_free_policies=2)
+        run_free_policies = await async_create_test_data(
+            "mixed_complex_runfree", num_policies=0, create_run_free_policies=2
+        )
 
         # Record varied performance episodes
         environments = ["maze", "arena", "coop"]
@@ -1155,7 +1185,7 @@ class TestPolicyScorecardRoutes:
             "policy_1_arena": 80.0,
             "policy_1_coop": 70.0,  # avg: 75.0
         }
-        record_episodes(train_run1, "mixed_complex", environments, run1_metrics)
+        await async_record_episodes(train_run1, "mixed_complex", environments, run1_metrics)
 
         # Training run 2: varied performance, policy 2 is best
         run2_metrics = {
@@ -1169,7 +1199,7 @@ class TestPolicyScorecardRoutes:
             "policy_2_arena": 90.0,
             "policy_2_coop": 80.0,  # avg: 85.0
         }
-        record_episodes(train_run2, "mixed_complex", environments, run2_metrics)
+        await async_record_episodes(train_run2, "mixed_complex", environments, run2_metrics)
 
         # Run-free policies: excellent performance
         runfree_metrics = {
@@ -1180,7 +1210,7 @@ class TestPolicyScorecardRoutes:
             "policy_1_arena": 91.0,
             "policy_1_coop": 87.0,  # avg: 88.67
         }
-        record_episodes(run_free_policies, "mixed_complex", environments, runfree_metrics)
+        await async_record_episodes(run_free_policies, "mixed_complex", environments, runfree_metrics)
 
         training_run_ids = [str(train_run1["training_run"].id), str(train_run2["training_run"].id)]
         run_free_policy_ids = [str(p.id) for p in run_free_policies["policies"]]
@@ -1265,12 +1295,14 @@ class TestPolicyScorecardRoutes:
         # Run1 policy1 subset avg: (75+80)/2 = 77.5
         assert abs(heatmap_subset["policyAverageScores"][run1_best_policy] - 77.5) < 0.01
 
-    def test_policy_selector_tie_breaking(
-        self, test_client: TestClient, stats_client: StatsClient, create_test_data, record_episodes
+    @pytest.mark.asyncio
+    async def test_policy_selector_tie_breaking(
+        self, test_client: TestClient, http_async_stats_env, async_create_test_data, async_record_episodes
     ) -> None:
         """Test tie-breaking logic for policy selectors."""
+        stats_client = http_async_stats_env.make_client()
         # Create training run with policies that have identical performance but different epochs
-        tie_data = create_test_data("tie_break_test", num_policies=3)
+        tie_data = await async_create_test_data("tie_break_test", num_policies=3)
 
         # Set up identical performance for policies but with different epochs
         identical_metrics = {
@@ -1281,7 +1313,7 @@ class TestPolicyScorecardRoutes:
             "policy_2_env1": 80.0,
             "policy_2_env2": 70.0,  # avg: 75.0 (epoch 100->200)
         }
-        record_episodes(tie_data, "tie_suite", ["env1", "env2"], identical_metrics)
+        await async_record_episodes(tie_data, "tie_suite", ["env1", "env2"], identical_metrics)
 
         # Test "latest" selector with ties: should pick policy with highest epoch, break ties alphabetically
         response_latest_tie = test_client.post(
@@ -1327,7 +1359,7 @@ class TestPolicyScorecardRoutes:
         policy_2 = tie_data["policies"][2]
         epoch_2 = tie_data["epochs"][1]
 
-        stats_client.record_episode(
+        await stats_client.record_episode(
             agent_policies={0: policy_2.id},
             agent_metrics={0: {"reward": 85.0}},  # Slightly higher than 80.0
             primary_policy_id=policy_2.id,
@@ -1358,21 +1390,22 @@ class TestPolicyScorecardRoutes:
         assert heatmap_best_after_boost["policyNames"][0] == boosted_best_policy
         assert abs(heatmap_best_after_boost["policyAverageScores"][boosted_best_policy] - 76.25) < 0.01
 
-    def test_policy_heatmap_edge_cases_and_error_handling(
-        self, test_client: TestClient, create_test_data, record_episodes
+    @pytest.mark.asyncio
+    async def test_policy_heatmap_edge_cases_and_error_handling(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
     ) -> None:
         """Test edge cases and error handling in policy heatmap generation."""
 
         # Test 1: Mixed training run and run-free policies with sparse data
-        test_data1 = create_test_data("edge_case_run1", num_policies=2)
-        run_free_data = create_test_data("edge_case_free", num_policies=0, create_run_free_policies=2)
+        test_data1 = await async_create_test_data("edge_case_run1", num_policies=2)
+        run_free_data = await async_create_test_data("edge_case_free", num_policies=0, create_run_free_policies=2)
 
         # Only record episodes for some policy-eval combinations to test sparse data handling
         partial_metrics = {
             "policy_0_env1": 80.0,  # Missing env2 for policy 0
             "policy_1_env2": 90.0,  # Missing env1 for policy 1
         }
-        record_episodes(test_data1, "sparse_suite", ["env1", "env2"], partial_metrics)
+        await async_record_episodes(test_data1, "sparse_suite", ["env1", "env2"], partial_metrics)
 
         # Record for run-free policies - one complete, one partial
         free_metrics = {
@@ -1380,7 +1413,7 @@ class TestPolicyScorecardRoutes:
             "policy_0_env2": 88.0,  # Complete data
             "policy_1_env1": 92.0,  # Partial data - missing env2
         }
-        record_episodes(run_free_data, "sparse_suite", ["env1", "env2"], free_metrics)
+        await async_record_episodes(run_free_data, "sparse_suite", ["env1", "env2"], free_metrics)
 
         run_free_policy_ids = [str(p.id) for p in run_free_data["policies"]]
 
@@ -1412,26 +1445,28 @@ class TestPolicyScorecardRoutes:
                 if cell["value"] == 0.0:
                     assert cell["replayUrl"] is None
 
-    def test_policy_heatmap_best_vs_latest_selection_logic(
+    @pytest.mark.asyncio
+    async def test_policy_heatmap_best_vs_latest_selection_logic(
         self,
         test_client: TestClient,
-        stats_client: StatsClient,
-        create_test_data,
+        http_async_stats_env,
+        async_create_test_data,
     ) -> None:
         """Test detailed best vs latest policy selection logic with complex scenarios."""
+        stats_client = http_async_stats_env.make_client()
 
         # Create training run with 4 policies across different epochs
-        test_data = create_test_data("selection_logic", num_policies=4)
+        test_data = await async_create_test_data("selection_logic", num_policies=4)
 
         # Create additional epochs for more complex epoch structure
         training_run = test_data["training_run"]
-        epoch3 = stats_client.create_epoch(
+        epoch3 = await stats_client.create_epoch(
             run_id=training_run.id,
             start_training_epoch=200,
             end_training_epoch=300,
             attributes={"learning_rate": "0.0001"},
         )
-        epoch4 = stats_client.create_epoch(
+        epoch4 = await stats_client.create_epoch(
             run_id=training_run.id,
             start_training_epoch=300,
             end_training_epoch=400,
@@ -1439,12 +1474,12 @@ class TestPolicyScorecardRoutes:
         )
 
         # Create policies with different epoch assignments
-        policy3 = stats_client.create_policy(
+        policy3 = await stats_client.create_policy(
             name="policy_selection_logic_3",
             description="Test policy 3 for selection logic",
             epoch_id=epoch3.id,
         )
-        policy4 = stats_client.create_policy(
+        policy4 = await stats_client.create_policy(
             name="policy_selection_logic_4",
             description="Test policy 4 for selection logic",
             epoch_id=epoch4.id,
@@ -1490,7 +1525,7 @@ class TestPolicyScorecardRoutes:
             for eval_name in eval_names:
                 metric_key = f"policy_{i}_{eval_name}"
                 if metric_key in metrics:
-                    stats_client.record_episode(
+                    await stats_client.record_episode(
                         agent_policies={0: policy.id},
                         agent_metrics={0: {"reward": metrics[metric_key]}},
                         primary_policy_id=policy.id,
@@ -1549,7 +1584,7 @@ class TestPolicyScorecardRoutes:
 
         for eval_name in eval_names:
             metric_key = f"policy_1_{eval_name}"
-            stats_client.record_episode(
+            await stats_client.record_episode(
                 agent_policies={0: all_policies[1].id},
                 agent_metrics={0: {"reward": additional_metrics[metric_key]}},
                 primary_policy_id=all_policies[1].id,
@@ -1593,15 +1628,16 @@ class TestPolicyScorecardRoutes:
 
         assert heatmap_latest2["policyNames"][0] == latest_policy_name
 
-    def test_policy_heatmap_data_structure_completeness(
-        self, test_client: TestClient, create_test_data, record_episodes
+    @pytest.mark.asyncio
+    async def test_policy_heatmap_data_structure_completeness(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
     ) -> None:
         """Test that policy heatmap data structure is complete and correctly formatted."""
 
         # Create comprehensive test setup
-        test_data1 = create_test_data("structure_run1", num_policies=2)
-        test_data2 = create_test_data("structure_run2", num_policies=1)
-        run_free_data = create_test_data("structure_free", num_policies=0, create_run_free_policies=1)
+        test_data1 = await async_create_test_data("structure_run1", num_policies=2)
+        test_data2 = await async_create_test_data("structure_run2", num_policies=1)
+        run_free_data = await async_create_test_data("structure_free", num_policies=0, create_run_free_policies=1)
 
         # Record episodes across multiple categories
         categories_and_envs = [
@@ -1624,7 +1660,7 @@ class TestPolicyScorecardRoutes:
                         metrics[f"policy_{i}_{env}"] = score
 
                 if metrics:  # Only if we have policies
-                    record_episodes(test_data, category, env_names, metrics)
+                    await async_record_episodes(test_data, category, env_names, metrics)
 
         training_run_ids = [str(test_data1["training_run"].id), str(test_data2["training_run"].id)]
         run_free_policy_ids = [str(p.id) for p in run_free_data["policies"]]
@@ -1727,8 +1763,9 @@ class TestPolicyScorecardRoutes:
             assert abs(avg_score - expected_avg) < 0.01
             assert abs(max_score - expected_max) < 0.01
 
-    def test_large_dataset_performance_and_deduplication(
-        self, test_client: TestClient, create_test_data, record_episodes
+    @pytest.mark.asyncio
+    async def test_large_dataset_performance_and_deduplication(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
     ) -> None:
         """Test performance and correctness with large datasets."""
         # Create multiple training runs with many policies
@@ -1737,12 +1774,14 @@ class TestPolicyScorecardRoutes:
         policies_per_run = 10
 
         for run_idx in range(num_runs):
-            run_data = create_test_data(f"large_run_{run_idx}", num_policies=policies_per_run)
+            run_data = await async_create_test_data(f"large_run_{run_idx}", num_policies=policies_per_run)
             large_runs.append(run_data)
 
         # Create many run-free policies
         run_free_count = 15
-        large_run_free = create_test_data("large_run_free", num_policies=0, create_run_free_policies=run_free_count)
+        large_run_free = await async_create_test_data(
+            "large_run_free", num_policies=0, create_run_free_policies=run_free_count
+        )
 
         # Create many evaluation environments
         categories = ["nav", "combat", "coop", "puzzle", "social"]
@@ -1766,7 +1805,7 @@ class TestPolicyScorecardRoutes:
                         score = min(100.0, base_score + run_bonus + policy_bonus)
                         run_metrics[f"policy_{policy_idx}_{env}"] = score
 
-                record_episodes(run_data, category, envs_per_category, run_metrics)
+                await async_record_episodes(run_data, category, envs_per_category, run_metrics)
 
         # Record episodes for run-free policies with high, varied performance
         all_policy_ids.extend([str(p.id) for p in large_run_free["policies"]])
@@ -1778,7 +1817,7 @@ class TestPolicyScorecardRoutes:
                     score = 85.0 + (policy_idx % 3) * 5 + (env_idx % 2) * 2  # 85-95 range
                     runfree_metrics[f"policy_{policy_idx}_{env}"] = score
 
-            record_episodes(large_run_free, category, envs_per_category, runfree_metrics)
+            await async_record_episodes(large_run_free, category, envs_per_category, runfree_metrics)
 
         eval_names = [f"{cat}/{env}" for cat in categories for env in envs_per_category]
 
@@ -1848,24 +1887,25 @@ class TestPolicyScorecardRoutes:
         # Best should perform at least as well as latest (may be equal if latest happens to be best)
         assert avg_best_performance >= avg_latest_performance - 1.0  # Allow small tolerance
 
-    def test_policy_heatmap_with_missing_evaluations(
-        self, test_client: TestClient, create_test_data, record_episodes
+    @pytest.mark.asyncio
+    async def test_policy_heatmap_with_missing_evaluations(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
     ) -> None:
         """Test behavior when policies have missing evaluations for some environments."""
         # Create test data with policies that have different evaluation coverage
-        partial_data = create_test_data("partial_eval_test", num_policies=3)
+        partial_data = await async_create_test_data("partial_eval_test", num_policies=3)
 
         # Policy 0: Only evaluated in env1 and env2
         policy_0_metrics = {"policy_0_env1": 80.0, "policy_0_env2": 75.0}
-        record_episodes(partial_data, "partial_suite", ["env1", "env2"], policy_0_metrics)
+        await async_record_episodes(partial_data, "partial_suite", ["env1", "env2"], policy_0_metrics)
 
         # Policy 1: Only evaluated in env2 and env3
         policy_1_metrics = {"policy_1_env2": 85.0, "policy_1_env3": 90.0}
-        record_episodes(partial_data, "partial_suite", ["env2", "env3"], policy_1_metrics)
+        await async_record_episodes(partial_data, "partial_suite", ["env2", "env3"], policy_1_metrics)
 
         # Policy 2: Evaluated in all environments
         policy_2_metrics = {"policy_2_env1": 70.0, "policy_2_env2": 78.0, "policy_2_env3": 82.0}
-        record_episodes(partial_data, "partial_suite", ["env1", "env2", "env3"], policy_2_metrics)
+        await async_record_episodes(partial_data, "partial_suite", ["env1", "env2", "env3"], policy_2_metrics)
 
         # Test latest selector
         response_partial_latest = test_client.post(
@@ -1917,19 +1957,21 @@ class TestPolicyScorecardRoutes:
         # The selected policy should have some positive average (not zero)
         assert selected_avg > 0.0
 
-    def test_multi_agent_episode_aggregation_edge_cases(
+    @pytest.mark.asyncio
+    async def test_multi_agent_episode_aggregation_edge_cases(
         self,
         test_client: TestClient,
-        stats_client: StatsClient,
-        create_test_data,
+        http_async_stats_env,
+        async_create_test_data,
     ) -> None:
         """Test edge cases in multi-agent episode aggregation."""
-        multiagent_data = create_test_data("multiagent_edge", num_policies=1)
+        stats_client = http_async_stats_env.make_client()
+        multiagent_data = await async_create_test_data("multiagent_edge", num_policies=1)
         policy = multiagent_data["policies"][0]
         epoch = multiagent_data["epochs"][0]
 
         # Episode 1: Single agent
-        stats_client.record_episode(
+        await stats_client.record_episode(
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 100.0}},
             primary_policy_id=policy.id,
@@ -1940,7 +1982,7 @@ class TestPolicyScorecardRoutes:
         )
 
         # Episode 2: Two agents with very different performance
-        stats_client.record_episode(
+        await stats_client.record_episode(
             agent_policies={0: policy.id, 1: policy.id},
             agent_metrics={0: {"reward": 20.0}, 1: {"reward": 80.0}},  # avg per agent: 50.0
             primary_policy_id=policy.id,
@@ -1953,7 +1995,7 @@ class TestPolicyScorecardRoutes:
         # Episode 3: Many agents with varied performance
         many_agent_metrics = {i: {"reward": 40.0 + (i * 5)} for i in range(10)}  # 40, 45, 50, ..., 85
         # Average per agent: (40+45+50+55+60+65+70+75+80+85)/10 = 62.5
-        stats_client.record_episode(
+        await stats_client.record_episode(
             agent_policies={i: policy.id for i in range(10)},
             agent_metrics=many_agent_metrics,
             primary_policy_id=policy.id,
@@ -1964,7 +2006,7 @@ class TestPolicyScorecardRoutes:
         )
 
         # Episode 4: Zero reward edge case
-        stats_client.record_episode(
+        await stats_client.record_episode(
             agent_policies={0: policy.id, 1: policy.id},
             agent_metrics={0: {"reward": 0.0}, 1: {"reward": 0.0}},  # avg per agent: 0.0
             primary_policy_id=policy.id,
@@ -1998,19 +2040,21 @@ class TestPolicyScorecardRoutes:
         assert actual_value > 30.0  # Should be above just the zero episode
         assert actual_value < 90.0  # Should be below the highest single episode
 
-    def test_policy_heatmap_extreme_values_and_precision(
+    @pytest.mark.asyncio
+    async def test_policy_heatmap_extreme_values_and_precision(
         self,
         test_client: TestClient,
-        stats_client: StatsClient,
-        create_test_data,
+        http_async_stats_env,
+        async_create_test_data,
     ) -> None:
         """Test handling of extreme values and numerical precision."""
-        extreme_data = create_test_data("extreme_values", num_policies=1)
+        stats_client = http_async_stats_env.make_client()
+        extreme_data = await async_create_test_data("extreme_values", num_policies=1)
         policy = extreme_data["policies"][0]
         epoch = extreme_data["epochs"][0]
 
         # Test with very large values
-        stats_client.record_episode(
+        await stats_client.record_episode(
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 999999.999}},
             primary_policy_id=policy.id,
@@ -2021,7 +2065,7 @@ class TestPolicyScorecardRoutes:
         )
 
         # Test with very small positive values
-        stats_client.record_episode(
+        await stats_client.record_episode(
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 0.000001}},
             primary_policy_id=policy.id,
@@ -2032,7 +2076,7 @@ class TestPolicyScorecardRoutes:
         )
 
         # Test with negative values
-        stats_client.record_episode(
+        await stats_client.record_episode(
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": -100.5}},
             primary_policy_id=policy.id,
@@ -2043,7 +2087,7 @@ class TestPolicyScorecardRoutes:
         )
 
         # Test with many decimal places
-        stats_client.record_episode(
+        await stats_client.record_episode(
             agent_policies={0: policy.id},
             agent_metrics={0: {"reward": 123.456789012345}},
             primary_policy_id=policy.id,
@@ -2093,9 +2137,8 @@ class TestPolicyScorecardRoutes:
         self,
         isolated_test_client: TestClient,
         isolated_stats_repo: MettaRepo,
-        isolated_stats_client: StatsClient,
-        create_test_data,
-        record_episodes,
+        isolated_async_create_test_data,
+        isolated_async_record_episodes,
     ) -> None:
         """Integration test for leaderboard scorecard functionality.
 
@@ -2111,17 +2154,12 @@ class TestPolicyScorecardRoutes:
         stats_repo = isolated_stats_repo
 
         # Create test data with multiple training runs and run-free policies
-        test_data1 = create_test_data(
-            "leaderboard_integration_run1", num_policies=3, overriding_stats_client=isolated_stats_client
-        )
-        test_data2 = create_test_data(
-            "leaderboard_integration_run2", num_policies=2, overriding_stats_client=isolated_stats_client
-        )
-        run_free_data = create_test_data(
+        test_data1 = await isolated_async_create_test_data("leaderboard_integration_run1", num_policies=3)
+        test_data2 = await isolated_async_create_test_data("leaderboard_integration_run2", num_policies=2)
+        run_free_data = await isolated_async_create_test_data(
             "leaderboard_integration_runfree",
             num_policies=0,
             create_run_free_policies=2,
-            overriding_stats_client=isolated_stats_client,
         )
 
         # Record episodes with varied performance across different categories
@@ -2149,15 +2187,9 @@ class TestPolicyScorecardRoutes:
             "policy_2_arena2": 85.0,  # avg: 82.5
             "policy_2_team1": 75.0,  # Overall avg: 81.67 (best)
         }
-        record_episodes(
-            test_data1, "navigation", ["maze1", "maze2"], run1_metrics, overriding_stats_client=isolated_stats_client
-        )
-        record_episodes(
-            test_data1, "combat", ["arena1", "arena2"], run1_metrics, overriding_stats_client=isolated_stats_client
-        )
-        record_episodes(
-            test_data1, "cooperation", ["team1"], run1_metrics, overriding_stats_client=isolated_stats_client
-        )
+        await isolated_async_record_episodes(test_data1, "navigation", ["maze1", "maze2"], run1_metrics)
+        await isolated_async_record_episodes(test_data1, "combat", ["arena1", "arena2"], run1_metrics)
+        await isolated_async_record_episodes(test_data1, "cooperation", ["team1"], run1_metrics)
 
         # Training run 2: policy 1 is best
         run2_metrics = {
@@ -2172,15 +2204,9 @@ class TestPolicyScorecardRoutes:
             "policy_1_arena2": 90.0,  # avg: 87.5
             "policy_1_team1": 80.0,  # Overall avg: 86.67 (best)
         }
-        record_episodes(
-            test_data2, "navigation", ["maze1", "maze2"], run2_metrics, overriding_stats_client=isolated_stats_client
-        )
-        record_episodes(
-            test_data2, "combat", ["arena1", "arena2"], run2_metrics, overriding_stats_client=isolated_stats_client
-        )
-        record_episodes(
-            test_data2, "cooperation", ["team1"], run2_metrics, overriding_stats_client=isolated_stats_client
-        )
+        await isolated_async_record_episodes(test_data2, "navigation", ["maze1", "maze2"], run2_metrics)
+        await isolated_async_record_episodes(test_data2, "combat", ["arena1", "arena2"], run2_metrics)
+        await isolated_async_record_episodes(test_data2, "cooperation", ["team1"], run2_metrics)
 
         # Run-free policies: high performance
         runfree_metrics = {
@@ -2195,23 +2221,19 @@ class TestPolicyScorecardRoutes:
             "policy_1_arena2": 88.0,  # avg: 86.5
             "policy_1_team1": 82.0,  # Overall avg: 86.17
         }
-        record_episodes(
+        await isolated_async_record_episodes(
             run_free_data,
             "navigation",
             ["maze1", "maze2"],
             runfree_metrics,
-            overriding_stats_client=isolated_stats_client,
         )
-        record_episodes(
+        await isolated_async_record_episodes(
             run_free_data,
             "combat",
             ["arena1", "arena2"],
             runfree_metrics,
-            overriding_stats_client=isolated_stats_client,
         )
-        record_episodes(
-            run_free_data, "cooperation", ["team1"], runfree_metrics, overriding_stats_client=isolated_stats_client
-        )
+        await isolated_async_record_episodes(run_free_data, "cooperation", ["team1"], runfree_metrics)
 
         # Create leaderboard
         eval_names = [f"{cat}/{env}" for cat, envs in categories_and_envs for env in envs]
@@ -2345,13 +2367,16 @@ class TestPolicyScorecardRoutes:
         assert leaderboard_scorecard["evalAverageScores"] == individual_scorecard["evalAverageScores"]
         assert leaderboard_scorecard["evalMaxScores"] == individual_scorecard["evalMaxScores"]
 
-    def test_search_policies_by_name(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+    @pytest.mark.asyncio
+    async def test_search_policies_by_name(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
+    ) -> None:
         """Test searching policies by name."""
         # Create test data with distinctive names
-        test_data = create_test_data("navigation_search_test", num_policies=2, create_run_free_policies=1)
+        test_data = await async_create_test_data("navigation_search_test", num_policies=2, create_run_free_policies=1)
 
         # Record episodes so policies appear in unified_training_runs view
-        record_episodes(
+        await async_record_episodes(
             test_data,
             eval_category="navigation",
             env_names=["search_env"],
@@ -2379,10 +2404,11 @@ class TestPolicyScorecardRoutes:
         found_policies = [p for p in result["policies"] if "navigation" in p["name"].lower()]
         assert len(found_policies) >= 1
 
-    def test_search_policies_by_type(self, test_client: TestClient, create_test_data) -> None:
+    @pytest.mark.asyncio
+    async def test_search_policies_by_type(self, test_client: TestClient, async_create_test_data) -> None:
         """Test filtering policies by type."""
         # Create test data with both types
-        create_test_data("search_policies_type", num_policies=1, create_run_free_policies=2)
+        await async_create_test_data("search_policies_type", num_policies=1, create_run_free_policies=2)
 
         # Test filter by training_run type
         search_request = {"policy_type": "training_run"}
@@ -2406,13 +2432,16 @@ class TestPolicyScorecardRoutes:
         for policy in result["policies"]:
             assert policy["type"] == "policy"
 
-    def test_search_policies_by_tags(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+    @pytest.mark.asyncio
+    async def test_search_policies_by_tags(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
+    ) -> None:
         """Test filtering policies by tags."""
         # Create test data that will have the scorecard_test tag
-        test_data = create_test_data("search_tags_test", num_policies=2, create_run_free_policies=1)
+        test_data = await async_create_test_data("search_tags_test", num_policies=2, create_run_free_policies=1)
 
         # Record episodes so policies appear in unified_training_runs view
-        record_episodes(
+        await async_record_episodes(
             test_data,
             eval_category="navigation",
             env_names=["tag_env"],
@@ -2441,13 +2470,16 @@ class TestPolicyScorecardRoutes:
         tagged_policies = [p for p in result["policies"] if "test_tag" in p.get("tags", [])]
         assert len(tagged_policies) >= 1
 
-    def test_search_policies_combined_filters(self, test_client: TestClient, create_test_data, record_episodes) -> None:
+    @pytest.mark.asyncio
+    async def test_search_policies_combined_filters(
+        self, test_client: TestClient, async_create_test_data, async_record_episodes
+    ) -> None:
         """Test combining multiple search filters."""
         # Create test data
-        test_data = create_test_data("combined_filter_test", num_policies=2, create_run_free_policies=1)
+        test_data = await async_create_test_data("combined_filter_test", num_policies=2, create_run_free_policies=1)
 
         # Record episodes so policies appear in unified_training_runs view
-        record_episodes(
+        await async_record_episodes(
             test_data,
             eval_category="navigation",
             env_names=["combined_env"],
@@ -2477,10 +2509,11 @@ class TestPolicyScorecardRoutes:
 
         assert len(matching_policies) >= 1
 
-    def test_search_policies_pagination(self, test_client: TestClient, create_test_data) -> None:
+    @pytest.mark.asyncio
+    async def test_search_policies_pagination(self, test_client: TestClient, async_create_test_data) -> None:
         """Test pagination in search results."""
         # Create test data
-        create_test_data("search_pagination", num_policies=5, create_run_free_policies=3)
+        await async_create_test_data("search_pagination", num_policies=5, create_run_free_policies=3)
 
         # Test with limit
         search_request = {"limit": 2}

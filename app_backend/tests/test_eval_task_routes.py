@@ -1,8 +1,8 @@
 import uuid
 
 import pytest
+from http_env import HttpEvalTaskClientEnv
 
-from conftest import HttpEvalTaskClientEnv
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.routes.eval_task_routes import (

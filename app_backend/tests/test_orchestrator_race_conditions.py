@@ -10,8 +10,8 @@ import uuid
 from datetime import datetime, timezone
 
 import pytest
+from http_env import HttpEvalTaskClientEnv
 
-from conftest import HttpEvalTaskClientEnv
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.eval_task_orchestrator import EvalTaskOrchestrator, FixedScaler
 from metta.app_backend.eval_task_worker import AbstractTaskExecutor, EvalTaskWorker
