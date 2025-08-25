@@ -122,7 +122,7 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
     )
 
     if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
-        _ = _minimize_config_for_debugging(cfg)
+        cfg = _minimize_config_for_debugging(cfg)
 
     # Save configuration
     if torch_dist_cfg.is_master:
