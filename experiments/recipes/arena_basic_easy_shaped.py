@@ -39,9 +39,15 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     # Start with standard arena configuration
     env_cfg = eb.make_arena(num_agents=num_agents, combat=False)
 
+    # Remove combat buildings from objects dict since old basic.yaml doesn't have them on the map
+    # (though they are still defined as object types for crafting)
+    # We keep them in the objects dict but don't place them on the map
+
     # Map configuration from original configs/env/mettagrid/arena/basic.yaml
+    # CRITICAL: Must set instances=4 (num_agents/6 = 24/6 = 4) to match old config
     env_cfg.game.map_builder = MapGen.Config(
         num_agents=num_agents,
+        instances=num_agents // 6,  # Explicitly set instances like old config did
         width=25,
         height=25,
         border_width=6,
@@ -55,6 +61,7 @@ def make_env(num_agents: int = 24) -> EnvConfig:
                     "altar": 5,
                     "block": 20,  # Blocks included for environment variety
                     "wall": 20,  # 20 walls for proper spacing
+                    # NOTE: No combat buildings (lasery/armory) on map to match old basic.yaml
                 },
             ),
         ),
@@ -65,11 +72,13 @@ def make_env(num_agents: int = 24) -> EnvConfig:
 
     # Keep combat buildings enabled (lasery and armory stay in the config)
 
-    # Action configuration using move_8way for directional movement
+    # Action configuration using move for directional movement (matching old config)
     env_cfg.game.actions = ActionsConfig(
         noop=ActionConfig(enabled=True),
-        move_8way=ActionConfig(enabled=True),  # 8-directional movement
-        rotate=ActionConfig(enabled=True),  # Rotation action
+        move=ActionConfig(enabled=True),  # 4-directional movement (matching old config)
+        move_8way=ActionConfig(enabled=False),  # Explicitly disabled
+        move_cardinal=ActionConfig(enabled=False),  # Explicitly disabled
+        rotate=ActionConfig(enabled=True),
         put_items=ActionConfig(enabled=True),
         get_items=ActionConfig(enabled=True),
         attack=AttackActionConfig(
@@ -100,7 +109,7 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     env_cfg.game.agent.rewards.inventory.blueprint = 0.5
     env_cfg.game.agent.rewards.inventory.blueprint_max = 1
 
-    # Heart reward with maximum possible value
+    # Heart reward - effectively unbounded (null in old shaped.yaml means very high limit)
     env_cfg.game.agent.rewards.inventory.heart = 1
     env_cfg.game.agent.rewards.inventory.heart_max = 255
 
@@ -109,13 +118,6 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     altar_copy = env_cfg.game.objects["altar"].model_copy(deep=True)
     altar_copy.input_resources = {"battery_red": 1}
     env_cfg.game.objects["altar"] = altar_copy
-
-    # Set initial resource counts for immediate availability
-    for obj_name in ["mine_red", "generator_red", "altar"]:
-        if obj_name in env_cfg.game.objects:
-            obj_copy = env_cfg.game.objects[obj_name].model_copy(deep=True)
-            obj_copy.initial_resource_count = 1
-            env_cfg.game.objects[obj_name] = obj_copy
 
     # Set label for clarity
     env_cfg.label = "arena.basic_easy_shaped"

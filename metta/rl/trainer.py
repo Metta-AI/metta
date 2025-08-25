@@ -309,7 +309,7 @@ def train(
                     total_steps = 0
 
                     policy.reset_memory()
-                    buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
+                    buffer_step = experience.buffer[experience.ep_indices, torch.clamp(experience.ep_lengths - 1, min=0)]
 
                     while not experience.ready_for_training:
                         # Get observation
@@ -382,10 +382,16 @@ def train(
                         device,
                     )
 
+                    # Store original values for computing returns (before any updates)
+                    original_values = experience.buffer["values"].clone()
+
                     # Train for multiple epochs
                     minibatch_idx = 0
                     epochs_trained = 0
                     policy_spec = policy.get_agent_experience_spec()
+
+                    # Clear gradients at the start of training
+                    optimizer.zero_grad()
 
                     for _update_epoch in range(trainer_cfg.update_epochs):
                         for _ in range(experience.num_minibatches):
@@ -395,6 +401,7 @@ def train(
                                 advantages=advantages,
                                 prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
                                 prio_beta=anneal_beta,
+                                original_values=original_values,
                             )
 
                             policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
@@ -414,15 +421,18 @@ def train(
                                 device=device,
                             )
 
-                            # Optimizer step
-                            optimizer.zero_grad()
+                            # Scale loss for gradient accumulation
+                            if experience.accumulate_minibatches > 1:
+                                loss = loss / experience.accumulate_minibatches
 
                             # This also serves as a barrier for all ranks
                             loss.backward()
 
+                            # Apply gradients when we've accumulated enough minibatches
                             if (minibatch_idx + 1) % experience.accumulate_minibatches == 0:
                                 torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
                                 optimizer.step()
+                                optimizer.zero_grad()
 
                                 # Optional weight clipping
                                 policy.clip_weights()
@@ -438,6 +448,12 @@ def train(
                             average_approx_kl = losses.approx_kl_sum / losses.minibatches_processed
                             if average_approx_kl > trainer_cfg.ppo.target_kl:
                                 break
+                    
+                    # Apply any remaining accumulated gradients
+                    if experience.accumulate_minibatches > 1 and minibatch_idx % experience.accumulate_minibatches != 0:
+                        torch.nn.utils.clip_grad_norm_(policy.parameters(), trainer_cfg.ppo.max_grad_norm)
+                        optimizer.step()
+                        optimizer.zero_grad()
 
                     # Calculate explained variance
                     y_pred = experience.buffer["values"].flatten()

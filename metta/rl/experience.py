@@ -155,6 +155,7 @@ class Experience:
         advantages: Tensor,
         prio_alpha: float,
         prio_beta: float,
+        original_values: Tensor | None = None,
     ) -> tuple[TensorDict, Tensor, Tensor]:
         """Sample a prioritized minibatch."""
         # Prioritized sampling based on advantage magnitude
@@ -170,7 +171,9 @@ class Experience:
             minibatch = minibatch.to(self.device, non_blocking=True)
 
         minibatch["advantages"] = advantages[idx]
-        minibatch["returns"] = advantages[idx] + minibatch["values"]
+        # Use original values if provided (for correct returns calculation), otherwise fall back to current values
+        values_for_returns = original_values[idx] if original_values is not None else minibatch["values"]
+        minibatch["returns"] = advantages[idx] + values_for_returns
         prio_weights = (self.segments * prio_probs[idx, None]) ** -prio_beta
         return minibatch, idx, prio_weights
 
