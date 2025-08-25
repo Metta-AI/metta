@@ -74,6 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       has_relevant_changes: ${{ steps.check_py_files.outputs.has_relevant_changes }}
+      observatory_has_changes: ${{ steps.check_observatory_files.outputs.has_relevant_changes }}
       run_lint: ${{ steps.determine_tasks.outputs.run_lint }}
       run_test: ${{ steps.determine_tasks.outputs.run_test }}
       run_benchmark: ${{ steps.determine_tasks.outputs.run_benchmark }}
@@ -92,6 +93,14 @@ jobs:
         with:
           patterns: "**/*.py,**/*.cpp,**/*.hpp,**/conftest.py,**/pyproject.toml,**/pytest.ini,.github/workflows/*.yml"
           specific_files: "uv.lock"
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for observatory file changes
+        id: check_observatory_files
+        uses: ./.github/actions/file-changes
+        with:
+          patterns: "observatory/**/*.ts,observatory/**/*.tsx,observatory/**/*.js,observatory/**/*.jsx"
+          specific_files: "observatory/package.json,observatory/tsconfig.json,observatory/tsconfig.node.json"
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Determine which tasks to run
@@ -155,6 +164,39 @@ jobs:
 
       - name: Run cpplint
         run: ./mettagrid/tests/cpplint.sh
+
+  observatory-typescript-check:
+    name: "Observatory TypeScript Check"
+    needs: [graphite-ci-optimizer, setup-checks]
+    if: |
+      (needs.graphite-ci-optimizer.outputs.should_skip == 'false') &&
+      (needs.setup-checks.outputs.observatory_has_changes == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --filter @softmax/observatory
+
+      - name: TypeScript compilation check
+        run: |
+          cd observatory
+          pnpm run type-check
+
+      - name: Run linting
+        run: |
+          cd observatory
+          pnpm run lint
 
   unit-tests:
     name: "Unit Tests - ${{ matrix.package }}"
