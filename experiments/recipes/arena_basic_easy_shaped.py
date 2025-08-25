@@ -111,9 +111,7 @@ def make_env(num_agents: int = 24) -> EnvConfig:
 
     # Heart reward - effectively unbounded (null in old shaped.yaml means very high limit)
     env_cfg.game.agent.rewards.inventory.heart = 1
-    env_cfg.game.agent.rewards.inventory.heart_max = (
-        999999  # Very high limit to simulate unbounded
-    )
+    env_cfg.game.agent.rewards.inventory.heart_max = 255
 
     # Easy converter configuration (from configs/env/mettagrid/game/objects/basic_easy.yaml)
     # Altar only needs 1 battery_red instead of 3

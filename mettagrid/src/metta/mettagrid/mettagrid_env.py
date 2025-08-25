@@ -175,7 +175,7 @@ class MettaGridEnv(MettaGridPufferBase):
                 infos["agent"][n] = infos["agent"].get(n, 0) + v
         for n, v in infos["agent"].items():
             infos["agent"][n] = v / self.num_agents
-        
+
         # Add attributes
         attributes: Dict[str, Any] = {
             "seed": self._current_seed,
@@ -200,6 +200,17 @@ class MettaGridEnv(MettaGridPufferBase):
         with self.timer("_stats_writer"):
             if self._stats_writer and self._episode_id:
                 self._write_episode_stats(stats, episode_rewards, replay_url)
+
+        # Add task-specific reward reporting for overview/reward calculation
+        episode_rewards_mean = episode_rewards.mean()
+        task_init_time_msec = self.timer.lap_all().get("_create_c_env", 0) * 1000
+        task_name = self.env_config.label
+        infos.update(
+            {
+                f"task_reward/{task_name}/rewards.mean": episode_rewards_mean,
+                f"task_timing/{task_name}/init_time_msec": task_init_time_msec,
+            }
+        )
 
         # Add timing information
         self._add_timing_info(infos)
