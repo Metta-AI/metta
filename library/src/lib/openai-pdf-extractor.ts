@@ -382,10 +382,275 @@ interface TextractElement {
 }
 
 /**
+ * Lighter PDF compression using pdf-lib (better Textract compatibility)
+ */
+async function compressPdfWithPdfLib(pdfBuffer: Buffer): Promise<Buffer> {
+  const { PDFDocument } = await import("pdf-lib");
+
+  try {
+    console.log("🔧 Loading PDF with pdf-lib...");
+    const pdfDoc = await PDFDocument.load(pdfBuffer);
+
+    console.log("🗜️ Applying pdf-lib compression...");
+    const compressedBytes = await pdfDoc.save({
+      useObjectStreams: true, // Enable object streams for better compression
+      addDefaultPage: false,
+      objectStreamsCompression: true,
+      contentStreamCompression: true,
+      updateMetadata: false, // Skip metadata updates
+      prettyPrint: false, // Compact output
+    });
+
+    return Buffer.from(compressedBytes);
+  } catch (error: any) {
+    throw new Error(`PDF-lib compression failed: ${error.message}`);
+  }
+}
+
+/**
+ * Compress PDF using Ghostscript directly (bypassing problematic ghostscript4js wrapper)
+ */
+async function compressPdfWithGhostscript(pdfBuffer: Buffer): Promise<Buffer> {
+  const { v4: uuidv4 } = await import("uuid");
+  const { execSync } = await import("child_process");
+  const { readFileSync } = await import("fs");
+
+  const tempInputFile = `temp-input-${uuidv4()}.pdf`;
+  const tempOutputFile = `temp-output-${uuidv4()}.pdf`;
+
+  try {
+    // Write input PDF
+    writeFileSync(tempInputFile, pdfBuffer);
+
+    // Ghostscript compression command optimized for Textract compatibility
+    const gsCommand = [
+      "gs", // Use system ghostscript directly
+      "-sDEVICE=pdfwrite",
+      "-dCompatibilityLevel=1.5", // More modern PDF version for better Textract support
+      "-dPDFSETTINGS=/printer", // Conservative compression, maximum Textract compatibility
+      "-dNOPAUSE",
+      "-dQUIET",
+      "-dBATCH",
+      "-dColorImageResolution=200", // Higher resolution for better Textract recognition
+      "-dGrayImageResolution=200",
+      "-dMonoImageResolution=300", // Keep high for text clarity
+      "-dDownsampleColorImages=true",
+      "-dDownsampleGrayImages=true",
+      "-dCompressPages=true",
+      "-dOptimize=true", // Better optimization for file size
+      "-dEmbedAllFonts=true", // Ensure fonts are preserved for Textract
+      "-dSubsetFonts=true", // Reduce font file sizes
+      `-sOutputFile=${tempOutputFile}`,
+      tempInputFile,
+    ];
+
+    console.log("🗜️ Running Ghostscript compression directly...");
+    console.log(`📝 Command: ${gsCommand.join(" ")}`);
+
+    // Execute ghostscript directly
+    execSync(gsCommand.join(" "), {
+      stdio: ["pipe", "pipe", "pipe"], // Capture output
+      timeout: 60000, // 60 second timeout
+    });
+
+    // Check if output file was created
+    if (!existsSync(tempOutputFile)) {
+      throw new Error("Ghostscript failed to create output file");
+    }
+
+    // Read compressed PDF
+    const compressedBuffer = readFileSync(tempOutputFile);
+
+    // Validate compressed PDF before returning
+    console.log("🔍 Validating compressed PDF...");
+    const compressedHeader = compressedBuffer.slice(0, 8).toString();
+    console.log(`📄 Compressed PDF header: ${compressedHeader}`);
+
+    if (!compressedHeader.startsWith("%PDF-")) {
+      throw new Error(`Invalid compressed PDF header: ${compressedHeader}`);
+    }
+
+    console.log(`✅ Compressed PDF validation passed`);
+    return compressedBuffer;
+  } finally {
+    // Cleanup temp files
+    try {
+      if (existsSync(tempInputFile)) unlinkSync(tempInputFile);
+      if (existsSync(tempOutputFile)) unlinkSync(tempOutputFile);
+    } catch (cleanupError) {
+      console.warn("⚠️ Failed to cleanup temp files:", cleanupError);
+    }
+  }
+}
+
+/**
+ * Convert problematic PDF to standard format that Textract can handle
+ */
+async function convertPdfFormat(pdfBuffer: Buffer): Promise<Buffer> {
+  const { PDFDocument } = await import("pdf-lib");
+
+  try {
+    console.log("🔧 Loading PDF for format conversion...");
+    const sourcePdf = await PDFDocument.load(pdfBuffer);
+
+    console.log("✨ Creating clean PDF with standard format...");
+    const cleanPdf = await PDFDocument.create();
+
+    // Copy all pages to new clean document
+    const pageCount = sourcePdf.getPageCount();
+    const pageIndices = Array.from({ length: pageCount }, (_, i) => i);
+    const copiedPages = await cleanPdf.copyPages(sourcePdf, pageIndices);
+
+    copiedPages.forEach((page) => cleanPdf.addPage(page));
+
+    // Save with conservative settings for maximum Textract compatibility
+    const cleanBytes = await cleanPdf.save({
+      useObjectStreams: false, // Disable for better compatibility
+      addDefaultPage: false,
+      objectStreamsCompression: false, // Disable compression that might cause issues
+      contentStreamCompression: false,
+      updateMetadata: false,
+      prettyPrint: false,
+    });
+
+    return Buffer.from(cleanBytes);
+  } catch (error: any) {
+    throw new Error(`PDF format conversion failed: ${error.message}`);
+  }
+}
+
+/**
+ * Split large PDF into smaller chunks and process each with Textract
+ */
+async function splitAndProcessPdf(
+  pdfBuffer: Buffer,
+  pdfSize: number,
+  maxSize: number
+): Promise<TextractElement[]> {
+  const { PDFDocument } = await import("pdf-lib");
+
+  console.log("📄 Loading PDF for splitting...");
+  const pdfDoc = await PDFDocument.load(pdfBuffer);
+  const totalPages = pdfDoc.getPageCount();
+
+  console.log(`📊 PDF has ${totalPages} pages, splitting for Textract...`);
+
+  // Estimate pages per chunk based on size
+  const avgBytesPerPage = pdfSize / totalPages;
+  const pagesPerChunk = Math.max(
+    1,
+    Math.floor((maxSize / avgBytesPerPage) * 0.8)
+  ); // 80% safety margin
+
+  console.log(`📋 Processing ~${pagesPerChunk} pages per chunk`);
+
+  const allElements: TextractElement[] = [];
+
+  for (let startPage = 0; startPage < totalPages; startPage += pagesPerChunk) {
+    const endPage = Math.min(startPage + pagesPerChunk - 1, totalPages - 1);
+    const chunkNum = Math.floor(startPage / pagesPerChunk) + 1;
+    const totalChunks = Math.ceil(totalPages / pagesPerChunk);
+
+    console.log(
+      `🔄 Processing chunk ${chunkNum}/${totalChunks} (pages ${startPage + 1}-${endPage + 1})`
+    );
+
+    try {
+      // Create PDF chunk
+      const chunkDoc = await PDFDocument.create();
+      const pageRange = Array.from(
+        { length: endPage - startPage + 1 },
+        (_, i) => startPage + i
+      );
+      const copiedPages = await chunkDoc.copyPages(pdfDoc, pageRange);
+
+      copiedPages.forEach((page) => chunkDoc.addPage(page));
+
+      const chunkBytes = await chunkDoc.save();
+      const chunkBuffer = Buffer.from(chunkBytes);
+      const chunkSize = chunkBuffer.length;
+
+      console.log(
+        `📦 Chunk ${chunkNum} size: ${(chunkSize / 1024 / 1024).toFixed(1)}MB`
+      );
+
+      if (chunkSize > maxSize) {
+        console.warn(
+          `⚠️ Chunk ${chunkNum} still too large (${(chunkSize / 1024 / 1024).toFixed(1)}MB), skipping`
+        );
+        continue;
+      }
+
+      // Process chunk with Textract (with format validation)
+      let chunkElements: TextractElement[];
+      try {
+        chunkElements = await coreTextractProcessing(chunkBuffer, chunkSize);
+      } catch (textractError: any) {
+        if (textractError.name === "UnsupportedDocumentException") {
+          console.warn(`❌ Textract rejected chunk ${chunkNum} format`);
+          console.log(
+            `🔧 Attempting PDF format conversion for chunk ${chunkNum}...`
+          );
+
+          try {
+            const convertedBuffer = await convertPdfFormat(chunkBuffer);
+            const convertedSize = convertedBuffer.length;
+
+            console.log(
+              `✅ Converted chunk ${chunkNum}: ${(chunkSize / 1024 / 1024).toFixed(1)}MB → ${(convertedSize / 1024 / 1024).toFixed(1)}MB`
+            );
+
+            if (convertedSize <= maxSize) {
+              chunkElements = await coreTextractProcessing(
+                convertedBuffer,
+                convertedSize
+              );
+            } else {
+              console.warn(
+                `⚠️ Converted chunk ${chunkNum} too large, skipping`
+              );
+              continue;
+            }
+          } catch (conversionError) {
+            console.warn(
+              `❌ Failed to convert chunk ${chunkNum}:`,
+              conversionError
+            );
+            continue; // Skip this chunk and continue with others
+          }
+        } else {
+          throw textractError; // Re-throw non-format errors
+        }
+      }
+
+      // Adjust page numbers to match original PDF
+      const adjustedElements = chunkElements.map((element) => ({
+        ...element,
+        Page: element.Page + startPage, // Offset page numbers
+      }));
+
+      allElements.push(...adjustedElements);
+      console.log(
+        `✅ Chunk ${chunkNum} processed: ${adjustedElements.length} elements`
+      );
+    } catch (chunkError) {
+      console.warn(`❌ Failed to process chunk ${chunkNum}:`, chunkError);
+      // Continue with other chunks
+    }
+  }
+
+  console.log(
+    `🎯 Split processing complete: ${allElements.length} total elements from ${totalPages} pages`
+  );
+  return allElements;
+}
+
+/**
  * AWS Textract implementation - replaces unreliable Adobe PDF Services
  */
 async function getRawTextractElements(
-  pdfBuffer: Buffer
+  pdfBuffer: Buffer,
+  pdfSize?: number
 ): Promise<AdobeElement[]> {
   console.log(
     "🔍 Using AWS Textract for PDF element extraction (replacing Adobe)..."
@@ -394,9 +659,10 @@ async function getRawTextractElements(
   // Detailed PDF validation (same as before)
   console.log("🔬 Analyzing PDF structure for Textract processing...");
 
-  const pdfSize = pdfBuffer.length;
+  // Use provided pdfSize or calculate from buffer
+  const actualPdfSize = pdfSize || pdfBuffer.length;
   console.log(
-    `📏 PDF size: ${pdfSize} bytes (${Math.round(pdfSize / 1024)} KB)`
+    `📏 PDF size: ${actualPdfSize} bytes (${Math.round(actualPdfSize / 1024)} KB)`
   );
 
   // Check PDF header
@@ -421,11 +687,14 @@ async function getRawTextractElements(
     `   - Has JavaScript: ${hasJavaScript} ${hasJavaScript ? "(Textract handles this fine)" : ""}`
   );
   console.log(
-    `   - Size: ${Math.round(pdfSize / (1024 * 1024))}MB ${pdfSize > 5 * 1024 * 1024 ? "(will use S3)" : "(direct upload)"}`
+    `   - Size: ${Math.round(actualPdfSize / (1024 * 1024))}MB ${actualPdfSize > 5 * 1024 * 1024 ? "(will use S3)" : "(direct upload)"}`
   );
 
   try {
-    const textractElements = await processWithTextract(pdfBuffer, pdfSize);
+    const textractElements = await coreTextractProcessing(
+      pdfBuffer,
+      actualPdfSize
+    );
 
     // Convert Textract elements to Adobe-compatible format
     const adobeElements: AdobeElement[] = textractElements.map((elem) => ({
@@ -446,21 +715,137 @@ async function getRawTextractElements(
   }
 }
 
-async function processWithTextract(
+/**
+ * Poll Textract job until completion
+ */
+async function pollTextractJob(
+  textractClient: any,
+  jobId: string
+): Promise<any> {
+  const { GetDocumentAnalysisCommand } = await import(
+    "@aws-sdk/client-textract"
+  );
+
+  const maxAttempts = 60; // 10 minutes max (10s intervals)
+  const pollInterval = 10000; // 10 seconds
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    console.log(
+      `📊 Polling Textract job ${jobId} (attempt ${attempt}/${maxAttempts})...`
+    );
+
+    const pollResponse = await textractClient.send(
+      new GetDocumentAnalysisCommand({ JobId: jobId })
+    );
+
+    const status = pollResponse.JobStatus;
+    console.log(`📋 Job status: ${status}`);
+
+    if (status === "SUCCEEDED") {
+      console.log("🎉 Textract job completed successfully!");
+
+      // Handle paginated results for large documents
+      let allBlocks = pollResponse.Blocks || [];
+      let nextToken = pollResponse.NextToken;
+
+      while (nextToken) {
+        console.log("📄 Getting additional result pages...");
+        const nextResponse = await textractClient.send(
+          new GetDocumentAnalysisCommand({
+            JobId: jobId,
+            NextToken: nextToken,
+          })
+        );
+
+        allBlocks = allBlocks.concat(nextResponse.Blocks || []);
+        nextToken = nextResponse.NextToken;
+      }
+
+      console.log(
+        `📊 Retrieved ${allBlocks.length} total blocks across all pages`
+      );
+
+      return {
+        ...pollResponse,
+        Blocks: allBlocks,
+      };
+    } else if (status === "FAILED") {
+      const statusMessage = pollResponse.StatusMessage || "Unknown error";
+      throw new Error(`Textract job failed: ${statusMessage}`);
+    } else if (status === "PARTIAL_SUCCESS") {
+      console.warn("⚠️ Textract job completed with partial success");
+
+      // Handle paginated results even for partial success
+      let allBlocks = pollResponse.Blocks || [];
+      let nextToken = pollResponse.NextToken;
+
+      while (nextToken) {
+        console.log("📄 Getting additional partial result pages...");
+        try {
+          const nextResponse = await textractClient.send(
+            new GetDocumentAnalysisCommand({
+              JobId: jobId,
+              NextToken: nextToken,
+            })
+          );
+
+          allBlocks = allBlocks.concat(nextResponse.Blocks || []);
+          nextToken = nextResponse.NextToken;
+        } catch (paginationError) {
+          console.warn("⚠️ Failed to get additional pages:", paginationError);
+          break; // Use what we have
+        }
+      }
+
+      console.log(
+        `📊 Retrieved ${allBlocks.length} total blocks (partial success)`
+      );
+
+      return {
+        ...pollResponse,
+        Blocks: allBlocks,
+      };
+    } else if (status === "IN_PROGRESS") {
+      console.log("⏳ Job still in progress, waiting...");
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      continue;
+    } else {
+      console.warn(`⚠️ Unknown job status: ${status}, continuing to poll...`);
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+      continue;
+    }
+  }
+
+  throw new Error(
+    `Textract job ${jobId} timed out after ${(maxAttempts * pollInterval) / 1000} seconds`
+  );
+}
+
+async function coreTextractProcessing(
   pdfBuffer: Buffer,
   pdfSize: number
 ): Promise<TextractElement[]> {
-  const { TextractClient, AnalyzeDocumentCommand } = await import(
-    "@aws-sdk/client-textract"
-  );
+  const {
+    TextractClient,
+    AnalyzeDocumentCommand,
+    StartDocumentAnalysisCommand,
+    GetDocumentAnalysisCommand,
+  } = await import("@aws-sdk/client-textract");
   const { S3Client, PutObjectCommand, DeleteObjectCommand } = await import(
     "@aws-sdk/client-s3"
   );
   const { v4: uuidv4 } = await import("uuid");
 
-  // Initialize AWS clients
+  // Initialize AWS clients with explicit credential provider for SSO support
+  const { fromNodeProviderChain } = await import(
+    "@aws-sdk/credential-providers"
+  );
+
   const textractClient = new TextractClient({
     region: process.env.AWS_REGION || "us-east-1",
+    credentials: fromNodeProviderChain({
+      profile: process.env.AWS_PROFILE,
+    }),
   });
 
   let s3Client: any = null;
@@ -468,15 +853,18 @@ async function processWithTextract(
   let s3Key = "";
 
   try {
-    // For files > 5MB, use S3
+    // For files > 5MB, use S3 (can handle up to 500MB!)
     if (pdfSize > 5 * 1024 * 1024) {
       console.log("📦 Large PDF - using S3 + Textract...");
 
       s3Client = new S3Client({
         region: process.env.AWS_REGION || "us-east-1",
+        credentials: fromNodeProviderChain({
+          profile: process.env.AWS_PROFILE,
+        }),
       });
 
-      bucketName = process.env.S3_BUCKET || "metta-pdf-processing";
+      bucketName = process.env.AWS_S3_BUCKET || "metta-pdf-processing";
       s3Key = `temp-pdfs/${uuidv4()}.pdf`;
 
       console.log(
@@ -518,9 +906,36 @@ async function processWithTextract(
     console.log("🤖 Running AWS Textract analysis...");
     const startTime = Date.now();
 
-    const response = await textractClient.send(
-      new AnalyzeDocumentCommand(textractRequest)
-    );
+    let response: any;
+
+    // Use async API for files > 10MB (500MB limit), sync API for smaller files (10MB limit)
+    if (pdfSize > 10 * 1024 * 1024) {
+      console.log("⏳ Using asynchronous Textract API for large file...");
+
+      // Start analysis job
+      const startRequest = {
+        FeatureTypes: textractRequest.FeatureTypes,
+        DocumentLocation: {
+          S3Object: textractRequest.Document.S3Object,
+        },
+      };
+
+      const startResponse = await textractClient.send(
+        new StartDocumentAnalysisCommand(startRequest)
+      );
+
+      const jobId = startResponse.JobId;
+      console.log(`🔄 Textract job started: ${jobId}`);
+
+      // Poll for completion
+      response = await pollTextractJob(textractClient, jobId);
+    } else {
+      // Use sync API for files <= 10MB
+      console.log("⚡ Using synchronous Textract API...");
+      response = await textractClient.send(
+        new AnalyzeDocumentCommand(textractRequest)
+      );
+    }
 
     const processingTime = Date.now() - startTime;
     console.log(`✅ Textract completed in ${processingTime}ms`);
@@ -528,6 +943,29 @@ async function processWithTextract(
     // Process Textract blocks
     const blocks = response.Blocks || [];
     console.log(`📊 Textract found ${blocks.length} blocks`);
+
+    // 🔍 DEBUG: Dump raw Textract response to file for inspection
+    const debugTimestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const rawBlocksFile = `textract-raw-blocks-${debugTimestamp}.json`;
+
+    try {
+      writeFileSync(
+        rawBlocksFile,
+        JSON.stringify(
+          {
+            totalBlocks: blocks.length,
+            jobId: response.JobId || "sync-job",
+            status: response.JobStatus || "sync-complete",
+            blocks: blocks,
+          },
+          null,
+          2
+        )
+      );
+      console.log(`📄 Raw Textract blocks saved to: ${rawBlocksFile}`);
+    } catch (debugError) {
+      console.warn("⚠️ Failed to write debug file:", debugError);
+    }
 
     const elements: TextractElement[] = [];
     let objectIdCounter = 1000; // Start high to avoid conflicts
@@ -595,9 +1033,44 @@ async function processWithTextract(
       }
     }
 
+    // 🔍 DEBUG: Dump processed elements to file for inspection
+    const processedElementsFile = `textract-processed-elements-${debugTimestamp}.json`;
+
+    try {
+      const debugData = {
+        totalElements: elements.length,
+        processingTime: processingTime,
+        pdfSize: pdfSize,
+        pdfSizeMB: (pdfSize / 1024 / 1024).toFixed(1),
+        elementTypes: {},
+        elements: elements,
+      };
+
+      // Count element types
+      for (const element of elements) {
+        const blockType = element.BlockType || "UNKNOWN";
+        debugData.elementTypes[blockType] =
+          (debugData.elementTypes[blockType] || 0) + 1;
+      }
+
+      writeFileSync(processedElementsFile, JSON.stringify(debugData, null, 2));
+      console.log(`📄 Processed elements saved to: ${processedElementsFile}`);
+
+      // Print summary
+      console.log(`📊 Element types found:`);
+      Object.entries(debugData.elementTypes).forEach(([type, count]) => {
+        console.log(`   - ${type}: ${count}`);
+      });
+    } catch (debugError) {
+      console.warn(
+        "⚠️ Failed to write processed elements debug file:",
+        debugError
+      );
+    }
+
     return elements;
-  } catch (error) {
-    // Cleanup on error
+  } catch (error: any) {
+    // Cleanup S3 on error
     if (s3Client && bucketName && s3Key) {
       try {
         await s3Client.send(
@@ -610,6 +1083,25 @@ async function processWithTextract(
         console.warn("⚠️ Failed to cleanup S3 file after error:", cleanupError);
       }
     }
+
+    // Try PDF splitting as fallback for very large or problematic PDFs
+    const textractMaxSize = 500 * 1024 * 1024; // 500MB - Textract's actual S3 limit
+    if (pdfSize > 10 * 1024 * 1024) {
+      // Only try splitting for files > 10MB
+      console.warn("❌ S3 + Textract failed:", error.message);
+      console.log(
+        "📄 Falling back to PDF splitting for large/problematic file..."
+      );
+
+      try {
+        return await splitAndProcessPdf(pdfBuffer, pdfSize, textractMaxSize);
+      } catch (splitError) {
+        console.warn("❌ PDF splitting also failed:", splitError);
+        // Both S3 and splitting failed - throw original error
+        throw error;
+      }
+    }
+
     throw error;
   }
 }
@@ -661,7 +1153,7 @@ async function retryAdobeOperation<T>(
 async function getRawAdobeElements(pdfBuffer: Buffer): Promise<AdobeElement[]> {
   // ⚠️ DEPRECATED: Adobe is unreliable - now using Textract
   console.warn("⚠️ Adobe function called - redirecting to AWS Textract");
-  return await getRawTextractElements(pdfBuffer);
+  return await getRawTextractElements(pdfBuffer, pdfBuffer.length);
 }
 
 // ===== FIGURE EXTRACTION (SAME AS BATCH SCRIPT) =====
@@ -1360,8 +1852,14 @@ CRITICAL:
 
     let figuresWithImages: OpenAIPdfFigure[] = [];
 
-    // Step 2-4: Semantic figure extraction (if figures were identified)
+    // Check if figure extraction is disabled
+    if (process.env.ENABLE_FIGURE_EXTRACTION !== "true") {
+      console.log("🚫 Figure extraction disabled via ENABLE_FIGURE_EXTRACTION environment variable");
+    }
+
+    // Step 2-4: Semantic figure extraction (if figures were identified AND enabled)
     if (
+      process.env.ENABLE_FIGURE_EXTRACTION === "true" &&
       summaryResult.object.keyFigures &&
       summaryResult.object.keyFigures.length > 0
     ) {
