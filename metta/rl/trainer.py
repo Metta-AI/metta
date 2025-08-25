@@ -248,13 +248,13 @@ def train(
     else:
         raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
 
-    # Create hyperparameter scheduler
-    hyperparameter_scheduler = HyperparameterScheduler.from_trainer_config(
-        trainer_cfg=trainer_cfg,
-        optimizer=optimizer,
-        total_timesteps=trainer_cfg.total_timesteps,
-        logger=logger,
-    )
+    # Create hyperparameter scheduler (disabled to match pre-dehydration behavior)
+    # hyperparameter_scheduler = HyperparameterScheduler.from_trainer_config(
+    #     trainer_cfg=trainer_cfg,
+    #     optimizer=optimizer,
+    #     total_timesteps=trainer_cfg.total_timesteps,
+    #     logger=logger,
+    # )
 
     if checkpoint and checkpoint.optimizer_state_dict:
         try:
@@ -340,8 +340,6 @@ def train(
                             ),
                         )
 
-                        # Add student agent mask (all agents are students when dual-policy is disabled)
-                        td["is_student_agent"] = torch.ones(td.batch_size[0], device=device, dtype=torch.float32)
 
                         # Inference
                         with torch.no_grad():
@@ -394,8 +392,6 @@ def train(
                         device,
                     )
 
-                    # Store original values for computing returns (before any updates)
-                    original_values = experience.buffer["values"].clone()
 
                     # Train for multiple epochs
                     minibatch_idx = 0
@@ -429,7 +425,7 @@ def train(
                                 device=device,
                             )
 
-                            # CRITICAL FIX: Match reference system - clear gradients AFTER loss computation, BEFORE backward
+                            # Optimizer step
                             optimizer.zero_grad()
 
                             # This also serves as a barrier for all ranks
@@ -461,8 +457,9 @@ def train(
                     losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
                 epoch += epochs_trained
 
-            # Update hyperparameters based on current agent step
-            hyperparameter_updates = hyperparameter_scheduler.step(agent_step)
+            # Update hyperparameters based on current agent step (disabled to match pre-dehydration behavior)
+            # hyperparameter_updates = hyperparameter_scheduler.step(agent_step)
+            hyperparameter_updates = {}
 
             # Safe to proceed to next rollout phase only once all ranks have completed training
             if torch.distributed.is_initialized():

@@ -155,7 +155,6 @@ class Experience:
         advantages: Tensor,
         prio_alpha: float,
         prio_beta: float,
-        original_values: Tensor | None = None,
     ) -> tuple[TensorDict, Tensor, Tensor]:
         """Sample a prioritized minibatch."""
         # Prioritized sampling based on advantage magnitude
