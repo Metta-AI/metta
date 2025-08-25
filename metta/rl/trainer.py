@@ -318,9 +318,7 @@ def train(
                     total_steps = 0
 
                     policy.reset_memory()
-                    buffer_step = experience.buffer[
-                        experience.ep_indices, torch.clamp(experience.ep_lengths - 1, min=0)
-                    ]
+                    buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
                     while not experience.ready_for_training:
                         # Get observation
@@ -412,7 +410,6 @@ def train(
                                 advantages=advantages,
                                 prio_alpha=trainer_cfg.prioritized_experience_replay.prio_alpha,
                                 prio_beta=anneal_beta,
-                                original_values=original_values,
                             )
 
                             policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
