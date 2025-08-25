@@ -11,9 +11,10 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import Tuple
+from typing import List, Optional
 
-import click
+import typer
+from typing_extensions import Annotated
 
 from .file import get_context
 from .token_profiler import generate_flamegraph, profile_code_context
@@ -26,36 +27,42 @@ logging.basicConfig(
 )
 logger = logging.getLogger("codeclip.cli")
 
+app = typer.Typer(
+    name="codeclip",
+    help="Provide codebase context to LLMs with smart defaults",
+    no_args_is_help=False,
+)
+
 
 def copy_to_clipboard(content: str) -> None:
-    """Copy content to clipboard on macOS."""
+    """Copy content to clipboard using pyperclip (cross-platform)."""
     try:
-        process = subprocess.Popen(["pbcopy"], stdin=subprocess.PIPE)
-        process.communicate(content.encode("utf-8"))
-    except FileNotFoundError:
-        click.echo("pbcopy not found - clipboard integration skipped", err=True)
+        import pyperclip
+
+        pyperclip.copy(content)
+    except ImportError:
+        typer.echo("pyperclip not available - clipboard integration skipped", err=True)
 
 
-@click.command(context_settings={"help_option_names": ["-h", "--help"]})
-@click.argument("paths", nargs=-1, type=str)
-@click.option("-s", "--stdout", is_flag=True, help="Output to stdout instead of clipboard")
-@click.option("-r", "--readmes", is_flag=True, help="Only include README.md files, including ancestor READMEs")
-@click.option("-e", "--extension", multiple=True, help="File extensions to include (e.g. -e py -e js or -e .py -e .js)")
-@click.option("-p", "--profile", is_flag=True, help="Show detailed token distribution analysis to stderr")
-@click.option(
-    "-f", "--flamegraph", is_flag=True, help="Generate a flame graph HTML visualization of token distribution"
-)
-@click.option(
-    "-d", "--diff", is_flag=True, help="Append git diff vs origin/main to the output as a single virtual file"
-)
-def cli(
-    paths: Tuple[str, ...],
-    stdout: bool,
-    readmes: bool,
-    extension: Tuple[str, ...],
-    profile: bool,
-    flamegraph: bool,
-    diff: bool,
+@app.command()
+def main(
+    paths: Annotated[Optional[List[str]], typer.Argument(help="Paths to analyze")] = None,
+    stdout: Annotated[bool, typer.Option("--stdout", "-s", help="Output to stdout instead of clipboard")] = False,
+    readmes: Annotated[
+        bool, typer.Option("--readmes", "-r", help="Only include README.md files, including ancestor READMEs")
+    ] = False,
+    extension: Annotated[
+        Optional[List[str]], typer.Option("--extension", "-e", help="File extensions to include (e.g. -e py -e js)")
+    ] = None,
+    profile: Annotated[
+        bool, typer.Option("--profile", "-p", help="Show detailed token distribution analysis to stderr")
+    ] = False,
+    flamegraph: Annotated[
+        bool, typer.Option("--flamegraph", "-f", help="Generate a flame graph HTML visualization of token distribution")
+    ] = False,
+    diff: Annotated[
+        bool, typer.Option("--diff", "-d", help="Append git diff vs origin/main to the output as a single virtual file")
+    ] = False,
 ) -> None:
     """
     Provide codebase context to LLMs with smart defaults.
@@ -63,9 +70,9 @@ def cli(
     """
     # If no paths provided and no flags, show help
     if not paths and not any([profile, flamegraph, extension, diff, readmes]):
-        ctx = click.get_current_context()
-        click.echo(ctx.get_help())
-        ctx.exit()
+        ctx = typer.Context(main)
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
 
     # Use provided paths or default behavior
     # For diff mode with no paths, use empty list to get only diff
@@ -93,14 +100,17 @@ def cli(
         if profile or flamegraph:
             # This calls get_context internally and builds the full profile
             profile_report, profile_data = profile_code_context(
-                paths=path_list, extensions=normalized_extensions, include_git_diff=diff, readmes_only=readmes
+                paths=[Path(p) for p in path_list],
+                extensions=normalized_extensions,
+                include_git_diff=diff,
+                readmes_only=readmes,
             )
             # Extract the content from the profile data
             output_content = profile_data.get("context", "")
         else:
             # Just get content and basic token info
             output_content, token_info = get_context(
-                paths=path_list,
+                paths=[Path(p) for p in path_list],
                 extensions=normalized_extensions,
                 include_git_diff=diff,
                 diff_base="origin/main",
@@ -122,7 +132,7 @@ def cli(
             logger.debug(f"Generating flame graph at: {flamegraph_path}")
             generate_flamegraph(profile_data, flamegraph_path)
             logger.debug(f"Flame graph generated at: {flamegraph_path}")
-            click.echo(f"Flame graph generated at: {flamegraph_path}", err=True)
+            typer.echo(f"Flame graph generated at: {flamegraph_path}", err=True)
 
             # Open the file in Chrome
             try:
@@ -134,17 +144,17 @@ def cli(
                 elif system == "Windows":
                     subprocess.run(["chrome", flamegraph_path], shell=True)
                 else:
-                    click.echo(f"Flame graph saved but couldn't auto-open browser on {system}.", err=True)
+                    typer.echo(f"Flame graph saved but couldn't auto-open browser on {system}.", err=True)
             except Exception as e:
-                click.echo(f"Flame graph saved but couldn't launch Chrome: {e}", err=True)
+                typer.echo(f"Flame graph saved but couldn't launch Chrome: {e}", err=True)
     except Exception as e:
-        click.echo(f"Error loading context: {e}", err=True)
+        typer.echo(f"Error loading context: {e}", err=True)
         return
 
     # Output content to stdout or clipboard
     if stdout:
         # Output to stdout
-        click.echo(output_content)
+        typer.echo(output_content)
     else:
         # Default behavior: copy to clipboard
         copy_to_clipboard(output_content)
@@ -155,7 +165,7 @@ def cli(
         total_files = profile_data["total_files"]
 
         if total_files == 0:
-            click.echo("No files found to copy", err=True)
+            typer.echo("No files found to copy", err=True)
             return
 
         # Build summary message
@@ -354,15 +364,20 @@ def cli(
                         pct = (tokens / total_tokens * 100) if total_tokens else 0
                         summary_parts.append(f"    {path.name}: ~{tokens:,} tokens ({pct:.0f}%)")
 
-        click.echo("\n".join(summary_parts), err=True)
+        typer.echo("\n".join(summary_parts), err=True)
 
     # Show detailed profiling info if requested
     if profile and profile_data:
-        click.echo("\n" + "=" * 60, err=True)
-        click.echo("DETAILED TOKEN PROFILE", err=True)
-        click.echo("=" * 60 + "\n", err=True)
-        click.echo(profile_report, err=True)
+        typer.echo("\n" + "=" * 60, err=True)
+        typer.echo("DETAILED TOKEN PROFILE", err=True)
+        typer.echo("=" * 60 + "\n", err=True)
+        typer.echo(profile_report, err=True)
+
+
+def cli():
+    """Entry point for backward compatibility."""
+    app()
 
 
 if __name__ == "__main__":
-    cli()
+    app()
