@@ -185,6 +185,8 @@ def train() -> TrainTool:
     medium_env.game.map_builder.width = 50
     medium_env.game.map_builder.height = 50
     # Increase instances proportionally: 50x50 area is 4x larger, so 4x instances
+    # Get num_agents from the environment config
+    num_agents = env_cfg.game.num_agents
     medium_env.game.map_builder.instances = (num_agents // 6) * 4
 
     # Create curriculum with both map variants to restore pre-dehydration map diversity
