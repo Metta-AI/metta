@@ -58,13 +58,14 @@ class TrainingConfig:
 
 class WandbMixin:
     """Mixin that adds WandB context support to state objects."""
+
     wandb_run: Optional[WandbRun] = None
 
 
 @dataclass
 class TrainingState(WandbMixin):
     """Mutable state that accumulates through the pipeline.
-    
+
     Inherits from WandbMixin to support wandb_context guard.
     """
 
@@ -176,14 +177,14 @@ class TrainJobPipeline(Tool):
     def _setup_distributed(self, state: TrainingState) -> TrainingState:
         tool = state.config.tool
         torch_dist_cfg = setup_torch_distributed(tool.system.device)
-        
+
         if not torch.distributed.is_initialized() or torch.distributed.get_rank() == 0:
             logger.info(
                 f"Training {state.run} on "
                 + f"{os.environ.get('NODE_INDEX', '0')}: "
                 + f"{os.environ.get('LOCAL_RANK', '0')} ({tool.system.device})"
             )
-        
+
         state.torch_dist_cfg = torch_dist_cfg
         return state
 
@@ -262,4 +263,3 @@ class TrainJobPipeline(Tool):
         if torch.distributed.is_initialized():
             torch.distributed.destroy_process_group()
         return state
-
