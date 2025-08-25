@@ -1,7 +1,7 @@
 import logging
 import os
 from collections import defaultdict
-from typing import cast
+from typing import Any, Dict, Optional, cast
 
 import numpy as np
 import torch
@@ -26,6 +26,7 @@ from metta.eval.eval_service import evaluate_policy
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
+from metta.rl.dual_policy import DualPolicyHandler
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
@@ -97,13 +98,13 @@ def train(
     policy_store: PolicyStore,
     stats_client: StatsClient | None,
     torch_dist_cfg: TorchDistributedConfig,
-) -> None:
+) -> Optional[Dict[str, Any]]:
     """Main training loop for Metta agents."""
     logger.info(f"run_dir = {run_dir}")
 
     # Log recent checkpoints for debugging
     checkpoints_dir = trainer_cfg.checkpoint.checkpoint_dir
-    if os.path.exists(checkpoints_dir):
+    if checkpoints_dir and os.path.exists(checkpoints_dir):
         files = sorted(os.listdir(checkpoints_dir))[-3:]
         if files:
             logger.info(f"Recent checkpoints: {', '.join(files)}")
@@ -114,6 +115,18 @@ def train(
     losses = Losses()
     torch_profiler = TorchProfiler(torch_dist_cfg.is_master, trainer_cfg.profiler, wandb_run, run_dir)
     curriculum = trainer_cfg.curriculum.make()
+
+    # Create dual policy handler if enabled
+    dual_policy_handler = (
+        DualPolicyHandler(
+            enabled=trainer_cfg.dual_policy.enabled,
+            training_agents_pct=trainer_cfg.dual_policy.training_agents_pct,
+            checkpoint_npc=trainer_cfg.dual_policy.checkpoint_npc,
+            device=device,
+        )
+        if trainer_cfg.dual_policy.enabled
+        else None
+    )
 
     # Calculate batch sizes
     num_agents = curriculum.get_task().get_env_cfg().game.num_agents
@@ -133,6 +146,7 @@ def train(
         num_workers=trainer_cfg.rollout_workers,
         zero_copy=trainer_cfg.zero_copy,
         is_training=True,
+        dual_policy_handler=dual_policy_handler,
     )
 
     vecenv.async_reset(system_cfg.seed + torch_dist_cfg.rank)
@@ -198,6 +212,10 @@ def train(
         device=device,
         restore_feature_mapping=True,
     )
+
+    # Load NPC policy if dual policy is enabled
+    if dual_policy_handler and dual_policy_handler.enabled:
+        dual_policy_handler.load_npc_policy(policy_store, metta_grid_env)
 
     # Create kickstarter
     kickstarter = Kickstarter(
@@ -311,6 +329,10 @@ def train(
                     policy.reset_memory()
                     buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
+                    # Initialize agent split if dual policy is enabled (contiguous slicing)
+                    if dual_policy_handler and dual_policy_handler.enabled:
+                        dual_policy_handler.initialize_agent_split(metta_grid_env.num_agents)
+
                     while not experience.ready_for_training:
                         # Get observation
                         o, r, d, t, info, training_env_id, _, num_steps = get_observation(vecenv, device, timer)
@@ -331,9 +353,12 @@ def train(
                             ),
                         )
 
-                        # Inference
-                        with torch.no_grad():
-                            policy(td)
+                        # Inference with dual policy support
+                        if dual_policy_handler and dual_policy_handler.enabled and dual_policy_handler.npc_policy:
+                            dual_policy_handler.run_dual_policy_rollout(policy, td, training_env_id)
+                        else:
+                            with torch.no_grad():
+                                policy(td)
 
                         # Store experience
                         experience.store(
@@ -349,6 +374,10 @@ def train(
 
                     agent_step += total_steps * torch_dist_cfg.world_size
                 accumulate_rollout_stats(raw_infos, stats_tracker.rollout_stats)
+
+                # Aggregate dual policy stats across distributed nodes
+                if dual_policy_handler and dual_policy_handler.enabled:
+                    DualPolicyHandler.aggregate_distributed_stats(stats_tracker.rollout_stats, device)
 
                 # ---- TRAINING PHASE ----
                 with timer("_train"):

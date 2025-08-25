@@ -38,6 +38,17 @@ class VTraceConfig(Config):
     vtrace_c_clip: float = Field(default=1.0, gt=0)
 
 
+class DualPolicyConfig(Config):
+    """Configuration for dual policy training with NPCs."""
+
+    # Enable dual policy training with NPCs
+    enabled: bool = Field(default=False)
+    # Percentage of agents using the training policy (rest use NPC policy)
+    training_agents_pct: float = Field(default=0.5, ge=0.0, le=1.0)
+    # URI/path to NPC policy checkpoint (e.g., "s3://bucket/policy.ckpt")
+    checkpoint_npc: str | None = Field(default=None)
+
+
 class InitialPolicyConfig(Config):
     uri: str | None = None
     # Type="top": Empirical best performing
@@ -136,6 +147,9 @@ class TrainerConfig(Config):
 
     # V-trace
     vtrace: VTraceConfig = Field(default_factory=VTraceConfig)
+
+    # Dual policy NPC training
+    dual_policy: DualPolicyConfig = Field(default_factory=DualPolicyConfig)
 
     # System configuration
     # Zero copy: Performance optimization to avoid memory copies (default assumes multiprocessing)

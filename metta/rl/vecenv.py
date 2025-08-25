@@ -24,6 +24,7 @@ def make_env_func(
     is_training: bool = False,
     is_serial: bool = False,
     run_dir: str | None = None,
+    dual_policy_handler: Optional[Any] = None,
     buf: Optional[Any] = None,
     **kwargs,
 ):
@@ -37,6 +38,7 @@ def make_env_func(
         stats_writer=stats_writer,
         replay_writer=replay_writer,
         is_training=is_training,
+        dual_policy_handler=dual_policy_handler,
     )
     set_buffers(env, buf)
     env = CurriculumEnv(env, curriculum)
@@ -56,6 +58,7 @@ def make_vecenv(
     replay_writer: ReplayWriter | None = None,
     is_training: bool = False,
     run_dir: str | None = None,
+    dual_policy_handler: Optional[Any] = None,
     **kwargs,
 ) -> Any:  # Returns pufferlib VecEnv instance
     # Determine the vectorization class
@@ -80,6 +83,7 @@ def make_vecenv(
         "is_training": is_training,
         "is_serial": is_serial,
         "run_dir": run_dir,
+        "dual_policy_handler": dual_policy_handler,
     }
 
     # Note: PufferLib's vector.make accepts Serial, Multiprocessing, and Ray as valid backends,

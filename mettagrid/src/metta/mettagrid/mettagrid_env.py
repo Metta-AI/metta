@@ -48,6 +48,7 @@ class MettaGridEnv(MettaGridPufferBase):
         stats_writer: Optional[StatsWriter] = None,
         replay_writer: Optional[ReplayWriter] = None,
         is_training: bool = False,
+        dual_policy_handler: Optional[Any] = None,
     ):
         """
         Initialize MettaGridEnv for training.
@@ -71,6 +72,7 @@ class MettaGridEnv(MettaGridPufferBase):
         self._episode_id: str | None = None
         self._last_reset_ts = datetime.datetime.now()
         self._is_training = is_training
+        self.dual_policy_handler = dual_policy_handler
 
         # DesyncEpisodes - when training we want to stagger experience. The first episode
         # will end early so that the next episode can begin at a different time on each worker.
@@ -116,6 +118,10 @@ class MettaGridEnv(MettaGridPufferBase):
 
         observations, info = super().reset(seed)
 
+        # Setup dual policy agent groups if enabled
+        if self.dual_policy_handler and self.dual_policy_handler.enabled:
+            self.dual_policy_handler.setup_agent_groups(self, ensure_each=False)
+
         self.timer.start("thread_idle")
         return observations, info
 
@@ -147,6 +153,11 @@ class MettaGridEnv(MettaGridPufferBase):
             self._early_reset = None
 
         infos = {}
+
+        # Add dual policy stats if enabled
+        if self.dual_policy_handler and self.dual_policy_handler.enabled:
+            infos.update(self.dual_policy_handler.compute_step_stats(self, self._steps))
+
         if terminals.all() or truncations.all():
             self._process_episode_completion(infos)
 
@@ -188,6 +199,10 @@ class MettaGridEnv(MettaGridPufferBase):
             "completion_time": time.time(),
         }
         infos["attributes"] = attributes
+
+        # Add dual policy episode stats if enabled
+        if self.dual_policy_handler and self.dual_policy_handler.enabled:
+            self.dual_policy_handler.compute_episode_stats(self, episode_rewards, infos)
 
         # Handle replay writing
         replay_url = None
