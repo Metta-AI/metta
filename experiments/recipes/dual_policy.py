@@ -52,16 +52,31 @@ def make_curriculum(env: Optional[EnvConfig] = None) -> CurriculumConfig:
 
 
 def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
-    """Create evaluation configurations."""
-    basic_env = env or make_env()
-    basic_env.game.actions.attack.consumed_resources["laser"] = 100
+    """Create evaluation configurations for dual policy setup.
 
-    combat_env = basic_env.model_copy()
-    combat_env.game.actions.attack.consumed_resources["laser"] = 1
+    Creates evaluations that will track metrics separately for:
+    - NPC agents
+    - Training agents
+    - Combined performance
+    """
+    basic_env = eb.make_arena(num_agents=24, combat=False)  # laser cost = 100
+    combat_env = eb.make_arena(num_agents=24, combat=True)  # laser cost = 1
 
+    # Main dual policy evaluations with 50/50 split
+    # The metrics system will automatically track npc, trained, and combined stats
     return [
-        SimulationConfig(name="dual_policy/basic", env=basic_env),
-        SimulationConfig(name="dual_policy/combat", env=combat_env),
+        SimulationConfig(
+            name="dual_policy/basic",
+            env=basic_env,
+            npc_policy_uri=NPC_CHECKPOINT,
+            policy_agents_pct=0.5,  # 50% training, 50% NPC
+        ),
+        SimulationConfig(
+            name="dual_policy/combat",
+            env=combat_env,
+            npc_policy_uri=NPC_CHECKPOINT,
+            policy_agents_pct=0.5,  # 50% training, 50% NPC
+        ),
     ]
 
 
