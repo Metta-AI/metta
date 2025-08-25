@@ -17,6 +17,8 @@ brew "node@24"
 brew "gh"
 brew "pnpm"
 brew "jq"
+brew "gitleaks"
+brew "ninja"
 
 # Kubernetes local testing tools
 brew "kubectl"

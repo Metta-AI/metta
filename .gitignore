@@ -89,6 +89,7 @@ experiments/notebooks/utils/scorecard_widget/scorecard_widget/static/index.js
 experiments/recipes/scratchpad/*.py
 !experiments/recipes/scratchpad/README.md
 !experiments/recipes/scratchpad/example.py
+!experiments/recipes/scratchpad/ci.py
 
 resources
 identified-figures/
