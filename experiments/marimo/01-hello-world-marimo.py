@@ -371,7 +371,7 @@ def _(RendererToolConfig):
     )
 
     # Set initial resource counts for immediate availability
-    for obj_name in ["mine_red", "generator_red", "altar"]:
+    for obj_name in ["mine_red", "generator_red"]:
         if obj_name in env_config.game.objects:
             obj_copy = env_config.game.objects[obj_name].model_copy(deep=True)
             obj_copy.initial_resource_count = 10
@@ -695,7 +695,7 @@ def _(datetime, env_config, mo, os, train_button):
         # Batch sizes optimized for Mac CPU/Metal - larger than demo but reasonable for local machine
         trainer_config = TrainerConfig(
             curriculum=curriculum,
-            total_timesteps=1000000,  # Small demo run
+            total_timesteps=2000000,  # Small demo run
             # total_timesteps=1000,  # DEBUG run
             batch_size=65536,  # Increased from 256, reduced from default 524288 for Mac
             minibatch_size=512,  # Increased from 256, reduced from default 16384 for Mac
@@ -703,16 +703,16 @@ def _(datetime, env_config, mo, os, train_button):
             forward_pass_minibatch_target_size=512,  # Increased from 2 - better GPU utilization
             # Adjusted learning rate for smaller batch size (scaled down from default 0.000457)
             # Using sqrt(2048/524288) ≈ 0.0625 scaling factor
-            #optimizer={
+            # optimizer={
             #    "learning_rate": 0.00003
-            #},  # Reduced from default for smaller batch
+            # },  # Reduced from default for smaller batch
             checkpoint=CheckpointConfig(
-                checkpoint_interval=50,  # Checkpoint every n epochs
-                wandb_checkpoint_interval=50,
+                checkpoint_interval=10,  # Checkpoint every n epochs
+                wandb_checkpoint_interval=10,
             ),
             # Enable replay generation for MettaScope visualization
             evaluation=EvaluationConfig(
-                evaluate_interval=50,  # Generate replays every 50 steps (matches checkpoint interval)
+                evaluate_interval=10,  # Generate replays every 50 steps (matches checkpoint interval)
                 evaluate_remote=False,  # Run locally or you'll have to wait
                 evaluate_local=True,
                 replay_dir=f"s3://softmax-public/replays/{run_name}",  # Store replays on S3
