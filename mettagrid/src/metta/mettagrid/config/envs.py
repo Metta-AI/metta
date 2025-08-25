@@ -1,7 +1,8 @@
 import metta.map.scenes.random
 from metta.map.mapgen import MapGen
-from metta.mettagrid.config import building
+from metta.mettagrid.config import building, empty_converters
 from metta.mettagrid.map_builder.map_builder import MapBuilderConfig
+from metta.mettagrid.map_builder.perimeter_incontext import PerimeterInContextMapBuilder
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
@@ -103,11 +104,9 @@ def make_arena(
 
 
 def make_navigation(num_agents: int) -> EnvConfig:
-    # Use the standard altar configuration
-    altar = building.altar.model_copy()  # Make a copy to avoid modifying the global object
-    altar.cooldown = 100  # Cooldown between conversions
+    altar = building.altar.model_copy()
+    altar.cooldown = 255  # Maximum cooldown
     altar.initial_resource_count = 1
-
     cfg = EnvConfig(
         game=GameConfig(
             num_agents=num_agents,
@@ -127,12 +126,40 @@ def make_navigation(num_agents: int) -> EnvConfig:
                     ),
                 ),
             ),
-            map_builder=RandomMapBuilder.Config(
-                agents=num_agents,
-                width=25,
-                height=25,
-                border_object="wall",
-                border_width=1,
+            # Always provide a concrete map builder config so tests can set width/height
+            map_builder=RandomMapBuilder.Config(agents=num_agents),
+        )
+    )
+    return cfg
+
+
+def make_icl_resource_chain(num_agents: int, max_steps, game_objects: dict, map_builder_objects: dict) -> EnvConfig:
+    game_objects["wall"] = empty_converters.wall
+    cfg = EnvConfig(
+        game=GameConfig(
+            max_steps=max_steps,
+            num_agents=num_agents,
+            objects=game_objects,
+            map_builder=MapGen.Config(
+                instances=num_agents,
+                instance_map=PerimeterInContextMapBuilder.Config(
+                    agents=1, width=6, height=6, objects=map_builder_objects
+                ),
+            ),
+            actions=ActionsConfig(
+                move=ActionConfig(),
+                rotate=ActionConfig(),
+                get_items=ActionConfig(),
+                put_items=ActionConfig(),
+            ),
+            agent=AgentConfig(
+                rewards=AgentRewards(
+                    inventory=InventoryRewards(
+                        heart=1,
+                    ),
+                ),
+                default_resource_limit=1,
+                resource_limits={"heart": 15},
             ),
         )
     )
