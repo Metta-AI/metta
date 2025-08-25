@@ -4,15 +4,15 @@ Core workflow foundation for AI-powered development assistance.
 Provides the base classes and patterns for structured agent operations using PydanticAI.
 """
 
-import html
 import logging
-import re
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, TypeVar
+
+import pyperclip
 
 from pydantic import BaseModel, Field
 
-from .codeclip import get_context
+from .codeclip import get_context_objects
 
 logger = logging.getLogger(__name__)
 
@@ -142,16 +142,16 @@ class ContextManager:
         execution_context = ExecutionContext(mode=mode, dry_run=dry_run, **execution_kwargs)
 
         try:
-            content, token_info = get_context(paths=[Path(p) for p in paths] if paths else None)
+            ctx = get_context_objects(paths=[Path(p) for p in paths] if paths else None)
 
             prompt_context = PromptContext(
                 role_prompt=role_prompt,
                 task_prompt=task_prompt,
-                files=self._parse_files_from_content(content),
-                token_count=token_info["total_tokens"],
+                files=ctx.files,
+                token_count=ctx.total_tokens,
                 working_directory=Path.cwd(),
                 git_diff=self._get_git_diff(),
-                clipboard=self._get_clipboard(),
+                clipboard=self._get_clipboard_or_empty(),
             )
 
             return prompt_context, execution_context
@@ -163,45 +163,6 @@ class ContextManager:
             )
             return prompt_context, execution_context
 
-    def _parse_files_from_content(self, xml_text: str) -> Dict[str, str]:
-        """Parse files from codeclip XML-like output with some resilience."""
-        files: Dict[str, str] = {}
-        if not xml_text or not xml_text.strip():
-            return files
-
-        # Prefer attribute-based form: <file path="..."><content>...</content></file>
-        file_pat = re.compile(
-            r"<(?:file|document)\b([^>]*)>(.*?)</(?:file|document)>",
-            re.DOTALL | re.IGNORECASE,
-        )
-        attr_path_pat = re.compile(r'\bpath="([^"]+)"', re.IGNORECASE)
-        tag_pat = re.compile(
-            r"<(?P<tag>source|name|document_content|instructions|content)\b[^>]*>(?P<body>.*?)</\1>",
-            re.DOTALL | re.IGNORECASE,
-        )
-
-        for outer_attrs, inner in file_pat.findall(xml_text):
-            # Path from attribute or from a <source>/<name> child
-            m_path = attr_path_pat.search(outer_attrs)
-            path = m_path.group(1) if m_path else None
-
-            # Gather child nodes
-            tags = {m.group("tag").lower(): m.group("body") for m in tag_pat.finditer(inner)}
-            if not path:
-                path = tags.get("source") or tags.get("name")
-            if not path:
-                continue
-
-            # Choose body
-            body = tags.get("document_content") or tags.get("content") or tags.get("instructions") or ""
-            # Unescape XML entities
-            body = html.unescape(body)
-
-            norm_path = str(PurePosixPath(path.strip()))
-            files[norm_path] = body
-
-        return files
-
     def _get_git_diff(self) -> str:
         """Get current git diff"""
         try:
@@ -212,11 +173,9 @@ class ContextManager:
         except Exception:
             return ""
 
-    def _get_clipboard(self) -> str:
+    def _get_clipboard_or_empty(self) -> str:
         """Get clipboard content if available"""
-        try:
-            import pyperclip
-
+        if pyperclip is not None:
             return pyperclip.paste()
-        except Exception:
-            return ""
+
+        return ""

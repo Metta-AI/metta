@@ -31,6 +31,19 @@ class Document:
     is_readme: bool = False
 
 
+@dataclass
+class CodeContext:
+    """Typed context for programmatic consumption."""
+
+    documents: List[Document]
+    files: Dict[str, str]
+    total_tokens: int
+    total_files: int
+    path_summaries: Dict[str, Dict[str, int]]
+    file_token_counts: Dict[str, int]
+    top_level_summary: Optional[Dict[str, int]] = None
+
+
 def resolve_codebase_path(path_str: Union[str, Path]) -> Path:
     """
     Convert path string to an absolute path relative to current working directory.
@@ -654,3 +667,31 @@ def get_context(
         token_info["top_level_summary"] = top_level_tokens
 
     return content, token_info
+
+
+def get_context_objects(
+    paths: Optional[List[Union[str, Path]]],
+    extensions: Optional[Tuple[str, ...]] = None,
+    include_git_diff: bool = False,
+    diff_base: str = "origin/main",
+    readmes_only: bool = False,
+) -> CodeContext:
+    """Typed wrapper around get_context for consumers who want Python objects."""
+    xml, info = get_context(
+        paths=paths,
+        extensions=extensions,
+        include_git_diff=include_git_diff,
+        diff_base=diff_base,
+        readmes_only=readmes_only,
+    )
+    docs: List[Document] = info.get("documents", [])
+    files = {d.source: d.content for d in docs}
+    return CodeContext(
+        documents=docs,
+        files=files,
+        total_tokens=info.get("total_tokens", 0),
+        total_files=info.get("total_files", 0),
+        path_summaries=info.get("path_summaries", {}),
+        file_token_counts=info.get("file_token_counts", {}),
+        top_level_summary=info.get("top_level_summary"),
+    )

@@ -6,17 +6,15 @@ Foundation for AI-powered development assistance through a unified CLI
 with multiple execution modes, built on PydanticAI.
 """
 
-import asyncio
 import logging
 import sys
 from typing import List, Optional
 
 import typer
 from typing_extensions import Annotated
-from pathlib import Path
 
-from .workflow import CommandOutput, ContextManager, ExecutionContext
-from .workflows.summarize import SummarizeCommand, SummaryCache
+from .workflow import ContextManager
+from .workflows.summarize import SummarizeCommand
 
 # Configure logging
 logging.basicConfig(
@@ -74,8 +72,12 @@ def handle_result(result, dry_run: bool = False):
 def summarize(
     paths: List[str] = typer.Argument(help="Files or directories to analyze"),
     max_tokens: int = typer.Option(10000, "--max_tokens", help="Maximum tokens for summary"),
-    role: Optional[str] = typer.Option(None, "--role", help="Role name (e.g., 'engineer') or path (e.g., 'roles/architect.md')"),
-    task: Optional[str] = typer.Option(None, "--task", help="Task name (e.g., 'summarize') or path (e.g., 'tasks/refactor.md')"),
+    role: Optional[str] = typer.Option(
+        None, "--role", help="Role name (e.g., 'engineer') or path (e.g., 'roles/architect.md')"
+    ),
+    task: Optional[str] = typer.Option(
+        None, "--task", help="Task name (e.g., 'summarize') or path (e.g., 'tasks/refactor.md')"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without making changes"),
 ):
     """Generate AI-powered code summaries"""
@@ -87,20 +89,17 @@ def summarize(
     # Gather both prompt and execution contexts
     context_manager = ContextManager()
     prompt_context, execution_context = context_manager.gather_context(
-        paths,
-        role=role_name,
-        task=task_name,
-        dry_run=dry_run
+        paths, role=role_name, task=task_name, dry_run=dry_run
     )
 
-    # Use cache for efficiency
-    cache = SummaryCache()
-
+    # Temporarily bypass SummaryCache: run the summarizer directly
     try:
         import asyncio
 
-        # Run async function
-        result = asyncio.run(cache.get_or_create_summary(prompt_context, execution_context, max_tokens))
+        summarizer = SummarizeCommand()
+
+        # Run async function with current signature
+        result = asyncio.run(summarizer.execute(prompt_context, execution_context, token_limit=max_tokens))
         handle_result(result, dry_run)
 
     except Exception as e:

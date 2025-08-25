@@ -7,60 +7,29 @@ and produces a token-constrained summary optimized for AI consumption.
 
 import logging
 from pathlib import Path
-from typing import List, Literal
+from typing import List
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_ai import Agent, ModelRetry
 
-from manybot.codebot.workflow import Command, CommandOutput, PromptContext, FileChange, ExecutionContext
+from manybot.codebot.workflow import Command, CommandOutput, ExecutionContext, FileChange, PromptContext
 
 logger = logging.getLogger(__name__)
 
 
-# Define structured models for the summarizer
-class CodeComponent(BaseModel):
-    """A significant code component identified in the summary"""
-
-    name: str
-    type: Literal["class", "function", "module", "interface", "service"]
-    description: str
-    file_path: str
-    dependencies: List[str] = Field(default_factory=list)
-
-
-class CodePattern(BaseModel):
-    """Identified pattern or convention in the codebase"""
-
-    pattern: str
-    description: str
-    examples: List[str] = Field(default_factory=list)
-
-
 class SummaryResult(BaseModel):
-    """Structured output from code summarization"""
+    """
+    V0: summarizer returns one markdown document.
+    We keep to_markdown() so existing execute() code remains unchanged.
+    """
 
-    overview: str = Field(description="High-level overview of the codebase")
-    components: List[CodeComponent] = Field(description="Key components identified")
-    external_dependencies: List[str] = Field(description="External packages/libraries used")
-    patterns: List[CodePattern] = Field(description="Common patterns and conventions")
-    entry_points: List[str] = Field(description="Main entry points into the code")
+    model_config = ConfigDict(extra="ignore")
 
-    @validator("overview")
-    def overview_not_too_long(cls, v):
-        # Ensure overview stays concise
-        if len(v.split()) > 500:
-            raise ValueError("Overview must be under 500 words")
-        return v
+    content: str = Field(description="Complete markdown content of the summary")
 
+    # Backward-compat – execute() calls this today.
     def to_markdown(self) -> str:
-        """Convert to readable markdown format"""
-        sections = [
-            f"# Code Summary\n\n{self.overview}",
-            "\n## Key Components\n" + "\n".join(f"- **{c.name}** ({c.type}): {c.description}" for c in self.components),
-            "\n## Dependencies\n" + "\n".join(f"- {d}" for d in self.external_dependencies),
-            "\n## Patterns\n" + "\n".join(f"- **{p.pattern}**: {p.description}" for p in self.patterns),
-        ]
-        return "\n".join(sections)
+        return self.content
 
 
 class SummarizeCommand(Command):
@@ -68,7 +37,9 @@ class SummarizeCommand(Command):
 
     name: str = "summarize"
 
-    async def execute(self, prompt_context: PromptContext, execution_context: ExecutionContext, token_limit: int = 10000) -> CommandOutput:
+    async def execute(
+        self, prompt_context: PromptContext, execution_context: ExecutionContext, token_limit: int = 10000
+    ) -> CommandOutput:
         """Execute summarization using structured PydanticAI agent"""
 
         # Create agent with role from context
@@ -95,11 +66,10 @@ class SummarizeCommand(Command):
             # Create output file
             return CommandOutput(
                 file_changes=[FileChange(filepath=".codebot/summaries/latest.md", content=summary_content)],
-                summary=f"Analyzed {len(prompt_context.files)} files, found {len(result.data.components)} key components",
+                summary=f"Analyzed {len(prompt_context.files)} files and generated summary",
                 metadata={
-                    "component_count": len(result.data.components),
-                    "dependency_count": len(result.data.external_dependencies),
-                    "pattern_count": len(result.data.patterns),
+                    "file_count": len(prompt_context.files),
+                    "content_length": len(summary_content),
                 },
             )
 
@@ -138,7 +108,9 @@ class SummaryCache:
         cache_input = f"{token_limit}:" + "|".join(file_info)
         return hashlib.md5(cache_input.encode()).hexdigest()
 
-    async def get_or_create_summary(self, prompt_context: PromptContext, execution_context: ExecutionContext, token_limit: int = 10000) -> CommandOutput:
+    async def get_or_create_summary(
+        self, prompt_context: PromptContext, execution_context: ExecutionContext, token_limit: int = 10000
+    ) -> CommandOutput:
         """Get cached summary or create new one using SummarizeCommand"""
 
         # Generate cache key from file paths + modification times + token limit
