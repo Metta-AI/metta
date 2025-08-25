@@ -232,8 +232,8 @@ After removing Hydra and YAML configuration support from the Metta codebase, tra
 
 ---
 
-### 10. Hyperparameter Scheduling
-**Status**: ❌ **Critical Issue Found** → 🔧 **Fix Applied**
+### 10. Hyperparameter Scheduling  
+**Status**: ⚠️ **NEW FEATURE** (Not in Reference Commit)
 
 **Initial Hypotheses**
 - H10.1: Hyperparameter scheduler definitions removed
@@ -241,28 +241,24 @@ After removing Hydra and YAML configuration support from the Metta codebase, tra
 - H10.3: Schedule configuration keys changed
 
 **Runtime Hypotheses**
-- R10.1: ❌ **CRITICAL**: `hyperparameter_scheduler.py` entirely commented out
-- R10.2: ❌ **CRITICAL**: No scheduler initialization or step calls in trainer.py
-- R10.3: ❌ **CRITICAL**: Old config had extensive scheduling: CosineSchedule for learning rate (0.000457→0.00003), LogarithmicSchedule for PPO clip, LinearSchedule for entropy
+- R10.1: ❌ **INCORRECT ASSUMPTION**: Assumed scheduler existed in reference commit
+- R10.2: ✅ **CLARIFIED**: Reference commit had NO hyperparameter scheduling at all
+- R10.3: ✅ **CLARIFIED**: Current implementation ADDS scheduling as new feature
 
 **Investigation Results**
-- ❌ **Scheduler Completely Disabled**: 
-  - **Old**: Full hyperparameter scheduling system with CosineSchedule learning rate, LogarithmicSchedule PPO clip, LinearSchedule entropy
-  - **New**: Entire `hyperparameter_scheduler.py` commented out, no scheduler calls in training loop
-  - **Impact**: No learning rate decay, constant PPO parameters throughout training
-- ❌ **Missing Critical Schedules**:
-  - Learning rate: 0.000457 → 0.00003 (CosineSchedule) - completely missing
-  - PPO clip: 0.1 → 0.05 (LogarithmicSchedule) - stays constant at 0.1
-  - Entropy: 0.0021 → 0.0 (LinearSchedule) - stays constant at 0.0021
-  - Value clip: 0.1 → 0.05 (LinearSchedule) - stays constant at 0.1
+- ✅ **Scheduler is New Addition**: 
+  - **Old**: NO hyperparameter scheduling system - constant values throughout training
+  - **New**: Full hyperparameter scheduling system added during dehydration
+  - **Impact**: Learning rate decay and PPO parameter scheduling is NEW behavior, not restored behavior
+- ⚠️ **Potential Performance Impact**:
+  - Reference commit used constant learning rate (likely default Adam LR)
+  - Current version schedules learning rate decay which may hurt performance
+  - Scheduling PPO clip, entropy, and value clip parameters also changes training dynamics
 
-**Fix Applied**: 🔧 Restored complete hyperparameter scheduling system
-- Uncommented and restored `hyperparameter_scheduler.py` with Pydantic config support
-- Added scheduler initialization in `trainer.py` after optimizer creation  
-- Added scheduler step calls in training loop with `agent_step` progress tracking
-- Updated `process_stats` to log scheduled hyperparameter values to WandB
-- Configured default schedules in `HyperparameterSchedulerConfig` matching pre-dehydration behavior
-- **Validation**: Tested scheduler produces correct value progressions (e.g., learning rate 0.000457→0.00024→0.00003)
+**Status**: Import error fixed but scheduler itself may be causing performance differences
+- ✅ Added missing import to prevent NameError crashes
+- ⚠️ **Potential Issue**: Hyperparameter scheduling might need to be DISABLED to match reference behavior
+- 🔍 **Recommendation**: Consider disabling hyperparameter scheduling entirely to restore reference training dynamics
 
 ---
 
@@ -405,16 +401,18 @@ Remaining subsystems (memory management, distributed training, etc.) are lower p
 2. **Missing Curriculum Statistics**: Restored curriculum progression logging  
 3. **Gradient Accumulation Change**: Reverted to old (broken) behavior that empirically worked better
 4. **PPO Returns Calculation**: Reverted to use current values instead of mathematically correct original values
-5. **Hyperparameter Scheduling**: Restored entire scheduling system (CosineSchedule learning rate, LogarithmicSchedule PPO clip, LinearSchedule entropy)
-6. **Stats Accumulation Bug**: Fixed critical bug corrupting reward metrics that broke `overview/reward` calculation
-7. **Buffer Indexing Bug**: Fixed experience buffer indexing affecting zero-length episodes
-8. **Training Parameter Inconsistency**: Removed unused `original_values` parameter from minibatch sampling
-9. **Missing HyperparameterScheduler Import**: Added `from metta.rl.hyperparameter_scheduler import HyperparameterScheduler` to trainer.py
-10. **Dual Policy Configuration Errors**: Removed problematic `dual_policy_enabled` and `dual_policy_training_agents_pct` parameters from `make_vecenv()` call
+5. **Stats Accumulation Bug**: Fixed critical bug corrupting reward metrics that broke `overview/reward` calculation
+6. **Buffer Indexing Bug**: Fixed experience buffer indexing affecting zero-length episodes
+7. **Training Parameter Inconsistency**: Removed unused `original_values` parameter from minibatch sampling
+8. **Missing HyperparameterScheduler Import**: Added import to fix NameError (but scheduler itself is NEW feature not in reference)
+9. **Dual Policy Configuration Errors**: Removed problematic `dual_policy_enabled` and `dual_policy_training_agents_pct` parameters from `make_vecenv()` call
+
+### ⚠️ **Potential Performance-Impacting Changes** 
+1. **Hyperparameter Scheduling**: NEW feature not in reference - learning rate decay and PPO parameter scheduling may hurt performance
+2. **Curriculum Architecture**: Major wrapper-based vs integrated curriculum architecture change (may be correct but fundamentally different)
 
 ### ⏳ **High Priority Remaining Issues**
 1. **Default Configuration Changes**: Other recipes/configs might be affected by changed defaults
-2. **Curriculum Architecture**: Major wrapper-based vs integrated curriculum architecture change (may be correct but fundamentally different)
 
 ### 📊 **Testing Results**
 - ✅ **Training Validation**: 1000-step training run completed successfully with reverted changes
