@@ -37,23 +37,23 @@
 
 namespace py = pybind11;
 
-MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int seed)
-    : obs_width(cfg.obs_width),
-      obs_height(cfg.obs_height),
-      max_steps(cfg.max_steps),
-      episode_truncates(cfg.episode_truncates),
-      inventory_item_names(cfg.inventory_item_names),
-      _global_obs_config(cfg.global_obs),
-      _num_observation_tokens(cfg.num_observation_tokens),
-      _track_movement_metrics(cfg.track_movement_metrics),
-      _resource_loss_prob(cfg.resource_loss_prob),
-      _no_agent_interference(cfg.no_agent_interference) {
+MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned int seed)
+    : obs_width(game_config.obs_width),
+      obs_height(game_config.obs_height),
+      max_steps(game_config.max_steps),
+      episode_truncates(game_config.episode_truncates),
+      inventory_item_names(game_config.inventory_item_names),
+      _global_obs_config(game_config.global_obs),
+      _num_observation_tokens(game_config.num_observation_tokens),
+      _track_movement_metrics(game_config.track_movement_metrics),
+      _resource_loss_prob(game_config.resource_loss_prob),
+      _no_agent_interference(game_config.no_agent_interference) {
   _seed = seed;
   _rng = std::mt19937(seed);
 
   // `map` is a list of lists of strings, which are the map cells.
 
-  unsigned int num_agents = static_cast<unsigned int>(cfg.num_agents);
+  unsigned int num_agents = static_cast<unsigned int>(game_config.num_agents);
 
   current_step = 0;
 
@@ -68,7 +68,7 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
   GridCoord width = static_cast<GridCoord>(py::len(map[0]));
 
   _grid = std::make_unique<Grid>(height, width);
-  _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names, cfg.recipe_details_obs);
+  _obs_encoder = std::make_unique<ObservationEncoder>(inventory_item_names, game_config.recipe_details_obs);
 
   _event_manager = std::make_unique<EventManager>();
   _stats = std::make_unique<StatsTracker>();
@@ -81,55 +81,44 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
 
   _action_success.resize(num_agents);
 
-  for (const auto& [action_name, action_config] : cfg.actions) {
-    std::string action_name_str = action_name;
-
-    if (action_name_str == "put_items") {
+  for (const auto& [action_name, action_config] : game_config.actions) {
+    if (action_name == "put_items") {
       _action_handlers.push_back(std::make_unique<PutRecipeItems>(*action_config));
-    } else if (action_name_str == "place_box") {
-      // Pass in resources to create box from box config so that we know how many resources to take away
-      for (const auto& [key, object_cfg] : cfg.objects) {
-        const BoxConfig* box_cfg = dynamic_cast<const BoxConfig*>(object_cfg.get());
-        if (box_cfg) {
+    } else if (action_name == "place_box") {
+      // Pass in resources to create box from box config
+      for (const auto& [key, object_cfg] : game_config.objects) {
+        if (auto box_cfg = std::dynamic_pointer_cast<const BoxConfig>(object_cfg)) {
           _action_handlers.push_back(std::make_unique<PlaceBox>(*action_config, box_cfg->resources_to_create));
           break;
         }
       }
-    } else if (action_name_str == "get_items") {
+    } else if (action_name == "get_items") {
       _action_handlers.push_back(std::make_unique<GetOutput>(*action_config));
-    } else if (action_name_str == "noop") {
+    } else if (action_name == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
-    } else if (action_name_str == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(*action_config, _no_agent_interference));
-    } else if (action_name_str == "rotate") {
-      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, _track_movement_metrics));
-    } else if (action_name_str == "attack") {
-      const AttackActionConfig* attack_config = dynamic_cast<const AttackActionConfig*>(action_config.get());
-      if (!attack_config) {
-        throw std::runtime_error("AttackActionConfig is not a valid action config");
-      }
-      _action_handlers.push_back(std::make_unique<Attack>(*attack_config));
-    } else if (action_name_str == "change_glyph") {
-      const ChangeGlyphActionConfig* change_glyph_config =
-          dynamic_cast<const ChangeGlyphActionConfig*>(action_config.get());
-      if (!change_glyph_config) {
-        throw std::runtime_error("ChangeGlyphActionConfig is not a valid action config");
-      }
+    } else if (action_name == "move") {
+      _action_handlers.push_back(std::make_unique<Move>(*action_config, &game_config));
+    } else if (action_name == "rotate") {
+      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, &game_config));
+    } else if (action_name == "attack") {
+      auto attack_config = std::static_pointer_cast<const AttackActionConfig>(action_config);
+      _action_handlers.push_back(std::make_unique<Attack>(*attack_config, &game_config));
+    } else if (action_name == "change_glyph") {
+      auto change_glyph_config = std::static_pointer_cast<const ChangeGlyphActionConfig>(action_config);
       _action_handlers.push_back(std::make_unique<ChangeGlyph>(*change_glyph_config));
-    } else if (action_name_str == "swap") {
+    } else if (action_name == "swap") {
       _action_handlers.push_back(std::make_unique<Swap>(*action_config));
-    } else if (action_name_str == "change_color") {
+    } else if (action_name == "change_color") {
       _action_handlers.push_back(std::make_unique<ChangeColor>(*action_config));
     } else {
-      throw std::runtime_error("Unknown action: " + action_name_str);
+      throw std::runtime_error("Unknown action: " + action_name);
     }
   }
-
   init_action_handlers();
 
-  object_type_names.resize(cfg.objects.size());
+  object_type_names.resize(game_config.objects.size());
 
-  for (const auto& [key, object_cfg] : cfg.objects) {
+  for (const auto& [key, object_cfg] : game_config.objects) {
     TypeId type_id = object_cfg->type_id;
 
     if (type_id >= object_type_names.size()) {
@@ -168,11 +157,11 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
         continue;
       }
 
-      if (!cfg.objects.contains(cell)) {
+      if (!game_config.objects.contains(cell)) {
         throw std::runtime_error("Unknown object type: " + cell);
       }
 
-      const GridObjectConfig* object_cfg = cfg.objects.at(cell).get();
+      const GridObjectConfig* object_cfg = game_config.objects.at(cell).get();
 
       // TODO: replace the dynamic casts with virtual dispatch
 
@@ -225,8 +214,8 @@ MettaGrid::MettaGrid(const GameConfig& cfg, const py::list map, unsigned int see
           agent->init_visitation_grid(height, width);
         }
         // add agent box
-        if (cfg.objects.contains("box")) {
-          const BoxConfig* local_box_cfg = dynamic_cast<const BoxConfig*>(cfg.objects.at("box").get());
+        if (game_config.objects.contains("box")) {
+          const BoxConfig* local_box_cfg = dynamic_cast<const BoxConfig*>(game_config.objects.at("box").get());
           if (local_box_cfg) {
             agent->box = new Box(0, 0, *local_box_cfg, agent->id, static_cast<unsigned char>(agent->agent_id));
             _grid->ghost_add_object(agent->box);

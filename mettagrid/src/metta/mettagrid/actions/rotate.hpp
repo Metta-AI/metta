@@ -4,27 +4,33 @@
 #include <string>
 
 #include "action_handler.hpp"
+#include "actions/orientation.hpp"
+#include "config.hpp"
 #include "objects/agent.hpp"
 #include "objects/constants.hpp"
 #include "types.hpp"
 
 class Rotate : public ActionHandler {
 public:
-  explicit Rotate(const ActionConfig& cfg, bool track_movement_metrics = false)
-      : ActionHandler(cfg, "rotate"), _track_movement_metrics(track_movement_metrics) {}
+  explicit Rotate(const ActionConfig& cfg, const GameConfig* game_config)
+      : ActionHandler(cfg, "rotate"), _game_config(game_config) {}
 
   unsigned char max_arg() const override {
-    return 3;
+    return _game_config->allow_diagonals ? 7 : 3;  // 0-7 for 8 directions, 0-3 for 4 directions
   }
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    // Orientation: Up = 0, Down = 1, Left = 2, Right = 3
+    // Validate the orientation argument
     Orientation orientation = static_cast<Orientation>(arg);
+    if (!isValidOrientation(orientation, _game_config->allow_diagonals)) {
+      return false;  // Invalid orientation for current mode
+    }
+
     actor->orientation = orientation;
 
     // Track which orientation the agent rotated to (only if tracking enabled)
-    if (_track_movement_metrics) {
+    if (_game_config->track_movement_metrics) {
       actor->stats.add(std::string("movement.rotation.to_") + OrientationNames[static_cast<int>(orientation)], 1);
 
       // Check if last action was also a rotation for sequential tracking
@@ -37,7 +43,7 @@ protected:
   }
 
 private:
-  bool _track_movement_metrics;
+  const GameConfig* _game_config;
 };
 
 #endif  // ACTIONS_ROTATE_HPP_

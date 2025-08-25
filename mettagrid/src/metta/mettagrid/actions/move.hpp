@@ -6,84 +6,52 @@
 #include "action_handler.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
+#include "orientation.hpp"
 #include "types.hpp"
+
+// Forward declaration
+struct GameConfig;
 
 class Move : public ActionHandler {
 public:
-  bool _no_agent_interference;
-  explicit Move(const ActionConfig& cfg, bool no_agent_interference = false)
-      : ActionHandler(cfg, "move"), _no_agent_interference(no_agent_interference) {}
+  explicit Move(const ActionConfig& cfg, const GameConfig* game_config)
+      : ActionHandler(cfg, "move"), _game_config(game_config) {}
 
   unsigned char max_arg() const override {
-    return 7;  // 8 directions
+    return _game_config->allow_diagonals ? 7 : 3;  // 8 directions if diagonals, 4 otherwise
   }
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    // 8-way movement: direct movement in 8 directions including diagonals
-    //
-    // Movement direction mapping:
-    // 7 0 1
-    // 6 A 2
-    // 5 4 3
-    //
-    // Final orientation: 0,1,7→Up  2→Right  5,4,3→Down  6→Left
+    // Get the orientation from the action argument
+    Orientation move_direction = static_cast<Orientation>(arg);
 
-    GridLocation current_location = actor->location;
-    GridLocation target_location = current_location;
-    Orientation new_orientation = actor->orientation;
-
-    switch (arg) {
-      case 0:  // North
-        target_location.r -= 1;
-        new_orientation = Orientation::Up;
-        break;
-      case 1:  // Northeast
-        target_location.r -= 1;
-        target_location.c += 1;
-        new_orientation = Orientation::Up;
-        break;
-      case 2:  // East
-        target_location.c += 1;
-        new_orientation = Orientation::Right;
-        break;
-      case 3:  // Southeast
-        target_location.r += 1;
-        target_location.c += 1;
-        new_orientation = Orientation::Down;
-        break;
-      case 4:  // South
-        target_location.r += 1;
-        new_orientation = Orientation::Down;
-        break;
-      case 5:  // Southwest
-        target_location.r += 1;
-        target_location.c -= 1;
-        new_orientation = Orientation::Down;
-        break;
-      case 6:  // West
-        target_location.c -= 1;
-        new_orientation = Orientation::Left;
-        break;
-      case 7:  // Northwest
-        target_location.r -= 1;
-        target_location.c -= 1;
-        new_orientation = Orientation::Up;
-        break;
-      default:
-        return false;
-    }
-
-    // Check if target location is valid and empty
-    if (!_is_valid_square(target_location, _no_agent_interference)) {
+    // Validate the direction based on diagonal support
+    if (!isValidOrientation(move_direction, _game_config->allow_diagonals)) {
       return false;
     }
 
-    // Update orientation before moving
-    actor->orientation = new_orientation;
+    GridLocation current_location = actor->location;
+    GridLocation target_location = current_location;
 
-    // Move the agent with new orientation
-    if (_no_agent_interference) {
+    // Get movement deltas for the direction
+    int dc, dr;
+    getOrientationDelta(move_direction, dc, dr);
+
+    // Calculate target location
+    target_location.r += dr;
+    target_location.c += dc;
+
+    // Check if target location is valid and empty
+    if (!_is_valid_square(target_location, _game_config->no_agent_interference)) {
+      return false;
+    }
+
+    // Update orientation to face the movement direction
+    actor->orientation = move_direction;
+
+    // Move the agent
+    if (_game_config->no_agent_interference) {
       return _grid->ghost_move_object(actor->id, target_location);
     } else {
       return _grid->move_object(actor->id, target_location);
@@ -105,6 +73,9 @@ protected:
     }
     return true;
   }
+
+private:
+  const GameConfig* _game_config;
 };
 
 #endif  // ACTIONS_MOVE_HPP_

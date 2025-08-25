@@ -90,7 +90,7 @@ public:
       : group(config.group_id),
         frozen(0),
         freeze_duration(config.freeze_duration),
-        orientation(Orientation::Up),
+        orientation(Orientation::North),
         inventory(),
         resource_rewards(config.resource_rewards),
         resource_reward_max(config.resource_reward_max),
