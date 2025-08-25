@@ -469,14 +469,6 @@ const LLMAbstractView: FC<LLMAbstractViewProps> = ({
                     <figcaption className="mt-2 text-[13px] text-neutral-900">
                       {figure.explanation}
                     </figcaption>
-                    {figure.significance && (
-                      <div className="mt-2 rounded-lg border border-blue-200 bg-blue-50 p-2 text-[12.5px] text-blue-900">
-                        <span className="font-semibold">
-                          Why it's important:{" "}
-                        </span>
-                        {figure.significance}
-                      </div>
-                    )}
                   </figure>
                 ))}
               </div>
