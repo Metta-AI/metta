@@ -6,8 +6,10 @@ from typing import Callable, Optional
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.config.tool import Tool
 from metta.common.wandb.wandb_context import WandbConfig
-from metta.sweep.sweep import sweep as run_sweep
+from metta.sweep.axiom import Ctx
+from metta.sweep.axiom.sequential_sweep import SequentialSweepPipeline
 from metta.sweep.sweep_config import SweepConfig
+from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
 
@@ -27,6 +29,10 @@ class SweepTool(Tool):
     # Factory for creating TrainTool instances
     # This is a callable that takes a run name and returns a configured TrainTool
     train_tool_factory: Callable[[str], TrainTool]
+
+    # Factory for creating SimTool instances for evaluation
+    # This is a callable that takes (run_name, train_tool) and returns a configured SimTool
+    eval_tool_factory: Callable[[str, TrainTool], SimTool]
 
     # Infrastructure configuration
     wandb: WandbConfig = WandbConfig.Unconfigured()
@@ -59,17 +65,39 @@ class SweepTool(Tool):
         stats_client = None
         if self.stats_server_uri:
             stats_client = StatsClient.create(self.stats_server_uri)
-
-        # Run the sweep
-        run_sweep(
+        
+        # Create the SequentialSweepPipeline instance
+        sweep_pipeline_builder = SequentialSweepPipeline(
             sweep_name=self.sweep_name,
             protein_config=self.sweep.protein,
             train_tool_factory=self.train_tool_factory,
+            eval_tool_factory=self.eval_tool_factory,  # Use the factory from the tool
             wandb_cfg=self.wandb,
-            num_trials=self.sweep.num_trials,
+            sweep_server_uri=self.stats_server_uri or "https://api.observatory.softmax-research.net",
+            max_observations_to_load=self.sweep.max_observations_to_load,
             stats_client=stats_client,
-            evaluation_simulations=self.sweep.evaluation_simulations,
         )
+        
+        # Initialize services once at the start
+        sweep_pipeline_builder.initialize_services()
+        
+        # Build the trial pipeline (runs for each trial)
+        trial_pipeline = sweep_pipeline_builder.build_pipeline()
+
+        # Orchestration loop - we create context for each trial
+        for trial_idx in range(self.sweep.num_trials):
+            logger.info(f"Starting trial {trial_idx + 1}/{self.sweep.num_trials}")
+
+            # Create context for this trial
+            ctx = Ctx()
+            ctx.metadata["trial_index"] = trial_idx
+
+            # Run the pipeline with context
+            result = trial_pipeline.run(ctx)
+
+            # Log trial completion
+            if result and "score" in result:
+                logger.info(f"Trial {trial_idx + 1} complete: score={result['score']:.4f}")
 
         logger.info(f"Sweep '{self.sweep_name}' completed")
         return 0
