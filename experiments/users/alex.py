@@ -1,12 +1,3 @@
-"""
-Arena Basic Easy Shaped Rewards Recipe - Pre-dehydration compatible version
-
-This recipe exactly recreates the pre-dehydration default training configuration:
-- Matches the old ./tools/train.py default which used basic_easy_shaped environment
-- Includes all fixes discovered during performance investigation
-- Should achieve ~20 heart.get as before
-"""
-
 from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
@@ -179,6 +170,7 @@ def train() -> TrainTool:
             simulations=make_evals(env_cfg),
             evaluate_remote=True,  # True instead of default False
             evaluate_local=False,  # False instead of default True
+            skip_git_check=True,
         ),
         # All optimizer, PPO, and batch settings use defaults which already match
         # the original trainer.yaml configuration
@@ -220,49 +212,24 @@ def evaluate(policy_uri: str) -> SimTool:
     )
 
 
-if __name__ == "__main__":
-    """Allow running this recipe directly for play testing.
+# def play() -> PlayTool:
+#     env = arena.make_evals()[0].env
+#     env.game.max_steps = 100
+#     cfg = arena.play(env)
+#     return cfg
 
-    Usage:
-        uv run experiments/recipes/arena_basic_easy_shaped.py [port] [num_agents_or_policy] [policy]
 
-    Examples:
-        uv run experiments/recipes/arena_basic_easy_shaped.py              # Default: port 8001, 24 agents
-        uv run experiments/recipes/arena_basic_easy_shaped.py 8002 6        # Port 8002, 6 agents
-        uv run experiments/recipes/arena_basic_easy_shaped.py 8003 wandb://run/my-run
-    """
-    import os
-    import sys
+# def replay() -> ReplayTool:
+#     env = arena.make_env()
+#     env.game.max_steps = 100
+#     cfg = arena.replay(env)
+#     # cfg.policy_uri = "wandb://run/daveey.combat.lpsm.8x4"
+#     return cfg
 
-    # Parse arguments
-    port = 8001
-    num_agents = 24
-    policy_uri = None
 
-    if len(sys.argv) > 1:
-        try:
-            port = int(sys.argv[1])
-        except ValueError:
-            print(f"Invalid port: {sys.argv[1]}, using default {port}")
+# def evaluate(run: str = "local.alex.1") -> SimTool:
+#     cfg = arena.evaluate(policy_uri=f"wandb://run/{run}")
 
-    if len(sys.argv) > 2:
-        arg = sys.argv[2]
-        if arg.startswith("wandb://") or arg.startswith("file://") or "/" in arg:
-            policy_uri = arg
-        else:
-            try:
-                num_agents = int(arg)
-                if num_agents % 6 != 0:
-                    num_agents = (num_agents // 6) * 6
-            except ValueError:
-                policy_uri = arg
-
-    if len(sys.argv) > 3 and not policy_uri:
-        policy_uri = sys.argv[3]
-
-    # Set server port
-    os.environ["METTASCOPE_PORT"] = str(port)
-
-    # Run play
-    play_tool = play(num_agents=num_agents, policy_uri=policy_uri)
-    play_tool.invoke({}, [])
+#     # If your run doesn't exist, try this:
+#     # cfg = arena.evaluate(policy_uri="wandb://run/daveey.combat.lpsm.8x4")
+#     return cfg

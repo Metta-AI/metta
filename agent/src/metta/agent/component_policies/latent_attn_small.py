@@ -4,7 +4,7 @@ from omegaconf import DictConfig
 
 from metta.agent.component_policy import ComponentPolicy
 from metta.agent.lib.action import ActionEmbedding
-from metta.agent.lib.actor import MettaActorSingleHead
+from metta.agent.lib.actor import MettaActorKeySingleHead, MettaActorQuerySingleHead
 from metta.agent.lib.lstm import LSTM
 from metta.agent.lib.nn_layer_library import Linear
 from metta.agent.lib.obs_enc import ObsLatentAttn, ObsSelfAttn
@@ -17,6 +17,9 @@ class LatentAttnSmall(ComponentPolicy):
     """
     Latent attention small model - sweet spot between performance and expressivity.
     """
+
+    def _get_output_heads(self) -> list[str]:
+        return ["_action_", "_value_"]
 
     def _build_components(self) -> dict:
         """Build components for LatentAttnSmall architecture."""
@@ -88,8 +91,12 @@ class LatentAttnSmall(ComponentPolicy):
                 nn_params=DictConfig({"num_embeddings": 100, "embedding_dim": 16}),
                 sources=None,
             ),
-            "_action_": MettaActorSingleHead(
-                name="_action_",
+            "actor_query": MettaActorQuerySingleHead(
+                name="actor_query",
                 sources=[{"name": "actor_1"}, {"name": "_action_embeds_"}],
+            ),
+            "_action_": MettaActorKeySingleHead(
+                name="_action_",
+                sources=[{"name": "actor_query"}, {"name": "_action_embeds_"}],
             ),
         }
