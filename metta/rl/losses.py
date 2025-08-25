@@ -58,7 +58,7 @@ class Losses:
 
 
 def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dtype) -> Composite:
-    scalar_f32 = UnboundedContinuous(shape=(), dtype=torch.float32)
+    scalar_f32 = UnboundedContinuous(shape=torch.Size([]), dtype=torch.float32)
 
     return Composite(
         rewards=scalar_f32,
@@ -71,6 +71,9 @@ def get_loss_experience_spec(nvec: list[int] | torch.Tensor, act_dtype: torch.dt
         act_log_prob=scalar_f32,
         values=scalar_f32,
         returns=scalar_f32,
+        is_student_agent=UnboundedContinuous(
+            shape=torch.Size([]), dtype=torch.float32
+        ),  # Track which agents are student-controlled (1.0 for student, 0.0 for NPC)
     )
 
 

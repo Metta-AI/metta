@@ -28,6 +28,7 @@ from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
+from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
@@ -332,6 +333,9 @@ def train(
                                 dtype=torch.long,
                             ),
                         )
+
+                        # Add student agent mask (all agents are students when dual-policy is disabled)
+                        td["is_student_agent"] = torch.ones(td.batch_size[0], device=device, dtype=torch.float32)
 
                         # Inference
                         with torch.no_grad():
