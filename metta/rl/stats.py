@@ -293,15 +293,11 @@ def build_wandb_stats(
     Returns:
         Complete dictionary ready for wandb logging
     """
-    # Build overview with sps and rewards
+    # Build overview with sps and rewards (excluding eval scores)
     overview = {
         "sps": timing_info["epoch_steps_per_second"],
         **processed_stats["overview"],
     }
-
-    # Add evaluation scores to overview
-    for category, score in evals.category_scores.items():
-        overview[f"{category}_score"] = score
 
     # Also add reward_vs_total_time if we have reward
     if "reward" in overview:
@@ -315,6 +311,23 @@ def build_wandb_stats(
         "metric/train_time": timing_info["train_time"],
     }
 
+    # Build consolidated evals structure
+    evals_stats = {}
+
+    # Add category scores
+    for category, score in evals.category_scores.items():
+        evals_stats[f"{category}/score"] = score
+
+    # Add simulation scores
+    for (category, sim), score in evals.simulation_scores.items():
+        evals_stats[f"{category}/{sim}"] = score
+
+    # Add summary statistics
+    if evals.category_scores:
+        evals_stats["avg_category_score"] = evals.avg_category_score
+    if evals.simulation_scores:
+        evals_stats["avg_simulation_score"] = evals.avg_simulation_score
+
     # Combine all stats
     return {
         **{f"overview/{k}": v for k, v in overview.items()},
@@ -322,7 +335,7 @@ def build_wandb_stats(
         **{f"experience/{k}": v for k, v in processed_stats["experience_stats"].items()},
         **{f"parameters/{k}": v for k, v in parameters.items()},
         **{f"hyperparameters/{k}": v for k, v in hyperparameters.items()},
-        **{f"eval_{k}": v for k, v in evals.to_wandb_metrics_format().items()},
+        **{f"evals/{k}": v for k, v in evals_stats.items()},
         **system_stats,  # Already has monitor/ prefix from SystemMonitor.stats()
         **{f"trainer_memory/{k}": v for k, v in memory_stats.items()},
         **processed_stats["environment_stats"],
@@ -426,16 +439,28 @@ def process_policy_evaluator_stats(
     pr: PolicyRecord,
     eval_results: EvalResults,
 ) -> None:
+    # Build consolidated evals structure
+    evals_stats = {}
+
+    # Add category scores
+    for category, score in eval_results.scores.category_scores.items():
+        evals_stats[f"{category}/score"] = score
+
+    # Add simulation scores
+    for (category, sim), score in eval_results.scores.simulation_scores.items():
+        evals_stats[f"{category}/{sim}"] = score
+
+    # Add summary statistics
+    if eval_results.scores.category_scores:
+        evals_stats["avg_category_score"] = eval_results.scores.avg_category_score
+    if eval_results.scores.simulation_scores:
+        evals_stats["avg_simulation_score"] = eval_results.scores.avg_simulation_score
+
+    # Create metrics with evals prefix
     metrics_to_log: dict[str, float] = {
-        f"{POLICY_EVALUATOR_METRIC_PREFIX}/eval_{k}": v
-        for k, v in eval_results.scores.to_wandb_metrics_format().items()
+        f"{POLICY_EVALUATOR_METRIC_PREFIX}/evals/{k}": v for k, v in evals_stats.items()
     }
-    metrics_to_log.update(
-        {
-            f"overview/{POLICY_EVALUATOR_METRIC_PREFIX}/{category}_score": score
-            for category, score in eval_results.scores.category_scores.items()
-        }
-    )
+
     if not metrics_to_log:
         logger.warning("No metrics to log for policy evaluator")
         return
