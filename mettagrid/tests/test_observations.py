@@ -844,7 +844,6 @@ class TestEdgeObservations:
 
         # Get action indices
         move_idx = env.action_names.index("move")
-        rotate_idx = env.action_names.index("rotate")
 
         # Verify initial position - agent should be at center of observation
         agent_tokens = helper.find_tokens_at_location(obs[0], 3, 3)
@@ -858,12 +857,9 @@ class TestEdgeObservations:
 
         print("\nInitial state: Agent at (2,2), altar at (7,5) - not visible")
 
-        # Face right and move right 3 steps
-        actions = np.array([[rotate_idx, 3]], dtype=dtype_actions)
-        obs, _, _, _, _ = env.step(actions)
-
+        # Move right 3 steps using move (direction 2 = East)
         for step in range(3):
-            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
+            actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # 2 = East
             obs, _, _, _, _ = env.step(actions)
 
             # After step 0: agent at (3,2), window covers (0,0) to (6,5) - altar still not visible
@@ -894,7 +890,7 @@ class TestEdgeObservations:
 
         # Continue moving right until altar leaves view
         for step in range(3, 6):
-            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
+            actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # 2 = East
             obs, _, _, _, _ = env.step(actions)
 
             # After step 3: agent at (6,2), altar at relative (1,3) - still visible
@@ -916,7 +912,7 @@ class TestEdgeObservations:
 
         # Continue moving right until altar leaves view
         for step in range(6, 9):
-            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
+            actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # 2 = East
             obs, _, _, _, _ = env.step(actions)
 
             # After step 6: agent at (9,2), altar at relative (-2,3) - obs position (1,6)
@@ -941,15 +937,12 @@ class TestEdgeObservations:
         # Now walk to bottom-right corner
         # Continue right to x=13
         for _ in range(5):
-            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
+            actions = np.array([[move_idx, 2]], dtype=dtype_actions)  # 2 = East
             obs, _, _, _, _ = env.step(actions)
 
-        # Face down and move to y=8
-        actions = np.array([[rotate_idx, 1]], dtype=dtype_actions)
-        obs, _, _, _, _ = env.step(actions)
-
+        # Move down to y=8 using move (direction 4 = South)
         for _ in range(6):
-            actions = np.array([[move_idx, 0]], dtype=dtype_actions)
+            actions = np.array([[move_idx, 4]], dtype=dtype_actions)  # 4 = South
             obs, _, _, _, _ = env.step(actions)
 
         # Verify agent is still at center of observation

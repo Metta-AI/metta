@@ -25,7 +25,6 @@ def test_exception_when_laser_not_in_inventory():
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
-            "rotate": {"enabled": True},
             "attack": {
                 "enabled": True,
                 "consumed_resources": {"laser": 1},  # This should trigger an exception!
@@ -73,7 +72,6 @@ def test_no_exception_when_resources_in_inventory():
         "actions": {
             "noop": {"enabled": True},
             "move": {"enabled": True},
-            "rotate": {"enabled": True},
             "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
             "put_items": {"enabled": True},
             "get_items": {"enabled": True},
