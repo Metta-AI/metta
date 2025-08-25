@@ -139,6 +139,7 @@ def test_8way_movement_all_directions():
                     [".", ".", ".", ".", "."],
                 ],
             ),
+            allow_diagonals=True,
         )
     )
     env = MettaGridCore(env_cfg)
@@ -344,6 +345,7 @@ def test_8way_movement_with_simple_environment():
                     [".", ".", ".", ".", ".", ".", ".", "."],
                 ],
             ),
+            allow_diagonals=True,
         ),
     )
     env = MettaGridCore(env_cfg)
@@ -404,6 +406,7 @@ def test_8way_movement_boundary_check():
                     [".", ".", "."],
                 ],
             ),
+            allow_diagonals=True,
         )
     )
     env = MettaGridCore(env_cfg)
