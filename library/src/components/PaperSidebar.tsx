@@ -13,6 +13,7 @@ import { AuthorDTO, loadAuthorClient } from "@/posts/data/authors-client";
 
 interface PaperSidebarProps {
   paper: FeedPostDTO["paper"];
+  onClose?: () => void;
 }
 
 interface LLMAbstractViewProps {
@@ -32,7 +33,7 @@ interface LLMAbstractViewProps {
  * - Tags and external link
  */
 
-export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
+export const PaperSidebar: FC<PaperSidebarProps> = ({ paper, onClose }) => {
   const router = useRouter();
   const { openAuthor, openInstitution } = useOverlayNavigation();
 
@@ -163,7 +164,7 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
               )}
             </div>
           </div>
-          <div className="pl-2">
+          <div className="flex items-center gap-2 pl-2">
             {(paper.source === "arxiv" && paper.externalId) || paper.link ? (
               <Button
                 size="small"
@@ -196,6 +197,29 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
                 <Download className="h-4 w-4" />
               </Button>
             ) : null}
+
+            {/* Close button */}
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600"
+                title="Close paper details"
+              >
+                <svg
+                  className="h-4 w-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
 
@@ -214,7 +238,10 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
                   onClick={() => handleAuthorClick(author.id, author.name)}
                   className="inline-block cursor-pointer"
                 >
-                  <Badge variant="secondary" className="rounded-md hover:bg-neutral-200 transition-colors">
+                  <Badge
+                    variant="secondary"
+                    className="rounded-md transition-colors hover:bg-neutral-200"
+                  >
                     {author.name}
                   </Badge>
                 </button>
@@ -236,7 +263,10 @@ export const PaperSidebar: FC<PaperSidebarProps> = ({ paper }) => {
                   onClick={() => handleInstitutionClick(institution)}
                   className="inline-block cursor-pointer"
                 >
-                  <Badge variant="secondary" className="rounded-md hover:bg-neutral-200 transition-colors">
+                  <Badge
+                    variant="secondary"
+                    className="rounded-md transition-colors hover:bg-neutral-200"
+                  >
                     {institution}
                   </Badge>
                 </button>
