@@ -208,6 +208,7 @@ class EvalTaskOrchestrator:
         available_tasks_by_git_hash: dict[str | None, list[TaskResponse]] = group_by(
             available_tasks.tasks, key_fn=lambda t: t.git_hash
         )
+
         for worker in alive_workers_by_name.values():
             # Only assign tasks to workers that are running and don't have an assigned task
             if not worker.assigned_task and worker.worker.status == "Running":
@@ -237,7 +238,6 @@ class EvalTaskOrchestrator:
         alive_workers_by_name = await self._get_available_workers(claimed_tasks.tasks)
 
         await self._kill_dead_workers_and_tasks(claimed_tasks.tasks, alive_workers_by_name)
-
         await self._assign_tasks_to_workers(alive_workers_by_name)
 
         await self._scale_workers(alive_workers_by_name)

@@ -659,23 +659,36 @@ class MettaRepo:
 
     async def _ensure_pool(self) -> AsyncConnectionPool:
         if self._pool is None:
-            self._pool = AsyncConnectionPool(self.db_uri, min_size=2, max_size=20, open=False)
+            # Use more generous connection pool settings to handle concurrent workers
+            # In production with orchestrator + 5 workers + some API requests:
+            # - min_size: Keep some connections ready
+            # - max_size: Allow enough for peak concurrent usage
+            self._pool = AsyncConnectionPool(
+                self.db_uri,
+                min_size=5,  # Keep a few connections ready
+                max_size=25,  # Allow for orchestrator + workers + API requests + buffer
+                open=False,
+            )
             await self._pool.open()
         return self._pool
 
     @asynccontextmanager
     async def connect(self):
         pool = await self._ensure_pool()
-        try:
-            async with pool.connection(timeout=5) as conn:
-                yield conn
-        except PoolTimeout as e:
-            stats = pool.get_stats()
-            logger.error(f"Error connecting to database: {e}. Pool stats: {stats}")
 
-            await pool.check()
-            async with pool.connection() as conn:
+        # Use longer timeout but simpler retry logic
+        # The larger pool size should prevent most timeouts
+        try:
+            async with pool.connection(timeout=15.0) as conn:
                 yield conn
+        except PoolTimeout:
+            # Log the timeout and pool stats for debugging
+            stats = pool.get_stats()
+            logger.error(
+                f"Database connection timeout after 15s. Pool stats: {stats}. "
+                f"This may indicate severe connection pool exhaustion."
+            )
+            raise
 
     async def close(self) -> None:
         if self._pool:
