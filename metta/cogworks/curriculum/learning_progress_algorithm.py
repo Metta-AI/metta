@@ -53,7 +53,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             num_tasks: Number of tasks this algorithm will manage
             hypers: Hyperparameters for this algorithm
         """
-        super().__init__(num_tasks, hypers)
+        # Don't initialize weights since this algorithm uses its own sampling strategy
+        super().__init__(num_tasks, hypers, initialize_weights=False)
         self._lp_tracker = BidirectionalLearningProgress(
             search_space=num_tasks,
             ema_timescale=hypers.ema_timescale,
@@ -86,6 +87,10 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
         # Update task weights based on learning progress
         lp_weights, _ = self._lp_tracker.calculate_dist()
+
+        # Initialize weights if not already done
+        if self.weights is None:
+            self.weights = np.ones(self.num_tasks, dtype=np.float32)
 
         # Update weights based on learning progress
         if len(lp_weights) >= self.num_tasks:
@@ -205,15 +210,18 @@ class BidirectionalLearningProgress:
             self._p_slow = normalized_task_success_rates[self._update_mask]
             self._p_true = task_success_rates[self._update_mask]
         else:
-            self._p_fast[self._update_mask] = (normalized_task_success_rates * self._ema_timescale) + (
-                self._p_fast[self._update_mask] * (1.0 - self._ema_timescale)
-            )
-            self._p_slow[self._update_mask] = (self._p_fast[self._update_mask] * self._ema_timescale) + (
-                self._p_slow[self._update_mask] * (1.0 - self._ema_timescale)
-            )
-            self._p_true[self._update_mask] = (task_success_rates[self._update_mask] * self._ema_timescale) + (
-                self._p_true[self._update_mask] * (1.0 - self._ema_timescale)
-            )
+            # Ensure arrays are properly sized before updating
+            if self._p_fast is not None and self._p_slow is not None:
+                self._p_fast[self._update_mask] = (normalized_task_success_rates * self._ema_timescale) + (
+                    self._p_fast[self._update_mask] * (1.0 - self._ema_timescale)
+                )
+                self._p_slow[self._update_mask] = (self._p_fast[self._update_mask] * self._ema_timescale) + (
+                    self._p_slow[self._update_mask] * (1.0 - self._ema_timescale)
+                )
+            if self._p_true is not None:
+                self._p_true[self._update_mask] = (task_success_rates[self._update_mask] * self._ema_timescale) + (
+                    self._p_true[self._update_mask] * (1.0 - self._ema_timescale)
+                )
 
         self._stale_dist = True
         self._task_dist = None
@@ -260,7 +268,12 @@ class BidirectionalLearningProgress:
         task_dist = np.ones(self._num_tasks) / self._num_tasks
         learning_progress = self._learning_progress()
 
-        posidxs = [i for i, lp in enumerate(learning_progress) if lp > 0 or self._p_true[i] > 0]
+        # Check if _p_true is available before using it
+        if self._p_true is not None:
+            posidxs = [i for i, lp in enumerate(learning_progress) if lp > 0 or self._p_true[i] > 0]
+        else:
+            posidxs = [i for i, lp in enumerate(learning_progress) if lp > 0]
+
         any_progress = len(posidxs) > 0
         subprobs = learning_progress[posidxs] if any_progress else learning_progress
 

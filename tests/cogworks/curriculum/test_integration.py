@@ -133,6 +133,7 @@ def test_curriculum_with_learning_progress():
     from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressHypers
 
     lp_hypers = LearningProgressHypers(
+        type="learning_progress",
         ema_timescale=0.001,
         progress_smoothing=0.05,
         num_active_tasks=4,

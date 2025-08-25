@@ -40,6 +40,7 @@ class CurriculumTask:
 class CurriculumAlgorithmHypers(Config, ABC):
     """Hyperparameters for the CurriculumAlgorithm."""
 
+    type: str = Field(description="Type of algorithm hyperparameters")
     initial_weights: Optional[List[float]] = None
 
     @abc.abstractmethod
@@ -59,21 +60,27 @@ class CurriculumAlgorithmHypers(Config, ABC):
         # The default implementation is to use DiscreteRandomCurriculum
         return DiscreteRandomCurriculum(num_tasks, self)
 
+    model_config: ClassVar[ConfigDict] = ConfigDict(
+        extra="forbid",
+        validate_assignment=True,
+        populate_by_name=True,
+    )
+
 
 class CurriculumAlgorithm(ABC):
-    """Base class for curriculum algorithms that manage task sampling weights.
+    """
 
     Curriculum algorithms are responsible for:
-    1. Maintaining weights for each child task
-    2. Updating weights based on task completion feedback
+    1. Maintaining weights for each child task (optional)
+    2. Updating weights based on task completion feedback (optional)
     3. Providing normalized probabilities for sampling
 
     The Curriculum will use these algorithms to decide which child to sample next.
     """
 
     num_tasks: int
-    weights: np.ndarray
-    probabilities: np.ndarray
+    weights: Optional[np.ndarray] = None
+    probabilities: Optional[np.ndarray] = None
     hypers: CurriculumAlgorithmHypers
 
     # API that Curriculum uses
@@ -81,15 +88,22 @@ class CurriculumAlgorithm(ABC):
     def update(self, child_idx: int, score: float) -> None:
         """Update weights in-place based on task completion."""
         self._update_weights(child_idx, score)
-        self._update_probabilities()
+        if self.weights is not None:
+            self._update_probabilities()
 
     def sample_idx(self) -> int:
         """Sample a child index based on current probabilities."""
-        return np.random.choice(len(self.probabilities), p=self.probabilities)
+        if self.probabilities is not None:
+            return np.random.choice(len(self.probabilities), p=self.probabilities)
+        else:
+            # Fallback to uniform random if no probabilities available
+            return np.random.choice(self.num_tasks)
 
     # Subclass methods to override
 
-    def __init__(self, num_tasks: int, hypers: Optional[CurriculumAlgorithmHypers] = None):
+    def __init__(
+        self, num_tasks: int, hypers: Optional[CurriculumAlgorithmHypers] = None, initialize_weights: bool = True
+    ):
         if num_tasks <= 0:
             raise ValueError(f"Number of tasks must be positive. num_tasks {num_tasks}")
         self.num_tasks = num_tasks
@@ -98,16 +112,18 @@ class CurriculumAlgorithm(ABC):
             hypers = DiscreteRandomHypers()
         self.hypers = hypers
 
-        if hypers.initial_weights is None:
-            self.weights = np.ones(num_tasks, dtype=np.float32)
-        else:
-            self.weights = np.array(hypers.initial_weights, dtype=np.float32)
-            if len(self.weights) != num_tasks:
-                raise ValueError(
-                    f"Initial weights must have length {num_tasks}. weights {self.weights} length: {len(self.weights)}"
-                )
-
-        self._update_probabilities()
+        # Initialize weights only if requested and algorithm uses them
+        if initialize_weights:
+            if hypers.initial_weights is None:
+                self.weights = np.ones(num_tasks, dtype=np.float32)
+            else:
+                self.weights = np.array(hypers.initial_weights, dtype=np.float32)
+                if len(self.weights) != num_tasks:
+                    raise ValueError(
+                        f"Initial weights must have length {num_tasks}. "
+                        f"weights {self.weights} length: {len(self.weights)}"
+                    )
+            self._update_probabilities()
 
     def stats(self, prefix: str = "") -> dict[str, float]:
         """Return statistics for logging purposes. Add `prefix` to all keys."""
@@ -115,13 +131,16 @@ class CurriculumAlgorithm(ABC):
 
     @abc.abstractmethod
     def _update_weights(self, child_idx: int, score: float) -> None:
-        """Logic for updating weights in-place based on task completion goes here."""
+        """Update weights based on task completion. Override in subclasses that use weights."""
         pass
 
     # Helper methods
 
     def _update_probabilities(self):
         """Update the probability distribution based on current weights."""
+        if self.weights is None:
+            return
+
         assert len(self.weights) == self.num_tasks, (
             f"Weights must have length {self.num_tasks}. weights {self.weights} length: {len(self.weights)}"
         )
@@ -132,6 +151,8 @@ class CurriculumAlgorithm(ABC):
 
 class DiscreteRandomHypers(CurriculumAlgorithmHypers):
     """Hyperparameters for DiscreteRandomCurriculum."""
+
+    type: str = "discrete_random"
 
     def algorithm_type(self) -> str:
         return "discrete_random"
@@ -152,6 +173,7 @@ class DiscreteRandomCurriculum(CurriculumAlgorithm):
 class LearningProgressHypers(CurriculumAlgorithmHypers):
     """Hyperparameters for LearningProgressCurriculum."""
 
+    type: str = "learning_progress"
     num_tasks: int = Field(default=1000, description="Number of tasks to maintain in memory")
     sample_size: int = Field(default=10, description="Number of tasks to sample (K)")
     max_samples: int = Field(default=20, description="Maximum samples before eviction (A)")
@@ -175,7 +197,8 @@ class LearningProgressCurriculum(CurriculumAlgorithm):
     def __init__(self, num_tasks: int, hypers: Optional[CurriculumAlgorithmHypers] = None):
         if hypers is None:
             hypers = LearningProgressHypers()
-        super().__init__(num_tasks, hypers)
+        # Don't initialize weights since this algorithm uses its own sampling strategy
+        super().__init__(num_tasks, hypers, initialize_weights=False)
 
         # Local task memory: {task_id: (seed, family, sample_count, current_score, recent_score)}
         self._task_memory: Dict[int, Tuple[int, str, int, float, float]] = {}
