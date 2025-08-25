@@ -40,6 +40,7 @@ class TrainTool(Tool):
 
     # Optional configurations
     map_preview_uri: str | None = None
+    disable_macbook_optimize: bool = False
 
     def model_post_init(self, __context):
         # Set run_dir based on run name if not explicitly set
@@ -120,9 +121,8 @@ def handle_train(cfg: TrainTool, torch_dist_cfg: TorchDistributedConfig, wandb_r
         wandb_run=wandb_run,
     )
 
-    if platform.system() == "Darwin":
-        pass
-        # _ = _minimize_config_for_debugging(cfg)
+    if platform.system() == "Darwin" and not cfg.disable_macbook_optimize:
+        _ = _minimize_config_for_debugging(cfg)
 
     # Save configuration
     if torch_dist_cfg.is_master:

@@ -755,6 +755,7 @@ def _(
             # wandb=WandbConfigOff(),  # Disable wandb for simplicity
             run=run_name,
             run_dir=f"train_dir/{run_name}",
+            disable_macbook_optimize=True,
         )
 
         # Set up logging to capture output
@@ -1264,6 +1265,7 @@ def _(
             # wandb=WandbConfigOff(),  # Disable wandb for simplicity
             run=run_name2,
             run_dir=f"train_dir/{run_name2}",
+            disable_macbook_optimize=True,
         )
 
         # Set up logging to capture output
