@@ -53,6 +53,9 @@ export const FeedPost: FC<{
   // Local state for paper data that can be updated when institutions are added
   const [paperData, setPaperData] = useState(post.paper);
 
+  // Local state for comment count to handle immediate UI updates
+  const [commentCount, setCommentCount] = useState(post.replies);
+
   // Local state for optimistic queue updates
   const [optimisticQueues, setOptimisticQueues] = useState(post.queues);
   const [optimisticQueued, setOptimisticQueued] = useState(
@@ -67,7 +70,8 @@ export const FeedPost: FC<{
     setPaperData(post.paper);
     setOptimisticQueues(post.queues);
     setOptimisticQueued(post.paper?.queued ?? false);
-  }, [post.paper, post.queues]);
+    setCommentCount(post.replies);
+  }, [post.paper, post.queues, post.replies]);
 
   // Callback to update paper data when institutions are added
   const handleInstitutionsAdded = (institutions: string[]) => {
@@ -77,6 +81,11 @@ export const FeedPost: FC<{
         institutions: institutions,
       });
     }
+  };
+
+  // Handle comment count updates for immediate UI feedback
+  const handleCommentCountChange = (delta: number) => {
+    setCommentCount((prev) => Math.max(0, prev + delta));
   };
 
   // Generate user initials for avatar
@@ -327,11 +336,11 @@ export const FeedPost: FC<{
               className={`rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500 ${
                 !isSelected ? "group-hover:hidden" : ""
               }`}
-              title={`${post.replies} comments`}
+              title={`${commentCount} comments`}
             >
               <div className="flex items-center gap-1">
                 <MessageSquare className="h-4 w-4" />
-                <span className="text-[11px] tabular-nums">{post.replies}</span>
+                <span className="text-[11px] tabular-nums">{commentCount}</span>
               </div>
             </button>
 
@@ -491,11 +500,11 @@ export const FeedPost: FC<{
             className={`rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-blue-500 ${
               !isSelected ? "group-hover:hidden" : ""
             }`}
-            title={`${post.replies} comments`}
+            title={`${commentCount} comments`}
           >
             <div className="flex items-center gap-1">
               <MessageSquare className="h-4 w-4" />
-              <span className="text-[11px] tabular-nums">{post.replies}</span>
+              <span className="text-[11px] tabular-nums">{commentCount}</span>
             </div>
           </button>
 
@@ -545,6 +554,7 @@ export const FeedPost: FC<{
           isExpanded={isCommentsExpanded}
           onToggle={onCommentToggle}
           currentUser={currentUser}
+          onCommentCountChange={handleCommentCountChange}
         />
       </div>
 
