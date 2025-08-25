@@ -86,15 +86,24 @@ def accumulate_rollout_stats(
             v = v.tolist()
 
         if isinstance(v, list):
-            stats.setdefault(k, []).extend(v)
+            # Ensure stats[k] is a list before extending (reference version approach)
+            if k not in stats:
+                stats[k] = []
+            elif not isinstance(stats[k], list):
+                stats[k] = [stats[k]]
+            stats[k].extend(v)
         else:
             if k not in stats:
                 stats[k] = v
             else:
-                try:
-                    stats[k] += v
-                except TypeError:
-                    stats[k] = [stats[k], v]  # fallback: bundle as list
+                # Try to accumulate or convert to list
+                if isinstance(stats[k], list):
+                    stats[k].append(v)
+                else:
+                    try:
+                        stats[k] += v
+                    except TypeError:
+                        stats[k] = [stats[k], v]  # fallback: bundle as list
 
 
 def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:
@@ -351,6 +360,7 @@ def process_stats(
     latest_saved_policy_record: PolicyRecord,
     optimizer: torch.optim.Optimizer,
     kickstarter: Kickstarter | None = None,
+    hyperparameter_updates: dict[str, float] | None = None,
 ) -> None:
     """Process and log training statistics."""
     if not wandb_run:
@@ -402,6 +412,14 @@ def process_stats(
         "ppo_l2_reg_loss_coef": trainer_cfg.ppo.l2_reg_loss_coef,
         "ppo_l2_init_loss_coef": trainer_cfg.ppo.l2_init_loss_coef,
     }
+    
+    # Update with scheduler values if provided
+    if hyperparameter_updates:
+        for key, value in hyperparameter_updates.items():
+            if key == "learning_rate":
+                hyperparameters["learning_rate"] = value
+            elif key in hyperparameters:
+                hyperparameters[key] = value
 
     # Build complete stats
     all_stats = build_wandb_stats(

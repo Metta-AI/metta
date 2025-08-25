@@ -233,7 +233,7 @@ After removing Hydra and YAML configuration support from the Metta codebase, tra
 ---
 
 ### 10. Hyperparameter Scheduling
-**Status**: ❌ **Critical Issue Found** (Not Investigated Yet)
+**Status**: ❌ **Critical Issue Found** → 🔧 **Fix Applied**
 
 **Initial Hypotheses**
 - H10.1: Hyperparameter scheduler definitions removed
@@ -241,17 +241,72 @@ After removing Hydra and YAML configuration support from the Metta codebase, tra
 - H10.3: Schedule configuration keys changed
 
 **Runtime Hypotheses**
-- R10.1: ❌ **POTENTIAL**: `hyperparameter_scheduler.py` entirely commented out
+- R10.1: ❌ **CRITICAL**: `hyperparameter_scheduler.py` entirely commented out
+- R10.2: ❌ **CRITICAL**: No scheduler initialization or step calls in trainer.py
+- R10.3: ❌ **CRITICAL**: Old config had extensive scheduling: CosineSchedule for learning rate (0.000457→0.00003), LogarithmicSchedule for PPO clip, LinearSchedule for entropy
 
 **Investigation Results**
-- ❌ **Scheduler Disabled**: Entire hyperparameter scheduling system appears disabled
-- **Impact**: Learning rate, entropy coefficient, clip schedules may be missing
+- ❌ **Scheduler Completely Disabled**: 
+  - **Old**: Full hyperparameter scheduling system with CosineSchedule learning rate, LogarithmicSchedule PPO clip, LinearSchedule entropy
+  - **New**: Entire `hyperparameter_scheduler.py` commented out, no scheduler calls in training loop
+  - **Impact**: No learning rate decay, constant PPO parameters throughout training
+- ❌ **Missing Critical Schedules**:
+  - Learning rate: 0.000457 → 0.00003 (CosineSchedule) - completely missing
+  - PPO clip: 0.1 → 0.05 (LogarithmicSchedule) - stays constant at 0.1
+  - Entropy: 0.0021 → 0.0 (LinearSchedule) - stays constant at 0.0021
+  - Value clip: 0.1 → 0.05 (LinearSchedule) - stays constant at 0.1
 
-**Status**: High priority for future investigation - could significantly impact training
+**Fix Applied**: 🔧 Restored complete hyperparameter scheduling system
+- Uncommented and restored `hyperparameter_scheduler.py` with Pydantic config support
+- Added scheduler initialization in `trainer.py` after optimizer creation  
+- Added scheduler step calls in training loop with `agent_step` progress tracking
+- Updated `process_stats` to log scheduled hyperparameter values to WandB
+- Configured default schedules in `HyperparameterSchedulerConfig` matching pre-dehydration behavior
+- **Validation**: Tested scheduler produces correct value progressions (e.g., learning rate 0.000457→0.00024→0.00003)
 
 ---
 
-### 11-12. Additional Subsystems
+### 11. Stats Accumulation System
+**Status**: ❌ **Critical Issue Found** → 🔧 **Fix Applied**
+
+**Initial Hypotheses**
+- H11.1: Stats accumulation frequency or timing changed
+- H11.2: Metric aggregation or averaging methods differ
+- H11.3: Buffer handling for rolling metrics modified
+
+**Runtime Hypotheses**
+- R11.1: ❌ **CRITICAL**: `accumulate_rollout_stats` uses fragile `stats.setdefault(k, []).extend(v)` approach
+- R11.2: ❌ **CRITICAL**: Current approach crashes when trying to extend list onto float value
+- R11.3: ❌ **CRITICAL**: Corrupts reward metrics needed for `overview/reward` calculation
+
+**Investigation Results**
+- ❌ **Stats Accumulation Bug**: 
+  - **Old**: Robust list handling with type checking before extending
+  ```python
+  if k not in stats:
+      stats[k] = []
+  elif not isinstance(stats[k], list):
+      stats[k] = [stats[k]]  # Convert to list first
+  stats[k].extend(v)
+  ```
+  - **New**: Fragile `stats.setdefault(k, []).extend(v)` that crashes on mixed types
+  - **Impact**: When `task_reward/{task_name}/rewards.mean` gets processed multiple times with different types, the accumulation fails and corrupts the reward metrics
+- ❌ **Broken Overview/Reward Chain**: 
+  1. Corrupted `task_reward` metrics during accumulation
+  2. Invalid `env_task_reward` metrics after processing
+  3. Empty `task_reward_values` list in overview calculation
+  4. No `overview/reward` metric generated
+  5. Users see jagged `env_agent/heart.get` instead of smooth `overview/reward`
+
+**Fix Applied**: 🔧 Restored robust stats accumulation from reference version
+- Added proper type checking before extending lists
+- Handles conversion from scalar to list when needed
+- Prevents corruption of critical reward metrics
+- **Validation**: Tested accumulation with mixed types (float + list) works correctly
+
+---
+
+### 12. Additional Subsystems
 **Status**: ⏳ **Lower Priority**
 
 Remaining subsystems (vectorized environments, memory management, distributed training, etc.) are lower priority given the critical issues already found and fixed.
@@ -265,10 +320,11 @@ Remaining subsystems (vectorized environments, memory management, distributed tr
 2. **Missing Curriculum Statistics**: Restored curriculum progression logging  
 3. **Gradient Accumulation Change**: Reverted to old (broken) behavior that empirically worked better
 4. **PPO Returns Calculation**: Reverted to use current values instead of mathematically correct original values
+5. **Hyperparameter Scheduling**: Restored entire scheduling system (CosineSchedule learning rate, LogarithmicSchedule PPO clip, LinearSchedule entropy)
+6. **Stats Accumulation Bug**: Fixed critical bug corrupting reward metrics that broke `overview/reward` calculation
 
 ### ⏳ **High Priority Remaining Issues**
-1. **Hyperparameter Scheduling**: Entire system appears disabled - could significantly impact training
-2. **Default Configuration Changes**: Other recipes/configs might be affected by changed defaults
+1. **Default Configuration Changes**: Other recipes/configs might be affected by changed defaults
 
 ### 📊 **Testing Results**
 - ✅ **Training Validation**: 1000-step training run completed successfully with reverted changes

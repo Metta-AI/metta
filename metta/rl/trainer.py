@@ -250,6 +250,14 @@ def train(
     else:
         raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
 
+    # Create hyperparameter scheduler
+    hyperparameter_scheduler = HyperparameterScheduler.from_trainer_config(
+        trainer_cfg=trainer_cfg,
+        optimizer=optimizer,
+        total_timesteps=trainer_cfg.total_timesteps,
+        logger=logger,
+    )
+
     if checkpoint and checkpoint.optimizer_state_dict:
         try:
             optimizer.load_state_dict(checkpoint.optimizer_state_dict)
@@ -458,6 +466,9 @@ def train(
                     losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
                 epoch += epochs_trained
 
+            # Update hyperparameters based on current agent step
+            hyperparameter_updates = hyperparameter_scheduler.step(agent_step)
+
             # Safe to proceed to next rollout phase only once all ranks have completed training
             if torch.distributed.is_initialized():
                 torch.distributed.barrier()
@@ -489,6 +500,7 @@ def train(
                         latest_saved_policy_record=latest_saved_policy_record,
                         optimizer=optimizer,
                         kickstarter=kickstarter,
+                        hyperparameter_updates=hyperparameter_updates,
                     )
                 # Clear stats after processing
                 stats_tracker.clear_rollout_stats()

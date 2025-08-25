@@ -182,7 +182,7 @@ class HyperparameterScheduler:
             updates[param_name] = new_value
 
         # Update optimizer learning rate directly
-        if "learning_rate" in updates:
+        if "learning_rate" in updates and self.optimizer is not None:
             for param_group in self.optimizer.param_groups:
                 param_group["lr"] = updates["learning_rate"]
 
