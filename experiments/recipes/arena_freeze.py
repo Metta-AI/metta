@@ -3,7 +3,7 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import ConverterConfig, EnvConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -20,7 +20,11 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     return arena_env
 
 
-def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
+def make_curriculum(
+    arena_env: Optional[EnvConfig] = None,
+    freeze_duration: int = 10,
+    group_reward_pct: Optional[float] = None,
+) -> CurriculumConfig:
     arena_env = arena_env or make_env()
 
     # make a set of training tasks for the arena
@@ -39,40 +43,41 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
-    # Why do we need to make all these changes to our laser counts if we are sampling from combat??
-    arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
+    # arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
 
     # sometimes add initial_items to the buildings
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
+    # Freeze duration control: set both global and group props
+    arena_tasks.add_bucket("game.agent.freeze_duration", [freeze_duration])
+    # Ensure default agent group (named 'agent' in make_arena) also matches
+    arena_tasks.add_bucket("game.groups.agent.props.freeze_duration", [freeze_duration])
+
+    # Optional: control group reward sharing if provided
+    if group_reward_pct is not None:
+        arena_tasks.add_bucket("game.groups.agent.group_reward_pct", [group_reward_pct])
+
     return arena_tasks.to_curriculum()
 
 
 def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
-    basic_env = env or make_env()
-    # Why do we need to make all these changes to our laser counts if we are sampling from combat?? Or is this just
-    # for being explicit so people can see the difference? If so why do we have a flag in envs.py?
-    basic_env.game.actions.attack.consumed_resources["laser"] = 100
-
-    combat_env = basic_env.model_copy()
-    combat_env.game.actions.attack.consumed_resources["laser"] = 1
-
-    return [
-        SimulationConfig(name="arena/basic", env=basic_env),
-        SimulationConfig(name="arena/combat", env=basic_env),
-    ]
+    base_env = env or eb.make_arena(num_agents=24, combat=True)
+    return [SimulationConfig(name="arena/combat", env=base_env)]
 
 
-def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(
+    curriculum: Optional[CurriculumConfig] = None,
+    freeze_duration: int = 10,
+    group_reward_pct: Optional[float] = None,
+) -> TrainTool:
     trainer_cfg = TrainerConfig(
-        curriculum=curriculum or make_curriculum(),
+        curriculum=curriculum
+        or make_curriculum(
+            freeze_duration=freeze_duration, group_reward_pct=group_reward_pct
+        ),
         evaluation=EvaluationConfig(
             simulations=[
-                # Why do we need to make all these changes to our laser counts if we are sampling from combat??
-                SimulationConfig(
-                    name="arena/basic", env=eb.make_arena(num_agents=24, combat=False)
-                ),
                 SimulationConfig(
                     name="arena/combat", env=eb.make_arena(num_agents=24, combat=True)
                 ),

@@ -92,10 +92,17 @@ def make_arena(
                 ),
             ),
             groups={
-                "agent": GroupConfig(
+                "blue": GroupConfig(
                     id=0,
                     sprite=0,
                     props=AgentConfig(),
+                    group_reward_pct=0.5,
+                ),
+                "red": GroupConfig(
+                    id=1,
+                    sprite=1,
+                    props=AgentConfig(),
+                    group_reward_pct=0.5,
                 ),
             },
             map_builder=map_builder,
