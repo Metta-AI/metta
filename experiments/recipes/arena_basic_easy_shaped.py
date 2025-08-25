@@ -184,8 +184,9 @@ def train() -> TrainTool:
     medium_env.label = "arena.basic_easy_shaped.medium"
     medium_env.game.map_builder.width = 50
     medium_env.game.map_builder.height = 50
-    # Increase instances proportionally: 50x50 area is 4x larger, so 4x instances
-    medium_env.game.map_builder.instances = (num_agents // 6) * 4
+    # Clear the explicit instances setting to let MapGen derive it automatically
+    # This avoids the ValueError from conflicting explicit vs derived instances
+    medium_env.game.map_builder.instances = None
 
     # Create curriculum with both map variants to restore pre-dehydration map diversity
     curriculum_cfg = cc.CurriculumConfig(
