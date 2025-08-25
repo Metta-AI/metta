@@ -47,7 +47,7 @@ env:
 
 jobs:
   launch-batch-job:
-    runs-on: default
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout specific commit for dispatch
