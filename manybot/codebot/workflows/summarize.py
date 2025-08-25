@@ -67,7 +67,6 @@ class SummarizeCommand(Command):
     """Implementation using PydanticAI agents with role + task pattern"""
 
     name: str = "summarize"
-    result_type: type[BaseModel] = SummaryResult
 
     async def execute(self, prompt_context: PromptContext, execution_context: ExecutionContext, token_limit: int = 10000) -> CommandOutput:
         """Execute summarization using structured PydanticAI agent"""

@@ -72,24 +72,24 @@ def handle_result(result, dry_run: bool = False):
 
 @app.command()
 def summarize(
-    paths: List[str] = typer.Argument(default=[], help="Files or directories to analyze"),
+    paths: List[str] = typer.Argument(help="Files or directories to analyze"),
     max_tokens: int = typer.Option(10000, "--max_tokens", help="Maximum tokens for summary"),
-    role: Optional[str] = typer.Option(None, "--role", help="Role file to use (e.g., 'roles/architect.md')"),
-    task: Optional[str] = typer.Option(None, "--task", help="Task file to use (e.g., 'tasks/refactor.md')"),
+    role: Optional[str] = typer.Option(None, "--role", help="Role name (e.g., 'engineer') or path (e.g., 'roles/architect.md')"),
+    task: Optional[str] = typer.Option(None, "--task", help="Task name (e.g., 'summarize') or path (e.g., 'tasks/refactor.md')"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Show what would be done without making changes"),
 ):
     """Generate AI-powered code summaries"""
 
-    # Set defaults for summarize command
-    role_file = role or "roles/engineer.md"
-    task_file = task or "tasks/summarize.md"
+    # Set defaults for summarize command (simple names will be resolved by ContextManager)
+    role_name = role or "engineer"
+    task_name = task or "summarize"
 
     # Gather both prompt and execution contexts
     context_manager = ContextManager()
     prompt_context, execution_context = context_manager.gather_context(
         paths,
-        role_file=role_file,
-        task_file=task_file,
+        role=role_name,
+        task=task_name,
         dry_run=dry_run
     )
 

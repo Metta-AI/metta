@@ -4,15 +4,15 @@ Core workflow foundation for AI-powered development assistance.
 Provides the base classes and patterns for structured agent operations using PydanticAI.
 """
 
+import html
 import logging
+import re
 from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List, Literal, Optional, TypeVar
 
 from pydantic import BaseModel, Field
-from pydantic_ai import Agent
 
-import re
-import html
+from .codeclip import get_context
 
 logger = logging.getLogger(__name__)
 
@@ -87,54 +87,24 @@ class Command(BaseModel):
 
     name: str
     default_paths: List[str] = Field(default_factory=list)
-    result_type: type[BaseModel] = CommandOutput
-
-    def build_agent(self, role_prompt: str) -> Agent[T]:
-        """Build PydanticAI agent for this command"""
-        return Agent(result_type=self.result_type, system_prompt=role_prompt)
 
     async def execute(self, prompt_context: PromptContext, execution_context: ExecutionContext) -> CommandOutput:
-        """Execute command using appropriate mode"""
-
-        # Build agent with role from context
-        agent = self.build_agent(prompt_context.role_prompt)
-
-        # Use task prompt from context
-        task_instructions = prompt_context.task_prompt
-
-        # Execute based on mode
-        if execution_context.mode == "oneshot":
-            result = await agent.run(task_instructions, files=prompt_context.files)
-        else:
-            logger.warning(f"{execution_context.mode} mode not yet implemented, falling back to oneshot")
-            result = await agent.run(task_instructions, files=prompt_context.files)
-
-        return self._process_result(result.data)
-
-    def _process_result(self, result: Any) -> CommandOutput:
-        """Process agent result into CommandOutput"""
-        if isinstance(result, CommandOutput):
-            return result
-
-        # For structured results, convert to CommandOutput
-        if hasattr(result, 'to_markdown'):
-            # For results that can be converted to markdown
-            content = result.to_markdown()
-            return CommandOutput(
-                file_changes=[FileChange(filepath=f".codebot/{self.name}/latest.md", content=content)],
-                summary=f"Generated {type(result).__name__}",
-                metadata={"result_type": type(result).__name__}
-            )
-
-        # Default fallback
-        return CommandOutput(
-            summary=str(result),
-            metadata={"raw_result": result}
-        )
+        """Execute command using appropriate mode - must be implemented by subclasses"""
+        raise NotImplementedError("Subclasses must implement execute method")
 
 
 class ContextManager:
     """Smart context gathering using codeclip"""
+
+    def _resolve_prompt_path(self, name_or_path: str, prompt_type: str) -> str:
+        """Resolve simple name or path to full path under prompts/"""
+        # If it already contains a path separator, treat as relative path
+        if "/" in name_or_path:
+            return name_or_path
+
+        # Otherwise, treat as simple name and add .md extension if needed
+        name = name_or_path if name_or_path.endswith(".md") else f"{name_or_path}.md"
+        return f"{prompt_type}/{name}"
 
     def _load_prompt_file(self, prompt_file: str, fallback: str) -> str:
         """Load prompt from file with fallback"""
@@ -148,39 +118,30 @@ class ContextManager:
     def gather_context(
         self,
         paths: List[str],
-        role_file: str,
-        task_file: str,
+        role: str,
+        task: str,
         mode: Literal["oneshot", "claudesdk", "interactive"] = "oneshot",
         dry_run: bool = False,
-        **execution_kwargs
+        **execution_kwargs,
     ) -> tuple[PromptContext, ExecutionContext]:
         """
         Gather files using codeclip with intelligent prioritization and create execution context
-        Returns:
-            Tuple of (PromptContext, ExecutionContext)
+        Returns: Tuple of (PromptContext, ExecutionContext)
         """
 
-        # Load role and task prompts
+        # Resolve and load role and task prompts
+        role_path = self._resolve_prompt_path(role, "roles")
+        task_path = self._resolve_prompt_path(task, "tasks")
+
         role_prompt = self._load_prompt_file(
-            role_file,
-            "You are a senior software engineer with expertise in code analysis and documentation."
+            role_path, "You are a senior software engineer with expertise in code analysis and documentation."
         )
-        task_prompt = self._load_prompt_file(
-            task_file,
-            "Analyze the provided code and create a structured summary."
-        )
+        task_prompt = self._load_prompt_file(task_path, "Analyze the provided code and create a structured summary.")
 
         # Create execution context
-        execution_context = ExecutionContext(
-            mode=mode,
-            dry_run=dry_run,
-            **execution_kwargs
-        )
+        execution_context = ExecutionContext(mode=mode, dry_run=dry_run, **execution_kwargs)
 
         try:
-            # Import here to avoid circular dependencies
-            from .codeclip.codeclip.file import get_context
-
             content, token_info = get_context(paths=[Path(p) for p in paths] if paths else None)
 
             prompt_context = PromptContext(
@@ -198,14 +159,9 @@ class ContextManager:
         except ImportError as e:
             logger.warning(f"Could not import codeclip: {e}")
             prompt_context = PromptContext(
-                role_prompt=role_prompt,
-                task_prompt=task_prompt,
-                files={},
-                token_count=0,
-                working_directory=Path.cwd()
+                role_prompt=role_prompt, task_prompt=task_prompt, files={}, token_count=0, working_directory=Path.cwd()
             )
             return prompt_context, execution_context
-
 
     def _parse_files_from_content(self, xml_text: str) -> Dict[str, str]:
         """Parse files from codeclip XML-like output with some resilience."""
@@ -215,12 +171,12 @@ class ContextManager:
 
         # Prefer attribute-based form: <file path="..."><content>...</content></file>
         file_pat = re.compile(
-            r'<(?:file|document)\b([^>]*)>(.*?)</(?:file|document)>',
+            r"<(?:file|document)\b([^>]*)>(.*?)</(?:file|document)>",
             re.DOTALL | re.IGNORECASE,
         )
         attr_path_pat = re.compile(r'\bpath="([^"]+)"', re.IGNORECASE)
         tag_pat = re.compile(
-            r'<(?P<tag>source|name|document_content|instructions|content)\b[^>]*>(?P<body>.*?)</\1>',
+            r"<(?P<tag>source|name|document_content|instructions|content)\b[^>]*>(?P<body>.*?)</\1>",
             re.DOTALL | re.IGNORECASE,
         )
 
@@ -230,14 +186,14 @@ class ContextManager:
             path = m_path.group(1) if m_path else None
 
             # Gather child nodes
-            tags = {m.group('tag').lower(): m.group('body') for m in tag_pat.finditer(inner)}
+            tags = {m.group("tag").lower(): m.group("body") for m in tag_pat.finditer(inner)}
             if not path:
-                path = tags.get('source') or tags.get('name')
+                path = tags.get("source") or tags.get("name")
             if not path:
                 continue
 
             # Choose body
-            body = tags.get('document_content') or tags.get('content') or tags.get('instructions') or ''
+            body = tags.get("document_content") or tags.get("content") or tags.get("instructions") or ""
             # Unescape XML entities
             body = html.unescape(body)
 
@@ -245,7 +201,6 @@ class ContextManager:
             files[norm_path] = body
 
         return files
-
 
     def _get_git_diff(self) -> str:
         """Get current git diff"""
