@@ -7,12 +7,14 @@ This document explains how to set up and run background workers for processing i
 ### 1. Install and Start Redis
 
 **On macOS:**
+
 ```bash
 brew install redis
 brew services start redis
 ```
 
 **On Ubuntu/Debian:**
+
 ```bash
 sudo apt update
 sudo apt install redis-server
@@ -20,6 +22,7 @@ sudo systemctl start redis-server
 ```
 
 **Using Docker:**
+
 ```bash
 docker run -d --name redis -p 6379:6379 redis:7-alpine
 ```
@@ -69,13 +72,35 @@ Add to your `.env.local`:
 # Redis Configuration
 REDIS_HOST=localhost
 REDIS_PORT=6379
-# REDIS_PASSWORD=your-password  # Optional
+REDIS_PASSWORD=your-password  # Required for production
+
+# Database
+DATABASE_URL=your-database-url
+
+# LLM Service
+ANTHROPIC_API_KEY=your-anthropic-key
+
+# Adobe PDF Services
+ADOBE_CLIENT_ID=your-adobe-client-id
+ADOBE_CLIENT_SECRET=your-adobe-client-secret
+
+# AWS Services
+AWS_REGION=us-east-1
+AWS_S3_BUCKET=your-s3-bucket-name
+
+# Asana Integration (optional)
+ASANA_API_KEY=your-asana-key
+ASANA_PAPERS_PROJECT_ID=your-project-id
+ASANA_WORKSPACE_ID=your-workspace-id
+ASANA_PAPER_LINK_FIELD_ID=your-field-id
+ASANA_ARXIV_ID_FIELD_ID=your-field-id
+ASANA_ABSTRACT_FIELD_ID=your-field-id
 ```
 
 ### Job Queue Features
 
 - **Automatic Retries** - Failed jobs retry with exponential backoff
-- **Rate Limiting** - Respects external API limits (arXiv, OpenAI)
+- **Rate Limiting** - Respects external API limits (arXiv, Anthropic, Adobe)
 - **Job Persistence** - Jobs survive worker restarts
 - **Monitoring** - Real-time queue statistics
 
@@ -89,10 +114,11 @@ For Slava - here's what you'll need for the EKS setup:
 # Dockerfile.workers
 FROM node:20-alpine
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY dist/ ./dist/
-CMD ["node", "dist/lib/workers/worker-manager.js"]
+RUN npm install -g pnpm
+COPY package*.json pnpm-lock.yaml ./
+RUN pnpm ci --frozen-lockfile --prod
+COPY src/ ./src/
+CMD ["pnpm", "workers"]
 ```
 
 ### Helm Values
@@ -101,17 +127,33 @@ CMD ["node", "dist/lib/workers/worker-manager.js"]
 # values.yaml
 redis:
   enabled: true
-  auth: { enabled: false }
+  auth: { enabled: true, password: "${REDIS_PASSWORD}" }
   master: { persistence: { size: "20Gi" } }
 
 workers:
   image: "library-workers:latest"
   replicas: 2
   env:
+    # Redis Configuration
     REDIS_HOST: "redis-master"
+    REDIS_PASSWORD: "${REDIS_PASSWORD}"
+    # Database
     DATABASE_URL: "${DATABASE_URL}"
-    OPENAI_API_KEY: "${OPENAI_API_KEY}"
+    # LLM Service
     ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+    # Adobe PDF Services
+    ADOBE_CLIENT_ID: "${ADOBE_CLIENT_ID}"
+    ADOBE_CLIENT_SECRET: "${ADOBE_CLIENT_SECRET}"
+    # AWS Services
+    AWS_REGION: "us-east-1"
+    AWS_S3_BUCKET: "${AWS_S3_BUCKET}"
+    # Asana Integration
+    ASANA_API_KEY: "${ASANA_API_KEY}"
+    ASANA_PAPERS_PROJECT_ID: "${ASANA_PAPERS_PROJECT_ID}"
+    ASANA_WORKSPACE_ID: "${ASANA_WORKSPACE_ID}"
+    ASANA_PAPER_LINK_FIELD_ID: "${ASANA_PAPER_LINK_FIELD_ID}"
+    ASANA_ARXIV_ID_FIELD_ID: "${ASANA_ARXIV_ID_FIELD_ID}"
+    ASANA_ABSTRACT_FIELD_ID: "${ASANA_ABSTRACT_FIELD_ID}"
   resources:
     requests: { cpu: "250m", memory: "512Mi" }
     limits: { cpu: "1000m", memory: "2Gi" }
@@ -120,6 +162,7 @@ workers:
 ### Monitoring
 
 Consider adding:
+
 - **BullMQ Dashboard** - Web UI for queue monitoring
 - **Prometheus metrics** - For alerting on job failures
 - **Log aggregation** - Centralized worker logs
@@ -174,8 +217,8 @@ await JobQueueService.queueInstitutionExtraction(paperId, arxivUrl);
 ```
 
 This provides:
+
 - **Reliability** - Jobs persist across restarts
 - **Observability** - Monitor job progress and failures
 - **Scalability** - Multiple workers, rate limiting
 - **Error Handling** - Automatic retries with backoff
-
