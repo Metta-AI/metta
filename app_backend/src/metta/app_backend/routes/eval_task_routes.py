@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Any, TypeVar
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
 from metta.app_backend.auth import create_user_or_token_dependency
@@ -134,9 +134,8 @@ def create_eval_task_router(stats_repo: MettaRepo) -> APIRouter:
             else:
                 attributes["git_hash"] = await get_latest_commit(branch="main")
 
-        policy = await stats_repo.get_policy_by_id(request.policy_id)
-        if not policy:
-            raise HTTPException(status_code=404, detail=f"Policy {request.policy_id} not found")
+        # Note: Policy validation removed since policies are now stored in ClickHouse
+        # while eval_tasks remain in PostgreSQL. The policy_id is still stored for reference.
 
         task = await stats_repo.create_eval_task(
             policy_id=request.policy_id,

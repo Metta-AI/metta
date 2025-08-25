@@ -10,8 +10,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from typing_extensions import Literal
 
 from metta.app_backend.metta_repo import MettaRepo
-from metta.app_backend.query_logger import execute_query_and_log
 from metta.app_backend.route_logger import timed_route
+from metta.app_backend.stats_repo import StatsRepo
 
 logger = logging.getLogger("policy_scorecard_routes")
 
@@ -219,110 +219,170 @@ POLICY_SCORECARD_DATA_QUERY = """
 # ============================================================================
 
 
-async def get_policies_and_training_runs(con: AsyncConnection) -> PoliciesResponse:
+async def get_policies_and_training_runs(stats_repo: StatsRepo) -> PoliciesResponse:
     """Get unified training runs and run-free policies with pagination and optional filtering."""
 
-    unified_rows = await execute_query_and_log(con, UNIFIED_POLICIES_QUERY, (), "get_unified_policies")
+    # Get training runs from StatsRepo
+    training_runs = await stats_repo.get_training_runs()
+    # Get policies from StatsRepo
+    policies = await stats_repo.get_policies()
 
-    policies = [
-        UnifiedPolicyInfo(
-            id=str(row[0]), type=row[1], name=row[2], user_id=row[3], created_at=str(row[4]), tags=row[5] or []
+    # Convert training runs to unified format
+    unified_policies = []
+    for run in training_runs:
+        unified_policies.append(
+            UnifiedPolicyInfo(
+                id=str(run.id),
+                type="training_run",
+                name=run.name,
+                user_id=run.user_id,
+                created_at=str(run.created_at),
+                tags=run.tags or [],
+            )
         )
-        for row in unified_rows
-    ]
 
-    return PoliciesResponse(policies=policies)
+    # Convert policies to unified format
+    for policy in policies:
+        unified_policies.append(
+            UnifiedPolicyInfo(
+                id=policy["id"],
+                type=policy["type"],
+                name=policy["name"],
+                user_id=policy["user_id"],
+                created_at=policy["created_at"],
+                tags=policy["tags"] or [],
+            )
+        )
+
+    # Sort the combined list by created_at in descending order (newest first)
+    unified_policies.sort(key=lambda p: p.created_at, reverse=True)
+
+    return PoliciesResponse(policies=unified_policies)
 
 
 async def search_policies_and_training_runs(
-    con: AsyncConnection, search_params: PoliciesSearchRequest
+    stats_repo: StatsRepo, search_params: PoliciesSearchRequest
 ) -> PoliciesResponse:
     """Search unified training runs and run-free policies with filtering."""
 
-    # Build dynamic query based on search parameters
-    base_query = "SELECT * FROM unified_training_runs"
-    conditions = []
-    params = []
+    # Get all training runs and policies from StatsRepo (same as get_policies_and_training_runs)
+    training_runs = await stats_repo.get_training_runs()
+    policies = await stats_repo.get_policies()
 
-    # Add search condition for name
-    if search_params.search:
-        conditions.append("LOWER(name) LIKE LOWER(%s)")
-        params.append(f"%{search_params.search}%")
+    # Convert to unified format
+    unified_policies = []
 
-    # Add policy type filter
-    if search_params.policy_type:
-        conditions.append("type = %s")
-        params.append(search_params.policy_type)
-
-    # Add user_id filter
-    if search_params.user_id:
-        conditions.append("user_id = %s")
-        params.append(search_params.user_id)
-
-    # Add tag filter using array overlap
-    if search_params.tags:
-        conditions.append("tags && %s")
-        params.append(search_params.tags)
-
-    # Combine conditions
-    if conditions:
-        base_query += " WHERE " + " AND ".join(conditions)
-
-    # Add ordering and pagination
-    base_query += " ORDER BY created_at DESC LIMIT %s OFFSET %s"
-    params.extend([search_params.limit, search_params.offset])
-
-    unified_rows = await execute_query_and_log(con, base_query, tuple(params), "search_policies")
-
-    policies = [
-        UnifiedPolicyInfo(
-            id=str(row[0]), type=row[1], name=row[2], user_id=row[3], created_at=str(row[4]), tags=row[5] or []
+    # Convert training runs to unified format
+    for run in training_runs:
+        unified_policies.append(
+            UnifiedPolicyInfo(
+                id=str(run.id),
+                type="training_run",
+                name=run.name,
+                user_id=run.user_id,
+                created_at=str(run.created_at),
+                tags=run.tags or [],
+            )
         )
-        for row in unified_rows
-    ]
 
-    return PoliciesResponse(policies=policies)
+    # Convert policies to unified format
+    for policy in policies:
+        unified_policies.append(
+            UnifiedPolicyInfo(
+                id=policy["id"],
+                type=policy["type"],
+                name=policy["name"],
+                user_id=policy["user_id"],
+                created_at=policy["created_at"],
+                tags=policy["tags"] or [],
+            )
+        )
+
+    # Apply search filters
+    filtered_policies = []
+    for policy in unified_policies:
+        # Name search filter
+        if search_params.search and search_params.search.lower() not in policy.name.lower():
+            continue
+
+        # Policy type filter
+        if search_params.policy_type and policy.type != search_params.policy_type:
+            continue
+
+        # User ID filter
+        if search_params.user_id and policy.user_id != search_params.user_id:
+            continue
+
+        # Tags filter (policy must have at least one matching tag)
+        if search_params.tags and not any(tag in policy.tags for tag in search_params.tags):
+            continue
+
+        filtered_policies.append(policy)
+
+    # Sort by created_at descending
+    filtered_policies.sort(key=lambda p: p.created_at, reverse=True)
+
+    # Apply pagination
+    start_idx = search_params.offset
+    end_idx = start_idx + search_params.limit
+    paginated_policies = filtered_policies[start_idx:end_idx]
+
+    return PoliciesResponse(policies=paginated_policies)
 
 
 async def get_evals_for_selection(
-    con: AsyncConnection, training_run_ids: List[str], run_free_policy_ids: List[str]
+    stats_repo: StatsRepo, training_run_ids: List[str], run_free_policy_ids: List[str]
 ) -> List[str]:
     """Get evaluation categories and environment names for selected training runs and policies."""
-    rows = await execute_query_and_log(
-        con, GET_EVALS_QUERY, (training_run_ids, run_free_policy_ids), "get_evals_for_selection"
-    )
-
-    return [row[0] for row in rows]
+    return await stats_repo.get_eval_names_for_selection(training_run_ids, run_free_policy_ids)
 
 
 async def get_available_metrics_for_selection(
-    con: AsyncConnection,
+    stats_repo: StatsRepo,
     training_run_ids: List[str],
     run_free_policy_ids: List[str],
     eval_names: List[str],
 ) -> List[str]:
     """Get available metrics for the selected training runs, policies and evaluations."""
-    rows = await execute_query_and_log(
-        con,
-        GET_AVAILABLE_METRICS_QUERY,
-        (training_run_ids, run_free_policy_ids, eval_names),
-        "get_available_metrics_for_selection",
-    )
-
-    return [row[0] for row in rows]
+    return await stats_repo.get_available_metrics_for_selection(training_run_ids, run_free_policy_ids, eval_names)
 
 
 async def fetch_policy_scorecard_data(
-    con: AsyncConnection,
+    stats_repo: StatsRepo,
     training_run_ids: List[str] | List[uuid.UUID],
     run_free_policy_ids: List[str] | List[uuid.UUID],
     eval_names: List[str],
     metric: str,
 ) -> List[PolicyEvaluationResult]:
     """Fetch evaluation data for policy-based scorecard."""
-    async with con.cursor(row_factory=class_row(PolicyEvaluationResult)) as cursor:
-        await cursor.execute(POLICY_SCORECARD_DATA_QUERY, (training_run_ids, run_free_policy_ids, metric, eval_names))
-        return await cursor.fetchall()
+    # Convert UUIDs to strings for ClickHouse
+    training_run_ids_str = [str(id) for id in training_run_ids]
+    run_free_policy_ids_str = [str(id) for id in run_free_policy_ids]
+
+    # Get data from StatsRepo
+    data = await stats_repo.fetch_policy_scorecard_data(
+        training_run_ids_str, run_free_policy_ids_str, eval_names, metric
+    )
+
+    # Convert to PolicyEvaluationResult objects
+    results = []
+    for row in data:
+        results.append(
+            PolicyEvaluationResult(
+                policy_id=uuid.UUID(row["policy_id"]),
+                policy_name=row["policy_name"],
+                eval_category=row["eval_category"],
+                env_name=row["env_name"],
+                replay_url=row["replay_url"],
+                thumbnail_url=row["thumbnail_url"],
+                total_score=row["total_score"],
+                num_agents=row["num_agents"],
+                episode_id=row["episode_id"],
+                run_id=uuid.UUID(row["run_id"]) if row["run_id"] else None,
+                epoch=row["epoch"],
+            )
+        )
+    return results
 
 
 def select_policies_by_training_run_selector(
@@ -535,7 +595,7 @@ async def get_leaderboard_free_policy_scores(con: AsyncConnection, leaderboard_i
 # ============================================================================
 
 
-def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
+def create_policy_scorecard_router(stats_repo: StatsRepo, metta_repo: MettaRepo) -> APIRouter:
     """Create FastAPI router for policy-based scorecard endpoints."""
     router = APIRouter(tags=["scorecard"])
 
@@ -543,15 +603,13 @@ def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
     @timed_route("get_policies_and_training_runs")
     async def get_policies() -> PoliciesResponse:
         """Get training runs and run-free policies."""
-        async with metta_repo.connect() as con:
-            return await get_policies_and_training_runs(con)
+        return await get_policies_and_training_runs(stats_repo)
 
     @router.post("/policies/search")
     @timed_route("search_policies_and_training_runs")
     async def search_policies(request: PoliciesSearchRequest) -> PoliciesResponse:
         """Search training runs and run-free policies with filtering."""
-        async with metta_repo.connect() as con:
-            return await search_policies_and_training_runs(con, request)
+        return await search_policies_and_training_runs(stats_repo, request)
 
     @router.post("/evals")
     @timed_route("get_evals")
@@ -560,8 +618,7 @@ def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
         if not request.training_run_ids and not request.run_free_policy_ids:
             return []
 
-        async with metta_repo.connect() as con:
-            return await get_evals_for_selection(con, request.training_run_ids, request.run_free_policy_ids)
+        return await get_evals_for_selection(stats_repo, request.training_run_ids, request.run_free_policy_ids)
 
     @router.post("/metrics")
     @timed_route("get_available_metrics")
@@ -570,10 +627,9 @@ def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
         if (not request.training_run_ids and not request.run_free_policy_ids) or not request.eval_names:
             return []
 
-        async with metta_repo.connect() as con:
-            return await get_available_metrics_for_selection(
-                con, request.training_run_ids, request.run_free_policy_ids, request.eval_names
-            )
+        return await get_available_metrics_for_selection(
+            stats_repo, request.training_run_ids, request.run_free_policy_ids, request.eval_names
+        )
 
     @router.post("/scorecard")
     @router.post("/heatmap")
@@ -587,29 +643,28 @@ def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
         ):
             raise HTTPException(status_code=400, detail="Missing required parameters")
 
-        async with metta_repo.connect() as con:
-            # Fetch evaluation data
-            evaluations = await fetch_policy_scorecard_data(
-                con, request.training_run_ids, request.run_free_policy_ids, request.eval_names, request.metric
-            )
+        # Fetch evaluation data
+        evaluations = await fetch_policy_scorecard_data(
+            stats_repo, request.training_run_ids, request.run_free_policy_ids, request.eval_names, request.metric
+        )
 
-            # Apply training run policy selector if we have evaluations
-            if evaluations:
-                selected_evaluations = select_policies_by_training_run_selector(
-                    evaluations, request.training_run_policy_selector, request.eval_names
-                )
-                # Build and return scorecard (includes all selected policies, even those without evaluations)
-                return build_policy_scorecard(selected_evaluations, request.eval_names)
-            else:
-                # No evaluations found at all - return empty scorecard
-                return ScorecardData(
-                    evalNames=[],
-                    policyNames=[],
-                    cells={},
-                    policyAverageScores={},
-                    evalAverageScores={},
-                    evalMaxScores={},
-                )
+        # Apply training run policy selector if we have evaluations
+        if evaluations:
+            selected_evaluations = select_policies_by_training_run_selector(
+                evaluations, request.training_run_policy_selector, request.eval_names
+            )
+            # Build and return scorecard (includes all selected policies, even those without evaluations)
+            return build_policy_scorecard(selected_evaluations, request.eval_names)
+        else:
+            # No evaluations found at all - return empty scorecard
+            return ScorecardData(
+                evalNames=[],
+                policyNames=[],
+                cells={},
+                policyAverageScores={},
+                evalAverageScores={},
+                evalMaxScores={},
+            )
 
     @router.post("/training-run/{run_id}")
     @timed_route("generate_training_run_scorecard")
@@ -618,23 +673,22 @@ def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
         if not request.eval_names or not request.metric:
             raise HTTPException(status_code=400, detail="Missing required parameters")
 
-        async with metta_repo.connect() as con:
-            # Fetch evaluation data for this specific training run
-            evaluations = await fetch_policy_scorecard_data(con, [run_id], [], request.eval_names, request.metric)
+        # Fetch evaluation data for this specific training run
+        evaluations = await fetch_policy_scorecard_data(stats_repo, [run_id], [], request.eval_names, request.metric)
 
-            # Build scorecard with ALL policies (no policy selection)
-            if evaluations:
-                return build_policy_scorecard(evaluations, request.eval_names)
-            else:
-                # No evaluations found - return empty scorecard
-                return ScorecardData(
-                    evalNames=[],
-                    policyNames=[],
-                    cells={},
-                    policyAverageScores={},
-                    evalAverageScores={},
-                    evalMaxScores={},
-                )
+        # Build scorecard with ALL policies (no policy selection)
+        if evaluations:
+            return build_policy_scorecard(evaluations, request.eval_names)
+        else:
+            # No evaluations found - return empty scorecard
+            return ScorecardData(
+                evalNames=[],
+                policyNames=[],
+                cells={},
+                policyAverageScores={},
+                evalAverageScores={},
+                evalMaxScores={},
+            )
 
     @router.post("/leaderboard")
     @timed_route("generate_leaderboard_scorecard")
@@ -683,7 +737,7 @@ def create_policy_scorecard_router(metta_repo: MettaRepo) -> APIRouter:
 
             # Fetch evaluation data for top policies
             evaluations = await fetch_policy_scorecard_data(
-                con, [], top_n_policy_ids, leaderboard.evals, leaderboard.metric
+                stats_repo, [], top_n_policy_ids, leaderboard.evals, leaderboard.metric
             )
 
             return build_policy_scorecard(evaluations, leaderboard.evals)

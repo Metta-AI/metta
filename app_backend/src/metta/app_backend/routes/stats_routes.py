@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.route_logger import timed_route
+from metta.app_backend.stats_repo import StatsRepo
 
 
 # Request/Response Models
@@ -66,12 +67,12 @@ class EpisodeResponse(BaseModel):
     id: uuid.UUID
 
 
-def create_stats_router(stats_repo: MettaRepo) -> APIRouter:
-    """Create a stats router with the given StatsRepo instance."""
+def create_stats_router(stats_repo: StatsRepo, metta_repo: MettaRepo) -> APIRouter:
+    """Create a stats router with the given StatsRepo and MettaRepo instances."""
     router = APIRouter(prefix="/stats", tags=["stats"])
 
-    # Create the user-or-token authentication dependency
-    user_or_token = Depends(create_user_or_token_dependency(stats_repo))
+    # Create the user-or-token authentication dependency (still needs MettaRepo for auth)
+    user_or_token = Depends(create_user_or_token_dependency(metta_repo))
 
     @router.get("/policies/ids", response_model=PolicyIdResponse)
     @timed_route("get_policy_ids")

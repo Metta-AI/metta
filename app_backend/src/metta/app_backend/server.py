@@ -24,6 +24,7 @@ from metta.app_backend.routes import (
     sweep_routes,
     token_routes,
 )
+from metta.app_backend.stats_repo import StatsRepo
 
 
 class WhoAmIResponse(BaseModel):
@@ -102,8 +103,8 @@ def setup_logging():
     )
 
 
-def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
-    """Create a FastAPI app with the given StatsRepo instance."""
+def create_app(stats_repo: StatsRepo, metta_repo: MettaRepo) -> fastapi.FastAPI:
+    """Create a FastAPI app with the given StatsRepo and MettaRepo instances."""
     # Ensure logging is configured
     setup_logging()
 
@@ -118,17 +119,17 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
         allow_headers=["*"],
     )
 
-    # Create routers with the provided StatsRepo
-    dashboard_router = dashboard_routes.create_dashboard_router(stats_repo)
-    eval_task_router = eval_task_routes.create_eval_task_router(stats_repo)
-    leaderboard_router = leaderboard_routes.create_leaderboard_router(stats_repo)
-    sql_router = sql_routes.create_sql_router(stats_repo)
-    stats_router = stats_routes.create_stats_router(stats_repo)
-    token_router = token_routes.create_token_router(stats_repo)
-    policy_scorecard_router = scorecard_routes.create_policy_scorecard_router(stats_repo)
-    score_router = score_routes.create_score_router(stats_repo)
-    sweep_router = sweep_routes.create_sweep_router(stats_repo)
-    entity_router = entity_routes.create_entity_router(stats_repo)
+    # Create routers with the appropriate repo instances
+    dashboard_router = dashboard_routes.create_dashboard_router(metta_repo)
+    eval_task_router = eval_task_routes.create_eval_task_router(metta_repo)
+    leaderboard_router = leaderboard_routes.create_leaderboard_router(metta_repo)
+    sql_router = sql_routes.create_sql_router(metta_repo)
+    stats_router = stats_routes.create_stats_router(stats_repo, metta_repo)
+    token_router = token_routes.create_token_router(metta_repo)
+    policy_scorecard_router = scorecard_routes.create_policy_scorecard_router(stats_repo, metta_repo)
+    score_router = score_routes.create_score_router(stats_repo, metta_repo)
+    sweep_router = sweep_routes.create_sweep_router(metta_repo)
+    entity_router = entity_routes.create_entity_router(stats_repo, metta_repo)
 
     app.include_router(dashboard_router)
     app.include_router(eval_task_router)
@@ -145,22 +146,23 @@ def create_app(stats_repo: MettaRepo) -> fastapi.FastAPI:
 
     @app.get("/whoami")
     async def whoami(request: fastapi.Request) -> WhoAmIResponse:
-        user_id = await user_from_header_or_token(request, stats_repo)
+        user_id = await user_from_header_or_token(request, metta_repo)
         return WhoAmIResponse(user_email=user_id or "unknown")
 
     return app
 
 
 if __name__ == "__main__":
-    from metta.app_backend.config import host, port, stats_db_uri
+    from metta.app_backend.config import clickhouse_db_uri, host, port, stats_db_uri
 
-    stats_repo = MettaRepo(stats_db_uri)
-    app = create_app(stats_repo)
-    leaderboard_updater = LeaderboardUpdater(stats_repo)
+    metta_repo = MettaRepo(stats_db_uri)
+    stats_repo = StatsRepo(clickhouse_db_uri)
+    app = create_app(stats_repo, metta_repo)
+    leaderboard_updater = LeaderboardUpdater(metta_repo)
 
     # Start the updater in an async context
     async def main():
-        await leaderboard_updater.start()
+        # await leaderboard_updater.start()
         # Run uvicorn in a way that doesn't block
         config = uvicorn.Config(app, host=host, port=port)
         server = uvicorn.Server(config)

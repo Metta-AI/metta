@@ -5,11 +5,13 @@ from unittest import mock
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from testcontainers.clickhouse import ClickHouseContainer
 from testcontainers.postgres import PostgresContainer
 
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.app_backend.metta_repo import MettaRepo
 from metta.app_backend.server import create_app
+from metta.app_backend.stats_repo import StatsRepo
 from metta.app_backend.test_support import create_test_stats_client
 from metta.common.test_support import docker_client_fixture, isolated_test_schema_uri
 
@@ -49,15 +51,45 @@ def db_uri(postgres_container: PostgresContainer) -> str:
 
 
 @pytest.fixture(scope="class")
-def stats_repo(db_uri: str) -> MettaRepo:
+def clickhouse_container():
+    """Create a ClickHouse container for testing."""
+    try:
+        container = ClickHouseContainer(
+            image="clickhouse/clickhouse-server:24.3",
+            username="default",
+            password="password",  # Use a proper password
+            dbname="default",
+        )
+        container.start()
+        yield container
+        container.stop()
+    except Exception as e:
+        pytest.skip(f"Failed to start ClickHouse container: {e}")
+
+
+@pytest.fixture(scope="class")
+def clickhouse_uri(clickhouse_container: ClickHouseContainer) -> str:
+    """Get the ClickHouse URI for the test container."""
+    port = clickhouse_container.get_exposed_port(8123)
+    return f"clickhouse://default:password@localhost:{port}/default"
+
+
+@pytest.fixture(scope="class")
+def metta_repo(db_uri: str) -> MettaRepo:
     """Create a MettaRepo instance with the test database."""
     return MettaRepo(db_uri)
 
 
 @pytest.fixture(scope="class")
-def test_app(stats_repo: MettaRepo) -> FastAPI:
+def stats_repo(clickhouse_uri: str) -> StatsRepo:
+    """Create a StatsRepo instance with the test ClickHouse database."""
+    return StatsRepo(clickhouse_uri)
+
+
+@pytest.fixture(scope="class")
+def test_app(stats_repo: StatsRepo, metta_repo: MettaRepo) -> FastAPI:
     """Create a test FastAPI app with dependency injection."""
-    return create_app(stats_repo)
+    return create_app(stats_repo, metta_repo)
 
 
 @pytest.fixture(scope="class")
@@ -103,15 +135,21 @@ def isolated_db_context(db_uri: str) -> str:
 
 
 @pytest.fixture(scope="function")
-def isolated_stats_repo(isolated_db_context: str) -> MettaRepo:
+def isolated_metta_repo(isolated_db_context: str) -> MettaRepo:
     """Create a MettaRepo instance with an isolated schema."""
     return MettaRepo(isolated_db_context)
 
 
 @pytest.fixture(scope="function")
-def isolated_test_app(isolated_stats_repo: MettaRepo) -> FastAPI:
+def isolated_stats_repo(clickhouse_uri: str) -> StatsRepo:
+    """Create a StatsRepo instance with isolated ClickHouse database."""
+    return StatsRepo(clickhouse_uri)
+
+
+@pytest.fixture(scope="function")
+def isolated_test_app(isolated_stats_repo: StatsRepo, isolated_metta_repo: MettaRepo) -> FastAPI:
     """Create a test FastAPI app with isolated database."""
-    return create_app(isolated_stats_repo)
+    return create_app(isolated_stats_repo, isolated_metta_repo)
 
 
 @pytest.fixture(scope="function")

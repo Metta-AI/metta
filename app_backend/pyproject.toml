@@ -14,6 +14,7 @@ urls = { Homepage = "https://daveey.github.io", Repository = "https://github.com
 
 dependencies = [
   "boto3>=1.38.32",
+  "clickhouse-connect>=0.8.0",
   "ddtrace>=2.6.0",
   "fastapi>=0.115.5",
   "uvicorn[standard]>=0.34.2",
@@ -23,6 +24,7 @@ dependencies = [
   "httpx>=0.28.1",
   "wandb>=0.19.11",
   "metta-common",
+  "testcontainers[clickhouse]>=4.12.0",
 ]
 
 [dependency-groups]
@@ -33,6 +35,7 @@ dev = [
   "pytest-cov>=6.1.1",
   "pytest-xdist>=3.8.0",
   "ruff>=0.11.13",
+  "testcontainers[clickhouse]>=4.0.0",
 ]
 
 [tool.setuptools.packages.find]

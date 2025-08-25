@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from metta.app_backend.metta_repo import MettaRepo, SweepRow
 from metta.app_backend.server import create_app
+from metta.app_backend.stats_repo import StatsRepo
 
 
 @pytest.fixture
@@ -18,9 +19,15 @@ def mock_metta_repo():
 
 
 @pytest.fixture
-def test_client(mock_metta_repo):
+def mock_stats_repo():
+    """Create a mock StatsRepo for testing."""
+    return MagicMock(spec=StatsRepo)
+
+
+@pytest.fixture
+def test_client(mock_stats_repo, mock_metta_repo):
     """Create a test client with mocked dependencies."""
-    app = create_app(mock_metta_repo)
+    app = create_app(mock_stats_repo, mock_metta_repo)
     return TestClient(app)
 
 

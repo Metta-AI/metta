@@ -8,6 +8,7 @@ from metta.app_backend.auth import create_user_or_token_dependency
 from metta.app_backend.metta_repo import MettaRepo, TrainingRunRow
 from metta.app_backend.query_logger import execute_query_and_log
 from metta.app_backend.route_logger import timed_route
+from metta.app_backend.stats_repo import StatsRepo
 
 
 class TrainingRunResponse(BaseModel):
@@ -79,7 +80,7 @@ async def get_training_run_policies(con: AsyncConnection, training_run_id: str) 
     ]
 
 
-def create_entity_router(metta_repo: MettaRepo) -> APIRouter:
+def create_entity_router(stats_repo: StatsRepo, metta_repo: MettaRepo) -> APIRouter:
     router = APIRouter(tags=["entity"])
 
     user_or_token = Depends(dependency=create_user_or_token_dependency(metta_repo))
@@ -88,14 +89,14 @@ def create_entity_router(metta_repo: MettaRepo) -> APIRouter:
     @timed_route("get_training_runs")
     async def get_training_runs(user_id: str = user_or_token) -> TrainingRunListResponse:  # type: ignore[reportUnusedFunction]
         """Get all training runs."""
-        training_runs = await metta_repo.get_training_runs()
+        training_runs = await stats_repo.get_training_runs()
         return TrainingRunListResponse(training_runs=[TrainingRunResponse.from_db(run) for run in training_runs])
 
     @router.get("/training-runs/{run_id}")
     @timed_route("get_training_run")
     async def get_training_run(run_id: str, user_id: str = user_or_token) -> TrainingRunResponse:  # type: ignore[reportUnusedFunction]
         """Get a specific training run by ID."""
-        training_run = await metta_repo.get_training_run(run_id)
+        training_run = await stats_repo.get_training_run(run_id)
         if not training_run:
             raise HTTPException(status_code=404, detail="Training run not found")
 
@@ -109,7 +110,7 @@ def create_entity_router(metta_repo: MettaRepo) -> APIRouter:
         user_or_token: str = user_or_token,
     ) -> TrainingRunResponse:
         """Update the description of a training run."""
-        success = await metta_repo.update_training_run_description(
+        success = await stats_repo.update_training_run_description(
             user_id=user_or_token,
             run_id=run_id,
             description=description_update.description,
@@ -119,7 +120,7 @@ def create_entity_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=404, detail="Training run not found or access denied")
 
         # Return the updated training run
-        training_run = await metta_repo.get_training_run(run_id)
+        training_run = await stats_repo.get_training_run(run_id)
         if not training_run:
             raise HTTPException(status_code=500, detail="Failed to fetch updated training run")
 
@@ -133,7 +134,7 @@ def create_entity_router(metta_repo: MettaRepo) -> APIRouter:
         user_or_token: str = user_or_token,
     ) -> TrainingRunResponse:
         """Update the tags of a training run."""
-        success = await metta_repo.update_training_run_tags(
+        success = await stats_repo.update_training_run_tags(
             user_id=user_or_token,
             run_id=run_id,
             tags=tags_update.tags,
@@ -143,7 +144,7 @@ def create_entity_router(metta_repo: MettaRepo) -> APIRouter:
             raise HTTPException(status_code=404, detail="Training run not found or access denied")
 
         # Return the updated training run
-        training_run = await metta_repo.get_training_run(run_id)
+        training_run = await stats_repo.get_training_run(run_id)
         if not training_run:
             raise HTTPException(status_code=500, detail="Failed to fetch updated training run")
 

@@ -17,7 +17,7 @@ class TestSavedDashboards(BaseAsyncTest):
         return "test_user@example.com"
 
     @pytest.mark.asyncio
-    async def test_create_saved_dashboard(self, stats_repo: MettaRepo, user_id: str) -> None:
+    async def test_create_saved_dashboard(self, metta_repo: MettaRepo, user_id: str) -> None:
         """Test creating a saved dashboard."""
         dashboard_state = {
             "suite": "navigation",
@@ -26,7 +26,7 @@ class TestSavedDashboards(BaseAsyncTest):
             "num_policies_to_show": 20,
         }
 
-        dashboard_id = await stats_repo.create_saved_dashboard(
+        dashboard_id = await metta_repo.create_saved_dashboard(
             user_id=user_id,
             name="Test Dashboard",
             description="A test dashboard",
@@ -37,7 +37,7 @@ class TestSavedDashboards(BaseAsyncTest):
         assert isinstance(dashboard_id, uuid.UUID)
 
         # Verify the dashboard was created
-        dashboard = await stats_repo.get_saved_dashboard(str(dashboard_id))
+        dashboard = await metta_repo.get_saved_dashboard(str(dashboard_id))
         assert dashboard is not None
         assert dashboard.name == "Test Dashboard"
         assert dashboard.description == "A test dashboard"
@@ -48,7 +48,7 @@ class TestSavedDashboards(BaseAsyncTest):
         assert isinstance(dashboard.updated_at, datetime)
 
     @pytest.mark.asyncio
-    async def test_list_saved_dashboards(self, stats_repo: MettaRepo, user_id: str) -> None:
+    async def test_list_saved_dashboards(self, metta_repo: MettaRepo, user_id: str) -> None:
         """Test listing saved dashboards."""
         # Create multiple dashboards to ensure we have at least 2
         dashboard_state_1 = {
@@ -66,7 +66,7 @@ class TestSavedDashboards(BaseAsyncTest):
         }
 
         # Create first dashboard
-        await stats_repo.create_saved_dashboard(
+        await metta_repo.create_saved_dashboard(
             user_id=user_id,
             name="Test Dashboard 1",
             description="First test dashboard",
@@ -75,7 +75,7 @@ class TestSavedDashboards(BaseAsyncTest):
         )
 
         # Create second dashboard
-        await stats_repo.create_saved_dashboard(
+        await metta_repo.create_saved_dashboard(
             user_id=user_id,
             name="Test Dashboard 2",
             description="Another test dashboard",
@@ -84,7 +84,7 @@ class TestSavedDashboards(BaseAsyncTest):
         )
 
         # List dashboards
-        dashboards = await stats_repo.list_saved_dashboards()
+        dashboards = await metta_repo.list_saved_dashboards()
         assert len(dashboards) >= 2
 
         # Find our test dashboards
@@ -102,7 +102,7 @@ class TestSavedDashboards(BaseAsyncTest):
         assert test_dashboard_2.dashboard_state == dashboard_state_2
 
     @pytest.mark.asyncio
-    async def test_delete_saved_dashboard(self, stats_repo: MettaRepo, user_id: str) -> None:
+    async def test_delete_saved_dashboard(self, metta_repo: MettaRepo, user_id: str) -> None:
         """Test deleting a saved dashboard."""
         dashboard_state = {
             "suite": "navigation",
@@ -112,7 +112,7 @@ class TestSavedDashboards(BaseAsyncTest):
         }
 
         # Create a test dashboard
-        dashboard_id = await stats_repo.create_saved_dashboard(
+        dashboard_id = await metta_repo.create_saved_dashboard(
             user_id=user_id,
             name="Test Dashboard to Delete",
             description="This will be deleted",
@@ -121,19 +121,19 @@ class TestSavedDashboards(BaseAsyncTest):
         )
 
         # Verify it exists
-        dashboard = await stats_repo.get_saved_dashboard(str(dashboard_id))
+        dashboard = await metta_repo.get_saved_dashboard(str(dashboard_id))
         assert dashboard is not None
 
         # Delete it
-        success = await stats_repo.delete_saved_dashboard(user_id, str(dashboard_id))
+        success = await metta_repo.delete_saved_dashboard(user_id, str(dashboard_id))
         assert success is True
 
         # Verify it's gone
-        dashboard = await stats_repo.get_saved_dashboard(str(dashboard_id))
+        dashboard = await metta_repo.get_saved_dashboard(str(dashboard_id))
         assert dashboard is None
 
     @pytest.mark.asyncio
-    async def test_update_saved_dashboard(self, stats_repo: MettaRepo, user_id: str) -> None:
+    async def test_update_saved_dashboard(self, metta_repo: MettaRepo, user_id: str) -> None:
         """Test updating a saved dashboard by creating with the same name."""
         initial_state = {
             "suite": "navigation",
@@ -150,7 +150,7 @@ class TestSavedDashboards(BaseAsyncTest):
         }
 
         # Create initial dashboard
-        dashboard_id1 = await stats_repo.create_saved_dashboard(
+        dashboard_id1 = await metta_repo.create_saved_dashboard(
             user_id=user_id,
             name="Update Test Dashboard",
             description="Initial description",
@@ -159,7 +159,7 @@ class TestSavedDashboards(BaseAsyncTest):
         )
 
         # Update by creating with same name
-        dashboard_id2 = await stats_repo.create_saved_dashboard(
+        dashboard_id2 = await metta_repo.create_saved_dashboard(
             user_id=user_id,
             name="Update Test Dashboard",
             description="Updated description",
@@ -171,7 +171,7 @@ class TestSavedDashboards(BaseAsyncTest):
         assert dashboard_id1 != dashboard_id2
 
         # Verify the new dashboard
-        dashboard = await stats_repo.get_saved_dashboard(str(dashboard_id2))
+        dashboard = await metta_repo.get_saved_dashboard(str(dashboard_id2))
         assert dashboard is not None
         assert dashboard.description == "Updated description"
         assert dashboard.dashboard_state == updated_state

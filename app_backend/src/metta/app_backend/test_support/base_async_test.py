@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from metta.app_backend.metta_repo import MettaRepo
+from metta.app_backend.stats_repo import StatsRepo
 
 
 class BaseAsyncTest:
@@ -22,7 +23,7 @@ class BaseAsyncTest:
     """
 
     @pytest_asyncio.fixture(scope="function")
-    async def stats_repo(self, db_uri: str) -> AsyncGenerator[MettaRepo, None]:
+    async def metta_repo(self, db_uri: str) -> AsyncGenerator[MettaRepo, None]:
         """Create a MettaRepo instance with async cleanup for the test database."""
         repo = MettaRepo(db_uri)
         yield repo
@@ -35,11 +36,16 @@ class BaseAsyncTest:
                 pass
 
     @pytest.fixture(scope="function")
-    def test_app(self, stats_repo: MettaRepo) -> FastAPI:
+    def stats_repo(self, clickhouse_uri: str) -> StatsRepo:
+        """Create a StatsRepo instance for the test ClickHouse database."""
+        return StatsRepo(clickhouse_uri)
+
+    @pytest.fixture(scope="function")
+    def test_app(self, stats_repo: StatsRepo, metta_repo: MettaRepo) -> FastAPI:
         """Create a test FastAPI app with dependency injection."""
         from metta.app_backend.server import create_app
 
-        return create_app(stats_repo)
+        return create_app(stats_repo, metta_repo)
 
     @pytest.fixture(scope="function")
     def test_client(self, test_app: FastAPI) -> TestClient:

@@ -15,6 +15,7 @@ from metta.app_backend.routes.eval_task_routes import (
     TaskStatusUpdate,
     TaskUpdateRequest,
 )
+from metta.app_backend.stats_repo import StatsRepo
 
 
 class TestEvalTaskRoutes:
@@ -239,7 +240,7 @@ class TestEvalTaskRoutes:
         stats_client: StatsClient,
         test_policy_id: uuid.UUID,
         eval_task_client: EvalTaskClient,
-        stats_repo: MettaRepo,
+        stats_repo: StatsRepo,
     ):
         """Test recording an episode linked to an eval task."""
         task_response = await eval_task_client.create_task(
@@ -262,15 +263,15 @@ class TestEvalTaskRoutes:
             eval_task_id=eval_task_id,
         )
 
-        # Verify stored correctly
-        async with stats_repo.connect() as con:
-            result = await con.execute(
-                "SELECT eval_task_id FROM episodes WHERE id = %s",
-                (episode.id,),
+        # Verify stored correctly in ClickHouse
+        async with stats_repo.connect() as client:
+            result = client.query(
+                "SELECT toString(eval_task_id) FROM episodes WHERE id = {episode_id:String}",
+                {"episode_id": str(episode.id)},
             )
-            row = await result.fetchone()
-            assert row is not None
-            assert row[0] == eval_task_id
+            rows = result.result_rows
+            assert len(rows) == 1
+            assert rows[0][0] == str(eval_task_id)
 
     @pytest.mark.asyncio
     async def test_invalid_status_update(
@@ -374,7 +375,7 @@ class TestEvalTaskRoutes:
     @pytest.mark.slow
     @pytest.mark.asyncio
     async def test_error_reason_stored_in_db(
-        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, stats_repo: MettaRepo
+        self, eval_task_client: EvalTaskClient, test_policy_id: uuid.UUID, metta_repo: MettaRepo
     ):
         """Test that error_reason is properly stored in the database attributes."""
         task_response = await eval_task_client.create_task(
@@ -398,7 +399,7 @@ class TestEvalTaskRoutes:
         )
 
         # Verify in DB
-        async with stats_repo.connect() as con:
+        async with metta_repo.connect() as con:
             result = await con.execute("SELECT status, attributes FROM eval_tasks WHERE id = %s", (task_id,))
             row = await result.fetchone()
             assert row is not None, f"Task {task_id} not found in database"
