@@ -1,4 +1,3 @@
-import importlib
 from abc import ABC, abstractmethod
 from typing import Annotated, Any, ClassVar, Generic, Type, TypeAlias, TypeVar
 
@@ -7,6 +6,7 @@ import numpy.typing as npt
 from pydantic import SerializeAsAny, WrapValidator, model_serializer, model_validator
 
 from metta.common.config import Config
+from metta.utils.module import load_function
 
 # We store maps as 2D arrays of object names.
 # "empty" means an empty cell; "wall" means a wall, etc. See `metta.mettagrid.char_encoder` for the full list.
@@ -104,16 +104,6 @@ class MapBuilder(ABC):
     def build(self) -> GameMap: ...
 
 
-def load_symbol(full_class_name: str):
-    parts = full_class_name.rsplit(".", 1)
-    if len(parts) != 2:
-        raise ValueError(f"Invalid class name: {full_class_name}")
-    module_name, class_name = parts
-    module = importlib.import_module(module_name)
-    cls = getattr(module, class_name)
-    return cls
-
-
 def _validate_open_map_builder(v: Any, handler):
     """
     Accepts any of:
@@ -131,7 +121,7 @@ def _validate_open_map_builder(v: Any, handler):
             return handler(v)
 
         # Import the symbol named in 'type'
-        target = load_symbol(t) if isinstance(t, str) else t
+        target = load_function(t) if isinstance(t, str) else t
 
         # If it's a Builder, use its nested Config
         if isinstance(target, type) and issubclass(target, MapBuilder):

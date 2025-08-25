@@ -1,6 +1,7 @@
 import logging
 import os
 import platform
+import uuid
 from logging import Logger
 from typing import Optional
 
@@ -17,7 +18,7 @@ from metta.common.wandb.wandb_context import WandbConfig, WandbContext, WandbRun
 from metta.core.distributed import TorchDistributedConfig, setup_torch_distributed
 from metta.rl.trainer import train
 from metta.rl.trainer_config import TrainerConfig
-from metta.tools.utils.auto_config import auto_stats_server_uri, auto_wandb_config
+from metta.tools.utils.auto_config import auto_replay_dir, auto_stats_server_uri, auto_wandb_config
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ class TrainTool(Tool):
     trainer: TrainerConfig = TrainerConfig()
     wandb: WandbConfig = WandbConfig.Unconfigured()
     policy_architecture: Optional[AgentConfig] = None
-    run: str
+    run: Optional[str] = None
     run_dir: Optional[str] = None
     stats_server_uri: Optional[str] = auto_stats_server_uri()
 
@@ -42,7 +43,17 @@ class TrainTool(Tool):
     map_preview_uri: str | None = None
     disable_macbook_optimize: bool = False
 
-    def model_post_init(self, __context):
+    consumed_args: list[str] = ["run"]
+
+    def invoke(self, args: dict[str, str], overrides: list[str]) -> int | None:
+        # Handle run_id being passed via cmd line
+        if "run" in args:
+            assert self.run is None, "run cannot be set via args and config"
+            self.run = args["run"]
+
+        if self.run is None:
+            self.run = f"local.{os.getenv('USER', 'unknown')}.{str(uuid.uuid4())}"
+
         # Set run_dir based on run name if not explicitly set
         if self.run_dir is None:
             self.run_dir = f"{self.system.data_dir}/{self.run}"
@@ -62,13 +73,10 @@ class TrainTool(Tool):
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
 
-    def invoke(self) -> int:
-        assert self.run_dir is not None
         os.makedirs(self.run_dir, exist_ok=True)
 
         record_heartbeat()
 
-        assert self.run_dir is not None
         init_file_logging(run_dir=self.run_dir)
 
         init_logging(run_dir=self.run_dir)
@@ -161,8 +169,8 @@ def _configure_evaluation_settings(cfg: TrainTool) -> StatsClient | None:
         return None
 
     if cfg.trainer.evaluation.replay_dir is None:
-        log_on_master(f"Setting replay_dir to s3://softmax-public/replays/{cfg.run}")
-        cfg.trainer.evaluation.replay_dir = f"s3://softmax-public/replays/{cfg.run}"
+        cfg.trainer.evaluation.replay_dir = auto_replay_dir()
+        log_on_master(f"Setting replay_dir to {cfg.trainer.evaluation.replay_dir}")
 
     stats_client: StatsClient | None = None
     if cfg.stats_server_uri is not None:

@@ -20,10 +20,10 @@ from typing import Any, Dict
 import numpy as np
 import torch
 from einops import rearrange
-from tensordict import TensorDict
 
 from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
+from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
 from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
@@ -61,7 +61,6 @@ class Simulation:
         policy_store: PolicyStore,
         device: torch.device,
         vectorization: str,
-        sim_suite_name: str | None = None,
         stats_dir: str = "/tmp/stats",
         replay_dir: str | None = None,
         stats_client: StatsClient | None = None,
@@ -71,7 +70,6 @@ class Simulation:
         episode_tags: list[str] | None = None,
     ):
         self._name = name
-        self._sim_suite_name = sim_suite_name
         self._config = cfg
         self._id = uuid.uuid4().hex[:12]
         self._eval_task_id = eval_task_id
@@ -131,8 +129,9 @@ class Simulation:
         self._stats_client: StatsClient | None = stats_client
         self._stats_epoch_id: uuid.UUID | None = stats_epoch_id
 
-        metta_grid_env: MettaGridEnv = self._vecenv.driver_env  # type: ignore
-        assert isinstance(metta_grid_env, MettaGridEnv)
+        driver_env = self._vecenv.driver_env  # type: ignore
+        metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
+        assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
         # Initialize policy to environment
         initialize_policy_for_environment(
@@ -271,17 +270,17 @@ class Simulation:
 
         # ---------------- forward passes ------------------------- #
         with torch.no_grad():
-            obs_t = torch.as_tensor(self._obs, device=self._device)
             # Candidate-policy agents
-            my_obs = obs_t[self._policy_idxs]
-            td = TensorDict({"env_obs": my_obs}, batch_size=my_obs.shape[0])
+            my_obs = self._obs[self._policy_idxs.cpu()]
+            td = obs_to_td(my_obs, self._device)  # One-liner conversion
             policy = self._policy_pr.policy
             policy(td)
             policy_actions = td["actions"]
+
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
-                npc_obs = obs_t[self._npc_idxs]
-                td = TensorDict({"env_obs": npc_obs}, batch_size=npc_obs.shape[0])
+                npc_obs = self._obs[self._npc_idxs]
+                td = obs_to_td(npc_obs, self._device)  # One-liner conversion
                 npc_policy = self._npc_pr.policy
                 try:
                     npc_policy(td)
@@ -423,9 +422,13 @@ class Simulation:
             for idx in self._npc_idxs:
                 agent_map[int(idx.item())] = self._npc_pr
 
-        suite_name = "" if self._sim_suite_name is None else self._sim_suite_name
         db = SimulationStatsDB.from_shards_and_context(
-            self._id, self._stats_dir, agent_map, self._name, suite_name, self._policy_pr
+            sim_id=self._id,
+            dir_with_shards=self._stats_dir,
+            agent_map=agent_map,
+            sim_name=self._name,
+            sim_env=self._config.env.label,
+            policy_record=self._policy_pr,
         )
         return db
 
@@ -491,8 +494,8 @@ class Simulation:
                         agent_metrics=agent_metrics,
                         primary_policy_id=policy_ids[policy_name],
                         stats_epoch=self._stats_epoch_id,
-                        eval_name=self._name,
-                        simulation_suite="" if self._sim_suite_name is None else self._sim_suite_name,
+                        sim_name=self._name,
+                        env_label=self._config.env.label,
                         replay_url=episode_row.get("replay_url"),
                         attributes=attributes,
                         eval_task_id=self._eval_task_id,

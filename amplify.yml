@@ -1,0 +1,34 @@
+version: 1
+applications:
+  - appRoot: library
+    frontend:
+      phases:
+        preBuild:
+          commands:
+            - nvm install 22
+            - nvm use 22
+            - corepack enable
+            - pnpm install
+            - pnpm run db:generate
+        build:
+          commands:
+            - env | grep -e S3_BUCKET >>.env.production
+            - env | grep -e DATABASE_URL >>.env.production
+            - env | grep -e DEV_MODE >>.env.production
+            - env | grep -e AUTH_SECRET >>.env.production
+            - env | grep -e NEXTAUTH_URL >>.env.production
+            - env | grep -e GOOGLE_CLIENT_ID -e GOOGLE_CLIENT_SECRET >>.env.production
+            - env | grep -e ASANA_API_KEY -e ASANA_PAPERS_PROJECT_ID >>.env.production
+            - env | grep -e ADOBE_CLIENT_ID -e ADOBE_CLIENT_SECRET >>.env.production
+            - env | grep -e USE_LLM_ADOBE_SELECTION >>.env.production
+            - env | grep -e ANTHROPIC_API_KEY >>.env.production
+            - echo 'AUTH_TRUST_HOST=true' >>.env.production
+            - pnpm run build
+      artifacts:
+        baseDirectory: .next
+        files:
+          - "**/*"
+      cache:
+        paths:
+          - "library/.next/cache/**/*"
+          - "library/node_modules/**/*"

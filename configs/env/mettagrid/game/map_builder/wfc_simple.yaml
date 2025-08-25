@@ -1,6 +1,0 @@
-_target_: metta.map.mapgen.MapGen
-
-width: 50
-height: 50
-
-root: /wfc/blocks.yaml

@@ -92,7 +92,7 @@ Examples:
     print("\n🚀 Step 2: Running simulation...")
     sim_cmd = [
         "./tools/run.py",
-        "experiments.navigation.eval",
+        "experiments.recipes.navigation.eval",
         f"--overrides policy_uri={wandb_path}",
         "+eval_db_uri=wandb://stats/navigation_db",
         "+eval_db_uri=wandb://stats/navigation_db",
