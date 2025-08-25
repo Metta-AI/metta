@@ -333,10 +333,14 @@ def test_diagonal_movement_integration(configured_env):
         ["wall", "wall", "wall", "wall", "wall", "wall"],
     ]
 
-    env = configured_env(open_map)
+    env: MettaGrid = configured_env(open_map)
+
+    print(env.action_names(), env.max_action_args())
 
     # Test diagonal movement pattern
     diagonal_moves = [
+        (Orientation.NORTH, (1, 2)),
+        (Orientation.SOUTH, (2, 2)),
         (Orientation.NORTHEAST, (1, 3)),
         (Orientation.SOUTHEAST, (2, 4)),
         (Orientation.SOUTHWEST, (3, 3)),
@@ -347,7 +351,7 @@ def test_diagonal_movement_integration(configured_env):
         result = move(env, direction)
         print(result)
 
-        assert result["success"], f"Diagonal move {direction} should succeed"
+        assert result["success"], f"move {direction} should succeed"
 
         actual_pos = get_agent_position(env, 0)
         assert actual_pos == expected_pos, f"After {direction}, expected {expected_pos}, got {actual_pos}"

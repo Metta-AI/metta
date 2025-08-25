@@ -103,6 +103,7 @@ def move(env: MettaGrid, direction: Orientation, agent_idx: int = 0) -> dict[str
     # Use direct 8-way movement
     move_action = np.zeros((env.num_agents, 2), dtype=dtype_actions)
     move_action[agent_idx] = [move_idx, movement_idx]
+
     env.step(move_action)
 
     if not env.action_success()[agent_idx]:

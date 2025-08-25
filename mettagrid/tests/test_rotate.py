@@ -188,10 +188,10 @@ def test_orientation_enum_functionality():
     assert Orientation.WEST.value == 2
     assert Orientation.EAST.value == 3
 
-    assert str(Orientation.NORTH) == "up"
-    assert str(Orientation.SOUTH) == "down"
-    assert str(Orientation.WEST) == "left"
-    assert str(Orientation.EAST) == "right"
+    assert str(Orientation.NORTH) == "north"
+    assert str(Orientation.SOUTH) == "south"
+    assert str(Orientation.WEST) == "west"
+    assert str(Orientation.EAST) == "east"
 
     # Test movement_delta property
     assert Orientation.NORTH.movement_delta == (-1, 0)

@@ -52,12 +52,12 @@ inline size_t getOrientationCount(bool allow_diagonals) {
   return allow_diagonals ? 8 : 4;
 }
 
-inline bool isDiagonal(Orientation orient) {
-  return orient >= Northwest;
+inline bool isDiagonal(Orientation o) {
+  return o >= Northwest;
 }
 
-inline bool isValidOrientation(Orientation orient, bool allow_diagonals) {
-  return allow_diagonals ? (orient <= Southeast) : (orient <= East);
+inline bool isValidOrientation(Orientation o, bool allow_diagonals) {
+  return o >= North && o <= (allow_diagonals ? Southeast : East);
 }
 
 // Get the opposite orientation

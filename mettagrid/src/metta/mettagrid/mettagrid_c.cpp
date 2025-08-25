@@ -45,6 +45,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
       episode_truncates(game_config.episode_truncates),
       inventory_item_names(game_config.inventory_item_names),
       _global_obs_config(game_config.global_obs),
+      _game_config(game_config),
       _num_observation_tokens(game_config.num_observation_tokens),
       _track_movement_metrics(game_config.track_movement_metrics),
       _resource_loss_prob(game_config.resource_loss_prob),
@@ -98,12 +99,12 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     } else if (action_name == "noop") {
       _action_handlers.push_back(std::make_unique<Noop>(*action_config));
     } else if (action_name == "move") {
-      _action_handlers.push_back(std::make_unique<Move>(*action_config, &game_config));
+      _action_handlers.push_back(std::make_unique<Move>(*action_config, &_game_config));
     } else if (action_name == "rotate") {
-      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, &game_config));
+      _action_handlers.push_back(std::make_unique<Rotate>(*action_config, &_game_config));
     } else if (action_name == "attack") {
       auto attack_config = std::static_pointer_cast<const AttackActionConfig>(action_config);
-      _action_handlers.push_back(std::make_unique<Attack>(*attack_config, &game_config));
+      _action_handlers.push_back(std::make_unique<Attack>(*attack_config, &_game_config));
     } else if (action_name == "change_glyph") {
       auto change_glyph_config = std::static_pointer_cast<const ChangeGlyphActionConfig>(action_config);
       _action_handlers.push_back(std::make_unique<ChangeGlyph>(*change_glyph_config));

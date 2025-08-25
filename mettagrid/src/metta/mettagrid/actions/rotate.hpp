@@ -23,8 +23,8 @@ protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
     // Validate the orientation argument
     Orientation orientation = static_cast<Orientation>(arg);
-    if (!isValidOrientation(orientation, _game_config->allow_diagonals)) {
-      return false;  // Invalid orientation for current mode
+    if (!_game_config->allow_diagonals && isDiagonal(orientation)) {
+      return false;
     }
 
     actor->orientation = orientation;
