@@ -8,23 +8,17 @@ from typing import List
 def run_freeze_experiment(
     freeze_values: List[int], group_reward_pct: float | None, dry_run: bool
 ) -> int:
-    base = [
-        "./tools/run.py",
-        "experiments.recipes.arena_freeze.train",
-        "--args",
-        "run=arena_freeze",
-    ]
-
     ret = 0
     for val in freeze_values:
-        cmd = base + [
-            "--overrides",
-            f"trainer.curriculum.task_generator.overrides.freeze_duration={val}",
+        cmd = [
+            "./tools/run.py",
+            "experiments.recipes.arena_freeze.train",
+            "--args",
+            f"run=arena_freeze.freeze{val}",
+            f"freeze_duration={val}",
         ]
         if group_reward_pct is not None:
-            cmd.append(
-                f"trainer.curriculum.task_generator.overrides.group_reward_pct={group_reward_pct}"
-            )
+            cmd.append(f"group_reward_pct={group_reward_pct}")
 
         if dry_run:
             cmd.append("--dry-run")

@@ -1,8 +1,10 @@
 from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
+import metta.map.scenes.random
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.map.mapgen import MapGen
 from metta.mettagrid.mettagrid_config import ConverterConfig, EnvConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -16,7 +18,32 @@ from metta.tools.train import TrainTool
 
 
 def make_env(num_agents: int = 24) -> EnvConfig:
-    arena_env = eb.make_arena(num_agents=num_agents)
+    # Create a custom map builder that properly assigns agents to blue/red groups
+    # We need to use a dict to specify which groups the agents belong to
+    map_builder = MapGen.Config(
+        num_agents=num_agents,
+        width=25,
+        height=25,
+        border_width=6,
+        instance_border_width=0,
+        root=metta.map.scenes.random.Random.factory(
+            params=metta.map.scenes.random.Random.Params(
+                # Use a dict to specify agents by group name
+                # This will create agents as "blue" and "red" instead of "agent.agent"
+                agents={"blue": 3, "red": 3},  # 3 per team per instance
+                objects={
+                    "wall": 10,
+                    "altar": 5,
+                    "mine_red": 10,
+                    "generator_red": 5,
+                    "lasery": 1,
+                    "armory": 1,
+                },
+            ),
+        ),
+    )
+
+    arena_env = eb.make_arena(num_agents=num_agents, map_builder=map_builder)
     return arena_env
 
 
@@ -49,14 +76,19 @@ def make_curriculum(
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    # Freeze duration control: set both global and group props
+    # Freeze duration control: set both global and team groups' props
     arena_tasks.add_bucket("game.agent.freeze_duration", [freeze_duration])
-    # Ensure default agent group (named 'agent' in make_arena) also matches
-    arena_tasks.add_bucket("game.groups.agent.props.freeze_duration", [freeze_duration])
+    for group in ["blue", "red"]:
+        arena_tasks.add_bucket(
+            f"game.groups.{group}.props.freeze_duration", [freeze_duration]
+        )
 
-    # Optional: control group reward sharing if provided
+    # Optional: control group reward sharing for both teams
     if group_reward_pct is not None:
-        arena_tasks.add_bucket("game.groups.agent.group_reward_pct", [group_reward_pct])
+        for group in ["blue", "red"]:
+            arena_tasks.add_bucket(
+                f"game.groups.{group}.group_reward_pct", [group_reward_pct]
+            )
 
     return arena_tasks.to_curriculum()
 
@@ -106,7 +138,10 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         env_cfg.game.agent.rewards.inventory.blueprint_max = 1
 
     if converters:
-        env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
+        if "altar" in env_cfg.game.objects:
+            obj = env_cfg.game.objects["altar"]
+            if isinstance(obj, ConverterConfig):
+                obj.input_resources["battery_red"] = 1
 
     trainer_cfg = TrainerConfig(
         curriculum=cc.env_curriculum(env_cfg),
