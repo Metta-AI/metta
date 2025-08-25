@@ -10,6 +10,7 @@ This recipe exactly recreates the pre-dehydration default training configuration
 from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
+from metta.cogworks.curriculum import CurriculumConfig, TaskGeneratorSetConfig
 import metta.map.scenes.random
 import metta.mettagrid.config.envs as eb
 from metta.map.mapgen import MapGen
@@ -173,9 +174,33 @@ def train() -> TrainTool:
     """
     env_cfg = make_env()
 
+    # Create multi-map curriculum to restore map diversity like pre-dehydration system
+    # This creates multiple map variants to restore env_map_reward/small and env_map_reward/Random metrics
+    small_env = env_cfg.model_copy(deep=True)
+    small_env.label = "arena.basic_easy_shaped.small"
+
+    # Create a larger variant for map diversity (50x50 = 2500 area = still "small" but different)
+    medium_env = env_cfg.model_copy(deep=True)
+    medium_env.label = "arena.basic_easy_shaped.medium"
+    medium_env.game.map_builder.width = 50
+    medium_env.game.map_builder.height = 50
+    # Increase instances proportionally: 50x50 area is 4x larger, so 4x instances
+    medium_env.game.map_builder.instances = (num_agents // 6) * 4
+
+    # Create curriculum with both map variants to restore pre-dehydration map diversity
+    curriculum_cfg = cc.CurriculumConfig(
+        task_generator=cc.TaskGeneratorSetConfig(
+            task_generators=[
+                cc.single_task(small_env),
+                cc.single_task(medium_env),
+            ],
+            weights=[0.7, 0.3],  # Favor small maps but include diversity
+        )
+    )
+
     # Create trainer configuration, only overriding non-default values
     trainer_cfg = TrainerConfig(
-        curriculum=cc.env_curriculum(env_cfg),
+        curriculum=curriculum_cfg,
         total_timesteps=10_000_000_000,  # 10B instead of default 50B
         checkpoint=CheckpointConfig(
             checkpoint_interval=50,  # 50 instead of default 5
