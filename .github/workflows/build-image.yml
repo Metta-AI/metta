@@ -14,8 +14,7 @@ env:
 jobs:
   build-and-push-image:
     # the build requires a lot of disk space so we use the large runner
-    # (runner group is configured to be allowed only for this workflow on `main`)
-    runs-on: large
+    runs-on: ubuntu-4core
     permissions:
       id-token: write
       contents: read

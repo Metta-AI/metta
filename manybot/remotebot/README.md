@@ -419,7 +419,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: default
+    runs-on: ubuntu-latest
     steps:
       - name: Deploy code review agent
         run: |

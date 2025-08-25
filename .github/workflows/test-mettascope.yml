@@ -9,7 +9,7 @@ on:
 jobs:
   check-container:
     name: "Check Container Availability"
-    runs-on: default
+    runs-on: ubuntu-latest
     outputs:
       container-tag: ${{ steps.check.outputs.tag }}
     steps:
@@ -34,7 +34,7 @@ jobs:
 
   test:
     name: "Lint, Install, and Test"
-    runs-on: default
+    runs-on: ubuntu-latest
     needs: check-container
     container:
       image: ghcr.io/metta-ai/metta/mettascope-ci:${{ needs.check-container.outputs.container-tag }}

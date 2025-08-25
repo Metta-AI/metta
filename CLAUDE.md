@@ -165,30 +165,39 @@ metta install core                   # Reinstall core dependencies only
 
 #### Training and Evaluation Pipeline
 
-1. **Training**: `tools/run.py` - Main training script using recipe configurations
+All tools are now run through `./tools/run.py` with recipe functions:
+
+1. **Training**: Use recipe functions for different training configurations
    ```bash
-   uv run ./tools/run.py experiments.recipes.arena_basic_easy_shaped
+   # Training with arena recipe
+   uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
+   
+   # Training with navigation recipe
+   uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
    ```
 
-2. **Simulation/Evaluation**: `tools/sim.py` - Run evaluation suites on trained policies
+2. **Simulation/Evaluation**: Run evaluation suites on trained policies
    ```bash
-   # Using local file
-   uv run ./tools/sim.py run=eval policy_uri=file://./checkpoints/policy.pt
-
-   # Using wandb artifact (format: wandb://run/<run_name> or wandb://<entity>/<project>/<artifact_type>/<name>:<version>)
-   uv run ./tools/sim.py run=eval policy_uri=wandb://run/my-training-run
-   # or
-   uv run ./tools/sim.py run=eval policy_uri=wandb://softmax-ai/metta/model/policy_checkpoint:v42
+   # Run evaluation
+   uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints/policy.pt
+   
+   # Using wandb artifact
+   uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/my-training-run
    ```
 
-3. **Analysis**: `tools/analyze.py` - Analyze evaluation results and generate reports
+3. **Analysis**: Analyze evaluation results
    ```bash
-   uv run ./tools/analyze.py run=analysis analysis.eval_db_uri=./train_dir/eval/stats.db
+   uv run ./tools/run.py experiments.recipes.arena.analyze eval_db_uri=./train_dir/eval/stats.db
    ```
 
-4. **Interactive Play**: `tools/play.py` - Manual testing and exploration
+4. **Interactive Play**: Test policies interactively (browser-based)
    ```bash
-   uv run ./tools/play.py
+   uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./checkpoints/policy.pt
+   ```
+
+5. **View Replays**: Watch recorded gameplay
+   ```bash
+   uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1
    ```
 
 #### Visualization Tools
@@ -248,19 +257,19 @@ All tools are now run through `./tools/run.py` with recipe functions:
 
 ```bash
 # Training with arena recipe
-uv run ./tools/run.py experiments.recipes.arena.train --args run=my_experiment
+uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
 
 # Training with navigation recipe
-uv run ./tools/run.py experiments.recipes.navigation.train --args run=my_experiment
+uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
 
 # Play/test a trained policy (interactive browser)
-uv run ./tools/run.py experiments.recipes.arena.play
+uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./checkpoints/policy.pt
 
 # Run evaluation
-uv run ./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=file://./checkpoints/policy.pt
+uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints/policy.pt
 
 # View replays
-uv run ./tools/run.py experiments.recipes.arena.replay --overrides policy_uri=wandb://run/local.alice.1
+uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/local.alice.1
 ```
 
 #### Configuration System
@@ -288,10 +297,9 @@ The project now uses Pydantic-based configuration instead of Hydra/YAML. Configu
 
 #### Debugging Training Issues
 
-1. Enable debug logging: `HYDRA_FULL_ERROR=1`
-2. Use smaller batch sizes for debugging
-3. Check wandb logs for metrics anomalies
-4. Use `tools/play.py` for interactive debugging (Note: Less useful in Claude Code due to interactive nature)
+1. Use smaller batch sizes for debugging
+2. Check wandb logs for metrics anomalies
+3. Use `./tools/run.py experiments.recipes.arena.play` for interactive debugging (Note: Less useful in Claude Code due to interactive nature)
 
 #### Performance Profiling
 
