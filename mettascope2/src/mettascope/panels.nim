@@ -38,7 +38,7 @@ proc endPanAndZoom*(panel: Panel) =
   bxy.restoreTransform()
 
 proc beginDraw*(panel: Panel) =
-  bxy.pushLayer()
+  # bxy.pushLayer()
   bxy.saveTransform()
 
   bxy.translate(vec2(panel.rect.x.float32, panel.rect.y.float32))
@@ -48,15 +48,15 @@ proc endDraw*(panel: Panel) =
 
   bxy.restoreTransform()
 
-  # Draw the mask.
-  bxy.pushLayer()
-  bxy.drawRect(
-    rect = panel.rect.rect,
-    color = color(1, 0, 0, 1.0)
-  )
-  bxy.popLayer(blendMode = MaskBlend)
+  # # Draw the mask.
+  # bxy.pushLayer()
+  # bxy.drawRect(
+  #   rect = panel.rect.rect,
+  #   color = color(1, 0, 0, 1.0)
+  # )
+  # bxy.popLayer(blendMode = MaskBlend)
 
-  bxy.popLayer()
+  # bxy.popLayer()
 
 proc updatePanelsSizes*(area: Area) =
   # Update the sizes of the panels in the area and its subareas and subpanels.
@@ -88,7 +88,7 @@ proc drawFrame*(area: Area) =
       w: area.rect.w.float32,
       h: HeaderSize.float32
     ),
-    color = color(0, 0, 0, 0)
+    color = color(0, 0, 0, 1)
   )
 
   var x = 10.0

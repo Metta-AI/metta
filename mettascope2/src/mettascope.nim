@@ -5,7 +5,8 @@ import std/[random, os, times, strformat, strutils],
 window = newWindow("MettaScope in Nim", ivec2(1280, 800))
 makeContextCurrent(window)
 
-loadExtensions()
+when not defined(emscripten):
+  loadExtensions()
 
 bxy = newBoxy()
 env = newEnvironment()
@@ -61,19 +62,8 @@ proc display() =
   globalTimelinePanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight*2, w: window.size.x, h: RibbonHeight)
 
 
-  rootArea.drawFrame()
 
-  globalHeaderPanel.beginDraw()
-  drawHeader(globalHeaderPanel)
-  globalHeaderPanel.endDraw()
 
-  globalFooterPanel.beginDraw()
-  drawFooter(globalFooterPanel)
-  globalFooterPanel.endDraw()
-
-  globalTimelinePanel.beginDraw()
-  drawTimeline(globalTimelinePanel)
-  globalTimelinePanel.endDraw()
 
 
   worldMapPanel.beginDraw()
@@ -103,7 +93,19 @@ proc display() =
   worldMapPanel.endDraw()
 
 
+  globalHeaderPanel.beginDraw()
+  drawHeader(globalHeaderPanel)
+  globalHeaderPanel.endDraw()
 
+  globalFooterPanel.beginDraw()
+  drawFooter(globalFooterPanel)
+  globalFooterPanel.endDraw()
+
+  globalTimelinePanel.beginDraw()
+  drawTimeline(globalTimelinePanel)
+  globalTimelinePanel.endDraw()
+
+  rootArea.drawFrame()
 
   bxy.endFrame()
   window.swapBuffers()
@@ -116,7 +118,13 @@ for path in walkDirRec("data/"):
     echo path
     bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
 
-
-while not window.closeRequested:
-  display()
-  pollEvents()
+when defined(emscripten):
+  proc main() {.cdecl.} =
+    echo "draw frame"
+    display()
+    pollEvents()
+  window.run(main)
+else:
+  while not window.closeRequested:
+    display()
+    pollEvents()

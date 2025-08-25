@@ -2,17 +2,29 @@ import std/[strformat, random, strutils], vmath, jsony
 
 const
   # From config
+  # MapLayoutRoomsX* = 1
+  # MapLayoutRoomsY* = 1
+  # MapBorder* = 4
+  # MapRoomWidth* = 100
+  # MapRoomHeight* = 100
+  # MapRoomBorder* = 0
+  # MapRoomObjectsAgents* = 70
+  # MapRoomObjectsAltars* = 50
+  # MapRoomObjectsConverters* = 100
+  # MapRoomObjectsGenerators* = 100
+  # MapRoomObjectsWalls* = 400
+
   MapLayoutRoomsX* = 1
   MapLayoutRoomsY* = 1
   MapBorder* = 4
-  MapRoomWidth* = 100
-  MapRoomHeight* = 100
+  MapRoomWidth* = 40
+  MapRoomHeight* = 40
   MapRoomBorder* = 0
-  MapRoomObjectsAgents* = 70
-  MapRoomObjectsAltars* = 50
-  MapRoomObjectsConverters* = 100
-  MapRoomObjectsGenerators* = 100
-  MapRoomObjectsWalls* = 400
+  MapRoomObjectsAgents* = 10
+  MapRoomObjectsAltars* = 10
+  MapRoomObjectsConverters* = 10
+  MapRoomObjectsGenerators* = 10
+  MapRoomObjectsWalls* = 40
 
   MapObjectAgentInitialEnergy* = 250
   MapObjectAgentMaxEnergy* = 250
