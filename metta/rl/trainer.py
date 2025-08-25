@@ -28,7 +28,6 @@ from metta.rl.advantage import compute_advantage
 from metta.rl.checkpoint_manager import CheckpointManager, maybe_establish_checkpoint
 from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
-from metta.rl.hyperparameter_scheduler import HyperparameterScheduler
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
 from metta.rl.optimization import (
@@ -410,6 +409,9 @@ def train(
                             policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
 
                             # Process minibatch
+                            # FIXED: Match old system - clear gradients BEFORE process_minibatch_update
+                            optimizer.zero_grad()
+
                             loss = process_minibatch_update(
                                 policy=policy,
                                 experience=experience,
@@ -423,10 +425,6 @@ def train(
                                 losses=losses,
                                 device=device,
                             )
-
-                            # REVERTED: Old (broken) gradient accumulation behavior
-                            # Clear gradients before each minibatch (breaks accumulation but matches old dynamics)
-                            optimizer.zero_grad()
 
                             # This also serves as a barrier for all ranks
                             loss.backward()
