@@ -20,7 +20,7 @@ on:
 
 jobs:
   process-dependabot-prs:
-    runs-on: default
+    runs-on: ubuntu-latest
     permissions:
       pull-requests: write
       contents: read
