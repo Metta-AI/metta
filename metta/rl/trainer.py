@@ -133,6 +133,9 @@ def train(
         num_workers=trainer_cfg.rollout_workers,
         zero_copy=trainer_cfg.zero_copy,
         is_training=True,
+        # CRITICAL FIX: Ensure dual-policy flags reach subprocess envs so they can log metrics
+        dual_policy_enabled=trainer_cfg.dual_policy.enabled,
+        dual_policy_training_agents_pct=trainer_cfg.dual_policy.training_agents_pct,
     )
 
     vecenv.async_reset(system_cfg.seed + torch_dist_cfg.rank)
@@ -409,9 +412,6 @@ def train(
                             policy_td = minibatch.select(*policy_spec.keys(include_nested=True))
 
                             # Process minibatch
-                            # FIXED: Match old system - clear gradients BEFORE process_minibatch_update
-                            optimizer.zero_grad()
-
                             loss = process_minibatch_update(
                                 policy=policy,
                                 experience=experience,
@@ -425,6 +425,9 @@ def train(
                                 losses=losses,
                                 device=device,
                             )
+
+                            # CRITICAL FIX: Match reference system - clear gradients AFTER loss computation, BEFORE backward
+                            optimizer.zero_grad()
 
                             # This also serves as a barrier for all ranks
                             loss.backward()
