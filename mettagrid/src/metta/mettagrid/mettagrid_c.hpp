@@ -44,12 +44,13 @@ struct ChangeGlyphActionConfig;
 
 namespace py = pybind11;
 
+// Controls the tokens that are included in the global observations at the agent's position
 struct GlobalObsConfig {
-  bool episode_completion_pct = true;
-  bool last_action = true;  // Controls both last_action and last_action_arg
-  bool last_reward = true;
-  bool resource_rewards = false;  // Controls whether resource rewards are included in observations
-  bool visitation_counts = false;  // Controls whether visitation counts are included in observations
+  bool episode_completion_pct = true;  // provide steps/max_steps scaled to uint8
+  bool last_action = true;             // provide last_action and last_action_arg
+  bool last_reward = true;             //
+  bool resource_rewards = false;       // Controls whether resource rewards are included in observations
+  bool visitation_counts = false;      // Controls whether visitation counts are included in observations
 };
 
 struct GameConfig {
@@ -63,10 +64,12 @@ struct GameConfig {
   GlobalObsConfig global_obs;
   std::map<std::string, std::shared_ptr<ActionConfig>> actions;
   std::map<std::string, std::shared_ptr<GridObjectConfig>> objects;
-  bool track_movement_metrics;
-  bool no_agent_interference = false;
   float resource_loss_prob = 0.0;
-  bool recipe_details_obs = false;
+
+  // feature flags
+  bool track_movement_metrics = false;
+  bool no_agent_interference = false;
+  bool recipe_details_obs = false;  // TODO - move to observation config for consistency
 };
 
 class METTAGRID_API MettaGrid {
@@ -116,12 +119,22 @@ public:
   using ActionSuccess = std::vector<bool>;
   using ActionHandlers = std::vector<std::unique_ptr<ActionHandler>>;
 
-  const Grid& grid() const { return *_grid; }
-  const Actions& actions() const { return _actions; }
-  const ActionSuccess& action_success() const { return _action_success; }
-  const ActionHandlers& action_handlers() const { return _action_handlers; }
+  const Grid& grid() const {
+    return *_grid;
+  }
+  const Actions& actions() const {
+    return _actions;
+  }
+  const ActionSuccess& action_success() const {
+    return _action_success;
+  }
+  const ActionHandlers& action_handlers() const {
+    return _action_handlers;
+  }
 
-  const Agent* agent(uint32_t agent_id) const { return _agents[agent_id]; }
+  const Agent* agent(uint32_t agent_id) const {
+    return _agents[agent_id];
+  }
 
 private:
   // Member variables
