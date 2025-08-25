@@ -8,9 +8,8 @@ on:
 
 jobs:
   check-container:
-    if: false # Workflow disabled #TODO(andre) #dehydration
     name: "Check Container Availability"
-    runs-on: default
+    runs-on: ubuntu-latest
     outputs:
       container-tag: ${{ steps.check.outputs.tag }}
     steps:
@@ -34,9 +33,8 @@ jobs:
           fi
 
   test:
-    if: false # Workflow disabled
     name: "Lint, Install, and Test"
-    runs-on: default
+    runs-on: ubuntu-latest
     needs: check-container
     container:
       image: ghcr.io/metta-ai/metta/mettascope-ci:${{ needs.check-container.outputs.container-tag }}
@@ -87,14 +85,14 @@ jobs:
         run: |
           echo "::group::Training job"
           echo "Starting training job..."
-          uv run --no-sync tools/train.py trainer.total_timesteps=10 run=smoke_test +user=ci wandb=off
+          uv run --no-sync tools/run.py experiments.recipes.scratchpad.ci.train
           echo "::endgroup::"
 
       - name: Generate replay
         run: |
           echo "::group::Replay generation"
           echo "Generating replay..."
-          uv run --no-sync tools/replay.py run=smoke_test +user=ci wandb=off
+          uv run --no-sync tools/run.py experiments.recipes.scratchpad.ci.replay
           echo "Replay generation completed"
           echo "::endgroup::"
 
@@ -107,7 +105,7 @@ jobs:
 
           # Start the backend with proper logging
           echo "Starting backend server..."
-          uv run --no-sync tools/play.py run=smoke_test +user=ci wandb=off replay_job.open_browser_on_start=false > "$BACKEND_LOG" 2>&1 &
+          uv run --no-sync tools/run.py experiments.recipes.scratchpad.ci.play > "$BACKEND_LOG" 2>&1 &
           BACKEND_PID=$!
           echo "Backend started with PID: $BACKEND_PID"
 
@@ -171,6 +169,8 @@ jobs:
           echo "Test files:"
           ls -la tests/*.test.ts || echo "No test files found!"
 
+          sleep 2 # sleep 2 seconds for good luck.
+
           # Run tests with more verbose output
           pnpm run test -- --reporter=list || TEST_FAILED=1
 
@@ -193,7 +193,7 @@ jobs:
 
           BACKEND_LOG_NULL="mettascope_backend_null_policy.log"
           echo "Starting backend server with null policy..."
-          uv run --no-sync tools/play.py run=smoke_test +user=ci wandb=off replay_job.open_browser_on_start=false replay_job.policy_uri=null > "$BACKEND_LOG_NULL" 2>&1 &
+          uv run --no-sync tools/run.py experiments.recipes.scratchpad.ci.play_null > "$BACKEND_LOG_NULL" 2>&1 &
           BACKEND_PID=$!
           echo "Backend (null policy) started with PID: $BACKEND_PID"
 
@@ -227,6 +227,8 @@ jobs:
             cat "$BACKEND_LOG_NULL"
             exit 1
           fi
+
+          sleep 2 # sleep 2 seconds for good luck.
 
           cd mettascope
           echo "Running existing Playwright smoke tests..."
