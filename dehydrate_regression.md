@@ -362,7 +362,36 @@ After removing Hydra and YAML configuration support from the Metta codebase, tra
 
 ---
 
-### 14. Additional Subsystems
+### 14. Import Dependencies and Runtime Errors
+**Status**: ❌ **Critical Issues Found** → 🔧 **Fix Applied**
+
+**Initial Hypotheses**
+- H14.1: Missing import statements for refactored modules
+- H14.2: Runtime errors from unused configuration parameters
+- H14.3: Module reorganization broke dependency chains
+
+**Runtime Hypotheses**
+- R14.1: ❌ **CRITICAL**: `NameError: name 'HyperparameterScheduler' is not defined` at trainer.py:251
+- R14.2: ❌ **CRITICAL**: "invalid argument dual_policy_enabled" error from make_vecenv()
+
+**Investigation Results**
+- ❌ **Missing HyperparameterScheduler Import**:
+  - **Issue**: Import statement missing after hyperparameter scheduler restoration
+  - **Impact**: Training crashes immediately on scheduler instantiation
+  - **Fix**: Added `from metta.rl.hyperparameter_scheduler import HyperparameterScheduler`
+- ❌ **Dual Policy Parameter Errors**:
+  - **Issue**: make_vecenv() call included dual_policy parameters not supported by environment
+  - **Impact**: Runtime errors preventing vectorized environment creation
+  - **Fix**: Removed dual_policy_enabled and dual_policy_training_agents_pct parameters from make_vecenv() call
+
+**Fix Applied**: 🔧 Resolved import and configuration errors
+- Added missing import for HyperparameterScheduler in trainer.py:31
+- Cleaned up lines 218-220 removing unsupported dual policy parameters
+- **Validation**: Training now starts without import or configuration errors
+
+---
+
+### 15. Additional Subsystems
 **Status**: ⏳ **Lower Priority**
 
 Remaining subsystems (memory management, distributed training, etc.) are lower priority given the critical issues already found and fixed.
@@ -380,6 +409,8 @@ Remaining subsystems (memory management, distributed training, etc.) are lower p
 6. **Stats Accumulation Bug**: Fixed critical bug corrupting reward metrics that broke `overview/reward` calculation
 7. **Buffer Indexing Bug**: Fixed experience buffer indexing affecting zero-length episodes
 8. **Training Parameter Inconsistency**: Removed unused `original_values` parameter from minibatch sampling
+9. **Missing HyperparameterScheduler Import**: Added `from metta.rl.hyperparameter_scheduler import HyperparameterScheduler` to trainer.py
+10. **Dual Policy Configuration Errors**: Removed problematic `dual_policy_enabled` and `dual_policy_training_agents_pct` parameters from `make_vecenv()` call
 
 ### ⏳ **High Priority Remaining Issues**
 1. **Default Configuration Changes**: Other recipes/configs might be affected by changed defaults
