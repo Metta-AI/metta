@@ -332,7 +332,7 @@ def isolated_async_record_episodes(isolated_http_async_stats_env: HttpAsyncStats
         for i, policy in enumerate(test_data["policies"]):
             epoch_id = epochs[i % len(epochs)].id if epochs and i < len(epochs) else None
             for env_name in env_names:
-                eval_name = f"{eval_category}/{env_name}"
+                sim_name = f"{eval_category}/{env_name}"
                 metric_key = f"policy_{i}_{env_name}"
                 metric_value = metric_values.get(metric_key, 50.0)
                 await use_stats_client.record_episode(
@@ -340,9 +340,9 @@ def isolated_async_record_episodes(isolated_http_async_stats_env: HttpAsyncStats
                     agent_metrics={0: {"reward": metric_value}},
                     primary_policy_id=policy.id,
                     stats_epoch=epoch_id,
-                    eval_name=eval_name,
-                    simulation_suite=eval_category,
-                    replay_url=f"https://example.com/replay/{policy.id}/{eval_name}",
+                    sim_name=sim_name,
+                    env_label=env_name,
+                    replay_url=f"https://example.com/replay/{policy.id}/{sim_name}",
                 )
 
     return _record
@@ -392,7 +392,7 @@ def async_record_episodes(http_async_stats_env: HttpAsyncStatsClientEnv):
         for i, policy in enumerate(test_data["policies"]):
             epoch_id = epochs[i % len(epochs)].id if epochs and i < len(epochs) else None
             for env_name in env_names:
-                eval_name = f"{eval_category}/{env_name}"
+                sim_name = f"{eval_category}/{env_name}"
                 metric_key = f"policy_{i}_{env_name}"
                 metric_value = metric_values.get(metric_key, 50.0)
                 await use_stats_client.record_episode(
@@ -400,9 +400,9 @@ def async_record_episodes(http_async_stats_env: HttpAsyncStatsClientEnv):
                     agent_metrics={0: {"reward": metric_value}},
                     primary_policy_id=policy.id,
                     stats_epoch=epoch_id,
-                    eval_name=eval_name,
-                    simulation_suite=eval_category,
-                    replay_url=f"https://example.com/replay/{policy.id}/{eval_name}",
+                    sim_name=sim_name,
+                    env_label=env_name,
+                    replay_url=f"https://example.com/replay/{policy.id}/{sim_name}",
                 )
 
     return _record
