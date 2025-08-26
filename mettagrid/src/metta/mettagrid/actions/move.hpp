@@ -42,13 +42,13 @@ protected:
     target_location.r += dr;
     target_location.c += dc;
 
+    // Update orientation to face the movement direction (even if movement fails)
+    actor->orientation = move_direction;
+
     // Check if target location is valid and empty
     if (!_is_valid_square(target_location, _game_config->no_agent_interference)) {
       return false;
     }
-
-    // Update orientation to face the movement direction
-    actor->orientation = move_direction;
 
     // Move the agent
     if (_game_config->no_agent_interference) {
