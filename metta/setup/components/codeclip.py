@@ -29,7 +29,7 @@ class CodeclipSetup(SetupModule):
 
     def install(self) -> None:
         """Install codeclip as an editable uv tool."""
-        codeclip_dir = self.repo_root / "manybot" / "codeclip"
+        codeclip_dir = self.repo_root / "codebot" / "codeclip"
         gitlib_dir = self.repo_root / "gitlib"
 
         if not codeclip_dir.exists():

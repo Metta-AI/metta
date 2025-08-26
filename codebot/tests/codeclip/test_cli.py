@@ -113,6 +113,7 @@ class TestCodeclipCLI(unittest.TestCase):
         # Test with readmes-only flag (using -s for stdout output)
         result = self.runner.invoke(cli, [".", "-r", "-s"])
         self.assertEqual(result.exit_code, 0)
+        self.assertTrue(False)
 
         # Should have XML format (we always use XML now)
         self.assertIn("<document index=", result.output)
