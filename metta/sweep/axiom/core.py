@@ -101,8 +101,8 @@ class Stage:
         # Get input from context if no args provided
         if not args and not kwargs:
             stage_input = ctx.get_stage_input(self.name)
-            if stage_input is not None:
-                args = (stage_input,)
+            # Always pass the stage input, even if it's None (first stage needs it)
+            args = (stage_input,)
 
         try:
             # Execute the function
@@ -170,15 +170,21 @@ class Pipeline:
     must be explicit through one of the patterns above.
     """
 
-    def __init__(self, ctx: Ctx | None = None):
+    def __init__(self, ctx: Ctx | None = None, name: str = ""):
         self.stages: list[Stage] = []
         self.stage_names: set[str] = set()
         self._built = False
         self._ctx = ctx
+        self.name = name
         self._required_joins: dict[str, dict] = {}  # name -> {exit_checks, optional}
         self._provided_joins: dict[str, Pipeline] = {}  # name -> sub-pipeline
+        
+        # Exposure and override tracking
+        self._exposed: set[str] = set()  # Components marked as overrideable
+        self._overrides: dict[str, Callable | Pipeline] = {}  # Active overrides
+        self._parent_path: str = ""  # For nested pipeline paths
 
-    def stage(self, name: str, func: Callable, infer_types: bool = True) -> Pipeline:
+    def stage(self, name: str, func: Callable, expose: bool = False, infer_types: bool = True) -> Pipeline:
         """Add a stage to the pipeline.
 
         Args:
@@ -203,10 +209,14 @@ class Pipeline:
 
         self.stages.append(stage_obj)
         self.stage_names.add(name)
+        
+        # Mark as exposed if requested
+        if expose:
+            self._exposed.add(name)
 
         return self
 
-    def io(self, name: str, func: Callable, timeout: float | None = None, num_retries: int = 0) -> Pipeline:
+    def io(self, name: str, func: Callable, expose: bool = False, timeout: float | None = None, num_retries: int = 0) -> Pipeline:
         """Add an I/O operation to the pipeline with error handling.
 
         I/O operations are wrapped with timeout and retry logic. They fail hard
@@ -308,6 +318,10 @@ class Pipeline:
         
         self.stages.append(stage_obj)
         self.stage_names.add(name)
+        
+        # Mark as exposed if requested
+        if expose:
+            self._exposed.add(name)
 
         return self
 
@@ -396,17 +410,32 @@ class Pipeline:
         self.stages[-1].hooks.append(func)
         return self
 
-    def join(self, name: str, sub: Pipeline | None = None, propagate_global_checks: bool = False) -> Pipeline:
+    def join(self, name: str, sub: Pipeline | Callable | None = None, propagate_global_checks: bool = False, expose: bool = True) -> Pipeline:
         """Add a join point for a sub-pipeline.
 
         Args:
             name: Name of the join point
-            sub: Sub-pipeline to execute (can be None if using require_join pattern)
+            sub: Sub-pipeline or callable to execute (can be None if using require_join pattern)
             propagate_global_checks: Whether to propagate global checks into the sub-pipeline
+            expose: Whether this join can be overridden (default: True for joins)
 
         Returns:
             Self for method chaining
         """
+        # If callable but not Pipeline, wrap it
+        if callable(sub) and not isinstance(sub, Pipeline):
+            wrapped = Pipeline(name=f"{name}_wrapped")
+            wrapped.stage(name, sub)
+            sub = wrapped
+        
+        # Mark as exposed if requested (joins default to exposed)
+        if expose:
+            self._exposed.add(name)
+        
+        # Store the sub-pipeline
+        if sub is not None:
+            self._provided_joins[name] = sub
+        
         if sub is None:
             # Check if this was a required join
             if name not in self._required_joins:
@@ -467,6 +496,25 @@ class Pipeline:
             raise ValueError(f"Join '{name}' was not required")
         
         self._provided_joins[name] = sub
+        return self
+    
+    def compose(self, sub: Pipeline) -> Pipeline:
+        """Compose another pipeline into this one.
+        
+        This directly adds all stages from the sub-pipeline to this pipeline,
+        preserving the data flow between them.
+        
+        Args:
+            sub: Sub-pipeline to compose
+        
+        Returns:
+            Self for method chaining
+        """
+        for stage in sub.stages:
+            # Add the stage directly
+            self.stages.append(stage)
+            self.stage_names.add(stage.name)
+        
         return self
 
     def logf(self, format_string: str) -> Pipeline:
@@ -553,9 +601,41 @@ class Pipeline:
             # Set input from previous stage output
             if i > 0 and last_result is not None:
                 ctx.set_stage_input(stage_obj.name, last_result)
+            elif i == 0:
+                # First stage gets None as input if nothing else is provided
+                ctx.set_stage_input(stage_obj.name, None)
 
-            # Execute stage
-            result = stage_obj.execute(ctx)
+            # Check for override
+            stage_name = stage_obj.name
+            
+            # For join stages, extract the join name
+            if stage_name.startswith("join:"):
+                join_name = stage_name[5:]  # Remove "join:" prefix
+                if join_name in self._exposed and join_name in self._overrides:
+                    # Execute override instead
+                    override_func = self._overrides[join_name]
+                    stage_input = ctx.get_stage_input(stage_obj.name)
+                    if isinstance(override_func, Pipeline):
+                        sub_ctx = Ctx()
+                        sub_ctx.set_stage_input("_join_input", stage_input)
+                        result = override_func.run(sub_ctx)
+                    else:
+                        result = override_func(stage_input)
+                    ctx.set_stage_output(stage_obj.name, result)
+                    ctx._current_stage = stage_obj.name
+                else:
+                    # Execute normally (join will handle its own overrides internally)
+                    result = stage_obj.execute(ctx)
+            elif stage_name in self._exposed and stage_name in self._overrides:
+                # Execute override for regular stage
+                override_func = self._overrides[stage_name]
+                stage_input = ctx.get_stage_input(stage_obj.name)
+                result = override_func(stage_input)
+                ctx.set_stage_output(stage_obj.name, result)
+                ctx._current_stage = stage_obj.name
+            else:
+                # Execute stage normally
+                result = stage_obj.execute(ctx)
 
             # Run checks if present
             if hasattr(stage_obj, 'checks'):
@@ -585,3 +665,100 @@ class Pipeline:
             last_result = result
 
         return last_result
+    
+    def override(self, path: str, replacement: Callable | Pipeline) -> Pipeline:
+        """Override an exposed component at any depth.
+        
+        Only components marked with expose=True can be overridden.
+        
+        Args:
+            path: Dot-separated path to the component (e.g., "train.compute_advantage")
+            replacement: Callable or pipeline to use instead
+        
+        Returns:
+            Self for method chaining
+        
+        Raises:
+            ValueError: If trying to override a non-exposed component
+        """
+        parts = path.split(".", 1)
+        
+        if len(parts) == 1:
+            # Direct override at this level
+            component_name = parts[0]
+            
+            # Check if it's exposed
+            if component_name not in self._exposed:
+                available = ", ".join(sorted(self._exposed)) if self._exposed else "none"
+                raise ValueError(
+                    f"Cannot override '{component_name}' - not exposed. "
+                    f"Available: {available}"
+                )
+            
+            # Store the override
+            self._overrides[component_name] = replacement
+            
+        else:
+            # Nested override
+            join_name, nested_path = parts
+            
+            # Check if the join exists and is exposed
+            if join_name not in self._provided_joins:
+                raise ValueError(f"No join named '{join_name}' in pipeline")
+            
+            if join_name not in self._exposed:
+                raise ValueError(
+                    f"Cannot override into '{join_name}' - join not exposed. "
+                    f"Add expose=True to the join() call."
+                )
+            
+            # Propagate to the nested pipeline
+            nested_pipeline = self._provided_joins[join_name]
+            if isinstance(nested_pipeline, Pipeline):
+                nested_pipeline.override(nested_path, replacement)
+            else:
+                raise ValueError(
+                    f"Cannot override nested path '{nested_path}' in non-pipeline join '{join_name}'"
+                )
+        
+        return self
+    
+    def list_exposed(self, prefix: str = "") -> list[str]:
+        """List all exposed components that can be overridden.
+        
+        Returns:
+            List of dot-separated paths to exposed components
+        """
+        exposed = []
+        
+        # Add directly exposed components
+        for name in self._exposed:
+            full_name = f"{prefix}.{name}" if prefix else name
+            exposed.append(full_name)
+            
+            # If it's a join with a pipeline, recurse
+            if name in self._provided_joins:
+                sub_pipeline = self._provided_joins[name]
+                if isinstance(sub_pipeline, Pipeline):
+                    nested_exposed = sub_pipeline.list_exposed(full_name)
+                    exposed.extend(nested_exposed)
+        
+        return exposed
+    
+    def get_overrides(self) -> dict[str, Any]:
+        """Get all active overrides at all levels.
+        
+        Returns:
+            Dictionary of override paths and their replacements
+        """
+        overrides = dict(self._overrides)
+        
+        # Add nested overrides
+        for join_name, sub_pipeline in self._provided_joins.items():
+            if isinstance(sub_pipeline, Pipeline):
+                nested_overrides = sub_pipeline.get_overrides()
+                for nested_path, replacement in nested_overrides.items():
+                    full_path = f"{join_name}.{nested_path}"
+                    overrides[full_path] = replacement
+        
+        return overrides

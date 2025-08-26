@@ -136,8 +136,15 @@ class TrainJobPipeline(Tool):
 
     # ========== Stage Implementations ==========
 
-    def _initialize(self, state: TrainingState) -> TrainingState:
+    def _initialize(self, state: TrainingState = None) -> TrainingState:
         """Initialize run configuration, directories, and defaults."""
+        # If no state provided (first stage), get it from context or create it
+        if state is None:
+            # This happens when called as first pipeline stage
+            # Create the config and state here
+            config = TrainingConfig(tool=self, args={}, overrides=[])
+            state = TrainingState(config=config)
+
         tool = state.config.tool
         args = state.config.args
 
@@ -237,9 +244,31 @@ class TrainJobPipeline(Tool):
     @platform_specific("Darwin")
     def _apply_platform_adjustments(self, state: TrainingState) -> TrainingState:
         tool = state.config.tool
+        logger.info(f"Applying Darwin platform adjustments")
+        logger.info(f"Before: total_timesteps={tool.trainer.total_timesteps}, batch_size={tool.trainer.batch_size}")
+
+        # Quick test settings for macOS development
         tool.trainer.checkpoint.checkpoint_interval = 100
-        tool.trainer.total_timesteps = min(tool.trainer.total_timesteps, 10000)
-        tool.trainer.batch_size = min(tool.trainer.batch_size, 64)
+        # Ensure wandb_checkpoint_interval is >= checkpoint_interval
+        if tool.trainer.checkpoint.wandb_checkpoint_interval < 100:
+            tool.trainer.checkpoint.wandb_checkpoint_interval = 100
+        # Ensure evaluate_interval is >= checkpoint_interval
+        if tool.trainer.evaluation and tool.trainer.evaluation.evaluate_interval < 100:
+            tool.trainer.evaluation.evaluate_interval = 100
+        # Limit timesteps for quick testing
+        tool.trainer.total_timesteps = min(tool.trainer.total_timesteps, 1000)
+
+        # For very quick tests, reduce batch sizes to avoid memory issues
+        if tool.trainer.total_timesteps <= 1000:
+            logger.info("Applying quick test batch size adjustments")
+            tool.trainer.batch_size = min(tool.trainer.batch_size, 65536)
+            tool.trainer.minibatch_size = min(tool.trainer.minibatch_size, 4096)
+            tool.trainer.forward_pass_minibatch_target_size = min(tool.trainer.forward_pass_minibatch_target_size, 512)
+            tool.trainer.async_factor = 1  # No async for quick tests
+            tool.trainer.bptt_horizon = min(tool.trainer.bptt_horizon, 16)
+            tool.trainer.rollout_workers = min(tool.trainer.rollout_workers, 1)
+
+        logger.info(f"After: total_timesteps={tool.trainer.total_timesteps}, batch_size={tool.trainer.batch_size}")
         return state
 
     @wandb_context(master_only=True)

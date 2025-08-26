@@ -1,0 +1,419 @@
+{
+  "system": {
+    "vectorization": "serial",
+    "seed": 42,
+    "torch_deterministic": true,
+    "device": "cpu",
+    "data_dir": "./train_dir"
+  },
+  "trainer": {
+    "total_timesteps": 10000,
+    "ppo": {
+      "clip_coef": 0.1,
+      "ent_coef": 0.0021,
+      "gae_lambda": 0.916,
+      "gamma": 0.977,
+      "max_grad_norm": 0.5,
+      "vf_clip_coef": 0.1,
+      "vf_coef": 0.44,
+      "l2_reg_loss_coef": 0.0,
+      "l2_init_loss_coef": 0.0,
+      "norm_adv": true,
+      "clip_vloss": true,
+      "target_kl": null
+    },
+    "optimizer": {
+      "type": "adam",
+      "learning_rate": 0.000457,
+      "beta1": 0.9,
+      "beta2": 0.999,
+      "eps": 1e-12,
+      "weight_decay": 0.0
+    },
+    "prioritized_experience_replay": {
+      "prio_alpha": 0.0,
+      "prio_beta0": 0.6
+    },
+    "vtrace": {
+      "vtrace_rho_clip": 1.0,
+      "vtrace_c_clip": 1.0
+    },
+    "zero_copy": true,
+    "require_contiguous_env_ids": false,
+    "verbose": true,
+    "batch_size": 524288,
+    "minibatch_size": 16384,
+    "bptt_horizon": 64,
+    "update_epochs": 1,
+    "scale_batches_by_world_size": false,
+    "cpu_offload": false,
+    "compile": false,
+    "compile_mode": "reduce-overhead",
+    "profiler": {
+      "interval_epochs": 0,
+      "profile_dir": null
+    },
+    "forward_pass_minibatch_target_size": 4096,
+    "async_factor": 1,
+    "hyperparameter_scheduler": {
+      "learning_rate_schedule": null,
+      "ppo_clip_schedule": null,
+      "ppo_ent_coef_schedule": null,
+      "ppo_vf_clip_schedule": null,
+      "ppo_l2_reg_loss_schedule": null,
+      "ppo_l2_init_loss_schedule": null
+    },
+    "kickstart": {
+      "teacher_uri": null,
+      "action_loss_coef": 1.0,
+      "value_loss_coef": 1.0,
+      "anneal_ratio": 0.65,
+      "kickstart_steps": 1000000000,
+      "additional_teachers": null
+    },
+    "rollout_workers": 1,
+    "curriculum": {
+      "task_generator": {
+        "type": "metta.cogworks.curriculum.task_generator.SingleTaskGenerator",
+        "label": null,
+        "overrides": {},
+        "env": {
+          "label": "arena.combat",
+          "game": {
+            "inventory_item_names": [
+              "ore_red",
+              "ore_blue",
+              "ore_green",
+              "battery_red",
+              "battery_blue",
+              "battery_green",
+              "heart",
+              "armor",
+              "laser",
+              "blueprint"
+            ],
+            "num_agents": 4,
+            "max_steps": 1000,
+            "episode_truncates": false,
+            "obs_width": 11,
+            "obs_height": 11,
+            "num_observation_tokens": 200,
+            "agent": {
+              "default_resource_limit": 50,
+              "resource_limits": {
+                "heart": 255
+              },
+              "freeze_duration": 10,
+              "rewards": {
+                "inventory": {
+                  "ore_red": 0.0,
+                  "ore_blue": 0.0,
+                  "ore_green": 0.0,
+                  "ore_red_max": 255,
+                  "ore_blue_max": 255,
+                  "ore_green_max": 255,
+                  "battery_red": 0.0,
+                  "battery_blue": 0.0,
+                  "battery_green": 0.0,
+                  "battery_red_max": 255,
+                  "battery_blue_max": 255,
+                  "battery_green_max": 255,
+                  "heart": 1.0,
+                  "heart_max": 255,
+                  "armor": 0.0,
+                  "armor_max": 255,
+                  "laser": 0.0,
+                  "laser_max": 255,
+                  "blueprint": 0.0,
+                  "blueprint_max": 255
+                },
+                "stats": {}
+              },
+              "action_failure_penalty": 0.0,
+              "initial_inventory": {}
+            },
+            "groups": {
+              "agent": {
+                "id": 0,
+                "sprite": 0,
+                "group_reward_pct": 0.0,
+                "props": {
+                  "default_resource_limit": 255,
+                  "resource_limits": {},
+                  "freeze_duration": 10,
+                  "rewards": {
+                    "inventory": {
+                      "ore_red": 0.0,
+                      "ore_blue": 0.0,
+                      "ore_green": 0.0,
+                      "ore_red_max": 255,
+                      "ore_blue_max": 255,
+                      "ore_green_max": 255,
+                      "battery_red": 0.0,
+                      "battery_blue": 0.0,
+                      "battery_green": 0.0,
+                      "battery_red_max": 255,
+                      "battery_blue_max": 255,
+                      "battery_green_max": 255,
+                      "heart": 1.0,
+                      "heart_max": 255,
+                      "armor": 0.0,
+                      "armor_max": 255,
+                      "laser": 0.0,
+                      "laser_max": 255,
+                      "blueprint": 0.0,
+                      "blueprint_max": 255
+                    },
+                    "stats": {}
+                  },
+                  "action_failure_penalty": 0.0,
+                  "initial_inventory": {}
+                }
+              }
+            },
+            "actions": {
+              "noop": {
+                "enabled": true,
+                "required_resources": {},
+                "consumed_resources": {}
+              },
+              "move": {
+                "enabled": true,
+                "required_resources": {},
+                "consumed_resources": {}
+              },
+              "move_8way": {
+                "enabled": false,
+                "required_resources": {},
+                "consumed_resources": {}
+              },
+              "move_cardinal": {
+                "enabled": false,
+                "required_resources": {},
+                "consumed_resources": {}
+              },
+              "rotate": {
+                "enabled": true,
+                "required_resources": {},
+                "consumed_resources": {}
+              },
+              "put_items": {
+                "enabled": true,
+                "required_resources": {},
+                "consumed_resources": {}
+              },
+              "place_box": {
+                "enabled": false,
+                "required_resources": {},
+                "consumed_resources": {}
+              },
+              "get_items": {
+                "enabled": true,
+                "required_resources": {},
+                "consumed_resources": {}
+              },
+              "attack": {
+                "enabled": true,
+                "required_resources": {},
+                "consumed_resources": {
+                  "laser": 100
+                },
+                "defense_resources": {
+                  "armor": 1
+                }
+              },
+              "swap": {
+                "enabled": false,
+                "required_resources": {},
+                "consumed_resources": {}
+              },
+              "change_color": {
+                "enabled": false,
+                "required_resources": {},
+                "consumed_resources": {}
+              },
+              "change_glyph": {
+                "enabled": false,
+                "required_resources": {},
+                "consumed_resources": {},
+                "number_of_glyphs": 0
+              }
+            },
+            "global_obs": {
+              "episode_completion_pct": true,
+              "last_action": true,
+              "last_reward": true,
+              "resource_rewards": false,
+              "visitation_counts": false
+            },
+            "recipe_details_obs": false,
+            "objects": {
+              "wall": {
+                "type_id": 1,
+                "swappable": false
+              },
+              "altar": {
+                "input_resources": {
+                  "battery_red": 3
+                },
+                "output_resources": {
+                  "heart": 1
+                },
+                "type_id": 8,
+                "max_output": 5,
+                "max_conversions": -1,
+                "conversion_ticks": 1,
+                "cooldown": 10,
+                "initial_resource_count": 0,
+                "color": 0
+              },
+              "mine_red": {
+                "input_resources": {},
+                "output_resources": {
+                  "ore_red": 1
+                },
+                "type_id": 2,
+                "max_output": 5,
+                "max_conversions": -1,
+                "conversion_ticks": 1,
+                "cooldown": 50,
+                "initial_resource_count": 0,
+                "color": 0
+              },
+              "generator_red": {
+                "input_resources": {
+                  "ore_red": 1
+                },
+                "output_resources": {
+                  "battery_red": 1
+                },
+                "type_id": 5,
+                "max_output": 5,
+                "max_conversions": -1,
+                "conversion_ticks": 1,
+                "cooldown": 25,
+                "initial_resource_count": 0,
+                "color": 0
+              },
+              "lasery": {
+                "input_resources": {
+                  "battery_red": 1,
+                  "ore_red": 2
+                },
+                "output_resources": {
+                  "laser": 1
+                },
+                "type_id": 15,
+                "max_output": 5,
+                "max_conversions": -1,
+                "conversion_ticks": 1,
+                "cooldown": 10,
+                "initial_resource_count": 0,
+                "color": 0
+              },
+              "armory": {
+                "input_resources": {
+                  "ore_red": 3
+                },
+                "output_resources": {
+                  "armor": 1
+                },
+                "type_id": 16,
+                "max_output": 5,
+                "max_conversions": -1,
+                "conversion_ticks": 1,
+                "cooldown": 10,
+                "initial_resource_count": 0,
+                "color": 0
+              }
+            },
+            "params": null,
+            "map_builder": {
+              "type": "metta.map.mapgen.MapGen",
+              "border_width": 6,
+              "seed": null,
+              "root": {
+                "type": "metta.map.scenes.random.Random",
+                "params": {
+                  "objects": {
+                    "wall": 10,
+                    "altar": 5,
+                    "mine_red": 10,
+                    "generator_red": 5,
+                    "lasery": 1,
+                    "armory": 1
+                  },
+                  "agents": 4,
+                  "too_many_is_ok": true
+                },
+                "children": null,
+                "seed": null
+              },
+              "width": 25,
+              "height": 25,
+              "instance_map": null,
+              "instances": null,
+              "num_agents": 4,
+              "instance_border_width": 0
+            },
+            "track_movement_metrics": true,
+            "no_agent_interference": false,
+            "resource_loss_prob": 0.0
+          },
+          "desync_episodes": true
+        }
+      },
+      "max_task_id": 1000000,
+      "num_active_tasks": 10000,
+      "new_task_rate": 0.01
+    },
+    "initial_policy": {
+      "uri": null,
+      "type": "top",
+      "range": 1,
+      "metric": "epoch",
+      "filters": {}
+    },
+    "checkpoint": {
+      "checkpoint_interval": 5,
+      "wandb_checkpoint_interval": 5,
+      "checkpoint_dir": "./experiments/experiment_6358c91f/checkpoints"
+    },
+    "evaluation": {
+      "simulations": [],
+      "replay_dir": "s3://softmax-public/replays/experiment_6358c91f",
+      "evaluate_interval": 50,
+      "evaluate_remote": false,
+      "evaluate_local": true,
+      "skip_git_check": false,
+      "git_hash": null,
+      "num_training_tasks": 1
+    },
+    "grad_mean_variance_interval": 0
+  },
+  "wandb": {
+    "enabled": true,
+    "project": "metta",
+    "entity": "metta-research",
+    "group": "experiment_6358c91f",
+    "name": "experiment_6358c91f",
+    "run_id": "experiment_6358c91f",
+    "data_dir": "./train_dir/experiment_6358c91f",
+    "job_type": null,
+    "tags": [],
+    "notes": ""
+  },
+  "policy_architecture": {
+    "name": "fast",
+    "clip_range": 0.0,
+    "analyze_weights_interval": 300
+  },
+  "run": "experiment_6358c91f",
+  "run_dir": "./experiments/experiment_6358c91f",
+  "stats_server_uri": "https://api.observatory.softmax-research.net",
+  "policy_uri": "file://./experiments/experiment_6358c91f/checkpoints",
+  "map_preview_uri": null,
+  "consumed_args": [
+    "run"
+  ]
+}

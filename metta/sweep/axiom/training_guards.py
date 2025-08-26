@@ -29,10 +29,13 @@ def wandb_context(master_only: bool = True) -> Callable[[F], F]:
                 # Object state with proper typing
                 tool = state.config.tool
                 torch_dist_cfg = getattr(state, 'torch_dist_cfg', None)
-            else:
+            elif isinstance(state, dict):
                 # Dict state (for backwards compatibility)
                 tool = state.get("tool")
                 torch_dist_cfg = state.get("torch_dist_cfg")
+            else:
+                # Other types (like Tool instances) - skip wandb
+                return func(state, *args, **kwargs)
             
             # Skip if not master and master_only is True
             if master_only:
@@ -94,9 +97,12 @@ def master_process_only() -> Callable[[F], F]:
             if hasattr(state, 'torch_dist_cfg'):
                 # Object state (TrainingState)
                 torch_dist_cfg = state.torch_dist_cfg
-            else:
+            elif isinstance(state, dict):
                 # Dict state (backwards compatibility)
                 torch_dist_cfg = state.get("torch_dist_cfg")
+            else:
+                # Other types of state (like Tool instances) - assume master
+                torch_dist_cfg = None
             
             # Check if we're the master process
             is_master = True
