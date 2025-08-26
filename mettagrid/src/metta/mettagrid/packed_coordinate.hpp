@@ -1,5 +1,8 @@
 #ifndef PACKED_COORDINATE_HPP_
 #define PACKED_COORDINATE_HPP_
+#include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
+
 #include <cmath>
 #include <cstdint>
 #include <optional>
@@ -139,6 +142,32 @@ struct ObservationPattern {
     return Iterator(height, width, true);
   }
 };
+
+namespace py = pybind11;
+
+inline void bind_packed_coordinate(py::module& m) {
+  // Create PackedCoordinate submodule
+  auto pc_m = m.def_submodule("PackedCoordinate", "Packed coordinate encoding utilities");
+
+  // Constants
+  pc_m.attr("MAX_PACKABLE_COORD") = PackedCoordinate::MAX_PACKABLE_COORD;
+
+  // Functions
+  pc_m.def("pack", &PackedCoordinate::pack, py::arg("row"), py::arg("col"));
+
+  pc_m.def(
+      "unpack",
+      [](uint8_t packed) -> py::object {
+        auto result = PackedCoordinate::unpack(packed);
+        if (result.has_value()) {
+          return py::make_tuple(result->first, result->second);
+        }
+        return py::none();
+      },
+      py::arg("packed"));
+
+  pc_m.def("is_empty", &PackedCoordinate::is_empty, py::arg("packed"));
+}
 
 }  // namespace PackedCoordinate
 #endif  // PACKED_COORDINATE_HPP_
