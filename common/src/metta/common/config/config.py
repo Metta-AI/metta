@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, NoReturn, Self
+from typing import Any, NoReturn, Self, Union
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
@@ -38,7 +38,27 @@ class Config(BaseModel):
                 fail(f"key {failed_path} not found")
 
             next_inner_cfg = getattr(inner_cfg, key_part)
-            if not isinstance(next_inner_cfg, Config) and not isinstance(next_inner_cfg, dict):
+            if next_inner_cfg is None:
+                # If the field is None, try to initialize it with a default Config
+                cls = type(inner_cfg)
+                field = cls.model_fields.get(key_part)
+                if field is None:
+                    failed_path = ".".join(traversed_path + [key_part])
+                    fail(f"key {failed_path} not found")
+
+                # Get the actual type (handle Optional[T] -> T)
+                field_type = field.annotation
+                if hasattr(field_type, "__origin__") and field_type.__origin__ is Union:
+                    # For Optional[T], find the non-None type
+                    field_type = next((arg for arg in field_type.__args__ if arg is not type(None)), None)
+
+                if field_type and issubclass(field_type, Config):
+                    next_inner_cfg = field_type()
+                    setattr(inner_cfg, key_part, next_inner_cfg)
+                else:
+                    failed_path = ".".join(traversed_path + [key_part])
+                    fail(f"key {failed_path} is not a Config object")
+            elif not isinstance(next_inner_cfg, Config) and not isinstance(next_inner_cfg, dict):
                 failed_path = ".".join(traversed_path + [key_part])
                 fail(f"key {failed_path} is not a Config object")
 
