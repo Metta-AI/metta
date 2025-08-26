@@ -33,8 +33,31 @@ from metta.tools.train import TrainTool
 # You can override this by setting an environment variable or passing it as an argument
 NPC_CHECKPOINT = os.environ.get(
     "NPC_CHECKPOINT",
-    "wandb://metta-research/metta/krishna_arena_baseline:v6",
+    "wandb://metta-research/metta/model/krishna_arena_1b:v24",
 )
+
+
+def _wandb_to_training_uri(uri: str) -> str:
+    """Convert wandb selector URI (entity/project/type/name[:ver]) to qualified artifact (entity/project/name[:ver]).
+
+    Training loader expects 3-part path; evaluation accepts 4-part.
+    """
+    try:
+        if not uri.startswith("wandb://"):
+            return uri
+        rest = uri[len("wandb://") :]
+        version = None
+        if ":" in rest:
+            rest, version = rest.split(":", 1)
+        parts = rest.split("/")
+        if len(parts) == 4:
+            entity, project, _artifact_type, name = parts
+            base = f"wandb://{entity}/{project}/{name}"
+            return f"{base}:{version}" if version else base
+        # already qualified or other forms
+        return uri
+    except Exception:
+        return uri
 
 
 def make_env(num_agents: int = 24) -> EnvConfig:
@@ -102,7 +125,7 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
         dual_policy=DualPolicyConfig(
             enabled=True,
             training_agents_pct=0.5,  # 50% training, 50% NPC
-            checkpoint_npc=NPC_CHECKPOINT,
+            checkpoint_npc=_wandb_to_training_uri(NPC_CHECKPOINT),
         ),
         # Checkpoint configuration for skypilot
         checkpoint=CheckpointConfig(
@@ -138,7 +161,7 @@ def test(total_timesteps: int = 100_000) -> TrainTool:
         dual_policy=DualPolicyConfig(
             enabled=True,
             training_agents_pct=0.5,  # 50% training, 50% NPC
-            checkpoint_npc=NPC_CHECKPOINT,
+            checkpoint_npc=_wandb_to_training_uri(NPC_CHECKPOINT),
         ),
         # Enable evaluations for local testing to see dual policy metrics
         evaluation=EvaluationConfig(

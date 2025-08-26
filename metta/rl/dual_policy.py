@@ -213,13 +213,6 @@ class DualPolicyHandler:
         stats = env.get_episode_stats()
         agent_stats_list = stats.get("agent", [])
 
-        # Initialize collectors for different groups
-        training_metrics = {}
-        npc_metrics = {}
-        combined_metrics = {}
-        policy_a_metrics = {}  # Training policy
-        policy_b_metrics = {}  # NPC policy
-
         training_rewards = []
         npc_rewards = []
         all_rewards = []
@@ -235,108 +228,42 @@ class DualPolicyHandler:
                 else:  # NPC group
                     npc_rewards.append(reward)
 
-            # Collect detailed agent stats
-            if agent_id < len(agent_stats_list):
-                agent_stats = agent_stats_list[agent_id]
-
-                for stat_name, stat_value in agent_stats.items():
-                    # Add to combined metrics
-                    if stat_name not in combined_metrics:
-                        combined_metrics[stat_name] = []
-                    combined_metrics[stat_name].append(stat_value)
-
-                    if group == 0:  # Training agent
-                        if stat_name not in training_metrics:
-                            training_metrics[stat_name] = []
-                        training_metrics[stat_name].append(stat_value)
-
-                        # Also track as policy_a
-                        if stat_name not in policy_a_metrics:
-                            policy_a_metrics[stat_name] = []
-                        policy_a_metrics[stat_name].append(stat_value)
-                    else:  # NPC agent
-                        if stat_name not in npc_metrics:
-                            npc_metrics[stat_name] = []
-                        npc_metrics[stat_name].append(stat_value)
-
-                        # Also track as policy_b
-                        if stat_name not in policy_b_metrics:
-                            policy_b_metrics[stat_name] = []
-                        policy_b_metrics[stat_name].append(stat_value)
+            # We intentionally suppress logging of per-agent detailed stats to reduce plot clutter
 
         # Structure the metrics in the desired format
         # This creates the dual_policy/trained/*, dual_policy/npc/*, etc. structure
         if "dual_policy" not in infos:
             infos["dual_policy"] = {}
 
-        # Add trained agent metrics
-        infos["dual_policy/trained"] = {
-            "count": len(training_rewards),
-            "reward_mean": float(np.mean(training_rewards)) if training_rewards else 0.0,
-            "reward_total": float(np.sum(training_rewards)) if training_rewards else 0.0,
-            "reward_min": float(np.min(training_rewards)) if training_rewards else 0.0,
-            "reward_max": float(np.max(training_rewards)) if training_rewards else 0.0,
-        }
+        def _stat_block(rewards: list[float]) -> dict[str, float]:
+            if not rewards:
+                return {
+                    "count": 0.0,
+                    "reward_total": 0.0,
+                    "reward_mean": 0.0,
+                    "reward_min": 0.0,
+                    "reward_max": 0.0,
+                    "reward_std": 0.0,
+                    "reward_median": 0.0,
+                }
+            arr = np.array(rewards, dtype=np.float32)
+            return {
+                "count": float(len(arr)),
+                "reward_total": float(np.sum(arr)),
+                "reward_mean": float(np.mean(arr)),
+                "reward_min": float(np.min(arr)),
+                "reward_max": float(np.max(arr)),
+                "reward_std": float(np.std(arr)),
+                "reward_median": float(np.median(arr)),
+            }
 
-        # Add aggregated training metrics
-        for metric_name, values in training_metrics.items():
-            if values:
-                infos["dual_policy/trained"][metric_name] = float(np.sum(values))
-                infos["dual_policy/trained"][f"{metric_name}_mean"] = float(np.mean(values))
-
-        # Add NPC agent metrics
-        infos["dual_policy/npc"] = {
-            "count": len(npc_rewards),
-            "reward_mean": float(np.mean(npc_rewards)) if npc_rewards else 0.0,
-            "reward_total": float(np.sum(npc_rewards)) if npc_rewards else 0.0,
-            "reward_min": float(np.min(npc_rewards)) if npc_rewards else 0.0,
-            "reward_max": float(np.max(npc_rewards)) if npc_rewards else 0.0,
-        }
-
-        # Add aggregated NPC metrics
-        for metric_name, values in npc_metrics.items():
-            if values:
-                infos["dual_policy/npc"][metric_name] = float(np.sum(values))
-                infos["dual_policy/npc"][f"{metric_name}_mean"] = float(np.mean(values))
-
-        # Add combined metrics (all agents)
-        infos["dual_policy/combined"] = {
-            "count": len(all_rewards),
-            "reward_mean": float(np.mean(all_rewards)) if all_rewards else 0.0,
-            "reward_total": float(np.sum(all_rewards)) if all_rewards else 0.0,
-            "reward_min": float(np.min(all_rewards)) if all_rewards else 0.0,
-            "reward_max": float(np.max(all_rewards)) if all_rewards else 0.0,
-        }
-
-        # Add aggregated combined metrics
-        for metric_name, values in combined_metrics.items():
-            if values:
-                infos["dual_policy/combined"][metric_name] = float(np.sum(values))
-                infos["dual_policy/combined"][f"{metric_name}_mean"] = float(np.mean(values))
-
-        # Add policy_a metrics (training policy)
-        infos["dual_policy/policy_a"] = {
-            "count": len(training_rewards),
-            "reward_mean": float(np.mean(training_rewards)) if training_rewards else 0.0,
-            "reward_total": float(np.sum(training_rewards)) if training_rewards else 0.0,
-        }
-
-        for metric_name, values in policy_a_metrics.items():
-            if values:
-                infos["dual_policy/policy_a"][metric_name] = float(np.sum(values))
-                infos["dual_policy/policy_a"][f"{metric_name}_mean"] = float(np.mean(values))
-
-        # Add policy_b metrics (NPC policy)
-        infos["dual_policy/policy_b"] = {
-            "count": len(npc_rewards),
-            "reward_mean": float(np.mean(npc_rewards)) if npc_rewards else 0.0,
-            "reward_total": float(np.sum(npc_rewards)) if npc_rewards else 0.0,
-        }
-
-        for metric_name, values in policy_b_metrics.items():
-            if values:
-                infos["dual_policy/policy_b"][metric_name] = float(np.sum(values))
-                infos["dual_policy/policy_b"][f"{metric_name}_mean"] = float(np.mean(values))
+        # Exactly seven metrics per category to keep plotting concise (5 categories × 7 = 35)
+        infos["dual_policy/trained"] = _stat_block(training_rewards)
+        infos["dual_policy/npc"] = _stat_block(npc_rewards)
+        infos["dual_policy/combined"] = _stat_block(all_rewards)
+        # Map training→policy_a and npc→policy_b for consistency
+        infos["dual_policy/policy_a"] = _stat_block(training_rewards)
+        infos["dual_policy/policy_b"] = _stat_block(npc_rewards)
 
         # Keep backward compatibility with simple dual_policy metrics
         infos["dual_policy"].update(
