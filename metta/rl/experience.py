@@ -37,7 +37,6 @@ class Experience:
         max_minibatch_size: int,
         experience_spec: Composite,
         device: torch.device | str,
-        cpu_offload: bool = False,
     ):
         """Initialize experience buffer with segmented storage."""
         self._check_for_duplicate_keys(experience_spec)
@@ -47,7 +46,6 @@ class Experience:
         self.batch_size: int = batch_size
         self.bptt_horizon: int = bptt_horizon
         self.device = device if isinstance(device, torch.device) else torch.device(device)
-        self.cpu_offload = cpu_offload
 
         # Calculate segments
         self.segments = batch_size // bptt_horizon
@@ -130,7 +128,7 @@ class Experience:
         if episode_lengths + 1 >= self.bptt_horizon:
             self._reset_completed_episodes(env_id)
 
-    def _reset_completed_episodes(self, env_id) -> None:  # av used to be not tensor
+    def _reset_completed_episodes(self, env_id) -> None:
         """Reset episode tracking for completed episodes."""
         num_full = env_id.stop - env_id.start
         self.ep_indices[env_id] = (self.free_idx + self._range_tensor[:num_full]) % self.segments
@@ -144,35 +142,6 @@ class Experience:
         self.free_idx = self.total_agents % self.segments
         self.ep_indices = self._range_tensor % self.segments
         self.ep_lengths.zero_()
-
-    def reset_importance_sampling_ratios(self) -> None:
-        """Reset the importance sampling ratio to 1.0."""
-        if "ratio" in self.buffer.keys():
-            self.buffer["ratio"].fill_(1.0)
-
-    def sample_minibatch(
-        self,
-        advantages: Tensor,
-        prio_alpha: float,
-        prio_beta: float,
-    ) -> tuple[TensorDict, Tensor, Tensor]:
-        """Sample a prioritized minibatch."""
-        # Prioritized sampling based on advantage magnitude
-        adv_magnitude = advantages.abs().sum(dim=1)
-        prio_weights = torch.nan_to_num(adv_magnitude**prio_alpha, 0, 0, 0)
-        prio_probs = (prio_weights + 1e-6) / (prio_weights.sum() + 1e-6)
-
-        # Sample segment indices
-        idx = torch.multinomial(prio_probs, self.minibatch_segments)
-
-        minibatch = self.buffer[idx].clone()
-        if self.cpu_offload:
-            minibatch = minibatch.to(self.device, non_blocking=True)
-
-        minibatch["advantages"] = advantages[idx]
-        minibatch["returns"] = advantages[idx] + minibatch["values"]
-        prio_weights = (self.segments * prio_probs[idx, None]) ** -prio_beta
-        return minibatch, idx, prio_weights
 
     def update(self, indices: Tensor, data_td: TensorDict) -> None:
         """Update buffer with new data for given indices."""
@@ -210,3 +179,10 @@ class Experience:
                 stats["actions_std"] = actions.std().item()
 
         return stats
+
+    def give_me_empty_md_td(self) -> TensorDict:
+        return TensorDict(
+            {},
+            batch_size=(self.minibatch_segments, self.bptt_horizon),
+            device=self.device,
+        )

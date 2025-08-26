@@ -133,11 +133,6 @@ def test_metta_agent_with_mixin_policy():
     memory = agent.get_memory()  # Should return empty dict
     assert memory == {}
 
-    # Test other mixin-provided methods
-    agent.clip_weights()  # Should work via mixin
-    loss = agent.l2_init_loss()  # Should return tensor via mixin
-    assert isinstance(loss, torch.Tensor)
-    agent.update_l2_init_weight_copy()  # Should work via mixin
     metrics = agent.compute_weight_metrics()  # Should return list via mixin
     assert isinstance(metrics, list)
 
@@ -257,24 +252,6 @@ def test_mixin_provides_all_required_methods():
     # Initialize environment
     features = {"test": {"id": 1, "type": "scalar"}}
     agent.initialize_to_environment(features, ["action"], [1], "cpu")
-
-    # Test weight clipping actually clips
-    # First set some weights outside the clip range
-    policy.linear1.weight.data.fill_(2.0)
-    agent.clip_weights()
-    # Check weights were clipped to [-1.0, 1.0] range
-    assert policy.linear1.weight.data.max() <= 1.0
-    assert policy.linear1.weight.data.min() >= -1.0
-
-    # Test L2 init loss calculation
-    loss = agent.l2_init_loss()
-    assert isinstance(loss, torch.Tensor)
-    assert loss.item() > 0  # Should be non-zero since we modified weights
-
-    # Test weight metrics computation
-    metrics = agent.compute_weight_metrics()
-    assert len(metrics) > 0  # Should have metrics for linear layers
-    assert all("name" in m for m in metrics)
 
     # Test action conversion methods work
     if hasattr(policy, "_convert_action_to_logit_index"):

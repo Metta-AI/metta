@@ -389,9 +389,9 @@ class Simulation:
         """
         self.start_simulation()
 
-        self._policy_pr.policy.reset_memory()
+        self._policy_pr.policy.on_eval_start()
         if self._npc_pr is not None:
-            self._npc_pr.policy.reset_memory()
+            self._npc_pr.policy.on_eval_start()
 
         # Track iterations for heartbeat
         iteration_count = 0
