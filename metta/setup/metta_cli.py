@@ -580,6 +580,7 @@ class MettaCLI:
             "mettascope/tests",
             "agent/tests",
             "app_backend/tests",
+            "codebot/tests",
             "common/tests",
             "mettagrid/tests",
             "--benchmark-disable",
