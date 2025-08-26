@@ -31,7 +31,6 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
-from metta.agent.agent_config import AgentConfig
 
 
 def make_env(num_agents: int = 24) -> EnvConfig:
@@ -87,7 +86,7 @@ def make_env(num_agents: int = 24) -> EnvConfig:
 
     # Shaped rewards exactly matching old configs/env/mettagrid/game/agent/rewards/shaped.yaml
     # CRITICAL: Set rewards on BOTH game.agent AND groups["agent"].props to prevent config clobbering
-    
+
     # Set rewards on main agent config
     env_cfg.game.agent.rewards.inventory.ore_red = 0.1
     env_cfg.game.agent.rewards.inventory.ore_red_max = 1
@@ -107,23 +106,23 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     # Heart reward with maximum possible value
     env_cfg.game.agent.rewards.inventory.heart = 1
     env_cfg.game.agent.rewards.inventory.heart_max = 255
-    
+
     # ALSO set rewards on group config to prevent them from being clobbered during env setup
     env_cfg.game.groups["agent"].props.rewards.inventory.ore_red = 0.1
     env_cfg.game.groups["agent"].props.rewards.inventory.ore_red_max = 1
-    
+
     env_cfg.game.groups["agent"].props.rewards.inventory.battery_red = 0.8
     env_cfg.game.groups["agent"].props.rewards.inventory.battery_red_max = 1
-    
+
     env_cfg.game.groups["agent"].props.rewards.inventory.laser = 0.5
     env_cfg.game.groups["agent"].props.rewards.inventory.laser_max = 1
-    
+
     env_cfg.game.groups["agent"].props.rewards.inventory.armor = 0.5
     env_cfg.game.groups["agent"].props.rewards.inventory.armor_max = 1
-    
+
     env_cfg.game.groups["agent"].props.rewards.inventory.blueprint = 0.5
     env_cfg.game.groups["agent"].props.rewards.inventory.blueprint_max = 1
-    
+
     env_cfg.game.groups["agent"].props.rewards.inventory.heart = 1
     env_cfg.game.groups["agent"].props.rewards.inventory.heart_max = 255
 
