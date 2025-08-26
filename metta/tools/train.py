@@ -40,6 +40,7 @@ class TrainTool(Tool):
 
     # Optional configurations
     map_preview_uri: str | None = None
+    disable_macbook_optimize: bool = False
 
     consumed_args: list[str] = ["run"]
 

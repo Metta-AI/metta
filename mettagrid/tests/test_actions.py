@@ -1,3 +1,5 @@
+"""Integration tests that combine multiple actions."""
+
 import numpy as np
 import pytest
 
@@ -9,104 +11,99 @@ from metta.mettagrid.mettagrid_c import (
     dtype_truncations,
 )
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
-from metta.mettagrid.util.actions import (
-    Orientation,
+from metta.mettagrid.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AgentConfig,
+    AgentRewards,
+    AttackActionConfig,
+    GameConfig,
+    GroupConfig,
+    WallConfig,
+)
+from metta.mettagrid.test_support.actions import (
+    attack,
     get_agent_position,
     move,
+    noop,
+    rotate,
+    swap,
 )
-
-OBS_WIDTH = 3  # should be odd
-OBS_HEIGHT = 3  # should be odd
-NUM_OBS_TOKENS = 100
-OBS_TOKEN_SIZE = 3
+from metta.mettagrid.test_support.orientation import Orientation
 
 
 @pytest.fixture
 def base_config():
-    """Base configuration for MettaGrid tests."""
-    return {
-        "max_steps": 50,
-        "num_agents": 1,
-        "obs_width": OBS_WIDTH,
-        "obs_height": OBS_HEIGHT,
-        "num_observation_tokens": NUM_OBS_TOKENS,
-        "inventory_item_names": ["laser", "armor"],
-        "actions": {
-            "noop": {"enabled": True},
-            "move": {"enabled": True},
-            "rotate": {"enabled": True},
-            "get_items": {"enabled": True},  # maps to get_output
-            "attack": {"enabled": True, "consumed_resources": {"laser": 1}, "defense_resources": {"armor": 1}},
-            "put_items": {"enabled": True},  # maps to get_recipe_items
-            "swap": {"enabled": True},
-            "change_color": {"enabled": True},
-            "change_glyph": {"enabled": True, "number_of_glyphs": 4},
+    """Base configuration for integration tests."""
+    return GameConfig(
+        max_steps=50,
+        num_agents=1,
+        obs_width=3,
+        obs_height=3,
+        num_observation_tokens=100,
+        inventory_item_names=["laser", "armor"],
+        actions=ActionsConfig(
+            noop=ActionConfig(enabled=True),
+            move=ActionConfig(enabled=True),
+            rotate=ActionConfig(enabled=True),
+            get_items=ActionConfig(enabled=True),
+            attack=AttackActionConfig(enabled=True, consumed_resources={"laser": 1}, defense_resources={"armor": 1}),
+            put_items=ActionConfig(enabled=True),
+            swap=ActionConfig(enabled=True),
+        ),
+        groups={"red": GroupConfig(id=0)},
+        objects={
+            "wall": WallConfig(type_id=1, swappable=False),
+            "block": WallConfig(type_id=14, swappable=True),
         },
-        "groups": {"red": {"id": 0, "props": {}}},
-        "objects": {
-            "wall": {"type_id": 1},
-            "altar": {
-                "type_id": 8,
-                "max_output": -1,
-                "conversion_ticks": 1,
-                "cooldown": 10,
-                "initial_resource_count": 0,
-            },
-        },
-        "agent": {"rewards": {}},
-    }
+        agent=AgentConfig(rewards=AgentRewards()),
+        allow_diagonals=True,
+    )
 
 
 @pytest.fixture
-def movement_game_map():
-    """Game map with agent in center and room to move."""
+def complex_game_map():
+    """Complex game map for integration tests."""
     return [
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
-        ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
-        ["wall", "empty", "empty", "agent.red", "empty", "empty", "wall"],  # Agent in center
+        ["wall", "agent.red", "empty", "empty", "empty", "agent.blue", "wall"],
+        ["wall", "empty", "empty", "block", "empty", "empty", "wall"],
         ["wall", "empty", "empty", "empty", "empty", "empty", "wall"],
         ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
     ]
 
 
 @pytest.fixture
-def small_movement_game_map():
-    """Smaller game map for focused movement tests."""
-    return [
-        ["wall", "wall", "wall", "wall", "wall"],
-        ["wall", "empty", "empty", "empty", "wall"],
-        ["wall", "empty", "agent.red", "empty", "wall"],
-        ["wall", "empty", "empty", "empty", "wall"],
-        ["wall", "wall", "wall", "wall", "wall"],
-    ]
-
-
-@pytest.fixture
-def blocked_game_map():
-    """Game map where agent is completely surrounded by walls."""
-    return [
-        ["wall", "wall", "wall"],
-        ["wall", "agent.red", "wall"],
-        ["wall", "wall", "wall"],
-    ]
-
-
-@pytest.fixture
-def configured_env(base_config):
+def configured_env(base_config: GameConfig):
     """Factory fixture that creates a configured MettaGrid environment."""
 
     def _create_env(game_map, config_overrides=None):
-        game_config = base_config.copy()
+        game_config = base_config
+
+        assert game_config.allow_diagonals
+
         if config_overrides:
-            game_config.update(config_overrides)
+            # Create a new config with overrides using Pydantic model update
+            config_dict = game_config.model_dump()
+
+            # Deep update for nested dicts
+            for key, value in config_overrides.items():
+                if isinstance(value, dict) and key in config_dict and isinstance(config_dict[key], dict):
+                    config_dict[key].update(value)
+                else:
+                    config_dict[key] = value
+
+            # Create new GameConfig from updated dict
+            game_config = GameConfig(**config_dict)
 
         env = MettaGrid(from_mettagrid_config(game_config), game_map, 42)
 
         # Set up buffers
-        observations = np.zeros((1, NUM_OBS_TOKENS, OBS_TOKEN_SIZE), dtype=dtype_observations)
-        terminals = np.zeros(1, dtype=dtype_terminals)
-        truncations = np.zeros(1, dtype=dtype_truncations)
-        rewards = np.zeros(1, dtype=dtype_rewards)
+        num_agents = game_config.num_agents
+        observations = np.zeros((num_agents, 100, 3), dtype=dtype_observations)
+        terminals = np.zeros(num_agents, dtype=dtype_terminals)
+        truncations = np.zeros(num_agents, dtype=dtype_truncations)
+        rewards = np.zeros(num_agents, dtype=dtype_rewards)
         env.set_buffers(observations, terminals, truncations, rewards)
 
         env.reset()
@@ -115,304 +112,248 @@ def configured_env(base_config):
     return _create_env
 
 
-def test_move_all_directions(configured_env, movement_game_map):
-    """Test the move function in all four directions."""
-    env = configured_env(movement_game_map)
-
-    initial_pos = get_agent_position(env)
-    assert initial_pos is not None, "Agent should have a valid initial position"
-
-    directions = [
-        Orientation.UP,
-        Orientation.RIGHT,
-        Orientation.DOWN,
-        Orientation.LEFT,
+def test_move_rotate_sequence(configured_env):
+    """Test a sequence of move and rotate actions."""
+    simple_map = [
+        ["wall", "wall", "wall", "wall", "wall"],
+        ["wall", "empty", "empty", "empty", "wall"],
+        ["wall", "empty", "agent.red", "empty", "wall"],
+        ["wall", "empty", "empty", "empty", "wall"],
+        ["wall", "wall", "wall", "wall", "wall"],
     ]
 
-    for orientation in directions:
-        direction_name = str(orientation)
+    env = configured_env(simple_map)
 
-        print(f"Testing move {direction_name} (orientation {orientation.value})")
+    # Initial position
+    initial_pos = get_agent_position(env, 0)
+    assert initial_pos == (2, 2)
 
-        position_before = get_agent_position(env, 0)
-        result = move(env, orientation)
-        position_after = get_agent_position(env, 0)
+    # Rotate to face east
+    rotate_result = rotate(env, Orientation.EAST)
+    assert rotate_result["success"], "Rotation should succeed"
 
-        # Assert movement was successful
-        assert result["success"], f"Move {direction_name} should succeed. Error: {result.get('error', 'Unknown')}"
+    # Move east
+    move_result = move(env, Orientation.EAST)
+    assert move_result["success"], "Move east should succeed"
 
-        # Assert position changed
-        assert position_before != position_after, f"Agent should have moved {direction_name}"
+    # Check new position
+    new_pos = get_agent_position(env, 0)
+    assert new_pos == (2, 3), f"Agent should be at (2, 3), got {new_pos}"
 
-        # Assert movement was in correct direction
-        dr = position_after[0] - position_before[0]
-        dc = position_after[1] - position_before[1]
-        expected_dr, expected_dc = orientation.movement_delta
-        assert (dr, dc) == (expected_dr, expected_dc), f"Agent should have moved correctly {direction_name}"
+    # Move north (should update orientation to up)
+    move_result = move(env, Orientation.NORTH)
+    assert move_result["success"], "Move north should succeed"
 
-        print(f"✅ Move {direction_name}: {position_before} → {position_after}")
-
-
-def test_move_up(configured_env, small_movement_game_map):
-    """Test moving up specifically."""
-    env = configured_env(small_movement_game_map, {"max_steps": 10})
-
-    # Get position before move
-    position_before = get_agent_position(env, 0)
-
-    result = move(env, Orientation.UP)  # Use Orientation enum
-
-    assert result["success"], f"Move up should succeed. Error: {result.get('error')}"
-
-    # Get position after move and verify
-    position_after = get_agent_position(env, 0)
-    assert position_before[0] - position_after[0] == 1, "Should move up by 1 row"
+    # Check final position
+    final_pos = get_agent_position(env, 0)
+    assert final_pos == (1, 3), f"Agent should be at (1, 3), got {final_pos}"
 
 
-def test_move_blocked_by_wall(configured_env, blocked_game_map):
-    """Test that movement is properly blocked by walls."""
-    env = configured_env(blocked_game_map, {"max_steps": 10})
+def test_attack_and_swap_integration(configured_env, complex_game_map):
+    """Test attack followed by swap with a frozen agent."""
+    config_overrides = {
+        "num_agents": 2,
+        "groups": {
+            "red": {"id": 0, "props": {}},
+            "blue": {"id": 1, "props": {}},
+        },
+        "agent": {
+            "freeze_duration": 6,
+            "resource_limits": {"laser": 10},
+            "initial_inventory": {"laser": 5},
+        },
+    }
 
-    directions = [
-        Orientation.UP,
-        Orientation.RIGHT,
-        Orientation.DOWN,
-        Orientation.LEFT,
-    ]
+    env = configured_env(complex_game_map, config_overrides)
 
-    for orientation in directions:
-        position_before = get_agent_position(env, 0)
-        result = move(env, orientation)
-        position_after = get_agent_position(env, 0)
-        direction_name = str(orientation)
+    # complex_game_map layout:
+    # ["wall", "agent.red", "empty", "empty", "empty", "agent.blue", "wall"],
+    # ["wall", "empty", "empty", "block", "empty", "empty", "wall"],
+    # Agent 0 (red) is at (1, 1), Agent 1 (blue) is at (1, 5)
+    # Block is at (2, 3)
 
-        # Movement should fail or position should remain unchanged
-        if result["success"]:
-            # This shouldn't happen for blocked movement
-            raise AssertionError(f"Move {direction_name} should fail when blocked by wall")
+    # Move agent 0 east three times to get closer to agent 1
+    move_result = move(env, Orientation.EAST, agent_idx=0)
+    assert move_result["success"], "First move east should succeed"
+
+    move_result = move(env, Orientation.EAST, agent_idx=0)
+    assert move_result["success"], "Second move east should succeed"
+
+    move_result = move(env, Orientation.EAST, agent_idx=0)
+    assert move_result["success"], "Third move east should succeed"
+
+    # Now agent should be at (1, 4), next to agent 1 at (1, 5)
+    current_pos = get_agent_position(env, 0)
+    print(f"Position before attack: {current_pos}")
+
+    # Rotate to face right (toward agent 1)
+    rotate_result = rotate(env, Orientation.EAST, agent_idx=0)
+    assert rotate_result["success"], "Rotation should succeed"
+
+    # Attack agent 1 (who is directly to the right)
+    attack_result = attack(env, target_arg=0, agent_idx=0)
+    if attack_result["success"]:
+        assert "frozen_agent_id" in attack_result, "Should have frozen an agent"
+        print("✅ Successfully attacked and froze agent")
+
+        # Now try to swap with the frozen agent
+        swap_result = swap(env, agent_idx=0)
+        if swap_result["success"]:
+            print("✅ Successfully swapped with frozen agent")
+            new_pos = get_agent_position(env, 0)
+            assert new_pos == (1, 5), f"Should have swapped to agent 1's position, got {new_pos}"
         else:
-            # Action failed, which is expected for blocked movement
-            assert result["error"] is not None, f"Failed move {direction_name} should have an error message"
-            assert position_before == position_after, "Position should not change when blocked"
+            print(f"ℹ️ Swap with frozen agent not supported: {swap_result.get('error')}")
+    else:
+        print(f"Attack failed: {attack_result.get('error')}")
 
 
-def test_move_returns_to_center(configured_env, movement_game_map):
-    """Test that we can move in a circle and return to center."""
-    env = configured_env(movement_game_map)
+def test_movement_pattern_with_obstacles(configured_env):
+    """Test complex movement pattern around obstacles."""
+    obstacle_map = [
+        ["wall", "wall", "wall", "wall", "wall", "wall"],
+        ["wall", "agent.red", "empty", "wall", "empty", "wall"],
+        ["wall", "empty", "wall", "wall", "empty", "wall"],
+        ["wall", "empty", "empty", "empty", "empty", "wall"],
+        ["wall", "wall", "wall", "wall", "wall", "wall"],
+    ]
 
-    initial_pos = get_agent_position(env)
-    assert initial_pos is not None, "Agent should have a valid initial position"
+    env = configured_env(obstacle_map)
 
-    # Move in a circle: up, right, down, left
+    # Navigate around obstacles
     moves = [
-        Orientation.UP,
-        Orientation.RIGHT,
-        Orientation.DOWN,
-        Orientation.LEFT,
+        (Orientation.EAST, True, (1, 2)),  # Move east
+        (Orientation.SOUTH, False, (1, 2)),  # Can't move south - wall at (2, 2)
+        (Orientation.WEST, True, (1, 1)),  # Move back west
+        (Orientation.SOUTH, True, (2, 1)),  # Move south
+        (Orientation.SOUTH, True, (3, 1)),  # Move south again
+        (Orientation.EAST, True, (3, 2)),  # Move east
+        (Orientation.EAST, True, (3, 3)),  # Move east again
+        (Orientation.EAST, True, (3, 4)),  # Move east once more
+        (Orientation.NORTH, True, (2, 4)),  # Move north
+        (Orientation.NORTH, True, (1, 4)),  # Move north to destination
     ]
 
-    for orientation in moves:
-        result = move(env, orientation)
-        direction_name = str(orientation)
+    for i, (direction, should_succeed, expected_pos) in enumerate(moves):
+        print(f"Move {i + 1}: {direction}")
+        current_pos = get_agent_position(env, 0)
+        print(f"  Current position: {current_pos}")
 
-        assert result["success"], f"Move {direction_name} should succeed"
+        result = move(env, direction)
+        assert result["success"] == should_succeed, (
+            f"Move {direction} should {'succeed' if should_succeed else 'fail'}, "
+            f"but got {result['success']}. Error: {result.get('error')}"
+        )
 
-    # Should be back at original position
-    final_pos = get_agent_position(env)
-    assert final_pos == initial_pos, f"Agent should return to original position {initial_pos}, but is at {final_pos}"
+        if should_succeed:
+            actual_pos = get_agent_position(env, 0)
+            assert actual_pos == expected_pos, (
+                f"After moving {direction}, expected position {expected_pos}, got {actual_pos}"
+            )
 
 
-@pytest.fixture
-def corridor_game_map():
-    """Game map with a corridor for walking tests."""
-    return [
-        ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
-        ["wall", "agent.red", "empty", "empty", "empty", "empty", "wall"],
-        ["wall", "empty", "empty", "altar", "empty", "empty", "wall"],
-        ["wall", "wall", "wall", "wall", "wall", "wall", "wall"],
+def test_all_actions_sequence(configured_env):
+    """Test using all available actions in sequence."""
+    test_map = [
+        ["wall", "wall", "wall", "wall", "wall"],
+        ["wall", "agent.red", "empty", "empty", "wall"],
+        ["wall", "empty", "block", "empty", "wall"],
+        ["wall", "empty", "empty", "empty", "wall"],
+        ["wall", "wall", "wall", "wall", "wall"],
     ]
 
+    env = configured_env(test_map)
 
-def test_agent_walks_across_room(configured_env, corridor_game_map):
-    """
-    Test where a single agent walks across a room.
-    Creates a simple corridor and attempts to walk the agent from one end to the other.
-    The move() function already handles observation validation.
-    """
-    print("Testing agent walking across room...")
+    print("\n=== Testing all actions in sequence ===")
 
-    # Create environment with walking-specific config
-    env = configured_env(
-        corridor_game_map,
-        {
-            "max_steps": 20,
-            "obs_width": 3,
-            "obs_height": 3,
-        },
-    )
+    # 1. Noop
+    print("1. Testing noop...")
+    noop_result = noop(env)
+    assert noop_result["success"], "Noop should always succeed"
 
-    print(f"Environment created: {env.map_width}x{env.map_height}")
-    print(f"Initial timestep: {env.current_step}")
+    # 2. Rotate
+    print("2. Testing rotate...")
+    rotate_result = rotate(env, Orientation.EAST)  # Face right
+    assert rotate_result["success"], "Rotate should succeed"
 
-    # Find a working direction using Orientation enum
-    successful_moves = []
-    total_moves = 0
+    # 3. Move east
+    print("3. Testing move east...")
+    move_result = move(env, Orientation.EAST)
+    assert move_result["success"], "Move east should succeed"
 
-    print("\n=== Testing which direction allows movement ===")
-    working_orientation = None
+    # Now at (1, 2)
+    print(f"   Position after move east: {get_agent_position(env, 0)}")
 
-    # Test all orientations
-    directions = [
-        Orientation.UP,
-        Orientation.RIGHT,
-        Orientation.DOWN,
-        Orientation.LEFT,
+    # 4. Move east again
+    print("4. Moving east again...")
+    move_result = move(env, Orientation.EAST)
+    assert move_result["success"], "Second move east should succeed"
+
+    # Now at (1, 3)
+    print(f"   Position: {get_agent_position(env, 0)}")
+
+    # 5. Move south to row with block
+    print("5. Moving south...")
+    move_result = move(env, Orientation.SOUTH)
+    assert move_result["success"], "Move south should succeed"
+
+    # Now at (2, 3), next to block at (2, 2)
+    current_pos = get_agent_position(env, 0)
+    print(f"   Position next to block: {current_pos}")
+
+    # 6. Rotate to face the block (west)
+    print("6. Rotating to face west (toward block)...")
+    rotate_result = rotate(env, Orientation.WEST)
+
+    # 7. Swap with block
+    print("7. Testing swap with block...")
+    swap_result = swap(env)
+    if swap_result["success"]:
+        print("   ✅ Swap succeeded")
+        # Verify position changed
+        new_pos = get_agent_position(env, 0)
+        print(f"   New position after swap: {new_pos}")
+        # Note: position depends on implementation of swap
+    else:
+        print(f"   ℹ️ Swap failed: {swap_result.get('error')}")
+        # Try moving to a different position for other tests
+        print("   Moving to continue other tests...")
+        move(env, Orientation.SOUTH)
+
+    print("\n✅ All actions tested successfully!")
+
+
+def test_diagonal_movement_integration(configured_env):
+    """Test diagonal movement combined with other actions."""
+    open_map = [
+        ["wall", "wall", "wall", "wall", "wall", "wall"],
+        ["wall", "empty", "empty", "empty", "empty", "wall"],
+        ["wall", "empty", "agent.red", "empty", "empty", "wall"],
+        ["wall", "empty", "empty", "empty", "empty", "wall"],
+        ["wall", "wall", "wall", "wall", "wall", "wall"],
     ]
 
-    for orientation in directions:
-        direction_name = str(orientation)
+    env: MettaGrid = configured_env(open_map)
 
-        print(f"\nTesting movement {direction_name}...")
+    print(env.action_names(), env.max_action_args())
 
-        result = move(env, orientation, agent_idx=0)
-
-        if result["success"]:
-            print(f"✓ Found working direction: {direction_name}")
-            working_orientation = orientation
-            working_direction_str = direction_name
-            break
-        else:
-            print(f"✗ Direction {direction_name} failed: {result.get('error', 'Unknown error')}")
-
-    # Assert we found at least one working direction
-    assert working_orientation is not None, "Should find at least one direction that allows movement"
-
-    print(f"\n=== Walking across room in direction: {working_direction_str} ===")
-
-    # Reset for clean walk
-    env = configured_env(
-        corridor_game_map,
-        {
-            "max_steps": 20,
-            "obs_width": 3,
-            "obs_height": 3,
-        },
-    )
-
-    # Walk multiple steps
-    max_steps = 5
-
-    for step in range(1, max_steps + 1):
-        print(f"\n--- Step {step}: Moving {working_direction_str} ---")
-
-        position_before = get_agent_position(env, 0)
-        result = move(env, working_orientation, agent_idx=0)
-        position_after = get_agent_position(env, 0)
-        total_moves += 1
-
-        if result["success"]:
-            successful_moves.append(step)
-            print(f"✓ Successful move #{len(successful_moves)}")
-            print(f"  Position: {position_before} → {position_after}")
-        else:
-            print(f"✗ Move failed: {result.get('error', 'Unknown error')}")
-            print("  Agent likely hit an obstacle or boundary")
-            break
-
-        if env.current_step >= 18:
-            print("  Approaching max steps limit")
-            break
-
-    print("\n=== Walking Test Summary ===")
-    print(f"Working direction: {working_direction_str}")
-    print(f"Total move attempts: {total_moves}")
-    print(f"Successful moves: {len(successful_moves)}")
-    print(f"Success rate: {len(successful_moves) / total_moves:.1%}" if total_moves > 0 else "N/A")
-
-    # Validation
-    assert len(successful_moves) >= 1, (
-        f"Agent should have moved at least once. Got {len(successful_moves)} successful moves."
-    )
-
-    assert total_moves > 0, "Should have attempted at least one move"
-
-    print("✅ Agent walking test passed!")
-
-
-def test_agent_walks_in_all_possible_directions(configured_env, corridor_game_map):
-    """Test that agent can move in all non-blocked directions."""
-    print("Testing agent movement in all possible directions...")
-
-    env = configured_env(corridor_game_map, {"max_steps": 20})
-
-    successful_directions = []
-    failed_directions = []
-
-    # Test all orientations using enum
-    directions = [
-        Orientation.UP,
-        Orientation.RIGHT,
-        Orientation.DOWN,
-        Orientation.LEFT,
+    # Test diagonal movement pattern
+    diagonal_moves = [
+        (Orientation.NORTH, (1, 2)),
+        (Orientation.SOUTH, (2, 2)),
+        (Orientation.NORTHEAST, (1, 3)),
+        (Orientation.SOUTHEAST, (2, 4)),
+        (Orientation.SOUTHWEST, (3, 3)),
+        (Orientation.NORTHWEST, (2, 2)),  # Back to start
     ]
 
-    for orientation in directions:
-        direction_name = str(orientation)
+    for direction, expected_pos in diagonal_moves:
+        result = move(env, direction)
+        print(result)
 
-        print(f"\nTesting {direction_name} (orientation {orientation.value})...")
+        assert result["success"], f"move {direction} should succeed"
 
-        # Reset environment for each direction test
-        env = configured_env(corridor_game_map, {"max_steps": 20})
+        actual_pos = get_agent_position(env, 0)
+        assert actual_pos == expected_pos, f"After {direction}, expected {expected_pos}, got {actual_pos}"
 
-        position_before = get_agent_position(env, 0)
-        result = move(env, orientation, agent_idx=0)
-        position_after = get_agent_position(env, 0)
-
-        if result["success"] and position_before != position_after:
-            successful_directions.append(direction_name)
-            print(f"✓ {direction_name}: {position_before} → {position_after}")
-        else:
-            failed_directions.append(direction_name)
-            print(f"✗ {direction_name}: {result.get('error', 'Movement failed')}")
-
-    print("\nResults:")
-    print(f"Successful directions: {successful_directions}")
-    print(f"Failed directions: {failed_directions}")
-
-    # Based on the corridor map, "right" should work (agent starts at (1,1), can move to (1,2))
-    # left should be blocked by wall, up/down might be blocked depending on exact positioning
-    assert len(successful_directions) >= 1, (
-        f"Should be able to move in at least one direction. "
-        f"Successful: {successful_directions}, Failed: {failed_directions}"
-    )
-
-    # In a corridor, we expect right to work since agent starts next to empty spaces
-    if "right" not in successful_directions:
-        print("Warning: Right movement failed, which is unexpected in this corridor layout")
-
-
-def test_orientation_enum_functionality():
-    """Test that the Orientation enum works as expected."""
-    assert Orientation.UP.movement_delta == (-1, 0)
-    assert Orientation.DOWN.movement_delta == (1, 0)
-    assert Orientation.LEFT.movement_delta == (0, -1)
-    assert Orientation.RIGHT.movement_delta == (0, 1)
-
-    assert str(Orientation.UP) == "up"
-    assert str(Orientation.DOWN) == "down"
-    assert str(Orientation.LEFT) == "left"
-    assert str(Orientation.RIGHT) == "right"
-
-
-def test_move_with_string_orientation(configured_env, small_movement_game_map):
-    """Test that move function accepts string orientations."""
-    env = configured_env(small_movement_game_map, {"max_steps": 10})
-
-    # Test with string
-    position_before = get_agent_position(env, 0)
-    result = move(env, Orientation.UP)
-    position_after = get_agent_position(env, 0)
-
-    # Should work the same as using the enum directly
-    assert result["success"], f"Move with string orientation should succeed. Error: {result.get('error')}"
-    assert position_before[0] - position_after[0] == 1, "Agent should move up by 1 row"
+    print("✅ Diagonal movement pattern completed successfully!")

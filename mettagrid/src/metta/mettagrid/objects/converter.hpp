@@ -6,55 +6,11 @@
 #include <vector>
 
 #include "../event.hpp"
-#include "../grid_object.hpp"
 #include "../stats_tracker.hpp"
 #include "agent.hpp"
 #include "constants.hpp"
+#include "converter_config.hpp"
 #include "has_inventory.hpp"
-
-// Forward declaration
-class MettaGrid;
-
-// #MettagridConfig
-struct ConverterConfig : public GridObjectConfig {
-  ConverterConfig(TypeId type_id,
-                  const std::string& type_name,
-                  const std::map<InventoryItem, InventoryQuantity>& input_resources,
-                  const std::map<InventoryItem, InventoryQuantity>& output_resources,
-                  short max_output,
-                  short max_conversions,
-                  unsigned short conversion_ticks,
-                  unsigned short cooldown,
-                  InventoryQuantity initial_resource_count,
-                  ObservationType color,
-                  bool recipe_details_obs)
-      : GridObjectConfig(type_id, type_name),
-        input_resources(input_resources),
-        output_resources(output_resources),
-        max_output(max_output),
-        max_conversions(max_conversions),
-        conversion_ticks(conversion_ticks),
-        cooldown(cooldown),
-        initial_resource_count(initial_resource_count),
-        color(color),
-        recipe_details_obs(recipe_details_obs),
-        // These are always 0 when this is created, since we want a single constructor, and these
-        // shouldn't be provided by Python.
-        input_recipe_offset(0),
-        output_recipe_offset(0) {}
-
-  std::map<InventoryItem, InventoryQuantity> input_resources;
-  std::map<InventoryItem, InventoryQuantity> output_resources;
-  short max_output;
-  short max_conversions;
-  unsigned short conversion_ticks;
-  unsigned short cooldown;
-  InventoryQuantity initial_resource_count;
-  ObservationType color;
-  bool recipe_details_obs;
-  ObservationType input_recipe_offset;
-  ObservationType output_recipe_offset;
-};
 
 class Converter : public HasInventory {
 private:
