@@ -256,10 +256,10 @@ export function processActions(event: KeyboardEvent) {
           sendAction('move', 2) // West
         }
       } else {
-        sendAction('rotate', 0)
-        sendAction('move', 0)
-        sendAction('rotate', 2)
-        sendAction('move', 0)
+        sendAction('rotate', 0) // Rotate up.
+        sendAction('move', 0) // Move up.
+        sendAction('rotate', 2) // Rotate left.
+        sendAction('move', 0) //Move left.
       }
     }
     if (event.code === 'Numpad9') {
@@ -271,10 +271,10 @@ export function processActions(event: KeyboardEvent) {
           sendAction('move', 3) // East
         }
       } else {
-        sendAction('rotate', 0)
-        sendAction('move', 0)
-        sendAction('rotate', 3)
-        sendAction('move', 0)
+        sendAction('rotate', 0) // Rotate up.
+        sendAction('move', 0) // Move up.
+        sendAction('rotate', 3) // Rotate right.
+        sendAction('move', 0) // Move right.
       }
     }
     if (event.code === 'Numpad1') {
@@ -286,10 +286,10 @@ export function processActions(event: KeyboardEvent) {
           sendAction('move', 2) // West
         }
       } else {
-        sendAction('rotate', 1)
-        sendAction('move', 0)
-        sendAction('rotate', 2)
-        sendAction('move', 0)
+        sendAction('rotate', 1) // Rotate down.
+        sendAction('move', 0) // Move down.
+        sendAction('rotate', 2) // Rotate left.
+        sendAction('move', 0) // Move left.
       }
     }
     if (event.code === 'Numpad3') {
@@ -301,10 +301,10 @@ export function processActions(event: KeyboardEvent) {
           sendAction('move', 3) // East
         }
       } else {
-        sendAction('rotate', 1)
-        sendAction('move', 0)
-        sendAction('rotate', 3)
-        sendAction('move', 0)
+        sendAction('rotate', 1) //  Rotate down.
+        sendAction('move', 0) // Move down.
+        sendAction('rotate', 3) // Rotate right.
+        sendAction('move', 0) // Move right.
       }
     }
 
