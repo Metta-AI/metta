@@ -3,11 +3,7 @@
 
 #define PYBIND11_DETAILED_ERROR_MESSAGES
 
-#if defined(_WIN32)
-#define METTAGRID_API __declspec(dllexport)
-#else
 #define METTAGRID_API __attribute__((visibility("default")))
-#endif
 
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
@@ -19,6 +15,7 @@
 #include <string>
 #include <vector>
 
+#include "extensions/mettagrid_extension.hpp"
 #include "grid_object.hpp"
 #include "mettagrid_config.hpp"
 #include "packed_coordinate.hpp"
@@ -109,6 +106,8 @@ public:
     return _agents[agent_id];
   }
 
+  friend class MettaGridExtension;
+
 private:
   // Member variables
   GlobalObsConfig _global_obs_config;
@@ -131,6 +130,8 @@ private:
 
   std::unique_ptr<ObservationEncoder> _obs_encoder;
   std::unique_ptr<StatsTracker> _stats;
+
+  std::vector<std::unique_ptr<MettaGridExtension>> _extensions;
 
   size_t _num_observation_tokens;
 

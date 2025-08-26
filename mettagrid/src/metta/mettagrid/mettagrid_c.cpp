@@ -211,10 +211,7 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
         }
         agent->agent_id = static_cast<decltype(agent->agent_id)>(_agents.size());
         agent->stats.set_environment(this);
-        // Only initialize visitation grid if visitation counts are enabled
-        if (_global_obs_config.visitation_counts) {
-          agent->init_visitation_grid(height, width);
-        }
+
         // add agent box
         if (game_config.objects.contains("box")) {
           const BoxConfig* local_box_cfg = dynamic_cast<const BoxConfig*>(game_config.objects.at("box").get());
@@ -258,6 +255,13 @@ MettaGrid::MettaGrid(const GameConfig& game_config, const py::list map, unsigned
     }
 
     _resource_rewards[agent_idx] = packed;
+  }
+
+  // Create extensions from ordered list
+  for (const auto& ext_name : game_config.extensions) {
+    auto ext = ExtensionRegistry::instance().create(ext_name);
+    ext->onInit(this);
+    _extensions.push_back(std::move(ext));
   }
 
   // Initialize buffers. The buffers are likely to be re-set by the user anyways,
@@ -357,16 +361,6 @@ void MettaGrid::_compute_observation(GridCoord observer_row,
   // Add inventory rewards for this agent
   if (_global_obs_config.resource_rewards && !_resource_rewards.empty()) {
     global_tokens.push_back({ObservationFeature::ResourceRewards, _resource_rewards[agent_idx]});
-  }
-
-  // Add visitation counts for this agent
-  if (_global_obs_config.visitation_counts) {
-    auto& agent = _agents[agent_idx];
-    auto visitation_counts = agent->get_visitation_counts();
-    for (size_t i = 0; i < 5; i++) {
-      global_tokens.push_back(
-          {ObservationFeature::VisitationCounts, static_cast<ObservationType>(visitation_counts[i])});
-    }
   }
 
   // Global tokens are always at the center of the observation.
@@ -537,6 +531,11 @@ void MettaGrid::_step(Actions actions) {
   // Compute observations for next step
   _compute_observations(actions);
 
+  // apply any game extensions
+  for (auto& ext : _extensions) {
+    ext->onStep(this);
+  }
+
   // Compute stat-based rewards for all agents
   for (auto& agent : _agents) {
     agent->compute_stat_rewards();
@@ -567,11 +566,9 @@ py::tuple MettaGrid::reset() {
     throw std::runtime_error("Cannot reset after stepping");
   }
 
-  // Reset visitation counts for all agents (only if enabled)
-  if (_global_obs_config.visitation_counts) {
-    for (auto& agent : _agents) {
-      agent->reset_visitation_counts();
-    }
+  // Reset extensions
+  for (auto& ext : _extensions) {
+    ext->onReset(this);
   }
 
   // Reset all buffers
@@ -856,6 +853,20 @@ py::dict MettaGrid::get_episode_stats() {
     }
   }
   stats["converter"] = converter_stats;
+
+  // Collect extension stats
+  py::dict extension_stats;
+  for (const auto& ext : _extensions) {
+    py::dict ext_stats = ext->getStats();
+    if (!ext_stats.empty()) {
+      extension_stats[ext->getName().c_str()] = ext_stats;  // Convert string to c_str()
+    }
+  }
+
+  if (!extension_stats.empty()) {
+    stats["extensions"] = extension_stats;
+  }
+
   return stats;
 }
 

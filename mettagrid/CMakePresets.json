@@ -6,7 +6,8 @@
       "hidden": true,
       "generator": "Ninja",
       "cacheVariables": {
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_COLOR_DIAGNOSTICS": "ON"
       }
     },
     {

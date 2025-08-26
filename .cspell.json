@@ -214,6 +214,7 @@
     "PYTHONUNBUFFERED",
     "randn",
     "raylib",
+    "RAYWHITE",
     "readlink",
     "reinit",
     "relu",
@@ -283,8 +284,10 @@
     "vtrace",
     "wandb",
     "Werror",
+    "Wglobal",
     "worktree",
     "worktrees",
+    "Wpragmas",
     "wyhash",
     "wymix",
     "wymum",
@@ -294,5 +297,9 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }
