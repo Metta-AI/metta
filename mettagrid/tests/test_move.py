@@ -450,11 +450,12 @@ def test_8way_movement_boundary_check():
     assert (objects[agent_id]["r"], objects[agent_id]["c"]) == (1, 1)
 
 
-def test_orientation_remains_on_failed_8way_movement():
-    """Test that orientation does NOT change when 8-way movement fails due to obstacles."""
+def test_orientation_changes_on_failed_8way_movement():
+    """Test that orientation DOES change when 8-way movement fails due to obstacles (new behavior)."""
     env_cfg = EnvConfig(
         game=GameConfig(
             num_agents=1,
+            allow_diagonals=True,  # Enable diagonal movements for this test
             actions=ActionsConfig(
                 rotate=ActionConfig(enabled=True),
                 move=ActionConfig(enabled=True),
@@ -491,30 +492,30 @@ def test_orientation_remains_on_failed_8way_movement():
         objects = env.grid_objects
         assert objects[agent_id]["orientation"] == 2  # Left
 
-    # Try to move East into wall - should fail and NOT change orientation
+    # Try to move East into wall - should fail but SHOULD change orientation to East
     actions = np.zeros((1, 2), dtype=dtype_actions)
     actions[0] = [move_idx, Orientation.EAST.value]
     env.step(actions)
 
     objects = env.grid_objects
     assert not env.action_success[0]  # Movement should fail
-    assert objects[agent_id]["orientation"] == 2  # Orientation should remain Left
+    assert objects[agent_id]["orientation"] == Orientation.EAST.value  # Orientation should change to East
 
-    # Try to move Northeast into wall - should fail and NOT change orientation
+    # Try to move Northeast into wall - should fail but SHOULD change orientation to Northeast
     actions[0] = [move_idx, Orientation.NORTHEAST.value]
     env.step(actions)
 
     objects = env.grid_objects
     assert not env.action_success[0]  # Movement should fail
-    assert objects[agent_id]["orientation"] == 2  # Orientation should still be Left
+    assert objects[agent_id]["orientation"] == Orientation.NORTHEAST.value  # Orientation should change to Northeast
 
-    # Try to move Southwest into wall - should fail and NOT change orientation
+    # Try to move Southwest into wall - should fail but SHOULD change orientation to Southwest
     actions[0] = [move_idx, Orientation.SOUTHWEST.value]
     env.step(actions)
 
     objects = env.grid_objects
     assert not env.action_success[0]  # Movement should fail
-    assert objects[agent_id]["orientation"] == 2  # Orientation should still be Left
+    assert objects[agent_id]["orientation"] == Orientation.SOUTHWEST.value  # Orientation should change to Southwest
 
 
 # Tests for MettaGrid (high-level API) using helper functions
