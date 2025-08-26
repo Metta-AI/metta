@@ -1,21 +1,38 @@
 #!/usr/bin/env node
 
-const fs = require('fs');
-const yaml = require('js-yaml');
-const path = require('path');
+import fs from 'fs';
+import yaml from 'js-yaml';
 
 // Read the links config
 const linksConfig = yaml.load(fs.readFileSync('links.yaml', 'utf8'));
 
 // Generate nginx location blocks for redirects
-const redirects = linksConfig.links
-  .filter(link => link.short_url)
-  .map(link => {
-    // Escape quotes in URLs
+const allRedirects = [];
+
+// Process main links and their sub-links
+linksConfig.links.forEach(link => {
+  // Add main link redirects (now an array)
+  if (link.short_urls && link.short_urls.length > 0) {
     const url = link.url.replace(/"/g, '\\"');
-    return `    location = /${link.short_url} { return 301 "${url}"; }`;
-  })
-  .join('\n');
+    link.short_urls.forEach(shortUrl => {
+      allRedirects.push(`    location = /${shortUrl} { return 301 "${url}"; }`);
+    });
+  }
+
+  // Add sub-link redirects (now arrays)
+  if (link.sub_links) {
+    link.sub_links.forEach(subLink => {
+      if (subLink.short_urls && subLink.short_urls.length > 0) {
+        const url = subLink.url.replace(/"/g, '\\"');
+        subLink.short_urls.forEach(shortUrl => {
+          allRedirects.push(`    location = /${shortUrl} { return 301 "${url}"; }`);
+        });
+      }
+    });
+  }
+});
+
+const redirects = allRedirects.join('\n');
 
 // Read the nginx config template
 const nginxTemplate = fs.readFileSync('nginx.conf.template', 'utf8');
