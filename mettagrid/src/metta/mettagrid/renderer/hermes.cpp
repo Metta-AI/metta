@@ -496,10 +496,11 @@ static void DrawVisibility(Hermes& ctx) {
   if (ctx.selection != nullptr && ctx.selection->type_id == ctx.types.agent) {
     auto loc = ctx.selection->location;
     update_visibility(loc.r, loc.c);
-  } else
+  } else {
     for (auto agent : ctx.buckets[ctx.types.agent]) {
       update_visibility(agent.cell.x, agent.cell.y);
     }
+  }
 
   constexpr auto pivot = TILE_SIZE / 2;  // Match sprites having a centered pivot.
   Rectangle rect = {0, 0, TILE_SIZE, TILE_SIZE};
@@ -951,7 +952,8 @@ static void Hermes_Cache(Hermes& ctx) {
 
 #define ACTION(s) else if (name == #s##sv) ctx.actions.s = static_cast<uint8_t>(action_id)
     if (false) {
-    }  // NOLINT(whitespace/empty_if_body)
+      // Intentional no-op: anchor for ACTION macro chain
+    }
     ACTION(noop);
     ACTION(move);
     ACTION(rotate);

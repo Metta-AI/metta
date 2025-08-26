@@ -1,6 +1,6 @@
 // agent_config.hpp
-#ifndef AGENT_CONFIG_HPP_
-#define AGENT_CONFIG_HPP_
+#ifndef OBJECTS_AGENT_CONFIG_HPP_
+#define OBJECTS_AGENT_CONFIG_HPP_
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -96,4 +96,4 @@ inline void bind_agent_config(py::module& m) {
       .def_readwrite("initial_inventory", &AgentConfig::initial_inventory);
 }
 
-#endif  // AGENT_CONFIG_HPP_
+#endif  // OBJECTS_AGENT_CONFIG_HPP_

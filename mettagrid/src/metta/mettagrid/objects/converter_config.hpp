@@ -1,6 +1,6 @@
 // converter_config.hpp
-#ifndef CONVERTER_CONFIG_HPP_
-#define CONVERTER_CONFIG_HPP_
+#ifndef OBJECTS_CONVERTER_CONFIG_HPP_
+#define OBJECTS_CONVERTER_CONFIG_HPP_
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
@@ -88,4 +88,4 @@ inline void bind_converter_config(py::module& m) {
       .def_readwrite("recipe_details_obs", &ConverterConfig::recipe_details_obs);
 }
 
-#endif  // CONVERTER_CONFIG_HPP_
+#endif  // OBJECTS_CONVERTER_CONFIG_HPP_
