@@ -76,7 +76,10 @@ class Config(BaseModel):
             inner_cfg = next_inner_cfg
             traversed_path.append(key_part)
 
-        if isinstance(inner_cfg, Config):
+        if isinstance(inner_cfg, dict):
+            if key_path[-1] not in inner_cfg:
+                fail(f"key {key} not found")
+        elif isinstance(inner_cfg, Config):
             if not hasattr(inner_cfg, key_path[-1]):
                 fail(f"key {key} not found")
 
