@@ -13,8 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class PyTorchAgentMixin:
-    """
-    Mixin class providing shared functionality for PyTorch agents.
+    """Mixin class providing shared functionality for PyTorch agents.
 
     This mixin should be used with classes that also inherit from LSTMWrapper
     or nn.Module and provides:
@@ -31,8 +30,7 @@ class PyTorchAgentMixin:
                 mixin_params = self.extract_mixin_params(kwargs)
                 super().__init__(env, ...)
                 # Initialize mixin
-                self.init_mixin(**mixin_params)
-    """
+                self.init_mixin(**mixin_params)"""
 
     @staticmethod
     def _is_regularizable_layer(module):
@@ -63,12 +61,10 @@ class PyTorchAgentMixin:
         # MettaAgent.initialize_to_environment() directly on the policy object
 
     def create_action_heads(self, env, input_size: int = 512 + 16):
-        """
-        Create action heads based on the environment's action configuration.
+        """Create action heads based on the environment's action configuration.
 
         For multi-discrete action spaces, we create a single head with the total
-        flattened action space (sum of all action parameter ranges).
-        """
+        flattened action space (sum of all action parameter ranges)."""
         # Calculate total flattened action space from environment
         total_actions = sum(max_arg + 1 for max_arg in env.max_action_args)
 
@@ -76,12 +72,10 @@ class PyTorchAgentMixin:
         return nn.ModuleList([pufferlib.pytorch.layer_init(nn.Linear(input_size, total_actions), std=0.01)])
 
     def clip_weights(self):
-        """
-        Clip weights to prevent large updates during training.
+        """Clip weights to prevent large updates during training.
 
         This matches ComponentPolicy's weight clipping behavior and is called
-        by the trainer after each optimizer step when clip_range > 0.
-        """
+        by the trainer after each optimizer step when clip_range > 0."""
         if self.clip_range > 0:
             for module in self.modules():
                 # Note: ConvTranspose2d is not included here to match original clipping behavior
