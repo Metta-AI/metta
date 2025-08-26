@@ -10,7 +10,6 @@ This recipe exactly recreates the pre-dehydration default training configuration
 from typing import List, Optional
 
 import metta.cogworks.curriculum as cc
-from metta.cogworks.curriculum import CurriculumConfig, TaskGeneratorSetConfig
 import metta.map.scenes.random
 import metta.mettagrid.config.envs as eb
 from metta.map.mapgen import MapGen
