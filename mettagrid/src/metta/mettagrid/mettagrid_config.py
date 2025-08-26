@@ -262,7 +262,7 @@ class EnvConfig(Config):
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
-            move_8way=ActionConfig(),
+            move=ActionConfig(),
             rotate=ActionConfig(),
         )
         objects = {}

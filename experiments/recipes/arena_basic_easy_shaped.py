@@ -72,12 +72,10 @@ def make_env(num_agents: int = 24) -> EnvConfig:
 
     # Keep combat buildings enabled (lasery and armory stay in the config)
 
-    # Action configuration using move for directional movement (matching old config)
+    # Action configuration using simplified move action
     env_cfg.game.actions = ActionsConfig(
         noop=ActionConfig(enabled=True),
-        move=ActionConfig(enabled=True),  # 4-directional movement (matching old config)
-        move_8way=ActionConfig(enabled=False),  # Explicitly disabled
-        move_cardinal=ActionConfig(enabled=False),  # Explicitly disabled
+        move=ActionConfig(enabled=True),  # Unified movement action
         rotate=ActionConfig(enabled=True),
         put_items=ActionConfig(enabled=True),
         get_items=ActionConfig(enabled=True),
