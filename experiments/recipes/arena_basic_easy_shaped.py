@@ -75,7 +75,7 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     # Action configuration using simplified move action
     env_cfg.game.actions = ActionsConfig(
         noop=ActionConfig(enabled=True),
-        move=ActionConfig(enabled=True),  # Unified movement action
+        move=ActionConfig(enabled=True),  
         rotate=ActionConfig(enabled=True),
         put_items=ActionConfig(enabled=True),
         get_items=ActionConfig(enabled=True),
