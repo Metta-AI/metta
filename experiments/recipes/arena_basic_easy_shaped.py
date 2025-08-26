@@ -15,8 +15,8 @@ import metta.mettagrid.config.envs as eb
 from metta.map.mapgen import MapGen
 from metta.mettagrid.config import building
 from metta.mettagrid.mettagrid_config import (
-    ActionsConfig,
     ActionConfig,
+    ActionsConfig,
     AttackActionConfig,
     ChangeGlyphActionConfig,
     EnvConfig,
@@ -132,7 +132,6 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     env_cfg.game.global_obs.last_action = True
     env_cfg.game.global_obs.last_reward = True
     env_cfg.game.global_obs.resource_rewards = False
-    env_cfg.game.global_obs.visitation_counts = False
 
     return env_cfg
 
@@ -220,10 +219,10 @@ def evaluate(policy_uri: str) -> SimTool:
 
 if __name__ == "__main__":
     """Allow running this recipe directly for play testing.
-    
+
     Usage:
         uv run experiments/recipes/arena_basic_easy_shaped.py [port] [num_agents_or_policy] [policy]
-        
+
     Examples:
         uv run experiments/recipes/arena_basic_easy_shaped.py              # Default: port 8001, 24 agents
         uv run experiments/recipes/arena_basic_easy_shaped.py 8002 6        # Port 8002, 6 agents

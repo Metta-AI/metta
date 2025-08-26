@@ -161,13 +161,11 @@ class GlobalObsConfig:
         last_action: bool = True,
         last_reward: bool = True,
         resource_rewards: bool = False,
-        visitation_counts: bool = False,
     ) -> None: ...
     episode_completion_pct: bool
     last_action: bool
     last_reward: bool
     resource_rewards: bool
-    visitation_counts: bool
 
 class GameConfig:
     def __init__(
@@ -183,6 +181,9 @@ class GameConfig:
         actions: dict[str, ActionConfig],
         objects: dict[str, GridObjectConfig],
         resource_loss_prob: float = 0.0,
+        # METTAGRID EXTENSIONS
+        extensions: list[str] = [],
+        # FEATURE FLAGS
         track_movement_metrics: bool = False,
         no_agent_interference: bool = False,
         recipe_details_obs: bool = False,
@@ -197,6 +198,8 @@ class GameConfig:
     num_observation_tokens: int
     global_obs: GlobalObsConfig
     resource_loss_prob: float
+    # METTAGRID EXTENSIONS
+    extensions: list[str]
     # FEATURE FLAGS
     track_movement_metrics: bool
     no_agent_interference: bool

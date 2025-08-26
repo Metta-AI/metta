@@ -38,7 +38,6 @@ public:
   StatsTracker stats;
   RewardType current_stat_reward;
   RewardType* reward;
-
   GridLocation prev_location;
   std::string prev_action_name;
   unsigned int steps_without_motion;

@@ -44,7 +44,6 @@ def env_with_visitation():
                 last_action=True,
                 last_reward=True,
                 resource_rewards=False,
-                visitation_counts=True,  # Enable visitation counts
             ),
             map_builder=AsciiMapBuilder.Config(
                 map_data=[
@@ -57,6 +56,7 @@ def env_with_visitation():
                     [".", ".", ".", ".", ".", ".", "."],
                 ]
             ),
+            extensions=["visitation_counts"],  # Enable visitation counts
         )
     )
     return MettaGridCore(config)

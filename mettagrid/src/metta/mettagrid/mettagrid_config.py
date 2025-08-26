@@ -134,9 +134,6 @@ class GlobalObsConfig(Config):
     # Controls whether resource rewards are included in observations
     resource_rewards: bool = Field(default=False)
 
-    # Controls whether visitation counts are included in observations
-    visitation_counts: bool = Field(default=False)
-
 
 class WallConfig(Config):
     """Python wall/block configuration."""
@@ -208,6 +205,9 @@ class GameConfig(Config):
 
     # Map builder configuration - accepts any MapBuilder config
     map_builder: AnyMapBuilderConfig = RandomMapBuilder.Config(agents=24)
+
+    # Mettagrid Extensions
+    extensions: list[str] = Field(default_factory=list)
 
     # Feature Flags
     track_movement_metrics: bool = Field(

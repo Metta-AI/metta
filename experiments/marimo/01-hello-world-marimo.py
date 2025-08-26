@@ -425,8 +425,6 @@ def _(RendererToolConfig):
     env_config.game.global_obs.last_action = True
     env_config.game.global_obs.last_reward = True
 
-    env_config.game.global_obs.visitation_counts = False
-
     print("✅ Simple hallway environment: start with arena, add custom map")
     print(pprint.pp(env_config, indent=1, width=80))
     return (
@@ -1077,8 +1075,8 @@ def _(mo):
         r"""
     # Let's run a new example with a new map
 
-        ###########  
-        #R...@...m#  
+        ###########
+        #R...@...m#
         ###########
     """
     )
