@@ -5,6 +5,8 @@ from typing import Optional
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.map.mapgen import MapGen
+from metta.map.terrain_from_numpy import TerrainFromNumpy
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
@@ -40,8 +42,20 @@ def _default_run_name() -> str:
         return f"memory_sequence.{user}.{timestamp}"
 
 
-def make_env(num_agents: int = 1) -> EnvConfig:
-    return eb.make_memory_sequence(num_agents=num_agents)
+def make_env(num_agents: int = 4) -> EnvConfig:
+    env = eb.make_memory_sequence(num_agents=num_agents)
+
+    env.game.map_builder = MapGen.Config(
+        instances=num_agents,
+        border_width=6,
+        instance_border_width=3,
+        instance_map=TerrainFromNumpy.Config(
+            agents=1,
+            objects={"altar": 10},
+            dir="varied_terrain/dense_large",
+        ),
+    )
+    return env
 
 
 def make_memory_eval_suite() -> list[SimulationConfig]:
