@@ -51,11 +51,22 @@ class Config(BaseModel):
                 if hasattr(field_type, "__origin__") and field_type.__origin__ is Union:
                     # For Optional[T], find the non-None type
                     field_type = next((arg for arg in field_type.__args__ if arg is not type(None)), None)
+                    if field_type is None:
+                        failed_path = ".".join(traversed_path + [key_part])
+                        fail(f"Unable to determine non-None field type for {failed_path}")
 
-                if field_type and issubclass(field_type, Config):
-                    next_inner_cfg = field_type()
-                    setattr(inner_cfg, key_part, next_inner_cfg)
-                else:
+                try:
+                    if field_type and issubclass(field_type, Config):
+                        try:
+                            next_inner_cfg = field_type()
+                            setattr(inner_cfg, key_part, next_inner_cfg)
+                        except Exception as e:
+                            failed_path = ".".join(traversed_path + [key_part])
+                            fail(f"Cannot initialize {failed_path}: {str(e)}")
+                    else:
+                        failed_path = ".".join(traversed_path + [key_part])
+                        fail(f"key {failed_path} is not a Config object")
+                except TypeError:
                     failed_path = ".".join(traversed_path + [key_part])
                     fail(f"key {failed_path} is not a Config object")
             elif not isinstance(next_inner_cfg, Config) and not isinstance(next_inner_cfg, dict):
