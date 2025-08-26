@@ -14,13 +14,11 @@ from tensordict import TensorDict
 
 
 class PolicyInterface(ABC, nn.Module):
-    """
-    Abstract base class defining the interface that all policies must implement.
+    """Abstract base class defining the interface that all policies must implement.
 
     This ensures compatibility with MettaAgent and the training pipeline.
     All policies (ComponentPolicy, PyTorch agents) should inherit from or
-    implement this interface.
-    """
+    implement this interface."""
 
     # These attributes will be set by MettaAgent.activate_actions()
     action_index_tensor: Optional[torch.Tensor] = None
@@ -33,11 +31,9 @@ class PolicyInterface(ABC, nn.Module):
 
     @abstractmethod
     def clip_weights(self):
-        """
-        Clip weights to prevent large updates during training.
+        """Clip weights to prevent large updates during training.
 
-        Called by the trainer after optimizer steps when clip_range > 0.
-        """
+        Called by the trainer after optimizer steps when clip_range > 0."""
         pass
 
     @abstractmethod

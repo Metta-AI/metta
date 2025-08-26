@@ -128,12 +128,10 @@ class PolicyStore:
             raise ValueError(f"Invalid selector type: {selector_type}")
 
     def _prs_from_wandb(self, uri: str) -> list[PolicyRecord]:
-        """
-        Supported formats:
+        """Supported formats:
         - wandb://run/<run_name>[:<version>]
         - wandb://sweep/<sweep_name>[:<version>]
-        - wandb://<entity>/<project>/<artifact_type>/<name>[:<version>]
-        """
+        - wandb://<entity>/<project>/<artifact_type>/<name>[:<version>]"""
         wandb_uri = uri[len("wandb://") :]
         version = None
 
@@ -325,9 +323,7 @@ class PolicyStore:
         return [self._load_from_file(path, metadata_only=True) for path in paths]
 
     def _prs_from_wandb_artifact(self, uri: str, version: str | None = None) -> list[PolicyRecord]:
-        """
-        Expected uri format: <entity>/<project>/<artifact_type>/<name>
-        """
+        """Expected uri format: <entity>/<project>/<artifact_type>/<name>"""
         entity, project, artifact_type, name = uri.split("/")
         path = f"{entity}/{project}/{name}"
         if not wandb.Api().artifact_collection_exists(type=artifact_type, name=path):
@@ -372,11 +368,9 @@ class PolicyStore:
         return pr
 
     def _make_codebase_backwards_compatible(self):
-        """
-        torch.load expects the codebase to be in the same structure as when the model was saved.
+        """torch.load expects the codebase to be in the same structure as when the model was saved.
         We can use this function to alias old layout structures. For now we are supporting:
-        - agent --> metta.agent
-        """
+        - agent --> metta.agent"""
         # Memoize
         if self._made_codebase_backwards_compatible:
             return

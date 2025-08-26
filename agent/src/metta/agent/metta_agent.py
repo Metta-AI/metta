@@ -21,11 +21,9 @@ def log_on_master(*args, **argv):
 
 
 class DistributedMettaAgent(DistributedDataParallel):
-    """
-    Because this class passes through __getattr__ to its self.module, it implements everything
+    """Because this class passes through __getattr__ to its self.module, it implements everything
     MettaAgent does. We only have a need for this class because using the DistributedDataParallel wrapper
-    returns an object of almost the same interface: you need to call .module to get the wrapped agent.
-    """
+    returns an object of almost the same interface: you need to call .module to get the wrapped agent."""
 
     module: "MettaAgent"
 
@@ -146,8 +144,7 @@ class MettaAgent(nn.Module):
         """Initialize the agent to the current environment.
 
         This is the single entry point for environment initialization, combining
-        feature setup, action configuration, and all necessary mappings.
-        """
+        feature setup, action configuration, and all necessary mappings."""
         self.device = device
         self.training = is_training
 
@@ -229,8 +226,7 @@ class MettaAgent(nn.Module):
 
         This allows policies that understand feature remapping (like ComponentPolicy)
         to update their observation components, while vanilla torch.nn.Module policies
-        will simply ignore this.
-        """
+        will simply ignore this."""
         # Build complete remapping tensor
         remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
 
