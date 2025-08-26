@@ -13,15 +13,25 @@ spec:
         app: home
     spec:
       containers:
-        - name: nginx
-          image: {{ .Values.image }}
+        - name: home
+          image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: "64Mi"
+            limits:
+              memory: "256Mi"
           ports:
             - containerPort: 80
-          volumeMounts:
-            - name: html
-              mountPath: /usr/share/nginx/html/index.html
-              subPath: index.html
-      volumes:
-        - name: html
-          configMap:
-            name: home-index
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
