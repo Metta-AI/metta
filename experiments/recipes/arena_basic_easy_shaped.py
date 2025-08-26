@@ -205,11 +205,7 @@ def train() -> TrainTool:
         # the original trainer.yaml configuration
     )
 
-    return TrainTool(
-        trainer=trainer_cfg,
-        # CRITICAL: Explicitly specify "fast" agent like old system (was missing)
-        policy_architecture=AgentConfig(name="fast"),
-    )
+    return TrainTool(trainer=trainer_cfg)
 
 
 def play(
