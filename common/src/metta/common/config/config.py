@@ -17,32 +17,31 @@ class Config(BaseModel):
     def _auto_initialize_field(
         self, parent_obj: "Config", field_name: str, traversed_path: list[str], fail
     ) -> "Config | None":
-        """Auto-initialize a None field if possible."""
+        """Auto-initialize a None Config field if possible."""
 
-        cls = type(parent_obj)
-        field = cls.model_fields.get(field_name)
+        field = type(parent_obj).model_fields.get(field_name)
         if field is None:
             return None
 
-        # Handle Optional[T] -> T
-        field_type = field.annotation
-        if get_origin(field_type) is Union:
-            # For Optional[T], find the non-None type
-            non_none_types = [arg for arg in get_args(field_type) if arg is not type(None)]
-            if len(non_none_types) != 1:
-                return None  # Can't handle complex unions
-            field_type = non_none_types[0]
+        field_type = self._unwrap_optional(field.annotation)
 
-        # Only auto-initialize Config subclasses
-        try:
-            if isinstance(field_type, type) and issubclass(field_type, Config):
+        if isinstance(field_type, type) and issubclass(field_type, Config):
+            try:
                 new_instance = field_type()
                 setattr(parent_obj, field_name, new_instance)
                 return new_instance
-        except (TypeError, Exception):
-            pass
+            except TypeError:
+                return None
 
         return None
+
+    def _unwrap_optional(self, field_type):
+        """Unwrap Optional[T] → T if applicable, else return original type."""
+        if get_origin(field_type) is Union:
+            non_none = [arg for arg in get_args(field_type) if arg is not type(None)]
+            if len(non_none) == 1:
+                return non_none[0]
+        return field_type
 
     def override(self, key: str, value: Any) -> Self:
         """Override a value in the config."""
