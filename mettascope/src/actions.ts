@@ -116,15 +116,17 @@ export function processActions(event: KeyboardEvent) {
     // Support WASD, arrow keys, and all numpad keys for movement/rotation.
     const key = event.key
     const code = event.code
+    const supportsMove = state.replay.actionNames.includes('move')
     const supportsMove8 = state.replay.envConfig.game?.allow_diagonals ?? false
-    const supportsCardinal = state.replay.actionNames.includes('move')
 
     // Movement handling.
     if (key === 'w' || key === 'ArrowUp') {
-      if (supportsMove8) {
-        pushComboKey('w')
-      } else if (supportsCardinal) {
-        sendAction('move', 0) // North
+      if (supportsMove) {
+        if (supportsMove8) {
+          pushComboKey('w')
+        } else {
+          sendAction('move', 0) // North
+        }
       } else {
         if (orientation !== 0) {
           sendAction('rotate', 0)
@@ -134,10 +136,12 @@ export function processActions(event: KeyboardEvent) {
       }
     }
     if (key === 'a' || key === 'ArrowLeft') {
-      if (supportsMove8) {
-        pushComboKey('a')
-      } else if (supportsCardinal) {
-        sendAction('move', 2) // West
+      if (supportsMove) {
+        if (supportsMove8) {
+          pushComboKey('a')
+        } else {
+          sendAction('move', 2) // West
+        }
       } else {
         if (orientation !== 2) {
           sendAction('rotate', 2)
@@ -147,10 +151,12 @@ export function processActions(event: KeyboardEvent) {
       }
     }
     if (key === 's' || key === 'ArrowDown') {
-      if (supportsMove8) {
-        pushComboKey('s')
-      } else if (supportsCardinal) {
-        sendAction('move', 1) // South
+      if (supportsMove) {
+        if (supportsMove8) {
+          pushComboKey('s')
+        } else {
+          sendAction('move', 1) // South
+        }
       } else {
         if (orientation !== 1) {
           sendAction('rotate', 1)
@@ -160,10 +166,12 @@ export function processActions(event: KeyboardEvent) {
       }
     }
     if (key === 'd' || key === 'ArrowRight') {
-      if (supportsMove8) {
-        pushComboKey('d')
-      } else if (supportsCardinal) {
-        sendAction('move', 3) // East
+      if (supportsMove) {
+        if (supportsMove8) {
+          pushComboKey('d')
+        } else {
+          sendAction('move', 3) // East
+        }
       } else {
         if (orientation !== 3) {
           sendAction('rotate', 3)
@@ -175,9 +183,7 @@ export function processActions(event: KeyboardEvent) {
 
     // Numpad movement (immediate, no combo buffering)
     if (code === 'Numpad8') {
-      if (supportsMove8) {
-        sendAction('move', 0) // North
-      } else if (supportsCardinal) {
+      if (supportsMove) {
         sendAction('move', 0) // North
       } else {
         if (orientation !== 0) {
@@ -188,9 +194,7 @@ export function processActions(event: KeyboardEvent) {
       }
     }
     if (code === 'Numpad4') {
-      if (supportsMove8) {
-        sendAction('move', 6) // West
-      } else if (supportsCardinal) {
+      if (supportsMove) {
         sendAction('move', 2) // West
       } else {
         if (orientation !== 2) {
@@ -201,9 +205,7 @@ export function processActions(event: KeyboardEvent) {
       }
     }
     if (code === 'Numpad2') {
-      if (supportsMove8) {
-        sendAction('move', 4) // South
-      } else if (supportsCardinal) {
+      if (supportsMove) {
         sendAction('move', 1) // South
       } else {
         if (orientation !== 1) {
@@ -214,9 +216,7 @@ export function processActions(event: KeyboardEvent) {
       }
     }
     if (code === 'Numpad6') {
-      if (supportsMove8) {
-        sendAction('move', 2) // East
-      } else if (supportsCardinal) {
+      if (supportsMove) {
         sendAction('move', 3) // East
       } else {
         if (orientation !== 3) {
@@ -248,11 +248,13 @@ export function processActions(event: KeyboardEvent) {
     }
     // Diagonal numpad
     if (event.code === 'Numpad7') {
-      if (supportsMove8) {
-        sendAction('move', 7) // Northwest
-      } else if (supportsCardinal) {
-        sendAction('move', 0) // North
-        sendAction('move', 2) // West
+      if (supportsMove) {
+        if (supportsMove8) {
+          sendAction('move', 4) // Northwest
+        } else {
+          sendAction('move', 0) // North
+          sendAction('move', 2) // West
+        }
       } else {
         sendAction('rotate', 0)
         sendAction('move', 0)
@@ -261,11 +263,13 @@ export function processActions(event: KeyboardEvent) {
       }
     }
     if (event.code === 'Numpad9') {
-      if (supportsMove8) {
-        sendAction('move', 1) // Northeast
-      } else if (supportsCardinal) {
-        sendAction('move', 0) // North
-        sendAction('move', 3) // East
+      if (supportsMove) {
+        if (supportsMove8) {
+          sendAction('move', 5) // Northeast
+        } else {
+          sendAction('move', 0) // North
+          sendAction('move', 3) // East
+        }
       } else {
         sendAction('rotate', 0)
         sendAction('move', 0)
@@ -274,11 +278,13 @@ export function processActions(event: KeyboardEvent) {
       }
     }
     if (event.code === 'Numpad1') {
-      if (supportsMove8) {
-        sendAction('move', 5) // Southwest
-      } else if (supportsCardinal) {
-        sendAction('move', 1) // South
-        sendAction('move', 2) // West
+      if (supportsMove) {
+        if (supportsMove8) {
+          sendAction('move', 6) // Southwest
+        } else {
+          sendAction('move', 1) // South
+          sendAction('move', 2) // West
+        }
       } else {
         sendAction('rotate', 1)
         sendAction('move', 0)
@@ -287,11 +293,13 @@ export function processActions(event: KeyboardEvent) {
       }
     }
     if (event.code === 'Numpad3') {
-      if (supportsMove8) {
-        sendAction('move', 3) // Southeast
-      } else if (supportsCardinal) {
-        sendAction('move', 1) // South
-        sendAction('move', 3) // East
+      if (supportsMove) {
+        if (supportsMove8) {
+          sendAction('move', 7) // Southeast
+        } else {
+          sendAction('move', 1) // South
+          sendAction('move', 3) // East
+        }
       } else {
         sendAction('rotate', 1)
         sendAction('move', 0)
