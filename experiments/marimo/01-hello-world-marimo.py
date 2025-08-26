@@ -106,7 +106,6 @@ def _():
         contextlib,
         datetime,
         display,
-        get_cfg,
         get_policy,
         get_repo_root,
         io,

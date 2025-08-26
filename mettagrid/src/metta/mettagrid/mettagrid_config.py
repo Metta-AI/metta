@@ -14,31 +14,6 @@ from metta.mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 # ===== Python Configuration Models =====
 
 
-class InventoryRewards(Config):
-    """Inventory-based reward configuration."""
-
-    ore_red: float = Field(default=0)
-    ore_blue: float = Field(default=0)
-    ore_green: float = Field(default=0)
-    ore_red_max: int = Field(default=255)
-    ore_blue_max: int = Field(default=255)
-    ore_green_max: int = Field(default=255)
-    battery_red: float = Field(default=0)
-    battery_blue: float = Field(default=0)
-    battery_green: float = Field(default=0)
-    battery_red_max: int = Field(default=255)
-    battery_blue_max: int = Field(default=255)
-    battery_green_max: int = Field(default=255)
-    heart: float = Field(default=1)
-    heart_max: int = Field(default=255)
-    armor: float = Field(default=0)
-    armor_max: int = Field(default=255)
-    laser: float = Field(default=0)
-    laser_max: int = Field(default=255)
-    blueprint: float = Field(default=0)
-    blueprint_max: int = Field(default=255)
-
-
 class StatsRewards(Config):
     """Agent stats-based reward configuration.
 
@@ -55,7 +30,8 @@ class StatsRewards(Config):
 class AgentRewards(Config):
     """Agent reward configuration with separate inventory and stats rewards."""
 
-    inventory: InventoryRewards = Field(default_factory=InventoryRewards)
+    inventory: dict[str, float] = Field(default_factory=dict)
+    inventory_max: dict[str, int] = Field(default_factory=dict)
     stats: StatsRewards = Field(default_factory=StatsRewards)
 
 
