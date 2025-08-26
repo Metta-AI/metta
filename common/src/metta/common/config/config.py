@@ -14,33 +14,28 @@ class Config(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    def _auto_initialize_field(
-        self, parent_obj: "Config", field_name: str, traversed_path: list[str], fail
-    ) -> "Config | None":
+    def _auto_initialize_field(self, parent_obj: "Config", field_name: str) -> "Config | None":
         """Auto-initialize a None Config field if possible."""
-
         field = type(parent_obj).model_fields.get(field_name)
-        if field is None:
+        if not field:
             return None
 
         field_type = self._unwrap_optional(field.annotation)
+        if not (isinstance(field_type, type) and issubclass(field_type, Config)):
+            return None
 
-        if isinstance(field_type, type) and issubclass(field_type, Config):
-            try:
-                new_instance = field_type()
-                setattr(parent_obj, field_name, new_instance)
-                return new_instance
-            except TypeError:
-                return None
-
-        return None
+        try:
+            new_instance = field_type()
+            setattr(parent_obj, field_name, new_instance)
+            return new_instance
+        except (TypeError, ValueError):
+            return None
 
     def _unwrap_optional(self, field_type):
         """Unwrap Optional[T] → T if applicable, else return original type."""
         if get_origin(field_type) is Union:
-            non_none = [arg for arg in get_args(field_type) if arg is not type(None)]
-            if len(non_none) == 1:
-                return non_none[0]
+            non_none_types = [arg for arg in get_args(field_type) if arg is not type(None)]
+            return non_none_types[0] if len(non_none_types) == 1 else field_type
         return field_type
 
     def override(self, key: str, value: Any) -> Self:
@@ -68,13 +63,13 @@ class Config(BaseModel):
 
             next_inner_cfg = getattr(inner_cfg, key_part)
             if next_inner_cfg is None:
-                # If the field is None, try to auto-initialize it
-                next_inner_cfg = self._auto_initialize_field(inner_cfg, key_part, traversed_path, fail)
+                # Auto-initialize None Config fields
+                next_inner_cfg = self._auto_initialize_field(inner_cfg, key_part)
                 if next_inner_cfg is None:
                     failed_path = ".".join(traversed_path + [key_part])
                     fail(f"Cannot auto-initialize None field {failed_path}")
 
-            if not isinstance(next_inner_cfg, Config) and not isinstance(next_inner_cfg, dict):
+            if not isinstance(next_inner_cfg, (Config, dict)):
                 failed_path = ".".join(traversed_path + [key_part])
                 fail(f"key {failed_path} is not a Config object")
 
