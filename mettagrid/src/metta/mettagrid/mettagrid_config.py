@@ -111,8 +111,6 @@ class ActionsConfig(Config):
 
     noop: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     move: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    move_8way: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
-    move_cardinal: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     rotate: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     put_items: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
     place_box: ActionConfig = Field(default_factory=lambda: ActionConfig(enabled=False))
@@ -217,6 +215,7 @@ class GameConfig(Config):
         default=False, description="Enable agents to move through and not observe each other"
     )
     resource_loss_prob: float = Field(default=0.0, description="Probability of resource loss per step")
+    allow_diagonals: bool = Field(default=False, description="Enable actions to be aware of diagonal orientations")
 
 
 class EnvConfig(Config):
@@ -262,7 +261,7 @@ class EnvConfig(Config):
         """Create an empty room environment configuration."""
         map_builder = RandomMapBuilder.Config(agents=num_agents, width=width, height=height, border_width=border_width)
         actions = ActionsConfig(
-            move_8way=ActionConfig(),
+            move=ActionConfig(),
             rotate=ActionConfig(),
         )
         objects = {}
