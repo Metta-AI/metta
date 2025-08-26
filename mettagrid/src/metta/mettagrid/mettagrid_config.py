@@ -7,7 +7,6 @@ from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 
 if TYPE_CHECKING:
-    from metta.cogworks.curriculum.curriculum import CurriculumConfig
     from metta.sim.simulation_config import SimulationConfig
 from metta.mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 
@@ -232,14 +231,6 @@ class EnvConfig(Config):
     @model_validator(mode="after")
     def validate_fields(self) -> "EnvConfig":
         return self
-
-    def to_curriculum_cfg(self) -> "CurriculumConfig":
-        from metta.cogworks.curriculum.curriculum import CurriculumConfig
-        from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig
-
-        return CurriculumConfig(
-            task_generator=SingleTaskGeneratorConfig(env=self),
-        )
 
     def to_curriculum(self):
         from metta.cogworks.curriculum.curriculum import Curriculum
