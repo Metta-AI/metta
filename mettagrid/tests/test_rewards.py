@@ -9,13 +9,12 @@ from metta.mettagrid.mettagrid_c import (
     dtype_truncations,
 )
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from metta.mettagrid.test_support import Orientation
 from metta.mettagrid.test_support.actions import (
     get_agent_position,
     move,
     noop,
-    rotate,
 )
-from metta.mettagrid.test_support.orientation import Orientation
 
 NUM_AGENTS = 1
 OBS_HEIGHT = 3
@@ -88,7 +87,7 @@ def perform_action(env, action_name, arg=0):
     action_idx = available_actions.index(action_name)
     action = np.zeros((NUM_AGENTS, 2), dtype=dtype_actions)
     action[0] = [action_idx, arg]
-    obs, rewards, terminals, truncations, info = env.step(action)
+    obs, rewards, _terminals, _truncations, _info = env.step(action)
     return obs, float(rewards[0]), env.action_success()[0]
 
 
@@ -101,8 +100,9 @@ def wait_for_heart_production(env, steps=5):
 def collect_heart_from_altar(env):
     """Move agent to altar (if needed) and collect a heart. Returns (success, reward)."""
     agent_pos = get_agent_position(env, 0)
-    _altar_pos = (1, 3)  # Known altar position
-    target_pos = (1, 2)  # Position to the left of altar
+    # Agent starts at (1, 1), altar is at (1, 3)
+    # Position (1, 2) is directly left of altar
+    target_pos = (1, 2)
 
     # Move to target position if not already there
     if agent_pos != target_pos:
@@ -111,13 +111,8 @@ def collect_heart_from_altar(env):
         if not move_result["success"]:
             return False, 0.0
 
-    # Now we're at (1, 2), need to face right to interact with altar at (1, 3)
-    rotate_result = rotate(env, Orientation.WEST, agent_idx=0)
-    if not rotate_result["success"]:
-        return False, 0.0
-
-    # Collect heart
-    obs, reward, success = perform_action(env, "get_items", 0)
+    # Collect heart from adjacent altar
+    _obs, reward, success = perform_action(env, "get_items", 0)
     return success, reward
 
 
