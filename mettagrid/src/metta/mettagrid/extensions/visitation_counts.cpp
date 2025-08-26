@@ -66,8 +66,7 @@ void VisitationCounts::addVisitationCountsToObservations(MettaGrid* env) {
 
     // Insert as many tokens as will fit
     if (found_empty) {
-      size_t tokens_to_insert = std::min(static_cast<size_t>(5), static_cast<size_t>(obs_view.shape(1) - insert_pos));
-
+      size_t tokens_to_insert = std::min(static_cast<size_t>(5), static_cast<size_t>(obs_view.shape(1)) - insert_pos);
       for (size_t i = 0; i < tokens_to_insert; i++) {
         obs_view(agent_idx, insert_pos + i, 0) = center_packed;
         obs_view(agent_idx, insert_pos + i, 1) = ObservationFeature::VisitationCounts;
