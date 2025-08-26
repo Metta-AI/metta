@@ -43,6 +43,7 @@
           xorg.libX11
           xorg.libXext
           libGL
+          curl
         ];
 
         shellHook = ''
@@ -55,7 +56,7 @@
           export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib:$LD_LIBRARY_PATH"
 
           # Provide X/GL shared libraries for mettascope2.
-          export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.xorg.libX11 pkgs.xorg.libXext pkgs.libGL ]}:$LD_LIBRARY_PATH"
+          export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.xorg.libX11 pkgs.xorg.libXext pkgs.libGL pkgs.curl ]}:$LD_LIBRARY_PATH"
 
           # Use a writable cache for Emscripten.
           # Emscripten default cache points to the read-only nix store, which does not work.
