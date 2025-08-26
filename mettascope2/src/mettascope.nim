@@ -119,8 +119,8 @@ else:
     else:
       common.replay = loadReplay("replays/pens.json.z")
 
-      while not window.closeRequested:
-        display()
-        pollEvents()
+    while not window.closeRequested:
+      display()
+      pollEvents()
 
   dispatch(cmd)
