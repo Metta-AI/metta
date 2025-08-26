@@ -23,7 +23,7 @@ proc useSelections*() =
     if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
       gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
         for obj in replay.objects:
-          if obj.location[step].xy == gridPos:
+          if obj.location.at(step).xy == gridPos:
             selection = obj
             break
 
@@ -67,7 +67,7 @@ proc drawWalls*() =
   let wallTypeId = replay.typeNames.find("wall")
   for obj in replay.objects:
     if obj.typeId == wallTypeId:
-      let pos = obj.location[step]
+      let pos = obj.location.at
       grid[pos.x][pos.y] = true
 
   template hasWall(x: int, y: int): bool =
@@ -102,20 +102,20 @@ proc drawObjects*() =
   ## Draw the objects on the map.
   for thing in replay.objects:
     let typeName = replay.typeNames[thing.typeId]
-    let pos = thing.location[step].xy
+    let pos = thing.location.at().xy
     case typeName
     of "wall":
       discard
       # bxy.drawImage("objects/wall",  pos.vec2, angle = 0, scale = 1/200)
     of "agent":
       let agent = thing
-      var agentImage = case agent.orientation[step]:
+      var agentImage = case agent.orientation.at:
         of 0: "agents/agent.n"
         of 1: "agents/agent.s"
         of 2: "agents/agent.e"
         of 3: "agents/agent.w"
         else:
-          echo "Unknown orientation: ", agent.orientation[step]
+          echo "Unknown orientation: ", agent.orientation.at
           "agents/agent.n"
       bxy.drawImage(
         agentImage,
@@ -135,16 +135,21 @@ proc drawObjects*() =
 proc drawVisualRanges*(alpha = 0.2) =
   ## Draw the visual ranges of the selected agent.
   var visibility = newSeq2D[bool](replay.mapSize[0], replay.mapSize[1])
-  for agent in replay.agents:
-    for i in 0 ..< agent.visionSize:
-      for j in 0 ..< agent.visionSize:
-        let
-          center = ivec2((agent.visionSize div 2).int32, (agent.visionSize div 2).int32)
-          gridPos = agent.location[step].xy + center
+  let agentTypeId = replay.typeNames.find("agent")
+  for obj in replay.objects:
+    if obj.typeId == agentTypeId:
+      if selection != nil and obj.agentId != selection.agentId:
+        continue
+      let agent = obj
+      for i in 0 ..< agent.visionSize:
+        for j in 0 ..< agent.visionSize:
+          let
+            center = ivec2((agent.visionSize div 2).int32, (agent.visionSize div 2).int32)
+            gridPos = agent.location.at.xy - center + ivec2(i.int32, j.int32)
 
-        if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
-           gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
-          visibility[gridPos.x][gridPos.y] = true
+          if gridPos.x >= 0 and gridPos.x < replay.mapSize[0] and
+            gridPos.y >= 0 and gridPos.y < replay.mapSize[1]:
+            visibility[gridPos.x][gridPos.y] = true
 
   for x in 0 ..< replay.mapSize[0]:
     for y in 0 ..< replay.mapSize[1]:
@@ -196,48 +201,13 @@ proc drawActions*() =
   #       #   color(1, 0, 0, 0.5)
   #       # )
 
-# proc drawObservations*() =
-#   # Draw observations
-#   let agentTypeId = replay.typeNames.find("agent")
-#   if settings.showObservations > -1 and selection != nil and selection.typeId == agentTypeId:
-#     let center = ivec2((selection.visionSize div 2).int32, (selection.visionSize div 2).int32)
-#     let gridPos = selection.location[step].xy + center
-#     bxy.drawText(
-#       "observationTitle",
-#       translate((gridPos - ivec2(ObservationWidth div 2, ObservationHeight div 2)).vec2 * 64 + vec2(-32, -64)),
-#       typeface,
-#       $ObservationName(settings.showObservations),
-#       20,
-#       color(1, 1, 1, 1)
-#     )
-#     for x in 0 ..< ObservationWidth:
-#       for y in 0 ..< ObservationHeight:
-#         let
-#           gridPos = (selection.pos + ivec2(x - ObservationWidth div 2, y - ObservationHeight div 2))
-#           value = env.observations[selection.agentId][settings.showObservations][x][y]
-
-#         bxy.drawText(
-#           "observation" & $x & $y,
-#           translate(gridPos.vec2 * 64 + vec2(-28, -28)),
-#           typeface,
-#           $value,
-#           20,
-#           color(1, 1, 1, 1)
-#         )
-
 proc drawAgentDecorations*() =
   # Draw energy bars, shield and frozen status.
   for agent in replay.agents:
-    # if agent.shield:
-    #   bxy.drawImage(
-    #     "shield",
-    #     agent.pos.vec2 * 64,
-    #     angle = 0
-    #   )
-    if agent.isFrozen[step]:
+    if agent.isFrozen.at:
       bxy.drawImage(
         "agents/frozen",
-        agent.location[step].xy.vec2,
+        agent.location.at.xy.vec2,
         angle = 0,
         scale = 1/200
       )
@@ -253,12 +223,33 @@ proc drawGrid*() =
         scale = 1/200
       )
 
+proc drawInventory*() =
+  # Draw the inventory.
+  for obj in replay.objects:
+    let inventory = obj.inventory.at
+    var numItems = 0
+    for itemAmount in inventory:
+      numItems += itemAmount.count
+    let widthItems = (numItems.float32 * 0.1).clamp(0.0, 1.0)
+    var x = -widthItems / 2
+    var xAdvance = widthItems / numItems.float32
+    for itemAmount in inventory:
+      let itemName = replay.itemNames[itemAmount.itemId]
+      for i in 0 ..< itemAmount.count:
+        bxy.drawImage(
+          "resources/" & itemName,
+          obj.location.at.xy.vec2 + vec2(x.float32, -0.5),
+          angle = 0,
+          scale = 1/200 / 4
+        )
+        x += xAdvance
+
 proc drawSelection*() =
   # Draw selection.
   if selection != nil:
     bxy.drawImage(
       "selection",
-      selection.location[step].xy.vec2,
+      selection.location.at.xy.vec2,
       angle = 0,
       scale = 1/200
     )
@@ -278,15 +269,15 @@ Wall
       info = &"""
 Agent
   agentId: {selection.agentId}
-  orientation: {selection.orientation[step]}
-  inventory: {selection.inventory[step]}
-  reward: {selection.currentReward[step]}
-  frozen: {selection.isFrozen[step]}
+  orientation: {selection.orientation.at}
+  inventory: {selection.inventory.at}
+  reward: {selection.currentReward.at}
+  frozen: {selection.isFrozen.at}
       """
     else:
       info = &"""
 {typeName}
-  inventory: {selection.inventory[step]}
+  inventory: {selection.inventory.at}
       """
   else:
     info = &"""

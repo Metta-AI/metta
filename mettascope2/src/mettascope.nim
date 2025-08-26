@@ -26,25 +26,6 @@ rootArea.panels.add(agentTablePanel)
 rootArea.panels.add(agentTracesPanel)
 
 proc display() =
-  if window.buttonPressed[KeySpace]:
-    play = false
-  if window.buttonPressed[KeyMinus]:
-    playSpeed *= 0.5
-    playSpeed = clamp(playSpeed, 0.00001, 60.0)
-    play = true
-  if window.buttonPressed[KeyEqual]:
-    playSpeed *= 2
-    playSpeed = clamp(playSpeed, 0.00001, 60.0)
-    play = true
-
-  if window.buttonPressed[KeyN]:
-    dec settings.showObservations
-    echo "showObservations: ", settings.showObservations
-  if window.buttonPressed[KeyM]:
-    inc settings.showObservations
-    echo "showObservations: ", settings.showObservations
-  settings.showObservations = clamp(settings.showObservations, -1, 23)
-
   let now = epochTime()
   while play and (lastSimTime + playSpeed < now):
     lastSimTime += playSpeed
@@ -66,20 +47,25 @@ proc display() =
   worldMapPanel.beginPanAndZoom()
   useSelections()
   agentControls()
+  playControls()
 
   drawFloor()
   drawWalls()
   drawObjects()
   # drawActions()
-  # drawObservations()
   # drawAgentDecorations()
-  # if settings.showVisualRange:
-  #   drawVisualRanges()
+
   if settings.showGrid:
     drawGrid()
-  # if settings.showFogOfWar:
-  #   drawFogOfWar()
-  # drawSelection()
+  if settings.showVisualRange:
+    drawVisualRanges()
+
+  drawSelection()
+  drawInventory()
+
+  if settings.showFogOfWar:
+    drawFogOfWar()
+
 
   worldMapPanel.endPanAndZoom()
 

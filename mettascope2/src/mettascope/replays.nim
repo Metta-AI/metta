@@ -3,8 +3,8 @@ import std/[json],
 
 type
   ItemAmount* = object
-    itemId: int
-    count: int
+    itemId*: int
+    count*: int
 
   Entity* = ref object
     # Common keys.
