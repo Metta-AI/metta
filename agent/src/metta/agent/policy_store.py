@@ -484,17 +484,7 @@ class PolicyStore:
         wandb_config: WandbConfig,
         wandb_run: WandbRun | None = None,
     ) -> "PolicyStore":
-        """Create a PolicyStore from a WandbConfig.
-
-        Args:
-            device: Device to load policies on (e.g., "cpu", "cuda")
-            wandb_config: WandbConfig object containing entity and project info
-            replay_dir: Directory for storing policy artifacts
-            wandb_run: Optional existing wandb run
-
-        Returns:
-            Configured PolicyStore instance
-        """
+        """Create a PolicyStore from a WandbConfig."""
         return cls(
             device=device,
             wandb_run=wandb_run,
@@ -508,15 +498,7 @@ class PolicyStore:
         policy_uri: str | None,
         run_name: str = "mock_run",
     ) -> PolicyRecord:
-        """Get a policy record or create a mock if no URI provided.
-
-        Args:
-            policy_uri: Optional policy URI to load
-            run_name: Name for the mock run if no URI provided
-
-        Returns:
-            PolicyRecord from URI or MockPolicyRecord
-        """
+        """Get a policy record or create a mock if no URI provided."""
         if policy_uri is not None:
             return self.policy_record(policy_uri)
         else:

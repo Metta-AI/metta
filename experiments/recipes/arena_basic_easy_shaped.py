@@ -31,6 +31,7 @@ from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
 from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
+from metta.agent.agent_config import AgentConfig
 
 
 def make_env(num_agents: int = 24) -> EnvConfig:
@@ -182,7 +183,11 @@ def train() -> TrainTool:
         # the original trainer.yaml configuration
     )
 
-    return TrainTool(trainer=trainer_cfg)
+    return TrainTool(
+        trainer=trainer_cfg,
+        # CRITICAL: Explicitly specify "fast" agent like old system (was missing)
+        policy_architecture=AgentConfig(name="fast"),
+    )
 
 
 def play(
