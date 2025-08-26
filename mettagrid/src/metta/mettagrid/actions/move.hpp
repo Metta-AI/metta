@@ -6,80 +6,76 @@
 #include "action_handler.hpp"
 #include "grid_object.hpp"
 #include "objects/agent.hpp"
-#include "objects/constants.hpp"
+#include "orientation.hpp"
 #include "types.hpp"
+
+// Forward declaration
+struct GameConfig;
 
 class Move : public ActionHandler {
 public:
-  explicit Move(const ActionConfig& cfg, bool track_movement_metrics = false, bool no_agent_interference = false)
-    : ActionHandler(cfg, "move"), _track_movement_metrics(track_movement_metrics), _no_agent_interference(no_agent_interference) {}
+  explicit Move(const ActionConfig& cfg, const GameConfig* game_config)
+      : ActionHandler(cfg, "move"), _game_config(game_config) {}
 
   unsigned char max_arg() const override {
-    return 1;  // 0 = move forward, 1 = move backward
+    return _game_config->allow_diagonals ? 7 : 3;  // 8 directions if diagonals, 4 otherwise
   }
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    // Move action: agents move in a direction without changing orientation
-    // arg == 0: Move forward in current direction
-    // arg == 1: Move backward (reverse direction) while maintaining facing direction
+    // Get the orientation from the action argument
+    Orientation move_direction = static_cast<Orientation>(arg);
 
-    Orientation move_direction = static_cast<Orientation>(actor->orientation);
-
-    if (arg == 1) {
-      move_direction = get_opposite_direction(move_direction);
+    // Validate the direction based on diagonal support
+    if (!isValidOrientation(move_direction, _game_config->allow_diagonals)) {
+      return false;
     }
 
     GridLocation current_location = actor->location;
-    GridLocation target_location = _grid->relative_location(current_location, move_direction);
+    GridLocation target_location = current_location;
 
-    bool success = false;
-    if (_no_agent_interference) {
-      // Check if we are blocked by an obstacle (not agent)
+    // Get movement deltas for the direction
+    int dc, dr;
+    getOrientationDelta(move_direction, dc, dr);
+
+    // Calculate target location
+    target_location.r += dr;
+    target_location.c += dc;
+
+    // Check if target location is valid and empty
+    if (!_is_valid_square(target_location, _game_config->no_agent_interference)) {
+      return false;
+    }
+
+    // Update orientation to face the movement direction
+    actor->orientation = move_direction;
+
+    // Move the agent
+    if (_game_config->no_agent_interference) {
+      return _grid->ghost_move_object(actor->id, target_location);
+    } else {
+      return _grid->move_object(actor->id, target_location);
+    }
+  }
+
+  bool _is_valid_square(GridLocation target_location, bool no_agent_interference) {
+    if (!_grid->is_valid_location(target_location)) {
+      return false;
+    }
+    if (no_agent_interference) {
       if (!_grid->is_empty_at_layer(target_location.r, target_location.c, GridLayer::ObjectLayer)) {
         return false;
       }
-      success = _grid->ghost_move_object(actor->id, target_location);
     } else {
-      // Check if we are blocked by an obstacle/agent
       if (!_grid->is_empty(target_location.r, target_location.c)) {
         return false;
       }
-      success = _grid->move_object(actor->id, target_location);
     }
-
-    if (success) {
-      // Increment visitation count for the new position
-      actor->increment_visitation_count(target_location.r, target_location.c);
-
-      // Track movement direction (only if tracking enabled)
-      if (_track_movement_metrics) {
-        actor->stats.add(std::string("movement.direction.") + OrientationNames[static_cast<int>(move_direction)], 1);
-      }
-    }
-
-    return success;
+    return true;
   }
 
 private:
-  bool _track_movement_metrics;
-  bool _no_agent_interference;
-
-  // Get the opposite direction (for backward movement)
-  static Orientation get_opposite_direction(Orientation orientation) {
-    switch (orientation) {
-      case Orientation::Up:
-        return Orientation::Down;
-      case Orientation::Down:
-        return Orientation::Up;
-      case Orientation::Left:
-        return Orientation::Right;
-      case Orientation::Right:
-        return Orientation::Left;
-      default:
-        assert(false && "Invalid orientation passed to get_opposite_direction()");
-    }
-  }
+  const GameConfig* _game_config;
 };
 
 #endif  // ACTIONS_MOVE_HPP_
