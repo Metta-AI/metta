@@ -866,15 +866,6 @@ class TestEdgeObservations:
 
             # Calculate agent position after this step
             agent_col = 2 + step + 1  # Started at col 2, moved (step+1) times
-            agent_row = 2  # Row stays constant
-
-            # Check if altar should be visible
-            # With 7x7 window centered on agent at (2, agent_col):
-            # - rows from -1 to 5 (altar at row 5 is visible)
-            # - cols from (agent_col-3) to (agent_col+3)
-            col_min = agent_col - 3
-            col_max = agent_col + 3
-            altar_should_be_visible = col_min <= 7 <= col_max
 
             # Use helper to check if altar is actually visible
             altar_visible = helper.count_features_by_type(obs[0], TokenTypes.ALTAR_TYPE_ID) > 0

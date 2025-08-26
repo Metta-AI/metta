@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 import numpy as np
 from gymnasium import spaces
 
+from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from metta.mettagrid.mettagrid_c import (
     dtype_actions,
     dtype_observations,
@@ -20,7 +21,6 @@ from metta.mettagrid.mettagrid_c import (
     dtype_terminals,
     dtype_truncations,
 )
-from metta.mettagrid.mettagrid_c import MettaGrid as MettaGridCpp
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
 from metta.mettagrid.mettagrid_config import EnvConfig
 
