@@ -195,8 +195,8 @@ class Policy(nn.Module):
         nn.init.uniform_(self.actor_W, -bound, bound)
         nn.init.uniform_(self.actor_bias, -bound, bound)
 
-    def activate_action_embeddings(self, full_action_names: list[str], device):
-        """Activate action embeddings, matching the YAML ActionEmbedding component behavior."""
+    def initialize_to_environment(self, full_action_names: list[str], device):
+        """Initialize to environment, setting up action embeddings to match the available actions."""
         self.active_action_names = full_action_names
         self.num_active_actions = len(full_action_names)
 

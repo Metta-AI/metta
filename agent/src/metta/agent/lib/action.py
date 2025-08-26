@@ -6,11 +6,11 @@ import metta.agent.lib.nn_layer_library as nn_layer_library
 
 
 class ActionEmbedding(nn_layer_library.Embedding):
-    """Creates and manages embeddings for available actions in the environment.
+    """The initialize_to_environment method should be called whenever the available actions in the
+    environment change, providing the new set of action names and the target device.
 
-    Maintains mapping between action names and embedding indices, dynamically
-    activating subsets based on availability.
-    """
+    Note that the __init__ of any layer class and the MettaAgent are only called when the agent
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy."""
 
     def __init__(self, initialization="max_0_01", **cfg):
         super().__init__(**cfg)
@@ -22,9 +22,10 @@ class ActionEmbedding(nn_layer_library.Embedding):
         self.initialization = initialization
         self.register_buffer("active_indices", torch.tensor([], dtype=torch.long))
 
-    def activate_actions(self, action_names, device):
+    def initialize_to_environment(self, action_names, device):
         """Updates active action embeddings based on available actions.
         Assigns new indices for unseen actions and updates the active_indices tensor."""
+
         for action_name in action_names:
             if action_name not in self._reserved_action_embeds:
                 embedding_index = len(self._reserved_action_embeds) + 1  # generate index for this string

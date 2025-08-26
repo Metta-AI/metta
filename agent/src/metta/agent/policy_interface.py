@@ -18,7 +18,7 @@ class PolicyInterface(ABC, nn.Module):
     All policies (ComponentPolicy, PyTorch agents) should inherit from or
     implement this interface."""
 
-    # These attributes will be set by MettaAgent.activate_actions()
+    # These attributes will be set by MettaAgent.initialize_to_environment()
     action_index_tensor: Optional[torch.Tensor] = None
     cum_action_max_params: Optional[torch.Tensor] = None
 
@@ -59,9 +59,8 @@ class PolicyInterface(ABC, nn.Module):
         """Convert logit indices back to action pairs."""
         pass
 
-    def activate_action_embeddings(self, full_action_names: list[str], device):
-        """Activate action embeddings if the policy uses them."""
-        # Default implementation - override if policy has action embeddings
+    def initialize_to_environment(self, full_action_names: list[str], device):
+        """Initialize policy components to the environment if needed."""
         pass
 
     def reset_memory(self):

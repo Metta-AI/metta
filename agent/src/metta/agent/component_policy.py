@@ -208,10 +208,10 @@ class ComponentPolicy(nn.Module, ABC):
         """Convert logit indices back to action pairs."""
         return self.action_index_tensor[action_logit_index]
 
-    def activate_action_embeddings(self, full_action_names: list[str], device):
-        """Activate action embeddings with the given action names."""
+    def initialize_to_environment(self, full_action_names: list[str], device):
+        """Initialize components to the environment with the given action names."""
         if "_action_embeds_" in self.components:
-            self.components["_action_embeds_"].activate_actions(full_action_names, device)
+            self.components["_action_embeds_"].initialize_to_environment(full_action_names, device)
 
     # ============================================================================
     # Memory-related Methods
