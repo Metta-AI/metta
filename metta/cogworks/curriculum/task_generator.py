@@ -79,6 +79,7 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
         if use_learning_progress:
             # Create learning progress algorithm hyperparameters
             lp_hypers = LearningProgressHypers(
+                curriculum_size=num_tasks or 16,  # Use provided num_tasks or default to 16
                 num_tasks=1000,  # N=1000 tasks in memory
                 sample_size=10,  # K=10 tasks to sample
                 max_samples=20,  # A=20 max samples before eviction
@@ -88,7 +89,7 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
             # Create curriculum with integrated learning progress algorithm
             cc = CurriculumConfig(
                 task_generator=self,
-                num_active_tasks=num_tasks or 16,
+                num_active_tasks=lp_hypers.curriculum_size,
                 algorithm_hypers=lp_hypers,
             )
         else:

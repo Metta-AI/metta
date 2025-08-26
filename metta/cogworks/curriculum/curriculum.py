@@ -174,6 +174,7 @@ class LearningProgressHypers(CurriculumAlgorithmHypers):
     """Hyperparameters for LearningProgressCurriculum."""
 
     type: str = "learning_progress"
+    curriculum_size: int = Field(default=16, description="Number of tasks in the curriculum pool")
     num_tasks: int = Field(default=1000, description="Number of tasks to maintain in memory")
     sample_size: int = Field(default=10, description="Number of tasks to sample (K)")
     max_samples: int = Field(default=20, description="Maximum samples before eviction (A)")

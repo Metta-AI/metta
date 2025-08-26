@@ -48,9 +48,7 @@ def make_curriculum(
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
     # Use the updated to_curriculum method that defaults to learning progress
-    return arena_tasks.to_curriculum(
-        num_tasks=16, use_learning_progress=use_learning_progress
-    )
+    return arena_tasks.to_curriculum(use_learning_progress=use_learning_progress)
 
 
 def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:

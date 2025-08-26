@@ -92,9 +92,7 @@ def make_curriculum(
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
-    return nav_tasks.to_curriculum(
-        num_tasks=16, use_learning_progress=use_learning_progress
-    )
+    return nav_tasks.to_curriculum(use_learning_progress=use_learning_progress)
 
 
 def train(
