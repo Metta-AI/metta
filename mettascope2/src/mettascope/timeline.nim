@@ -58,7 +58,7 @@ proc drawTimeline*(panel: Panel) =
     color = parseHtmlColor("#717171")
   )
 
-  var progress = 0.37
+  var progress = step.float32 / replay.maxSteps.float32
 
   # Draw the progress bar.
   bxy.drawRect(
@@ -70,3 +70,18 @@ proc drawTimeline*(panel: Panel) =
     ),
     color = color(1, 1, 1, 1)
   )
+
+  # Clicking on the timeline will set it.
+  let box = Rect(
+    x: 16,
+    y: 32,
+    w: panel.rect.w.float32 - 32,
+    h: 16
+  )
+  if window.boxyMouse.vec2.overlaps(box):
+    if window.buttonPressed[MouseLeft]:
+      let progress = (window.boxyMouse.vec2.x - 16) / (panel.rect.w.float32 - 32)
+      step = int(progress * replay.maxSteps.float32)
+      step = clamp(step, 0, replay.maxSteps - 1)
+      stepFloat = step.float32
+      echo "step: ", step

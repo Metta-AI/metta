@@ -99,7 +99,6 @@ for path in walkDirRec("data/"):
     echo path
     bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
 
-
 when defined(emscripten):
   common.replay = loadReplay("replays/pens.json.z")
   proc main() {.cdecl.} =
@@ -109,7 +108,7 @@ when defined(emscripten):
 
 else:
   import cligen, puppy
-  proc cmd(replay: string) =
+  proc cmd(replay: string = "") =
     if replay != "":
       if replay.startsWith("http"):
         let data = puppy.fetch(replay)
