@@ -12,14 +12,12 @@ from urllib.parse import urlparse
 
 import torch
 import wandb
-from omegaconf import DictConfig
 from safetensors.torch import load_file
 
 from metta.agent import policy_metadata_yaml_helper
 from metta.agent.policy_cache import PolicyCache
 from metta.agent.policy_metadata import PolicyMetadata
 from metta.agent.policy_record import PolicyAgent, PolicyRecord
-from metta.rl.puffer_policy import load_pytorch_policy
 
 if TYPE_CHECKING:
     from metta.common.wandb.wandb_context import WandbRun
@@ -90,19 +88,16 @@ class PolicyLoader:
         self,
         device: str | None = None,
         data_dir: str | None = None,
-        pytorch_cfg: DictConfig | None = None,
         policy_cache_size: int = 10,
         wandb_run: "WandbRun | None" = None,
     ) -> None:
         self._device = device or "cpu"
         self._data_dir = data_dir or "./train_dir"
-        self._pytorch_cfg = pytorch_cfg
         self._cached_prs = PolicyCache(max_size=policy_cache_size)
         self._wandb_run = wandb_run
         self.agent_builder: AgentBuilder | None = None
 
     @classmethod
-    # ?? todo: clean up pytorch_cfg here - then remove SystemConfig arg
     def create(
         cls,
         device: str,
@@ -126,9 +121,9 @@ class PolicyLoader:
         loader = cls(
             device=device,
             data_dir=data_dir,
-            pytorch_cfg=getattr(system_cfg, "pytorch", None) if system_cfg else None,
             wandb_run=wandb_run,
         )
+
         if agent_builder is not None:
             loader.agent_builder = agent_builder
         return loader
@@ -137,7 +132,7 @@ class PolicyLoader:
         """Load a PolicyHandle from various URI types.
 
         Args:
-            uri: URI to load from (file://, wandb://, pytorch://, or direct path)
+            uri: URI to load from (file://, wandb://, or direct path)
 
         Returns:
             PolicyHandle with appropriate factory function
@@ -146,8 +141,6 @@ class PolicyLoader:
             return self._load_from_wandb_uri(uri)
         elif uri.startswith("file://"):
             return self.load_from_file(uri[len("file://") :])
-        elif uri.startswith("pytorch://"):
-            return self._load_from_pytorch_uri(uri)
         else:
             return self.load_from_file(uri)
 
@@ -205,16 +198,6 @@ class PolicyLoader:
 
         self._cached_prs.put(path, pr)
 
-        return pr
-
-    def _load_from_pytorch_uri(self, path: str) -> PolicyRecord:
-        name = os.path.basename(path)
-        # PolicyMetadata only requires: agent_step, epoch, generation, train_time
-        # action_names is optional and not used by pytorch:// checkpoints
-        metadata = PolicyMetadata()
-        pr = PolicyRecord(
-            name, "pytorch://" + name, metadata, load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
-        )
         return pr
 
     def _load_from_wandb_uri(self, uri: str) -> PolicyRecord:
@@ -315,15 +298,6 @@ class PolicyLoader:
         # Remove the last segment from the path
         path = parsed.path.rsplit("/", 1)[0]
         return parsed._replace(path=path).geturl()
-
-    def _load_from_pytorch(self, path: str) -> PolicyRecord:
-        name = os.path.basename(path)
-        # PolicyMetadata only requires: agent_step, epoch, generation, train_time
-        # action_names is optional and not used by pytorch:// checkpoints
-        metadata = PolicyMetadata()
-        cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
-        pr = PolicyRecord(name, "pytorch://" + name, metadata, cached_policy)
-        return pr
 
     def add_to_wandb_run(self, run_id: str, pr: PolicyRecord, additional_files: list[str] | None = None) -> str:
         return self.add_to_wandb_artifact(run_id, "model", pr.metadata, pr.file_path, additional_files)
