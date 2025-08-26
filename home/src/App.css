@@ -1,0 +1,77 @@
+.container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 64px 24px;
+}
+
+h1 {
+  font-size: 28px;
+  margin: 0 0 24px;
+}
+
+p.lead {
+  color: #475569;
+  margin: 0 0 32px;
+}
+
+ul.links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+a.card {
+  display: block;
+  padding: 16px 18px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  text-decoration: none;
+  color: #0f172a;
+  transition: box-shadow 0.15s ease, transform 0.05s ease;
+  position: relative;
+}
+
+a.card:hover {
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
+}
+
+a.card .title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+a.card .short-url {
+  color: #94a3b8;
+  font-size: 13px;
+  font-family: monospace;
+}
+
+a.card small {
+  color: #64748b;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 720px;
+  margin-top: 4px;
+}
+
+footer {
+  margin-top: 40px;
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.loading, .error {
+  padding: 20px;
+  text-align: center;
+}
+
+.error {
+  color: #dc2626;
+}
