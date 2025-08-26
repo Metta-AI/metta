@@ -6,6 +6,7 @@
     "dev": "AWS_PROFILE=softmax next dev -p 3001",
     "start": "next start",
     "build": "next build",
+    "typecheck": "tsc --noEmit --pretty",
     "lint": "pnpm lint:prettier",
     "lint:prettier": "prettier --check .",
     "format": "prettier --write .",

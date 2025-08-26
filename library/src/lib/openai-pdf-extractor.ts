@@ -395,10 +395,6 @@ async function compressPdfWithPdfLib(pdfBuffer: Buffer): Promise<Buffer> {
     const compressedBytes = await pdfDoc.save({
       useObjectStreams: true, // Enable object streams for better compression
       addDefaultPage: false,
-      objectStreamsCompression: true,
-      contentStreamCompression: true,
-      updateMetadata: false, // Skip metadata updates
-      prettyPrint: false, // Compact output
     });
 
     return Buffer.from(compressedBytes);
@@ -507,10 +503,6 @@ async function convertPdfFormat(pdfBuffer: Buffer): Promise<Buffer> {
     const cleanBytes = await cleanPdf.save({
       useObjectStreams: false, // Disable for better compatibility
       addDefaultPage: false,
-      objectStreamsCompression: false, // Disable compression that might cause issues
-      contentStreamCompression: false,
-      updateMetadata: false,
-      prettyPrint: false,
     });
 
     return Buffer.from(cleanBytes);
@@ -925,6 +917,9 @@ async function coreTextractProcessing(
       );
 
       const jobId = startResponse.JobId;
+      if (!jobId) {
+        throw new Error("Textract job ID not returned from start request");
+      }
       console.log(`🔄 Textract job started: ${jobId}`);
 
       // Poll for completion
@@ -1042,7 +1037,7 @@ async function coreTextractProcessing(
         processingTime: processingTime,
         pdfSize: pdfSize,
         pdfSizeMB: (pdfSize / 1024 / 1024).toFixed(1),
-        elementTypes: {},
+        elementTypes: {} as Record<string, number>,
         elements: elements,
       };
 
@@ -1854,7 +1849,9 @@ CRITICAL:
 
     // Check if figure extraction is disabled
     if (process.env.ENABLE_FIGURE_EXTRACTION !== "true") {
-      console.log("🚫 Figure extraction disabled via ENABLE_FIGURE_EXTRACTION environment variable");
+      console.log(
+        "🚫 Figure extraction disabled via ENABLE_FIGURE_EXTRACTION environment variable"
+      );
     }
 
     // Step 2-4: Semantic figure extraction (if figures were identified AND enabled)
