@@ -196,6 +196,7 @@ export function processActions(event: KeyboardEvent) {
           sendAction('rotate', 0)
         } else {
           sendAction('move', 0)
+        }
       }
     }
     if (code === 'Numpad4') {
@@ -210,6 +211,7 @@ export function processActions(event: KeyboardEvent) {
           sendAction('rotate', 2)
         } else {
           sendAction('move', 0)
+        }
       }
     }
     if (code === 'Numpad2') {
@@ -224,6 +226,7 @@ export function processActions(event: KeyboardEvent) {
           sendAction('rotate', 1)
         } else {
           sendAction('move', 0)
+        }
       }
     }
     if (code === 'Numpad6') {
@@ -238,6 +241,7 @@ export function processActions(event: KeyboardEvent) {
           sendAction('rotate', 3)
         } else {
           sendAction('move', 0)
+        }
       }
     }
     if (event.key === 'f') {
