@@ -100,6 +100,8 @@ class MapGen(MapBuilder):
         self.config = config
 
         self.root = self.config.root
+        print("mapgen")
+        print(self.config.model_dump_json(indent=2))
 
         self.rng = np.random.default_rng(self.config.seed)
         self.grid = None
@@ -188,6 +190,8 @@ class MapGen(MapBuilder):
                 )
                 self.width = max(self.width or 0, instance_grid.shape[1])
                 self.height = max(self.height or 0, instance_grid.shape[0])
+                print(f"width: {self.width}, height: {self.height}")
+                print(f"instance_grid.shape: {instance_grid.shape}")
 
             if self.config.num_agents and len(self.instance_scene_factories) == 1:
                 # First prebuilt instance, let's derive the number of instances from the number of agents.
@@ -308,6 +312,8 @@ class MapGen(MapBuilder):
 
         self.root_scene = root_scene_cfg.create(self.inner_area, self.rng)
         self.root_scene.render_with_children()
+
+        print(f"grid.shape: {self.grid.shape}")
 
         return GameMap(self.grid)
 
