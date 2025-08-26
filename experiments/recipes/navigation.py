@@ -46,15 +46,20 @@ def _default_run_name() -> str:
         return f"navigation.{user}.{timestamp}"
 
 
-def make_env(num_agents: int = 4) -> EnvConfig:
+def make_env(num_agents: int = 24) -> EnvConfig:
+    """Create navigation environment with single-agent instances.
+
+    Each agent gets their own independent navigation instance.
+    Default to 24 agents for efficient batched training.
+    """
     nav = eb.make_navigation(num_agents=num_agents)
 
     nav.game.map_builder = MapGen.Config(
-        instances=num_agents,
+        instances=num_agents,  # One instance per agent
         border_width=6,
         instance_border_width=3,
         instance_map=TerrainFromNumpy.Config(
-            agents=1,
+            agents=1,  # Each instance has exactly 1 agent
             objects={"altar": 10},
             dir="varied_terrain/dense_large",
         ),
@@ -79,8 +84,10 @@ def make_curriculum(nav_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     )
 
     sparse_nav_env = nav_env.model_copy()
+    # For RandomMapBuilder, we need to match the total number of agents
+    # Since this is for single-agent navigation, we keep it simple
     sparse_nav_env.game.map_builder = RandomMapBuilder.Config(
-        agents=4,
+        agents=nav_env.game.num_agents,  # Match the total agent count
         objects={"altar": 10},
     )
     sparse_tasks = cc.bucketed(sparse_nav_env)
@@ -94,13 +101,21 @@ def make_curriculum(nav_env: Optional[EnvConfig] = None) -> CurriculumConfig:
 
 
 def train(
-    run: Optional[str] = None, curriculum: Optional[CurriculumConfig] = None
+    run: Optional[str] = None,
+    curriculum: Optional[CurriculumConfig] = None,
+    num_agents: int = 24,  # Increase default for better training efficiency
 ) -> TrainTool:
     # Generate structured run name if not provided
     if run is None:
         run = _default_run_name()
+
+    # If no curriculum provided, create one with the specified num_agents
+    if curriculum is None:
+        nav_env = make_env(num_agents=num_agents)
+        curriculum = make_curriculum(nav_env)
+
     trainer_cfg = TrainerConfig(
-        curriculum=curriculum or make_curriculum(),
+        curriculum=curriculum,
         evaluation=EvaluationConfig(
             simulations=make_navigation_eval_suite(),
         ),
@@ -112,8 +127,12 @@ def train(
     )
 
 
-def play(env: Optional[EnvConfig] = None) -> PlayTool:
-    eval_env = env or make_env()
+def play(env: Optional[EnvConfig] = None, num_agents: int = 24) -> PlayTool:
+    """Play tool for interactive testing.
+
+    Uses same default as training (24 agents) for consistency.
+    """
+    eval_env = env or make_env(num_agents=num_agents)
     return PlayTool(
         sim=SimulationConfig(
             env=eval_env,
