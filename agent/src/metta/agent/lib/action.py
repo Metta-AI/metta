@@ -7,7 +7,10 @@ import metta.agent.lib.nn_layer_library as nn_layer_library
 
 class ActionEmbedding(nn_layer_library.Embedding):
     """Creates and manages embeddings for available actions in the environment.
-    Maintains mapping between action names and embedding indices, dynamically activating subsets based on availability."""
+
+    Maintains mapping between action names and embedding indices, dynamically
+    activating subsets based on availability.
+    """
 
     def __init__(self, initialization="max_0_01", **cfg):
         super().__init__(**cfg)
