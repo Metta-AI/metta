@@ -247,7 +247,6 @@ def train(
     else:
         raise ValueError(f"Optimizer type must be 'adam' or 'muon', got {optimizer_type}")
 
-
     if checkpoint and checkpoint.optimizer_state_dict:
         try:
             optimizer.load_state_dict(checkpoint.optimizer_state_dict)
@@ -332,7 +331,6 @@ def train(
                             ),
                         )
 
-
                         # Inference
                         with torch.no_grad():
                             policy(td)
@@ -383,7 +381,6 @@ def train(
                         trainer_cfg.vtrace.vtrace_c_clip,
                         device,
                     )
-
 
                     # Train for multiple epochs
                     minibatch_idx = 0
@@ -448,7 +445,6 @@ def train(
                     var_y = y_true.var()
                     losses.explained_variance = (1 - (y_true - y_pred).var() / var_y).item() if var_y > 0 else 0.0
                 epoch += epochs_trained
-
 
             # Safe to proceed to next rollout phase only once all ranks have completed training
             if torch.distributed.is_initialized():

@@ -170,8 +170,6 @@ class Experience:
             minibatch = minibatch.to(self.device, non_blocking=True)
 
         minibatch["advantages"] = advantages[idx]
-        # REVERTED: Exact old system behavior - always use minibatch["values"] (current values)
-        # This matches the working pre-dehydration behavior exactly
         minibatch["returns"] = advantages[idx] + minibatch["values"]
         prio_weights = (self.segments * prio_probs[idx, None]) ** -prio_beta
         return minibatch, idx, prio_weights

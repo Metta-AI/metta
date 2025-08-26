@@ -39,7 +39,7 @@ generator_green = make_generator("green", 7)
 
 lasery = ConverterConfig(
     type_id=15,
-    input_resources={"ore_red": 1, "battery_red": 2},  # Fixed to match old config
+    input_resources={"battery_red": 1, "ore_red": 2},
     output_resources={"laser": 1},
     cooldown=10,
 )

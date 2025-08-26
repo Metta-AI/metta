@@ -46,18 +46,6 @@ class CurriculumEnv(PufferEnv):
             self._current_task = self._curriculum.get_task()
             self._env.set_env_config(self._current_task.get_env_cfg())
 
-            # Add curriculum statistics to infos for logging
-            if hasattr(self._curriculum, "get_task_probs"):
-                infos["curriculum_task_probs"] = self._curriculum.get_task_probs()
-
-            if hasattr(self._curriculum, "get_completion_rates"):
-                infos.update(self._curriculum.get_completion_rates())
-
-            if hasattr(self._curriculum, "get_curriculum_stats"):
-                curriculum_stats = self._curriculum.get_curriculum_stats()
-                for key, value in curriculum_stats.items():
-                    infos[f"curriculum/{key}"] = value
-
         return obs, rewards, terminals, truncations, infos
 
     def __getattribute__(self, name: str):
