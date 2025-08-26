@@ -165,37 +165,11 @@ def train() -> TrainTool:
     """
     env_cfg = make_env()
 
-    # Create multi-map curriculum to restore map diversity like pre-dehydration system
-    # This creates multiple map variants to restore env_map_reward/small and env_map_reward/Random metrics
-    small_env = env_cfg.model_copy(deep=True)
-    small_env.label = "arena.basic_easy_shaped.small"
-
-    # Create a larger variant for map diversity (50x50 = 2500 area = still "small" but different)
-    medium_env = env_cfg.model_copy(deep=True)
-    medium_env.label = "arena.basic_easy_shaped.medium"
-    medium_env.game.map_builder.width = 50
-    medium_env.game.map_builder.height = 50
-    # Clear the explicit instances setting to let MapGen derive it automatically
-    # This avoids the ValueError from conflicting explicit vs derived instances
-    medium_env.game.map_builder.instances = None
-
-    # CRITICAL: Ensure initial_resource_count = 1 is preserved in all env variants
-    for env_variant, env_name in [(small_env, "small"), (medium_env, "medium")]:
-        for obj_name in ["mine_red", "generator_red", "altar"]:
-            if obj_name in env_variant.game.objects:
-                assert env_variant.game.objects[obj_name].initial_resource_count == 1, (
-                    f"{env_name} env missing initial_resource_count for {obj_name}"
-                )
-
-    # Create curriculum with both map variants to restore pre-dehydration map diversity
+    # Create single-task curriculum to exactly match pre-dehydration behavior
+    # Pre-dehydration had NO curriculum system - just static environment repetition
+    # Use cc.single_task() to create a SingleTaskCurriculum equivalent to pre-dehydration
     curriculum_cfg = cc.CurriculumConfig(
-        task_generator=cc.TaskGeneratorSetConfig(
-            task_generators=[
-                cc.single_task(small_env),
-                cc.single_task(medium_env),
-            ],
-            weights=[0.7, 0.3],  # Favor small maps but include diversity
-        )
+        task_generator=cc.single_task(env_cfg)
     )
 
     # Create trainer configuration, only overriding non-default values
