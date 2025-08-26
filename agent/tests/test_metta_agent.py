@@ -7,7 +7,6 @@ from tensordict import TensorDict
 # Import the actual class
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent
-from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.rl.system_config import SystemConfig
 
 
@@ -95,6 +94,10 @@ def create_metta_agent():
             # Create a simple mapping that will let us test action conversions
             self.action_to_idx = {name: i for i, name in enumerate(action_names)}
 
+        def initialize_to_environment(self, action_names, device):
+            # Simple implementation that just calls activate_actions
+            self.activate_actions(action_names, device)
+
         def l2_init_loss(self):
             return torch.tensor(0.0, dtype=torch.float32)
 
@@ -112,7 +115,7 @@ def create_metta_agent():
             {"_core_": comp1, "_action_": comp2, "_action_embeds_": action_embeds}
         )
 
-    return agent, comp1, comp2
+    return agent
 
 
 def test_basic_agent_creation(create_metta_agent):
@@ -280,7 +283,7 @@ def test_l2_init_loss(create_metta_agent):
 
 def test_convert_action_to_logit_index(create_metta_agent):
     """Test the critical action conversion functionality from old tests."""
-    agent, _, _ = create_metta_agent
+    agent = create_metta_agent
 
     # Setup testing environment with controlled action space
     action_names = ["action0", "action1", "action2"]
@@ -328,7 +331,7 @@ def test_convert_action_to_logit_index(create_metta_agent):
 
 def test_convert_logit_index_to_action(create_metta_agent):
     """Test the reverse action conversion functionality."""
-    agent, _, _ = create_metta_agent
+    agent = create_metta_agent
 
     # Setup testing environment
     action_names = ["action0", "action1", "action2"]
@@ -367,7 +370,7 @@ def test_convert_logit_index_to_action(create_metta_agent):
 
 def test_bidirectional_action_conversion(create_metta_agent):
     """Test that action conversion is bidirectional (critical for training)."""
-    agent, _, _ = create_metta_agent
+    agent = create_metta_agent
 
     # Setup testing environment
     action_names = ["action0", "action1", "action2"]
