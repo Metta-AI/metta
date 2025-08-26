@@ -13,6 +13,7 @@ void VisitationCounts::onInit(const MettaGrid* env) {
 }
 
 void VisitationCounts::onReset(MettaGrid* env) {
+  // Initialize position history
   for (size_t i = 0; i < _num_agents; i++) {
     _position_history_r[i].clear();
     _position_history_c[i].clear();
@@ -23,6 +24,9 @@ void VisitationCounts::onReset(MettaGrid* env) {
     _position_history_r[i].push_back(agent->location.r);
     _position_history_c[i].push_back(agent->location.c);
   }
+
+  // Add initial visitation counts to observations
+  addVisitationCountsToObservations(env);
 }
 
 void VisitationCounts::onStep(MettaGrid* env) {
@@ -33,8 +37,12 @@ void VisitationCounts::onStep(MettaGrid* env) {
     _position_history_c[i].push_back(agent->location.c);
   }
 
-  // Inject visitation counts into observations
-  auto& observations = getObservations(env);  // Use protected accessor
+  // Add visitation counts to observations
+  addVisitationCountsToObservations(env);
+}
+
+void VisitationCounts::addVisitationCountsToObservations(MettaGrid* env) {
+  auto& observations = getObservations(env);
   auto obs_view = observations.mutable_unchecked<3>();
 
   for (size_t agent_idx = 0; agent_idx < _num_agents; agent_idx++) {
@@ -44,19 +52,23 @@ void VisitationCounts::onStep(MettaGrid* env) {
     uint8_t center_c = env->obs_width / 2;
     uint8_t center_packed = PackedCoordinate::pack(center_r, center_c);
 
+    // Find the first completely empty slot
     size_t insert_pos = 0;
+    bool found_empty = false;
     for (ssize_t token_idx = 0; token_idx < obs_view.shape(1); token_idx++) {
-      if (obs_view(agent_idx, token_idx, 0) == center_packed) {
-        while (token_idx < obs_view.shape(1) && obs_view(agent_idx, token_idx, 0) == center_packed) {
-          token_idx++;
-        }
+      if (obs_view(agent_idx, token_idx, 0) == 0xFF && obs_view(agent_idx, token_idx, 1) == 0xFF &&
+          obs_view(agent_idx, token_idx, 2) == 0xFF) {
         insert_pos = static_cast<size_t>(token_idx);
+        found_empty = true;
         break;
       }
     }
 
-    if (static_cast<ssize_t>(insert_pos + 5) <= obs_view.shape(1)) {
-      for (size_t i = 0; i < 5; i++) {
+    // Insert as many tokens as will fit
+    if (found_empty) {
+      size_t tokens_to_insert = std::min(static_cast<size_t>(5), static_cast<size_t>(obs_view.shape(1) - insert_pos));
+
+      for (size_t i = 0; i < tokens_to_insert; i++) {
         obs_view(agent_idx, insert_pos + i, 0) = center_packed;
         obs_view(agent_idx, insert_pos + i, 1) = ObservationFeature::VisitationCounts;
         obs_view(agent_idx, insert_pos + i, 2) = static_cast<uint8_t>(std::min(counts[i], 255u));

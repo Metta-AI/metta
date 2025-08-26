@@ -566,11 +566,6 @@ py::tuple MettaGrid::reset() {
     throw std::runtime_error("Cannot reset after stepping");
   }
 
-  // Reset extensions
-  for (auto& ext : _extensions) {
-    ext->onReset(this);
-  }
-
   // Reset all buffers
   // Views are created only for validating types; actual clearing is done via
   // direct memory operations for speed.
@@ -600,6 +595,11 @@ py::tuple MettaGrid::reset() {
             static_cast<ActionType>(0));
 
   _compute_observations(zero_actions);
+
+  // Reset extensions after observations in case we override
+  for (auto& ext : _extensions) {
+    ext->onReset(this);
+  }
 
   return py::make_tuple(_observations, py::dict());
 }

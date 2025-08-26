@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-import copy
-import time
 from typing import Optional
 
 import numpy as np
@@ -9,6 +7,7 @@ import pytest
 
 from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
+from metta.mettagrid.mettagrid_c import dtype_actions
 from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
@@ -20,125 +19,74 @@ from metta.mettagrid.mettagrid_config import (
 )
 
 
+def create_base_config(enable_visitation_counts=False):
+    """Create base configuration with optional visitation counts.
+
+    Args:
+        enable_visitation_counts: If True, adds visitation_counts extension
+
+    Returns:
+        EnvConfig instance
+    """
+    base_config = {
+        "num_agents": 1,
+        "max_steps": 100,
+        "obs_width": 5,
+        "obs_height": 5,
+        "num_observation_tokens": 100,
+        "inventory_item_names": ["wood", "stone"],
+        "actions": ActionsConfig(
+            noop=ActionConfig(enabled=False),
+            move=ActionConfig(enabled=True),
+            get_items=ActionConfig(enabled=False),
+        ),
+        "objects": {"wall": WallConfig(type_id=1)},
+        "groups": {"agent": GroupConfig(id=0)},
+        "global_obs": GlobalObsConfig(
+            episode_completion_pct=True,
+            last_action=True,
+            last_reward=True,
+            resource_rewards=False,
+        ),
+        "map_builder": AsciiMapBuilder.Config(
+            map_data=[
+                [".", ".", ".", ".", ".", ".", "."],
+                [".", ".", ".", ".", ".", ".", "."],
+                [".", ".", ".", ".", ".", ".", "."],
+                [".", ".", ".", "@", ".", ".", "."],  # Agent in center
+                [".", ".", ".", ".", ".", ".", "."],
+                [".", ".", ".", ".", ".", ".", "."],
+                [".", ".", ".", ".", ".", ".", "."],
+            ]
+        ),
+    }
+
+    if enable_visitation_counts:
+        base_config["extensions"] = ["visitation_counts"]
+
+    return EnvConfig(game=GameConfig(**base_config))
+
+
 @pytest.fixture
 def env_with_visitation():
     """Environment with visitation counts enabled."""
-
-    config = EnvConfig(
-        game=GameConfig(
-            num_agents=1,
-            max_steps=100,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
-            actions=ActionsConfig(
-                noop=ActionConfig(enabled=False),
-                move=ActionConfig(enabled=True),  # Enable 8-way movement
-                get_items=ActionConfig(enabled=False),
-            ),
-            objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
-            global_obs=GlobalObsConfig(
-                episode_completion_pct=True,
-                last_action=True,
-                last_reward=True,
-                resource_rewards=False,
-            ),
-            map_builder=AsciiMapBuilder.Config(
-                map_data=[
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", "@", ".", ".", "."],  # Agent in center
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", ".", ".", ".", "."],
-                ]
-            ),
-            extensions=["visitation_counts"],  # Enable visitation counts
-        )
-    )
+    config = create_base_config(enable_visitation_counts=True)
     return MettaGridCore(config)
 
 
 @pytest.fixture
 def env_without_visitation():
     """Environment with visitation counts disabled."""
-    # Create custom configuration matching original test setup
-
-    config = EnvConfig(
-        game=GameConfig(
-            num_agents=1,
-            max_steps=100,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
-            actions=ActionsConfig(
-                noop=ActionConfig(enabled=False),
-                move=ActionConfig(enabled=True),  # Enable 8-way movement
-                get_items=ActionConfig(enabled=False),
-            ),
-            objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
-            global_obs=GlobalObsConfig(
-                episode_completion_pct=True,
-                last_action=True,
-                last_reward=True,
-                resource_rewards=False,
-                visitation_counts=False,  # Disable visitation counts
-            ),
-            map_builder=AsciiMapBuilder.Config(
-                map_data=[
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", "@", ".", ".", "."],  # Agent in center
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", ".", ".", ".", "."],
-                ]
-            ),
-        )
-    )
+    config = create_base_config(enable_visitation_counts=False)
     return MettaGridCore(config)
 
 
 @pytest.fixture
 def env_default():
     """Environment with default config (no visitation_counts specified)."""
-    # Create custom configuration matching original test setup
-
-    config = EnvConfig(
-        game=GameConfig(
-            num_agents=1,
-            max_steps=100,
-            obs_width=5,
-            obs_height=5,
-            num_observation_tokens=100,
-            inventory_item_names=["wood", "stone"],
-            actions=ActionsConfig(
-                noop=ActionConfig(enabled=False),
-                move=ActionConfig(enabled=True),  # Enable 8-way movement
-                get_items=ActionConfig(enabled=False),
-            ),
-            objects={"wall": WallConfig(type_id=1)},
-            groups={"agent": GroupConfig(id=0)},
-            # No explicit visitation_counts setting - uses default (False)
-            map_builder=AsciiMapBuilder.Config(
-                map_data=[
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", "@", ".", ".", "."],  # Agent in center
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", ".", ".", ".", "."],
-                    [".", ".", ".", ".", ".", ".", "."],
-                ]
-            ),
-        )
-    )
+    # This is now identical to env_without_visitation, but kept separate
+    # for clarity of test intent
+    config = create_base_config(enable_visitation_counts=False)
     return MettaGridCore(config)
 
 
@@ -179,7 +127,6 @@ def get_agent_position(env: MettaGridCore) -> Optional[tuple[int, int]]:
     return None
 
 
-@pytest.mark.skip(reason="Visitation counts not incrementing - needs investigation")
 def test_visitation_counts_enabled(env_with_visitation):
     """Test that visitation counts work correctly when enabled."""
     obs, _ = env_with_visitation.reset(seed=42)
@@ -187,10 +134,11 @@ def test_visitation_counts_enabled(env_with_visitation):
     # Check initial visitation counts
     initial_features = extract_visitation_features(obs)
     assert len(initial_features) == 5, f"Expected 5 visitation features, got {len(initial_features)}"
-    assert initial_features == [0, 0, 0, 0, 0], f"Expected initial counts [0,0,0,0,0], got {initial_features}"
+    # we mark our starting position as visited
+    assert initial_features == [1, 0, 0, 0, 0], f"Expected initial counts [1,0,0,0,0], got {initial_features}"
 
     # Move and check counts update
-    move_action = np.array([[0, 0]], dtype=np.int32)
+    move_action = np.array([[0, 0]], dtype=dtype_actions)
     for step in range(3):
         obs, _, _, _, _ = env_with_visitation.step(move_action)
         features = extract_visitation_features(obs)
@@ -210,7 +158,7 @@ def test_visitation_counts_disabled(env_without_visitation):
     assert len(features) == 0, f"Expected no visitation features when disabled, got {len(features)}"
 
     # Verify they stay disabled after steps
-    move_action = np.array([[0, 0]], dtype=np.int32)
+    move_action = np.array([[0, 0]], dtype=dtype_actions)
     obs, _, _, _, _ = env_without_visitation.step(move_action)
     features = extract_visitation_features(obs)
     assert len(features) == 0, "Visitation features appeared after step when disabled"
@@ -248,8 +196,8 @@ def test_visitation_counts_configurable():
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
-            global_obs=GlobalObsConfig(visitation_counts=True),
             map_builder=AsciiMapBuilder.Config(map_data=simple_map),
+            extensions=["visitation_counts"],
         )
     )
     env = MettaGridCore(config_enabled)
@@ -268,7 +216,7 @@ def test_visitation_counts_configurable():
             actions=ActionsConfig(move=ActionConfig()),
             objects={"wall": WallConfig(type_id=1)},
             groups={"agent": GroupConfig(id=0)},
-            global_obs=GlobalObsConfig(visitation_counts=False),
+            global_obs=GlobalObsConfig(),
             map_builder=AsciiMapBuilder.Config(map_data=simple_map),
         )
     )
@@ -328,47 +276,6 @@ def performance_config():
     return config
 
 
-def _median_runtime(env, move_action, warmup_steps=10, test_steps=200, reps=15):
-    # warmup
-    for _ in range(warmup_steps):
-        env.step(move_action)
-    times = []
-    for _ in range(reps):
-        t0 = time.perf_counter()
-        for _ in range(test_steps):
-            env.step(move_action)
-        times.append(time.perf_counter() - t0)
-    times.sort()
-    return times[len(times) // 2]
-
-
-@pytest.mark.skip(reason="Flaky performance test - timing variations on different systems")
-def test_visitation_performance_impact(performance_config):
-    """Disabled visitation should not be materially slower."""
-    move_action = np.array([[0, 0]], dtype=np.int32)
-
-    # enabled
-    cfg_on = copy.deepcopy(performance_config)
-    cfg_on.game.global_obs = GlobalObsConfig(visitation_counts=True)
-    env_enabled = MettaGridCore(cfg_on)
-    env_enabled.reset(seed=42)
-    enabled_time = _median_runtime(env_enabled, move_action)
-
-    # disabled
-    cfg_off = copy.deepcopy(performance_config)
-    cfg_off.game.global_obs = GlobalObsConfig(visitation_counts=False)
-    env_disabled = MettaGridCore(cfg_off)
-    env_disabled.reset(seed=42)
-    disabled_time = _median_runtime(env_disabled, move_action)
-
-    # allow small jitter (≤10% slowdown)
-    assert disabled_time <= enabled_time * 1.1, (
-        f"Disabled visitation unexpectedly slower: "
-        f"enabled={enabled_time:.6f}s, disabled={disabled_time:.6f}s, "
-        f"delta={(disabled_time / enabled_time - 1) * 100:.2f}%"
-    )
-
-
 def test_agent_movement_tracking(env_with_visitation):
     """Test that agent position updates correctly."""
     env_with_visitation.reset(seed=42)
@@ -377,7 +284,7 @@ def test_agent_movement_tracking(env_with_visitation):
     assert initial_pos == (3, 3), f"Expected agent at (3,3), got {initial_pos}"
 
     # Move and check position updates
-    move_action = np.array([[0, 0]], dtype=np.int32)
+    move_action = np.array([[0, 0]], dtype=dtype_actions)
     env_with_visitation.step(move_action)
     new_pos = get_agent_position(env_with_visitation)
 

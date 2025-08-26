@@ -19,6 +19,8 @@ private:
   std::vector<std::vector<GridCoord>> _position_history_c;
   size_t _num_agents = 0;
 
+  void addVisitationCountsToObservations(MettaGrid* env);
+
 public:
   std::string getName() const override {
     return "visitation_counts";
