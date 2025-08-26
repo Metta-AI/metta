@@ -7,7 +7,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from click.testing import CliRunner
-from codeclip.cli import cli
+
+from codebot.codeclip.cli import cli
 
 
 class TestCodeclipSummary(unittest.TestCase):

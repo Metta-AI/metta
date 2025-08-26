@@ -3,7 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from codeclip.file import (
+import gitlib
+from codebot.codeclip.file import (
     _find_gitignore,
     _find_parent_readmes,
     _read_gitignore,
@@ -11,8 +12,6 @@ from codeclip.file import (
     _should_ignore_file_type,
     resolve_codebase_path,
 )
-
-import gitlib
 
 
 class TestGitignoreHandling(unittest.TestCase):

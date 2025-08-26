@@ -104,7 +104,7 @@ CMAKE_BUILD_TYPE = "Release"
 
 [tool.pytest.ini_options]
 # Look for tests in the main tests dir and any */tests directories
-testpaths = ["tests", "*/tests"]
+testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
@@ -114,7 +114,7 @@ markers = [
   "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
 ]
 console_output_style = "progress"
-addopts = "-n auto --import-mode=importlib"
+addopts = "-n auto"
 
 [tool.uv]
 cache-keys = [
@@ -125,7 +125,7 @@ cache-keys = [
 default-groups = ["dev"]
 
 [tool.uv.workspace]
-members = ["mettagrid", "app_backend", "common", "agent", "experiments", "gitlib"]
+members = ["mettagrid", "app_backend", "common", "agent", "experiments", "gitlib", "codebot/codeclip"]
 
 [tool.uv.sources]
 metta-app-backend = { workspace = true }
@@ -133,6 +133,7 @@ metta-mettagrid = { workspace = true }
 metta-common = { workspace = true }
 metta-agent = { workspace = true }
 gitlib = { workspace = true }
+codeclip = { workspace = true }
 
 [tool.ruff]
 exclude = ["*.ipynb"]
