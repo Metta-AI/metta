@@ -140,10 +140,13 @@ def test(total_timesteps: int = 100_000) -> TrainTool:
             training_agents_pct=0.5,  # 50% training, 50% NPC
             checkpoint_npc=NPC_CHECKPOINT,
         ),
-        # Skip git check for local testing
+        # Enable evaluations for local testing to see dual policy metrics
         evaluation=EvaluationConfig(
+            simulations=make_evals(env),
             skip_git_check=True,
-            evaluate_interval=0,  # Disable evaluation for quick test
+            evaluate_interval=100,  # Evaluate every 100 iterations for quick feedback
+            evaluate_local=True,  # Run evaluations locally
+            evaluate_remote=False,  # Don't use remote evaluation for local testing
         ),
         # Minimal settings for fast testing
         batch_size=2048,

@@ -29,6 +29,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.rl.dual_policy import DualPolicyHandler
 from metta.rl.policy_management import initialize_policy_for_environment
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
@@ -107,12 +108,23 @@ class Simulation:
             f"episodes per env (total target: {cfg.num_episodes})"
         )
 
+        # We need to create dual_policy_handler before vecenv if using NPC
+        self._dual_policy_handler = None
+        if cfg.npc_policy_uri and cfg.policy_agents_pct < 1.0:
+            self._dual_policy_handler = DualPolicyHandler(
+                enabled=True,
+                training_agents_pct=cfg.policy_agents_pct,
+                checkpoint_npc=cfg.npc_policy_uri,
+                device=device,
+            )
+
         self._vecenv = make_vecenv(
             cfg.env.to_curriculum(),
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
             replay_writer=self._replay_writer,
+            dual_policy_handler=self._dual_policy_handler,
         )
 
         self._num_envs = num_envs
@@ -150,6 +162,10 @@ class Simulation:
                 restore_feature_mapping=True,
             )
 
+            # Load NPC policy in dual policy handler for metrics tracking
+            if self._dual_policy_handler and self._dual_policy_handler.enabled:
+                self._dual_policy_handler.load_npc_policy(self._policy_store, metta_grid_env)
+
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
             self._num_envs, self._agents_per_env
@@ -157,12 +173,17 @@ class Simulation:
         self._policy_agents_per_env = max(1, int(self._agents_per_env * self._policy_agents_pct))
         self._npc_agents_per_env = self._agents_per_env - self._policy_agents_per_env
 
-        self._policy_idxs = idx_matrix[:, : self._policy_agents_per_env].reshape(-1)
+        # Align with dual policy handler convention: first slice per env is NPCs, then policy agents
         self._npc_idxs = (
-            idx_matrix[:, self._policy_agents_per_env :].reshape(-1)
+            idx_matrix[:, : self._npc_agents_per_env].reshape(-1)
             if self._npc_agents_per_env
             else torch.tensor([], device=self._device, dtype=torch.long)
         )
+        self._policy_idxs = idx_matrix[:, self._npc_agents_per_env :].reshape(-1)
+
+        # Initialize agent split for dual policy handler
+        if self._dual_policy_handler and self._dual_policy_handler.enabled:
+            self._dual_policy_handler.initialize_agent_split(self._agents_per_env)
         self._episode_counters = np.zeros(self._num_envs, dtype=int)
 
     @classmethod
@@ -234,31 +255,32 @@ class Simulation:
         """
         if __debug__:
             # Debug assertion: verify indices are correctly ordered
-            # Policy indices should be 0 to N-1
-            # NPC indices should be N to M-1
+            # NPC indices should be 0 to N-1
+            # Policy indices should be N to M-1
             num_policy = len(self._policy_idxs)
             num_npc = len(self._npc_idxs)
 
-            if num_policy > 0:
-                assert self._policy_idxs[0] == 0, f"Policy indices should start at 0, got {self._policy_idxs[0]}"
-                assert self._policy_idxs[-1] == num_policy - 1, (
-                    f"Policy indices should be continuous 0 to {num_policy - 1}, last index is {self._policy_idxs[-1]}"
+            if self._npc_pr is not None and num_npc > 0:
+                assert self._npc_idxs[0] == 0, f"NPC indices should start at 0, got {self._npc_idxs[0]}"
+                assert self._npc_idxs[-1] == num_npc - 1, (
+                    f"NPC indices should be continuous 0 to {num_npc - 1}, last index is {self._npc_idxs[-1]}"
                 )
-                assert list(self._policy_idxs) == list(range(num_policy)), (
-                    "Policy indices should be continuous sequence starting from 0"
+                assert list(self._npc_idxs) == list(range(num_npc)), (
+                    "NPC indices should be continuous sequence starting from 0"
                 )
 
-            if self._npc_pr is not None and num_npc > 0:
-                expected_npc_start = num_policy
-                assert self._npc_idxs[0] == expected_npc_start, (
-                    f"NPC indices should start at {expected_npc_start}, got {self._npc_idxs[0]}"
+            if num_policy > 0:
+                expected_policy_start = num_npc
+                assert self._policy_idxs[0] == expected_policy_start, (
+                    f"Policy indices should start at {expected_policy_start}, got {self._policy_idxs[0]}"
                 )
-                assert self._npc_idxs[-1] == expected_npc_start + num_npc - 1, (
-                    f"NPC indices should end at {expected_npc_start + num_npc - 1}, got {self._npc_idxs[-1]}"
+                assert self._policy_idxs[-1] == expected_policy_start + num_policy - 1, (
+                    f"Policy indices should end at {expected_policy_start + num_policy - 1}, "
+                    f"got {self._policy_idxs[-1]}"
                 )
-                assert list(self._npc_idxs) == list(range(expected_npc_start, expected_npc_start + num_npc)), (
-                    f"NPC indices should be continuous sequence from {expected_npc_start}"
-                )
+                assert list(self._policy_idxs) == list(
+                    range(expected_policy_start, expected_policy_start + num_policy)
+                ), f"Policy indices should be continuous sequence from {expected_policy_start}"
 
             # Verify no overlap between policy and NPC indices
             if num_policy > 0 and num_npc > 0:
@@ -279,7 +301,7 @@ class Simulation:
 
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
-                npc_obs = self._obs[self._npc_idxs]
+                npc_obs = self._obs[self._npc_idxs.cpu()]
                 td = obs_to_td(npc_obs, self._device)  # One-liner conversion
                 npc_policy = self._npc_pr.policy
                 try:
@@ -307,8 +329,8 @@ class Simulation:
                 envs=self._num_envs,
                 npc_agents=self._npc_agents_per_env,
             )
-            # Concatenate along agents dimension
-            actions = torch.cat([policy_actions, npc_actions], dim=1)
+            # Concatenate along agents dimension with NPC first, then policy
+            actions = torch.cat([npc_actions, policy_actions], dim=1)
             # Flatten back to (total_agents, action_dim)
             actions = rearrange(actions, "envs agents act -> (envs agents) act")
 
