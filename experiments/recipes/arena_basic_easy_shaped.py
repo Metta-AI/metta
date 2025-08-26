@@ -85,24 +85,24 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     )
 
     # Shaped rewards exactly matching old configs/env/mettagrid/game/agent/rewards/shaped.yaml
-    env_cfg.game.agent.rewards.inventory.ore_red = 0.1
-    env_cfg.game.agent.rewards.inventory_max.ore_red = 1
+    env_cfg.game.agent.rewards.inventory["ore_red"] = 0.1
+    env_cfg.game.agent.rewards.inventory_max["ore_red"] = 1
 
-    env_cfg.game.agent.rewards.inventory.battery_red = 0.8
-    env_cfg.game.agent.rewards.inventory_max.battery_red = 1
+    env_cfg.game.agent.rewards.inventory["battery_red"] = 0.8
+    env_cfg.game.agent.rewards.inventory_max["battery_red"] = 1
 
-    env_cfg.game.agent.rewards.inventory.laser = 0.5
-    env_cfg.game.agent.rewards.inventory_max.laser = 1
+    env_cfg.game.agent.rewards.inventory["laser"] = 0.5
+    env_cfg.game.agent.rewards.inventory_max["laser"] = 1
 
-    env_cfg.game.agent.rewards.inventory.armor = 0.5
-    env_cfg.game.agent.rewards.inventory_max.armor = 1
+    env_cfg.game.agent.rewards.inventory["armor"] = 0.5
+    env_cfg.game.agent.rewards.inventory_max["armor"] = 1
 
-    env_cfg.game.agent.rewards.inventory.blueprint = 0.5
-    env_cfg.game.agent.rewards.inventory_max.blueprint = 1
+    env_cfg.game.agent.rewards.inventory["blueprint"] = 0.5
+    env_cfg.game.agent.rewards.inventory_max["blueprint"] = 1
 
     # Heart reward with maximum possible value
-    env_cfg.game.agent.rewards.inventory.heart = 1
-    env_cfg.game.agent.rewards.inventory_max.heart = 255
+    env_cfg.game.agent.rewards.inventory["heart"] = 1
+    env_cfg.game.agent.rewards.inventory_max["heart"] = 255
 
     # Easy converter configuration (from configs/env/mettagrid/game/objects/basic_easy.yaml)
     # Altar only needs 1 battery_red instead of 3
