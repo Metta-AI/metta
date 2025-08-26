@@ -14,13 +14,6 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
-    # config.json should not be cached
-    location = /config.json {
-        add_header Cache-Control "no-cache, no-store, must-revalidate";
-        add_header Pragma "no-cache";
-        expires 0;
-    }
-
     # Shortlink redirects - dynamically generated from links.yaml
     # SHORTLINK_REDIRECTS_PLACEHOLDER
 

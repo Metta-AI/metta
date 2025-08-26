@@ -7,9 +7,6 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Install js-yaml for nginx config generation
-RUN npm install js-yaml
-
 # Copy source code
 COPY . .
 
