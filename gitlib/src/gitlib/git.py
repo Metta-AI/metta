@@ -10,12 +10,12 @@ from typing import Optional
 
 import httpx
 
-# Constants that were in metta.common.util.constants
 METTA_GITHUB_ORGANIZATION = "Metta-AI"
 METTA_GITHUB_REPO = "metta"
+METTA_API_REPO = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+METTA_API_REPO_URL = f"https://github.com/{METTA_API_REPO}.git"
 
 
-# Simple memoization decorator (was from metta.common.util.memoization)
 def memoize(max_age=60):
     """Simple memoization decorator with time-based expiry."""
 
@@ -43,10 +43,6 @@ def memoize(max_age=60):
 
 class GitError(Exception):
     """Custom exception for git-related errors."""
-
-
-METTA_API_REPO = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
-METTA_API_REPO_URL = f"https://github.com/{METTA_API_REPO}.git"
 
 
 def run_git_with_cwd(args: list[str], cwd: str | Path | None = None) -> str:
