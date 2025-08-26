@@ -719,7 +719,7 @@ proc newEnvironment*(): Environment =
   result = Environment()
   result.init()
 
-proc step*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
+proc nextStep*(env: Environment, actions: ptr array[MapAgents, array[2, uint8]]) =
   ## Step the environment
   inc env.currentStep
   for id, action in actions[]:

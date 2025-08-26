@@ -35,6 +35,7 @@ if defined(emscripten):
     """
     -o dist/mettascope.html
     --preload-file data
+    --preload-file replays
     --shell-file src/mettascope/shell.html
     -s USE_WEBGL2=1
     -s MAX_WEBGL_VERSION=2
@@ -42,6 +43,7 @@ if defined(emscripten):
     -s FULL_ES3=1
     -s GL_ENABLE_GET_PROC_ADDRESS=1
     -s ALLOW_MEMORY_GROWTH
+    --profiling
     """.replace("\n", " ")
   )
 
@@ -51,3 +53,4 @@ if defined(macosx):
 --gc:arc # GC:arc is friendlier with crazy platforms.
 --exceptions:goto # Goto exceptions are friendlier with crazy platforms.
 --define:noSignalHandler # Emscripten doesn't support signal handlers.
+--define:noAutoGLerrorCheck

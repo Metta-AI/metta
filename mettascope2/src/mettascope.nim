@@ -1,6 +1,6 @@
 import std/[random, os, times, strformat, strutils],
   boxy, opengl, windy, chroma, vmath,
-  mettascope/[sim, actions, replays, common, panels, utils, worldmap, header, footer, timeline]
+  mettascope/[actions, replays, common, panels, utils, worldmap, header, footer, timeline]
 
 window = newWindow("MettaScope in Nim", ivec2(1280, 800))
 makeContextCurrent(window)
@@ -8,8 +8,8 @@ makeContextCurrent(window)
 when not defined(emscripten):
   loadExtensions()
 
-bxy = newBoxy()
-env = newEnvironment()
+bxy = newBoxy(quadsPerBatch = 10921)
+
 rootArea = Area(layout: Horizontal)
 worldMapPanel = Panel(panelType: WorldMap, name: "World Map")
 minimapPanel = Panel(panelType: Minimap, name: "Minimap")
@@ -61,11 +61,6 @@ proc display() =
   globalFooterPanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight, w: window.size.x, h: RibbonHeight)
   globalTimelinePanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight*2, w: window.size.x, h: RibbonHeight)
 
-
-
-
-
-
   worldMapPanel.beginDraw()
 
   worldMapPanel.beginPanAndZoom()
@@ -75,16 +70,16 @@ proc display() =
   drawFloor()
   drawWalls()
   drawObjects()
-  drawActions()
-  drawObservations()
-  drawAgentDecorations()
-  if settings.showVisualRange:
-    drawVisualRanges()
+  # drawActions()
+  # drawObservations()
+  # drawAgentDecorations()
+  # if settings.showVisualRange:
+  #   drawVisualRanges()
   if settings.showGrid:
     drawGrid()
-  if settings.showFogOfWar:
-    drawFogOfWar()
-  drawSelection()
+  # if settings.showFogOfWar:
+  #   drawFogOfWar()
+  # drawSelection()
 
   worldMapPanel.endPanAndZoom()
 
@@ -111,6 +106,7 @@ proc display() =
   window.swapBuffers()
   inc frame
 
+replay = loadReplay("replays/pens.json.z")
 
 # Build the atlas.
 for path in walkDirRec("data/"):

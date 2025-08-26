@@ -1,5 +1,5 @@
 import std/[times],
-  sim, boxy, windy, vmath
+  boxy, windy, vmath, replays
 
 type
   IRect* = object
@@ -50,7 +50,7 @@ var
   rootArea*: Area
   bxy*: Boxy
   frame*: int
-  env*: Environment
+  #env*: Environment
 
 
   worldMapPanel*: Panel
@@ -63,8 +63,11 @@ var
 
   settings* = Settings()
 
-  selection*: Thing
+  selection*: Entity
 
+
+  step*: int = 0
+  replay*: Replay
   play*: bool
   playSpeed*: float32 = 1/60.0
   lastSimTime*: float64 = epochTime()
