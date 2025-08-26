@@ -13,6 +13,7 @@ from metta.mettagrid.mettagrid_config import (
     EnvConfig,
     GameConfig,
     GroupConfig,
+    InventoryRewards,
 )
 
 
@@ -85,9 +86,9 @@ def make_arena(
                     "heart": 255,
                 },
                 rewards=AgentRewards(
-                    inventory={
-                        "heart": 1,
-                    },
+                    inventory=InventoryRewards(
+                        heart=1,
+                    ),
                 ),
             ),
             groups={
@@ -120,9 +121,9 @@ def make_navigation(num_agents: int) -> EnvConfig:
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
-                    inventory={
-                        "heart": 1,
-                    },
+                    inventory=InventoryRewards(
+                        heart=1,
+                    ),
                 ),
             ),
             # Always provide a concrete map builder config so tests can set width/height
@@ -153,9 +154,9 @@ def make_icl_resource_chain(num_agents: int, max_steps, game_objects: dict, map_
             ),
             agent=AgentConfig(
                 rewards=AgentRewards(
-                    inventory={
-                        "heart": 1,
-                    },
+                    inventory=InventoryRewards(
+                        heart=1,
+                    ),
                 ),
                 default_resource_limit=1,
                 resource_limits={"heart": 15},

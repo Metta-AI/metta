@@ -27,24 +27,24 @@ function flushComboIfAny() {
   if (comboKeys.size >= 2) {
     const has = (k: 'w' | 'a' | 's' | 'd') => comboKeys.has(k)
     if (has('w') && has('a'))
-      param = 4 // NW
+      param = 7 // NW
     else if (has('w') && has('d'))
-      param = 5 // NE
+      param = 1 // NE
     else if (has('s') && has('d'))
-      param = 7 // SE
-    else if (has('s') && has('a')) param = 6 // SW
+      param = 3 // SE
+    else if (has('s') && has('a')) param = 5 // SW
   }
   if (param === -1) {
     // Single key or opposing keys fallback: prefer last in insertion order.
     let lastKey: 'w' | 'a' | 's' | 'd' | null = null
     for (const k of comboKeys) lastKey = k
-    if (lastKey === 'w') param = 0 
-    else if (lastKey === 'd') param = 3 
-    else if (lastKey === 's') param = 1 
-    else if (lastKey === 'a') param = 2 
+    if (lastKey === 'w') param = 0
+    else if (lastKey === 'd') param = 2
+    else if (lastKey === 's') param = 4
+    else if (lastKey === 'a') param = 6
   }
   if (param !== -1) {
-    sendAction('move', param)
+    sendAction('move_8way', param)
   }
   comboKeys.clear()
 }
@@ -118,7 +118,6 @@ export function processActions(event: KeyboardEvent) {
     const code = event.code
     const supportsMove8 = state.replay.actionNames.includes('move_8way')
     const supportsCardinal = state.replay.actionNames.includes('move_cardinal')
-    const supportsUnifiedMove = state.replay.actionNames.includes('move')
 
     // Movement handling.
     if (key === 'w' || key === 'ArrowUp') {
@@ -127,8 +126,6 @@ export function processActions(event: KeyboardEvent) {
         pushComboKey('w')
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 0)
-      } else if (supportsUnifiedMove) {
-        sendAction('move', 0) // North
       } else {
         if (orientation !== 0) {
           sendAction('rotate', 0)
@@ -142,8 +139,6 @@ export function processActions(event: KeyboardEvent) {
         pushComboKey('a')
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 2)
-      } else if (supportsUnifiedMove) {
-        sendAction('move', 2) // West
       } else {
         if (orientation !== 2) {
           sendAction('rotate', 2)
@@ -157,8 +152,6 @@ export function processActions(event: KeyboardEvent) {
         pushComboKey('s')
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 1)
-      } else if (supportsUnifiedMove) {
-        sendAction('move', 1) // South
       } else {
         if (orientation !== 1) {
           sendAction('rotate', 1)
@@ -172,8 +165,6 @@ export function processActions(event: KeyboardEvent) {
         pushComboKey('d')
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 3)
-      } else if (supportsUnifiedMove) {
-        sendAction('move', 3) // East
       } else {
         if (orientation !== 3) {
           sendAction('rotate', 3)
@@ -189,8 +180,6 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_8way', 0)
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 0)
-      } else if (supportsUnifiedMove) {
-        sendAction('move', 0) // North
       } else {
         if (orientation !== 0) {
           sendAction('rotate', 0)
@@ -204,8 +193,6 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_8way', 6)
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 2)
-      } else if (supportsUnifiedMove) {
-        sendAction('move', 2) // West
       } else {
         if (orientation !== 2) {
           sendAction('rotate', 2)
@@ -219,8 +206,6 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_8way', 4)
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 1)
-      } else if (supportsUnifiedMove) {
-        sendAction('move', 1) // South
       } else {
         if (orientation !== 1) {
           sendAction('rotate', 1)
@@ -234,8 +219,6 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_8way', 2)
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 3)
-      } else if (supportsUnifiedMove) {
-        sendAction('move', 3) // East
       } else {
         if (orientation !== 3) {
           sendAction('rotate', 3)
@@ -272,8 +255,6 @@ export function processActions(event: KeyboardEvent) {
         // Fallback: prefer vertical then horizontal in two frames.
         sendAction('move_cardinal', 0)
         sendAction('move_cardinal', 2)
-      } else if (supportsUnifiedMove) {
-        sendAction('move', 4) // Northwest
       } else {
         sendAction('rotate', 0) // Rotate up.
         sendAction('move', 0) // Move up.
@@ -287,8 +268,6 @@ export function processActions(event: KeyboardEvent) {
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 0)
         sendAction('move_cardinal', 3)
-      } else if (supportsUnifiedMove) {
-        sendAction('move', 5) // Northeast
       } else {
         sendAction('rotate', 0) // Rotate up.
         sendAction('move', 0) // Move up.
@@ -302,8 +281,6 @@ export function processActions(event: KeyboardEvent) {
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 1)
         sendAction('move_cardinal', 2)
-      } else if (supportsUnifiedMove) {
-        sendAction('move', 6) // Southwest
       } else {
         sendAction('rotate', 1) // Rotate down.
         sendAction('move', 0) // Move down.
@@ -317,8 +294,6 @@ export function processActions(event: KeyboardEvent) {
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 1)
         sendAction('move_cardinal', 3)
-      } else if (supportsUnifiedMove) {
-        sendAction('move', 7) // Southeast
       } else {
         sendAction('rotate', 1) // Rotate down.
         sendAction('move', 0) // Move down.

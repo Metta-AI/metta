@@ -15,6 +15,7 @@ from metta.mettagrid.mettagrid_config import (
     EnvConfig,
     GameConfig,
     GroupConfig,
+    InventoryRewards,
 )
 
 
@@ -38,9 +39,7 @@ class TestProgrammaticEnvironments:
                 ),
                 agent=AgentConfig(
                     rewards=AgentRewards(
-                        inventory={
-                            "heart": 1,
-                        }
+                        inventory=InventoryRewards(heart=1),
                     ),
                 ),
                 map_builder=RandomMapBuilder.Config(
@@ -105,11 +104,11 @@ class TestProgrammaticEnvironments:
                 ),
                 agent=AgentConfig(
                     rewards=AgentRewards(
-                        inventory={
-                            "heart": 1.0,
-                            "ore_red": 0.5,
-                            "battery_red": 0.8,
-                        },
+                        inventory=InventoryRewards(
+                            heart=1.0,
+                            ore_red=0.5,
+                            battery_red=0.8,
+                        ),
                     ),
                     resource_limits={
                         "heart": 255,
@@ -158,9 +157,7 @@ class TestProgrammaticEnvironments:
                         sprite=0,
                         props=AgentConfig(
                             rewards=AgentRewards(
-                                inventory={
-                                    "heart": 2,
-                                },
+                                inventory=InventoryRewards(heart=2),
                             ),
                         ),
                     ),
@@ -169,9 +166,7 @@ class TestProgrammaticEnvironments:
                         sprite=1,
                         props=AgentConfig(
                             rewards=AgentRewards(
-                                inventory={
-                                    "heart": 1,
-                                },
+                                inventory=InventoryRewards(heart=1),
                             ),
                         ),
                     ),

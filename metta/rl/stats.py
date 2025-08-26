@@ -86,24 +86,15 @@ def accumulate_rollout_stats(
             v = v.tolist()
 
         if isinstance(v, list):
-            # Ensure stats[k] is a list before extending (reference version approach)
-            if k not in stats:
-                stats[k] = []
-            elif not isinstance(stats[k], list):
-                stats[k] = [stats[k]]
-            stats[k].extend(v)
+            stats.setdefault(k, []).extend(v)
         else:
             if k not in stats:
                 stats[k] = v
             else:
-                # Try to accumulate or convert to list
-                if isinstance(stats[k], list):
-                    stats[k].append(v)
-                else:
-                    try:
-                        stats[k] += v
-                    except TypeError:
-                        stats[k] = [stats[k], v]  # fallback: bundle as list
+                try:
+                    stats[k] += v
+                except TypeError:
+                    stats[k] = [stats[k], v]  # fallback: bundle as list
 
 
 def filter_movement_metrics(stats: dict[str, Any]) -> dict[str, Any]:

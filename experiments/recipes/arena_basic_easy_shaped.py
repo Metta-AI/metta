@@ -15,8 +15,8 @@ import metta.mettagrid.config.envs as eb
 from metta.map.mapgen import MapGen
 from metta.mettagrid.config import building
 from metta.mettagrid.mettagrid_config import (
-    ActionConfig,
     ActionsConfig,
+    ActionConfig,
     AttackActionConfig,
     ChangeGlyphActionConfig,
     EnvConfig,
@@ -85,24 +85,24 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     )
 
     # Shaped rewards exactly matching old configs/env/mettagrid/game/agent/rewards/shaped.yaml
-    env_cfg.game.agent.rewards.inventory["ore_red"] = 0.1
-    env_cfg.game.agent.rewards.inventory_max["ore_red"] = 1
+    env_cfg.game.agent.rewards.inventory.ore_red = 0.1
+    env_cfg.game.agent.rewards.inventory.ore_red_max = 1
 
-    env_cfg.game.agent.rewards.inventory["battery_red"] = 0.8
-    env_cfg.game.agent.rewards.inventory_max["battery_red"] = 1
+    env_cfg.game.agent.rewards.inventory.battery_red = 0.8
+    env_cfg.game.agent.rewards.inventory.battery_red_max = 1
 
-    env_cfg.game.agent.rewards.inventory["laser"] = 0.5
-    env_cfg.game.agent.rewards.inventory_max["laser"] = 1
+    env_cfg.game.agent.rewards.inventory.laser = 0.5
+    env_cfg.game.agent.rewards.inventory.laser_max = 1
 
-    env_cfg.game.agent.rewards.inventory["armor"] = 0.5
-    env_cfg.game.agent.rewards.inventory_max["armor"] = 1
+    env_cfg.game.agent.rewards.inventory.armor = 0.5
+    env_cfg.game.agent.rewards.inventory.armor_max = 1
 
-    env_cfg.game.agent.rewards.inventory["blueprint"] = 0.5
-    env_cfg.game.agent.rewards.inventory_max["blueprint"] = 1
+    env_cfg.game.agent.rewards.inventory.blueprint = 0.5
+    env_cfg.game.agent.rewards.inventory.blueprint_max = 1
 
     # Heart reward with maximum possible value
-    env_cfg.game.agent.rewards.inventory["heart"] = 1
-    env_cfg.game.agent.rewards.inventory_max["heart"] = 255
+    env_cfg.game.agent.rewards.inventory.heart = 1
+    env_cfg.game.agent.rewards.inventory.heart_max = 255
 
     # Easy converter configuration (from configs/env/mettagrid/game/objects/basic_easy.yaml)
     # Altar only needs 1 battery_red instead of 3
@@ -165,17 +165,10 @@ def train() -> TrainTool:
     """
     env_cfg = make_env()
 
-    # Create single-task curriculum to exactly match pre-dehydration behavior
-    # Pre-dehydration had NO curriculum system - just static environment repetition
-    # Use cc.single_task() to create a SingleTaskCurriculum equivalent to pre-dehydration
-    curriculum_cfg = cc.CurriculumConfig(
-        task_generator=cc.single_task(env_cfg)
-    )
-
     # Create trainer configuration, only overriding non-default values
     trainer_cfg = TrainerConfig(
-        curriculum=curriculum_cfg,
-        total_timesteps=1e10,  # 10B instead of default 50B
+        curriculum=cc.env_curriculum(env_cfg),
+        total_timesteps=10_000_000_000,  # 10B instead of default 50B
         checkpoint=CheckpointConfig(
             checkpoint_interval=50,  # 50 instead of default 5
             wandb_checkpoint_interval=50,  # 50 instead of default 5
@@ -223,3 +216,51 @@ def evaluate(policy_uri: str) -> SimTool:
         simulations=make_evals(),
         policy_uris=[policy_uri],
     )
+
+
+if __name__ == "__main__":
+    """Allow running this recipe directly for play testing.
+    
+    Usage:
+        uv run experiments/recipes/arena_basic_easy_shaped.py [port] [num_agents_or_policy] [policy]
+        
+    Examples:
+        uv run experiments/recipes/arena_basic_easy_shaped.py              # Default: port 8001, 24 agents
+        uv run experiments/recipes/arena_basic_easy_shaped.py 8002 6        # Port 8002, 6 agents
+        uv run experiments/recipes/arena_basic_easy_shaped.py 8003 wandb://run/my-run
+    """
+    import os
+    import sys
+
+    # Parse arguments
+    port = 8001
+    num_agents = 24
+    policy_uri = None
+
+    if len(sys.argv) > 1:
+        try:
+            port = int(sys.argv[1])
+        except ValueError:
+            print(f"Invalid port: {sys.argv[1]}, using default {port}")
+
+    if len(sys.argv) > 2:
+        arg = sys.argv[2]
+        if arg.startswith("wandb://") or arg.startswith("file://") or "/" in arg:
+            policy_uri = arg
+        else:
+            try:
+                num_agents = int(arg)
+                if num_agents % 6 != 0:
+                    num_agents = (num_agents // 6) * 6
+            except ValueError:
+                policy_uri = arg
+
+    if len(sys.argv) > 3 and not policy_uri:
+        policy_uri = sys.argv[3]
+
+    # Set server port
+    os.environ["METTASCOPE_PORT"] = str(port)
+
+    # Run play
+    play_tool = play(num_agents=num_agents, policy_uri=policy_uri)
+    play_tool.invoke({}, [])

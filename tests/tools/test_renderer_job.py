@@ -20,6 +20,7 @@ from metta.mettagrid.mettagrid_config import (
     AgentRewards,
     EnvConfig,
     GameConfig,
+    InventoryRewards,
 )
 
 
@@ -58,9 +59,7 @@ class TestRendererJob:
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
-                            inventory={
-                                "heart": 1,
-                            },
+                            inventory=InventoryRewards(heart=1),
                         ),
                     ),
                     map_builder=RandomMapBuilder.Config(
@@ -88,9 +87,7 @@ class TestRendererJob:
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
-                            inventory={
-                                "heart": 1,
-                            },
+                            inventory=InventoryRewards(heart=1),
                         ),
                     ),
                     map_builder=RandomMapBuilder.Config(
@@ -120,9 +117,7 @@ class TestRendererJob:
                     ),
                     agent=AgentConfig(
                         rewards=AgentRewards(
-                            inventory={
-                                "heart": 1,
-                            },
+                            inventory=InventoryRewards(heart=1),
                         ),
                     ),
                     map_builder=RandomMapBuilder.Config(
