@@ -4,5 +4,5 @@ These scenes were generated from the file
 To regenerate these scenes, run the following command:
 
 ```bash
-python -m metta.map.utils.dcss
+python -m metta.mettagrid.mapgen.utils.dcss
 ```
