@@ -89,6 +89,8 @@ interface OpenAIPdfFigure {
   imageType?: string;
   boundingBox?: { x: number; y: number; width: number; height: number };
   aiDetectedText?: string;
+  significance?: string;
+  explanation?: string;
 }
 
 // ===== OPENAI SCHEMA =====
