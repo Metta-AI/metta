@@ -77,8 +77,8 @@ public:
     // period, perhaps spinning in circles. We think this could be a good indicator that a policy has collapsed.
     if (actor->location == actor->prev_location) {
       actor->steps_without_motion += 1;
-      if (actor->steps_without_motion > actor->stats.get("status.max_steps_without_motion")) {
-        actor->stats.set("status.max_steps_without_motion", actor->steps_without_motion);
+      if (static_cast<float>(actor->steps_without_motion) > actor->stats.get("status.max_steps_without_motion")) {
+        actor->stats.set("status.max_steps_without_motion", static_cast<float>(actor->steps_without_motion));
       }
     } else {
       actor->steps_without_motion = 0;

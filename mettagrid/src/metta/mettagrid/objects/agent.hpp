@@ -98,8 +98,7 @@ public:
   void increment_visitation_count(GridCoord r, GridCoord c) {
     if (!visitation_counts_enabled) return;
 
-    if (r >= 0 && r < static_cast<GridCoord>(visitation_grid.size()) && c >= 0 &&
-        c < static_cast<GridCoord>(visitation_grid[0].size())) {
+    if (r < static_cast<GridCoord>(visitation_grid.size()) && c < static_cast<GridCoord>(visitation_grid[0].size())) {
       visitation_grid[r][c]++;
     }
   }
@@ -107,10 +106,17 @@ public:
   std::array<unsigned int, 5> get_visitation_counts() const {
     std::array<unsigned int, 5> counts = {0, 0, 0, 0, 0};
     if (!visitation_grid.empty()) {
-      counts[0] = get_visitation_count(location.r, location.c);      // center
-      counts[1] = get_visitation_count(location.r - 1, location.c);  // up
+      counts[0] = get_visitation_count(location.r, location.c);  // center
+
+      // Handle potential underflow at map edge
+      if (location.r > 0) {
+        counts[1] = get_visitation_count(location.r - 1, location.c);  // up
+      }
       counts[2] = get_visitation_count(location.r + 1, location.c);  // down
-      counts[3] = get_visitation_count(location.r, location.c - 1);  // left
+
+      if (location.c > 0) {
+        counts[3] = get_visitation_count(location.r, location.c - 1);  // left
+      }
       counts[4] = get_visitation_count(location.r, location.c + 1);  // right
     }
     return counts;
@@ -233,7 +239,7 @@ private:
   }
 
   unsigned int get_visitation_count(GridCoord r, GridCoord c) const {
-    if (visitation_grid.empty() || r < 0 || r >= static_cast<GridCoord>(visitation_grid.size()) || c < 0 ||
+    if (visitation_grid.empty() || r >= static_cast<GridCoord>(visitation_grid.size()) ||
         c >= static_cast<GridCoord>(visitation_grid[0].size())) {
       return 0;  // Return 0 for out-of-bounds positions
     }
