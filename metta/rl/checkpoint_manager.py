@@ -57,11 +57,24 @@ class CheckpointManager:
         self.run_name = run_name
 
         self._ensure_checkpoint_directory()
+        self._validate_checkpoint_intervals()
 
     def _ensure_checkpoint_directory(self) -> None:
         """Ensure checkpoint directory exists."""
         if self.checkpoint_cfg.checkpoint_dir is not None:
             Path(self.checkpoint_cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
+
+    def _validate_checkpoint_intervals(self) -> None:
+        """Validate that wandb_checkpoint_interval is a multiple of checkpoint_interval."""
+        if (
+            self.checkpoint_cfg.wandb_checkpoint_interval is not None
+            and self.checkpoint_cfg.checkpoint_interval is not None
+            and self.checkpoint_cfg.wandb_checkpoint_interval % self.checkpoint_cfg.checkpoint_interval != 0
+        ):
+            raise ValueError(
+                f"wandb_checkpoint_interval ({self.checkpoint_cfg.wandb_checkpoint_interval}) "
+                f"must be a multiple of checkpoint_interval ({self.checkpoint_cfg.checkpoint_interval})"
+            )
 
     def make_model_name(self, epoch: int, model_suffix: str) -> str:
         """Create a model name for the given epoch."""
@@ -286,14 +299,16 @@ def maybe_establish_checkpoint(
     wandb_run: WandbRun | None,
     force: bool = False,
 ) -> tuple[PolicyRecord, str | None] | None:
+    """Establish a checkpoint if conditions are met."""
     cfg = checkpoint_manager.checkpoint_cfg
 
     if not should_run(epoch, cfg.checkpoint_interval, force=force):
         return None
 
     record_heartbeat()
-
     logger.info(f"Saving checkpoint at epoch {epoch}")
+
+    # Save policy
     new_record = checkpoint_manager.save_policy(
         policy=policy,
         epoch=epoch,
@@ -303,10 +318,10 @@ def maybe_establish_checkpoint(
         initial_policy_uri=initial_policy_uri,
     )
     if not new_record.uri:
-        # We shouldn't get here
         logger.warning(f"Saved policy record did not have a uri: {new_record}")
         return None
 
+    # Save trainer checkpoint
     logger.info(f"Creating a checkpoint at {new_record.uri}")
     record_heartbeat()
     checkpoint_manager.save_checkpoint(
@@ -319,8 +334,8 @@ def maybe_establish_checkpoint(
         kickstarter=kickstarter,
     )
 
+    # Upload to wandb if needed
     wandb_policy_name: str | None = None
-    # TODO: enforce that wandb_checkpoint_interval is a multiple of checkpoint_interval
     if should_run(epoch, cfg.wandb_checkpoint_interval, force=force):
         record_heartbeat()
         wandb_policy_name = upload_policy_artifact(wandb_run, checkpoint_manager.policy_loader, new_record)
