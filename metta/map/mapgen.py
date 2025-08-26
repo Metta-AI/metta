@@ -102,6 +102,7 @@ class MapGen(MapBuilder):
         self.root = self.config.root
 
         self.rng = np.random.default_rng(self.config.seed)
+        self.grid = None
 
     def prebuild_instances(self):
         """Prebuild instances when using instance_map or deriving instances from num_agents.
@@ -281,6 +282,9 @@ class MapGen(MapBuilder):
         )
 
     def build(self):
+        if self.grid is not None:
+            return GameMap(self.grid)
+
         self.prebuild_instances()
         self.prepare_grid()
 
