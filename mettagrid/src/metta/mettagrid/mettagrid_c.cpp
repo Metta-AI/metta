@@ -516,7 +516,7 @@ void MettaGrid::_step(Actions actions) {
           float loss = _resource_loss_prob * qty;
           int lost = static_cast<int>(std::floor(loss));
           // With probability equal to the fractional part, lose one more
-          if (std::generate_canonical<float, 10>(_rng) < loss - lost) {
+          if (std::generate_canonical<float, 10>(_rng) < loss - static_cast<float>(lost)) {
             lost += 1;
           }
 
