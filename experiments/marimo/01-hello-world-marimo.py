@@ -1077,8 +1077,8 @@ def _(mo):
         r"""
     # Let's run a new example with a new map
 
-        ###########  
-        #R...@...m#  
+        ###########
+        #R...@...m#
         ###########
     """
     )

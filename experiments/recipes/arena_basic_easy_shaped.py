@@ -2,9 +2,26 @@ from typing import List, Optional, Sequence
 
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
+<<<<<<< HEAD
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.mettagrid.mettagrid_config import EnvConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
+=======
+from metta.map.mapgen import MapGen
+from metta.mettagrid.config import building
+from metta.mettagrid.mettagrid_config import (
+    ActionConfig,
+    ActionsConfig,
+    AttackActionConfig,
+    ChangeGlyphActionConfig,
+    EnvConfig,
+)
+from metta.rl.trainer_config import (
+    CheckpointConfig,
+    EvaluationConfig,
+    TrainerConfig,
+)
+>>>>>>> 1fdf0006b (Simplify resource rewards)
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
 from metta.tools.replay import ReplayTool
@@ -87,7 +104,16 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
 
 def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     trainer_cfg = TrainerConfig(
+<<<<<<< HEAD
         curriculum=curriculum or make_curriculum(),
+=======
+        curriculum=cc.env_curriculum(env_cfg),
+        total_timesteps=1e10,  # 10B instead of default 50B
+        checkpoint=CheckpointConfig(
+            checkpoint_interval=50,  # 50 instead of default 5
+            wandb_checkpoint_interval=50,  # 50 instead of default 5
+        ),
+>>>>>>> 1fdf0006b (Simplify resource rewards)
         evaluation=EvaluationConfig(
             simulations=[
                 SimulationConfig(
@@ -119,7 +145,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         env_cfg.game.agent.rewards.inventory.armor_max = 1
         env_cfg.game.agent.rewards.inventory.blueprint = 0.5
         env_cfg.game.agent.rewards.inventory.blueprint_max = 1
-        
+
         # Set the same rewards on group config
         env_cfg.game.groups["agent"].props.rewards.inventory.ore_red = 0.1
         env_cfg.game.groups["agent"].props.rewards.inventory.ore_red_max = 1

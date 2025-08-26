@@ -48,18 +48,8 @@ def convert_to_cpp_game_config(mettagrid_config: dict | GameConfig):
         inventory_reward_max = {}
 
         rewards_config = agent_group_props.get("rewards", {})
-        if rewards_config:
-            inventory_rewards_dict = rewards_config.get("inventory", {})
-
-            # Process inventory rewards
-            for k, v in inventory_rewards_dict.items():
-                if v is not None and not k.endswith("_max"):
-                    if k in resource_name_to_id:
-                        inventory_rewards[resource_name_to_id[k]] = v
-                elif k.endswith("_max") and v is not None:
-                    item_name = k[:-4]
-                    if item_name in resource_name_to_id:
-                        inventory_reward_max[resource_name_to_id[item_name]] = v
+        inventory_rewards = rewards_config.get("inventory", {})
+        inventory_reward_max = rewards_config.get("inventory_max", {})
 
         # Process stats rewards
         stat_rewards = {}
