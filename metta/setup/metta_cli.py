@@ -521,7 +521,7 @@ class MettaCLI:
         except FileNotFoundError:
             print(f"Error: Command not found: {cmd[0]}", file=sys.stderr)
             if command == "clip":
-                print("Run: metta install codeclip", file=sys.stderr)
+                print("Run: metta install codebot", file=sys.stderr)
             sys.exit(1)
 
     def cmd_report_env_details(self, args, unknown_args=None) -> None:
