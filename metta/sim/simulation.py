@@ -111,10 +111,24 @@ class Simulation:
         # We need to create dual_policy_handler before vecenv if using NPC
         self._dual_policy_handler = None
         if cfg.npc_policy_uri and cfg.policy_agents_pct < 1.0:
+            # Convert 4-part wandb URIs to 3-part for DualPolicyHandler's load_from_uri
+            npc_uri = cfg.npc_policy_uri
+            if npc_uri.startswith("wandb://"):
+                rest = npc_uri[len("wandb://") :]
+                version = None
+                if ":" in rest:
+                    rest, version = rest.split(":", 1)
+                parts = rest.split("/")
+                if len(parts) == 4:  # entity/project/type/name format
+                    entity, project, _artifact_type, name = parts
+                    npc_uri = f"wandb://{entity}/{project}/{name}"
+                    if version:
+                        npc_uri = f"{npc_uri}:{version}"
+
             self._dual_policy_handler = DualPolicyHandler(
                 enabled=True,
                 training_agents_pct=cfg.policy_agents_pct,
-                checkpoint_npc=cfg.npc_policy_uri,
+                checkpoint_npc=npc_uri,
                 device=device,
             )
 

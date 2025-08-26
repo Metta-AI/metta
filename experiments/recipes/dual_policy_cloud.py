@@ -33,7 +33,7 @@ from metta.tools.train import TrainTool
 # You can override this by setting an environment variable or passing it as an argument
 NPC_CHECKPOINT = os.environ.get(
     "NPC_CHECKPOINT",
-    "wandb://metta-research/metta/model/krishna_arena_1b:v24",
+    "wandb://metta-research/metta/model/krishna_arena_1b:v22",
 )
 
 
