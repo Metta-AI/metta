@@ -97,18 +97,7 @@ class PolicyStore:
         stats_client: StatsClient | None = None,
         eval_name: str | None = None,
     ) -> list[PolicyRecord]:
-        """
-        Select policy records based on URI and selection criteria.
-
-        Args:
-            uri: Resource identifier (wandb://, file://, pytorch://, or path)
-            selector_type: Selection strategy ('all', 'latest', 'rand', 'top')
-            n: Number of policy records to select (for 'top' selector)
-            metric: Metric to use for 'top' selection
-
-        Returns:
-            List of selected PolicyRecord objects
-        """
+        """Select policy records based on URI and selection criteria."""
         # Load policy records from URI
         prs = self._load_policy_records_from_uri(uri)
 
@@ -484,17 +473,7 @@ class PolicyStore:
         wandb_config: WandbConfig,
         wandb_run: WandbRun | None = None,
     ) -> "PolicyStore":
-        """Create a PolicyStore from a WandbConfig.
-
-        Args:
-            device: Device to load policies on (e.g., "cpu", "cuda")
-            wandb_config: WandbConfig object containing entity and project info
-            replay_dir: Directory for storing policy artifacts
-            wandb_run: Optional existing wandb run
-
-        Returns:
-            Configured PolicyStore instance
-        """
+        """Create a PolicyStore from a WandbConfig."""
         return cls(
             device=device,
             wandb_run=wandb_run,
@@ -508,15 +487,7 @@ class PolicyStore:
         policy_uri: str | None,
         run_name: str = "mock_run",
     ) -> PolicyRecord:
-        """Get a policy record or create a mock if no URI provided.
-
-        Args:
-            policy_uri: Optional policy URI to load
-            run_name: Name for the mock run if no URI provided
-
-        Returns:
-            PolicyRecord from URI or MockPolicyRecord
-        """
+        """Get a policy record or create a mock if no URI provided."""
         if policy_uri is not None:
             return self.policy_record(policy_uri)
         else:

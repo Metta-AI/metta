@@ -9,55 +9,10 @@ from metta.agent.lib.nn_layer_library import LayerBase
 
 
 class ObsLatentAttn(LayerBase):
-    """
-    Performs multi-layer cross-attention between learnable query tokens and input features.
+    """Multi-layer cross-attention between learnable query tokens and input features.
 
-    !!! Note About Output Shape: !!!
-    The output shape depends on the `_use_cls_token` parameter:
-    - If `_use_cls_token == True`, the output tensor shape will be `[B_TT, out_dim]`.
-    - If `_use_cls_token == False`, the output tensor shape will be `[B_TT, num_query_tokens, out_dim]`.
-    So, if true, it's setup to pass directly to the LSTM. But that also means that it will be in an invalid shape to
-    pass to another attention layer. In other words, if _use_cls_token == True, then this should be the last layer of
-    the encoder (because why else use the cls token?).
-
-    Key Functionality (per layer):
-    1. Multi-Head Cross-Attention: The current query tokens attend to the full sequence of
-       input features (keys and values).
-    2. Residual Connection and Layer Normalization.
-    3. Feed-Forward Network (MLP): A position-wise MLP is applied to each query token.
-    4. Another Residual Connection and Layer Normalization.
-
-    Args:
-        out_dim (int): The final output dimension for each query token's processed features.
-        use_mask (bool, optional): If True, uses an observation mask (`obs_mask` from the
-            input TensorDict) to mask attention scores for padded elements in `x_features`.
-            Defaults to False.
-        num_query_tokens (int, optional): The number of learnable query tokens to use.
-            Defaults to 1.
-        num_heads (int, optional): The number of attention heads. Defaults to 1.
-        num_layers (int, optional): The number of cross-attention blocks. Defaults to 1.
-        query_token_dim (Optional[int], optional): The embedding dimension for the initial
-            learnable query tokens and the hidden dimension throughout the layers.
-            If None, defaults to the input feature dimension (`feat_dim`). Defaults to None.
-        qk_dim (Optional[int], optional): The dimension for query and key projections in the
-            attention mechanism. If None, defaults to `query_token_dim`. Defaults to None.
-        v_dim (Optional[int], optional): The dimension for value projection. For multi-layer
-            architectures, this must be equal to `query_token_dim` to allow for residual
-            connections. If None, defaults to `query_token_dim`. Defaults to None.
-        mlp_ratio (float, optional): Determines the hidden dimension of the per-layer feed-forward
-            network as `mlp_ratio * query_token_dim`. Defaults to 4.0.
-        **cfg: Additional configuration for LayerBase.
-
-    Input TensorDict:
-        - `x_features` (from `self._sources[0]["name"]`): Tensor of shape `[B_TT, M, feat_dim]`
-          containing the input features.
-        - `obs_mask` (optional, if `use_mask` is True): Tensor of shape `[B_TT, M]` indicating
-          elements to be masked (True for masked).
-        - `_BxTT_`: Batch-time dimension.
-
-    Output TensorDict:
-        - `self._name`: Output tensor. Shape is `[B_TT, out_dim]` if `_use_cls_token == True`,
-          or `[B_TT, num_query_tokens, out_dim]` if `_use_cls_token == False`.
+    Output shape depends on use_cls_token: [B_TT, out_dim] if True, else [B_TT, num_query_tokens, out_dim].
+    When use_cls_token=True, this should be the final encoder layer since it reduces to single token.
     """
 
     def __init__(
@@ -204,8 +159,7 @@ class ObsLatentAttn(LayerBase):
 
 
 class ObsSelfAttn(LayerBase):
-    """Future work can go beyond just using the feat dim as the attn qv dim, a single layer and single head,
-    adding a GRU before the out projection..."""
+    """Self-attention layer for observation features with optional CLS token."""
 
     def __init__(
         self,

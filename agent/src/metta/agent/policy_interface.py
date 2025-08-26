@@ -28,17 +28,7 @@ class PolicyInterface(ABC, nn.Module):
 
     @abstractmethod
     def forward(self, td: TensorDict, state=None, action=None) -> TensorDict:
-        """
-        Forward pass of the policy.
-
-        Args:
-            td: TensorDict containing observations and other data
-            state: Optional state for recurrent policies
-            action: Optional action for training mode
-
-        Returns:
-            TensorDict with actions, values, and other outputs
-        """
+        """Forward pass of the policy."""
         pass
 
     @abstractmethod
@@ -52,12 +42,7 @@ class PolicyInterface(ABC, nn.Module):
 
     @abstractmethod
     def l2_init_loss(self) -> torch.Tensor:
-        """
-        Calculate L2 initialization loss for regularization.
-
-        Returns:
-            L2 loss between current weights and initial weights
-        """
+        """Calculate L2 initialization loss for regularization."""
         pass
 
     @abstractmethod
@@ -67,51 +52,21 @@ class PolicyInterface(ABC, nn.Module):
 
     @abstractmethod
     def compute_weight_metrics(self, delta: float = 0.01) -> list[dict]:
-        """
-        Compute weight metrics for monitoring.
-
-        Args:
-            delta: Small value for numerical stability
-
-        Returns:
-            List of metric dictionaries
-        """
+        """Compute weight metrics for monitoring."""
         pass
 
     @abstractmethod
     def _convert_action_to_logit_index(self, flattened_action: torch.Tensor) -> torch.Tensor:
-        """
-        Convert (action_type, action_param) pairs to discrete indices.
-
-        Args:
-            flattened_action: Actions as (action_type, action_param) pairs
-
-        Returns:
-            Indices into flattened action space
-        """
+        """Convert (action_type, action_param) pairs to discrete indices."""
         pass
 
     @abstractmethod
     def _convert_logit_index_to_action(self, action_logit_index: torch.Tensor) -> torch.Tensor:
-        """
-        Convert logit indices back to action pairs.
-
-        Args:
-            action_logit_index: Indices into flattened action space
-
-        Returns:
-            Action tensor with (action_type, action_param) pairs
-        """
+        """Convert logit indices back to action pairs."""
         pass
 
     def activate_action_embeddings(self, full_action_names: list[str], device):
-        """
-        Activate action embeddings if the policy uses them.
-
-        Args:
-            full_action_names: List of action names
-            device: Device for tensors
-        """
+        """Activate action embeddings if the policy uses them."""
         # Default implementation - override if policy has action embeddings
         pass
 

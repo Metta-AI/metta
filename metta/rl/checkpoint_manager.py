@@ -40,17 +40,7 @@ class CheckpointManager:
         rank: int,
         run_name: str,
     ):
-        """Initialize checkpoint manager.
-
-        Args:
-            checkpoint_dir: Directory to save checkpoints
-            policy_store: PolicyStore instance for saving/loading policies
-            trainer_cfg: Trainer configuration
-            device: Training device
-            is_master: Whether this is the master process
-            rank: Process rank for distributed training
-            run_name: Name of the current run
-        """
+        """Initialize checkpoint manager."""
         self.policy_store = policy_store
         self.checkpoint_cfg = checkpoint_config
         self.device = device

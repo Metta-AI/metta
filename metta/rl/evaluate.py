@@ -28,13 +28,7 @@ def evaluate_policy_remote(
     wandb_run: WandbRun | None,
     trainer_cfg: TrainerConfig,
 ) -> TaskResponse | None:
-    """Create a task to evaluate a policy remotely.
-
-    Ensures policy is uploaded to wandb.
-
-    Returns:
-        TaskResponse for the policy evaluation or None if policy is not uploaded to wandb
-    """
+    """Create a task to evaluate a policy remotely, ensuring policy is uploaded to wandb."""
     if wandb_run and stats_client and policy_record and wandb_policy_name:
         # Need to upload policy artifact to wandb first and make sure our name
         # reflects that in the version
@@ -77,7 +71,7 @@ def upload_replay_html(
     step_metric_key: str | None = None,
     epoch_metric_key: str | None = None,
 ) -> None:
-    """Upload replay HTML to wandb with organized links."""
+    """Upload organized replay HTML links to wandb."""
     # Create unified HTML with all replay links on a single line
     if replay_urls:
         # Group replays by base name

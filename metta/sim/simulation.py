@@ -177,21 +177,7 @@ class Simulation:
         policy_uri: str | None = None,
         run_name: str = "simulation_run",
     ) -> "Simulation":
-        """Create a Simulation with sensible defaults.
-
-        Args:
-            sim_config: Simulation configuration with environment settings
-            policy_store: PolicyStore instance for managing policies
-            device: Device to run on (e.g., "cpu", "cuda")
-            vectorization: Vectorization backend (e.g., "serial", "multiprocessing")
-            stats_dir: Directory for simulation statistics
-            replay_dir: Directory for replay files
-            policy_uri: Optional policy URI to load (None for mock policy)
-            run_name: Name for the mock run if no policy URI provided
-
-        Returns:
-            Configured Simulation instance
-        """
+        """Create a Simulation with sensible defaults."""
         # Get policy record or create a mock
         policy_record = policy_store.policy_record_or_mock(policy_uri, run_name)
 
@@ -332,11 +318,7 @@ class Simulation:
                 self._env_done_flags[e] = False
 
     def _maybe_generate_thumbnail(self) -> str | None:
-        """Generate thumbnail if this is the first run for this eval_name.
-
-        Returns:
-            Thumbnail URL if generated successfully, None otherwise
-        """
+        """Generate thumbnail if this is the first run for this eval_name."""
         try:
             # Skip synthetic evaluation framework simulations
             if self._name.startswith(SYNTHETIC_EVAL_PREFIX):
