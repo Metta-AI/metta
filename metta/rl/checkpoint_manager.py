@@ -56,7 +56,10 @@ class CheckpointManager:
         self.rank = rank
         self.run_name = run_name
 
-        # Ensure checkpoint directory exists
+        self._ensure_checkpoint_directory()
+
+    def _ensure_checkpoint_directory(self) -> None:
+        """Ensure checkpoint directory exists."""
         if self.checkpoint_cfg.checkpoint_dir is not None:
             Path(self.checkpoint_cfg.checkpoint_dir).mkdir(parents=True, exist_ok=True)
 
