@@ -66,10 +66,6 @@ class TrainTool(Tool):
         if not self.trainer.checkpoint.checkpoint_dir:
             self.trainer.checkpoint.checkpoint_dir = f"{self.run_dir}/checkpoints/"
 
-        # Initialize policy_architecture if not provided
-        if self.policy_architecture is None:
-            self.policy_architecture = AgentConfig()
-
         if self.wandb == WandbConfig.Unconfigured():
             self.wandb = auto_wandb_config(self.run)
 

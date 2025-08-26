@@ -14,6 +14,37 @@ class Config(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    def _auto_initialize_field(
+        self, parent_obj: "Config", field_name: str, traversed_path: list[str], fail
+    ) -> "Config | None":
+        """Auto-initialize a None field if possible."""
+        from typing import get_args, get_origin
+
+        cls = type(parent_obj)
+        field = cls.model_fields.get(field_name)
+        if field is None:
+            return None
+
+        # Handle Optional[T] -> T
+        field_type = field.annotation
+        if get_origin(field_type) is Union:
+            # For Optional[T], find the non-None type
+            non_none_types = [arg for arg in get_args(field_type) if arg is not type(None)]
+            if len(non_none_types) != 1:
+                return None  # Can't handle complex unions
+            field_type = non_none_types[0]
+
+        # Only auto-initialize Config subclasses
+        try:
+            if isinstance(field_type, type) and issubclass(field_type, Config):
+                new_instance = field_type()
+                setattr(parent_obj, field_name, new_instance)
+                return new_instance
+        except (TypeError, Exception):
+            pass
+
+        return None
+
     def override(self, key: str, value: Any) -> Self:
         """Override a value in the config."""
         key_path = key.split(".")
@@ -39,37 +70,13 @@ class Config(BaseModel):
 
             next_inner_cfg = getattr(inner_cfg, key_part)
             if next_inner_cfg is None:
-                # If the field is None, try to initialize it with a default Config
-                cls = type(inner_cfg)
-                field = cls.model_fields.get(key_part)
-                if field is None:
+                # If the field is None, try to auto-initialize it
+                next_inner_cfg = self._auto_initialize_field(inner_cfg, key_part, traversed_path, fail)
+                if next_inner_cfg is None:
                     failed_path = ".".join(traversed_path + [key_part])
-                    fail(f"key {failed_path} not found")
+                    fail(f"Cannot auto-initialize None field {failed_path}")
 
-                # Get the actual type (handle Optional[T] -> T)
-                field_type = field.annotation
-                if hasattr(field_type, "__origin__") and field_type.__origin__ is Union:
-                    # For Optional[T], find the non-None type
-                    field_type = next((arg for arg in field_type.__args__ if arg is not type(None)), None)
-                    if field_type is None:
-                        failed_path = ".".join(traversed_path + [key_part])
-                        fail(f"Unable to determine non-None field type for {failed_path}")
-
-                try:
-                    if field_type and issubclass(field_type, Config):
-                        try:
-                            next_inner_cfg = field_type()
-                            setattr(inner_cfg, key_part, next_inner_cfg)
-                        except Exception as e:
-                            failed_path = ".".join(traversed_path + [key_part])
-                            fail(f"Cannot initialize {failed_path}: {str(e)}")
-                    else:
-                        failed_path = ".".join(traversed_path + [key_part])
-                        fail(f"key {failed_path} is not a Config object")
-                except TypeError:
-                    failed_path = ".".join(traversed_path + [key_part])
-                    fail(f"key {failed_path} is not a Config object")
-            elif not isinstance(next_inner_cfg, Config) and not isinstance(next_inner_cfg, dict):
+            if not isinstance(next_inner_cfg, Config) and not isinstance(next_inner_cfg, dict):
                 failed_path = ".".join(traversed_path + [key_part])
                 fail(f"key {failed_path} is not a Config object")
 
