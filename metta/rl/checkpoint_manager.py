@@ -67,6 +67,65 @@ class CheckpointManager:
         """Create a model name for the given epoch."""
         return f"model_{epoch:04d}{model_suffix}"
 
+    def _save_policy_to_file(self, policy_record: PolicyRecord) -> str:
+        """Save policy record to file and return the path."""
+        if self.checkpoint_cfg.checkpoint_file_type == "safetensors":
+            return self.policy_loader.save_to_safetensors_file(policy_record, None)
+        else:
+            return self.policy_loader.save_to_pt_file(policy_record, None)
+
+    def _build_base_metadata(
+        self, epoch: int, agent_step: int, timer: Stopwatch, initial_policy_uri: str | None
+    ) -> dict:
+        """Build base metadata without evaluation scores."""
+        return {
+            "epoch": epoch,
+            "agent_step": agent_step,
+            "total_time": timer.get_elapsed(),
+            "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
+            "run": self.run_name,
+            "initial_pr": initial_policy_uri,
+        }
+
+    def _build_evaluation_metadata(self, evals: EvalRewardSummary) -> dict:
+        """Build evaluation metadata if meaningful scores are available."""
+        has_meaningful_scores = bool(evals.category_scores or evals.simulation_scores)
+
+        if not has_meaningful_scores:
+            logger.info(
+                "No meaningful evaluation scores available - skipping eval metadata (likely using remote evaluation)"
+            )
+            return {}
+
+        evals_dict = {
+            "category_scores": evals.category_scores.copy(),
+            "simulation_scores": {f"{cat}/{sim}": score for (cat, sim), score in evals.simulation_scores.items()},
+            "avg_category_score": evals.avg_category_score,
+            "avg_simulation_score": evals.avg_simulation_score,
+        }
+
+        logger.info(
+            f"Including evaluation scores in policy metadata: "
+            f"avg_reward={evals.avg_category_score:.4f}, score={evals.avg_simulation_score:.4f}"
+        )
+
+        return {
+            "evals": evals_dict,
+            "avg_reward": evals.avg_category_score,
+            "score": evals.avg_simulation_score,  # Aggregated score for sweep evaluation
+        }
+
+    def _add_feature_mapping_metadata(self, policy: MettaAgent, metadata: dict) -> None:
+        """Add original feature mapping to metadata if available."""
+        original_feature_mapping = policy.get_original_feature_mapping()
+        if original_feature_mapping is not None:
+            metadata["original_feature_mapping"] = original_feature_mapping
+            logger.info(f"Saving original_feature_mapping with {len(original_feature_mapping)} features to metadata")
+
+    def _extract_policy_for_saving(self, policy: PolicyAgent) -> MettaAgent:
+        """Extract the actual policy module from distributed wrapper if needed."""
+        return policy.module if isinstance(policy, DistributedMettaAgent) else policy
+
     def save_checkpoint(
         self,
         agent_step: int,
@@ -107,57 +166,16 @@ class CheckpointManager:
         logger.info(f"Saving policy at epoch {epoch}")
 
         # Extract the actual policy module from distributed wrapper if needed
-        policy_to_save: MettaAgent = policy.module if isinstance(policy, DistributedMettaAgent) else policy
+        policy_to_save: MettaAgent = self._extract_policy_for_saving(policy)
 
         # Build metadata
         name = self.make_model_name(epoch, self.checkpoint_cfg.model_suffix())
+        metadata = self._build_base_metadata(epoch, agent_step, timer, initial_policy_uri)
+        metadata.update(self._build_evaluation_metadata(evals))
 
-        # Base metadata without evaluation scores
-        metadata = {
-            "epoch": epoch,
-            "agent_step": agent_step,
-            "total_time": timer.get_elapsed(),
-            "total_train_time": timer.get_all_elapsed().get("_rollout", 0) + timer.get_all_elapsed().get("_train", 0),
-            "run": self.run_name,
-            "initial_pr": initial_policy_uri,
-        }
-
-        # Only include evaluation metadata if we have meaningful scores
-        # (i.e., when local evaluation was performed on the current machine, not when remote evaluation was requested)
-        has_meaningful_scores = bool(evals.category_scores or evals.simulation_scores)
-        if has_meaningful_scores:
-            # Extract average reward and scores from evals
-            evals_dict = {
-                "category_scores": evals.category_scores.copy(),
-                "simulation_scores": {f"{cat}/{sim}": score for (cat, sim), score in evals.simulation_scores.items()},
-                "avg_category_score": evals.avg_category_score,
-                "avg_simulation_score": evals.avg_simulation_score,
-            }
-
-            metadata.update(
-                {
-                    "evals": evals_dict,
-                    "avg_reward": evals.avg_category_score,
-                    "score": evals.avg_simulation_score,  # Aggregated score for sweep evaluation
-                }
-            )
-            logger.info(
-                f"Including evaluation scores in policy metadata: "
-                f"avg_reward={evals.avg_category_score:.4f}, score={evals.avg_simulation_score:.4f}"
-            )
-        else:
-            logger.info(
-                "No meaningful evaluation scores available - skipping eval metadata (likely using remote evaluation)"
-            )
-
-        # Save original feature mapping
+        # Add feature mapping metadata
         if isinstance(policy_to_save, MettaAgent):
-            original_feature_mapping = policy_to_save.get_original_feature_mapping()
-            if original_feature_mapping is not None:
-                metadata["original_feature_mapping"] = original_feature_mapping
-                logger.info(
-                    f"Saving original_feature_mapping with {len(original_feature_mapping)} features to metadata"
-                )
+            self._add_feature_mapping_metadata(policy_to_save, metadata)
 
         # Create and save policy record
         if self.checkpoint_cfg.checkpoint_dir is None:
@@ -171,12 +189,8 @@ class CheckpointManager:
         )
 
         # Save the policy record
-        if self.checkpoint_cfg.checkpoint_file_type == "safetensors":
-            path = self.policy_loader.save_to_safetensors_file(policy_record_to_save, None)
-            policy_record_to_save.uri = f"file://{path}"
-        else:
-            path = self.policy_loader.save_to_pt_file(policy_record_to_save, None)
-            policy_record_to_save.uri = f"file://{path}"
+        path = self._save_policy_to_file(policy_record_to_save)
+        policy_record_to_save.uri = f"file://{path}"
 
         logger.info(f"Successfully saved policy at epoch {epoch}")
         return policy_record_to_save
