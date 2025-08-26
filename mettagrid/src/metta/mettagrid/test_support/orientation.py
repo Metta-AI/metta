@@ -47,21 +47,6 @@ class Orientation(Enum):
         return self.name.lower()
 
     @property
-    def movement_delta(self) -> tuple[int, int]:
-        """Get the (dx, dy) for this orientation to match C++ convention."""
-        deltas = {
-            Orientation.NORTH: (0, -1),
-            Orientation.SOUTH: (0, 1),
-            Orientation.WEST: (-1, 0),
-            Orientation.EAST: (1, 0),
-            Orientation.NORTHWEST: (-1, -1),
-            Orientation.NORTHEAST: (1, -1),
-            Orientation.SOUTHWEST: (-1, 1),
-            Orientation.SOUTHEAST: (1, 1),
-        }
-        return deltas[self]
-
-    @property
     def is_diagonal(self) -> bool:
         """Check if this orientation is diagonal."""
         return self.value >= 4

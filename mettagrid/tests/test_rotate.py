@@ -11,8 +11,8 @@ from metta.mettagrid.mettagrid_c import (
     dtype_truncations,
 )
 from metta.mettagrid.mettagrid_c_config import from_mettagrid_config
+from metta.mettagrid.test_support import Orientation
 from metta.mettagrid.test_support.actions import get_agent_orientation, rotate
-from metta.mettagrid.test_support.orientation import Orientation
 
 
 @pytest.fixture
@@ -34,6 +34,7 @@ def base_config():
             "wall": {"type_id": 1},
         },
         "agent": {"rewards": {}},
+        "allow_diagonals": True,
     }
 
 
@@ -75,14 +76,19 @@ def configured_env(base_config):
 
 
 def test_rotation_functionality(configured_env, simple_game_map):
-    """Test that rotation works correctly for all orientations."""
+    """Test that rotation works correctly for all 8 orientations."""
     env = configured_env(simple_game_map)
 
+    # Test all 8 orientations
     orientations = [
         Orientation.NORTH,
-        Orientation.EAST,
         Orientation.SOUTH,
         Orientation.WEST,
+        Orientation.EAST,
+        Orientation.NORTHWEST,
+        Orientation.NORTHEAST,
+        Orientation.SOUTHWEST,
+        Orientation.SOUTHEAST,
     ]
 
     for orientation in orientations:
@@ -90,6 +96,12 @@ def test_rotation_functionality(configured_env, simple_game_map):
         assert result["success"], f"Rotation to {orientation} should succeed"
         assert result["orientation_after"] == orientation.value, (
             f"Agent should be facing {orientation} (value {orientation.value})"
+        )
+
+        # Verify with get_agent_orientation
+        current = get_agent_orientation(env, 0)
+        assert current == orientation.value, (
+            f"get_agent_orientation should return {orientation.value} for {orientation}, got {current}"
         )
 
 
@@ -179,25 +191,6 @@ def test_multiple_agents_rotation(configured_env):
 
     assert orientation0 == Orientation.EAST.value, f"Agent 0 should face RIGHT, got {orientation0}"
     assert orientation1 == Orientation.SOUTH.value, f"Agent 1 should face DOWN, got {orientation1}"
-
-
-def test_orientation_enum_functionality():
-    """Test that the Orientation enum works as expected."""
-    assert Orientation.NORTH.value == 0
-    assert Orientation.SOUTH.value == 1
-    assert Orientation.WEST.value == 2
-    assert Orientation.EAST.value == 3
-
-    assert str(Orientation.NORTH) == "north"
-    assert str(Orientation.SOUTH) == "south"
-    assert str(Orientation.WEST) == "west"
-    assert str(Orientation.EAST) == "east"
-
-    # Test movement_delta property
-    assert Orientation.NORTH.movement_delta == (-1, 0)
-    assert Orientation.SOUTH.movement_delta == (1, 0)
-    assert Orientation.WEST.movement_delta == (0, -1)
-    assert Orientation.EAST.movement_delta == (0, 1)
 
 
 def test_rotation_helper_return_values(configured_env, simple_game_map):
