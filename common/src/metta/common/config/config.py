@@ -76,6 +76,11 @@ class Config(BaseModel):
             inner_cfg = next_inner_cfg
             traversed_path.append(key_part)
 
+        # We allow dicts to get new keys, but not Configs. This is because we want to allow overrides like
+        # env_cfg.game.agent.rewards.inventory.ore_red = 0.1
+        # without requiring that "ore_red" was already in the inventory dict. Note that allowing overrides / updates
+        # to dicts like this leads to an obnoxious inconsistency in the way dicts are updated via overrides
+        # (foo.bar.baz = 1) vs how they're set in Python (foo.bar["baz"] = 1).
         if isinstance(inner_cfg, Config):
             if not hasattr(inner_cfg, key_path[-1]):
                 fail(f"key {key} not found")
