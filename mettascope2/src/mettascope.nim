@@ -1,5 +1,5 @@
 import std/[random, os, times, strformat, strutils],
-  boxy, opengl, windy, chroma, vmath,
+  boxy, opengl, windy, chroma, vmath, cligen, puppy,
   mettascope/[actions, replays, common, panels, utils, worldmap, header, footer, timeline]
 
 window = newWindow("MettaScope in Nim", ivec2(1280, 800))
@@ -92,7 +92,6 @@ proc display() =
   window.swapBuffers()
   inc frame
 
-replay = loadReplay("replays/pens.json.z")
 
 # Build the atlas.
 for path in walkDirRec("data/"):
@@ -100,13 +99,27 @@ for path in walkDirRec("data/"):
     echo path
     bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
 
-when defined(emscripten):
-  proc main() {.cdecl.} =
-    echo "draw frame"
-    display()
-    pollEvents()
-  window.run(main)
-else:
-  while not window.closeRequested:
-    display()
-    pollEvents()
+
+proc cmd(replay: string) =
+  if replay != "":
+    if replay.startsWith("http"):
+      let data = puppy.fetch(replay)
+      common.replay = loadReplay(data, replay)
+    else:
+      common.replay = loadReplay(replay)
+  else:
+    common.replay = loadReplay("replays/pens.json.z")
+
+  when defined(emscripten):
+    proc main() {.cdecl.} =
+      echo "draw frame"
+      display()
+      pollEvents()
+    window.run(main)
+  else:
+    while not window.closeRequested:
+      display()
+      pollEvents()
+
+when isMainModule:
+  dispatch(cmd)

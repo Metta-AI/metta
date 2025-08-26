@@ -85,15 +85,13 @@ proc expand[T](data: any, numSteps: int, defaultValue: T): seq[T] =
     # A single value is a valid sequence.
     return @[data.to(T)]
 
-proc loadReplay*(fileName: string): Replay =
-  let data = readFile(fileName)
+
+proc loadReplay*(data: string, fileName: string): Replay =
+  ## Load a replay from a string.
 
   # Decompress with zippy deflate:
   let jsonData = zippy.uncompress(data)
-  echo jsonData
-
   let jsonObj = fromJson(jsonData)
-  echo jsonObj
 
   doAssert jsonObj["version"].getInt == 2
 
@@ -188,3 +186,7 @@ proc loadReplay*(fileName: string): Replay =
     replay.objects.add(entity)
 
   return replay
+
+proc loadReplay*(fileName: string): Replay =
+  let data = readFile(fileName)
+  return loadReplay(data, fileName)

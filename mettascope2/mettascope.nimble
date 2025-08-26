@@ -7,3 +7,5 @@ srcDir = "src"
 
 requires "nim >= 2.2.4"
 requires "boxy >= 0.1.4"
+requires "puppy >= 2.1.2"
+requires "cligen >= 1.9.0"
