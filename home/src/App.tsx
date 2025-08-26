@@ -196,6 +196,19 @@ function App() {
           </div>
         </div>
       </div>
+      <div className="setup-section">
+        <div className="setup-card">
+          <h2>Adding links</h2>
+
+          <div className="setup-subsection">
+            Modify{' '}
+            <a href="https://github.com/Metta-AI/metta/blob/main/home/links.yaml">
+              <code>home/links.yaml</code>
+            </a>
+            . Updates should auto-deploy after merge.
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
