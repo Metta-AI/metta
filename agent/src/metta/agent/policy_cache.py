@@ -1,7 +1,5 @@
-"""
-LRU Cache implementation for PolicyRecord objects.
-Manages in-memory caching of loaded policies with automatic eviction.
-"""
+"""LRU Cache implementation for PolicyRecord objects.
+Manages in-memory caching of loaded policies with automatic eviction."""
 
 import logging
 from collections import OrderedDict

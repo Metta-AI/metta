@@ -38,8 +38,7 @@ class LayerBase(nn.Module):
     one dimension smaller than the actual shape of the tensor.
 
     Note that the __init__ of any layer class and the MettaAgent are only called when the agent
-    is instantiated and never again. I.e., not when it is reloaded from a saved policy.
-    """
+    is instantiated and never again. I.e., not when it is reloaded from a saved policy."""
 
     def __init__(self, name=None, sources=None, nn_params=None, **cfg):
         super().__init__()

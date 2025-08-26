@@ -217,12 +217,10 @@ class Policy(nn.Module):
         return x
 
     def encode_observations(self, observations, state=None):
-        """
-        Encode observations into a hidden representation.
+        """Encode observations into a hidden representation.
 
         This implementation matches ComponentPolicy's ObsTokenToBoxShaper exactly,
-        using scatter operation for efficient token placement.
-        """
+        using scatter operation for efficient token placement."""
         token_observations = observations
         B = token_observations.shape[0]
         TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]

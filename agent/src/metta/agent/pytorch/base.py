@@ -17,8 +17,7 @@ class LSTMWrapper(nn.Module):
     - Episode boundary reset handling
     - Memory management interface
 
-    All LSTM-based policies inherit these critical features automatically.
-    """
+    All LSTM-based policies inherit these critical features automatically."""
 
     def __init__(self, env, policy, input_size=128, hidden_size=128, num_layers=2):
         """Initialize LSTM wrapper with configurable number of layers."""
