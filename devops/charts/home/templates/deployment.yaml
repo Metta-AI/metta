@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: home
-          image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required \"tag is required\" .Values.image.tag }}"
+          image: "{{ .Values.image.registry }}/{{ .Values.image.name }}:{{ required "tag is required" .Values.image.tag }}"
           imagePullPolicy: Always
           resources:
             requests:
