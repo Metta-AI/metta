@@ -57,3 +57,8 @@ proc drawBubbleLine*(bxy: Boxy, start: Vec2, stop: Vec2, color: Color) =
 
 proc boxyMouse*(window: Window): Vec2 =
   return inverse(bxy.getTransform()) * window.mousePos.vec2
+
+proc newSeq2D*[T](width: int, height: int): seq[seq[T]] =
+  result = newSeq[seq[T]](width)
+  for i in 0 ..< width:
+    result[i] = newSeq[T](height)
