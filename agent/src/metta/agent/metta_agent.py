@@ -311,9 +311,6 @@ class MettaAgent(nn.Module):
         if has_components and not has_policy:
             logger.info("Detected old checkpoint format - converting to new ComponentPolicy structure")
 
-            # Extract the components and related attributes that belong in ComponentPolicy
-
-            # First, break any circular references in the old state
             if "policy" in state and state.get("policy") is state:
                 del state["policy"]
                 log_on_master("Removed circular reference: state['policy'] = state")
@@ -327,8 +324,6 @@ class MettaAgent(nn.Module):
 
             # Create the specific policy class without calling __init__ to avoid rebuilding components
             policy = PolicyClass.__new__(PolicyClass)
-
-            # Initialize nn.Module base class
             nn.Module.__init__(policy)
 
             # Extract components from wherever they are
