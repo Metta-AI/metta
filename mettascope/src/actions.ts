@@ -27,24 +27,23 @@ function flushComboIfAny() {
   if (comboKeys.size >= 2) {
     const has = (k: 'w' | 'a' | 's' | 'd') => comboKeys.has(k)
     if (has('w') && has('a'))
-      param = 4 // NW (Northwest)
+      param = 4 // NW
     else if (has('w') && has('d'))
-      param = 5 // NE (Northeast)
+      param = 5 // NE
     else if (has('s') && has('d'))
-      param = 7 // SE (Southeast)
-    else if (has('s') && has('a')) param = 6 // SW (Southwest)
+      param = 7 // SE
+    else if (has('s') && has('a')) param = 6 // SW
   }
   if (param === -1) {
     // Single key or opposing keys fallback: prefer last in insertion order.
     let lastKey: 'w' | 'a' | 's' | 'd' | null = null
     for (const k of comboKeys) lastKey = k
-    if (lastKey === 'w') param = 0 // North
-    else if (lastKey === 'd') param = 3 // East
-    else if (lastKey === 's') param = 1 // South
-    else if (lastKey === 'a') param = 2 // West
+    if (lastKey === 'w') param = 0 
+    else if (lastKey === 'd') param = 3 
+    else if (lastKey === 's') param = 1 
+    else if (lastKey === 'a') param = 2 
   }
   if (param !== -1) {
-    // Use unified move action for diagonal movement
     sendAction('move', param)
   }
   comboKeys.clear()
@@ -129,10 +128,8 @@ export function processActions(event: KeyboardEvent) {
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 0)
       } else if (supportsUnifiedMove) {
-        // Use unified move action with cardinal direction parameter
         sendAction('move', 0) // North
       } else {
-        // Fallback to old rotate+move behavior
         if (orientation !== 0) {
           sendAction('rotate', 0)
         } else {
@@ -146,10 +143,8 @@ export function processActions(event: KeyboardEvent) {
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 2)
       } else if (supportsUnifiedMove) {
-        // Use unified move action with cardinal direction parameter
         sendAction('move', 2) // West
       } else {
-        // Fallback to old rotate+move behavior
         if (orientation !== 2) {
           sendAction('rotate', 2)
         } else {
@@ -163,10 +158,8 @@ export function processActions(event: KeyboardEvent) {
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 1)
       } else if (supportsUnifiedMove) {
-        // Use unified move action with cardinal direction parameter
         sendAction('move', 1) // South
       } else {
-        // Fallback to old rotate+move behavior
         if (orientation !== 1) {
           sendAction('rotate', 1)
         } else {
@@ -180,10 +173,8 @@ export function processActions(event: KeyboardEvent) {
       } else if (supportsCardinal) {
         sendAction('move_cardinal', 3)
       } else if (supportsUnifiedMove) {
-        // Use unified move action with cardinal direction parameter
         sendAction('move', 3) // East
       } else {
-        // Fallback to old rotate+move behavior
         if (orientation !== 3) {
           sendAction('rotate', 3)
         } else {
@@ -200,6 +191,12 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 0)
       } else if (supportsUnifiedMove) {
         sendAction('move', 0) // North
+      } else {
+        if (orientation !== 0) {
+          sendAction('rotate', 0)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
     if (code === 'Numpad4') {
@@ -209,6 +206,12 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 2)
       } else if (supportsUnifiedMove) {
         sendAction('move', 2) // West
+      } else {
+        if (orientation !== 2) {
+          sendAction('rotate', 2)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
     if (code === 'Numpad2') {
@@ -218,6 +221,12 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 1)
       } else if (supportsUnifiedMove) {
         sendAction('move', 1) // South
+      } else {
+        if (orientation !== 1) {
+          sendAction('rotate', 1)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
     if (code === 'Numpad6') {
@@ -227,6 +236,12 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 3)
       } else if (supportsUnifiedMove) {
         sendAction('move', 3) // East
+      } else {
+        if (orientation !== 3) {
+          sendAction('rotate', 3)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
     if (event.key === 'f') {
@@ -249,7 +264,7 @@ export function processActions(event: KeyboardEvent) {
       // Get the output.
       sendAction('get_items', 0)
     }
-    // Diagonal movement with numpad (prefer 8 way, then cardinal, then unified move with diagonal parameter).
+    // Diagonal movement with numpad (prefer 8 way, then cardinal, then fallback).
     if (event.code === 'Numpad7') {
       if (supportsMove8) {
         sendAction('move_8way', 7)
@@ -258,8 +273,12 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 0)
         sendAction('move_cardinal', 2)
       } else if (supportsUnifiedMove) {
-        // Try diagonal movement with unified move action (NW = 4)
         sendAction('move', 4) // Northwest
+      } else {
+        sendAction('rotate', 0) // Rotate up.
+        sendAction('move', 0) // Move up.
+        sendAction('rotate', 2) // Rotate left.
+        sendAction('move', 0) // Move left.
       }
     }
     if (event.code === 'Numpad9') {
@@ -269,8 +288,12 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 0)
         sendAction('move_cardinal', 3)
       } else if (supportsUnifiedMove) {
-        // Try diagonal movement with unified move action (NE = 5)
         sendAction('move', 5) // Northeast
+      } else {
+        sendAction('rotate', 0) // Rotate up.
+        sendAction('move', 0) // Move up.
+        sendAction('rotate', 3) // Rotate right.
+        sendAction('move', 0) // Move right.
       }
     }
     if (event.code === 'Numpad1') {
@@ -280,8 +303,12 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 1)
         sendAction('move_cardinal', 2)
       } else if (supportsUnifiedMove) {
-        // Try diagonal movement with unified move action (SW = 6)
         sendAction('move', 6) // Southwest
+      } else {
+        sendAction('rotate', 1) // Rotate down.
+        sendAction('move', 0) // Move down.
+        sendAction('rotate', 2) // Rotate left.
+        sendAction('move', 0) // Move left.
       }
     }
     if (event.code === 'Numpad3') {
@@ -291,8 +318,12 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 1)
         sendAction('move_cardinal', 3)
       } else if (supportsUnifiedMove) {
-        // Try diagonal movement with unified move action (SE = 7)
         sendAction('move', 7) // Southeast
+      } else {
+        sendAction('rotate', 1) // Rotate down.
+        sendAction('move', 0) // Move down.
+        sendAction('rotate', 3) // Rotate right.
+        sendAction('move', 0) // Move right.
       }
     }
 
