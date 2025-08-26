@@ -23,9 +23,6 @@ public:
 
 protected:
   bool _handle_action(Agent* actor, ActionArg arg) override {
-    // Debug logging to see what parameter we're receiving
-    printf("Move action received arg: %d\n", static_cast<int>(arg));
-    
     // Get the orientation from the action argument
     Orientation move_direction = static_cast<Orientation>(arg);
 

@@ -130,8 +130,14 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 0)
       } else if (supportsUnifiedMove) {
         // Use unified move action with cardinal direction parameter
-        console.log('Sending move action: North (0)')
         sendAction('move', 0) // North
+      } else {
+        // Fallback to old rotate+move behavior
+        if (orientation !== 0) {
+          sendAction('rotate', 0)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
     if (key === 'a' || key === 'ArrowLeft') {
@@ -141,8 +147,14 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 2)
       } else if (supportsUnifiedMove) {
         // Use unified move action with cardinal direction parameter
-        console.log('Sending move action: West (2)')
         sendAction('move', 2) // West
+      } else {
+        // Fallback to old rotate+move behavior
+        if (orientation !== 2) {
+          sendAction('rotate', 2)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
     if (key === 's' || key === 'ArrowDown') {
@@ -152,8 +164,14 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 1)
       } else if (supportsUnifiedMove) {
         // Use unified move action with cardinal direction parameter
-        console.log('Sending move action: South (1)')
         sendAction('move', 1) // South
+      } else {
+        // Fallback to old rotate+move behavior
+        if (orientation !== 1) {
+          sendAction('rotate', 1)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
     if (key === 'd' || key === 'ArrowRight') {
@@ -163,8 +181,14 @@ export function processActions(event: KeyboardEvent) {
         sendAction('move_cardinal', 3)
       } else if (supportsUnifiedMove) {
         // Use unified move action with cardinal direction parameter
-        console.log('Sending move action: East (3)')
         sendAction('move', 3) // East
+      } else {
+        // Fallback to old rotate+move behavior
+        if (orientation !== 3) {
+          sendAction('rotate', 3)
+        } else {
+          sendAction('move', 0)
+        }
       }
     }
 
