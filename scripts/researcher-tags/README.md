@@ -33,23 +33,23 @@ When the system is locked, both tags exist and point to the same commit. The `re
 ### `researcher-current-status.sh`
 Shows the current state of the tag system.
 ```bash
-./scripts/researcher-current-status.sh
+./scripts/researcher-tags/researcher-current-status.sh
 ```
 
 ### `pin-researcher-current.sh`
 Locks the system to a specific commit.
 ```bash
 # Lock to current HEAD (wherever you are now)
-./scripts/pin-researcher-current.sh
+./scripts/researcher-tags/pin-researcher-current.sh
 
 # Lock to a specific commit
-./scripts/pin-researcher-current.sh <commit-hash>
+./scripts/researcher-tags/pin-researcher-current.sh <commit-hash>
 ```
 
 ### `unpin-researcher-current.sh`
 Unlocks the system and restores auto-updates.
 ```bash
-./scripts/unpin-researcher-current.sh
+./scripts/researcher-tags/unpin-researcher-current.sh
 # Then choose where to create researcher_current:
 # 1) At the lock position
 # 2) At latest main (default)
@@ -61,7 +61,7 @@ Unlocks the system and restores auto-updates.
 ### For Researchers
 ```bash
 # Check system status
-./scripts/researcher-current-status.sh
+./scripts/researcher-tags/researcher-current-status.sh
 
 # Use the appropriate tag based on status
 git checkout researcher_current      # If system is auto-updating
@@ -76,23 +76,23 @@ git fetch --tags
 #### When a bug is found in main:
 ```bash
 # 1. Lock to last known good commit
-./scripts/pin-researcher-current.sh <good-commit>
+./scripts/researcher-tags/pin-researcher-current.sh <good-commit>
 
 # 2. Fix the bug in main...
 
 # 3. Unlock when fixed
-./scripts/unpin-researcher-current.sh
+./scripts/researcher-tags/unpin-researcher-current.sh
 ```
 
 #### Before critical experiments:
 ```bash
 # Lock to current version
-./scripts/pin-researcher-current.sh
+./scripts/researcher-tags/pin-researcher-current.sh
 
 # Run experiments...
 
 # Unlock when done
-./scripts/unpin-researcher-current.sh
+./scripts/researcher-tags/unpin-researcher-current.sh
 ```
 
 ## GitHub Actions Integration
