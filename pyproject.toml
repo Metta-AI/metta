@@ -103,7 +103,6 @@ source = ["metta", "metta.mettagrid", "metta.common", "metta.agent", "metta.app_
 CMAKE_BUILD_TYPE = "Release"
 
 [tool.pytest.ini_options]
-# Look for tests in the main tests dir and any */tests directories
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
@@ -114,7 +113,7 @@ markers = [
   "network: marks tests as requiring network access (deselect with '-m \"not network\"')",
 ]
 console_output_style = "progress"
-addopts = "-n auto"
+addopts = "-n auto --import-mode=importlib"
 
 [tool.uv]
 cache-keys = [
@@ -125,7 +124,7 @@ cache-keys = [
 default-groups = ["dev"]
 
 [tool.uv.workspace]
-members = ["mettagrid", "app_backend", "common", "agent", "experiments", "gitlib", "codebot/codeclip"]
+members = ["mettagrid", "app_backend", "common", "agent", "experiments", "gitlib", "codebot"]
 
 [tool.uv.sources]
 metta-app-backend = { workspace = true }
@@ -133,7 +132,7 @@ metta-mettagrid = { workspace = true }
 metta-common = { workspace = true }
 metta-agent = { workspace = true }
 gitlib = { workspace = true }
-codeclip = { workspace = true }
+codebot = { workspace = true }
 
 [tool.ruff]
 exclude = ["*.ipynb"]

@@ -8,7 +8,7 @@ resolution-markers = [
 
 [manifest]
 members = [
-    "codeclip",
+    "codebot",
     "experiments",
     "gitlib",
     "metta",
@@ -500,9 +500,9 @@ wheels = [
 ]
 
 [[package]]
-name = "codeclip"
+name = "codebot"
 version = "0.1.0"
-source = { editable = "codebot/codeclip" }
+source = { editable = "codebot" }
 dependencies = [
     { name = "click" },
     { name = "gitlib" },

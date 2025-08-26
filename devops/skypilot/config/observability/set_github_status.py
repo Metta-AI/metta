@@ -34,9 +34,9 @@ import sys
 import time
 from pathlib import Path
 
-# Allow importing gitlib from repo if present (no install needed)
-REPO_ROOT = Path(__file__).resolve().parents[4]  # Go up to metta root
-CANDIDATES = [REPO_ROOT / "gitlib" / "src", Path("/workspace/metta/gitlib/src")]
+# Allow importing metta.common from repo if present (no install needed)
+REPO_ROOT = Path(__file__).resolve().parents[2]
+CANDIDATES = [REPO_ROOT / "common" / "src", Path("/workspace/metta/common/src")]
 for p in CANDIDATES:
     if p.exists():
         sys.path.insert(0, str(p))
