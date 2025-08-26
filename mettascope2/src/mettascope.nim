@@ -1,5 +1,5 @@
 import std/[random, os, times, strformat, strutils],
-  boxy, opengl, windy, chroma, vmath, cligen, puppy,
+  boxy, opengl, windy, chroma, vmath,
   mettascope/[actions, replays, common, panels, utils, worldmap, header, footer, timeline]
 
 window = newWindow("MettaScope in Nim", ivec2(1280, 800))
@@ -100,26 +100,27 @@ for path in walkDirRec("data/"):
     bxy.addImage(path.replace("data/", "").replace(".png", ""), readImage(path))
 
 
-proc cmd(replay: string) =
-  if replay != "":
-    if replay.startsWith("http"):
-      let data = puppy.fetch(replay)
-      common.replay = loadReplay(data, replay)
+when defined(emscripten):
+  common.replay = loadReplay("replays/pens.json.z")
+  proc main() {.cdecl.} =
+    display()
+    pollEvents()
+  window.run(main)
+
+else:
+  import cligen, puppy
+  proc cmd(replay: string) =
+    if replay != "":
+      if replay.startsWith("http"):
+        let data = puppy.fetch(replay)
+        common.replay = loadReplay(data, replay)
+      else:
+        common.replay = loadReplay(replay)
     else:
-      common.replay = loadReplay(replay)
-  else:
-    common.replay = loadReplay("replays/pens.json.z")
+      common.replay = loadReplay("replays/pens.json.z")
 
-  when defined(emscripten):
-    proc main() {.cdecl.} =
-      echo "draw frame"
-      display()
-      pollEvents()
-    window.run(main)
-  else:
-    while not window.closeRequested:
-      display()
-      pollEvents()
+      while not window.closeRequested:
+        display()
+        pollEvents()
 
-when isMainModule:
   dispatch(cmd)

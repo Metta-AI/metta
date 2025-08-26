@@ -138,8 +138,10 @@ proc drawVisualRanges*(alpha = 0.2) =
   let agentTypeId = replay.typeNames.find("agent")
   for obj in replay.objects:
     if obj.typeId == agentTypeId:
-      if selection != nil and obj.agentId != selection.agentId:
-        continue
+      if selection != nil and
+        selection.typeId == agentTypeId and
+        selection.agentId != obj.agentId:
+          continue
       let agent = obj
       for i in 0 ..< agent.visionSize:
         for j in 0 ..< agent.visionSize:
