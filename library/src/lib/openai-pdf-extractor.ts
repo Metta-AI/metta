@@ -1749,6 +1749,9 @@ async function extractFiguresWithSemanticValidation(
           imageType: extraction.imageType,
           aiDetectedText:
             `${keyFig.significance} ${keyFig.explanation || ""}`.trim(),
+          // Preserve separate AI commentary fields
+          significance: keyFig.significance,
+          explanation: keyFig.explanation,
         });
       }
     } else {
@@ -1764,6 +1767,9 @@ async function extractFiguresWithSemanticValidation(
         confidence: 0.3,
         aiDetectedText:
           `${keyFig.significance} ${keyFig.explanation || ""}`.trim(),
+        // Preserve separate AI commentary fields
+        significance: keyFig.significance,
+        explanation: keyFig.explanation,
       });
     }
   }
@@ -1847,87 +1853,103 @@ CRITICAL:
 
     let figuresWithImages: OpenAIPdfFigure[] = [];
 
-    // Check if figure extraction is disabled
-    if (process.env.ENABLE_FIGURE_EXTRACTION !== "true") {
-      console.log(
-        "🚫 Figure extraction disabled via ENABLE_FIGURE_EXTRACTION environment variable"
-      );
-    }
-
-    // Step 2-4: Semantic figure extraction (if figures were identified AND enabled)
+    // Step 2-4: Process key figures (always extract insights, optionally extract images)
     if (
-      process.env.ENABLE_FIGURE_EXTRACTION === "true" &&
       summaryResult.object.keyFigures &&
       summaryResult.object.keyFigures.length > 0
     ) {
-      try {
+      // Always start with metadata-only figures from AI analysis
+      figuresWithImages = summaryResult.object.keyFigures.map((fig) => ({
+        caption: fig.caption,
+        pageNumber: fig.pageNumber || 1,
+        context: fig.explanation || fig.significance, // Fallback for backward compatibility
+        figureNumber: parseInt(fig.figureNumber.replace(/[^\d]/g, "")) || 0,
+        subpanel: fig.figureNumber.match(/[a-z]$/i)?.[0],
+        confidence: 0.8, // Higher confidence since these come from AI analysis
+        aiDetectedText: `${fig.significance} ${fig.explanation || ""}`.trim(),
+        // Preserve separate AI commentary fields
+        significance: fig.significance,
+        explanation: fig.explanation,
+      }));
+
+      console.log(
+        `📊 Extracted ${figuresWithImages.length} figure insights from AI analysis`
+      );
+
+      // Only attempt image extraction if enabled
+      if (process.env.ENABLE_FIGURE_EXTRACTION === "true") {
         console.log(
-          "\n🔧 Step 2: Getting raw Adobe data (EXACTLY like batch script)..."
+          "🖼️ Image extraction enabled - attempting figure extraction..."
         );
-        const rawAdobeElements = await getRawAdobeElements(pdfBuffer);
+        try {
+          console.log(
+            "\n🔧 Step 2: Getting raw Adobe data (EXACTLY like batch script)..."
+          );
+          const rawAdobeElements = await getRawAdobeElements(pdfBuffer);
 
-        console.log("🎯 Step 3: Creating semantic mappings from raw data...");
+          console.log("🎯 Step 3: Creating semantic mappings from raw data...");
 
-        // Configuration flag to use LLM-based object selection
-        const useLlmSelection = process.env.USE_LLM_ADOBE_SELECTION === "true";
+          // Configuration flag to use LLM-based object selection
+          const useLlmSelection =
+            process.env.USE_LLM_ADOBE_SELECTION === "true";
 
-        let semanticMappings: Map<number, SemanticMapping>;
+          let semanticMappings: Map<number, SemanticMapping>;
 
-        if (useLlmSelection) {
-          console.log("🤖 Using LLM-based Adobe object selection...");
-          try {
-            semanticMappings = await selectAdobeObjectsWithLLM(
-              summaryResult.object.keyFigures,
-              rawAdobeElements
-            );
-            console.log(
-              `✅ LLM created ${semanticMappings.size} object selections`
-            );
-          } catch (error) {
-            console.warn(
-              "⚠️ LLM selection failed, falling back to traditional semantic mapping:",
-              error
-            );
+          if (useLlmSelection) {
+            console.log("🤖 Using LLM-based Adobe object selection...");
+            try {
+              semanticMappings = await selectAdobeObjectsWithLLM(
+                summaryResult.object.keyFigures,
+                rawAdobeElements
+              );
+              console.log(
+                `✅ LLM created ${semanticMappings.size} object selections`
+              );
+            } catch (error) {
+              console.warn(
+                "⚠️ LLM selection failed, falling back to traditional semantic mapping:",
+                error
+              );
+              semanticMappings = createSemanticMappings(rawAdobeElements);
+              console.log(
+                `✅ Fallback created ${semanticMappings.size} semantic mappings`
+              );
+            }
+          } else {
+            console.log("🎯 Using traditional semantic mapping...");
             semanticMappings = createSemanticMappings(rawAdobeElements);
             console.log(
-              `✅ Fallback created ${semanticMappings.size} semantic mappings`
+              `✅ Created ${semanticMappings.size} semantic mappings`
             );
           }
-        } else {
-          console.log("🎯 Using traditional semantic mapping...");
-          semanticMappings = createSemanticMappings(rawAdobeElements);
-          console.log(`✅ Created ${semanticMappings.size} semantic mappings`);
+
+          console.log(
+            "🔍 Step 4: Extracting figures using semantic validation..."
+          );
+          figuresWithImages = await extractFiguresWithSemanticValidation(
+            summaryResult.object.keyFigures,
+            rawAdobeElements,
+            semanticMappings,
+            pdfBuffer
+          );
+
+          const imagesFound = figuresWithImages.filter(
+            (fig) => fig.imageData
+          ).length;
+          console.log(
+            `🎉 Successfully extracted ${imagesFound}/${summaryResult.object.keyFigures.length} key figures!`
+          );
+        } catch (figureError) {
+          console.log(
+            "⚠️ Image extraction failed, keeping metadata-only figures:",
+            figureError
+          );
+          // figuresWithImages already contains metadata-only figures, so no need to recreate
         }
-
+      } else {
         console.log(
-          "🔍 Step 4: Extracting figures using semantic validation..."
+          "🚫 Image extraction disabled, using metadata-only figures"
         );
-        figuresWithImages = await extractFiguresWithSemanticValidation(
-          summaryResult.object.keyFigures,
-          rawAdobeElements,
-          semanticMappings,
-          pdfBuffer
-        );
-
-        const imagesFound = figuresWithImages.filter(
-          (fig) => fig.imageData
-        ).length;
-        console.log(
-          `🎉 Successfully extracted ${imagesFound}/${summaryResult.object.keyFigures.length} key figures!`
-        );
-      } catch (figureError) {
-        console.error("⚠️ Figure extraction failed:", figureError);
-
-        // Convert to metadata-only figures
-        figuresWithImages = summaryResult.object.keyFigures.map((fig) => ({
-          caption: fig.caption,
-          pageNumber: fig.pageNumber || 1,
-          context: fig.explanation || fig.significance,
-          figureNumber: parseInt(fig.figureNumber.replace(/[^\d]/g, "")) || 0,
-          subpanel: fig.figureNumber.match(/[a-z]$/i)?.[0],
-          confidence: 0.6,
-          aiDetectedText: `${fig.significance} ${fig.explanation || ""}`.trim(),
-        }));
       }
     }
 
