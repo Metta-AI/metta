@@ -7,7 +7,6 @@ from tensordict import TensorDict
 # Import the actual class
 from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import MettaAgent
-from metta.agent.util.distribution_utils import evaluate_actions, sample_actions
 from metta.rl.system_config import SystemConfig
 
 
