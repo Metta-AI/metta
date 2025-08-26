@@ -252,6 +252,12 @@ class CheckpointManager:
         return policy_record
 
 
+def _should_cleanup_policies(epoch: int, checkpoint_interval: int, force: bool) -> bool:
+    """Check if it's time to cleanup old policies."""
+    CLEANUP_MULTIPLIER = 10
+    return should_run(epoch, checkpoint_interval * CLEANUP_MULTIPLIER, force=force)
+
+
 def maybe_establish_checkpoint(
     checkpoint_manager: CheckpointManager,
     epoch: int,
@@ -305,8 +311,8 @@ def maybe_establish_checkpoint(
         record_heartbeat()
         wandb_policy_name = upload_policy_artifact(wandb_run, checkpoint_manager.policy_loader, new_record)
 
-    # Clean up old policies every 10 times we write
-    if should_run(epoch, cfg.checkpoint_interval * 10, force=force) and cfg.checkpoint_dir is not None:
+    # Cleanup old policies
+    if _should_cleanup_policies(epoch, cfg.checkpoint_interval, force) and cfg.checkpoint_dir is not None:
         cleanup_old_policies(cfg.checkpoint_dir)
 
     return new_record, wandb_policy_name
