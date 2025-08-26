@@ -212,8 +212,8 @@ class MettaAgent(nn.Module):
             for i in range(max_param + 1)
         ]
 
-        # === POLICY ACTIVATION ===
-        self.policy.activate_action_embeddings(full_action_names, device)
+        # === ACTION EMBEDDING INITIALIZATION ===
+        self.policy.initialize_to_environment(full_action_names, device)
 
         # Share tensors with policy (required for policy's forward pass)
         self.policy.action_index_tensor = self.action_index_tensor

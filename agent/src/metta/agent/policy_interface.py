@@ -22,7 +22,7 @@ class PolicyInterface(ABC, nn.Module):
     implement this interface.
     """
 
-    # These attributes will be set by MettaAgent.activate_actions()
+    # These attributes will be set by MettaAgent.initialize_to_environment()
     action_index_tensor: Optional[torch.Tensor] = None
     cum_action_max_params: Optional[torch.Tensor] = None
 
@@ -104,15 +104,15 @@ class PolicyInterface(ABC, nn.Module):
         """
         pass
 
-    def activate_action_embeddings(self, full_action_names: list[str], device):
+    def initialize_to_environment(self, full_action_names: list[str], device):
         """
-        Activate action embeddings if the policy uses them.
+        Initialize policy components to the environment if needed.
 
         Args:
             full_action_names: List of action names
             device: Device for tensors
         """
-        # Default implementation - override if policy has action embeddings
+        # Default implementation - override if policy has components that need environment initialization
         pass
 
     def reset_memory(self):

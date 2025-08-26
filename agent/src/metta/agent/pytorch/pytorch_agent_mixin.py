@@ -209,16 +209,18 @@ class PyTorchAgentMixin:
         # Formula for MultiDiscrete action space conversion
         return action_type_numbers + cumulative_sum + action_params
 
-    def activate_action_embeddings(self, full_action_names: list[str], device):
+    def initialize_to_environment(self, full_action_names: list[str], device):
         """
-        Activate action embeddings to match ComponentPolicy interface.
+        Initialize to environment to match ComponentPolicy interface.
 
-        This is called by MettaAgent.initialize_to_environment() and should be
-        overridden by agents that have action embeddings.
+        This is called by MettaAgent.initialize_to_environment() and provides
+        a safe no-op implementation for vanilla PyTorch agents. Agents with
+        components that need environment initialization should override this method.
         """
-        # Pass through to the policy if it exists
-        if hasattr(self, "policy") and hasattr(self.policy, "activate_action_embeddings"):
-            self.policy.activate_action_embeddings(full_action_names, device)
+        # Pass through to nested policy if it exists and has the method
+        if hasattr(self, "policy") and hasattr(self.policy, "initialize_to_environment"):
+            self.policy.initialize_to_environment(full_action_names, device)
+        # Otherwise this is a no-op, which is safe for vanilla PyTorch agents
 
     def _store_initial_weights(self):
         """Store initial weights for L2-init regularization."""
