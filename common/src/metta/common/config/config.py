@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, NoReturn, Self, Union
+from typing import Any, NoReturn, Self, Union, get_args, get_origin
 
 from pydantic import BaseModel, ConfigDict, TypeAdapter
 
@@ -18,7 +18,6 @@ class Config(BaseModel):
         self, parent_obj: "Config", field_name: str, traversed_path: list[str], fail
     ) -> "Config | None":
         """Auto-initialize a None field if possible."""
-        from typing import get_args, get_origin
 
         cls = type(parent_obj)
         field = cls.model_fields.get(field_name)
