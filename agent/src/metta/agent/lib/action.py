@@ -7,10 +7,7 @@ import metta.agent.lib.nn_layer_library as nn_layer_library
 
 class ActionEmbedding(nn_layer_library.Embedding):
     """Creates and manages embeddings for available actions in the environment.
-
-    Maintains a mapping between action names and embedding indices, dynamically activating
-    subsets of actions based on environment availability.
-    """
+    Maintains mapping between action names and embedding indices, dynamically activating subsets based on availability."""
 
     def __init__(self, initialization="max_0_01", **cfg):
         super().__init__(**cfg)
@@ -23,7 +20,8 @@ class ActionEmbedding(nn_layer_library.Embedding):
         self.register_buffer("active_indices", torch.tensor([], dtype=torch.long))
 
     def activate_actions(self, action_names, device):
-        """Updates active action embeddings based on available actions."""
+        """Updates active action embeddings based on available actions.
+        Assigns new indices for unseen actions and updates the active_indices tensor."""
         for action_name in action_names:
             if action_name not in self._reserved_action_embeds:
                 embedding_index = len(self._reserved_action_embeds) + 1  # generate index for this string

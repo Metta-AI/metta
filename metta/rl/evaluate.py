@@ -28,7 +28,8 @@ def evaluate_policy_remote(
     wandb_run: WandbRun | None,
     trainer_cfg: TrainerConfig,
 ) -> TaskResponse | None:
-    """Create a task to evaluate a policy remotely, ensuring policy is uploaded to wandb."""
+    """Create a task to evaluate a policy remotely, ensuring policy is uploaded to wandb.
+    Returns TaskResponse for the policy evaluation task, or None if policy is not uploaded to wandb."""
     if wandb_run and stats_client and policy_record and wandb_policy_name:
         # Need to upload policy artifact to wandb first and make sure our name
         # reflects that in the version

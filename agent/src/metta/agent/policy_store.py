@@ -97,7 +97,8 @@ class PolicyStore:
         stats_client: StatsClient | None = None,
         eval_name: str | None = None,
     ) -> list[PolicyRecord]:
-        """Select policy records based on URI and selection criteria."""
+        """Select policy records based on URI and selection criteria.
+        Returns list of PolicyRecord objects filtered by selector_type ('all', 'latest', 'rand', 'top')."""
         # Load policy records from URI
         prs = self._load_policy_records_from_uri(uri)
 

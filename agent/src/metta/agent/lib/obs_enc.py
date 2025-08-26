@@ -10,10 +10,7 @@ from metta.agent.lib.nn_layer_library import LayerBase
 
 class ObsLatentAttn(LayerBase):
     """Multi-layer cross-attention between learnable query tokens and input features.
-
-    Output shape depends on use_cls_token: [B_TT, out_dim] if True, else [B_TT, num_query_tokens, out_dim].
-    When use_cls_token=True, this should be the final encoder layer since it reduces to single token.
-    """
+    Output shape depends on use_cls_token: [B_TT, out_dim] if True, else [B_TT, num_query_tokens, out_dim]."""
 
     def __init__(
         self,

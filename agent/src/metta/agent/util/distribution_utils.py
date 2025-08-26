@@ -9,7 +9,8 @@ from torch import Tensor
 
 @torch.jit.script
 def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
-    """Sample actions from logits and return actions, log-probs, entropy, and full distribution."""
+    """Sample actions from logits during inference.
+    Returns (actions, action_log_probs, entropy, full_log_probs) for sampled actions."""
 
     full_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(full_log_probs)  # [batch_size, num_actions]
@@ -29,7 +30,8 @@ def sample_actions(action_logits: Tensor) -> Tuple[Tensor, Tensor, Tensor, Tenso
 
 @torch.jit.script
 def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Tensor, Tensor]:
-    """Evaluate provided actions against current policy logits for importance sampling."""
+    """Evaluate provided actions against current policy logits for importance sampling.
+    Returns (log_probs, entropy, action_log_probs) for the given actions under current policy."""
 
     action_log_probs = F.log_softmax(action_logits, dim=-1)  # [batch_size, num_actions]
     action_probs = torch.exp(action_log_probs)  # [batch_size, num_actions]
@@ -45,7 +47,7 @@ def evaluate_actions(action_logits: Tensor, actions: Tensor) -> Tuple[Tensor, Te
 
 
 def get_from_master(x: Any) -> Any:
-    """Broadcast value from rank 0 to all ranks in distributed training."""
+    """Broadcast value from rank 0 to all ranks in distributed training. Works for everything that can be pickled."""
     if not dist.is_available() or not dist.is_initialized() or dist.get_world_size() == 1:
         return x
 
