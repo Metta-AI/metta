@@ -1,9 +1,7 @@
-"""
-MettaGridCore - Core Python wrapper for MettaGrid C++ environment.
+"""MettaGridCore - Core Python wrapper for MettaGrid C++ environment.
 
 This class provides the base functionality for all framework-specific adapters,
-without any training-specific features or framework dependencies.
-"""
+without any training-specific features or framework dependencies."""
 
 from __future__ import annotations
 

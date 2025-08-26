@@ -106,8 +106,7 @@ class MapGen(MapBuilder):
     def prebuild_instances(self):
         """Prebuild instances when using instance_map or deriving instances from num_agents.
 
-        Sets self.instances, self.width, self.height, and self.instance_scene_factories.
-        """
+        Sets self.instances, self.width, self.height, and self.instance_scene_factories."""
         self.instance_scene_factories: list[SceneConfigOrFile] = []
 
         # Can be None, but we'll set these fields to their actual values after the loop.

@@ -1,10 +1,8 @@
-"""
-MettaGridEnv - Training-specific Python environment class.
+"""MettaGridEnv - Training-specific Python environment class.
 
 This class provides Metta's custom training environment, built on PufferLib
 for high-performance vectorized training. Includes stats writing, replay writing,
-and episode tracking functionality.
-"""
+and episode tracking functionality."""
 
 from __future__ import annotations
 

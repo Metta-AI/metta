@@ -163,8 +163,7 @@ class CheckpointManager:
         checkpoint: TrainerCheckpoint | None,
         metta_grid_env: MettaGridEnv,
     ) -> PolicyRecord:
-        """
-        Load or initialize policy with distributed coordination.
+        """Load or initialize policy with distributed coordination.
 
         First, checks if there is an existing policy at any of:
             - checkpoint.policy_path
@@ -173,8 +172,7 @@ class CheckpointManager:
         If so, returns the policy record.
 
         If not, then distributed workers wait until the master creates the policy at default_path,
-        and the master creates a new policy record and saves it to default_path.
-        """
+        and the master creates a new policy record and saves it to default_path."""
 
         # Check if policy already exists at default path - all ranks check this
         default_model_name = self.policy_store.make_model_name(0)
