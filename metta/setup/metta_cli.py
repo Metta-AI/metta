@@ -19,6 +19,17 @@ if TYPE_CHECKING:
     from metta.setup.symlink_setup import PathSetup
     from metta.setup.tools.book import BookCommands
 
+# Shared list of test folders for Python tests
+PYTHON_TEST_FOLDERS = [
+    "tests",
+    "mettascope/tests",
+    "agent/tests",
+    "app_backend/tests",
+    "codebot/tests",
+    "common/tests",
+    "mettagrid/tests",
+]
+
 
 @dataclass
 class CommandConfig:
@@ -103,12 +114,7 @@ COMMAND_REGISTRY: Dict[str, CommandConfig] = {
             "uv",
             "run",
             "pytest",
-            "tests",
-            "mettascope/tests",
-            "agent/tests",
-            "app_backend/tests",
-            "common/tests",
-            "mettagrid/tests",
+            *PYTHON_TEST_FOLDERS,
             "--benchmark-disable",
             "-n",
             "auto",
@@ -576,13 +582,7 @@ class MettaCLI:
             "uv",
             "run",
             "pytest",
-            "tests",
-            "mettascope/tests",
-            "agent/tests",
-            "app_backend/tests",
-            "codebot/tests",
-            "common/tests",
-            "mettagrid/tests",
+            *PYTHON_TEST_FOLDERS,
             "--benchmark-disable",
             "-n",
             "auto",
@@ -956,4 +956,5 @@ def main():
 
 
 if __name__ == "__main__":
+    main()
     main()
