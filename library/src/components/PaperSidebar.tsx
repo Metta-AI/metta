@@ -412,7 +412,54 @@ const LLMAbstractView: FC<LLMAbstractViewProps> = ({
             </p>
           </div>
 
+          {/* Figure Insights */}
+          {llmAbstract.figuresWithImages &&
+            llmAbstract.figuresWithImages.length > 0 && (
+              <div>
+                <div className="mb-2 text-[12px] font-semibold text-neutral-700">
+                  Key Figures ({llmAbstract.figuresWithImages.length})
+                </div>
+                <div className="space-y-3">
+                  {llmAbstract.figuresWithImages.map((figure, index) => (
+                    <div
+                      key={index}
+                      className="rounded border border-neutral-200 bg-neutral-50 p-3"
+                    >
+                      <div className="mb-1 text-[12px] font-medium text-neutral-900">
+                        {figure.figureNumber || `Figure ${index + 1}`}
+                        {figure.pageNumber && (
+                          <span className="ml-1 text-neutral-500">
+                            (Page {figure.pageNumber})
+                          </span>
+                        )}
+                      </div>
 
+                      {figure.caption && (
+                        <p className="mb-2 text-[12px] text-neutral-700">
+                          <span className="font-medium">Caption:</span>{" "}
+                          {figure.caption}
+                        </p>
+                      )}
+
+                      {/* AI Commentary - Significance (Why it matters) */}
+                      {(figure as any).significance && (
+                        <p className="mb-2 text-[12px] leading-[1.5] text-neutral-800">
+                          {(figure as any).significance}
+                        </p>
+                      )}
+
+                      {/* Fallback to combined context if significance not available */}
+                      {!(figure as any).significance &&
+                        (figure as any).context && (
+                          <p className="text-[12px] leading-[1.5] text-neutral-800">
+                            {(figure as any).context}
+                          </p>
+                        )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
         </section>
       ) : (
         <section className="mt-4 text-[13.5px] leading-[1.6] text-neutral-800">
