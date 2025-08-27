@@ -23,7 +23,7 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -104,12 +104,8 @@ class Simulation:
             f"episodes per env (total target: {cfg.num_episodes})"
         )
 
-        # Create curriculum from environment config
-        curriculum_config = CurriculumConfig.from_env(cfg.env)
-        curriculum = curriculum_config.make()  # Convert config to curriculum object
-
         self._vecenv = make_vecenv(
-            curriculum,
+            Curriculum(CurriculumConfig.from_env(cfg.env)),
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
