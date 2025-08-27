@@ -34,6 +34,10 @@ links:
       - name: My PRs & Issues
         url: https://github.com/Metta-AI/metta/issues?q=is%3Apr%20is%3Aopen%20(assignee%3A%40me%20OR%20author%3A%40me)
         short_urls: [gm]
+  - name: Spacelift
+    url: https://metta-ai.app.spacelift.io/launchpad
+    short_urls: [sl, spacelift]
+    icon: https://7706335.fs1.hubspotusercontent-na1.net/hub/7706335/hubfs/logo_dark@2x.png?width=108&height=108
   - name: Grafana
     url: https://grafana.softmax-research.net/
     short_urls: [gf, grafana]
