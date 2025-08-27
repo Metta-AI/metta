@@ -51,7 +51,7 @@ class CurriculumConfig(Config):
     )
 
     @classmethod
-    def from_env_config(cls, env_config: EnvConfig) -> CurriculumConfig:
+    def from_env(cls, env_config: EnvConfig) -> CurriculumConfig:
         return cls(
             task_generator=SingleTaskGeneratorConfig(env=env_config),
         )

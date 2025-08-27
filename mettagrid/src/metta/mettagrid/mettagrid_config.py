@@ -232,11 +232,6 @@ class EnvConfig(Config):
     def validate_fields(self) -> "EnvConfig":
         return self
 
-    def to_curriculum(self):
-        from metta.cogworks.curriculum.curriculum import Curriculum
-
-        return Curriculum(self.to_curriculum_cfg())
-
     def to_sim(self, name: str) -> "SimulationConfig":
         from metta.sim.simulation_config import SimulationConfig
 

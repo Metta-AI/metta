@@ -67,14 +67,6 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
             )
         return cls._generator_cls
 
-    def to_curriculum(self, num_tasks: Optional[int] = None) -> "CurriculumConfig":
-        """Create a CurriculumConfig from this configuration."""
-        from metta.cogworks.curriculum.curriculum import CurriculumConfig
-
-        cc = CurriculumConfig(task_generator=self)
-        cc.num_active_tasks = num_tasks or cast(int, cc.num_active_tasks)
-        return cc
-
     @model_serializer(mode="wrap")
     def _serialize_with_type(self, handler):
         """Ensure YAML/JSON dumps always include a 'type' with a nice FQCN."""
@@ -256,7 +248,7 @@ class BucketedTaskGenerator(TaskGenerator):
             return self
 
         @classmethod
-        def from_env_config(cls, env_config: EnvConfig) -> "BucketedTaskGenerator.Config":
+        def from_env(cls, env_config: EnvConfig) -> "BucketedTaskGenerator.Config":
             """Create a BucketedTaskGenerator.Config from an EnvConfig."""
             return cls(child_generator_config=SingleTaskGenerator.Config(env=env_config))
 
