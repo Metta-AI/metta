@@ -83,7 +83,15 @@ class MettaAgent(nn.Module):
 
         # Create policy if not provided
         if policy is None:
-            policy = self._create_policy(policy_architecture_cfg, env, system_cfg)
+            policy = create_agent(
+                config=policy_architecture_cfg,
+                obs_space=self.obs_space,
+                obs_width=self.obs_width,
+                obs_height=self.obs_height,
+                feature_normalizations=self.feature_normalizations,
+                env=env,
+            )
+            logger.info(f"Using agent: {policy_architecture_cfg.name}")
 
         self.policy = policy
         if self.policy is not None:
@@ -96,20 +104,6 @@ class MettaAgent(nn.Module):
         self._total_params = sum(p.numel() for p in self.parameters() if p.requires_grad)
         logger.info(f"MettaAgent initialized with {self._total_params:,} parameters")
 
-    def _create_policy(self, agent_cfg: AgentConfig, env, system_cfg: SystemConfig) -> nn.Module:
-        """Create the appropriate policy based on configuration."""
-        # Use the create_agent factory function
-        policy = create_agent(
-            config=agent_cfg,
-            obs_space=self.obs_space,
-            obs_width=self.obs_width,
-            obs_height=self.obs_height,
-            feature_normalizations=self.feature_normalizations,
-            env=env,
-        )
-
-        logger.info(f"Using agent: {agent_cfg.name}")
-        return policy
 
     def forward(self, td: TensorDict, state=None, action: Optional[torch.Tensor] = None) -> TensorDict:
         """Forward pass through the policy."""

@@ -83,23 +83,11 @@ class PolicyStore:
         stats_client: StatsClient | None = None,
         eval_name: str | None = None,
     ) -> list[PolicyRecord]:
-        uri = uri_or_config if isinstance(uri_or_config, str) else uri_or_config.uri
-        return self._select_policy_records(uri, selector_type, n, metric, stats_client, eval_name)
-
-    def _select_policy_records(
-        self,
-        uri: str,
-        selector_type: PolicySelectorType = "top",
-        n: int = 1,
-        metric: str = "score",
-        stats_client: StatsClient | None = None,
-        eval_name: str | None = None,
-    ) -> list[PolicyRecord]:
         """
         Select policy records based on URI and selection criteria.
 
         Args:
-            uri: Resource identifier (wandb://, file://, pytorch://, or path)
+            uri_or_config: Resource identifier (wandb://, file://, pytorch://, path) or config with uri
             selector_type: Selection strategy ('all', 'latest', 'rand', 'top')
             n: Number of policy records to select (for 'top' selector)
             metric: Metric to use for 'top' selection
@@ -107,6 +95,8 @@ class PolicyStore:
         Returns:
             List of selected PolicyRecord objects
         """
+        uri = uri_or_config if isinstance(uri_or_config, str) else uri_or_config.uri
+        
         # Load policy records from URI
         prs = self._load_policy_records_from_uri(uri)
 
