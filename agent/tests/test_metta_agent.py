@@ -70,7 +70,7 @@ def create_metta_agent():
         def forward(self, x):
             return x
 
-    # Create a mock ActionEmbedding component that has the activate_actions method
+    # Create a mock ActionEmbedding component that has the initialize_to_environment method
     class MockActionEmbeds(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -88,15 +88,12 @@ def create_metta_agent():
             self.clipped = True
             return True
 
-        def activate_actions(self, action_names, device):
+        def initialize_to_environment(self, action_names, device):
+            """Initialize to environment, setting up action mappings."""
             self.action_names = action_names
             self.device = device
             # Create a simple mapping that will let us test action conversions
             self.action_to_idx = {name: i for i, name in enumerate(action_names)}
-
-        def initialize_to_environment(self, action_names, device):
-            # Simple implementation that just calls activate_actions
-            self.activate_actions(action_names, device)
 
         def l2_init_loss(self):
             return torch.tensor(0.0, dtype=torch.float32)
@@ -175,7 +172,7 @@ def test_initialize_to_environment(create_metta_agent):
     assert hasattr(agent, "action_index_tensor")
 
 
-def test_activate_actions_via_initialize(create_metta_agent):
+def test_initialize_to_environment(create_metta_agent):
     """Test that actions are properly initialized through initialize_to_environment."""
     agent = create_metta_agent
 
