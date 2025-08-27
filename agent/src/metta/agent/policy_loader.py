@@ -137,12 +137,19 @@ class PolicyLoader:
         Returns:
             PolicyHandle with appropriate factory function
         """
-        if uri.startswith("wandb://"):
+        if not uri:
+            raise ValueError("uri must be a non-empty string")
+
+        parsed = urlparse(uri)
+        scheme = parsed.scheme
+
+        if scheme == "wandb":
             return self._load_from_wandb_uri(uri)
-        elif uri.startswith("file://"):
-            return self.load_from_file(uri[len("file://") :])
-        else:
-            return self.load_from_file(uri)
+        if scheme == "file":
+            return self.load_from_file(parsed.path)
+
+        # Treat as a direct filesystem path by default
+        return self.load_from_file(uri)
 
     def load_from_file(self, path: str) -> PolicyRecord:
         """Load a PolicyRecord from a file, automatically detecting format based on extension."""
