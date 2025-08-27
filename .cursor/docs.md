@@ -27,12 +27,14 @@ For more testing commands and options, see `.cursor/commands.md`.
 The system supports different training and evaluation environments:
 
 - **Arena Recipe**: Multi-agent competitive environments
+
   ```bash
   uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
   uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints
   ```
 
 - **Navigation Recipe**: Single-agent navigation tasks
+
   ```bash
   uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
   uv run ./tools/run.py experiments.recipes.navigation.evaluate policy_uri=file://./checkpoints

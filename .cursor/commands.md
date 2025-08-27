@@ -98,9 +98,11 @@ grep -r "agent_raw" train_dir/test_$TEST_ID/wandb || echo "✓ No agent_raw metr
 
 1. **Training runs forever**: Use `trainer.total_timesteps=X` to limit training steps
 2. **Policy not found**: Ensure the policy_uri path matches the training run directory
-3. **Recipe not found**: Check that recipe names match: `experiments.recipes.arena.*` or `experiments.recipes.navigation.*`
+3. **Recipe not found**: Check that recipe names match: `experiments.recipes.arena.*` or
+   `experiments.recipes.navigation.*`
 4. **Wrong directory picked up**: Always use the same TEST_ID across all commands
-5. **Interactive tools hang**: Interactive play and replay tools may not work well in Claude Code due to browser requirements
+5. **Interactive tools hang**: Interactive play and replay tools may not work well in Claude Code due to browser
+   requirements
 
 ## Interactive Tools
 
