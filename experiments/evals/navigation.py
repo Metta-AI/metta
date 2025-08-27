@@ -7,7 +7,7 @@ from metta.sim.simulation_config import SimulationConfig
 
 def make_nav_eval_env(env: EnvConfig) -> EnvConfig:
     """Set the heart reward to 0.333 for normalization"""
-    env.game.agent.rewards.inventory.heart = 0.333
+    env.game.agent.rewards.inventory["heart"] = 0.333
     return env
 
 
