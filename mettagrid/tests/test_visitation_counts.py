@@ -2,7 +2,6 @@
 
 import copy
 import time
-from typing import Optional
 
 import numpy as np
 import pytest
@@ -170,13 +169,13 @@ def count_visitation_features_at_center(obs: np.ndarray) -> int:
     return count
 
 
-def get_agent_position(env: MettaGridCore) -> Optional[tuple[int, int]]:
+def get_agent_position(env: MettaGridCore) -> tuple[int, int]:
     """Get the current agent position."""
     grid_objects = env.grid_objects
     for obj in grid_objects.values():
         if "agent_id" in obj:
             return (obj["r"], obj["c"])
-    return None
+    raise ValueError("Agent not found in grid objects")
 
 
 @pytest.mark.skip(reason="Visitation counts not incrementing - needs investigation")

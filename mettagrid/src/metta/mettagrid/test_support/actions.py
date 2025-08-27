@@ -410,25 +410,17 @@ def get_current_observation(env: MettaGrid, agent_idx: int):
         return obs.copy()
 
 
-def get_agent_position(env: MettaGrid, agent_idx: int = 0) -> Optional[tuple]:
-    """Get agent's current position (r, c)."""
-    try:
-        grid_objects = env.grid_objects()
-        for _obj_id, obj_data in grid_objects.items():
-            if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
-                return (obj_data["r"], obj_data["c"])
-        return None
-    except Exception:
-        return None
+def get_agent_position(env: MettaGrid, agent_idx: int = 0) -> tuple[int, int]:
+    grid_objects = env.grid_objects()
+    for _obj_id, obj_data in grid_objects.items():
+        if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
+            return (obj_data["r"], obj_data["c"])
+    raise ValueError(f"Agent {agent_idx} not found in grid objects")
 
 
-def get_agent_orientation(env: MettaGrid, agent_idx: int = 0) -> Optional[int]:
-    """Get agent's current orientation."""
-    try:
-        grid_objects = env.grid_objects()
-        for _obj_id, obj_data in grid_objects.items():
-            if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
-                return obj_data.get("agent:orientation", None)
-        return None
-    except Exception:
-        return None
+def get_agent_orientation(env: MettaGrid, agent_idx: int = 0) -> int:
+    grid_objects = env.grid_objects()
+    for _obj_id, obj_data in grid_objects.items():
+        if "agent_id" in obj_data and obj_data.get("agent_id") == agent_idx:
+            return obj_data["agent:orientation"]
+    raise ValueError(f"Agent {agent_idx} not found in grid objects")

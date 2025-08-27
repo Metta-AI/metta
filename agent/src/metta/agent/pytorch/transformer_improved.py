@@ -1,6 +1,5 @@
-"""Improved transformer agent leveraging batched GTrXL architecture."""
+"""GTrXL (Gated Transformer-XL) agent implementation for reinforcement learning."""
 
-import math
 from typing import Optional
 
 import torch
@@ -24,6 +23,7 @@ class ImprovedPolicy(nn.Module):
         n_layers: int = 6,
         d_ff: int = 1024,
         max_seq_len: int = 256,
+        memory_len: int = 64,
         dropout: float = 0.1,
         use_causal_mask: bool = True,
         use_gating: bool = True,
@@ -49,57 +49,37 @@ class ImprovedPolicy(nn.Module):
         self.fc1 = init_layer(nn.Linear(self.flattened_size, 256), std=1.0)
         self.encoded_obs = init_layer(nn.Linear(256, input_size), std=1.0)
 
-        # Core GTrXL transformer with enhanced capacity
+        # Core GTrXL transformer with memory mechanism
         self._transformer = TransformerModule(
             d_model=hidden_size,
             n_heads=n_heads,
             n_layers=n_layers,
             d_ff=d_ff,
             max_seq_len=max_seq_len,
+            memory_len=memory_len,
             dropout=dropout,
             use_causal_mask=use_causal_mask,
             use_gating=use_gating,
         )
 
-        # Simplified actor-critic heads
+        # Standard GTrXL actor-critic heads (simplified)
         self.critic = nn.Sequential(
             nn.Linear(hidden_size, hidden_size), nn.LayerNorm(hidden_size), nn.ReLU(), nn.Linear(hidden_size, 1)
         )
 
-        # Enhanced multi-head attention-based action system
-        self.action_embed_dim = 64  # Larger embedding for richer action representations
-        self.action_embeddings = nn.Embedding(100, self.action_embed_dim)
-
-        # Multi-head attention for action selection
-        self.action_attention = nn.MultiheadAttention(
-            embed_dim=hidden_size,
-            num_heads=n_heads // 2,  # Use half the transformer heads for action attention
-            dropout=dropout,
-            batch_first=True,
+        # Simple actor head for action logits
+        self.actor = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.LayerNorm(hidden_size),
+            nn.ReLU(),
+            nn.Linear(hidden_size, 100),  # Max action space size
         )
 
-        # Action projection layers
-        self.action_query_proj = nn.Linear(hidden_size, hidden_size)
-        self.action_key_proj = nn.Linear(self.action_embed_dim, hidden_size)
-        self.action_value_proj = nn.Linear(self.action_embed_dim, hidden_size)
-
-        # Final action logits projection
-        self.action_logits_proj = nn.Linear(hidden_size, 1)
-
-        # Initialize embeddings with better scaling
-        nn.init.orthogonal_(self.action_embeddings.weight, gain=0.5)
-
-        # Initialize critic and action components
-        for module in [self.critic]:
-            for layer in module:
+        # Initialize heads with proper scaling
+        for head in [self.critic, self.actor]:
+            for layer in head:
                 if isinstance(layer, nn.Linear):
-                    init_layer(layer, std=1.0 if layer != module[-1] else 0.1)
-
-        # Initialize attention layers
-        init_layer(self.action_query_proj, std=1.0)
-        init_layer(self.action_key_proj, std=1.0)
-        init_layer(self.action_value_proj, std=1.0)
-        init_layer(self.action_logits_proj, std=0.1)
+                    init_layer(layer, std=1.0 if layer != head[-1] else 0.1)
 
         # Feature normalization
         max_values = [1.0] * self.num_layers
@@ -156,57 +136,23 @@ class ImprovedPolicy(nn.Module):
         return self.network_forward(box_flat.view(-1, self.num_layers, self.out_width, self.out_height))
 
     def decode_actions(self, hidden: torch.Tensor, batch_size: int = None) -> tuple:
+        """Standard GTrXL action/value decoding."""
         if batch_size is None:
             batch_size = hidden.shape[0]
 
         # Value head
         values = self.critic(hidden).squeeze(-1)
 
-        # Fully vectorized multi-head attention-based action selection
-        action_embeds = self.action_embeddings.weight[: self.num_active_actions]  # (num_actions, action_embed_dim)
+        # Actor head - generate logits for all actions
+        full_logits = self.actor(hidden)  # (B, max_action_space)
 
-        # Project hidden state to query (B, hidden_size) -> (B, hidden_size)
-        query_proj = self.action_query_proj(hidden)  # (B, hidden_size)
-
-        # Project action embeddings to keys and values (vectorized)
-        keys = self.action_key_proj(action_embeds)  # (num_actions, hidden_size)
-        vals = self.action_value_proj(action_embeds)  # (num_actions, hidden_size)
-
-        # Compute attention scores between each query and all action keys
-        # Using scaled dot-product attention: Q @ K^T / sqrt(d_k)
-        scale = 1.0 / math.sqrt(self.hidden_size)
-        attention_scores = torch.matmul(query_proj, keys.t()) * scale  # (B, num_actions)
-        attention_weights = F.softmax(attention_scores, dim=-1)  # (B, num_actions)
-
-        # Compute attended values for each query-action pair
-        # Reshape for batch matrix multiply: (B, 1, hidden_size) x (B, num_actions, hidden_size)
-        vals_expanded = vals.unsqueeze(0).expand(batch_size, -1, -1)  # (B, num_actions, hidden_size)
-
-        # Apply attention weights to values (fully vectorized)
-        attended_vals = torch.bmm(
-            attention_weights.unsqueeze(1),  # (B, 1, num_actions)
-            vals_expanded,  # (B, num_actions, hidden_size)
-        ).squeeze(1)  # (B, hidden_size)
-
-        # Combine query and attended values for final action scoring
-        action_features = query_proj + attended_vals  # (B, hidden_size)
-
-        # Multi-head attention refinement (optional - can simplify further)
-        query_mha = action_features.unsqueeze(1)  # (B, 1, hidden_size)
-        keys_mha = vals_expanded  # (B, num_actions, hidden_size)
-        vals_mha = vals_expanded  # (B, num_actions, hidden_size)
-
-        refined_features, _ = self.action_attention(query_mha, keys_mha, vals_mha)  # (B, 1, hidden_size)
-        refined_features = refined_features.squeeze(1)  # (B, hidden_size)
-
-        # Final logits projection (vectorized)
-        # Compute similarity between refined features and each action
-        logits = torch.matmul(refined_features.unsqueeze(1), vals.t().unsqueeze(0)).squeeze(1)  # (B, num_actions)
+        # Slice to actual number of active actions
+        logits = full_logits[:, : self.num_active_actions]  # (B, num_active_actions)
 
         return logits, values
 
     def transformer(self, hidden: torch.Tensor, terminations: torch.Tensor = None, memory: dict = None):
-        return self._transformer(hidden), memory
+        return self._transformer(hidden, memory)
 
     def initialize_memory(self, batch_size: int) -> dict:
         return self._transformer.initialize_memory(batch_size)
@@ -223,6 +169,7 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
         n_layers: int = 6,
         d_ff: int = 1024,
         max_seq_len: int = 256,
+        memory_len: int = 64,
         dropout: float = 0.1,
         use_causal_mask: bool = True,
         use_gating: bool = True,
@@ -238,6 +185,7 @@ class TransformerImproved(PyTorchAgentMixin, TransformerWrapper):
                 n_layers=n_layers,
                 d_ff=d_ff,
                 max_seq_len=max_seq_len,
+                memory_len=memory_len,
                 dropout=dropout,
                 use_causal_mask=use_causal_mask,
                 use_gating=use_gating,
