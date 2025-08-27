@@ -245,14 +245,6 @@ class PolicyStore:
             logger.warning(f"Metric '{metric}' not found in policy metadata")
             return {p: None for p in prs}
 
-    def make_model_name(self, epoch: int) -> str:
-        return f"model_{epoch:04d}.pt"
-
-    def create_empty_policy_record(self, name: str, checkpoint_dir: str) -> PolicyRecord:
-        path = os.path.join(checkpoint_dir, name)
-        metadata = PolicyMetadata()
-        return PolicyRecord(self, name, f"file://{path}", metadata)
-
     def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
         """Save a policy record using the simple torch.save approach with atomic file operations."""
         if path is None:
