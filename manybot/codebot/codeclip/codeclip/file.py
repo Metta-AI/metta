@@ -8,6 +8,9 @@ with special handling for READMEs and XML output format.
 import fnmatch
 import logging
 import os
+
+# Import git helpers - use standalone implementation
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -15,8 +18,25 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import tiktoken
 
-# Import git helpers
-from metta.common.util import git as gitlib
+# Add the parent codebot package to path and import git utilities
+current_dir = os.path.dirname(__file__)
+parent_dir = os.path.join(current_dir, "..", "..", "codebot")
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
+
+# Import after path setup (ruff: ignore E402)
+from git_utils import diff, fetch, find_root, ref_exists  # noqa: E402
+
+
+# Create a mock gitlib object for compatibility
+class GitLib:
+    find_root = staticmethod(find_root)
+    fetch = staticmethod(fetch)
+    ref_exists = staticmethod(ref_exists)
+    diff = staticmethod(diff)
+
+
+gitlib = GitLib()
 
 logger = logging.getLogger(__name__)
 
