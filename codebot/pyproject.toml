@@ -11,7 +11,7 @@ dependencies = [
 ]
 
 [project.scripts]
-codeclip = "codebot.codeclip.cli:cli"
+codeclip = "codeclip.cli:cli"
 
 [build-system]
 requires = ["hatchling"]
@@ -19,3 +19,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["codeclip"]
+
+[tool.uv.sources]
+gitta = { workspace = true }
