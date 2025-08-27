@@ -28,6 +28,9 @@ class NodejsSetup(SetupModule):
         if not self._check_pnpm():
             return False
 
+        if not self._script_exists("corepack"):
+            return False
+
         if not self._script_exists("turbo"):
             return False
 
@@ -42,11 +45,16 @@ class NodejsSetup(SetupModule):
                 ["pnpm", "--version"],
                 capture_output=True,
                 text=True,
+                check=True,
                 env=env,
             )
             return result.returncode == 0
         except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
             return False
+
+    def _install_corepack(self):
+        """Install corepack if it's not already installed."""
+        self.run_command(["npm", "install", "-g", "corepack"], capture_output=False)
 
     def _enable_corepack_with_cleanup(self):
         """Enable corepack, removing dead symlinks as needed."""
@@ -86,8 +94,12 @@ class NodejsSetup(SetupModule):
 
         if not self._check_pnpm():
             # Try to enable corepack with automatic cleanup
+            if not self._script_exists("corepack"):
+                self._install_corepack()
             if not self._enable_corepack_with_cleanup():
                 raise RuntimeError("Failed to set up pnpm via corepack")
+        else:
+            info("pnpm is already installed")
 
         def _set_pnpm_home_now(value: str) -> None:
             os.environ["PNPM_HOME"] = value

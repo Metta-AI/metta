@@ -1,8 +1,9 @@
 import subprocess
+from pathlib import Path
 
 from metta.setup.components.base import SetupModule
 from metta.setup.registry import register_module
-from metta.setup.utils import info, warning
+from metta.setup.utils import info, success, warning
 
 
 @register_module
@@ -15,6 +16,8 @@ class NotebookWidgetsSetup(SetupModule):
         "policy_selector_widget",
     ]
 
+    _widget_root = Path("experiments/notebooks/utils")
+
     def dependencies(self) -> list[str]:
         return ["nodejs"]
 
@@ -24,7 +27,7 @@ class NotebookWidgetsSetup(SetupModule):
 
     def __init__(self):
         super().__init__()
-        self.widget_root = self.repo_root / "experiments/notebooks/utils"
+        self.widget_root = self.repo_root / self._widget_root
 
     def should_install_widget(self, widget: str) -> bool:
         widget_path = self.widget_root / widget
@@ -59,52 +62,58 @@ class NotebookWidgetsSetup(SetupModule):
     def install(self) -> None:
         info("Setting up Metta's custom Python notebook widgets...")
         try:
-            for widget in self._widgets:
-                if self.should_install_widget(widget):
-                    print(f"Installing dependencies and building {widget}...")
-                    subprocess.run(
-                        [
-                            "bash",
-                            "-c",
-                            "pnpm install && npx turbo run build",
-                        ],
-                        check=True,
-                        cwd=self.widget_root / widget,
-                    )
-                    continue
-                if self.should_build_widget(widget):
-                    print(f"Building {widget} (cache miss)...")
-                    subprocess.run(
-                        [
-                            "bash",
-                            "-c",
-                            "npx turbo run build",
-                        ],
-                        check=True,
-                        cwd=self.widget_root / widget,
-                    )
-                else:
-                    # print(f"Skipping {widget} (cache hit - no changes detected)")
-                    continue
+            installed_count = 0
+            built_count = 0
 
+            for widget in self._widgets:
+                widget_path = self.widget_root / widget
+
+                if self.should_install_widget(widget):
+                    info(f"Installing dependencies for {widget}...")
+                    subprocess.run(
+                        ["pnpm", "install"],
+                        check=True,
+                        cwd=widget_path,
+                    )
+                    installed_count += 1
+
+                    # After installing, always build
+                    info(f"Building {widget}...")
+                    subprocess.run(
+                        ["npx", "turbo", "run", "build"],
+                        check=True,
+                        cwd=widget_path,
+                    )
+                    built_count += 1
+
+                elif self.should_build_widget(widget):
+                    info(f"Building {widget} (cache miss)...")
+                    subprocess.run(
+                        ["npx", "turbo", "run", "build"],
+                        check=True,
+                        cwd=widget_path,
+                    )
+                    built_count += 1
+                else:
+                    info(f"Skipping {widget} (up to date)")
+
+            if installed_count > 0:
+                success(f"Installed dependencies for {installed_count} widget(s)")
+            if built_count > 0:
+                success(f"Built {built_count} widget(s)")
+
+            success("Notebook widgets are ready!")
             info(
-                "The notebook widgets are now compiled. Check out "
-                "./experiments/notebooks/*_example.ipynb "
-                "to see them in action and learn how to use them. "
-                "\n"
-                "You can also use them in your own notebooks by importing them like "
-                "\n"
-                "`from experiments.notebooks.utils.scorecard_widget.scorecard_widget.ScorecardWidget import "
-                "ScorecardWidget`."
+                "Check out ./experiments/notebooks/*_example.ipynb to see them in action.\n"
+                "Import in your notebooks like:\n"
+                "`from experiments.notebooks.utils.scorecard_widget.scorecard_widget."
+                "ScorecardWidget import ScorecardWidget`"
             )
 
-        except subprocess.CalledProcessError:
-            warning("""
-                NotebookWidgets compilation failed. You can compile them manually:
-                1. cd ./experiments/notebooks/utils/scorecard_widget
-                2. npm install
-                3. npm run build
-                4. cd ./experiments/notebooks/utils/eval_finder_widget
-                5. npm install
-                6. npm run build
-            """)
+        except subprocess.CalledProcessError as e:
+            warning(f"NotebookWidgets compilation failed: {e}")
+            info("You can compile them manually:")
+            for widget in self._widgets:
+                info(f"1. cd {self._widget_root}/{widget}")
+                info("2. pnpm install && npx turbo run build")
+                info("---")
