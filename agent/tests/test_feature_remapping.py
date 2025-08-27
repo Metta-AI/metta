@@ -170,7 +170,9 @@ def test_unknown_feature_handling():
 
     # Initialize in evaluation mode
     agent.eval()
-    agent.initialize_to_environment(new_features_with_unknown, action_names, action_max_params, "cpu", is_training=False)
+    agent.initialize_to_environment(
+        new_features_with_unknown, action_names, action_max_params, "cpu", is_training=False
+    )
 
     # Verify all remappings in a clear block
     # Known features should be remapped to their original IDs
