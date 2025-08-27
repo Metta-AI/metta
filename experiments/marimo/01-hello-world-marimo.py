@@ -579,7 +579,7 @@ def _(
     mo.stop(not observe_button.value)
 
     def _():
-        # Create environment with proper EnvConfig
+        # Create environment with proper MettaGridConfig
         env = MettaGridEnv(env_config, render_mode="human")
         policy = OpportunisticPolicy(env)
 
@@ -1376,7 +1376,7 @@ def _(
     mo.stop(not observe_button2.value)
 
     def observe_agent2():
-        # Create environment with proper EnvConfig
+        # Create environment with proper MettaGridConfig
         env = MettaGridEnv(env_config2, render_mode="human")
         policy = OpportunisticPolicy(env)
 
