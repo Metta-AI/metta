@@ -13,7 +13,8 @@ if node_index > 0:  # Non-head node exits with error
     print(f"Node {node_index} Rank {rank} exiting with error")
     sys.exit(1)
 else:
-    print(f"Node {node_index} Rank {rank} sleeping for 10 seconds")
-    time.sleep(10)
+    time_to_sleep = 30 + rank
+    print(f"Node {node_index} Rank {rank} sleeping for {time_to_sleep} seconds")
+    time.sleep(time_to_sleep)
     print(f"Node {node_index} Rank {rank}  exiting normally")
     sys.exit(0)
