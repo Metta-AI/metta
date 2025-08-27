@@ -1,42 +1,13 @@
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import ConfigDict, Field, model_validator
 
 from metta.common.config import Config
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
+from metta.mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 
-if TYPE_CHECKING:
-    from metta.cogworks.curriculum.curriculum import CurriculumConfig
-    from metta.sim.simulation_config import SimulationConfig
-from metta.mettagrid.map_builder.map_builder import AnyMapBuilderConfig
-
 # ===== Python Configuration Models =====
-
-
-class InventoryRewards(Config):
-    """Inventory-based reward configuration."""
-
-    ore_red: float = Field(default=0)
-    ore_blue: float = Field(default=0)
-    ore_green: float = Field(default=0)
-    ore_red_max: int = Field(default=255)
-    ore_blue_max: int = Field(default=255)
-    ore_green_max: int = Field(default=255)
-    battery_red: float = Field(default=0)
-    battery_blue: float = Field(default=0)
-    battery_green: float = Field(default=0)
-    battery_red_max: int = Field(default=255)
-    battery_blue_max: int = Field(default=255)
-    battery_green_max: int = Field(default=255)
-    heart: float = Field(default=1)
-    heart_max: int = Field(default=255)
-    armor: float = Field(default=0)
-    armor_max: int = Field(default=255)
-    laser: float = Field(default=0)
-    laser_max: int = Field(default=255)
-    blueprint: float = Field(default=0)
-    blueprint_max: int = Field(default=255)
 
 
 class StatsRewards(Config):
@@ -55,7 +26,8 @@ class StatsRewards(Config):
 class AgentRewards(Config):
     """Agent reward configuration with separate inventory and stats rewards."""
 
-    inventory: InventoryRewards = Field(default_factory=InventoryRewards)
+    inventory: dict[str, float] = Field(default_factory=dict)
+    inventory_max: dict[str, int] = Field(default_factory=dict)
     stats: StatsRewards = Field(default_factory=StatsRewards)
 
 
@@ -232,27 +204,6 @@ class EnvConfig(Config):
     @model_validator(mode="after")
     def validate_fields(self) -> "EnvConfig":
         return self
-
-    def to_curriculum_cfg(self) -> "CurriculumConfig":
-        from metta.cogworks.curriculum.curriculum import CurriculumConfig
-        from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig
-
-        return CurriculumConfig(
-            task_generator=SingleTaskGeneratorConfig(env=self),
-        )
-
-    def to_curriculum(self):
-        from metta.cogworks.curriculum.curriculum import Curriculum
-
-        return Curriculum(self.to_curriculum_cfg())
-
-    def to_sim(self, name: str) -> "SimulationConfig":
-        from metta.sim.simulation_config import SimulationConfig
-
-        return SimulationConfig(
-            name=name,
-            env=self,
-        )
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "EnvConfig":
         self.game.map_builder = AsciiMapBuilder.Config(map_data=map_data)

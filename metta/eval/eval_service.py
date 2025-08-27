@@ -93,7 +93,7 @@ def evaluate_policy(
         raise RuntimeError("No simulations could be run successfully")
     logger.info("Completed %d/%d simulations successfully", successful_simulations, len(simulations))
 
-    eval_stats_db = EvalStatsDB.from_sim_stats_db(merged_db)
+    eval_stats_db = EvalStatsDB(merged_db.path)
     logger.info("Evaluation complete for policy %s", pr.uri)
     scores = extract_scores(policy_record, simulations, eval_stats_db, logger)
 

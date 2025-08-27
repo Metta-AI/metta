@@ -178,7 +178,7 @@ class CheckpointManager:
         # Extract the actual policy module from distributed wrapper if needed
         policy_to_save: MettaAgent = self._extract_policy_for_saving(policy)
 
-        # Build metadata
+        # Build metadata - keep refactor approach with rich metadata
         name = self.make_model_name(epoch, self.checkpoint_cfg.model_suffix())
         metadata = self._build_base_metadata(epoch, agent_step, timer, initial_policy_uri)
         metadata.update(self._build_evaluation_metadata(evals))
@@ -187,7 +187,7 @@ class CheckpointManager:
         if isinstance(policy_to_save, MettaAgent):
             self._add_feature_mapping_metadata(policy_to_save, metadata)
 
-        # Create and save policy record
+        # Create and save policy record - keep refactor approach with proper metadata
         if self.checkpoint_cfg.checkpoint_dir is None:
             raise ValueError("checkpoint_dir must be set in checkpoint_config to save policies")
 

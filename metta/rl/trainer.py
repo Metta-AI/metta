@@ -13,6 +13,7 @@ from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_loader import PolicyLoader
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.wandb_context import WandbRun
@@ -58,6 +59,7 @@ from metta.rl.wandb import (
     log_model_parameters,
     setup_wandb_metrics,
 )
+from metta.sim.simulation_config import SimulationConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
 
 try:
@@ -124,7 +126,7 @@ def train(
     timer.start()
     losses = Losses()
     torch_profiler = TorchProfiler(torch_dist_cfg.is_master, trainer_cfg.profiler, wandb_run, run_dir)
-    curriculum = trainer_cfg.curriculum.make()
+    curriculum = Curriculum(trainer_cfg.curriculum)
 
     # Calculate batch sizes
     num_agents = curriculum.get_task().get_env_cfg().game.num_agents
@@ -558,7 +560,10 @@ def train(
                         ).id
 
                     sims = [
-                        curriculum.get_task().get_env_cfg().to_sim(f"train_task_{i}")
+                        SimulationConfig(
+                            name=f"train_task_{i}",
+                            env=curriculum.get_task().get_env_cfg(),
+                        )
                         for i in range(trainer_cfg.evaluation.num_training_tasks)
                     ]
                     sims.extend(trainer_cfg.evaluation.simulations)

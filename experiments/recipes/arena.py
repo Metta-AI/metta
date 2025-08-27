@@ -35,7 +35,7 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
         arena_tasks.add_bucket(
             f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
         )
-        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
+        arena_tasks.add_bucket(f"game.agent.rewards.inventory_max.{item}", [1, 2])
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
@@ -45,7 +45,7 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    return arena_tasks.to_curriculum()
+    return CurriculumConfig(task_generator=arena_tasks)
 
 
 def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
@@ -81,20 +81,28 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
 def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     env_cfg = make_env()
-    env_cfg.game.agent.rewards.inventory.heart = 1
-    env_cfg.game.agent.rewards.inventory.heart_max = 100
+    env_cfg.game.agent.rewards.inventory["heart"] = 1
+    env_cfg.game.agent.rewards.inventory_max["heart"] = 100
 
     if rewards:
-        env_cfg.game.agent.rewards.inventory.ore_red = 0.1
-        env_cfg.game.agent.rewards.inventory.ore_red_max = 1
-        env_cfg.game.agent.rewards.inventory.battery_red = 0.8
-        env_cfg.game.agent.rewards.inventory.battery_red_max = 1
-        env_cfg.game.agent.rewards.inventory.laser = 0.5
-        env_cfg.game.agent.rewards.inventory.laser_max = 1
-        env_cfg.game.agent.rewards.inventory.armor = 0.5
-        env_cfg.game.agent.rewards.inventory.armor_max = 1
-        env_cfg.game.agent.rewards.inventory.blueprint = 0.5
-        env_cfg.game.agent.rewards.inventory.blueprint_max = 1
+        env_cfg.game.agent.rewards.inventory.update(
+            {
+                "ore_red": 0.1,
+                "battery_red": 0.8,
+                "laser": 0.5,
+                "armor": 0.5,
+                "blueprint": 0.5,
+            }
+        )
+        env_cfg.game.agent.rewards.inventory_max.update(
+            {
+                "ore_red": 1,
+                "battery_red": 1,
+                "laser": 1,
+                "armor": 1,
+                "blueprint": 1,
+            }
+        )
 
     if converters:
         env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
