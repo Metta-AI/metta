@@ -16,14 +16,14 @@ echo "📁 Working in: $PROJECT_DIR"
 
 # Check if we're in the right directory
 if [ ! -f "pyproject.toml" ] || [ ! -f "CMakeLists.txt" ]; then
-    echo "❌ Error: Not in Metta project root directory"
-    exit 1
+  echo "❌ Error: Not in Metta project root directory"
+  exit 1
 fi
 
 # Set up git configuration for OpenHands first
 echo "🔧 Configuring git..."
-git config --global user.name "openhands" 2>/dev/null || true
-git config --global user.email "openhands@all-hands.dev" 2>/dev/null || true
+git config --global user.name "openhands" 2> /dev/null || true
+git config --global user.email "openhands@all-hands.dev" 2> /dev/null || true
 
 # Set environment variable to indicate we're in Docker/container (OpenHands environment)
 export IS_DOCKER=1
@@ -31,10 +31,10 @@ export IS_DOCKER=1
 # Run the main install script with external profile (suitable for OpenHands)
 echo "🛠️  Running Metta installation script..."
 if bash ./install.sh --profile=external; then
-    echo "✅ Installation completed successfully"
+  echo "✅ Installation completed successfully"
 else
-    echo "❌ Installation failed"
-    exit 1
+  echo "❌ Installation failed"
+  exit 1
 fi
 
 # Quick verification
@@ -50,9 +50,9 @@ except ImportError as e:
 
 print('✅ Setup verification completed - Metta is ready to use!')
 " 2>&1; then
-    echo ""
+  echo ""
 else
-    echo "⚠️  Some imports failed, but this may be expected in certain environments"
+  echo "⚠️  Some imports failed, but this may be expected in certain environments"
 fi
 
 # Display helpful information
