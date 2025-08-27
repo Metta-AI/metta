@@ -1,5 +1,4 @@
 import numpy as np
-import pytest
 
 from metta.map.scenes.room_grid import RoomGrid
 from metta.map.types import AreaQuery
