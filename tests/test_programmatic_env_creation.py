@@ -12,9 +12,9 @@ from metta.mettagrid.mettagrid_config import (
     ActionsConfig,
     AgentConfig,
     AgentRewards,
-    EnvConfig,
     GameConfig,
     GroupConfig,
+    MettaGridConfig,
 )
 
 
@@ -23,7 +23,7 @@ class TestProgrammaticEnvironments:
 
     def test_create_simple_environment(self):
         """Test creating a simple environment with basic components."""
-        env_config = EnvConfig(
+        env_config = MettaGridConfig(
             label="test_simple",
             game=GameConfig(
                 num_agents=4,
@@ -91,7 +91,7 @@ class TestProgrammaticEnvironments:
 
     def test_environment_with_custom_rewards(self):
         """Test creating an environment with custom reward configuration."""
-        env_config = EnvConfig(
+        env_config = MettaGridConfig(
             label="custom_rewards",
             game=GameConfig(
                 num_agents=2,
@@ -141,7 +141,7 @@ class TestProgrammaticEnvironments:
 
     def test_environment_with_groups(self):
         """Test creating an environment with agent groups."""
-        env_config = EnvConfig(
+        env_config = MettaGridConfig(
             label="groups_test",
             game=GameConfig(
                 num_agents=6,
