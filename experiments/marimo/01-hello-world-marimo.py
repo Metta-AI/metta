@@ -1431,7 +1431,7 @@ def _(
     mo.stop(not train_button2.value)
 
     def train_agent2():
-        # Create a simple curriculum with our hallway environment  
+        # Create a simple curriculum with our hallway environment
         curriculum_config = env_curriculum(env_config2)
 
         run_name2 = f"{username}.hello_world_train.mine_plus_generator.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
