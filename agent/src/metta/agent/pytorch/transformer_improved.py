@@ -112,7 +112,8 @@ class ImprovedPolicy(nn.Module):
         self.active_action_names = []
         self.num_active_actions = 100
 
-    def activate_action_embeddings(self, full_action_names: list[str], device):
+    def initialize_to_environment(self, full_action_names: list[str], device):
+        """Initialize to environment, setting up action embeddings to match the available actions."""
         self.active_action_names = full_action_names
         self.num_active_actions = len(full_action_names)
 
