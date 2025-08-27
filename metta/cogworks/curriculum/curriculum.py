@@ -5,13 +5,20 @@ from __future__ import annotations
 import abc
 import random
 from abc import ABC
-from typing import ClassVar, Optional
+from typing import ClassVar, Optional, Union
 
 import numpy as np
 from pydantic import ConfigDict, Field
 
 from metta.cogworks.curriculum.task_generator import AnyTaskGeneratorConfig
 from metta.common.config import Config
+
+
+def get_algorithm_hypers_discriminator(v):
+    """Discriminator function for algorithm hypers types."""
+    if isinstance(v, dict) and "type" in v:
+        return v["type"]
+    return None
 
 
 class CurriculumTask:
@@ -198,7 +205,7 @@ class CurriculumConfig(Config):
     new_task_rate: float = Field(default=0.01, ge=0, le=1.0, description="Rate of new tasks to generate")
 
     # Algorithm configuration
-    algorithm_hypers: Optional[CurriculumAlgorithmHypers] = Field(
+    algorithm_hypers: Optional[Union["DiscreteRandomHypers", "LearningProgressHypers"]] = Field(
         default=None, description="Curriculum algorithm hyperparameters"
     )
 
@@ -207,6 +214,16 @@ class CurriculumConfig(Config):
         validate_assignment=True,
         populate_by_name=True,
     )
+
+    def model_post_init(self, __context) -> None:
+        """Validate configuration after initialization."""
+        super().model_post_init(__context)
+
+        # Validate that num_active_tasks doesn't exceed max_task_id
+        if self.num_active_tasks > self.max_task_id:
+            raise ValueError(
+                f"num_active_tasks ({self.num_active_tasks}) cannot exceed max_task_id ({self.max_task_id})"
+            )
 
     def make(self) -> "Curriculum":
         """Create a Curriculum from this configuration."""
@@ -304,3 +321,8 @@ class Curriculum:
             return {**base_stats, **prefixed_algorithm_stats}
         else:
             return base_stats
+
+
+# Import concrete hypers classes at the end to avoid circular imports
+# ruff: noqa: E402
+from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressHypers

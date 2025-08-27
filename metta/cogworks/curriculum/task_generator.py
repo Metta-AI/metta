@@ -81,7 +81,7 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
             pool_size=num_tasks or 16,  # Use provided num_tasks or default to 16
             sample_size=10,  # K=10 tasks to sample
             max_samples=20,  # A=20 max samples before eviction
-            exploration_weight=0.1,  # Balance exploration vs exploitation
+            exploration_bonus=0.1,  # Balance exploration vs exploitation
         )
 
         # Create curriculum with integrated learning progress algorithm

@@ -7,7 +7,7 @@ bidirectional learning progress tracking with local task memory pool.
 """
 
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 import numpy as np
 from gym.spaces import Discrete
@@ -59,32 +59,11 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             num_active_tasks=hypers.pool_size,
         )
 
-        # Local task memory pool: {task_id: (seed, family, sample_count, current_score,
-        # recent_score, learning_progress_score)}
+        # Task management
         self._task_memory: Dict[int, Tuple[int, str, int, float, float, float]] = {}
-        self._task_ids: List[int] = []
-        self._task_objects: Dict[int, CurriculumTask] = {}  # Added for unified pool
-        self._task_id_to_index: Dict[int, int] = {}  # Map task_id to sequential index
-        self._next_index: int = 0  # Next available index
-
-    def add_task(self, task_id: int, seed: int, family: str):
-        """Add a task to the pool."""
-        if task_id not in self._task_memory:
-            # Assign sequential index for BidirectionalLearningProgress
-            self._task_id_to_index[task_id] = self._next_index
-            self._next_index += 1
-
-            # Add to memory pool
-            self._task_memory[task_id] = (seed, family, 0, 0.0, 0.0, 0.0)
-            self._task_ids.append(task_id)
-
-    def evict_task(self, task_id: int):
-        """Evict a task from the pool."""
-        if task_id in self._task_memory:
-            del self._task_memory[task_id]
-            self._task_ids.remove(task_id)
-            if task_id in self._task_objects:
-                del self._task_objects[task_id]
+        self._task_objects: Dict[int, CurriculumTask] = {}
+        self._task_id_to_index: Dict[int, int] = {}
+        self._next_index: int = 0
 
     def _update_weights(self, child_idx: int, score: float):
         """Update weights - not used in this implementation."""
@@ -92,27 +71,26 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
 
     def get_task_from_pool(self, task_generator, rng) -> CurriculumTask:
         """Get a task from the unified pool, creating or evicting as needed."""
-        # Check if we need to create a new task
+        # Create new task if pool not full
         if len(self._task_memory) < self.hypers.pool_size:
-            # Create a new task
             task_id = self._generate_task_id(rng)
             env_cfg = task_generator.get_task(task_id)
             task = CurriculumTask(task_id, env_cfg)
-            self._add_task_to_pool(task_id, task, env_cfg)
+            self._add_task_to_pool(task_id, task)
             return task
-        else:
-            # Sample from existing pool
-            selected_task_id = self._sample_from_pool()
-            if selected_task_id in self._task_objects:
-                return self._task_objects[selected_task_id]
-            else:
-                # Fallback: create new task and evict one
-                self._evict_from_pool()
-                task_id = self._generate_task_id(rng)
-                env_cfg = task_generator.get_task(task_id)
-                task = CurriculumTask(task_id, env_cfg)
-                self._add_task_to_pool(task_id, task, env_cfg)
-                return task
+
+        # Sample from existing pool
+        selected_task_id = self._sample_from_pool()
+        if selected_task_id in self._task_objects:
+            return self._task_objects[selected_task_id]
+
+        # Fallback: create new task and evict one
+        self._evict_from_pool()
+        task_id = self._generate_task_id(rng)
+        env_cfg = task_generator.get_task(task_id)
+        task = CurriculumTask(task_id, env_cfg)
+        self._add_task_to_pool(task_id, task)
+        return task
 
     def _generate_task_id(self, rng) -> int:
         """Generate a unique task ID."""
@@ -121,15 +99,17 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
             if task_id not in self._task_memory:
                 return task_id
 
-    def _add_task_to_pool(self, task_id: int, task: CurriculumTask, env_cfg):
+    def _add_task_to_pool(self, task_id: int, task: CurriculumTask):
         """Add a task to the unified pool."""
         if len(self._task_memory) >= self.hypers.pool_size:
-            # Evict a task first
             self._evict_from_pool()
 
-        # Add to memory
+        # Assign sequential index for learning progress tracking
+        self._task_id_to_index[task_id] = self._next_index
+        self._next_index += 1
+
+        # Add to memory and objects
         self._task_memory[task_id] = (task_id, "default", 0, 0.0, 0.0, 0.0)
-        self._task_ids.append(task_id)
         self._task_objects[task_id] = task
 
     def _sample_from_pool(self) -> int:
@@ -141,21 +121,13 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         self._lp_tracker._update()
         lp_scores = self._lp_tracker._learning_progress()
 
-        # Create sampling probabilities based on LP scores
+        # Create sampling probabilities
         task_ids = list(self._task_memory.keys())
-        if not task_ids:
-            raise ValueError("No task IDs available")
-
-        # Map task IDs to their indices in the LP tracker
         task_probs = []
+
         for task_id in task_ids:
             task_index = self._task_id_to_index.get(task_id, 0)
-            if task_index < len(lp_scores):
-                lp_score = lp_scores[task_index]
-            else:
-                lp_score = 0.0
-
-            # Add exploration bonus to ensure all tasks have some probability
+            lp_score = lp_scores[task_index] if task_index < len(lp_scores) else 0.0
             prob = lp_score + self.hypers.exploration_bonus
             task_probs.append(prob)
 
@@ -164,10 +136,8 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         if total_prob > 0:
             task_probs = [p / total_prob for p in task_probs]
         else:
-            # Uniform distribution if all probabilities are zero
             task_probs = [1.0 / len(task_ids)] * len(task_ids)
 
-        # Sample based on probabilities
         return np.random.choice(task_ids, p=task_probs)
 
     def _evict_from_pool(self):
@@ -179,20 +149,20 @@ class LearningProgressAlgorithm(CurriculumAlgorithm):
         worst_task_id = None
         worst_score = float("inf")
 
-        for task_id, (
-            _seed,
-            _family,
-            sample_count,
-            _current_score,
-            _recent_score,
-            lp_score,
-        ) in self._task_memory.items():
+        for task_id, (_, _, sample_count, _, _, lp_score) in self._task_memory.items():
             if sample_count >= self.hypers.max_samples and lp_score < worst_score:
                 worst_score = lp_score
                 worst_task_id = task_id
 
         if worst_task_id is not None:
-            self.evict_task(worst_task_id)
+            self._evict_task(worst_task_id)
+
+    def _evict_task(self, task_id: int):
+        """Evict a task from the pool."""
+        if task_id in self._task_memory:
+            del self._task_memory[task_id]
+            if task_id in self._task_objects:
+                del self._task_objects[task_id]
 
     def update_task_performance(self, task_id: int, score: float):
         """Update task performance and learning progress."""

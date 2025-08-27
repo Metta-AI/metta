@@ -11,7 +11,7 @@ from metta.cogworks.curriculum.task_generator import SingleTaskGeneratorConfig
 from metta.mettagrid.config.envs import make_arena
 
 
-def test_curriculum_with_discrete_random_algorithm():
+def test_curriculum_integration_with_discrete_random_algorithm():
     """Test that curriculum works with discrete random algorithm."""
     print("Testing curriculum with discrete random algorithm...")
 
@@ -50,7 +50,7 @@ def test_curriculum_with_discrete_random_algorithm():
     print("🎉 Curriculum with discrete random algorithm test passed!")
 
 
-def test_curriculum_without_algorithm():
+def test_curriculum_integration_without_algorithm():
     """Test that curriculum works without algorithm (backward compatibility)."""
     print("Testing curriculum without algorithm (backward compatibility)...")
 
@@ -88,7 +88,7 @@ def test_curriculum_without_algorithm():
     print("🎉 Curriculum without algorithm test passed!")
 
 
-def test_curriculum_with_learning_progress_integration():
+def test_curriculum_integration_with_learning_progress_algorithm():
     """Test full curriculum integration with learning progress algorithm."""
     print("Testing curriculum with learning progress integration...")
 
@@ -140,6 +140,6 @@ def test_curriculum_with_learning_progress_integration():
 
 
 if __name__ == "__main__":
-    test_curriculum_with_discrete_random_algorithm()
-    test_curriculum_without_algorithm()
-    test_curriculum_with_learning_progress_integration()
+    test_curriculum_integration_with_discrete_random_algorithm()
+    test_curriculum_integration_without_algorithm()
+    test_curriculum_integration_with_learning_progress_algorithm()
