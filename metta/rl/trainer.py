@@ -58,6 +58,7 @@ from metta.rl.wandb import (
     log_model_parameters,
     setup_wandb_metrics,
 )
+from metta.sim.simulation_config import SimulationConfig
 from metta.utils.batch import calculate_batch_sizes, calculate_prioritized_sampling_params
 
 try:
@@ -548,7 +549,10 @@ def train(
                         ).id
 
                     sims = [
-                        curriculum.get_task().get_env_cfg().to_sim(f"train_task_{i}")
+                        SimulationConfig(
+                            name=f"train_task_{i}",
+                            env=curriculum.get_task().get_env_cfg(),
+                        )
                         for i in range(trainer_cfg.evaluation.num_training_tasks)
                     ]
                     sims.extend(trainer_cfg.evaluation.simulations)
