@@ -30,6 +30,7 @@ from metta.rl.evaluate import evaluate_policy_remote, upload_replay_html
 from metta.rl.experience import Experience
 from metta.rl.kickstarter import Kickstarter
 from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_update
+from metta.rl.memory_management import MemoryManager
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
@@ -199,6 +200,9 @@ def train(
         restore_feature_mapping=True,
     )
 
+    # Create MemoryManager for coordinated state/memory resets
+    mm_policy = MemoryManager(policy)
+
     # Create kickstarter
     kickstarter = Kickstarter(
         cfg=trainer_cfg.kickstart,
@@ -308,7 +312,7 @@ def train(
                     experience.reset_for_rollout()
                     total_steps = 0
 
-                    policy.reset_memory()
+                    mm_policy.reset_states()
                     buffer_step = experience.buffer[experience.ep_indices, experience.ep_lengths - 1]
 
                     while not experience.ready_for_training:
@@ -389,7 +393,7 @@ def train(
 
                     for _update_epoch in range(trainer_cfg.update_epochs):
                         for _ in range(experience.num_minibatches):
-                            policy.reset_memory()
+                            mm_policy.reset_states()
                             # Sample minibatch
                             minibatch, indices, prio_weights = experience.sample_minibatch(
                                 advantages=advantages,
