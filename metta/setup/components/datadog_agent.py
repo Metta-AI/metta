@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 
@@ -122,6 +123,7 @@ class DatadogAgentSetup(SetupModule):
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,
             )
-            success("Datadog agent started in background.")
+            success("Datadog agent started in background with env vars:")
+            info(json.dumps({k: v for k, v in env.items() if k.startswith("DD_")}, indent=2))
         except Exception as e:
             warning(f"Failed to start Datadog agent in background: {e}")
