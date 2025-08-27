@@ -46,7 +46,7 @@ def single_task(env_config: EnvConfig) -> SingleTaskGeneratorConfig:
 
 def bucketed(env_config: EnvConfig) -> BucketedTaskGeneratorConfig:
     """Create a BucketedTaskGeneratorConfig from an EnvConfig."""
-    return BucketedTaskGeneratorConfig.from_env_config(env_config.model_copy(deep=True))
+    return BucketedTaskGeneratorConfig.from_env(env_config.model_copy(deep=True))
 
 
 def multi_task(env_config: EnvConfig) -> TaskGeneratorSetConfig:
