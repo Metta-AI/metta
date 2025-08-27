@@ -1,36 +1,167 @@
 """Git utilities library for Metta projects."""
 
+from __future__ import annotations
+
 import logging
 import os
 import re
+import shlex
 import subprocess
 import tempfile
+import time
 from functools import wraps
 from pathlib import Path
-from time import time
-from typing import Optional
+from typing import Any, Dict, Iterable, Mapping, Optional
 
 import httpx
-from typing import Any, Dict
 
-# Import from our new runner module
-from ._runner import (
-    GitError as RunnerGitError,
-    GitNotInstalledError,
-    DubiousOwnershipError,
-    NotAGitRepoError,
-    run_git_cmd,
-)
+from metta.common.util.memoization import memoize
 
-# Export exceptions for public API
-__all__ = [
-    "GitError",
-    "GitNotInstalledError",
-    "DubiousOwnershipError",
-    "NotAGitRepoError",
-    "canonical_remote_url",
-    "get_all_remotes",
-]
+logger = logging.getLogger(__name__)
+
+# ============================================================================
+# Command Runner - Core Infrastructure
+# ============================================================================
+
+# Default environment variables to ensure non-interactive git behavior
+_DEFAULT_ENV = {
+    "GIT_PAGER": "cat",  # Don't use pager
+    "GIT_TERMINAL_PROMPT": "0",  # Don't prompt for credentials
+    "GIT_ASKPASS": "",  # Don't use askpass helper
+    "SSH_ASKPASS": "",  # Don't use SSH askpass
+    "LC_ALL": "C",  # Ensure consistent output
+}
+
+
+class GitError(Exception):
+    """Base exception for git operations."""
+
+    pass
+
+
+class GitNotInstalledError(GitError):
+    """Raised when git is not installed."""
+
+    pass
+
+
+class DubiousOwnershipError(GitError):
+    """Raised when git detects dubious ownership of repository."""
+
+    pass
+
+
+class NotAGitRepoError(GitError):
+    """Raised when operation is performed outside a git repository."""
+
+    pass
+
+
+def run_git_cmd(
+    args: Iterable[str],
+    cwd: Optional[Path] = None,
+    timeout: Optional[float] = None,
+    return_bytes: bool = False,
+    env_overrides: Optional[Mapping[str, str]] = None,
+    check: bool = True,
+) -> str | bytes:
+    """
+    Run a git command with consistent environment and error handling.
+
+    Args:
+        args: Git command arguments (without 'git' prefix)
+        cwd: Working directory for the command
+        timeout: Command timeout in seconds (default: 30s)
+        return_bytes: Return raw bytes instead of decoded string
+        env_overrides: Additional environment variables to set
+        check: If False, return empty string on error instead of raising
+
+    Returns:
+        Command output as string (stripped) or bytes
+
+    Raises:
+        GitNotInstalledError: If git is not installed
+        DubiousOwnershipError: If git detects dubious ownership
+        NotAGitRepoError: If not in a git repository
+        GitError: For other git command failures
+    """
+    cmd = ["git", *args]
+
+    # Set up environment
+    env = os.environ.copy()
+    env.update(_DEFAULT_ENV)
+    if env_overrides:
+        env.update(env_overrides)
+
+    # Default timeout
+    if timeout is None:
+        timeout = 30.0
+
+    # Log command at DEBUG level
+    if logger.isEnabledFor(logging.DEBUG):
+        cmd_str = " ".join(shlex.quote(str(a)) for a in cmd)
+        logger.debug(f"Running: {cmd_str}")
+
+    t0 = time.time()
+    try:
+        result = subprocess.run(
+            cmd,
+            cwd=str(cwd) if cwd else None,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            check=False,
+            timeout=timeout,
+        )
+    except FileNotFoundError as e:
+        raise GitNotInstalledError(
+            "Git is not installed or not in PATH. Please install git: https://git-scm.com/downloads"
+        ) from e
+    except subprocess.TimeoutExpired as e:
+        raise GitError(f"Git command timed out after {timeout}s: {' '.join(cmd)}") from e
+
+    duration = time.time() - t0
+
+    if logger.isEnabledFor(logging.DEBUG):
+        logger.debug(f"Command completed in {duration:.3f}s with exit code {result.returncode}")
+
+    # Handle errors
+    if result.returncode != 0:
+        stderr = result.stderr.decode("utf-8", errors="replace").strip()
+
+        # Check for specific error conditions
+        if "not a git repository" in stderr.lower():
+            raise NotAGitRepoError(f"Not in a git repository: {stderr}")
+
+        if "dubious ownership" in stderr:
+            repo_path = cwd or Path.cwd()
+            raise DubiousOwnershipError(
+                f"{stderr}\n\n"
+                f"To fix this, run:\n"
+                f"  git config --global --add safe.directory {repo_path}\n"
+                f"Or set environment variable:\n"
+                f"  GITTA_AUTO_ADD_SAFE_DIRECTORY=1"
+            )
+
+        # Handle non-critical errors if check=False
+        if not check:
+            return b"" if return_bytes else ""
+
+        # Generic error
+        cmd_str = " ".join(shlex.quote(str(a)) for a in args)
+        raise GitError(f"git {cmd_str} failed ({result.returncode}): {stderr}")
+
+    # Return output
+    if return_bytes:
+        return result.stdout
+    else:
+        return result.stdout.decode("utf-8", errors="surrogateescape").strip()
+
+
+# ============================================================================
+# Public API - No need to maintain __all__ since everything is in one file
+# Functions with _ prefix are internal helpers
+# ============================================================================
 
 # GitHub constants
 METTA_GITHUB_ORGANIZATION = "Metta-AI"
@@ -39,8 +170,8 @@ METTA_API_REPO = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
 METTA_API_REPO_URL = f"https://github.com/{METTA_API_REPO}.git"
 
 
-def memoize(max_age=60):
-    """Simple memoization decorator with time-based expiry."""
+def _memoize(max_age=60):
+    """Simple memoization decorator with time-based expiry. (Internal helper)"""
 
     def decorator(func):
         cache = {}
@@ -62,10 +193,6 @@ def memoize(max_age=60):
         return wrapper
 
     return decorator
-
-
-# Re-export GitError from runner for backwards compatibility
-GitError = RunnerGitError
 
 
 def run_git_with_cwd(args: list[str], cwd: str | Path | None = None) -> str:
@@ -99,9 +226,7 @@ def get_current_branch() -> str:
     try:
         return run_git("symbolic-ref", "--short", "HEAD")
     except GitError as e:
-        if "not a git repository" in str(e):
-            raise ValueError("Not in a git repository") from e
-        elif "HEAD is not a symbolic ref" in str(e):
+        if "HEAD is not a symbolic ref" in str(e):
             return get_current_commit()
         raise
 

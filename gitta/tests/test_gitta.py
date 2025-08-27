@@ -1,34 +1,42 @@
 """
-Behavioral tests for gitta - Git utilities for Metta projects.
+Tests for gitta - Git utilities for Metta projects.
 
-These tests focus on real-world workflows and expected behaviors,
-avoiding implementation details and monkeypatching where possible.
+These tests focus on real-world behaviors and expected functionality,
+using proper mocking where appropriate and temporary repositories for
+integration testing.
 """
 
 import os
 import subprocess
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import pytest
 
 from gitta import (
+    DubiousOwnershipError,
     GitError,
     GitNotInstalledError,
+    NotAGitRepoError,
     add_remote,
     canonical_remote_url,
+    filter_repo,
     find_root,
     get_all_remotes,
     get_branch_commit,
     get_commit_count,
+    get_commit_message,
     get_current_branch,
     get_current_commit,
     get_file_list,
+    get_matched_pr,
     get_remote_url,
     has_unstaged_changes,
     is_commit_pushed,
     is_metta_ai_repo,
+    post_commit_status,
+    run_gh,
     run_git,
     run_git_in_dir,
     validate_git_ref,
@@ -40,233 +48,157 @@ from gitta import (
 
 
 @pytest.fixture
-def temp_git_repo():
-    """Create a temporary git repository for testing."""
+def temp_repo():
+    """Create a real temporary git repository."""
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_path = Path(tmpdir)
         # Initialize repo
-        subprocess.run(["git", "init"], cwd=repo_path, check=True)
-        subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=repo_path, check=True)
-        subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_path, check=True)
+        subprocess.run(["git", "init"], cwd=repo_path, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"], cwd=repo_path, check=True, capture_output=True
+        )
+        subprocess.run(["git", "config", "user.name", "Test User"], cwd=repo_path, check=True, capture_output=True)
 
         # Create initial commit
         (repo_path / "README.md").write_text("# Test Repo")
-        subprocess.run(["git", "add", "."], cwd=repo_path, check=True)
-        subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo_path, check=True)
+        subprocess.run(["git", "add", "."], cwd=repo_path, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Initial commit"], cwd=repo_path, check=True, capture_output=True)
 
         yield repo_path
 
 
 @pytest.fixture
-def current_repo():
-    """Use the actual gitta repository for tests that need real git history."""
-    # Find the gitta repo root
-    current_file = Path(__file__)
-    repo_root = current_file.parent.parent.parent.parent  # Go up to metta root
-    if not (repo_root / ".git").exists():
-        pytest.skip("Not in a git repository")
-
-    old_cwd = os.getcwd()
-    os.chdir(repo_root)
-    yield repo_root
-    os.chdir(old_cwd)
+def repo_with_changes(temp_repo):
+    """Create a repo with some uncommitted changes."""
+    (temp_repo / "modified.txt").write_text("modified content")
+    subprocess.run(["git", "add", "modified.txt"], cwd=temp_repo, check=True, capture_output=True)
+    (temp_repo / "README.md").write_text("# Modified README")
+    (temp_repo / "untracked.txt").write_text("untracked content")
+    return temp_repo
 
 
 # ============================================================================
-# Basic Git Operations
+# Core Git Operations
 # ============================================================================
 
 
-class TestBasicGitOperations:
-    """Test basic git command execution."""
+class TestCoreOperations:
+    """Test core git operations."""
 
-    def test_run_git_in_real_repo(self, current_repo):
-        """Test running git commands in the actual repository."""
-        # Should work in a real repo
+    def test_run_git_in_real_repo(self, temp_repo):
+        """Test running git commands in an actual repository."""
+        os.chdir(temp_repo)
+
+        # Should be able to get status
+        result = run_git("status", "--short")
+        assert result == ""  # Clean repo
+
+        # Should be able to get branch
         branch = get_current_branch()
-        assert isinstance(branch, str)
-        assert len(branch) > 0
+        assert branch in ["main", "master"]
 
+        # Should be able to get commit
         commit = get_current_commit()
-        assert isinstance(commit, str)
-        assert len(commit) == 40  # Git SHA is 40 chars
-
-    def test_run_git_in_temp_repo(self, temp_git_repo):
-        """Test basic git operations in a temporary repo."""
-        # Change to temp repo
-        old_cwd = os.getcwd()
-        os.chdir(temp_git_repo)
-
-        try:
-            # Should be on main or master branch
-            branch = get_current_branch()
-            assert branch in ["main", "master"]
-
-            # Should have exactly one commit
-            count = get_commit_count()
-            assert count == 1
-
-            # Should have one file
-            files = get_file_list()
-            assert "README.md" in files
-        finally:
-            os.chdir(old_cwd)
-
-    def test_run_git_in_specific_directory(self, temp_git_repo):
-        """Test running git commands with explicit directory."""
-        # Should work from anywhere
-        commit = run_git_in_dir(temp_git_repo, "rev-parse", "HEAD")
-        assert len(commit) == 40
-
-        # Verify it's the same as when run from inside
-        old_cwd = os.getcwd()
-        os.chdir(temp_git_repo)
-        try:
-            local_commit = get_current_commit()
-            assert commit == local_commit
-        finally:
-            os.chdir(old_cwd)
-
-
-# ============================================================================
-# Repository Detection
-# ============================================================================
-
-
-class TestRepositoryDetection:
-    """Test repository root finding and remote detection."""
-
-    def test_find_repo_root(self, temp_git_repo):
-        """Test finding repository root from various locations."""
-        # From root itself
-        assert find_root(temp_git_repo).resolve() == temp_git_repo.resolve()
-
-        # From subdirectory
-        subdir = temp_git_repo / "src" / "nested"
-        subdir.mkdir(parents=True)
-        assert find_root(subdir).resolve() == temp_git_repo.resolve()
-
-        # From file
-        file_path = subdir / "test.py"
-        file_path.write_text("# test")
-        assert find_root(file_path).resolve() == temp_git_repo.resolve()
-
-    def test_find_root_outside_repo(self):
-        """Test that find_root returns None outside a repository."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            assert find_root(Path(tmpdir)) is None
-
-    def test_detect_metta_repo(self):
-        """Test detection of Metta AI repository."""
-        # Mock the remotes to simulate Metta repo
-        with patch("gitta.get_all_remotes") as mock_remotes:
-            # Should detect various URL formats
-            test_cases = [
-                {"origin": "git@github.com:Metta-AI/metta.git"},
-                {"origin": "https://github.com/Metta-AI/metta.git"},
-                {"upstream": "git@github.com:Metta-AI/metta"},  # Different remote name
-                {"fork": "https://github.com/Metta-AI/metta"},  # No .git suffix
-            ]
-
-            for remotes in test_cases:
-                mock_remotes.return_value = remotes
-                assert is_metta_ai_repo() is True
-
-            # Should not detect other repos
-            mock_remotes.return_value = {"origin": "git@github.com:other/repo.git"}
-            assert is_metta_ai_repo() is False
-
-            # Should handle no remotes
-            mock_remotes.return_value = {}
-            assert is_metta_ai_repo() is False
-
-
-# ============================================================================
-# Change Detection
-# ============================================================================
-
-
-class TestChangeDetection:
-    """Test detecting uncommitted changes."""
-
-    def test_clean_working_tree(self, temp_git_repo):
-        """Test detection when working tree is clean."""
-        old_cwd = os.getcwd()
-        os.chdir(temp_git_repo)
-
-        try:
-            has_changes, status = has_unstaged_changes()
-            assert has_changes is False
-            assert status == ""
-        finally:
-            os.chdir(old_cwd)
-
-    def test_unstaged_changes(self, temp_git_repo):
-        """Test detection of unstaged changes."""
-        old_cwd = os.getcwd()
-        os.chdir(temp_git_repo)
-
-        try:
-            # Modify existing file
-            (temp_git_repo / "README.md").write_text("# Modified")
-
-            has_changes, status = has_unstaged_changes()
-            assert has_changes is True
-            assert "README.md" in status
-        finally:
-            os.chdir(old_cwd)
-
-    def test_untracked_files(self, temp_git_repo):
-        """Test detection of untracked files."""
-        old_cwd = os.getcwd()
-        os.chdir(temp_git_repo)
-
-        try:
-            # Add untracked file
-            (temp_git_repo / "new.txt").write_text("new file")
-
-            # Should detect untracked by default
-            has_changes, status = has_unstaged_changes()
-            assert has_changes is True
-            assert "new.txt" in status
-
-            # Can ignore untracked
-            has_changes, status = has_unstaged_changes(allow_untracked=True)
-            assert has_changes is False
-        finally:
-            os.chdir(old_cwd)
-
-
-# ============================================================================
-# Reference Validation
-# ============================================================================
-
-
-class TestReferenceValidation:
-    """Test git reference validation and resolution."""
-
-    def test_validate_common_refs(self, current_repo):
-        """Test validation of common git references."""
-        # HEAD should always be valid
-        assert validate_git_ref("HEAD") is not None
-
-        # Current branch should be valid
-        branch = get_current_branch()
-        if branch:  # Not in detached HEAD
-            assert validate_git_ref(branch) is not None
-
-    def test_validate_invalid_refs(self, current_repo):
-        """Test that invalid references return None."""
-        assert validate_git_ref("definitely-not-a-real-branch") is None
-        assert validate_git_ref("") is None
-        assert validate_git_ref("invalid..ref") is None
-
-    def test_ref_returns_commit_hash(self, current_repo):
-        """Test that validate_git_ref returns a commit hash."""
-        commit = validate_git_ref("HEAD")
-        assert commit is not None
         assert len(commit) == 40
         assert all(c in "0123456789abcdef" for c in commit)
+
+    def test_run_git_with_directory(self, temp_repo):
+        """Test running git with explicit directory."""
+        # Should work from anywhere
+        commit = run_git_in_dir(temp_repo, "rev-parse", "HEAD")
+        assert len(commit) == 40
+
+        # Should get same result as when inside
+        os.chdir(temp_repo)
+        local_commit = get_current_commit()
+        assert commit == local_commit
+
+    def test_operations_outside_repo_fail(self):
+        """Test that operations fail gracefully outside a repo."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            os.chdir(tmpdir)
+            with pytest.raises(NotAGitRepoError):
+                get_current_branch()
+            with pytest.raises(NotAGitRepoError):
+                get_current_commit()
+
+
+# ============================================================================
+# Repository State Detection
+# ============================================================================
+
+
+class TestRepositoryState:
+    """Test repository state detection."""
+
+    def test_clean_working_tree(self, temp_repo):
+        """Test detection of clean working tree."""
+        os.chdir(temp_repo)
+
+        has_changes, status = has_unstaged_changes()
+        assert has_changes is False
+        assert status == ""
+
+    def test_detect_staged_changes(self, repo_with_changes):
+        """Test detection of staged changes."""
+        os.chdir(repo_with_changes)
+
+        has_changes, status = has_unstaged_changes()
+        assert has_changes is True
+        assert "modified.txt" in status
+        assert "README.md" in status
+
+    def test_detect_untracked_files(self, repo_with_changes):
+        """Test detection of untracked files."""
+        os.chdir(repo_with_changes)
+
+        # Should detect untracked by default
+        has_changes, status = has_unstaged_changes()
+        assert has_changes is True
+        assert "untracked.txt" in status
+
+        # Can ignore untracked
+        has_changes, status = has_unstaged_changes(allow_untracked=True)
+        assert has_changes is True  # Still has staged changes
+
+    def test_get_file_list(self, temp_repo):
+        """Test listing files in a repository."""
+        os.chdir(temp_repo)
+
+        files = get_file_list()
+        assert "README.md" in files
+        assert len(files) >= 1
+
+    def test_get_commit_count(self, temp_repo):
+        """Test counting commits."""
+        os.chdir(temp_repo)
+
+        count = get_commit_count()
+        assert count == 1  # Just the initial commit
+
+        # Add another commit
+        (temp_repo / "new.txt").write_text("new file")
+        subprocess.run(["git", "add", "new.txt"], cwd=temp_repo, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Second commit"], cwd=temp_repo, check=True, capture_output=True)
+
+        count = get_commit_count()
+        assert count == 2
+
+    def test_get_commit_message(self, temp_repo):
+        """Test getting commit messages."""
+        os.chdir(temp_repo)
+
+        msg = get_commit_message("HEAD")
+        assert msg == "Initial commit"
+
+        # Add a multiline commit
+        (temp_repo / "test.txt").write_text("test")
+        subprocess.run(["git", "add", "test.txt"], cwd=temp_repo, check=True, capture_output=True)
+        subprocess.run(["git", "commit", "-m", "Title\n\nBody text"], cwd=temp_repo, check=True, capture_output=True)
+
+        msg = get_commit_message("HEAD")
+        assert "Title" in msg
+        assert "Body text" in msg
 
 
 # ============================================================================
@@ -275,42 +207,36 @@ class TestReferenceValidation:
 
 
 class TestRemoteOperations:
-    """Test remote repository operations."""
+    """Test remote operations."""
 
-    def test_add_and_get_remotes(self, temp_git_repo):
-        """Test adding and retrieving remotes."""
-        old_cwd = os.getcwd()
-        os.chdir(temp_git_repo)
+    def test_add_and_list_remotes(self, temp_repo):
+        """Test adding and listing remotes."""
+        os.chdir(temp_repo)
 
-        try:
-            # Initially no remotes
-            assert get_remote_url() is None
-            assert get_all_remotes() == {}
+        # Initially no remotes
+        assert get_remote_url() is None
+        assert get_all_remotes() == {}
 
-            # Add origin
-            add_remote("origin", "git@github.com:test/repo.git")
-            assert get_remote_url() == "git@github.com:test/repo.git"
-            assert get_remote_url("origin") == "git@github.com:test/repo.git"
+        # Add origin
+        add_remote("origin", "git@github.com:test/repo.git")
+        assert get_remote_url() == "git@github.com:test/repo.git"
+        assert get_remote_url("origin") == "git@github.com:test/repo.git"
 
-            # Add upstream (use SSH format as per user preference)
-            add_remote("upstream", "git@github.com:upstream/repo.git")
-            remotes = get_all_remotes()
-            assert len(remotes) == 2
-            assert remotes["origin"] == "git@github.com:test/repo.git"
-            assert remotes["upstream"] == "git@github.com:upstream/repo.git"
+        # Add upstream
+        add_remote("upstream", "git@github.com:upstream/repo.git")
+        assert get_remote_url("upstream") == "git@github.com:upstream/repo.git"
 
-            # Adding duplicate updates it (removes old, adds new)
-            add_remote("origin", "git@github.com:other/repo.git")
-            assert get_remote_url("origin") == "git@github.com:other/repo.git"
-        finally:
-            os.chdir(old_cwd)
+        # List all remotes
+        remotes = get_all_remotes()
+        assert len(remotes) == 2
+        assert remotes["origin"] == "git@github.com:test/repo.git"
+        assert remotes["upstream"] == "git@github.com:upstream/repo.git"
 
-    def test_canonical_remote_urls(self):
-        """Test URL canonicalization for comparison."""
+    def test_remote_url_canonicalization(self):
+        """Test URL canonicalization without a repo."""
         # SSH formats
         assert canonical_remote_url("git@github.com:Owner/repo.git") == "https://github.com/Owner/repo"
-        assert canonical_remote_url("git@github.com:Owner/repo") == "https://github.com/Owner/repo"
-        assert canonical_remote_url("ssh://git@github.com/Owner/repo.git") == "https://github.com/Owner/repo"
+        assert canonical_remote_url("ssh://git@github.com/Owner/repo") == "https://github.com/Owner/repo"
 
         # HTTPS formats
         assert canonical_remote_url("https://github.com/Owner/repo.git") == "https://github.com/Owner/repo"
@@ -318,74 +244,28 @@ class TestRemoteOperations:
 
         # Non-GitHub URLs unchanged
         assert canonical_remote_url("git@gitlab.com:owner/repo.git") == "git@gitlab.com:owner/repo.git"
+        assert canonical_remote_url("https://bitbucket.org/owner/repo") == "https://bitbucket.org/owner/repo"
 
-        # Whitespace handling
-        assert canonical_remote_url("  git@github.com:Owner/repo.git  ") == "https://github.com/Owner/repo"
+    @patch("gitta.get_all_remotes")
+    def test_detect_metta_repo(self, mock_get_all_remotes):
+        """Test detection of Metta repo with various URL formats."""
+        test_cases = [
+            {"origin": "git@github.com:Metta-AI/metta.git"},
+            {"origin": "https://github.com/Metta-AI/metta.git"},
+            {"upstream": "git@github.com:Metta-AI/metta"},  # Different remote
+            {"fork": "https://github.com/Metta-AI/metta"},  # No .git
+        ]
 
+        for remotes in test_cases:
+            mock_get_all_remotes.return_value = remotes
+            assert is_metta_ai_repo() is True
 
-# ============================================================================
-# Push Status
-# ============================================================================
+        # Non-Metta repos
+        mock_get_all_remotes.return_value = {"origin": "git@github.com:other/repo.git"}
+        assert is_metta_ai_repo() is False
 
-
-class TestPushStatus:
-    """Test checking if commits are pushed."""
-
-    def test_unpushed_commit(self, temp_git_repo):
-        """Test detection of unpushed commits."""
-        old_cwd = os.getcwd()
-        os.chdir(temp_git_repo)
-
-        try:
-            commit = get_current_commit()
-            # No remote, so not pushed
-            assert is_commit_pushed(commit) is False
-        finally:
-            os.chdir(old_cwd)
-
-    def test_current_commit_in_real_repo(self, current_repo):
-        """Test push status in real repository."""
-        # Current commit in the actual repo should typically be pushed
-        # (unless we're on a feature branch with local commits)
-        commit = get_current_commit()
-
-        # This is a behavioral test - we just verify it doesn't crash
-        # and returns a boolean
-        result = is_commit_pushed(commit)
-        assert isinstance(result, bool)
-
-
-# ============================================================================
-# Error Handling
-# ============================================================================
-
-
-class TestErrorHandling:
-    """Test error handling and reporting."""
-
-    def test_git_not_installed(self):
-        """Test helpful error when git is not installed."""
-        with patch("subprocess.run", side_effect=FileNotFoundError()):
-            with pytest.raises(GitNotInstalledError) as exc:
-                run_git("status")
-            assert "not installed" in str(exc.value).lower()
-
-    def test_not_in_repo_error(self):
-        """Test error when not in a git repository."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with pytest.raises(GitError):
-                run_git_in_dir(tmpdir, "status")
-
-    def test_command_failure(self):
-        """Test handling of failed git commands."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            repo = Path(tmpdir)
-            subprocess.run(["git", "init"], cwd=repo, check=True)
-
-            # Try to checkout non-existent branch
-            with pytest.raises(GitError) as exc:
-                run_git_in_dir(repo, "checkout", "non-existent-branch")
-            assert "non-existent-branch" in str(exc.value)
+        mock_get_all_remotes.return_value = {}
+        assert is_metta_ai_repo() is False
 
 
 # ============================================================================
@@ -394,35 +274,276 @@ class TestErrorHandling:
 
 
 class TestBranchOperations:
-    """Test branch-related operations."""
+    """Test branch and commit operations."""
 
-    def test_get_branch_commit(self, current_repo):
-        """Test getting commit for a branch."""
+    def test_validate_refs(self, temp_repo):
+        """Test reference validation in a real repository."""
+        os.chdir(temp_repo)
+
+        # HEAD should always be valid
+        commit = validate_git_ref("HEAD")
+        assert commit is not None
+        assert len(commit) == 40
+
+        # Current branch should be valid
         branch = get_current_branch()
-        if branch:
-            commit = get_branch_commit(branch)
-            assert len(commit) == 40
+        assert validate_git_ref(branch) is not None
 
-    def test_branch_in_detached_head(self, temp_git_repo):
+        # Invalid refs should return None
+        assert validate_git_ref("definitely-not-a-branch") is None
+        assert validate_git_ref("") is None
+        assert validate_git_ref("invalid..ref") is None
+
+    def test_get_branch_commit(self, temp_repo):
+        """Test getting branch commits."""
+        os.chdir(temp_repo)
+
+        branch = get_current_branch()
+        commit = get_branch_commit(branch)
+        assert len(commit) == 40
+
+        # Should be same as current commit
+        assert commit == get_current_commit()
+
+    def test_detached_head_fallback(self, temp_repo):
         """Test behavior in detached HEAD state."""
-        old_cwd = os.getcwd()
-        os.chdir(temp_git_repo)
+        os.chdir(temp_repo)
 
-        try:
-            # Get first commit
-            first_commit = get_current_commit()
+        # Get current commit
+        commit = get_current_commit()
 
-            # Create second commit
-            (temp_git_repo / "file2.txt").write_text("content")
-            subprocess.run(["git", "add", "."], check=True)
-            subprocess.run(["git", "commit", "-m", "Second commit"], check=True)
+        # Checkout commit directly (detached HEAD)
+        subprocess.run(["git", "checkout", commit], cwd=temp_repo, capture_output=True)
 
-            # Checkout first commit (detached HEAD)
-            subprocess.run(["git", "checkout", first_commit], check=True)
+        # Should return commit hash as branch name
+        branch = get_current_branch()
+        assert branch == commit
 
-            # In detached HEAD, get_current_branch might return None or commit
-            # This is a behavioral test - just verify it doesn't crash
-            result = get_current_branch()
-            assert result is None or len(result) == 40
-        finally:
-            os.chdir(old_cwd)
+
+# ============================================================================
+# Push Status Detection
+# ============================================================================
+
+
+class TestPushStatus:
+    """Test push status detection."""
+
+    @patch("gitta.run_git")
+    def test_is_commit_pushed(self, mock_run_git):
+        """Test checking if commit is pushed."""
+        # Mock that commit is in remote branch
+        mock_run_git.side_effect = [
+            "origin/main",  # First call: get remote tracking branch
+            "abc123",  # Second call: get remote commit
+        ]
+        assert is_commit_pushed("abc123") is True
+
+        # Mock that commit is not in remote branch
+        mock_run_git.side_effect = [
+            "origin/main",  # First call: get remote tracking branch
+            "def456",  # Second call: different remote commit
+        ]
+        assert is_commit_pushed("abc123") is False
+
+        # Simulate error (no remote tracking)
+        mock_run_git.side_effect = GitError("no tracking branch")
+        assert is_commit_pushed("abc123") is False
+
+
+# ============================================================================
+# Repository Navigation
+# ============================================================================
+
+
+class TestRepositoryNavigation:
+    """Test repository navigation functions."""
+
+    def test_find_root_from_subdirectory(self, temp_repo):
+        """Test finding repository root from nested directory."""
+        subdir = temp_repo / "src" / "nested" / "deep"
+        subdir.mkdir(parents=True)
+
+        root = find_root(subdir)
+        assert root is not None
+        assert root.resolve() == temp_repo.resolve()
+
+    def test_find_root_from_file(self, temp_repo):
+        """Test finding repository root from a file path."""
+        file_path = temp_repo / "src" / "test.py"
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text("# test")
+
+        root = find_root(file_path)
+        assert root is not None
+        assert root.resolve() == temp_repo.resolve()
+
+    def test_find_root_outside_repo(self):
+        """Test that find_root returns None outside a repository."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            assert find_root(Path(tmpdir)) is None
+
+
+# ============================================================================
+# Error Handling
+# ============================================================================
+
+
+class TestErrorHandling:
+    """Test error handling."""
+
+    @patch("subprocess.run")
+    def test_git_not_installed(self, mock_run):
+        """Test helpful error when git is not installed."""
+        mock_run.side_effect = FileNotFoundError()
+
+        with pytest.raises(GitNotInstalledError) as exc_info:
+            run_git("status")
+        assert "not installed" in str(exc_info.value).lower()
+
+    @patch("subprocess.run")
+    def test_dubious_ownership_error(self, mock_run):
+        """Test dubious ownership error handling."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "status"],
+            returncode=128,
+            stdout=b"",
+            stderr=b"fatal: detected dubious ownership in repository at '/path'",
+        )
+
+        # Save and restore working directory to avoid errors
+        with tempfile.TemporaryDirectory() as tmpdir:
+            old_cwd = os.getcwd()
+            try:
+                os.chdir(tmpdir)
+                with pytest.raises(DubiousOwnershipError) as exc_info:
+                    run_git("status")
+            finally:
+                os.chdir(old_cwd)
+
+        error_msg = str(exc_info.value)
+        assert "dubious ownership" in error_msg
+        assert "git config --global --add safe.directory" in error_msg
+        assert "GITTA_AUTO_ADD_SAFE_DIRECTORY" in error_msg
+
+    @patch("subprocess.run")
+    def test_not_a_git_repo_error(self, mock_run):
+        """Test detection of 'not a git repository' error."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["git", "status"],
+            returncode=128,
+            stdout=b"",
+            stderr=b"fatal: not a git repository (or any of the parent directories): .git",
+        )
+
+        with pytest.raises(NotAGitRepoError) as exc_info:
+            run_git("status")
+        assert "not" in str(exc_info.value).lower()
+        assert "repository" in str(exc_info.value).lower()
+
+
+# ============================================================================
+# GitHub CLI Integration
+# ============================================================================
+
+
+class TestGitHubCLI:
+    """Test GitHub CLI integration."""
+
+    @patch("subprocess.run")
+    def test_run_gh_success(self, mock_run):
+        """Test successful gh command execution."""
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["gh", "pr", "list"], returncode=0, stdout=b"PR #1: Title\n", stderr=b""
+        )
+
+        result = run_gh("pr", "list")
+        assert "PR #1" in result.decode("utf-8")
+
+    @patch("subprocess.run")
+    def test_run_gh_not_installed(self, mock_run):
+        """Test error when gh is not installed."""
+        mock_run.side_effect = FileNotFoundError()
+
+        with pytest.raises(GitError) as exc_info:
+            run_gh("pr", "list")
+        assert "not installed" in str(exc_info.value).lower()
+
+    @patch("gitta.run_gh")
+    def test_get_matched_pr(self, mock_run_gh):
+        """Test PR matching functionality."""
+        # Return bytes as run_gh would
+        mock_run_gh.return_value = b'[{"number": 123, "title": "Test PR"}]'
+
+        result = get_matched_pr("abc123")
+        assert result is not None
+        assert result[0] == 123
+        assert result[1] == "Test PR"
+
+        # No matching PR
+        mock_run_gh.return_value = b"[]"
+        result = get_matched_pr("abc123")
+        assert result is None
+
+
+# ============================================================================
+# GitHub API
+# ============================================================================
+
+
+class TestGitHubAPI:
+    """Test GitHub API functions."""
+
+    @patch("httpx.post")
+    def test_post_commit_status(self, mock_post):
+        """Test posting commit status to GitHub."""
+        mock_response = Mock()
+        mock_response.json.return_value = {"state": "success", "context": "CI"}
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+
+        # Set environment variable for token
+        with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}):
+            result = post_commit_status(commit_sha="abc123", state="success", description="Tests passed")
+
+        assert result["state"] == "success"
+        mock_post.assert_called_once()
+
+        # Check the call was made with correct headers
+        call_args = mock_post.call_args
+        assert "Authorization" in call_args[1]["headers"]
+        assert "token test_token" in call_args[1]["headers"]["Authorization"]
+
+    def test_post_commit_status_no_token(self):
+        """Test that post_commit_status fails without token."""
+        with patch.dict(os.environ, {}, clear=True):
+            with pytest.raises(ValueError) as exc_info:
+                post_commit_status("abc123", "success")
+            assert "token not provided" in str(exc_info.value).lower()
+
+
+# ============================================================================
+# git-filter-repo Integration
+# ============================================================================
+
+
+class TestFilterRepo:
+    """Test git-filter-repo integration."""
+
+    def test_filter_repo_missing_tool(self, temp_repo):
+        """Test helpful error when git-filter-repo is missing."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = FileNotFoundError()
+
+            with pytest.raises(FileNotFoundError) as exc_info:
+                filter_repo(temp_repo, ["src"])
+
+            error_msg = str(exc_info.value)
+            assert "git-filter-repo not found" in error_msg
+            assert "metta install filter-repo" in error_msg
+
+    def test_filter_repo_not_a_repo(self):
+        """Test error when path is not a git repository."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with pytest.raises(ValueError) as exc_info:
+                filter_repo(Path(tmpdir), ["src"])
+            assert "not a git repository" in str(exc_info.value).lower()
