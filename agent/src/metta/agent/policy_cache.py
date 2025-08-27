@@ -90,3 +90,19 @@ class PolicyCache:
             f"Evicted policy from cache: {evicted_record.run_name} "
             f"(key: {evicted_key}) - Cache at capacity ({self._max_size})"
         )
+
+    def clear(self) -> None:
+        """Clear all entries from the cache."""
+        with self._lock:
+            self._cache.clear()
+            logger.debug("Cache cleared")
+
+    def size(self) -> int:
+        """Get the current number of items in cache."""
+        with self._lock:
+            return len(self._cache)
+
+    def max_size(self) -> int:
+        """Get the maximum cache size."""
+
+        return self._max_size
