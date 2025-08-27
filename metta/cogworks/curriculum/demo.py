@@ -1,6 +1,6 @@
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
-from metta.cogworks.curriculum.curriculum import CurriculumConfig
+from metta.cogworks.curriculum.curriculum import Curriculum, CurriculumConfig
 from metta.cogworks.curriculum.task_generator import ValueRange as vr
 
 arena = eb.make_arena(num_agents=24)
@@ -28,7 +28,7 @@ curriculum_cfg = CurriculumConfig(task_generator=arena_tasks)
 
 print(curriculum_cfg.model_dump_json(indent=2))
 print(curriculum_cfg.task_generator.model_dump_json(indent=2))
-curriculum = curriculum_cfg.make()
+curriculum = Curriculum(curriculum_cfg)
 
 # print("Generating 10 tasks")
 # for _ in range(10):
