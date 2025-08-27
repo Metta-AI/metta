@@ -1,4 +1,4 @@
-"""Git utilities library for Metta projects."""
+"""Git utilities library."""
 
 from __future__ import annotations
 
@@ -161,11 +161,8 @@ def run_git_cmd(
 # Functions with _ prefix are internal helpers
 # ============================================================================
 
-# GitHub constants
-METTA_GITHUB_ORGANIZATION = "Metta-AI"
-METTA_GITHUB_REPO = "metta"
-METTA_API_REPO = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
-METTA_API_REPO_URL = f"https://github.com/{METTA_API_REPO}.git"
+# No longer storing project-specific constants here
+# These should be passed as parameters by the calling code
 
 
 def _memoize(max_age=60):
@@ -327,11 +324,15 @@ def validate_git_ref(ref: str) -> str | None:
     return commit_hash
 
 
-def get_matched_pr(commit_hash: str) -> tuple[int, str] | None:
+def get_matched_pr(commit_hash: str, repo: str) -> tuple[int, str] | None:
     """
     Return (PR number, title) if `commit_hash` is the HEAD of an open PR, else None.
+
+    Args:
+        commit_hash: The commit hash to check
+        repo: Repository in format "owner/repo"
     """
-    url = f"https://api.github.com/repos/{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}/commits/{commit_hash}/pulls"
+    url = f"https://api.github.com/repos/{repo}/commits/{commit_hash}/pulls"
     headers = {"Accept": "application/vnd.github.groot-preview+json"}
     try:
         resp = httpx.get(url, headers=headers, timeout=5.0)
@@ -420,13 +421,16 @@ def get_all_remotes() -> Dict[str, str]:
         return {}
 
 
-def is_metta_ai_repo() -> bool:
-    """Check if any remote is set to the metta-ai/metta repository.
+def is_repo_match(target_repo: str) -> bool:
+    """Check if any remote is set to the specified repository.
 
     This checks all configured remotes, not just 'origin', and handles
     various URL formats (SSH, HTTPS, with/without .git suffix).
+
+    Args:
+        target_repo: Repository in format "owner/repo"
     """
-    target_url = canonical_remote_url(f"https://github.com/{METTA_API_REPO}")
+    target_url = canonical_remote_url(f"https://github.com/{target_repo}")
 
     remotes = get_all_remotes()
     for remote_url in remotes.values():
@@ -437,6 +441,7 @@ def is_metta_ai_repo() -> bool:
 
 
 def get_git_hash_for_remote_task(
+    target_repo: str | None = None,
     skip_git_check: bool = False,
     skip_cmd: str = "skipping git check",
     logger: logging.Logger | None = None,
@@ -445,11 +450,12 @@ def get_git_hash_for_remote_task(
     Get git hash for remote task execution.
 
     Returns:
-        - None if no local git repo or no origin synced to metta-ai/metta
+        - None if no local git repo or no origin synced to target repo
         - Git hash if commit is synced with remote and no dirty changes
         - Raises GitError if dirty changes exist and skip_git_check is False
 
     Args:
+        target_repo: Repository in format "owner/repo". If None, skips repo check.
         skip_git_check: If True, skip the dirty changes check
         skip_cmd: The command to show in error messages for skipping the check
     """
@@ -460,9 +466,9 @@ def get_git_hash_for_remote_task(
             logger.warning("Not in a git repository, using git_hash=None")
         return None
 
-    if not is_metta_ai_repo():
+    if target_repo and not is_repo_match(target_repo):
         if logger:
-            logger.warning("Origin not set to metta-ai/metta, using git_hash=None")
+            logger.warning(f"Origin not set to {target_repo}, using git_hash=None")
         return None
 
     on_skypilot = bool(os.getenv("SKYPILOT_TASK_ID"))
@@ -500,10 +506,17 @@ def get_git_hash_for_remote_task(
 
 
 @_memoize(max_age=60 * 5)
-async def get_latest_commit(branch: str = "main") -> str:
+async def get_latest_commit(repo: str, branch: str = "main") -> str:
+    """
+    Get the latest commit SHA for a branch.
+
+    Args:
+        repo: Repository in format "owner/repo"
+        branch: Branch name (default: "main")
+    """
     async with httpx.AsyncClient() as client:
         response = await client.get(
-            f"https://api.github.com/repos/{METTA_API_REPO}/commits/{branch}",
+            f"https://api.github.com/repos/{repo}/commits/{branch}",
             headers={"Accept": "application/vnd.github.v3+json"},
         )
         response.raise_for_status()
@@ -630,7 +643,7 @@ def diff(repo_root: Path, base_ref: str) -> str:
 def post_commit_status(
     commit_sha: str,
     state: str,
-    repo: Optional[str] = None,
+    repo: str,
     context: str = "CI/Skypilot",
     description: Optional[str] = None,
     target_url: Optional[str] = None,
@@ -642,7 +655,7 @@ def post_commit_status(
     Args:
         commit_sha: The SHA of the commit
         state: The state of the status (error, failure, pending, success)
-        repo: Repository in format "owner/repo". If not provided, uses default from constants
+        repo: Repository in format "owner/repo"
         context: A string label to differentiate this status from others
         description: A short description of the status
         target_url: The target URL to associate with this status
@@ -652,12 +665,11 @@ def post_commit_status(
         The created status object
 
     Raises:
-        ValueError: If no token is available
+        ValueError: If no token is available or repo not provided
         httpx.HTTPError: If the API request fails
     """
-    # Use default repo if not provided
-    if repo is None:
-        repo = f"{METTA_GITHUB_ORGANIZATION}/{METTA_GITHUB_REPO}"
+    if not repo:
+        raise ValueError("Repository must be provided in format 'owner/repo'")
 
     # Get token
     github_token = token or os.environ.get("GITHUB_TOKEN")

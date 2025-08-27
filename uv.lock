@@ -2099,9 +2099,6 @@ dev = [
 name = "metta-common"
 version = "0.1.0"
 source = { editable = "common" }
-dependencies = [
-    { name = "gitta" },
-]
 
 [package.dev-dependencies]
 dev = [
@@ -2114,7 +2111,6 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "gitta", editable = "gitta" }]
 
 [package.metadata.requires-dev]
 dev = [

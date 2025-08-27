@@ -34,7 +34,7 @@ from gitta import (
     get_remote_url,
     has_unstaged_changes,
     is_commit_pushed,
-    is_metta_ai_repo,
+    is_repo_match,
     post_commit_status,
     run_gh,
     run_git,
@@ -247,8 +247,8 @@ class TestRemoteOperations:
         assert canonical_remote_url("https://bitbucket.org/owner/repo") == "https://bitbucket.org/owner/repo"
 
     @patch("gitta.get_all_remotes")
-    def test_detect_metta_repo(self, mock_get_all_remotes):
-        """Test detection of Metta repo with various URL formats."""
+    def test_detect_repo_match(self, mock_get_all_remotes):
+        """Test detection of repo match with various URL formats."""
         test_cases = [
             {"origin": "git@github.com:Metta-AI/metta.git"},
             {"origin": "https://github.com/Metta-AI/metta.git"},
@@ -258,14 +258,14 @@ class TestRemoteOperations:
 
         for remotes in test_cases:
             mock_get_all_remotes.return_value = remotes
-            assert is_metta_ai_repo() is True
+            assert is_repo_match("Metta-AI/metta") is True
 
-        # Non-Metta repos
+        # Non-matching repos
         mock_get_all_remotes.return_value = {"origin": "git@github.com:other/repo.git"}
-        assert is_metta_ai_repo() is False
+        assert is_repo_match("Metta-AI/metta") is False
 
         mock_get_all_remotes.return_value = {}
-        assert is_metta_ai_repo() is False
+        assert is_repo_match("Metta-AI/metta") is False
 
 
 # ============================================================================
@@ -479,14 +479,14 @@ class TestGitHubCLI:
         mock_response.json.return_value = [{"number": 123, "title": "Test PR"}]
         mock_get.return_value = mock_response
 
-        result = get_matched_pr("abc123")
+        result = get_matched_pr("abc123", "Metta-AI/metta")
         assert result is not None
         assert result[0] == 123
         assert result[1] == "Test PR"
 
         # No matching PR
         mock_response.json.return_value = []
-        result = get_matched_pr("abc123")
+        result = get_matched_pr("abc123", "Metta-AI/metta")
         assert result is None
 
 
@@ -508,7 +508,9 @@ class TestGitHubAPI:
 
         # Set environment variable for token
         with patch.dict(os.environ, {"GITHUB_TOKEN": "test_token"}):
-            result = post_commit_status(commit_sha="abc123", state="success", description="Tests passed")
+            result = post_commit_status(
+                commit_sha="abc123", state="success", repo="Metta-AI/metta", description="Tests passed"
+            )
 
         assert result["state"] == "success"
         mock_post.assert_called_once()
@@ -522,7 +524,7 @@ class TestGitHubAPI:
         """Test that post_commit_status fails without token."""
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValueError) as exc_info:
-                post_commit_status("abc123", "success")
+                post_commit_status("abc123", "success", "Metta-AI/metta")
             assert "token not provided" in str(exc_info.value).lower()
 
 
