@@ -27,6 +27,7 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
+from metta.rl.memory_management import MemoryManager
 from metta.rl.policy_management import initialize_policy_for_environment
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
@@ -137,6 +138,9 @@ class Simulation:
             restore_feature_mapping=True,
         )
 
+        # Memory managers for coordinated state resets and inspection
+        self._mm_policy = MemoryManager(self._policy_pr.policy)
+
         if self._npc_pr is not None:
             # Initialize NPC policy to environment
             initialize_policy_for_environment(
@@ -145,6 +149,9 @@ class Simulation:
                 device=self._device,
                 restore_feature_mapping=True,
             )
+            self._mm_npc = MemoryManager(self._npc_pr.policy)
+        else:
+            self._mm_npc = None
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
@@ -209,6 +216,10 @@ class Simulation:
         self._env_done_flags = [False] * self._num_envs
 
         self._t0 = time.time()
+        # Reset states at simulation start
+        self._mm_policy.reset_states()
+        if self._mm_npc is not None:
+            self._mm_npc.reset_states()
 
     def generate_actions(self) -> np.ndarray:
         """
@@ -367,9 +378,9 @@ class Simulation:
         """
         self.start_simulation()
 
-        self._policy_pr.policy.reset_memory()
-        if self._npc_pr is not None:
-            self._npc_pr.policy.reset_memory()
+        self._mm_policy.reset_states()
+        if self._mm_npc is not None:
+            self._mm_npc.reset_states()
 
         # Track iterations for heartbeat
         iteration_count = 0
@@ -520,46 +531,8 @@ class Simulation:
         Returns a PolicyState object with lstm_h and lstm_c attributes if available.
         Note: The actual state management depends on the specific policy implementation.
         """
-        # The policy is the LSTM wrapper
-        policy = self._policy_pr.policy
-
-        # Try to get LSTM state from the policy
-        # This depends on the specific policy implementation
-        lstm_h = None
-        lstm_c = None
-
-        # Check if it's a pufferlib LSTMWrapper
-        if hasattr(policy, "lstm") and hasattr(policy.lstm, "weight_hh_l0"):
-            # For pufferlib LSTMWrapper, the state is managed internally during forward pass
-            # We would need to track it differently or access it through the forward pass
-            # For now, return None as this requires deeper integration
-            return None
-
-        # Check if policy has direct lstm_h and lstm_c attributes (custom implementations)
-        if hasattr(policy, "lstm_h") and hasattr(policy, "lstm_c"):
-            lstm_h = policy.lstm_h
-            lstm_c = policy.lstm_c
-
-        # Check if policy has a component that manages LSTM state (MettaAgent style)
-        elif hasattr(policy, "component") and hasattr(policy.component, "lstm"):
-            lstm_component = policy.component.lstm
-            if hasattr(lstm_component, "lstm_h") and hasattr(lstm_component, "lstm_c"):
-                # These are dictionaries mapping env_id to tensors
-                # Get the first one for single-env simulations
-                if 0 in lstm_component.lstm_h and 0 in lstm_component.lstm_c:
-                    lstm_h = lstm_component.lstm_h[0]
-                    lstm_c = lstm_component.lstm_c[0]
-
-        if lstm_h is not None and lstm_c is not None:
-            # Return an object-like dict that allows attribute access
-            class PolicyState:
-                def __init__(self, lstm_h, lstm_c):
-                    self.lstm_h = lstm_h
-                    self.lstm_c = lstm_c
-
-            return PolicyState(lstm_h, lstm_c)
-
-        return None
+        # Prefer state API through MemoryManager; tools can introspect whatever the policy returns
+        return self._mm_policy.get_states()
 
 
 @dataclass
