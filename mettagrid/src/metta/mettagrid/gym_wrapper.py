@@ -5,37 +5,6 @@ import numpy as np
 from gymnasium.spaces import Discrete
 
 
-class SingleAgentWrapper(gym.Wrapper):
-    def __init__(self, env):
-        super(SingleAgentWrapper, self).__init__(env)
-
-    def step(self, action):
-        action = np.asarray(action, dtype=np.uint32)
-        action = action[None, ...]
-        observations, rewards, terminals, truncations, infos = self.env.step(action)
-
-        # Don't squeeze - maintain consistent [agents, tokens, features] format
-        # observations = observations.squeeze(0)  # Removed: breaks tensor dimension consistency
-        rewards = rewards.squeeze(0)
-        terminals = terminals.squeeze(0)
-        truncations = truncations.squeeze(0)
-
-        return observations, rewards, terminals, truncations, infos
-
-    def reset(self, *, seed: int | None = None, options: dict[str, Any] | None = None):
-        obs, infos = self.env.reset(seed=seed, options=options)
-        # Don't squeeze - maintain consistent [agents, tokens, features] format
-        # obs = obs.squeeze(0)  # Removed: breaks tensor dimension consistency
-        return obs, infos
-
-    @property
-    def action_space(self):
-        return self.env.single_action_space
-
-    @property
-    def observation_space(self):
-        return self.env.single_observation_space
-
 
 class MultiToDiscreteWrapper(gym.ActionWrapper):
     def __init__(self, env):
