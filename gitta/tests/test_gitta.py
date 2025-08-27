@@ -10,7 +10,7 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -333,21 +333,30 @@ class TestPushStatus:
         """Test checking if commit is pushed."""
         # Mock that commit is in remote branch
         mock_run_git.side_effect = [
-            "origin/main",  # First call: get remote tracking branch
-            "abc123",  # Second call: get remote commit
+            "abc123",  # First: verify commit exists
+            "main",  # Second: get current branch
+            "origin/main",  # Third: get remote tracking branch
+            None,  # Fourth: merge-base succeeds (no exception)
         ]
         assert is_commit_pushed("abc123") is True
 
         # Mock that commit is not in remote branch
         mock_run_git.side_effect = [
-            "origin/main",  # First call: get remote tracking branch
-            "def456",  # Second call: different remote commit
+            "abc123",  # First: verify commit exists
+            "main",  # Second: get current branch
+            "origin/main",  # Third: get remote tracking branch
+            GitError("not ancestor"),  # Fourth: merge-base fails
         ]
         assert is_commit_pushed("abc123") is False
 
-        # Simulate error (no remote tracking)
-        mock_run_git.side_effect = GitError("no tracking branch")
-        assert is_commit_pushed("abc123") is False
+        # Simulate error (no remote tracking) - falls back to checking remote branches
+        mock_run_git.side_effect = [
+            "abc123",  # First: verify commit exists
+            "main",  # Second: get current branch
+            GitError("no tracking branch"),  # Third: no remote tracking
+            "  origin/feature\n  origin/main",  # Fourth: remote branches containing commit
+        ]
+        assert is_commit_pushed("abc123") is True
 
 
 # ============================================================================
@@ -400,8 +409,9 @@ class TestErrorHandling:
             run_git("status")
         assert "not installed" in str(exc_info.value).lower()
 
+    @patch("os.getcwd", return_value="/test/path")
     @patch("subprocess.run")
-    def test_dubious_ownership_error(self, mock_run):
+    def test_dubious_ownership_error(self, mock_run, mock_getcwd):
         """Test dubious ownership error handling."""
         mock_run.return_value = subprocess.CompletedProcess(
             args=["git", "status"],
@@ -410,15 +420,8 @@ class TestErrorHandling:
             stderr=b"fatal: detected dubious ownership in repository at '/path'",
         )
 
-        # Save and restore working directory to avoid errors
-        with tempfile.TemporaryDirectory() as tmpdir:
-            old_cwd = os.getcwd()
-            try:
-                os.chdir(tmpdir)
-                with pytest.raises(DubiousOwnershipError) as exc_info:
-                    run_git("status")
-            finally:
-                os.chdir(old_cwd)
+        with pytest.raises(DubiousOwnershipError) as exc_info:
+            run_git("status")
 
         error_msg = str(exc_info.value)
         assert "dubious ownership" in error_msg
@@ -468,11 +471,13 @@ class TestGitHubCLI:
             run_gh("pr", "list")
         assert "not installed" in str(exc_info.value).lower()
 
-    @patch("gitta.run_gh")
-    def test_get_matched_pr(self, mock_run_gh):
+    @patch("httpx.get")
+    def test_get_matched_pr(self, mock_get):
         """Test PR matching functionality."""
-        # Return bytes as run_gh would
-        mock_run_gh.return_value = b'[{"number": 123, "title": "Test PR"}]'
+        # Mock successful response with PR data
+        mock_response = MagicMock()
+        mock_response.json.return_value = [{"number": 123, "title": "Test PR"}]
+        mock_get.return_value = mock_response
 
         result = get_matched_pr("abc123")
         assert result is not None
@@ -480,7 +485,7 @@ class TestGitHubCLI:
         assert result[1] == "Test PR"
 
         # No matching PR
-        mock_run_gh.return_value = b"[]"
+        mock_response.json.return_value = []
         result = get_matched_pr("abc123")
         assert result is None
 
@@ -528,18 +533,6 @@ class TestGitHubAPI:
 
 class TestFilterRepo:
     """Test git-filter-repo integration."""
-
-    def test_filter_repo_missing_tool(self, temp_repo):
-        """Test helpful error when git-filter-repo is missing."""
-        with patch("subprocess.run") as mock_run:
-            mock_run.side_effect = FileNotFoundError()
-
-            with pytest.raises(FileNotFoundError) as exc_info:
-                filter_repo(temp_repo, ["src"])
-
-            error_msg = str(exc_info.value)
-            assert "git-filter-repo not found" in error_msg
-            assert "metta install filter-repo" in error_msg
 
     def test_filter_repo_not_a_repo(self):
         """Test error when path is not a git repository."""

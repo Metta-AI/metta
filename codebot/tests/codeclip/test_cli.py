@@ -3,11 +3,10 @@ Tests for the codeclip CLI functionality.
 """
 
 import os
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from click.testing import CliRunner
 
@@ -158,23 +157,17 @@ class TestCodeclipCLI(unittest.TestCase):
         self.assertIn("README.md", result.output)
         self.assertIn("Parent README", result.output)
 
-    @patch("subprocess.Popen")
-    def test_clipboard_default(self, mock_popen):
+    @patch("codebot.codeclip.cli.copy_to_clipboard")
+    def test_clipboard_default(self, mock_copy):
         """Test clipboard integration on macOS (default behavior)."""
         Path("test.py").write_text("print('test')\n")
-
-        # Mock the process and communicate method
-        mock_process = MagicMock()
-        mock_process.communicate = MagicMock()
-        mock_popen.return_value = mock_process
 
         # Clipboard is now the default behavior (no flags needed)
         result = self.runner.invoke(cli, ["."])
         self.assertEqual(result.exit_code, 0)
 
-        # Check that pbcopy was called
-        mock_popen.assert_called_once_with(["pbcopy"], stdin=subprocess.PIPE)
-        mock_process.communicate.assert_called_once()
+        # Check that clipboard copy was called
+        mock_copy.assert_called_once()
 
         # Should see summary in stderr
         self.assertIn("Copied", result.output)

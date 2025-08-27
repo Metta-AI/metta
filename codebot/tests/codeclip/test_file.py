@@ -183,7 +183,6 @@ class TestGitRootAndReadmeHandling(unittest.TestCase):
     def tearDown(self):
         self.test_dir.cleanup()
 
-    @unittest.skip("Fragile test - git boundary detection tested in gitta")
     def test_find_parent_readmes_in_git_repo(self):
         """Test finding parent READMEs up to git root."""
         # Save current directory and change to temp directory

@@ -111,16 +111,22 @@ def _find_parent_readmes(path: Path) -> List[Path]:
 
     # Find the git root to use as our boundary
     git_root = git.find_root(current)
-    stop_at = git_root if git_root else Path("/")
 
-    # Collect READMEs up to the boundary
-    while True:
+    # Collect READMEs up to and including the git root
+    while current != current.parent:  # Not at filesystem root
+        # If we have a git root, check if current dir has one and it matches
+        if git_root:
+            current_git_root = git.find_root(current)
+            if not current_git_root or str(current_git_root) != str(git_root):
+                # We've gone past the git boundary
+                break
+
         readme_path = current / "README.md"
         if readme_path.exists() and readme_path not in readmes:
             readmes.append(readme_path)
 
-        # Stop if we've reached our boundary or can't go higher
-        if current == stop_at or current == current.parent:
+        # If we're at the git root, we're done
+        if git_root and str(current) == str(git_root):
             break
 
         current = current.parent
@@ -481,16 +487,22 @@ def _find_gitignore(start_path: Path) -> Optional[Path]:
 
     # Find the git root to use as our boundary
     git_root = git.find_root(current)
-    stop_at = git_root if git_root else Path("/")
 
     # Search up the directory tree for .gitignore
-    while True:
+    while current != current.parent:  # Not at filesystem root
+        # If we have a git root, check if current dir is still within it
+        if git_root:
+            current_git_root = git.find_root(current)
+            if not current_git_root or str(current_git_root) != str(git_root):
+                # We've gone past the git boundary
+                break
+
         gitignore_path = current / ".gitignore"
         if gitignore_path.exists():
             return gitignore_path
 
-        # Stop if we've reached our boundary or can't go higher
-        if current == stop_at or current == current.parent:
+        # If we're at the git root, check it then stop
+        if git_root and str(current) == str(git_root):
             break
 
         current = current.parent
