@@ -21,6 +21,8 @@ def init_tracing():
 
 
 def trace(name: str):
+    init_tracing()
+
     def decorator(func):
         import asyncio
 
