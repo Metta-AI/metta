@@ -47,7 +47,7 @@ file_mounts:
 setup: set -u && bash <(curl -fsSL "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${METTA_GIT_REF}/devops/skypilot/config/lifecycle/setup.sh")
 
 # `set -e`: Ensure SkyPilot propagates exit codes from skypilot_run.sh (otherwise restart test fails)
-run: set -e && /workspace/metta/devops/skypilot/config/skypilot_run.sh
+run: set -e && /workspace/metta/devops/skypilot/config/test_exit.sh
 
 envs:
   TEST_NCCL: "false"
