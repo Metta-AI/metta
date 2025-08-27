@@ -215,6 +215,16 @@ class Simulation:
 
         self._t0 = time.time()
 
+    def _get_actions_for_agents(self, agent_indices: torch.Tensor, policy) -> torch.Tensor:
+        """Get actions for a group of agents, preserving agent dimension for single-agent cases."""
+        agent_obs = self._obs[agent_indices]
+        # Ensure agent dimension is preserved for single-agent environments
+        if agent_obs.ndim == 2 and len(agent_indices) == 1:
+            agent_obs = agent_obs[None, ...]  # Add back the agent dimension
+        td = obs_to_td(agent_obs, self._device)
+        policy(td)
+        return td["actions"]
+
     def generate_actions(self) -> np.ndarray:
         """
         Generate actions for the simulation.
@@ -257,29 +267,18 @@ class Simulation:
 
         # ---------------- forward passes ------------------------- #
         with torch.no_grad():
-            # Candidate-policy agents (preserve agent dimension)
-            policy_indices = self._policy_idxs.cpu()
-            my_obs = self._obs[policy_indices]
-            # Ensure agent dimension is preserved for single-agent environments
-            if my_obs.ndim == 2 and len(policy_indices) == 1:
-                my_obs = my_obs[None, ...]  # Add back the agent dimension
-            td = obs_to_td(my_obs, self._device)  # One-liner conversion
-            policy = self._policy_pr.policy
-            policy(td)
-            policy_actions = td["actions"]
+            # Candidate-policy agents
+            policy_actions = self._get_actions_for_agents(
+                self._policy_idxs.cpu(), self._policy_pr.policy
+            )
 
             # NPC agents (if any)
+            npc_actions = None
             if self._npc_pr is not None and len(self._npc_idxs):
-                npc_indices = self._npc_idxs
-                npc_obs = self._obs[npc_indices]
-                # Ensure agent dimension is preserved for single-NPC environments
-                if npc_obs.ndim == 2 and len(npc_indices) == 1:
-                    npc_obs = npc_obs[None, ...]  # Add back the agent dimension
-                td = obs_to_td(npc_obs, self._device)  # One-liner conversion
-                npc_policy = self._npc_pr.policy
                 try:
-                    npc_policy(td)
-                    npc_actions = td["actions"]
+                    npc_actions = self._get_actions_for_agents(
+                        self._npc_idxs, self._npc_pr.policy
+                    )
                 except Exception as e:
                     logger.error(f"Error generating NPC actions: {e}")
                     raise SimulationCompatibilityError(
