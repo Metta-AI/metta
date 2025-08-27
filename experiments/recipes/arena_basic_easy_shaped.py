@@ -55,11 +55,6 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     # make a set of training tasks for the arena
     arena_tasks = cc.bucketed(arena_env)
 
-    # arena_tasks.add_bucket("game.map_builder.root.params.agents", [1, 2, 3, 4, 6])
-    # arena_tasks.add_bucket("game.map_builder.width", [10, 20, 30, 40])
-    # arena_tasks.add_bucket("game.map_builder.height", [10, 20, 30, 40])
-    # arena_tasks.add_bucket("game.map_builder.instance_border_width", [0, 6])
-
     for item in ["ore_red", "battery_red", "laser", "armor"]:
         arena_tasks.add_bucket(
             f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
