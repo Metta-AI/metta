@@ -192,10 +192,9 @@ def train(
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
     policy = latest_saved_policy_record.policy
+    policy.train()  # Set to training mode for training
     features = metta_grid_env.get_observation_features()
-    policy.initialize_to_environment(
-        features, metta_grid_env.action_names, metta_grid_env.max_action_args, device, is_training=True
-    )
+    policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
     # Create kickstarter
     kickstarter = Kickstarter(

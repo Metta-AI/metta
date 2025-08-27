@@ -131,17 +131,19 @@ class Simulation:
 
         # Initialize policy to environment
         policy = self._policy_pr.policy
+        policy.eval()  # Set to evaluation mode for simulation
         features = metta_grid_env.get_observation_features()
         policy.initialize_to_environment(
-            features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device, is_training=False
+            features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
         )
 
         if self._npc_pr is not None:
             # Initialize NPC policy to environment
             npc_policy = self._npc_pr.policy
+            npc_policy.eval()  # Set to evaluation mode for simulation
             features = metta_grid_env.get_observation_features()
             npc_policy.initialize_to_environment(
-                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device, is_training=False
+                features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device
             )
 
         # ---------------- agent-index bookkeeping ---------------------- #

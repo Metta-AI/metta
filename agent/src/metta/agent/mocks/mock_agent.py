@@ -96,14 +96,26 @@ class MockAgent(MettaAgent):
         action_names: list[str],
         action_max_params: list[int],
         device,
-        is_training: bool = True,
+        is_training: bool = None,
     ):
         """Initialize the agent to work with a specific environment.
 
         One-stop shop for setting up agents to interact with environments.
         Handles both new agents and agents loaded from disk with existing feature mappings.
+
+        Auto-detects training vs simulation context:
+        - Training context (gradients enabled): Learn new features, remap known features
+        - Simulation context (gradients disabled): Remap known features, map unknown to 255
         """
         self.device = device
+
+        # Auto-detect training context if not explicitly provided
+        if is_training is None:
+            # Use the module's training state (set by .train()/.eval())
+            # Training context: self.training=True → learn new features
+            # Simulation context: self.training=False → map unknown to 255
+            is_training = self.training
+
         self.training = is_training
 
         # Store action configuration
