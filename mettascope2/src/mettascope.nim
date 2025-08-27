@@ -42,37 +42,10 @@ proc display() =
   globalFooterPanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight, w: window.size.x, h: RibbonHeight)
   globalTimelinePanel.rect = IRect(x: 0, y: window.size.y - RibbonHeight*2, w: window.size.x, h: RibbonHeight)
 
+
   worldMapPanel.beginDraw()
-
-  worldMapPanel.beginPanAndZoom()
-  useSelections()
-  agentControls()
-  playControls()
-
-  drawFloor()
-  drawWalls()
-  drawObjects()
-  # drawActions()
-  # drawAgentDecorations()
-
-  if settings.showGrid:
-    drawGrid()
-  if settings.showVisualRange:
-    drawVisualRanges()
-
-  drawSelection()
-  drawInventory()
-
-  if settings.showFogOfWar:
-    drawFogOfWar()
-
-
-  worldMapPanel.endPanAndZoom()
-
-  drawInfoText()
-
+  drawWorldMap(worldMapPanel)
   worldMapPanel.endDraw()
-
 
   globalHeaderPanel.beginDraw()
   drawHeader(globalHeaderPanel)
