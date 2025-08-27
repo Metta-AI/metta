@@ -163,7 +163,6 @@ class ImprovedPolicy(nn.Module):
 
         # Fully vectorized multi-head attention-based action selection
         action_embeds = self.action_embeddings.weight[: self.num_active_actions]  # (num_actions, action_embed_dim)
-        num_actions = action_embeds.shape[0]
 
         # Project hidden state to query (B, hidden_size) -> (B, hidden_size)
         query_proj = self.action_query_proj(hidden)  # (B, hidden_size)
@@ -180,7 +179,6 @@ class ImprovedPolicy(nn.Module):
 
         # Compute attended values for each query-action pair
         # Reshape for batch matrix multiply: (B, 1, hidden_size) x (B, num_actions, hidden_size)
-        query_expanded = query_proj.unsqueeze(1)  # (B, 1, hidden_size)
         vals_expanded = vals.unsqueeze(0).expand(batch_size, -1, -1)  # (B, num_actions, hidden_size)
 
         # Apply attention weights to values (fully vectorized)

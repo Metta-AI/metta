@@ -161,8 +161,8 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
 def train() -> TrainTool:
     """
     Create training configuration optimized for transformer agent.
-    
-    This configuration is designed to leverage the transformer's 
+
+    This configuration is designed to leverage the transformer's
     enhanced capacity and GTrXL features with appropriate batch sizes
     and sequence lengths.
     """
@@ -172,13 +172,11 @@ def train() -> TrainTool:
     trainer_cfg = TrainerConfig(
         curriculum=cc.env_curriculum(env_cfg),
         total_timesteps=5_000_000_000,  # Reduced for faster iteration
-        
         # Transformer-optimized batch configuration
         batch_size=262144,  # Smaller batches for transformer memory efficiency
-        minibatch_size=8192,  # Smaller minibatches 
+        minibatch_size=8192,  # Smaller minibatches
         bptt_horizon=128,  # Longer horizons for transformer context
         update_epochs=2,  # More epochs for complex learning
-        
         checkpoint=CheckpointConfig(
             checkpoint_interval=25,  # More frequent checkpoints
             wandb_checkpoint_interval=25,
@@ -188,7 +186,6 @@ def train() -> TrainTool:
             evaluate_remote=True,
             evaluate_local=False,
         ),
-        
         # Enhanced performance settings for transformer
         compile=False,  # Keep disabled for stability during testing
         zero_copy=True,
@@ -221,9 +218,7 @@ def play(
 def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
     """Replay tool for viewing transformer agent episodes."""
     eval_env = env or make_env()
-    return ReplayTool(
-        sim=SimulationConfig(env=eval_env, name="arena_bes_transformer")
-    )
+    return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena_bes_transformer"))
 
 
 def evaluate(policy_uri: str) -> SimTool:
