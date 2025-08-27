@@ -172,7 +172,7 @@ def test_initialize_to_environment(create_metta_agent):
     assert hasattr(agent, "action_index_tensor")
 
 
-def test_initialize_to_environment(create_metta_agent):
+def test_initialize_to_environment_actions(create_metta_agent):
     """Test that actions are properly initialized through initialize_to_environment."""
     agent = create_metta_agent
 
