@@ -26,65 +26,7 @@ def sweep_hpo_1b(sweep_name: str, num_trials: int = 50) -> SweepTool:
         Configured SweepTool for PPO hyperparameter optimization
     """
     # Define parameters to optimize - same as quick but with adjusted settings
-    protein_config = ProteinConfig(
-        metric="arena",  # Optimize for arena performance
-        goal="maximize",
-        method="bayes",
-        parameters={
-            "trainer": {
-                "optimizer": {
-                    "learning_rate": ParameterConfig(
-                        min=1e-5,
-                        max=1e-2,
-                        distribution="log_normal",
-                        mean=1e-3,  # Geometric mean
-                        scale="auto",
-                    ),
-                },
-                "ppo": {
-                    "clip_coef": ParameterConfig(
-                        min=0.05,
-                        max=0.3,
-                        distribution="uniform",
-                        mean=0.175,
-                        scale="auto",
-                    ),
-                    "ent_coef": ParameterConfig(
-                        min=0.0001,
-                        max=0.01,
-                        distribution="log_normal",
-                        mean=0.001,  # Geometric mean
-                        scale="auto",
-                    ),
-                    "gae_lambda": ParameterConfig(
-                        min=0.8,
-                        max=0.99,
-                        distribution="uniform",
-                        mean=0.895,
-                        scale="auto",
-                    ),
-                    "gamma": ParameterConfig(
-                        min=0.95,
-                        max=0.999,
-                        distribution="uniform",
-                        mean=0.9745,
-                        scale="auto",
-                    ),
-                    "vf_coef": ParameterConfig(
-                        min=0.1,
-                        max=1.0,
-                        distribution="uniform",
-                        mean=0.55,
-                        scale="auto",
-                    ),
-                },
-            }
-        },
-        settings=ProteinSettings(
-            num_random_samples=30,  # More random samples for longer runs
-            max_suggestion_cost=10800,  # 3 hours max per trial
-        ),
-    )
+    protein_config = PPO_STANDARD_SWEEP
 
     # Create evaluation simulations for end-of-training
     eval_simulations = make_evals()
@@ -100,29 +42,30 @@ def sweep_hpo_1b(sweep_name: str, num_trials: int = 50) -> SweepTool:
         train_tool.run = run_name
         # Set to 1 billion timesteps
         train_tool.trainer.total_timesteps = 1_000_000_000
-        
+
         # Adjust checkpoint intervals for long runs
-        train_tool.trainer.checkpoint.checkpoint_interval = 50_000_000  # Every 50M steps
-        train_tool.trainer.checkpoint.wandb_checkpoint_interval = 50_000_000  # Every 50M steps
-        
+        train_tool.trainer.checkpoint.checkpoint_interval = (
+            50_000_000  # Every 50M steps
+        )
+        train_tool.trainer.checkpoint.wandb_checkpoint_interval = (
+            50_000_000  # Every 50M steps
+        )
+
         # ENSURE LOCAL EVALUATIONS ONLY
         if train_tool.trainer.evaluation:
             train_tool.trainer.evaluation.evaluate_remote = False
             train_tool.trainer.evaluation.evaluate_local = True
-            train_tool.trainer.evaluation.evaluate_interval = 50_000_000  # Evaluate every 50M steps
-        
+            train_tool.trainer.evaluation.evaluate_interval = (
+                50_000_000  # Evaluate every 50M steps
+            )
+
         return train_tool
 
-    def eval_factory(policy_uri: str) -> SimTool:
-        sim_tool = default_arena_eval(
-            policy_uri=policy_uri, simulations=eval_simulations
-        )
-        # Ensure top policy selection
-        sim_tool.selector_type = "top"
-        # Ensure metrics are pushed to WandB
-        sim_tool.push_metrics_to_wandb = True
-        return sim_tool
-
+    # Run arena evaluations for 5 episodes
+    eval_simulations = make_evals()
+    for sim in eval_simulations:
+        sim.num_episodes = 5  # Run 5 episodes for thorough evaluation
+        sim.max_time_s = 120
     # Create sweep configuration
     sweep_config = SweepConfig(
         num_trials=num_trials,
@@ -130,12 +73,12 @@ def sweep_hpo_1b(sweep_name: str, num_trials: int = 50) -> SweepTool:
         sweep_name=sweep_name,
         max_observations_to_load=500,  # Load more observations for longer runs
     )
-    
+
     return SweepTool(
         sweep=sweep_config,
         sweep_name=sweep_name,
         train_tool_factory=train_factory,
-        eval_tool_factory=eval_factory,
+        simulations=eval_simulations,
     )
 
 
@@ -152,61 +95,7 @@ def sweep_hpo_quick(sweep_name: str, num_trials: int = 10) -> SweepTool:
         Configured SweepTool for PPO hyperparameter optimization
     """
     # Define parameters to optimize
-    protein_config = ProteinConfig(
-        metric="arena",  # Optimize for arena performance (this is the actual metric name in evaluator output)
-        goal="maximize",
-        method="bayes",
-        parameters={
-            "trainer": {
-                "optimizer": {
-                    "learning_rate": ParameterConfig(
-                        min=1e-5,
-                        max=1e-2,
-                        distribution="log_normal",
-                        mean=1e-3,  # Geometric mean
-                        scale="auto",
-                    ),
-                },
-                "ppo": {
-                    "clip_coef": ParameterConfig(
-                        min=0.05,
-                        max=0.3,
-                        distribution="uniform",
-                        mean=0.175,
-                        scale="auto",
-                    ),
-                    "ent_coef": ParameterConfig(
-                        min=0.0001,
-                        max=0.01,
-                        distribution="log_normal",
-                        mean=0.001,  # Geometric mean
-                        scale="auto",
-                    ),
-                    "gae_lambda": ParameterConfig(
-                        min=0.8,
-                        max=0.99,
-                        distribution="uniform",
-                        mean=0.895,
-                        scale="auto",
-                    ),
-                    "gamma": ParameterConfig(
-                        min=0.95,
-                        max=0.999,
-                        distribution="uniform",
-                        mean=0.9745,
-                        scale="auto",
-                    ),
-                    "vf_coef": ParameterConfig(
-                        min=0.1,
-                        max=1.0,
-                        distribution="uniform",
-                        mean=0.55,
-                        scale="auto",
-                    ),
-                },
-            }
-        },
-    )
+    protein_config = PPO_STANDARD_SWEEP
 
     # Create evaluation simulations for end-of-training
     # Run arena evaluations for 5 episodes
@@ -223,7 +112,7 @@ def sweep_hpo_quick(sweep_name: str, num_trials: int = 10) -> SweepTool:
         # Set the run name
         train_tool.run = run_name
         # Override to run for only 10,000 timesteps for quick testing
-        train_tool.trainer.total_timesteps = 100000
+        train_tool.trainer.total_timesteps = 10000
 
         # ENSURE LOCAL EVALUATIONS ONLY
         if train_tool.trainer.evaluation:
@@ -231,16 +120,6 @@ def sweep_hpo_quick(sweep_name: str, num_trials: int = 10) -> SweepTool:
             train_tool.trainer.evaluation.evaluate_local = True
 
         return train_tool
-
-    def eval_factory(policy_uri: str) -> SimTool:
-        sim_tool = default_arena_eval(
-            policy_uri=policy_uri, simulations=eval_simulations
-        )
-        # Ensure top policy selection
-        sim_tool.selector_type = "top"
-        # Ensure metrics are pushed to WandB
-        sim_tool.push_metrics_to_wandb = True
-        return sim_tool
 
     # Create sweep configuration
     sweep_config = SweepConfig(
@@ -252,5 +131,67 @@ def sweep_hpo_quick(sweep_name: str, num_trials: int = 10) -> SweepTool:
         sweep=sweep_config,
         sweep_name=sweep_name,
         train_tool_factory=train_factory,
-        eval_tool_factory=eval_factory,
+        simulations=eval_simulations,
     )
+
+
+# Protein Conf igs
+PPO_STANDARD_SWEEP = ProteinConfig(
+    metric="eval_arena",  # Optimize for arena performance (this is the actual metric name in evaluator output)
+    goal="maximize",
+    method="bayes",
+    parameters={
+        "trainer": {
+            "optimizer": {
+                "learning_rate": ParameterConfig(
+                    min=1e-5,
+                    max=1e-2,
+                    distribution="log_normal",
+                    mean=1e-3,  # Geometric mean
+                    scale="auto",
+                ),
+            },
+            "ppo": {
+                "clip_coef": ParameterConfig(
+                    min=0.05,
+                    max=0.3,
+                    distribution="uniform",
+                    mean=0.175,
+                    scale="auto",
+                ),
+                "ent_coef": ParameterConfig(
+                    min=0.0001,
+                    max=0.01,
+                    distribution="log_normal",
+                    mean=0.001,  # Geometric mean
+                    scale="auto",
+                ),
+                "gae_lambda": ParameterConfig(
+                    min=0.8,
+                    max=0.99,
+                    distribution="uniform",
+                    mean=0.895,
+                    scale="auto",
+                ),
+                "gamma": ParameterConfig(
+                    min=0.95,
+                    max=0.999,
+                    distribution="uniform",
+                    mean=0.9745,
+                    scale="auto",
+                ),
+                "vf_coef": ParameterConfig(
+                    min=0.1,
+                    max=1.0,
+                    distribution="uniform",
+                    mean=0.55,
+                    scale="auto",
+                ),
+            },
+        }
+    },
+    settings=ProteinSettings(
+        num_random_samples=30,  # More random samples for longer runs
+        max_suggestion_cost=3600,  # 1 hour max per trial
+    ),
+)

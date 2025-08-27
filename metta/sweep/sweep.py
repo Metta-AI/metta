@@ -63,21 +63,20 @@ def sweep(
         sweep_client.create_sweep(sweep_name, wandb_cfg.project, wandb_cfg.entity, sweep_name)
 
     # Initialize Protein optimizer and load previous observations
-    protein = MettaProtein(protein_config)
-    previous_observations = fetch_protein_observations_from_wandb(
-        wandb_entity=wandb_cfg.entity,
-        wandb_project=wandb_cfg.project,
-        sweep_name=sweep_name,
-        max_observations=max_observations_to_load,
-    )
-    logger.info(f"Loaded {len(previous_observations)} previous observations")
-    for obs in previous_observations:
-        protein.observe(obs["suggestion"], obs["objective"], obs["cost"], obs.get("is_failure", False))
-
     # Run trials
     for trial_idx in range(num_trials):
         record_heartbeat()
         logger.info(f"Starting trial {trial_idx + 1}/{num_trials}")
+        protein = MettaProtein(protein_config)
+        previous_observations = fetch_protein_observations_from_wandb(
+            wandb_entity=wandb_cfg.entity,
+            wandb_project=wandb_cfg.project,
+            sweep_name=sweep_name,
+            max_observations=max_observations_to_load,
+        )
+        logger.info(f"Loaded {len(previous_observations)} previous observations")
+        for obs in previous_observations:
+            protein.observe(obs["suggestion"], obs["objective"], obs["cost"], obs.get("is_failure", False))
 
         # Generate suggestion and get run name
         protein_suggestion, _ = protein.suggest()
@@ -136,9 +135,6 @@ def sweep(
                 cost_hours = (train_time + eval_time) / 3600.0
 
             logger.info(f"Trial {trial_idx + 1}: score={eval_score:.4f}, cost={cost_hours:.4f}h")
-
-            # Record observation to Protein optimizer
-            protein.observe(protein_suggestion, objective=eval_score, cost=cost_hours, is_failure=False)
 
             # Record to wandb for sweep tracking
             wandb_run.config.update(

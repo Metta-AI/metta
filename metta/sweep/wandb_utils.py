@@ -64,21 +64,24 @@ def fetch_protein_observations_from_wandb(
     api = wandb.Api()
     wandb_path = f"{wandb_entity}/{wandb_project}"
 
-    # Use the API's native filtering and ordering
-    # Order by created_at descending (newest first) and limit results
+    # Get runs from this sweep group
     runs = api.runs(
         path=wandb_path,
         filters={
-            "group": sweep_name,  # Filter by group instead of sweep
-            "state": {"$in": ["finished", "failed"]},  # Only get completed runs
-            "summary_metrics.protein_observation": {"$exists": True},  # Only runs with observations
+            "group": sweep_name,  # Filter by group
+            "state": {"$in": ["finished", "failed"]},  # Only completed runs
         },
-        order="-created_at",  # Descending order (newest first)
-        per_page=max_observations,  # Limit the number of results
+        order="-created_at",  # Newest first
     )
 
-    # Iterate through runs (already filtered and limited)
-    return [deep_clean(run.summary.get("protein_observation")) for run in runs]  # type: ignore
+    # Extract protein observations from runs
+    observations = []
+    for run in runs[:max_observations]:  # Limit to max_observations
+        protein_obs = run.summary.get("protein_observation")
+        if protein_obs is not None:
+            observations.append(deep_clean(protein_obs))
+
+    return observations
 
 
 def record_protein_observation_to_wandb(
