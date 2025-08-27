@@ -6,11 +6,7 @@ from experiments.notebooks.utils.metrics import get_run
 
 
 def show_replay(
-    run_name: str,
-    step: str | int = "last",
-    width: int = 1000,
-    height: int = 600,
-    autoplay: bool = False,
+    run_name: str, step: str | int = "last", width: int = 1000, height: int = 600
 ) -> None:
     run = get_run(run_name)
     if run is None:
@@ -36,16 +32,9 @@ def show_replay(
                 f"Note: Requested step {target_step}, showing closest available step {selected['step']}"
             )
 
-    url = selected["url"]
-    separator = "&" if "?" in url else "?"
-    if autoplay:
-        url = f"{url}{separator}play=true"
-    else:
-        url = f"{url}{separator}play=false"
-
     print(f"Loading MettaScope viewer for {run_name} at step {selected['step']:,}...")
-    print(f"\nDirect link: {url}")
-    display(IFrame(src=url, width=width, height=height))
+    print(f"\nDirect link: {selected['url']}")
+    display(IFrame(src=selected["url"], width=width, height=height))
 
 
 def get_available_replays(run_name: str) -> list[dict]:

@@ -1,7 +1,6 @@
 # Scorecard Widget
 
-A Jupyter widget for displaying interactive policy evaluation scorecards. This widget integrates with the Metta
-ecosystem to visualize training results and policy performance across different evaluations.
+A Jupyter widget for displaying interactive policy evaluation scorecards. This widget integrates with the Metta ecosystem to visualize training results and policy performance across different evaluations.
 
 ## Features
 
@@ -27,15 +26,14 @@ This command will automatically build the JavaScript components and install the 
 ### Manual Installation
 
 1. Install the Python package:
-
    ```bash
    pip install -e .
    ```
 
 2. Build the JavaScript components:
    ```bash
-   pnpm install
-   pnpm run build
+   npm install
+   npm run build
    ```
 
 ## Development
@@ -44,18 +42,16 @@ This command will automatically build the JavaScript components and install the 
 
 For active development, you can use the development mode which provides hot-reloading:
 
-1. **Enable Development Mode**: Edit `scorecard_widget/ScorecardWidget.py` and set:
-
+1. **Enable Development Mode**:
+   Edit `scorecard_widget/ScorecardWidget.py` and set:
    ```python
    _DEV = True
    ```
 
 2. **Start the Development Server**:
-
    ```bash
-   pnpm run dev
+   npm run dev
    ```
-
    This starts the Vite development server on `http://localhost:5174`
 
 3. **Develop with Hot Reload**:
@@ -68,13 +64,12 @@ For active development, you can use the development mode which provides hot-relo
 For production use or when you're done developing:
 
 1. **Build the Production Assets**:
-
    ```bash
-   pnpm run build
+   npm run build
    ```
 
-2. **Disable Development Mode**: Edit `scorecard_widget/ScorecardWidget.py` and set:
-
+2. **Disable Development Mode**:
+   Edit `scorecard_widget/ScorecardWidget.py` and set:
    ```python
    _DEV = False
    ```
@@ -135,7 +130,7 @@ widget.on_replay_opened(on_replay_opened)
 
 1. **Start Development**:
    - Set `_DEV = True` in `ScorecardWidget.py`
-   - Run `pnpm run dev`
+   - Run `npm run dev`
    - Start Jupyter and create/modify widgets
 
 2. **Test Changes**:
@@ -145,36 +140,34 @@ widget.on_replay_opened(on_replay_opened)
 
 3. **Build for Production**:
    - Set `_DEV = False` in `ScorecardWidget.py`
-   - Run `pnpm run build`
+   - Run `npm run build`
    - Test the built version
 
 4. **Deploy**:
    - Commit your changes
    - Users can install with `metta install scorecardwidget`
 
+
 ## Important Notes
 
 - **Always remember to toggle `_DEV` mode**: Set to `True` for development, `False` for production
-- **Development server must be running**: When `_DEV = True`, ensure `pnpm run dev` is running
-- **Build before distribution**: Run `pnpm run build` before setting `_DEV = False`
+- **Development server must be running**: When `_DEV = True`, ensure `npm run dev` is running
+- **Build before distribution**: Run `npm run build` before setting `_DEV = False`
 - **Installation builds automatically**: `metta install scorecardwidget` handles the build process
 
 ## Troubleshooting
 
 ### Widget Not Loading
-
 - Check if `_DEV` mode matches your setup (dev server running vs. built assets)
 - Verify the development server is running on port 5174 when `_DEV = True`
 - Check browser console for JavaScript errors
 
 ### Development Server Issues
-
 - Ensure port 5174 is available
-- Check that `pnpm install` completed successfully
+- Check that `npm install` completed successfully
 - Verify Vite configuration in `vite.config.js`
 
 ### Build Issues
-
-- Run `pnpm install` to ensure dependencies are installed
+- Run `npm install` to ensure dependencies are installed
 - Check for TypeScript compilation errors during build
 - Verify the built `index.js` file exists in `scorecard_widget/static/`

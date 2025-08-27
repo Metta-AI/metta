@@ -1,8 +1,6 @@
 # Policy Selector Widget
 
-A marimo-compatible anywidget for selecting policies from the Metta AI system. This widget provides an interactive
-interface for discovering, filtering, and selecting multiple policies with features like search, type filtering, tag
-filtering, and multiselect functionality.
+A marimo-compatible anywidget for selecting policies from the Metta AI system. This widget provides an interactive interface for discovering, filtering, and selecting multiple policies with features like search, type filtering, tag filtering, and multiselect functionality.
 
 ## Features
 
@@ -100,8 +98,7 @@ policy_widget.on_filter_changed(on_filter_change)
 
 ## Example
 
-See `experiments/marimo/policy-selector-example.py` for a complete working example that demonstrates all features of the
-widget.
+See `experiments/marimo/policy-selector-example.py` for a complete working example that demonstrates all features of the widget.
 
 ## API Reference
 
