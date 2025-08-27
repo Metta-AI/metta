@@ -84,7 +84,6 @@ class Kickstarter:
                     self.metta_grid_env.action_names,
                     self.metta_grid_env.max_action_args,
                     self.device,
-                    is_training=True,
                 )
             teacher = KickstartTeacher(
                 policy=policy,
