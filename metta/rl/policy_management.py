@@ -12,23 +12,6 @@ from metta.mettagrid.mettagrid_env import MettaGridEnv
 logger = logging.getLogger(__name__)
 
 
-def initialize_policy_for_environment(
-    policy_record: PolicyRecord,
-    metta_grid_env: MettaGridEnv,
-    device: torch.device,
-    restore_feature_mapping: bool = True,
-) -> None:
-    policy = policy_record.policy
-
-    # Restore original_feature_mapping from metadata if available
-    if restore_feature_mapping and hasattr(policy, "restore_original_feature_mapping"):
-        if "original_feature_mapping" in policy_record.metadata:
-            policy.restore_original_feature_mapping(policy_record.metadata["original_feature_mapping"])
-            logger.info("Restored original_feature_mapping")
-
-    # Initialize policy to environment
-    features = metta_grid_env.get_observation_features()
-    policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
 
 def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:

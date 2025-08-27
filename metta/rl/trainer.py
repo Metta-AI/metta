@@ -34,10 +34,7 @@ from metta.rl.losses import Losses, get_loss_experience_spec, process_minibatch_
 from metta.rl.optimization import (
     compute_gradient_stats,
 )
-from metta.rl.policy_management import (
-    initialize_policy_for_environment,
-    wrap_agent_distributed,
-)
+from metta.rl.policy_management import wrap_agent_distributed
 from metta.rl.rollout import get_observation, send_observation
 from metta.rl.stats import (
     StatsTracker,
@@ -194,12 +191,15 @@ def train(
 
     # Initialize policy to environment after distributed wrapping
     # This must happen after wrapping to ensure all ranks do it at the same time
-    initialize_policy_for_environment(
-        policy_record=latest_saved_policy_record,
-        metta_grid_env=metta_grid_env,
-        device=device,
-        restore_feature_mapping=True,
-    )
+    policy = latest_saved_policy_record.policy
+    # Restore original_feature_mapping from metadata if available
+    if hasattr(policy, "restore_original_feature_mapping"):
+        if "original_feature_mapping" in latest_saved_policy_record.metadata:
+            policy.restore_original_feature_mapping(latest_saved_policy_record.metadata["original_feature_mapping"])
+            logger.info("Restored original_feature_mapping")
+    # Initialize policy to environment
+    features = metta_grid_env.get_observation_features()
+    policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, device)
 
     # Create kickstarter
     kickstarter = Kickstarter(

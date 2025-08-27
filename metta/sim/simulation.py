@@ -28,7 +28,6 @@ from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
 from metta.mettagrid.stats_writer import StatsWriter
-from metta.rl.policy_management import initialize_policy_for_environment
 from metta.rl.vecenv import make_vecenv
 from metta.sim.simulation_config import SimulationConfig
 from metta.sim.simulation_stats_db import SimulationStatsDB
@@ -130,22 +129,28 @@ class Simulation:
         metta_grid_env: MettaGridEnv = getattr(driver_env, "_env", driver_env)
         assert isinstance(metta_grid_env, MettaGridEnv), f"Expected MettaGridEnv, got {type(metta_grid_env)}"
 
+        # Initialize policy to environment  
+        policy = self._policy_pr.policy
+        # Restore original_feature_mapping from metadata if available
+        if hasattr(policy, "restore_original_feature_mapping"):
+            if "original_feature_mapping" in self._policy_pr.metadata:
+                policy.restore_original_feature_mapping(self._policy_pr.metadata["original_feature_mapping"])
+                logger.info("Restored original_feature_mapping")
         # Initialize policy to environment
-        initialize_policy_for_environment(
-            policy_record=self._policy_pr,
-            metta_grid_env=metta_grid_env,
-            device=self._device,
-            restore_feature_mapping=True,
-        )
+        features = metta_grid_env.get_observation_features()
+        policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device)
 
         if self._npc_pr is not None:
             # Initialize NPC policy to environment
-            initialize_policy_for_environment(
-                policy_record=self._npc_pr,
-                metta_grid_env=metta_grid_env,
-                device=self._device,
-                restore_feature_mapping=True,
-            )
+            npc_policy = self._npc_pr.policy
+            # Restore original_feature_mapping from metadata if available
+            if hasattr(npc_policy, "restore_original_feature_mapping"):
+                if "original_feature_mapping" in self._npc_pr.metadata:
+                    npc_policy.restore_original_feature_mapping(self._npc_pr.metadata["original_feature_mapping"])
+                    logger.info("Restored original_feature_mapping for NPC")
+            # Initialize NPC policy to environment
+            features = metta_grid_env.get_observation_features()
+            npc_policy.initialize_to_environment(features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device)
 
         # ---------------- agent-index bookkeeping ---------------------- #
         idx_matrix = torch.arange(metta_grid_env.num_agents * self._num_envs, device=self._device).reshape(
