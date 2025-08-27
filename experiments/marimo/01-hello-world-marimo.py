@@ -1,7 +1,7 @@
 import marimo
 
 __generated_with = "0.14.17"
-app = marimo.App(width="medium", app_title="Hello metta-ai")
+app = marimo.App(width="full", app_title="Hello metta-ai")
 
 
 @app.cell
@@ -91,7 +91,11 @@ def _():
         EvaluationConfig,
     )
 
-    from metta.cogworks.curriculum import env_curriculum
+    from metta.cogworks.curriculum import (
+        env_curriculum,
+        SingleTaskGeneratorConfig,
+        CurriculumConfig,
+    )
 
     # Define a minimal HTML widget using anywidget so we can drop ipywidgets
     class HTMLWidget(anywidget.AnyWidget):
@@ -127,9 +131,13 @@ def _():
 
     # Policy implementations (replacing the deprecated tools/renderer.py)
     from metta.common.config import Config
-    from metta.mettagrid.util.actions import generate_valid_random_actions
+    from metta.mettagrid.test_support.actions import generate_valid_random_actions
     from typing import Protocol, List
     import numpy as np
+
+    import multiprocessing
+
+    from metta.sim.simulation_config import SimulationConfig
 
     class RendererToolConfig(Config):
         policy_type: str = "random"
@@ -256,9 +264,7 @@ def _():
             # Otherwise, wander randomly
             return generate_valid_random_actions(self.env, self.num_agents)
 
-    def get_policy(
-        policy_type: str, env: MettaGridEnv, cfg: RendererToolConfig
-    ) -> Policy:
+    def get_policy(policy_type: str, env: MettaGridEnv) -> Policy:
         """Get a policy based on the specified type."""
         if policy_type == "random":
             return RandomPolicy(env)
@@ -267,11 +273,76 @@ def _():
         else:
             raise Exception("Unknown policy type")
 
+    import signal
+    import sys
+    from contextlib import contextmanager
+    import wandb
+
+    @contextmanager
+    def cancellable_context():
+        """Base context manager for clean cancellation with signal handling"""
+        original_handler = signal.signal(signal.SIGINT, signal.default_int_handler)
+        try:
+            yield
+        except KeyboardInterrupt:
+            print("Operation interrupted by user")
+            sys.exit(0)
+        finally:
+            # Always restore the original signal handler
+            signal.signal(signal.SIGINT, original_handler)
+
+    @contextmanager
+    def training_context():
+        """Context manager for training with cleanup of ML resources"""
+        with cancellable_context():
+            try:
+                yield
+            except KeyboardInterrupt:
+                print("Training interrupted, cleaning up ML resources...")
+                # Cleanup training-specific resources
+                try:
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                        print("✓ GPU memory cleared")
+                except Exception as e:
+                    print(f"⚠️ GPU cleanup failed: {e}")
+
+                try:
+                    if wandb.run is not None:
+                        wandb.finish()
+                        print("✓ W&B run finished")
+                except Exception as e:
+                    print(f"⚠️ W&B cleanup failed: {e}")
+
+                print("Training cleanup completed")
+                raise  # Re-raise to let cancellable_context handle the exit
+
+    @contextmanager
+    def simulation_context(env: MettaGridEnv):
+        """Context manager for simulation with cleanup of environment resources"""
+        with cancellable_context():
+            try:
+                yield
+            except KeyboardInterrupt:
+                print("Simulation interrupted, cleaning up environment resources...")
+                # Cleanup simulation-specific resources
+                try:
+                    # Environment cleanup would go here
+                    # e.g., env.close(), release file handles, etc.
+                    env.close()
+                    print("✓ Environment resources cleaned")
+                except Exception as e:
+                    print(f"⚠️ Environment cleanup failed: {e}")
+
+                print("Simulation cleanup completed")
+                raise  # Re-raise to let cancellable_context handle the exit
+
     print("Setup done")
     return (
         CheckpointConfig,
         EvaluationConfig,
         MettaGridEnv,
+        OpportunisticPolicy,
         Path,
         PolicyStore,
         RendererToolConfig,
@@ -283,18 +354,20 @@ def _():
         datetime,
         display,
         env_curriculum,
-        get_policy,
         initialize_policy_for_environment,
         io,
         logging,
         mo,
+        multiprocessing,
         np,
         os,
         pd,
-        replay_available,
         show_replay,
+        simulation_context,
         time,
         torch,
+        training_context,
+        wandb,
         widgets,
     )
 
@@ -379,11 +452,12 @@ def _(RendererToolConfig):
     env_config.game.obs_height = 11
 
     # Enable basic movement and item collection - disable combat
-    env_config.game.actions.move_cardinal.enabled = True
+    print(env_config.game.actions)
+    env_config.game.actions.move.enabled = True
     env_config.game.actions.rotate.enabled = True
     env_config.game.actions.noop.enabled = True
-    env_config.game.actions.move_8way.enabled = False
-    env_config.game.actions.move.enabled = False
+    env_config.game.actions.get_items.enabled = True
+    env_config.game.actions.put_items.enabled = False
     env_config.game.actions.change_color.enabled = False
     env_config.game.actions.change_glyph.enabled = False
     env_config.game.actions.swap.enabled = False
@@ -400,11 +474,11 @@ def _(RendererToolConfig):
     )
 
     # Set initial resource counts for immediate availability
-    for obj_name in ["mine_red", "generator_red"]:
-        if obj_name in env_config.game.objects:
-            obj_copy = env_config.game.objects[obj_name].model_copy(deep=True)
-            obj_copy.initial_resource_count = 10
-            env_config.game.objects[obj_name] = obj_copy
+    # for obj_name in ["mine_red", "generator_red"]:
+    #    if obj_name in env_config.game.objects:
+    #        obj_copy = env_config.game.objects[obj_name].model_copy(deep=True)
+    #        obj_copy.initial_resource_count = 10
+    #        env_config.game.objects[obj_name] = obj_copy
 
     # Create a proper RendererToolConfig for policy creation
     renderer_config = RendererToolConfig(
@@ -469,14 +543,15 @@ def _(mo):
 @app.cell
 def _(
     MettaGridEnv,
+    OpportunisticPolicy,
     contextlib,
     display,
     env_config,
-    get_policy,
     io,
     mo,
     observe_button,
     renderer_config,
+    simulation_context,
     time,
     widgets,
 ):
@@ -485,32 +560,34 @@ def _(
     def _():
         # Create environment with proper EnvConfig
         env = MettaGridEnv(env_config, render_mode="human")
-        policy = get_policy(renderer_config.policy_type, env, renderer_config)
+        policy = OpportunisticPolicy(env)
 
         header = widgets.HTML()
         map_box = widgets.HTML()
         display(header, map_box)
         _obs, info = env.reset()
 
-        # steps = renderer_config.num_steps
-        steps = renderer_config.num_steps
-        for _step in range(steps):
-            _actions = policy.predict(_obs)
-            _obs, rewards, terminals, truncations, info = env.step(_actions)
-            _agent_obj = next(
-                (o for o in env.grid_objects.values() if o.get("agent_id") == 0)
-            )
-            _inv = {
-                env.inventory_item_names[idx]: count
-                for idx, count in _agent_obj.get("inventory", {}).items()
-            }
-            header.value = f"<b>Step:</b> {_step + 1}/{steps} <br/> <b>Inventory:</b> {_inv.get('ore_red', 0)}"
-            with contextlib.redirect_stdout(io.StringIO()) as buffer:
-                buffer_str = env.render()
-            map_box.value = f"<pre>{buffer_str}</pre>"
-            if renderer_config.sleep_time:
-                time.sleep(renderer_config.sleep_time)
-        env.close()
+        with simulation_context(env):
+            # steps = renderer_config.num_steps
+            steps = renderer_config.num_steps
+            for _step in range(steps):
+                _actions = policy.predict(_obs)
+                _obs, rewards, terminals, truncations, info = env.step(_actions)
+                _agent_obj = next(
+                    (o for o in env.grid_objects.values() if o.get("agent_id") == 0)
+                )
+                _inv = {
+                    env.inventory_item_names[idx]: count
+                    for idx, count in _agent_obj.get("inventory", {}).items()
+                }
+                header.value = f"<b>Step:</b> {_step + 1}/{steps} <br/> <b>Inventory:</b> {_inv.get('ore_red', 0)}"
+                with contextlib.redirect_stdout(io.StringIO()) as buffer:
+                    buffer_str = env.render()
+                map_box.value = f"<pre>{buffer_str}</pre>"
+                if renderer_config.sleep_time:
+                    time.sleep(renderer_config.sleep_time)
+
+            env.close()
 
     _()
     return
@@ -593,11 +670,11 @@ def _(mo):
 @app.cell
 def _(
     MettaGridEnv,
+    OpportunisticPolicy,
     contextlib,
     display,
     env_config,
     eval_button,
-    get_policy,
     io,
     mo,
     np,
@@ -612,7 +689,7 @@ def _(
     with contextlib.redirect_stdout(io.StringIO()):
         # Create evaluation environment with our simple config
         eval_env = MettaGridEnv(env_config, render_mode="human")
-        eval_policy = get_policy(renderer_config.policy_type, eval_env, renderer_config)
+        eval_policy = OpportunisticPolicy(eval_env)
 
     for ep in range(1, EVAL_EPISODES + 1):
         _obs, _ = eval_env.reset()
@@ -705,31 +782,29 @@ def _(
     env_curriculum,
     logging,
     mo,
+    multiprocessing,
     os,
     train_button,
+    training_context,
 ):
     username = os.environ.get("USER", "metta_user")
 
-    # Unique run name (so multiple notebook runs don't collide)
-    run_name = (
-        f"{username}.hello_world_train.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    )
-
-    print(f"🚀 Starting training run: {run_name}")
-
     def train_agent():
-        # Create a simple curriculum with our hallway environment
-        curriculum = env_curriculum(env_config)
+        # Unique run name (so multiple notebook runs don't collide)
+        run_name = (
+            f"{username}.hello_world_train.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        )
+        print(f"🚀 Starting training run: {run_name}")
 
         # Create trainer configuration with Mac-optimized settings
         # Batch sizes optimized for Mac CPU/Metal - larger than demo but reasonable for local machine
         trainer_config = TrainerConfig(
-            curriculum=curriculum,
-            total_timesteps=2000000,  # Small demo run
+            curriculum=env_curriculum(env_config),
+            total_timesteps=2500000,  # Small demo run
             # total_timesteps=1000,  # DEBUG run
             batch_size=65536,  # Increased from 256, reduced from default 524288 for Mac
             minibatch_size=512,  # Increased from 256, reduced from default 16384 for Mac
-            rollout_workers=14,  # Single worker for Mac
+            rollout_workers=multiprocessing.cpu_count(),  # N-core workers worker for Mac
             forward_pass_minibatch_target_size=512,  # Increased from 2 - better GPU utilization
             # Adjusted learning rate for smaller batch size (scaled down from default 0.000457)
             # Using sqrt(2048/524288) ≈ 0.0625 scaling factor
@@ -763,16 +838,21 @@ def _(
 
         try:
             print("🏋️ Training started...")
-            result = train_tool.invoke()  # Use invoke() method instead of run()
-            print(f"✅ Training completed successfully! Result: {result}")
+            with training_context():
+                result = train_tool.invoke(
+                    args={}, overrides={}
+                )  # Use invoke() method instead of run()
+                print(f"✅ Training completed successfully! Result: {result}")
+            return run_name
         except Exception as e:
             print(f"❌ Training failed: {e}")
             import traceback
 
             traceback.print_exc()
 
+    # temporary "True or" to allow Claude Code to run training without needing to click the button.
     mo.stop(not train_button.value)
-    train_agent()
+    run_name = train_agent()
     return run_name, username
 
 
@@ -833,11 +913,12 @@ def _(
     pd,
     renderer_config,
     run_name,
+    simulation_context,
     time,
     torch,
     widgets,
 ):
-    # Load trained policy using repo's PolicyStore approach (like tools/sim.py)
+    # a Load trained policy using repo's PolicyStore approach (like tools/sim.py)
     mo.stop(not eval_trained_button.value or not run_name)
 
     def evaluate_agent():
@@ -895,27 +976,54 @@ def _(
 
         print(f"🎯 Running {EVAL_EPISODES} episodes with animated evaluation...")
 
-        for ep in range(1, EVAL_EPISODES + 1):
-            header.value = (
-                f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Evaluating trained agent..."
-            )
+        with simulation_context(eval_env):
+            for ep in range(1, EVAL_EPISODES + 1):
+                header.value = (
+                    f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Evaluating trained agent..."
+                )
 
-            _obs, _ = eval_env.reset()
-            # Convert obs to tensor format for policy
-            obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
-
-            steps = 1000
-            for _step in range(steps):  # Same number of steps as opportunistic
-                # Use TensorDict format for trained policy (same as simulation.py:272-275)
-
-                td = TensorDict({"env_obs": obs_tensor}, batch_size=obs_tensor.shape[0])
-                trained_policy(td)
-                _actions = td["actions"].cpu().numpy()
-
-                _obs, _, _, _, _ = eval_env.step(_actions)
+                _obs, _ = eval_env.reset()
+                # Convert obs to tensor format for policy
                 obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
 
-                # Update display every few steps to show animation
+                steps = 1000
+                for _step in range(steps):  # Same number of steps as opportunistic
+                    # Use TensorDict format for trained policy (same as simulation.py:272-275)
+
+                    td = TensorDict(
+                        {"env_obs": obs_tensor}, batch_size=obs_tensor.shape[0]
+                    )
+                    trained_policy(td)
+                    _actions = td["actions"].cpu().numpy()
+
+                    _obs, _, _, _, _ = eval_env.step(_actions)
+                    obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
+
+                    # Update display every few steps to show animation
+                    _agent_obj = next(
+                        (
+                            o
+                            for o in eval_env.grid_objects.values()
+                            if o.get("agent_id") == 0
+                        )
+                    )
+                    _inv = {
+                        eval_env.inventory_item_names[idx]: cnt
+                        for idx, cnt in _agent_obj.get("inventory", {}).items()
+                    }
+                    header.value = (
+                        f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/{steps} - "
+                        f"<br />"
+                        f"<b>Ore collected:</b> {_inv.get('ore_red', 0)}"
+                    )
+                    with contextlib.redirect_stdout(io.StringIO()) as buffer:
+                        buffer_str = eval_env.render()
+                    map_box.value = f"<pre>{buffer_str}</pre>"
+                    time.sleep(
+                        renderer_config.sleep_time / 10
+                    )  # Small delay for animation
+
+                # Final inventory count for this episode
                 _agent_obj = next(
                     (
                         o
@@ -927,28 +1035,10 @@ def _(
                     eval_env.inventory_item_names[idx]: cnt
                     for idx, cnt in _agent_obj.get("inventory", {}).items()
                 }
-                header.value = (
-                    f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/{steps} - "
-                    f"<br />"
-                    f"<b>Ore collected:</b> {_inv.get('ore_red', 0)}"
-                )
-                with contextlib.redirect_stdout(io.StringIO()) as buffer:
-                    buffer_str = eval_env.render()
-                map_box.value = f"<pre>{buffer_str}</pre>"
-                time.sleep(renderer_config.sleep_time)  # Small delay for animation
+                inv_count = int(_inv.get("ore_red", 0))
+                trained_scores.append(inv_count)
 
-            # Final inventory count for this episode
-            _agent_obj = next(
-                (o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0)
-            )
-            _inv = {
-                eval_env.inventory_item_names[idx]: cnt
-                for idx, cnt in _agent_obj.get("inventory", {}).items()
-            }
-            inv_count = int(_inv.get("ore_red", 0))
-            trained_scores.append(inv_count)
-
-        eval_env.close()
+            eval_env.close()
 
         # Calculate and display results
         mean_score = np.mean(trained_scores)
@@ -1010,45 +1100,28 @@ def _(mo):
     return
 
 
-@app.cell(hide_code=True)
-def _(mo):
-    replay_button = mo.ui.run_button(label="Click to view MettaScope replay")
-    replay_button
-    return (replay_button,)
-
-
 @app.cell
-def _(mo, replay_available, replay_button, run_name, show_replay):
-    mo.stop(not replay_button.value or not run_name)
+def _(mo, run_name, show_replay):
+    mo.stop(not run_name)
 
-    if not replay_available:
-        print("❌ MettaScope replay viewer is not available")
-        print("Make sure you're running from the experiments/marimo directory")
-    else:
-        print(f"🎬 Loading MettaScope replay for training run: {run_name}")
-        print("This will display an interactive visualization of the trained agent...")
-
-        try:
-            # Show the latest replay from the training run
-            show_replay(run_name, step="last", width=950, height=400, autoplay=True)
-        except Exception as e:
-            print(f"❌ Error loading replay: {e}")
-            print("This could mean:")
-            print("- Training hasn't generated replays yet (evaluation incomplete)")
-            print("- Run not found in W&B (check run name)")
-            print("- Network connectivity issues")
-            print(
-                f"\nReplays are stored on S3 at: s3://softmax-public/replays/{run_name}/"
-            )
+    try:
+        # Show the latest replay from the training run
+        show_replay(run_name, step="last", width=1250, height=500, autoplay=True)
+    except Exception as e:
+        print(f"❌ Error loading replay: {e}")
+        print("This could mean:")
+        print("- Training hasn't generated replays yet (evaluation incomplete)")
+        print("- Run not found in W&B (check run name)")
+        print("- Network connectivity issues")
+        print(f"\nReplays are stored on S3 at: s3://softmax-public/replays/{run_name}/")
     return
 
 
 @app.cell
-def _(mo, run_name, traceback):
-    import wandb
+def _(mo, wandb):
     import IPython
 
-    def _display_by_wandb_path(path: str, *, height: int) -> None:
+    def display_by_wandb_path(path: str, *, height: int) -> None:
         """Display a wandb object (usually in an iframe) given its URI.
 
         Args:
@@ -1062,12 +1135,20 @@ def _(mo, run_name, traceback):
 
             return mo.md(obj.to_html(height=height))
         except wandb.Error:
+            import traceback
+
             traceback.print_exc()
             return mo.md(
                 f"Path {path!r} does not refer to a W&B object you can access."
             )
 
-    _display_by_wandb_path(f"metta-research/metta/runs/{run_name}", height=580)
+    return (display_by_wandb_path,)
+
+
+@app.cell
+def _(display_by_wandb_path, mo, run_name):
+    mo.stop(not run_name)
+    display_by_wandb_path(f"metta-research/metta/{run_name}", height=580)
     return
 
 
@@ -1077,9 +1158,13 @@ def _(mo):
         r"""
     # Let's run a new example with a new map
 
-        ###########  
-        #R...@...m#  
-        ###########
+    This time we have a mine (m) on the right to dispense red ore and a red converter (R) on the left to turn the ore into batteries.
+
+    ```text
+    ###########  
+    #R...@...m#  
+    ###########
+    ```
     """
     )
     return
@@ -1113,11 +1198,11 @@ def _(
     env_config2.game.obs_height = 11
 
     # Enable basic movement and item collection - disable combat
-    env_config2.game.actions.move_cardinal.enabled = True
+    env_config2.game.actions.move.enabled = True
     env_config2.game.actions.rotate.enabled = True
     env_config2.game.actions.noop.enabled = True
-    env_config2.game.actions.move_8way.enabled = False
     env_config2.game.actions.attack.enabled = False
+    env_config2.game.actions.get_items.enabled = True
     env_config2.game.actions.put_items.enabled = True
     env_config2.game.actions.change_color.enabled = False
     env_config2.game.actions.change_glyph.enabled = False
@@ -1127,8 +1212,8 @@ def _(
     # Ensure ore collection gives rewards
     env_config2.game.agent.rewards = AgentRewards(
         inventory=InventoryRewards(
-            ore_red=1.0,
-            battery_red=1.0,
+            ore_red=0.1,
+            battery_red=0.8,
         ),
     )
 
@@ -1151,14 +1236,15 @@ def _(mo):
 @app.cell
 def _(
     MettaGridEnv,
+    OpportunisticPolicy,
     contextlib,
     display,
     env_config2,
-    get_policy,
     io,
     mo,
     observe_button2,
     renderer_config2,
+    simulation_context,
     time,
     widgets,
 ):
@@ -1167,36 +1253,37 @@ def _(
     def observe_agent2():
         # Create environment with proper EnvConfig
         env = MettaGridEnv(env_config2, render_mode="human")
-        policy = get_policy(renderer_config2.policy_type, env, renderer_config2)
+        policy = OpportunisticPolicy(env)
 
         header = widgets.HTML()
         map_box = widgets.HTML()
         display(header, map_box)
         _obs, info = env.reset()
 
-        # steps = renderer_config.num_steps
-        steps = renderer_config2.num_steps
-        for _step in range(steps):
-            _actions = policy.predict(_obs)
-            _obs, rewards, terminals, truncations, info = env.step(_actions)
-            _agent_obj = next(
-                (o for o in env.grid_objects.values() if o.get("agent_id") == 0)
-            )
-            _inv = {
-                env.inventory_item_names[idx]: count
-                for idx, count in _agent_obj.get("inventory", {}).items()
-            }
-            header.value = "<br />".join(
-                [
-                    f"<b>Step:</b> {_step + 1}/{steps}",
-                    f"<b>Inventory:</b> ore={_inv.get('ore_red', 0)} batteries={_inv.get('battery_red', 0)}",
-                ]
-            )
-            with contextlib.redirect_stdout(io.StringIO()):
-                buffer_str = env.render()
-            map_box.value = f"<pre>{buffer_str}</pre>"
-            time.sleep(renderer_config2.sleep_time)
-        env.close()
+        with simulation_context(env):
+            # steps = renderer_config.num_steps
+            steps = renderer_config2.num_steps
+            for _step in range(steps):
+                _actions = policy.predict(_obs)
+                _obs, rewards, terminals, truncations, info = env.step(_actions)
+                _agent_obj = next(
+                    (o for o in env.grid_objects.values() if o.get("agent_id") == 0)
+                )
+                _inv = {
+                    env.inventory_item_names[idx]: count
+                    for idx, count in _agent_obj.get("inventory", {}).items()
+                }
+                header.value = "<br />".join(
+                    [
+                        f"<b>Step:</b> {_step + 1}/{steps}",
+                        f"<b>Inventory:</b> ore={_inv.get('ore_red', 0)} batteries={_inv.get('battery_red', 0)}",
+                    ]
+                )
+                with contextlib.redirect_stdout(io.StringIO()):
+                    buffer_str = env.render()
+                map_box.value = f"<pre>{buffer_str}</pre>"
+                time.sleep(renderer_config2.sleep_time)
+            env.close()
 
     observe_agent2()
     return
@@ -1220,7 +1307,9 @@ def _(
     env_curriculum,
     logging,
     mo,
+    multiprocessing,
     train_button2,
+    training_context,
     username,
 ):
     mo.stop(not train_button2.value)
@@ -1239,13 +1328,11 @@ def _(
             # total_timesteps=1000,  # DEBUG run
             batch_size=65536,  # Increased from 256, reduced from default 524288 for Mac
             minibatch_size=512,  # Increased from 256, reduced from default 16384 for Mac
-            rollout_workers=14,  # Single worker for Mac
+            rollout_workers=multiprocessing.cpu_count(),  # N-core workers worker for Mac
             forward_pass_minibatch_target_size=512,  # Increased from 2 - better GPU utilization
             # Adjusted learning rate for smaller batch size (scaled down from default 0.000457)
             # Using sqrt(4096/524288) ≈ 0.088 scaling factor
-            optimizer={
-                "learning_rate": 0.00004
-            },  # Reduced from default for smaller batch
+            # optimizer={"learning_rate": 0.00004},  # Reduced from default for smaller batch
             checkpoint=CheckpointConfig(
                 checkpoint_interval=10,  # Checkpoint every n epochs
                 wandb_checkpoint_interval=10,
@@ -1273,8 +1360,11 @@ def _(
 
         try:
             print("🏋️ Training started...")
-            result = train_tool.invoke()  # Use invoke() method instead of run()
-            print(f"✅ Training completed successfully! Result: {result}")
+            with training_context():
+                result = train_tool.invoke(
+                    args={}, overrides=[]
+                )  # Use invoke() method instead of run()
+                print(f"✅ Training completed successfully! Result: {result}")
         except Exception as e:
             print(f"❌ Training failed: {e}")
             import traceback
@@ -1313,6 +1403,7 @@ def _(
     pd,
     renderer_config2,
     run_name2,
+    simulation_context,
     time,
     torch,
     widgets,
@@ -1373,28 +1464,54 @@ def _(
         map_box = widgets.HTML()
         display(header, map_box)
 
-        print(f"🎯 Running {EVAL_EPISODES} episodes with animated evaluation...")
+        with simulation_context(eval_env):
+            print(f"🎯 Running {EVAL_EPISODES} episodes with animated evaluation...")
+            for ep in range(1, EVAL_EPISODES + 1):
+                header.value = (
+                    f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Evaluating trained agent..."
+                )
 
-        for ep in range(1, EVAL_EPISODES + 1):
-            header.value = (
-                f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Evaluating trained agent..."
-            )
-
-            _obs, _ = eval_env.reset()
-            # Convert obs to tensor format for policy
-            obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
-
-            steps = 1000
-            for _step in range(steps):  # Same number of steps as opportunistic
-                # Use TensorDict format for trained policy (same as simulation.py:272-275)
-                td = TensorDict({"env_obs": obs_tensor}, batch_size=obs_tensor.shape[0])
-                trained_policy(td)
-                _actions = td["actions"].cpu().numpy()
-
-                _obs, _, _, _, _ = eval_env.step(_actions)
+                _obs, _ = eval_env.reset()
+                # Convert obs to tensor format for policy
                 obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
 
-                # Update display every few steps to show animation
+                steps = 1000
+                for _step in range(steps):  # Same number of steps as opportunistic
+                    # Use TensorDict format for trained policy (same as simulation.py:272-275)
+                    td = TensorDict(
+                        {"env_obs": obs_tensor}, batch_size=obs_tensor.shape[0]
+                    )
+                    trained_policy(td)
+                    _actions = td["actions"].cpu().numpy()
+
+                    _obs, _, _, _, _ = eval_env.step(_actions)
+                    obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
+
+                    # Update display every few steps to show animation
+                    _agent_obj = next(
+                        (
+                            o
+                            for o in eval_env.grid_objects.values()
+                            if o.get("agent_id") == 0
+                        )
+                    )
+                    _inv = {
+                        eval_env.inventory_item_names[idx]: cnt
+                        for idx, cnt in _agent_obj.get("inventory", {}).items()
+                    }
+                    header.value = (
+                        f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/{steps} - "
+                        f"<br />"
+                        f"<b>Ore collected:</b> {_inv.get('ore_red', 0)}"
+                        f"<br />"
+                        f"<b>Batteries collected:</b> {_inv.get('battery_red', 0)}"
+                    )
+                    with contextlib.redirect_stdout(io.StringIO()) as buffer:
+                        buffer_str = eval_env.render()
+                    map_box.value = f"<pre>{buffer_str}</pre>"
+                    time.sleep(renderer_config2.sleep_time)  # Small delay for animation
+
+                # Final inventory count for this episode
                 _agent_obj = next(
                     (
                         o
@@ -1406,32 +1523,12 @@ def _(
                     eval_env.inventory_item_names[idx]: cnt
                     for idx, cnt in _agent_obj.get("inventory", {}).items()
                 }
-                header.value = (
-                    f"<b>Episode {ep}/{EVAL_EPISODES}</b> - Step {_step + 1}/{steps} - "
-                    f"<br />"
-                    f"<b>Ore collected:</b> {_inv.get('ore_red', 0)}"
-                    f"<br />"
-                    f"<b>Batteries collected:</b> {_inv.get('battery_red', 0)}"
-                )
-                with contextlib.redirect_stdout(io.StringIO()) as buffer:
-                    buffer_str = eval_env.render()
-                map_box.value = f"<pre>{buffer_str}</pre>"
-                time.sleep(renderer_config2.sleep_time)  # Small delay for animation
+                inv_count_ore = int(_inv.get("ore_red", 0))
+                inv_count_batteries = int(_inv.get("battery_red", 0))
+                trained_scores_ore.append(inv_count_ore)
+                trained_scores_batteries.append(inv_count_batteries)
 
-            # Final inventory count for this episode
-            _agent_obj = next(
-                (o for o in eval_env.grid_objects.values() if o.get("agent_id") == 0)
-            )
-            _inv = {
-                eval_env.inventory_item_names[idx]: cnt
-                for idx, cnt in _agent_obj.get("inventory", {}).items()
-            }
-            inv_count_ore = int(_inv.get("ore_red", 0))
-            inv_count_batteries = int(_inv.get("battery_red", 0))
-            trained_scores_ore.append(inv_count_ore)
-            trained_scores_batteries.append(inv_count_batteries)
-
-        eval_env.close()
+            eval_env.close()
 
         # Calculate and display results
         mean_score_ore = np.mean(trained_scores_ore)
