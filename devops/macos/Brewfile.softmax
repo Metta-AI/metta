@@ -6,3 +6,5 @@ cask "cursor"
 brew "kubernetes-cli"
 brew "helm"
 brew "helmfile"
+brew "nim"
+
