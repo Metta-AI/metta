@@ -1,7 +1,5 @@
-"""
-LRU Cache implementation for PolicyRecord objects.
-Manages in-memory caching of loaded policies with automatic eviction.
-"""
+"""LRU Cache implementation for PolicyRecord objects.
+Manages in-memory caching of loaded policies with automatic eviction."""
 
 import logging
 from collections import OrderedDict
@@ -14,12 +12,10 @@ logger = logging.getLogger(__name__)
 
 
 class PolicyCache:
-    """
-    Thread-safe LRU cache for PolicyRecord objects.
+    """Thread-safe LRU cache for PolicyRecord objects.
 
     Automatically evicts least recently used policies when the cache
-    reaches its maximum size, preventing excessive memory usage.
-    """
+    reaches its maximum size, preventing excessive memory usage."""
 
     def __init__(self, max_size: int = 10) -> None:
         """Initialize the policy cache.

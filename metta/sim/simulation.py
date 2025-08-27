@@ -1,11 +1,9 @@
-"""
-Vectorized simulation runner.
+"""Vectorized simulation runner.
 
 • Launches a MettaGrid vec-env batch
 • Each worker writes its own *.duckdb* shard
 • At shutdown the shards are merged into **one** StatsDB object that the
-  caller can further merge / export.
-"""
+  caller can further merge / export."""
 
 from __future__ import annotations
 
@@ -50,9 +48,7 @@ class SimulationCompatibilityError(Exception):
 
 
 class Simulation:
-    """
-    A vectorized batch of MettaGrid environments sharing the same parameters.
-    """
+    """A vectorized batch of MettaGrid environments sharing the same parameters."""
 
     def __init__(
         self,
@@ -356,11 +352,7 @@ class Simulation:
                 self._env_done_flags[e] = False
 
     def _maybe_generate_thumbnail(self) -> str | None:
-        """Generate thumbnail if this is the first run for this eval_name.
-
-        Returns:
-            Thumbnail URL if generated successfully, None otherwise
-        """
+        """Generate thumbnail if this is the first run for this eval_name."""
         try:
             # Skip synthetic evaluation framework simulations
             if self._name.startswith(SYNTHETIC_EVAL_PREFIX):

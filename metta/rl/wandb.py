@@ -19,10 +19,7 @@ _ABORT_STATE: weakref.WeakKeyDictionary[WandbRun, Dict[str, float | bool]] = wea
 
 
 def abort_requested(wandb_run: WandbRun | None, min_interval_sec: int = 60) -> bool:
-    """Return True if the WandB run has an "abort" tag.
-
-    The API call is throttled to *min_interval_sec* seconds.
-    """
+    """Check if wandb run has an 'abort' tag, throttling API calls to min_interval_sec."""
     if wandb_run is None:
         return False
 
@@ -52,11 +49,7 @@ POLICY_EVALUATOR_EPOCH_METRIC = "metric/evaluator_epoch"
 
 # Metrics functions moved from metrics.py
 def setup_wandb_metrics(wandb_run: WandbRun) -> None:
-    """Set up wandb metric definitions for consistent tracking across runs.
-
-    Args:
-        wandb_run: The wandb run object
-    """
+    """Set up wandb metric definitions for consistent tracking across runs."""
     # Define base metrics
     metrics = ["agent_step", "epoch", "total_time", "train_time"]
     for metric in metrics:
@@ -78,12 +71,7 @@ def setup_policy_evaluator_metrics(wandb_run: WandbRun) -> None:
 
 
 def log_model_parameters(policy: nn.Module, wandb_run: WandbRun) -> None:
-    """Log model parameter count to wandb summary.
-
-    Args:
-        policy: The policy model
-        wandb_run: The wandb run object
-    """
+    """Log model parameter count to wandb summary."""
     num_params = sum(p.numel() for p in policy.parameters())
     if wandb_run.summary:
         wandb_run.summary["model/total_parameters"] = num_params
@@ -94,17 +82,7 @@ def upload_policy_artifact(
     policy_loader: PolicyLoader,
     policy_record: PolicyRecord,
 ) -> str | None:
-    """Upload policy to WandB as artifact.
-
-    Args:
-        wandb_run: WandB run object
-        policy_store: Policy store
-        policy_record: Policy record to upload
-        force: Force upload even if already uploaded (currently unused)
-
-    Returns:
-        WandB policy name or None if failed
-    """
+    """Upload policy to wandb as artifact, returning policy name or None if failed."""
     if not wandb_run or not policy_record:
         return None
 

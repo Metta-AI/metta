@@ -21,11 +21,9 @@ def log_on_master(*args, **argv):
 
 
 class DistributedMettaAgent(DistributedDataParallel):
-    """
-    Because this class passes through __getattr__ to its self.module, it implements everything
+    """Because this class passes through __getattr__ to its self.module, it implements everything
     MettaAgent does. We only have a need for this class because using the DistributedDataParallel wrapper
-    returns an object of almost the same interface: you need to call .module to get the wrapped agent.
-    """
+    returns an object of almost the same interface: you need to call .module to get the wrapped agent."""
 
     module: "MettaAgent"
 
@@ -146,8 +144,7 @@ class MettaAgent(nn.Module):
         """Initialize the agent to the current environment.
 
         This is the single entry point for environment initialization, combining
-        feature setup, action configuration, and all necessary mappings.
-        """
+        feature setup, action configuration, and all necessary mappings."""
         self.device = device
         self.training = is_training
 
@@ -212,8 +209,8 @@ class MettaAgent(nn.Module):
             for i in range(max_param + 1)
         ]
 
-        # === POLICY ACTIVATION ===
-        self.policy.activate_action_embeddings(full_action_names, device)
+        # === ACTION EMBEDDING INITIALIZATION ===
+        self.policy.initialize_to_environment(full_action_names, device)
 
         # Share tensors with policy (required for policy's forward pass)
         self.policy.action_index_tensor = self.action_index_tensor
@@ -229,8 +226,7 @@ class MettaAgent(nn.Module):
 
         This allows policies that understand feature remapping (like ComponentPolicy)
         to update their observation components, while vanilla torch.nn.Module policies
-        will simply ignore this.
-        """
+        will simply ignore this."""
         # Build complete remapping tensor
         remap_tensor = torch.arange(256, dtype=torch.uint8, device=self.device)
 
@@ -315,9 +311,6 @@ class MettaAgent(nn.Module):
         if has_components and not has_policy:
             logger.info("Detected old checkpoint format - converting to new ComponentPolicy structure")
 
-            # Extract the components and related attributes that belong in ComponentPolicy
-
-            # First, break any circular references in the old state
             if "policy" in state and state.get("policy") is state:
                 del state["policy"]
                 log_on_master("Removed circular reference: state['policy'] = state")
@@ -331,8 +324,6 @@ class MettaAgent(nn.Module):
 
             # Create the specific policy class without calling __init__ to avoid rebuilding components
             policy = PolicyClass.__new__(PolicyClass)
-
-            # Initialize nn.Module base class
             nn.Module.__init__(policy)
 
             # Extract components from wherever they are

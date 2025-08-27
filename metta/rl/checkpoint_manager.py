@@ -216,8 +216,7 @@ class CheckpointManager:
         should_create: bool,
         metta_grid_env: MettaGridEnv,
     ) -> PolicyRecord:
-        """
-        Load or initialize policy with distributed coordination.
+        """Load or initialize policy with distributed coordination.
 
         Args:
             agent_builder: Builder for creating new agents

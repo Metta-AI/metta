@@ -10,11 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def compute_gradient_stats(policy: PolicyAgent) -> dict[str, float]:
-    """Compute gradient statistics for the policy.
-
-    Returns:
-        Dictionary with 'grad/mean', 'grad/variance', and 'grad/norm' keys
-    """
+    """Compute gradient mean, variance, and norm statistics for the policy."""
     all_gradients = []
     for param in policy.parameters():
         if param.grad is not None:
