@@ -100,7 +100,7 @@ class TestCurriculumConfigSerialization(unittest.TestCase):
         # Add bucket with ValueRange
         arena_tasks.add_bucket("test.param", [0, vr.vr(0.5, 1.5), 2])
 
-        original = arena_tasks.to_curriculum()
+        original = CurriculumConfig(task_generator=arena_tasks)
 
         # Serialize and deserialize
         json_str = original.model_dump_json()

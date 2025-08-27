@@ -6,8 +6,6 @@ from metta.common.config import Config
 from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 
-if TYPE_CHECKING:
-    from metta.sim.simulation_config import SimulationConfig
 from metta.mettagrid.map_builder.map_builder import AnyMapBuilderConfig
 
 # ===== Python Configuration Models =====
@@ -231,14 +229,6 @@ class EnvConfig(Config):
     @model_validator(mode="after")
     def validate_fields(self) -> "EnvConfig":
         return self
-
-    def to_sim(self, name: str) -> "SimulationConfig":
-        from metta.sim.simulation_config import SimulationConfig
-
-        return SimulationConfig(
-            name=name,
-            env=self,
-        )
 
     def with_ascii_map(self, map_data: list[list[str]]) -> "EnvConfig":
         self.game.map_builder = AsciiMapBuilder.Config(map_data=map_data)

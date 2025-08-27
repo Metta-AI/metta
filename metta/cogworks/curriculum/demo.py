@@ -23,7 +23,7 @@ for item in arena.game.inventory_item_names:
 # to maintain action space consistency.
 arena_tasks.add_bucket("game.actions.attack.consumed_resources.laser", [1, 100])
 
-curriculum_cfg = arena_tasks.to_curriculum(num_tasks=4)
+curriculum_cfg = CurriculumConfig(task_generator=arena_tasks)
 
 print(curriculum_cfg.model_dump_json(indent=2))
 print(curriculum_cfg.task_generator.model_dump_json(indent=2))
