@@ -13,6 +13,7 @@ from metta.agent.agent_config import AgentConfig
 from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_store import PolicyStore
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.cogworks.curriculum.curriculum import Curriculum
 from metta.common.profiling.stopwatch import Stopwatch
 from metta.common.util.heartbeat import record_heartbeat
 from metta.common.wandb.wandb_context import WandbRun
@@ -114,7 +115,7 @@ def train(
     timer.start()
     losses = Losses()
     torch_profiler = TorchProfiler(torch_dist_cfg.is_master, trainer_cfg.profiler, wandb_run, run_dir)
-    curriculum = trainer_cfg.curriculum.make()
+    curriculum = Curriculum(trainer_cfg.curriculum)
 
     # Calculate batch sizes
     num_agents = curriculum.get_task().get_env_cfg().game.num_agents
