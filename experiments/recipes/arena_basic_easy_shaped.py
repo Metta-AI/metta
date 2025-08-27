@@ -119,6 +119,18 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         env_cfg.game.agent.rewards.inventory.armor_max = 1
         env_cfg.game.agent.rewards.inventory.blueprint = 0.5
         env_cfg.game.agent.rewards.inventory.blueprint_max = 1
+        
+        # Set the same rewards on group config
+        env_cfg.game.groups["agent"].props.rewards.inventory.ore_red = 0.1
+        env_cfg.game.groups["agent"].props.rewards.inventory.ore_red_max = 1
+        env_cfg.game.groups["agent"].props.rewards.inventory.battery_red = 0.8
+        env_cfg.game.groups["agent"].props.rewards.inventory.battery_red_max = 1
+        env_cfg.game.groups["agent"].props.rewards.inventory.laser = 0.5
+        env_cfg.game.groups["agent"].props.rewards.inventory.laser_max = 1
+        env_cfg.game.groups["agent"].props.rewards.inventory.armor = 0.5
+        env_cfg.game.groups["agent"].props.rewards.inventory.armor_max = 1
+        env_cfg.game.groups["agent"].props.rewards.inventory.blueprint = 0.5
+        env_cfg.game.groups["agent"].props.rewards.inventory.blueprint_max = 1
 
     if converters:
         env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
