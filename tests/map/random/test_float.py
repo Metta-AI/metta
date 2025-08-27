@@ -9,14 +9,6 @@ from metta.map.random.float import (
     FloatUniformDistribution,
 )
 
-# TestFloatConstantDistribution removed - tests mathematical guarantees
-
-
-# TestFloatUniformDistribution removed - tests mathematical guarantees
-
-
-# TestFloatLognormalDistribution removed - tests mathematical guarantees
-
 
 class TestFloatDistributionTypes:
     def test_constant_distribution_from_float(self):

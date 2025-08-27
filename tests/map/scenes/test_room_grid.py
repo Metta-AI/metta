@@ -66,6 +66,3 @@ def test_with_layout():
     # so for now just verify that the tags are what we expect.
     room_tags = [area.tags[0] for area in areas]
     assert set(room_tags) == {"room1", "room2", "room3", "room4"}
-
-
-# Benchmark tests removed - performance testing not essential

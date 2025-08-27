@@ -7,11 +7,6 @@ from metta.map.random.int import (
     IntUniformDistribution,
 )
 
-# TestIntConstantDistribution removed - tests mathematical guarantees
-
-
-# TestIntUniformDistribution removed - tests mathematical guarantees
-
 
 class TestIntDistributionTypes:
     def test_constant_distribution_from_int(self):

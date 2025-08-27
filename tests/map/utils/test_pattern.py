@@ -8,7 +8,6 @@ from metta.map.utils.pattern import (
 )
 
 
-# TestParseAscii reduced - tests basic parsing functionality
 class TestParseAscii:
     def test_basic_parsing(self):
         source = """
@@ -21,7 +20,6 @@ class TestParseAscii:
         assert grid.dtype == bool
 
 
-# TestPattern reduced - tests basic pattern functionality
 class TestPattern:
     def test_basic_creation(self):
         source = """
@@ -35,7 +33,6 @@ class TestPattern:
         assert pattern.data.dtype == bool
 
 
-# TestPatternsWithCounts reduced - tests essential pattern counting
 class TestPatternsWithCounts:
     def test_basic_pattern_counting(self):
         source = """
@@ -47,7 +44,6 @@ class TestPatternsWithCounts:
         assert patterns[0][1] == 1
 
 
-# TestWeightsOfAllPatterns reduced - tests essential weight calculation
 class TestWeightsOfAllPatterns:
     def test_basic_weights(self):
         source = """
