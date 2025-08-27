@@ -119,7 +119,7 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
         env_cfg.game.agent.rewards.inventory.armor_max = 1
         env_cfg.game.agent.rewards.inventory.blueprint = 0.5
         env_cfg.game.agent.rewards.inventory.blueprint_max = 1
-        
+
         # Set the same rewards on group config
         env_cfg.game.groups["agent"].props.rewards.inventory.ore_red = 0.1
         env_cfg.game.groups["agent"].props.rewards.inventory.ore_red_max = 1
