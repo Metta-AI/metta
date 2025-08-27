@@ -55,7 +55,7 @@ def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
 
 def validate_policy_environment_match(policy: PolicyAgent, env: MettaGridEnv) -> None:
     """Validate that policy's observation shape matches environment's."""
-    agent = _extract_agent_from_policy(policy)
+    agent = _validate_and_get_agent(policy)
     env_shape = _to_tuple_shape(env.single_observation_space.shape)
     validate_components_match(agent, env_shape)
 
@@ -81,7 +81,7 @@ def validate_components_match(agent: PolicyAgent, environment_shape) -> None:
     raise ValueError(f"No component with observation shape found in policy. Environment shape: {environment_shape}")
 
 
-def _extract_agent_from_policy(policy: PolicyAgent) -> PolicyAgent:
+def _validate_and_get_agent(policy: PolicyAgent) -> PolicyAgent:
     """Extract the underlying agent from distributed wrappers."""
     if isinstance(policy, MettaAgent):
         return policy
