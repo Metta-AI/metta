@@ -268,42 +268,40 @@ class PolicyFinder:
         """Select top N policy handles based on metric score."""
         # Extract scores from metadata
         handle_scores = self._get_handle_scores(handles, metric)
-        if eval_name and stats_client and any([s is None for s in handle_scores.values()]):
-            # Because an eval_name is provided, assume that the metric is reward
-            # We need to load the policy records to get scores from stats server
-            pr_scores = get_pr_scores_from_stats_server(stats_client, handles, eval_name, metric="reward")
-            # Update scores for handles that have None scores
-            for handle in handles:
-                if handle_scores[handle] is None and handle in pr_scores:
-                    handle_scores[handle] = pr_scores[handle]
 
-        # Filter policy handles with valid scores
-        valid_handles = [(h, score) for h, score in handle_scores.items() if score is not None]
+        # If needed, fetch missing scores from stats server (assume reward metric for eval lookups)
+        if eval_name and stats_client:
+            missing = [h for h, s in handle_scores.items() if s is None]
+            if missing:
+                pr_scores = get_pr_scores_from_stats_server(stats_client, handles, eval_name, metric="reward")
+                for h in missing:
+                    if h in pr_scores:
+                        handle_scores[h] = pr_scores[h]
 
-        if not valid_handles:
+        # Keep only handles with valid scores
+        scored: list[tuple[PolicyHandle, float]] = [(h, s) for h, s in handle_scores.items() if s is not None]  # type: ignore[misc]
+
+        if not scored:
             logger.warning(f"No valid scores found for metric '{metric}', returning latest policy")
             return [handles[0]]
 
-        # Check if we have enough valid scores (80% threshold)
-        if len(valid_handles) < len(handles) * 0.8:
+        # Require at least 80% of handles to have valid scores
+        if len(scored) < len(handles) * 0.8:
             logger.warning("Too many invalid scores (>20%), returning latest policy")
             return [handles[0]]
 
-        # Sort by score (highest first) and take top n
-        sorted_handles = sorted(valid_handles, key=lambda x: x[1], reverse=True)
-        selected = [h for h, _ in sorted_handles[:n]]
+        # Sort by score (descending) and select top n
+        selected_pairs = sorted(scored, key=lambda pair: pair[1], reverse=True)[:n]
+        selected = [h for h, _ in selected_pairs]
 
-        # Log results
         if len(selected) < n:
             logger.warning(f"Only found {len(selected)} policy handles matching criteria, requested {n}")
 
         logger.info(f"Top {len(selected)} policy handles by {metric}:")
         logger.info(f"{'Policy':<40} | {metric:<20}")
         logger.info("-" * 62)
-
-        for handle in selected:
-            score = handle_scores[handle]
-            logger.info(f"{handle.run_name:<40} | {score:<20.4f}")
+        for h, score in selected_pairs:
+            logger.info(f"{h.run_name:<40} | {score:<20.4f}")
 
         return selected
 
