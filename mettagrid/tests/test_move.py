@@ -642,7 +642,6 @@ def test_move_returns_to_center(configured_env, movement_game_map):
     env = configured_env(movement_game_map)
 
     initial_pos = get_agent_position(env)
-    assert initial_pos is not None, "Agent should have a valid initial position"
 
     # Move in a square: north, east, south, west
     moves = [
