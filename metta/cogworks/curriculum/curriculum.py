@@ -10,9 +10,7 @@ from pydantic import ConfigDict, Field, field_validator
 from metta.common.config import Config
 from metta.mettagrid.mettagrid_config import EnvConfig
 
-from .task_generator import (
-    AnyTaskGeneratorConfig,
-)
+from .task_generator import AnyTaskGeneratorConfig, SingleTaskGeneratorConfig
 
 
 class CurriculumTask:
@@ -51,6 +49,12 @@ class CurriculumConfig(Config):
         validate_assignment=True,
         populate_by_name=True,
     )
+
+    @classmethod
+    def from_env(cls, env_config: EnvConfig) -> CurriculumConfig:
+        return cls(
+            task_generator=SingleTaskGeneratorConfig(env=env_config),
+        )
 
     @field_validator("num_active_tasks")
     @classmethod
