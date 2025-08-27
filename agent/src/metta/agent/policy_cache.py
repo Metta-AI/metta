@@ -21,13 +21,15 @@ class PolicyCache:
     reaches its maximum size, preventing excessive memory usage.
     """
 
-    def __init__(self, max_size: int = 10):
-        """
-        Initialize the policy cache.
+    def __init__(self, max_size: int = 10) -> None:
+        """Initialize the policy cache.
 
         Args:
             max_size: Maximum number of policies to keep in cache.
                      Defaults to 10 to prevent memory issues.
+
+        Raises:
+            ValueError: If max_size is not positive.
         """
         if max_size <= 0:
             raise ValueError("Cache size must be positive")
@@ -37,14 +39,13 @@ class PolicyCache:
         self._lock = RLock()
 
     def get(self, key: str) -> Optional[PolicyRecord]:
-        """
-        Retrieve a policy record from cache.
+        """Retrieve a policy record from cache.
 
         Args:
-            key: The URI or path used as cache key
+            key: The URI or path used as cache key.
 
         Returns:
-            PolicyRecord if found in cache, None otherwise
+            PolicyRecord if found in cache, None otherwise.
         """
         with self._lock:
             if key not in self._cache:
@@ -57,18 +58,17 @@ class PolicyCache:
             return self._cache[key]
 
     def put(self, key: str, record: PolicyRecord) -> None:
-        """
-        Store a policy record in cache.
+        """Store a policy record in cache.
 
         If cache is at capacity, the least recently used item is evicted.
 
         Args:
-            key: The URI or path to use as cache key
-            record: The PolicyRecord to cache
+            key: The URI or path to use as cache key.
+            record: The PolicyRecord to cache.
         """
         with self._lock:
-            # If key exists, update and move to end
             if key in self._cache:
+                # Update existing entry
                 self._cache[key] = record
                 self._cache.move_to_end(key)
                 logger.debug(f"Updated existing cache entry: {key}")
@@ -76,11 +76,17 @@ class PolicyCache:
 
             # Add new entry
             self._cache[key] = record
+            logger.debug(f"Added new cache entry: {key}")
 
             # Evict LRU if over capacity
             if len(self._cache) > self._max_size:
-                evicted_key, evicted_record = self._cache.popitem(last=False)
-                logger.info(
-                    f"Evicted policy from cache: {evicted_record.run_name} "
-                    f"(key: {evicted_key}) - Cache at capacity ({self._max_size})"
-                )
+                self._evict_lru()
+
+    def _evict_lru(self) -> None:
+        """Evict the least recently used item from cache."""
+
+        evicted_key, evicted_record = self._cache.popitem(last=False)
+        logger.info(
+            f"Evicted policy from cache: {evicted_record.run_name} "
+            f"(key: {evicted_key}) - Cache at capacity ({self._max_size})"
+        )
