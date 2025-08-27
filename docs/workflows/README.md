@@ -95,7 +95,6 @@ When adding new workflow documentation:
 
 1. **File Naming**: Use kebab-case (e.g., `workflow-name.md`)
 2. **Structure**: Include sections for:
-
    - Overview
    - Architecture diagram (if applicable)
    - Components breakdown

@@ -227,12 +227,10 @@ _This PR was automatically created by Claude Code Assistant._
 ### Common Issues and Solutions
 
 1. **No commits created**
-
    - Claude may have failed to use the commit tool
    - Solution: Ensure request is clear and specific
 
 2. **Branch push failed**
-
    - Permissions or conflict issues
    - Solution: Check GitHub token permissions
 

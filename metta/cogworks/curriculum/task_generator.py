@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import random
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar, cast
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar
 
 from pydantic import (
     ConfigDict,
@@ -20,7 +20,7 @@ from metta.common.util.module import load_symbol
 from metta.mettagrid.mettagrid_config import EnvConfig
 
 if TYPE_CHECKING:
-    from metta.cogworks.curriculum.curriculum import CurriculumConfig
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -66,14 +66,6 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
                 f"either define it nested under the generator or set `_generator_cls`."
             )
         return cls._generator_cls
-
-    def to_curriculum(self, num_tasks: Optional[int] = None) -> "CurriculumConfig":
-        """Create a CurriculumConfig from this configuration."""
-        from metta.cogworks.curriculum.curriculum import CurriculumConfig
-
-        cc = CurriculumConfig(task_generator=self)
-        cc.num_active_tasks = num_tasks or cast(int, cc.num_active_tasks)
-        return cc
 
     @model_serializer(mode="wrap")
     def _serialize_with_type(self, handler):
@@ -256,7 +248,7 @@ class BucketedTaskGenerator(TaskGenerator):
             return self
 
         @classmethod
-        def from_env_config(cls, env_config: EnvConfig) -> "BucketedTaskGenerator.Config":
+        def from_env(cls, env_config: EnvConfig) -> "BucketedTaskGenerator.Config":
             """Create a BucketedTaskGenerator.Config from an EnvConfig."""
             return cls(child_generator_config=SingleTaskGenerator.Config(env=env_config))
 

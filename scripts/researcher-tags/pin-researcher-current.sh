@@ -15,44 +15,44 @@ NC='\033[0m' # No Color
 
 # Get the commit to lock to
 if [ -z "$1" ]; then
-    # No commit specified - lock to current HEAD
-    COMMIT_HASH=$(git rev-parse HEAD)
-    echo -e "${YELLOW}No commit specified, locking to current HEAD: ${COMMIT_HASH:0:8}${NC}"
+  # No commit specified - lock to current HEAD
+  COMMIT_HASH=$(git rev-parse HEAD)
+  echo -e "${YELLOW}No commit specified, locking to current HEAD: ${COMMIT_HASH:0:8}${NC}"
 
-    # Check current branch
-    CURRENT_BRANCH=$(git branch --show-current)
-    if [ -n "$CURRENT_BRANCH" ]; then
-        echo -e "   Current branch: $CURRENT_BRANCH"
-    fi
+  # Check current branch
+  CURRENT_BRANCH=$(git branch --show-current)
+  if [ -n "$CURRENT_BRANCH" ]; then
+    echo -e "   Current branch: $CURRENT_BRANCH"
+  fi
 
-    # Warn if researcher_current exists and points elsewhere
-    if git rev-parse --verify researcher_current >/dev/null 2>&1; then
-        CURRENT_TAG=$(git rev-parse researcher_current)
-        if [ "$CURRENT_TAG" != "$COMMIT_HASH" ]; then
-            echo -e "${YELLOW}Note: researcher_current currently points to ${CURRENT_TAG:0:8}${NC}"
-            echo -e "      but locking to your HEAD position ${COMMIT_HASH:0:8}"
-        fi
+  # Warn if researcher_current exists and points elsewhere
+  if git rev-parse --verify researcher_current > /dev/null 2>&1; then
+    CURRENT_TAG=$(git rev-parse researcher_current)
+    if [ "$CURRENT_TAG" != "$COMMIT_HASH" ]; then
+      echo -e "${YELLOW}Note: researcher_current currently points to ${CURRENT_TAG:0:8}${NC}"
+      echo -e "      but locking to your HEAD position ${COMMIT_HASH:0:8}"
     fi
+  fi
 else
-    COMMIT_HASH="$1"
-    # Verify commit exists
-    if ! git cat-file -e "$COMMIT_HASH^{commit}" 2>/dev/null; then
-        echo -e "${RED}Error: Commit $COMMIT_HASH does not exist${NC}"
-        exit 1
-    fi
-    echo -e "${YELLOW}Locking to specified commit: ${COMMIT_HASH:0:8}${NC}"
+  COMMIT_HASH="$1"
+  # Verify commit exists
+  if ! git cat-file -e "$COMMIT_HASH^{commit}" 2> /dev/null; then
+    echo -e "${RED}Error: Commit $COMMIT_HASH does not exist${NC}"
+    exit 1
+  fi
+  echo -e "${YELLOW}Locking to specified commit: ${COMMIT_HASH:0:8}${NC}"
 fi
 
 # Check if already locked
 if git ls-remote --tags origin | grep -q "refs/tags/researcher_current_lock"; then
-    CURRENT_LOCK=$(git ls-remote --tags origin | grep "refs/tags/researcher_current_lock" | cut -f1)
-    echo -e "${YELLOW}Warning: System is already locked at commit: ${CURRENT_LOCK:0:8}${NC}"
-    read -p "Do you want to move the lock to ${COMMIT_HASH:0:8}? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "Aborted."
-        exit 0
-    fi
+  CURRENT_LOCK=$(git ls-remote --tags origin | grep "refs/tags/researcher_current_lock" | cut -f1)
+  echo -e "${YELLOW}Warning: System is already locked at commit: ${CURRENT_LOCK:0:8}${NC}"
+  read -p "Do you want to move the lock to ${COMMIT_HASH:0:8}? (y/N): " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Aborted."
+    exit 0
+  fi
 fi
 
 # Create lock tag

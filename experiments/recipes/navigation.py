@@ -90,7 +90,7 @@ def make_curriculum(nav_env: Optional[EnvConfig] = None) -> CurriculumConfig:
 
     nav_tasks = cc.merge([dense_tasks, sparse_tasks])
 
-    return nav_tasks.to_curriculum()
+    return CurriculumConfig(task_generator=nav_tasks)
 
 
 def train(

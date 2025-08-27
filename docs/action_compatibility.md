@@ -1,8 +1,10 @@
 # Action Compatibility Guide for Metta
 
-This document catalogs all types of changes that can break the action system in Metta, helping developers understand the impact of their changes on existing trained policies.
+This document catalogs all types of changes that can break the action system in Metta, helping developers understand the
+impact of their changes on existing trained policies.
 
 ## Table of Contents
+
 1. [Action System Overview](#action-system-overview)
 2. [Breaking Changes Catalog](#breaking-changes-catalog)
 3. [Compatibility Matrix](#compatibility-matrix)
@@ -12,11 +14,14 @@ This document catalogs all types of changes that can break the action system in 
 ## Action System Overview
 
 ### Action Structure
+
 Actions in Metta consist of two components:
+
 - **Action Type** (index): Integer identifying which action to perform (e.g., move=0, rotate=1)
 - **Action Argument**: Integer parameter for the action (e.g., direction for move)
 
 ### Action Validation Flow
+
 ```
 1. Action Type Validation: 0 <= action_type < num_action_handlers
 2. Action Argument Validation: 0 <= action_arg <= max_action_args[action_type]
@@ -26,9 +31,10 @@ Actions in Metta consist of two components:
 ```
 
 ### Key Components
-- **MettaGrid::_step()**: Main action processing loop
+
+- **MettaGrid::\_step()**: Main action processing loop
 - **ActionHandler**: Base class for all actions
-- **_handle_invalid_action()**: Error handling for invalid actions
+- **\_handle_invalid_action()**: Error handling for invalid actions
 - **action_names()**: Maps action names to indices
 
 ## Breaking Changes Catalog
@@ -38,6 +44,7 @@ Actions in Metta consist of two components:
 **Description**: Modifying the order in which actions are registered changes their numeric indices.
 
 **Example**:
+
 ```yaml
 # Before
 actions:
@@ -52,15 +59,15 @@ actions:
   rotate: {...}    # index 2
 ```
 
-**Impact**: Trained policies will execute wrong actions
-**Detection**: Action success rates drop dramatically
-**Stats Tracked**: `action.invalid_type`
+**Impact**: Trained policies will execute wrong actions **Detection**: Action success rates drop dramatically **Stats
+Tracked**: `action.invalid_type`
 
 ### 2. Max Argument Changes
 
 **Description**: Changing the maximum allowed argument value for an action.
 
 **Example**:
+
 ```yaml
 # Before
 move:
@@ -72,17 +79,18 @@ move:
 ```
 
 **Impact**:
+
 - Reducing max_arg: Previously valid actions become invalid
 - Increasing max_arg: No immediate break, but action space changes
 
-**Detection**: `action.invalid_arg` errors increase
-**Stats Tracked**: `action.invalid_arg`, `action.<name>.failed`
+**Detection**: `action.invalid_arg` errors increase **Stats Tracked**: `action.invalid_arg`, `action.<name>.failed`
 
 ### 3. Action Removal or Renaming
 
 **Description**: Removing an action or changing its name in configuration.
 
 **Example**:
+
 ```yaml
 # Before
 actions:
@@ -94,17 +102,18 @@ actions:
 ```
 
 **Impact**:
+
 - Removal: Action indices shift, causing wrong actions
 - Renaming: Action becomes unregistered
 
-**Detection**: `Unknown action` errors during initialization
-**Stats Tracked**: `action.invalid_type`
+**Detection**: `Unknown action` errors during initialization **Stats Tracked**: `action.invalid_type`
 
 ### 4. Resource Requirement Changes
 
 **Description**: Modifying required or consumed resources for actions.
 
 **Example**:
+
 ```cpp
 // Before
 required_resources: {ore: 1}
@@ -115,15 +124,15 @@ required_resources: {ore: 2, energy: 1}
 consumed_resources: {ore: 2}
 ```
 
-**Impact**: Actions fail due to insufficient resources
-**Detection**: Action success rate drops
-**Stats Tracked**: `action.<name>.failed`
+**Impact**: Actions fail due to insufficient resources **Detection**: Action success rate drops **Stats Tracked**:
+`action.<name>.failed`
 
 ### 5. Agent State Conflicts
 
 **Description**: Changes to agent state that prevent action execution.
 
 **Example**: Frozen duration changes
+
 ```cpp
 // Frozen agents cannot perform actions
 if (actor->frozen != 0) {
@@ -131,27 +140,27 @@ if (actor->frozen != 0) {
 }
 ```
 
-**Impact**: Actions fail silently
-**Stats Tracked**: `status.frozen.ticks`, `status.frozen.ticks.<group>`
+**Impact**: Actions fail silently **Stats Tracked**: `status.frozen.ticks`, `status.frozen.ticks.<group>`
 
 ### 6. Action Priority Changes
 
 **Description**: Modifying action execution priority affects order of processing.
 
 **Example**:
+
 ```cpp
 // Attack has priority 1, others have priority 0
 // Actions execute from highest to lowest priority
 ```
 
-**Impact**: Action conflicts resolved differently
-**Detection**: Subtle behavior changes in multi-agent scenarios
+**Impact**: Action conflicts resolved differently **Detection**: Subtle behavior changes in multi-agent scenarios
 
 ### 7. Inventory Item Index Changes
 
 **Description**: Changing the order or IDs of inventory items that actions depend on.
 
 **Example**:
+
 ```yaml
 # Before
 inventory_item_names: [ore, wood, gold]  # ore=0, wood=1, gold=2
@@ -160,14 +169,14 @@ inventory_item_names: [ore, wood, gold]  # ore=0, wood=1, gold=2
 inventory_item_names: [wood, ore, gold]  # wood=0, ore=1, gold=2
 ```
 
-**Impact**: Resource checks use wrong items
-**Detection**: Resource-based actions fail unexpectedly
+**Impact**: Resource checks use wrong items **Detection**: Resource-based actions fail unexpectedly
 
 ### 8. Action Handler Implementation Changes
 
 **Description**: Modifying the internal logic of action handlers.
 
 **Example**:
+
 ```cpp
 // Move action now checks for walls differently
 bool Move::_handle_action(Agent* actor, ActionArg arg) {
@@ -175,17 +184,18 @@ bool Move::_handle_action(Agent* actor, ActionArg arg) {
 }
 ```
 
-**Impact**: Actions succeed/fail in different situations
-**Detection**: Behavior changes without explicit errors
+**Impact**: Actions succeed/fail in different situations **Detection**: Behavior changes without explicit errors
 
 ### 9. Special Action Cases
 
 **Attack Action Duplication**:
+
 ```cpp
 // Attack action creates TWO handlers
 _action_handlers.push_back(std::make_unique<Attack>(...));
 _action_handlers.push_back(std::make_unique<AttackNearest>(...));
 ```
+
 **Impact**: Attack takes up two action indices
 
 ### 10. Action Space Dimension Changes
@@ -193,6 +203,7 @@ _action_handlers.push_back(std::make_unique<AttackNearest>(...));
 **Description**: Changes to MultiDiscrete action space shape.
 
 **Example**:
+
 ```python
 # Before
 action_space = MultiDiscrete([5, 2])  # 5 action types, max arg 1
@@ -201,23 +212,23 @@ action_space = MultiDiscrete([5, 2])  # 5 action types, max arg 1
 action_space = MultiDiscrete([7, 4])  # 7 action types, max arg 3
 ```
 
-**Impact**: Neural network output dimensions mismatch
-**Detection**: Runtime shape errors in policy
+**Impact**: Neural network output dimensions mismatch **Detection**: Runtime shape errors in policy
 
 ## Compatibility Matrix
 
-| Change Type | Requires Retraining | Backward Compatible | Forward Compatible | Migration Available |
-|------------|-------------------|-------------------|-------------------|-------------------|
-| Action reordering | ✅ Yes | ❌ No | ❌ No | ⚠️ Possible |
-| Max arg increase | ⚠️ Partial | ✅ Yes | ❌ No | ✅ Yes |
-| Max arg decrease | ✅ Yes | ❌ No | ❌ No | ❌ No |
-| Action removal | ✅ Yes | ❌ No | ❌ No | ⚠️ Possible |
-| Action addition | ❌ No | ✅ Yes | ✅ Yes | ✅ Yes |
-| Resource changes | ⚠️ Depends | ⚠️ Partial | ⚠️ Partial | ✅ Yes |
-| Priority changes | ⚠️ Depends | ✅ Yes | ✅ Yes | ✅ Yes |
-| Item reordering | ✅ Yes | ❌ No | ❌ No | ⚠️ Possible |
+| Change Type       | Requires Retraining | Backward Compatible | Forward Compatible | Migration Available |
+| ----------------- | ------------------- | ------------------- | ------------------ | ------------------- |
+| Action reordering | ✅ Yes              | ❌ No               | ❌ No              | ⚠️ Possible         |
+| Max arg increase  | ⚠️ Partial          | ✅ Yes              | ❌ No              | ✅ Yes              |
+| Max arg decrease  | ✅ Yes              | ❌ No               | ❌ No              | ❌ No               |
+| Action removal    | ✅ Yes              | ❌ No               | ❌ No              | ⚠️ Possible         |
+| Action addition   | ❌ No               | ✅ Yes              | ✅ Yes             | ✅ Yes              |
+| Resource changes  | ⚠️ Depends          | ⚠️ Partial          | ⚠️ Partial         | ✅ Yes              |
+| Priority changes  | ⚠️ Depends          | ✅ Yes              | ✅ Yes             | ✅ Yes              |
+| Item reordering   | ✅ Yes              | ❌ No               | ❌ No              | ⚠️ Possible         |
 
 ### Legend
+
 - ✅ Yes: Fully supported
 - ❌ No: Not supported
 - ⚠️ Partial/Depends: Case-by-case basis
@@ -328,6 +339,7 @@ def detect_breaking_changes(old_config, new_config):
 ### 4. Monitoring Metrics
 
 Key metrics to track for compatibility issues:
+
 - `action.invalid_type` - Spike indicates index mismatch
 - `action.invalid_arg` - Spike indicates max_arg issues
 - `action.<name>.failed` - Drop in success rate

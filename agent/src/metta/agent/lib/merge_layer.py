@@ -1,4 +1,3 @@
-import omegaconf
 import torch
 from tensordict import TensorDict
 
@@ -47,8 +46,6 @@ class MergeLayerBase(LayerBase):
             processed_size = processed_size[0]
             if src_cfg.get("slice") is not None:
                 slice_range = src_cfg["slice"]
-                if isinstance(slice_range, omegaconf.listconfig.ListConfig):
-                    slice_range = list(slice_range)
                 if not (isinstance(slice_range, (list, tuple)) and len(slice_range) == 2):
                     raise ValueError(f"'slice' must be a two-element list/tuple for source {source_name}.")
 

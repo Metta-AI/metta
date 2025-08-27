@@ -105,9 +105,26 @@ class MapGen(MapBuilder):
         self.grid = None
 
     def prebuild_instances(self):
-        """Prebuild instances when using instance_map or deriving instances from num_agents.
+        """In some cases, we need to render individual instances in separate grids before we render the final grid.
 
-        Sets self.instances, self.width, self.height, and self.instance_scene_factories."""
+        This is the case for:
+        1) Using `instance_map` (which is a map, not a scene, so it defines its own size).
+        2) Using `num_agents`, where we don't know the number of instances in advance.
+
+        In both of these cases, we render to the temporary grid first, and then copy ("transplant") the result into the
+        final grid.
+
+        This allows us to find the number of instances and the width/height of the final grid.
+
+        Note that we prefer _not_ to prebuild scenes in advance: this complicates the final scene tree and the
+        implementation logic. (It's also a little bit slower, but this part is negligible.)
+
+        After this method is done, we'll have the following fields set:
+        - `self.instances` (either copied from the config, or derived from the number of agents)
+        - `self.width` (either copied from the config, or derived from the instance map)
+        - `self.height` (either copied from the config, or derived from the instance map)
+        - `self.instance_scene_factories` (a list of scene factories, one for each instance)
+        """
         self.instance_scene_factories: list[SceneConfigOrFile] = []
 
         # Can be None, but we'll set these fields to their actual values after the loop.

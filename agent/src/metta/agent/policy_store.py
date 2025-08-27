@@ -95,8 +95,18 @@ class PolicyStore:
         stats_client: StatsClient | None = None,
         eval_name: str | None = None,
     ) -> list[PolicyRecord]:
-        """Select policy records based on URI and selection criteria.
-        Returns list of PolicyRecord objects filtered by selector_type ('all', 'latest', 'rand', 'top')."""
+        """
+        Select policy records based on URI and selection criteria.
+
+        Args:
+            uri: Resource identifier (wandb://, file://, pytorch://, or path)
+            selector_type: Selection strategy ('all', 'latest', 'rand', 'top')
+            n: Number of policy records to select (for 'top' selector)
+            metric: Metric to use for 'top' selection
+
+        Returns:
+            List of selected PolicyRecord objects
+        """
         # Load policy records from URI
         prs = self._load_policy_records_from_uri(uri)
 

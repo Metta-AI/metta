@@ -49,7 +49,7 @@ Note: The project requires Python 3.11.7 specifically, as specified in the pypro
 To train a model:
 
 ```bash
-./tools/train.py run=my_experiment wandb=off
+./tools/run.py experiments.recipes.arena.train --args run=my_experiment --overrides wandb.enabled=false
 ```
 
 Parameters:
@@ -63,7 +63,7 @@ Parameters:
 To run the interactive simulation:
 
 ```bash
-./tools/play.py run=my_experiment wandb=off
+./tools/run.py experiments.recipes.arena.play --args run=my_experiment --overrides wandb.enabled=false
 ```
 
 This launches a human-controlled session using the same configuration flags as training. It's useful for quickly testing
@@ -72,7 +72,7 @@ maps or policies on your local hardware.
 To run the terminal simulation:
 
 ```bash
-./tools/renderer.py run=demo_obstacles \
+./tools/run.py experiments.recipes.arena.play --args run=demo_obstacles \
 renderer_job.environment.root.params.uri="configs/env/mettagrid/maps/debug/simple_obstacles.map"
 ```
 
@@ -96,7 +96,8 @@ For post-training evaluation to compare different policies:
 2. View the results in a heatmap along with other policies in the database:
 
 ```bash
-./tools/dashboard.py +eval_db_uri=wandb://stats/navigation_db run=navigation_db ++dashboard.output_path=s3://softmax-public/policydash/navigation.html
+# Note: Dashboard generation is now integrated into the recipe system
+# Use the analysis recipes to generate comprehensive reports
 ```
 
 ## Development Setup

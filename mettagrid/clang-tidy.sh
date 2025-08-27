@@ -13,26 +13,26 @@ echo -e "${GREEN}Running clang-tidy...${NC}"
 
 # Check if clang-tidy is available
 if ! command -v clang-tidy &> /dev/null; then
-    echo -e "${RED}❌ clang-tidy not found! Please install it:${NC}"
-    echo "   macOS: brew install llvm"
-    echo "   Ubuntu: apt-get install clang-tidy"
-    exit 1
+  echo -e "${RED}❌ clang-tidy not found! Please install it:${NC}"
+  echo "   macOS: brew install llvm"
+  echo "   Ubuntu: apt-get install clang-tidy"
+  exit 1
 fi
 
 # Determine SDKROOT (macOS)
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
-    echo -e "${GREEN}Using macOS SDK at:${NC} $SDKROOT"
-    EXTRA_ARGS="--extra-arg=-isysroot$SDKROOT"
+  SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
+  echo -e "${GREEN}Using macOS SDK at:${NC} $SDKROOT"
+  EXTRA_ARGS="--extra-arg=-isysroot$SDKROOT"
 else
-    echo -e "${YELLOW}⚠️  Non-macOS system detected. No SDKROOT set.${NC}"
-    EXTRA_ARGS=""
+  echo -e "${YELLOW}⚠️  Non-macOS system detected. No SDKROOT set.${NC}"
+  EXTRA_ARGS=""
 fi
 
 # Make sure we have a compile_commands.json
 if [ ! -f "build-debug/compile_commands.json" ]; then
-    echo -e "${YELLOW}⚠️  No compile_commands.json found. Building first...${NC}"
-    make build
+  echo -e "${YELLOW}⚠️  No compile_commands.json found. Building first...${NC}"
+  make build
 fi
 
 # Find all C++ source files
@@ -51,35 +51,35 @@ TOTAL_ERRORS=0
 
 # Run clang-tidy on each file
 for file in $CPP_FILES; do
-    TOTAL_FILES=$((TOTAL_FILES + 1))
-    echo -e "${GREEN}[$TOTAL_FILES] Processing $file...${NC}"
+  TOTAL_FILES=$((TOTAL_FILES + 1))
+  echo -e "${GREEN}[$TOTAL_FILES] Processing $file...${NC}"
 
-    # Run clang-tidy and capture output
-    OUTPUT=$(clang-tidy -p build-debug $EXTRA_ARGS "$file" 2>&1 || true)
+  # Run clang-tidy and capture output
+  OUTPUT=$(clang-tidy -p build-debug $EXTRA_ARGS "$file" 2>&1 || true)
 
-    # Count warnings and errors
-    FILE_WARNINGS=$(echo "$OUTPUT" | grep -c "warning:" || true)
-    FILE_ERRORS=$(echo "$OUTPUT" | grep -c "error:" || true)
+  # Count warnings and errors
+  FILE_WARNINGS=$(echo "$OUTPUT" | grep -c "warning:" || true)
+  FILE_ERRORS=$(echo "$OUTPUT" | grep -c "error:" || true)
 
-    if [ $FILE_WARNINGS -gt 0 ] || [ $FILE_ERRORS -gt 0 ]; then
-        echo "$OUTPUT"
-        echo ""
+  if [ $FILE_WARNINGS -gt 0 ] || [ $FILE_ERRORS -gt 0 ]; then
+    echo "$OUTPUT"
+    echo ""
 
-        if [ $FILE_WARNINGS -gt 0 ]; then
-            FILES_WITH_WARNINGS=$((FILES_WITH_WARNINGS + 1))
-            TOTAL_WARNINGS=$((TOTAL_WARNINGS + FILE_WARNINGS))
-            echo -e "${YELLOW}  ⚠️  $FILE_WARNINGS warnings${NC}"
-        fi
-
-        if [ $FILE_ERRORS -gt 0 ]; then
-            FILES_WITH_ERRORS=$((FILES_WITH_ERRORS + 1))
-            TOTAL_ERRORS=$((TOTAL_ERRORS + FILE_ERRORS))
-            echo -e "${RED}  ❌ $FILE_ERRORS errors${NC}"
-        fi
-        echo ""
-    else
-        echo -e "${GREEN}  ✅ Clean${NC}"
+    if [ $FILE_WARNINGS -gt 0 ]; then
+      FILES_WITH_WARNINGS=$((FILES_WITH_WARNINGS + 1))
+      TOTAL_WARNINGS=$((TOTAL_WARNINGS + FILE_WARNINGS))
+      echo -e "${YELLOW}  ⚠️  $FILE_WARNINGS warnings${NC}"
     fi
+
+    if [ $FILE_ERRORS -gt 0 ]; then
+      FILES_WITH_ERRORS=$((FILES_WITH_ERRORS + 1))
+      TOTAL_ERRORS=$((TOTAL_ERRORS + FILE_ERRORS))
+      echo -e "${RED}  ❌ $FILE_ERRORS errors${NC}"
+    fi
+    echo ""
+  else
+    echo -e "${GREEN}  ✅ Clean${NC}"
+  fi
 done
 
 # Summary
@@ -92,12 +92,12 @@ echo -e "  Total warnings: ${YELLOW}$TOTAL_WARNINGS${NC}"
 echo -e "  Total errors: ${RED}$TOTAL_ERRORS${NC}"
 
 if [ $TOTAL_ERRORS -gt 0 ]; then
-    echo -e "${RED}❌ Fix errors before committing!${NC}"
-    exit 1
+  echo -e "${RED}❌ Fix errors before committing!${NC}"
+  exit 1
 elif [ $TOTAL_WARNINGS -gt 0 ]; then
-    echo -e "${YELLOW}⚠️  Consider fixing warnings${NC}"
-    exit 0
+  echo -e "${YELLOW}⚠️  Consider fixing warnings${NC}"
+  exit 0
 else
-    echo -e "${GREEN}✅ All files are clean!${NC}"
-    exit 0
+  echo -e "${GREEN}✅ All files are clean!${NC}"
+  exit 0
 fi

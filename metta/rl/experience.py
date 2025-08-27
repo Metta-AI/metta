@@ -22,7 +22,7 @@ from tensordict import TensorDict
 from torch import Tensor
 from torchrl.data import Composite
 
-from metta.common.util.datastruct import duplicates
+from metta.common.util.collections import duplicates
 
 
 class Experience:

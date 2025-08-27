@@ -10,9 +10,7 @@ from pydantic import ConfigDict, Field, field_validator
 from metta.common.config import Config
 from metta.mettagrid.mettagrid_config import EnvConfig
 
-from .task_generator import (
-    AnyTaskGeneratorConfig,
-)
+from .task_generator import AnyTaskGeneratorConfig, SingleTaskGeneratorConfig
 
 
 class CurriculumTask:
@@ -52,6 +50,12 @@ class CurriculumConfig(Config):
         populate_by_name=True,
     )
 
+    @classmethod
+    def from_env(cls, env_config: EnvConfig) -> CurriculumConfig:
+        return cls(
+            task_generator=SingleTaskGeneratorConfig(env=env_config),
+        )
+
     @field_validator("num_active_tasks")
     @classmethod
     def validate_num_active_tasks(cls, v, info):
@@ -59,10 +63,6 @@ class CurriculumConfig(Config):
         if v > max_task_id:
             raise ValueError("num_active_tasks must be less than max_task_id")
         return v
-
-    def make(self) -> Curriculum:
-        """Make a Curriculum from this configuration."""
-        return Curriculum(self)
 
 
 class Curriculum:

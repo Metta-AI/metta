@@ -4,8 +4,8 @@
 
 ## How it works
 
-codeclip is a spiritual descendant of [files-to-prompt](https://github.com/simonw/files-to-prompt),
-a tool for specifying and formatting a subset of a codebase to submit as context to an LLM.
+codeclip is a spiritual descendant of [files-to-prompt](https://github.com/simonw/files-to-prompt), a tool for
+specifying and formatting a subset of a codebase to submit as context to an LLM.
 
 codeclip builds on files-to-prompt with additional features:
 

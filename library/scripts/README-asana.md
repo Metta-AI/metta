@@ -64,14 +64,14 @@ The script will:
 
 ## Data Mapping
 
-| Asana Field | Database Field | Notes |
-|-------------|----------------|-------|
-| Task Name | `title` | Required |
-| Task Description | `abstract` | Optional |
-| Custom Fields | `link`, `externalId` | Extracted based on field names/IDs |
-| Tags | `tags` | Array of tag names |
-| Task URL | Not stored | Could be added as metadata |
-| Created Date | `createdAt` | Automatically set |
+| Asana Field      | Database Field       | Notes                              |
+| ---------------- | -------------------- | ---------------------------------- |
+| Task Name        | `title`              | Required                           |
+| Task Description | `abstract`           | Optional                           |
+| Custom Fields    | `link`, `externalId` | Extracted based on field names/IDs |
+| Tags             | `tags`               | Array of tag names                 |
+| Task URL         | Not stored           | Could be added as metadata         |
+| Created Date     | `createdAt`          | Automatically set                  |
 
 ## Paper Sources
 
@@ -85,6 +85,7 @@ The script automatically detects paper sources:
 ## Duplicate Detection
 
 Papers are considered duplicates if they have the same:
+
 - External ID (e.g., arXiv ID)
 - Link URL
 - Title
@@ -94,18 +95,22 @@ Duplicates are skipped during import.
 ## Troubleshooting
 
 ### "ASANA_API_KEY environment variable is required"
+
 - Make sure you've set `ASANA_API_KEY` in your `.env.local` file
 - Verify the token is valid by testing it in Asana's API explorer
 
 ### "ASANA_PAPERS_PROJECT_ID environment variable is required"
+
 - Make sure you've set the project ID in your `.env.local` file
 - Double-check the project ID from your Asana project URL
 
 ### "Asana API Error: 403"
+
 - Your API token doesn't have access to the project
 - Make sure you're a member of the project or have appropriate permissions
 
 ### "No papers to import"
+
 - Check that your project has tasks
 - Verify the tasks aren't all marked as completed
 - Check that task names aren't empty

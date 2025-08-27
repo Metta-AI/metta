@@ -12,7 +12,7 @@ Extracts institution data from papers that have arXiv metadata and populates the
 
 ```bash
 # Extract institutions from papers
-DATABASE_URL="postgres://morganm:password@localhost/metta_library" npm run extract-institutions
+DATABASE_URL="postgres://morganm:password@localhost/metta_library" pnpm run extract-institutions
 ```
 
 ## How It Works
@@ -182,7 +182,7 @@ const institutionData = await fetchInstitutionData(institutionName);
 ### Example Run
 
 ```bash
-$ npm run extract-institutions
+$ pnpm run extract-institutions
 
 🏛️ Extracting institutions from papers...
 📊 Found 245 papers without institution data
