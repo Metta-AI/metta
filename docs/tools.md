@@ -7,15 +7,14 @@ essential functionality for training, evaluation, visualization, and development
 
 | Category          | Tool                              | Purpose                                         | GPU Required | Database Access |
 | ----------------- | --------------------------------- | ----------------------------------------------- | ------------ | --------------- |
-| **Training**      | `train.py`                        | Train policies with PPO algorithm               | ✓            | Optional        |
+| **Training**      | `run.py experiments.recipes.*.train` | Train policies with recipe configurations     | ✓            | Optional        |
 |                   | `sweep_init.py`                   | Initialize hyperparameter sweep experiments     | ✗            | ✗               |
 |                   | `sweep_eval.py`                   | Evaluate policies from sweep runs               | ✓            | ✗               |
-|                   | `sweep_config_utils.py`           | Helper utilities for sweep configurations       | ✗            | ✗               |
-| **Evaluation**    | `sim.py`                          | Run policy evaluation simulations               | ✓            | ✓               |
-|                   | `analyze.py`                      | Analyze evaluation results and generate reports | ✗            | ✓               |
-| **Visualization** | `renderer.py`                     | Real-time ASCII/Miniscope rendering of policies | ✓            | ✗               |
-|                   | `replay.py`                       | Generate and view replay files in MettaScope    | ✓            | ✗               |
-|                   | `play.py`                         | Interactive gameplay as a Metta agent           | ✗            | ✗               |
+| **Evaluation**    | `run.py experiments.recipes.*.evaluate` | Run policy evaluation with recipe system     | ✓            | ✓               |
+|                   | `run.py experiments.recipes.*.analyze`  | Analyze evaluation results with recipes      | ✗            | ✓               |
+| **Visualization** | `run.py experiments.recipes.*.play`   | Interactive gameplay via recipe system        | ✗            | ✗               |
+|                   | `run.py experiments.recipes.*.replay` | Generate replay files via recipe system       | ✓            | ✗               |
+|                   | `renderer.py`                     | Real-time ASCII/Miniscope rendering (legacy)    | ✓            | ✗               |
 |                   | `dashboard.py`                    | Generate dashboard data for web visualization   | ✗            | ✓               |
 | **Map Tools**     | `map/gen.py`                      | Generate maps from configuration files          | ✗            | ✗               |
 |                   | `map/gen_scene.py`                | Generate maps from scene templates              | ✗            | ✗               |
@@ -206,28 +205,16 @@ programmatic processing
 
 ```bash
 # Evaluate a single policy
-./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://run/experiment_001"]'
+./tools/run.py experiments.recipes.navigation.evaluate --args policy_uri=wandb://run/experiment_001
 
-# Evaluate multiple policies
-./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://team/project/model:v0", "wandb://run/exp_002"]'
+# Evaluate with arena recipe
+./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=wandb://run/experiment_001
 
-# Evaluate a single policy with stats DB
-./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://run/experiment_001"]' stats_db_uri='wandb://stats/navigation_db'
+# Evaluate with specific policy from file
+./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=file://./train_dir/my_run/checkpoints
 
-# Evaluate multiple policies with stats DB
-./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://team/project/model:v0", "wandb://run/exp_002"]' stats_db_uri='wandb://stats/navigation_db'
-
-# Export stats to S3
-./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://run/exp"]' stats_db_uri=s3://bucket/eval.db
-
-# Evaluate a single policy with stats DB
-./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://run/exp"]' stats_db_uri='s3://bucket/eval.db'
-
-# Evaluate multiple policies with stats DB
-./tools/run.py experiments.navigation.eval --overrides policy_uris='["wandb://team/project/model:v0", "wandb://run/exp_002"]' stats_db_uri='s3://bucket/eval.db'
-
-# Use specific evaluation suite
-./tools/run.py experiments.navigation.eval --overrides simulation_suite=navigation selector_type=top
+# Evaluate with wandb artifact
+./tools/run.py experiments.recipes.navigation.evaluate --args policy_uri=wandb://team/project/model:v0
 ```
 
 **Key Features**:
@@ -286,14 +273,14 @@ performance metrics, and learning progress.
 **Usage**:
 
 ```bash
-# Analyze latest checkpoint of a policy
-./tools/analyze.py analysis.policy_uri="wandb://run/experiment_001"
+# Analyze arena evaluation results
+./tools/run.py experiments.recipes.arena.analyze --args eval_db_uri=./train_dir/eval_experiment/stats.db
 
-# Analyze with specific metric selection
-./tools/analyze.py analysis.policy_uri="wandb://run/exp" analysis.policy_selector.metric=navigation_score
+# Analyze navigation evaluation results
+./tools/run.py experiments.recipes.navigation.analyze --args eval_db_uri=./train_dir/eval_experiment/stats.db
 
-# Export to S3
-./tools/analyze.py analysis.policy_uri="wandb://run/exp" analysis.output_path=s3://bucket/analysis/
+# Analyze with specific evaluation database
+./tools/run.py experiments.recipes.arena.analyze --args eval_db_uri=wandb://artifacts/navigation_db
 ```
 
 **Dependencies**:
@@ -743,17 +730,16 @@ GROUP BY policy_name, episode;
 
 ```bash
 # 1. Train a policy
-./tools/train.py env=mettagrid/navigation run_name=nav_experiment_001
+./tools/run.py experiments.recipes.navigation.train --args run=nav_experiment_001
 
 # 2. Evaluate the trained policy
-./tools/sim.py sim_job.policy_uris='["wandb://run/nav_experiment_001"]' \
-    sim_job.stats_db_uri=s3://my-bucket/evals/nav_001.db
+./tools/run.py experiments.recipes.navigation.evaluate --args policy_uri=wandb://run/nav_experiment_001
 
 # 3. Analyze results
-./tools/analyze.py analysis.policy_uri="wandb://run/nav_experiment_001"
+./tools/run.py experiments.recipes.navigation.analyze --args eval_db_uri=./train_dir/eval_nav_experiment_001/stats.db
 
-# 4. Generate dashboard
-./tools/dashboard.py dashboard.output_path=s3://my-bucket/dashboards/nav_001.json
+# 4. Interactive play with trained policy
+./tools/run.py experiments.recipes.navigation.play --args policy_uri=wandb://run/nav_experiment_001
 ```
 
 ### Hyperparameter Sweep Workflow

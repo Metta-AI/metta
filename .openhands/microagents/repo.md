@@ -49,7 +49,7 @@ Note: The project requires Python 3.11.7 specifically, as specified in the pypro
 To train a model:
 
 ```bash
-./tools/train.py run=my_experiment wandb=off
+./tools/run.py experiments.recipes.arena.train --args run=my_experiment --overrides wandb.enabled=false
 ```
 
 Parameters:
