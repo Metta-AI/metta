@@ -173,7 +173,6 @@ def train(
     checkpoint_manager = CheckpointManager(
         policy_loader=policy_loader,
         checkpoint_config=trainer_cfg.checkpoint,
-        device=device,
         is_master=torch_dist_cfg.is_master,
         rank=torch_dist_cfg.rank,
         run_name=run,

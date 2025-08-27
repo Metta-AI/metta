@@ -27,8 +27,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger("policy_finder")
 
 
-class PolicyMissingError(ValueError):
-    pass
 
 
 class PolicyFinder:
@@ -126,7 +124,7 @@ class PolicyFinder:
         handles = self._load_from_uri(uri)
 
         if not handles:
-            raise PolicyMissingError(f"No policy records found at {uri}")
+            raise ValueError(f"No policy records found at {uri}")
 
         logger.info(f"Found {len(handles)} policy records at {uri}")
 

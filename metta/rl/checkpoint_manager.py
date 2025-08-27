@@ -34,7 +34,6 @@ class CheckpointManager:
         self,
         policy_loader: PolicyLoader,
         checkpoint_config: CheckpointConfig,
-        device: torch.device,
         is_master: bool,
         rank: int,
         run_name: str,
@@ -44,14 +43,12 @@ class CheckpointManager:
         Args:
             policy_loader: PolicyLoader instance for saving/loading policies
             checkpoint_config: Checkpoint configuration
-            device: Training device
             is_master: Whether this is the master process
             rank: Process rank for distributed training
             run_name: Name of the current run
         """
         self.policy_loader = policy_loader
         self.checkpoint_cfg = checkpoint_config
-        self.device = device
         self.is_master = is_master
         self.rank = rank
         self.run_name = run_name

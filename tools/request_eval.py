@@ -12,7 +12,7 @@ from omegaconf import DictConfig
 from pydantic import BaseModel, model_validator
 from pydantic.fields import Field
 
-from metta.agent.policy_finder import PolicyFinder, PolicyMissingError, PolicySelectorType
+from metta.agent.policy_finder import PolicyFinder, PolicySelectorType
 from metta.agent.policy_handle import PolicyHandle
 from metta.agent.policy_record import PolicyRecord
 from metta.app_backend.clients.eval_task_client import EvalTaskClient
@@ -96,7 +96,7 @@ def _get_policy_records_for_uri(
             eval_name=eval_name,
         )
         return policy_uri, records
-    except PolicyMissingError as e:
+    except ValueError as e:
         if not disallow_missing_policies:
             warning(f"Skipping missing policy: {e}")
             return policy_uri, None

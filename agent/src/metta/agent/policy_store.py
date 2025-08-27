@@ -26,8 +26,6 @@ class PolicySelectorConfig(Config):
     metric: str = "score"
 
 
-class PolicyMissingError(ValueError):
-    pass
 
 
 class PolicyStore:
