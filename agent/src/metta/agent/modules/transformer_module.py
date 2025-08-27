@@ -360,9 +360,13 @@ class TransformerModule(nn.Module):
         # Get memory for current batch size
         past_memory = memory.get("hidden_states")
         if past_memory is not None and past_memory[0].size(1) != B:
-            # Memory batch size mismatch - reinitialize
+            # Memory batch size mismatch - reinitialize on same device as input
             memory = self.initialize_memory(B)
             past_memory = memory.get("hidden_states")
+            # Ensure reinitialized memory is on correct device
+            if past_memory is not None:
+                past_memory = [mem.to(x.device) for mem in past_memory]
+                memory["hidden_states"] = past_memory
 
         # Optional input projection
         if self.use_input_proj:
@@ -385,6 +389,8 @@ class TransformerModule(nn.Module):
             if layer_memory is not None:
                 # Stop gradients through memory (key GTrXL feature)
                 layer_memory = layer_memory.detach()
+                # Ensure memory is on the same device as current input
+                layer_memory = layer_memory.to(current_hidden.device)
                 # Concatenate along sequence dimension: (mem_len + T, B, d_model)
                 extended_input = torch.cat([layer_memory, current_hidden], dim=0)
             else:
@@ -465,9 +471,10 @@ class TransformerModule(nn.Module):
 
         # Initialize memory for each transformer layer
         memory_states = []
+        device = next(self.parameters()).device  # Get model's device
         for _ in range(self.n_layers):
-            # Each layer's memory: (memory_len, batch_size, d_model)
-            layer_memory = torch.zeros(self.memory_len, batch_size, self.d_model)
+            # Each layer's memory: (memory_len, batch_size, d_model) on correct device
+            layer_memory = torch.zeros(self.memory_len, batch_size, self.d_model, device=device)
             memory_states.append(layer_memory)
 
         return {"hidden_states": memory_states}
