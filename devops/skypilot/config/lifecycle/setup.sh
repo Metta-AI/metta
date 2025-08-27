@@ -12,7 +12,7 @@ echo "[SETUP] Checked out: $(git rev-parse HEAD)"
 
 echo "[SETUP] Installing Datadog agent..."
 uv run metta configure --profile softmax-docker || echo "[SETUP] Metta configure failed or skipped"
-uv run metta install datadog-agent || echo "[SETUP] Datadog agent installation failed or skipped"
+uv run metta install datadog-agent --force || echo "[SETUP] Datadog agent installation failed or skipped"
 
 # Note that different sets of skypilot environment variables are available in "run" vs "setup"
 # see https://docs.skypilot.co/en/latest/running-jobs/environment-variables.html
