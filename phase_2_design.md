@@ -43,15 +43,15 @@ Based on current system analysis, we preserve:
 
 ### 1. New Minimal Classes
 
-#### SimpleCheckpointManager (Replaces all of Phase 1 complexity)
+#### CheckpointManager (Simplified rewrite of existing class)
 ```python
-class SimpleCheckpointManager:
+class CheckpointManager:  # Rewrite existing CheckpointManager
     def __init__(self, run_dir: str, run_name: str):
         self.checkpoint_dir = f"{run_dir}/checkpoints"
         self.run_name = run_name
         
-    def load_latest_agent(self) -> MettaAgent | None:
-        """Load latest checkpoint if exists, None otherwise"""
+    def load_agent(self) -> MettaAgent | None:
+        """Load agent from latest checkpoint if exists, None otherwise"""
         
     def save_agent(self, agent: MettaAgent, epoch: int) -> str:
         """Save agent to model_{epoch:04d}.pt, return path"""
@@ -63,6 +63,8 @@ class SimpleCheckpointManager:
         """Load trainer state if exists"""
 ```
 
+*Alternative: Develop as `SimpleCheckpointManager` during testing, then replace existing `CheckpointManager`*
+
 ### 2. Entry Points & Flow
 
 #### Training Entry Point (Preserving run=X check)
@@ -72,10 +74,10 @@ From Phase 1 audit, this check exists in `CheckpointManager.load_or_create_polic
 ```python
 # In TrainTool.invoke() or equivalent:
 def start_training(run_name: str, run_dir: str) -> tuple[MettaAgent, dict | None]:
-    checkpoint_manager = SimpleCheckpointManager(run_dir, run_name)
+    checkpoint_manager = CheckpointManager(run_dir, run_name)
     
     # Check if run=X already exists (preserving current behavior)
-    existing_agent = checkpoint_manager.load_latest_agent()
+    existing_agent = checkpoint_manager.load_agent()
     trainer_state = checkpoint_manager.load_trainer_state()
     
     if existing_agent is not None:
@@ -97,7 +99,7 @@ def maybe_save_checkpoint(
     optimizer: torch.optim.Optimizer,
     epoch: int, 
     agent_step: int,
-    checkpoint_manager: SimpleCheckpointManager,
+    checkpoint_manager: CheckpointManager,
     interval: int,
     wandb_run: WandbRun | None = None
 ) -> None:
@@ -173,7 +175,7 @@ def find_latest_checkpoint(checkpoint_dir: str) -> str | None:
 - `agent/src/metta/agent/policy_record.py` (252 lines)
 - `agent/src/metta/agent/policy_cache.py` (77 lines)
 - `agent/src/metta/agent/policy_metadata.py` (99 lines)
-- `metta/rl/checkpoint_manager.py` (303 lines) - Replace with SimpleCheckpointManager
+- `metta/rl/checkpoint_manager.py` (303 lines) - Rewrite as simplified CheckpointManager
 
 **Total Deletion: ~1,224 lines of complex code**
 
@@ -194,13 +196,14 @@ def find_latest_checkpoint(checkpoint_dir: str) -> str | None:
 
 ## Implementation Steps
 
-### Step 1: Create SimpleCheckpointManager
+### Step 1: Rewrite CheckpointManager
+- Replace existing 303-line CheckpointManager with simplified 4-method version
 - Implement the 4 core methods shown above
 - Add basic file I/O with atomic writes
 - Add simple latest checkpoint detection
 
-### Step 2: Replace Training Integration
-- Modify TrainTool to use SimpleCheckpointManager
+### Step 2: Update Training Integration
+- Modify TrainTool to use simplified CheckpointManager
 - Replace complex PolicyStore creation with simple agent loading
 - Update training loop to use simple save logic
 
@@ -235,7 +238,7 @@ def find_latest_checkpoint(checkpoint_dir: str) -> str | None:
 ## Success Criteria
 
 1. **Massive Code Reduction**: Delete ~1,224 lines of complex policy management code
-2. **Simple API**: 4 methods on SimpleCheckpointManager replace entire PolicyStore system
+2. **Simple API**: 4 methods on rewritten CheckpointManager replace entire PolicyStore system
 3. **Direct torch.save/load**: No abstraction layers or custom serialization
 4. **Preserved Core Functionality**: Run resumption and periodic saving still work
 5. **Clean Architecture**: Single responsibility classes with clear interfaces
