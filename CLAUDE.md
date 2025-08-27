@@ -8,16 +8,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **When receiving general directions that might apply to the codebase:**
 
-1. **Identify patterns** - When the user gives instructions that seem like general preferences or patterns that should be applied across the codebase
+1. **Identify patterns** - When the user gives instructions that seem like general preferences or patterns that should
+   be applied across the codebase
 2. **Propose updates** - Suggest adding these preferences to CLAUDE.md with specific text
-3. **Ask for confirmation** - Present the proposed update and ask: "Should I add this preference to CLAUDE.md so I remember it for future work?"
+3. **Ask for confirmation** - Present the proposed update and ask: "Should I add this preference to CLAUDE.md so I
+   remember it for future work?"
 4. **Apply if approved** - Update CLAUDE.md only after receiving explicit approval
 
-This allows Claude to learn and remember user preferences over time, building a personalized understanding of how to work with this specific codebase.
+This allows Claude to learn and remember user preferences over time, building a personalized understanding of how to
+work with this specific codebase.
 
 ### Plan & Review Process
 
-Preferred: Start in plan mode for larger or ambiguous tasks. For small, surgical changes, you may proceed directly with implementation.
+Preferred: Start in plan mode for larger or ambiguous tasks. For small, surgical changes, you may proceed directly with
+implementation.
 
 1. **Enter plan mode first** - Use the ExitPlanMode tool only after presenting a complete plan
 2. **Create a task plan** - Write your plan to `.claude/tasks/TASK_NAME.md` with:
@@ -25,7 +29,8 @@ Preferred: Start in plan mode for larger or ambiguous tasks. For small, surgical
    - MVP approach (always think minimal viable solution first)
    - Step-by-step implementation plan
    - Success criteria
-3. **Use appropriate tools** - If the task requires external knowledge or complex searches, use the Task tool with appropriate agents
+3. **Use appropriate tools** - If the task requires external knowledge or complex searches, use the Task tool with
+   appropriate agents
 4. **Optional review** - If the plan is non-trivial or high-risk, request a quick review before implementing
 5. **Proceed when ready** - If low-risk and scoped, you may proceed without explicit approval
 
@@ -35,22 +40,27 @@ Preferred: Start in plan mode for larger or ambiguous tasks. For small, surgical
 # Task: [TASK_NAME]
 
 ## Problem Statement
+
 [Clear description of what needs to be done]
 
 ## MVP Approach
+
 [Minimal solution that solves the core problem]
 
 ## Implementation Plan
+
 1. [Step 1]
 2. [Step 2]
 3. ...
 
 ## Success Criteria
+
 - [ ] [Criterion 1]
 - [ ] [Criterion 2]
 - [ ] ...
 
 ## Implementation Updates
+
 [This section will be updated during implementation]
 ```
 
@@ -62,13 +72,14 @@ Preferred: Start in plan mode for larger or ambiguous tasks. For small, surgical
 2. **Document completed steps** - After completing each major step, append a brief description:
    ```markdown
    ### Step 1 Complete: [Date/Time]
+
    - Changed: [what was changed]
    - Files affected: [list files]
    - Key decisions: [any important choices made]
    ```
 3. **Track deviations** - If you need to deviate from the plan, document why and update the approach
 4. **Keep it concise** - Focus on what changed and why, not how (the code shows how)
-5. **CRITICAL: Always format Python code** - After editing any Python file (*.py), immediately run:
+5. **CRITICAL: Always format Python code** - After editing any Python file (\*.py), immediately run:
    ```bash
    ruff format [file_path]
    ruff check --fix [file_path]
@@ -117,7 +128,9 @@ The goal: Design interactions, not just instructions.
 
 ### What is Metta AI?
 
-Metta AI is a reinforcement learning project focusing on the emergence of cooperation and alignment in multi-agent AI systems. It creates a model organism for complex multi-agent gridworld environments to study the impact of social dynamics (like kinship and mate selection) on learning and cooperative behaviors.
+Metta AI is a reinforcement learning project focusing on the emergence of cooperation and alignment in multi-agent AI
+systems. It creates a model organism for complex multi-agent gridworld environments to study the impact of social
+dynamics (like kinship and mate selection) on learning and cooperative behaviors.
 
 ### Repository Structure
 
@@ -131,6 +144,7 @@ Metta AI is a reinforcement learning project focusing on the emergence of cooper
 ### Architecture Overview
 
 #### Agent System
+
 - Each agent has a policy with action spaces and observation spaces
 - Policies are stored in `PolicyStore` and managed by `MettaAgent`
 - Agent architecture is designed to be adaptable to new game rules and environments
@@ -168,29 +182,33 @@ metta install core                   # Reinstall core dependencies only
 All tools are now run through `./tools/run.py` with recipe functions:
 
 1. **Training**: Use recipe functions for different training configurations
+
    ```bash
    # Training with arena recipe
    uv run ./tools/run.py experiments.recipes.arena.train run=my_experiment
-   
+
    # Training with navigation recipe
    uv run ./tools/run.py experiments.recipes.navigation.train run=my_experiment
    ```
 
 2. **Simulation/Evaluation**: Run evaluation suites on trained policies
+
    ```bash
    # Run evaluation
    uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=file://./checkpoints/policy.pt
-   
+
    # Using wandb artifact
    uv run ./tools/run.py experiments.recipes.arena.evaluate policy_uri=wandb://run/my-training-run
    ```
 
 3. **Analysis**: Analyze evaluation results
+
    ```bash
    uv run ./tools/run.py experiments.recipes.arena.analyze eval_db_uri=./train_dir/eval/stats.db
    ```
 
 4. **Interactive Play**: Test policies interactively (browser-based)
+
    ```bash
    uv run ./tools/run.py experiments.recipes.arena.play policy_uri=file://./checkpoints/policy.pt
    ```
@@ -202,7 +220,8 @@ All tools are now run through `./tools/run.py` with recipe functions:
 
 #### Visualization Tools
 
-**Note**: These commands start development servers that run indefinitely. In Claude Code, they may hang without clear feedback. Consider running them in separate terminals outside of Claude Code.
+**Note**: These commands start development servers that run indefinitely. In Claude Code, they may hang without clear
+feedback. Consider running them in separate terminals outside of Claude Code.
 
 - **MettaScope**: Run `cd mettascope && npm run dev` for interactive replay viewer
 - **Observatory**: Run `cd observatory && npm run dev` for training dashboard
@@ -245,7 +264,8 @@ metta clean
 
 The project uses OmegaConf for configuration, with config files organized in `configs/`:
 
-- `agent/`: Agent architecture configurations (latent_attn_tiny, latent_attn_small, latent_attn_med, fast, reference_design)
+- `agent/`: Agent architecture configurations (latent_attn_tiny, latent_attn_small, latent_attn_med, fast,
+  reference_design)
 - `trainer/`: Training configurations
 - `sim/`: Simulation configurations (navigation, memory, arena, etc.)
 - `user/`: User-specific configurations
@@ -274,7 +294,9 @@ uv run ./tools/run.py experiments.recipes.arena.replay policy_uri=wandb://run/lo
 
 #### Configuration System
 
-The project now uses Pydantic-based configuration instead of Hydra/YAML. Configurations are built programmatically in recipe files:
+The project now uses Pydantic-based configuration instead of Hydra/YAML. Configurations are built programmatically in
+recipe files:
+
 - Recipes define training setups, environments, and evaluation suites
 - Each recipe function returns a Tool configuration object
 - Override parameters can be passed via command line arguments to the recipe functions
@@ -299,7 +321,8 @@ The project now uses Pydantic-based configuration instead of Hydra/YAML. Configu
 
 1. Use smaller batch sizes for debugging
 2. Check wandb logs for metrics anomalies
-3. Use `./tools/run.py experiments.recipes.arena.play` for interactive debugging (Note: Less useful in Claude Code due to interactive nature)
+3. Use `./tools/run.py experiments.recipes.arena.play` for interactive debugging (Note: Less useful in Claude Code due
+   to interactive nature)
 
 #### Performance Profiling
 
@@ -343,12 +366,14 @@ The project now uses Pydantic-based configuration instead of Hydra/YAML. Configu
 
 ### Class Member Naming Conventions
 
-- **Private members**: All class attributes and methods that are internal implementation details MUST start with underscore (`_`)
+- **Private members**: All class attributes and methods that are internal implementation details MUST start with
+  underscore (`_`)
   - Example: `self._internal_state`, `def _process_data(self):`
 - **Public members**: Only expose class members without underscore if they are part of the public API
   - Example: `self.name` (if users should access it), `def process(self):` (if users should call it)
 - **Protected members**: Use single underscore for "protected" members that subclasses might need
-- **Name mangling**: Use double underscore (`__`) sparingly, only when you need Python's name mangling to avoid subclass conflicts
+- **Name mangling**: Use double underscore (`__`) sparingly, only when you need Python's name mangling to avoid subclass
+  conflicts
 - **Test access exception**: Tests are allowed to access private members (those starting with `_`) for thorough testing
   - This allows tests to verify internal state and implementation details
   - Tests can directly access `_private_method()` or `self._private_attribute`
@@ -358,7 +383,7 @@ The project now uses Pydantic-based configuration instead of Hydra/YAML. Configu
   class Example:
       def __init__(self):
           self._value = 0  # Private attribute
-      
+
       @property
       def value(self):  # Public property
           return self._value
@@ -367,18 +392,21 @@ The project now uses Pydantic-based configuration instead of Hydra/YAML. Configu
 ### Project-Specific Patterns
 
 #### Environment Properties
+
 - Convert methods to properties where appropriate for better API consistency
 - Use `@property` decorator for computed attributes
 - Ensure all environment properties follow consistent naming patterns
 - Example: `action_names()` → `action_names` (property)
 
 #### Policy and Agent Management
+
 - Validate policy types with runtime checking
 - Use Union types for policies: `Union[MettaAgent, DistributedMettaAgent]`
 - Ensure proper type safety for policy handling throughout the system
 - Policy URIs follow format: `file://path/to/checkpoint` or `wandb://project/run/artifact`
 
 #### Device Management
+
 - Add explicit `torch.device` type hints in trainer and simulation modules
 - Be consistent about device placement and movement of tensors
 - Use `device=cpu` on macOS (no CUDA support)
@@ -391,7 +419,8 @@ See @.cursor/docs.md for testing examples and quick test commands.
 - Tests should be focused on testing one thing
 - Tests should cover edge cases and boundary conditions
 - Tests are organized in the `tests/` directory, mirroring the project structure
-- **Always use `uv run` for testing Python files** - This ensures proper environment activation and dependency resolution
+- **Always use `uv run` for testing Python files** - This ensures proper environment activation and dependency
+  resolution
 - Test organization:
   - `tests/rl/` - Reinforcement learning components
   - `tests/sim/` - Simulation and evaluation
@@ -424,7 +453,8 @@ The workflow automatically determines the appropriate base branch:
 
 - **From PR Comments**: New branches are created from the current PR's branch
 - **From Issue Comments**: New branches are created from the main branch
-- **Example**: If you comment `@claude open-pr` in PR #657 (branch: `robb/0525-agent-type-changes`), Claude will create a new branch based on `robb/0525-agent-type-changes`, not main
+- **Example**: If you comment `@claude open-pr` in PR #657 (branch: `robb/0525-agent-type-changes`), Claude will create
+  a new branch based on `robb/0525-agent-type-changes`, not main
 
 #### Branch Naming Convention
 

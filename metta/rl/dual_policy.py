@@ -209,9 +209,8 @@ class DualPolicyHandler:
         if not self.enabled or not self._agent_groups:
             return
 
-        # Get per-agent stats from environment
-        stats = env.get_episode_stats()
-        agent_stats_list = stats.get("agent", [])
+        # Get per-agent stats from environment (not used presently)
+        env.get_episode_stats()
 
         training_rewards = []
         npc_rewards = []

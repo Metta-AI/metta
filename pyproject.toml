@@ -140,3 +140,11 @@ metta-agent = { workspace = true }
 
 [tool.ruff]
 exclude = ["*.ipynb"]
+
+[tool.mypy]
+python_version = "3.11"
+explicit_package_bases = true
+namespace_packages = true
+mypy_path = ["agent/src", "app_backend/src", "common/src", "mettagrid/src"]
+# Avoid duplicate top-level package declaration from multiple distributions sharing `metta`
+exclude = '(^agent/src/metta/__init__\.py$)|(^app_backend/src/metta/__init__\.py$)|(^metta/__init__\.py$)|(^metta/common/.*)|(^mettagrid/src/metta/__init__\.py$)'

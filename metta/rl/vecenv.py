@@ -91,7 +91,7 @@ def make_vecenv(
     vecenv = pufferlib.vector.make(
         make_env_func,
         env_kwargs=env_kwargs,
-        backend=vectorizer_cls,  # type: ignore - PufferEnv inferred type is incorrect
+        backend=vectorizer_cls,  # type: ignore[arg-type]
         num_envs=num_envs,
         num_workers=num_workers,
         batch_size=batch_size or num_envs,
