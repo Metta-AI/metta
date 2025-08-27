@@ -1,5 +1,4 @@
 import os
-import platform
 import subprocess
 
 import boto3
@@ -25,22 +24,18 @@ class DatadogAgentSetup(SetupModule):
         return "Datadog agent for system monitoring and log aggregation"
 
     def _is_applicable(self) -> bool:
-        # Only applicable on Linux systems (EC2 instances)
-        return platform.system() == "Linux"
+        # Only install this within the docker containers that are running on EC2 instances
+        return os.path.exists("/.dockerenv")
 
     def check_installed(self) -> bool:
-        # Check if datadog-agent service exists
         try:
             result = subprocess.run(
-                ["systemctl", "status", "datadog-agent"],
+                ["which", "datadog-agent"],
                 capture_output=True,
-                text=True,
                 check=False,
             )
-            # Service exists if systemctl can find it (even if not running)
-            return result.returncode != 4  # 4 means service not found
+            return result.returncode == 0
         except FileNotFoundError:
-            # systemctl not available
             return False
 
     def _get_dd_api_key(self) -> str:
@@ -89,18 +84,12 @@ class DatadogAgentSetup(SetupModule):
         if tags:
             env["DD_TAGS"] = " ".join(tags)
 
-        # Check if already installed
-        if self.check_installed():
-            info("Datadog agent already installed.")
-            # Just restart with new config/tags if needed
-            try:
-                subprocess.run(["sudo", "systemctl", "restart", "datadog-agent"], check=True)
-                success("Datadog agent restarted with updated configuration.")
-            except subprocess.CalledProcessError:
-                warning("Failed to restart Datadog agent.")
-            return
-
         info("Installing Datadog agent...")
+
+        # For containers, we need to install without systemd
+        # Use DD_INSTALL_ONLY to prevent the script from starting the service
+        env["DD_INSTALL_ONLY"] = "true"
+        info("Container environment detected - installing without systemd.")
 
         install_cmd = 'bash -c "$(curl -L https://s3.amazonaws.com/dd-agent/scripts/install_script_agent7.sh)"'
         result = subprocess.run(
@@ -117,3 +106,22 @@ class DatadogAgentSetup(SetupModule):
             return
 
         success("Datadog agent installed successfully.")
+
+        # Start the agent in background for containers
+        info("Starting Datadog agent in background...")
+        try:
+            # Write configuration to the agent config file
+            config_dir = "/etc/datadog-agent"
+            os.makedirs(config_dir, exist_ok=True)
+
+            # Start the agent process in background
+            subprocess.Popen(
+                ["/opt/datadog-agent/bin/agent/agent", "run"],
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+            success("Datadog agent started in background.")
+        except Exception as e:
+            warning(f"Failed to start Datadog agent in background: {e}")
