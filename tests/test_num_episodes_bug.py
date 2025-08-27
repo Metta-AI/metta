@@ -86,7 +86,6 @@ def test_normalization_bug():
         # Create a mock policy record using the real class to satisfy type checks.
         # The policy_store isn't used by the methods under test.
         policy_record = PolicyRecord(
-            policy_store=None,  # type: ignore
             run_name="test_policy",
             uri="test_policy",
             metadata=PolicyMetadata(epoch=1),

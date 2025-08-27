@@ -32,8 +32,8 @@ class TestKickstarter:
         return cfg
 
     @pytest.fixture
-    def mock_policy_store(self):
-        """Create a mock policy store for testing."""
+    def mock_policy_loader(self):
+        """Create a mock policy loader for testing."""
         return MagicMock()
 
     @pytest.fixture
@@ -45,19 +45,19 @@ class TestKickstarter:
         env.get_observation_features.return_value = MagicMock()  # Mock features
         return env
 
-    def test_initialization_no_teachers(self, mock_config, mock_policy_store, mock_metta_grid_env):
+    def test_initialization_no_teachers(self, mock_config, mock_policy_loader, mock_metta_grid_env):
         """Test initialization when no teachers are provided."""
-        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
+        kickstarter = Kickstarter(mock_config, torch.device("cpu"), mock_policy_loader, mock_metta_grid_env)
 
         assert kickstarter.enabled is False
         assert kickstarter.anneal_ratio == 0.2
         assert kickstarter.device == "cpu"
 
-    def test_initialization_with_teacher_uri(self, mock_config, mock_policy_store, mock_metta_grid_env):
+    def test_initialization_with_teacher_uri(self, mock_config, mock_policy_loader, mock_metta_grid_env):
         """Test initialization when a teacher URI is provided."""
         mock_config.teacher_uri = "wandb://teacher/uri"
 
-        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_loader, mock_metta_grid_env)
 
         assert kickstarter.enabled is True
         assert kickstarter.teacher_cfgs is not None
@@ -66,14 +66,14 @@ class TestKickstarter:
         assert kickstarter.teacher_cfgs[0].action_loss_coef == 0.5
         assert kickstarter.teacher_cfgs[0].value_loss_coef == 0.5
 
-    def test_initialization_with_additional_teachers(self, mock_config, mock_policy_store, mock_metta_grid_env):
+    def test_initialization_with_additional_teachers(self, mock_config, mock_policy_loader, mock_metta_grid_env):
         """Test initialization when additional teachers are provided."""
         mock_config.additional_teachers = [
             KickstartTeacherConfig(teacher_uri="wandb://teacher1/uri", action_loss_coef=0.3, value_loss_coef=0.7),
             KickstartTeacherConfig(teacher_uri="wandb://teacher2/uri", action_loss_coef=0.6, value_loss_coef=0.4),
         ]
 
-        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_loader, mock_metta_grid_env)
 
         assert kickstarter.enabled is True
         assert kickstarter.teacher_cfgs is not None
@@ -81,11 +81,11 @@ class TestKickstarter:
         assert kickstarter.teacher_cfgs[0].teacher_uri == "wandb://teacher1/uri"
         assert kickstarter.teacher_cfgs[1].teacher_uri == "wandb://teacher2/uri"
 
-    def test_anneal_factor_calculation(self, mock_config, mock_policy_store, mock_metta_grid_env):
+    def test_anneal_factor_calculation(self, mock_config, mock_policy_loader, mock_metta_grid_env):
         """Test the calculation of the anneal factor."""
         mock_config.teacher_uri = "wandb://teacher/uri"
 
-        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_loader, mock_metta_grid_env)
 
         # Initial anneal factor should be 1.0
         assert kickstarter.anneal_factor == 1.0
@@ -101,11 +101,11 @@ class TestKickstarter:
         assert kickstarter.ramp_down_start_step == ramp_down_start_step
 
     @patch("metta.rl.kickstarter.Kickstarter._load_policies")
-    def test_loss_disabled(self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env):
+    def test_loss_disabled(self, mock_load_policies, mock_config, mock_policy_loader, mock_metta_grid_env):
         """Test the loss method when kickstarting is disabled."""
         mock_config.teacher_uri = None
 
-        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_loader, mock_metta_grid_env)
         kickstarter.enabled = False
 
         # Create test tensors
@@ -121,11 +121,11 @@ class TestKickstarter:
         assert torch.all(ks_value_loss == 0.0)
 
     @patch("metta.rl.kickstarter.Kickstarter._load_policies")
-    def test_loss_after_kickstart_steps(self, mock_load_policies, mock_config, mock_policy_store, mock_metta_grid_env):
+    def test_loss_after_kickstart_steps(self, mock_load_policies, mock_config, mock_policy_loader, mock_metta_grid_env):
         """Test the loss method after kickstart steps have been exceeded."""
         mock_config.teacher_uri = "wandb://teacher/uri"
 
-        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_loader, mock_metta_grid_env)
         kickstarter.enabled = True
 
         # Create test tensors
@@ -143,12 +143,12 @@ class TestKickstarter:
     @patch("metta.rl.kickstarter.Kickstarter._forward")
     @patch("metta.rl.kickstarter.Kickstarter._load_policies")
     def test_loss_with_annealing(
-        self, mock_load_policies, mock_forward, mock_config, mock_policy_store, mock_metta_grid_env
+        self, mock_load_policies, mock_forward, mock_config, mock_policy_loader, mock_metta_grid_env
     ):
         """Test the loss method with annealing."""
         mock_config.teacher_uri = "wandb://teacher/uri"
 
-        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_loader, mock_metta_grid_env)
         kickstarter.enabled = True
 
         # Mock the teachers list
@@ -187,11 +187,11 @@ class TestKickstarter:
         assert isinstance(args[1], TensorDict)
         assert "obs" in args[1].keys()
 
-    def test_forward_method(self, mock_config, mock_policy_store, mock_metta_grid_env):
+    def test_forward_method(self, mock_config, mock_policy_loader, mock_metta_grid_env):
         """Test the _forward method."""
         mock_config.teacher_uri = "wandb://teacher/uri"
 
-        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_store, mock_metta_grid_env)
+        kickstarter = Kickstarter(mock_config, "cpu", mock_policy_loader, mock_metta_grid_env)
 
         # Create a mock teacher
         mock_teacher = MagicMock()

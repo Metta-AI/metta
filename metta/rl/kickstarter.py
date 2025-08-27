@@ -3,7 +3,7 @@ from tensordict import TensorDict
 from torch import Tensor, nn
 
 from metta.agent.metta_agent import PolicyAgent
-from metta.agent.policy_store import PolicyStore
+from metta.agent.policy_loader import PolicyLoader
 from metta.mettagrid import MettaGridEnv
 from metta.rl.kickstarter_config import KickstartConfig, KickstartTeacherConfig
 
@@ -20,7 +20,7 @@ class KickstartTeacher:
 
 class Kickstarter:
     def __init__(
-        self, cfg: KickstartConfig, device: torch.device, policy_store: PolicyStore, metta_grid_env: MettaGridEnv
+        self, cfg: KickstartConfig, device: torch.device, policy_loader: PolicyLoader, metta_grid_env: MettaGridEnv
     ):
         """
         Kickstarting is a technique to initialize a student policy with the knowledge of one or more teacher policies.
@@ -58,7 +58,7 @@ class Kickstarter:
             self.enabled = False
             return
 
-        self.policy_store: PolicyStore = policy_store
+        self.policy_loader: PolicyLoader = policy_loader
         self.kickstart_steps: int = cfg.kickstart_steps
         self.anneal_factor = 1.0
 
@@ -74,7 +74,7 @@ class Kickstarter:
     def _load_policies(self) -> None:
         self.teachers: list[KickstartTeacher] = []
         for teacher_cfg in self.teacher_cfgs or []:
-            policy_record = self.policy_store.policy_record(teacher_cfg.teacher_uri)
+            policy_record = self.policy_loader.load_from_uri(teacher_cfg.teacher_uri)
             policy: PolicyAgent = policy_record.policy
             policy.action_loss_coef = teacher_cfg.action_loss_coef
             policy.value_loss_coef = teacher_cfg.value_loss_coef

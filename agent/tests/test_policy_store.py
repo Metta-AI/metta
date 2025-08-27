@@ -36,10 +36,8 @@ def test_policy_save_load_without_pydantic():
 
     try:
         print(temp_path)
-        # Create a policy record
-        pr_metadata = PolicyMetadata()
-        pr = PolicyRecord(policy_store, os.path.basename(temp_path), f"file://{temp_path}", pr_metadata)
-        pr.metadata = metadata
+        # Create a policy record - using refactor approach with direct PolicyRecord construction
+        pr = PolicyRecord(policy_store, os.path.basename(temp_path), f"file://{temp_path}", metadata)
         pr.policy = policy
 
         # Save
@@ -110,10 +108,8 @@ def test_policy_save_load_with_dict_metadata():
         temp_path = f.name
 
     try:
-        # Create a policy record
-        pr_metadata = PolicyMetadata()
-        pr = PolicyRecord(policy_store, os.path.basename(temp_path), f"file://{temp_path}", pr_metadata)
-        pr.metadata = metadata
+        # Create a policy record - using refactor approach with direct PolicyRecord construction
+        pr = PolicyRecord(policy_store, os.path.basename(temp_path), f"file://{temp_path}", metadata)
         pr.policy = policy
 
         # Save
@@ -149,9 +145,7 @@ def test_policy_record_backwards_compatibility():
         # Create a PolicyRecord without using the normal constructor
         # to simulate loading an old checkpoint
         pr = PolicyRecord.__new__(PolicyRecord)
-        pr._policy_store = policy_store
         pr.run_name = "test_policy"
-        pr.uri = "file:///tmp/test.pt"
         pr._cached_policy = None
 
         # Set metadata using the old attribute name
@@ -185,9 +179,7 @@ def test_policy_record_backwards_compatibility():
 
     # Test with no metadata attribute at all
     pr_no_metadata = PolicyRecord.__new__(PolicyRecord)
-    pr_no_metadata._policy_store = policy_store
     pr_no_metadata.run_name = "test_policy"
-    pr_no_metadata.uri = "file:///tmp/test.pt"
     pr_no_metadata._cached_policy = None
 
     # This should raise AttributeError

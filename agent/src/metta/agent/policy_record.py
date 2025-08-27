@@ -1,18 +1,13 @@
 """
 PolicyRecord: A lightweight data structure for storing policy metadata and references.
-This is separated from PolicyStore to enable cleaner packaging of saved policies.
 """
 
 import logging
-from typing import TYPE_CHECKING
 
 import torch
 
+from metta.agent.metta_agent import PolicyAgent
 from metta.agent.policy_metadata import PolicyMetadata
-
-if TYPE_CHECKING:
-    from metta.agent.metta_agent import PolicyAgent
-    from metta.agent.policy_store import PolicyStore
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +15,23 @@ logger = logging.getLogger(__name__)
 class PolicyRecord:
     """A record containing a policy and its metadata."""
 
-    def __init__(self, policy_store: "PolicyStore", run_name: str, uri: str | None, metadata: PolicyMetadata):
-        self._policy_store = policy_store
+    def __init__(
+        self,
+        run_name: str,
+        uri: str | None,
+        metadata: PolicyMetadata | dict,
+        policy: "PolicyAgent",
+        wandb_entity: str | None = None,  # for loading policies from wandb
+        wandb_project: str | None = None,  # for loading policies from wandb
+    ):
         self.run_name = run_name  # Human-readable identifier (e.g., from wandb). Can include version
         self.uri: str | None = uri
+        self.wandb_entity = wandb_entity
+        self.wandb_project = wandb_project
+
         # Use the setter to ensure proper type
         self.metadata = metadata
-        self._cached_policy: "PolicyAgent | None" = None
+        self._cached_policy: "PolicyAgent | None" = policy
 
     def extract_wandb_run_info(self) -> tuple[str, str, str, str | None]:
         if self.uri is None or not self.uri.startswith("wandb://"):
@@ -49,6 +54,7 @@ class PolicyRecord:
             # Try backwards compatibility names
             old_metadata_names = ["checkpoint"]
             for name in old_metadata_names:
+                # ?? this should be removed
                 if hasattr(self, name):
                     logger.warning(
                         f"Found metadata under old attribute name '{name}'. "
@@ -80,7 +86,7 @@ class PolicyRecord:
         return self._metadata
 
     @metadata.setter
-    def metadata(self, value) -> None:
+    def metadata(self, value: PolicyMetadata | dict) -> None:
         """Set metadata, ensuring it's a PolicyMetadata instance."""
         if isinstance(value, PolicyMetadata):
             self._metadata = value
@@ -104,36 +110,18 @@ class PolicyRecord:
     @property
     def policy(self) -> "PolicyAgent":
         """Load and return the policy, using cache if available."""
-        if self._cached_policy is None:
-            if self._policy_store is None:
-                # Standalone loading is not supported
-                raise ValueError(
-                    "Cannot load policy without a PolicyStore. "
-                    "PolicyRecord must be created through PolicyStore for loading functionality."
-                )
-            else:
-                if self.uri is None:
-                    raise ValueError("Cannot load policy without a valid URI.")
-                pr = self._policy_store.load_from_uri(self.uri)
-                if pr._cached_policy is None:
-                    raise ValueError(f"Policy loaded from {self.uri} has no cached policy!")
-                # access _cached_policy directly to avoid recursion
-                self._cached_policy = pr._cached_policy
+        if isinstance(self._cached_policy, PolicyAgent):
+            return self._cached_policy
+        else:
+            raise TypeError(f"Expected PolicyAgent, got {type(self._cached_policy).__name__}")
 
-        return self._cached_policy
-
-    @policy.setter
-    def policy(self, policy: "PolicyAgent") -> None:
-        """Set or overwrite the policy.
-
-        Args:
-            policy: The PyTorch module to set as the policy.
-
-        Raises:
-            TypeError: If policy is not a nn.Module.
-        """
-        self._cached_policy = policy
-        logger.info(f"Policy overwritten for {self.run_name}")
+    @property
+    def cached_policy(self) -> "PolicyAgent | None":
+        """Get the cached policy without loading."""
+        if isinstance(self._cached_policy, PolicyAgent):
+            return self._cached_policy
+        else:
+            return None
 
     def num_params(self) -> int:
         """Count the number of trainable parameters."""
@@ -157,11 +145,8 @@ class PolicyRecord:
         # Load policy if not already loaded
         policy = None
         if self._cached_policy is None:
-            try:
-                policy = self.policy
-            except Exception as e:
-                lines.append(f"Error loading policy: {str(e)}")
-                return "\n".join(lines)
+            lines.append("(deferred)")
+            return "\n".join(lines)
         else:
             policy = self._cached_policy
 

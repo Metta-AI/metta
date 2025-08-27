@@ -2,11 +2,9 @@ import importlib.util
 import sys
 
 import IPython
-from omegaconf import DictConfig
 from traitlets.config import Config as IPythonConfig
 
 from metta.common.util.fs import get_repo_root
-from metta.common.wandb.wandb_context import WandbRun
 from metta.setup.utils import header, info, success, warning
 
 __name__ = "__ipython__"
@@ -15,18 +13,6 @@ REPO_ROOT = get_repo_root()
 CONFIGS_DIR = REPO_ROOT / "configs"
 
 from metta.agent.policy_store import PolicyStore  # noqa
-
-
-def get_policy_store_from_cfg(cfg: DictConfig, wandb_run: WandbRun | None = None) -> PolicyStore:
-    policy_store = PolicyStore(
-        device=cfg.device,
-        wandb_run=wandb_run,
-        data_dir=getattr(cfg, "data_dir", None),
-        wandb_entity=cfg.wandb.entity if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "entity") else None,
-        wandb_project=cfg.wandb.project if hasattr(cfg, "wandb") and hasattr(cfg.wandb, "project") else None,
-        pytorch_cfg=getattr(cfg, "pytorch", None),
-    )
-    return policy_store
 
 
 def help_configs() -> None:
