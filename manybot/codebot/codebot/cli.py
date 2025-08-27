@@ -136,6 +136,48 @@ def version() -> None:
     click.echo(f"codebot {__version__}")
 
 
+@main.command("mcp-server")
+@click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging")
+def mcp_server(verbose: bool) -> None:
+    """
+    Start the MCP server for codebot.
+
+    This command starts a Model Context Protocol (MCP) server that exposes
+    codebot's AI-powered development tools to MCP clients like Claude Desktop.
+
+    The server communicates via stdio and provides tools for:
+    - summarize: Generate AI-powered code summaries
+    - context: Show code context for AI commands
+
+    Example usage in Claude Desktop config:
+    {
+        "mcpServers": {
+            "codebot": {
+                "command": "codebot",
+                "args": ["mcp-server"]
+            }
+        }
+    }
+    """
+    if verbose:
+        import logging
+
+        logging.getLogger().setLevel(logging.DEBUG)
+        logging.getLogger("codebot").setLevel(logging.DEBUG)
+
+    try:
+        # Import and run the MCP server
+        from .mcp_server import main as mcp_main
+
+        asyncio.run(mcp_main())
+    except KeyboardInterrupt:
+        click.echo("MCP server stopped.", err=True)
+    except Exception as e:
+        logger.error(f"Error starting MCP server: {e}")
+        click.echo(f"Error starting MCP server: {str(e)}", err=True)
+        sys.exit(1)
+
+
 @main.command()
 @click.argument("paths", nargs=-1, type=str)
 def context(paths: Tuple[str, ...]) -> None:

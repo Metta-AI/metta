@@ -10,6 +10,7 @@ dependencies = [
     "click>=8.0",
     "pathlib2>=2.3.0",
     "tiktoken>=0.9.0",
+    "mcp>=1.0.0",
 ]
 
 [project.scripts]
