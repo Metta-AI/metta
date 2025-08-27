@@ -161,9 +161,6 @@ def run_git_cmd(
 # Functions with _ prefix are internal helpers
 # ============================================================================
 
-# No longer storing project-specific constants here
-# These should be passed as parameters by the calling code
-
 
 def _memoize(max_age=60):
     """Simple memoization decorator with time-based expiry. (Internal helper)"""
