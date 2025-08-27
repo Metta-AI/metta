@@ -9,6 +9,7 @@ import logging
 import os
 import random
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 import wandb
 from omegaconf import DictConfig
@@ -160,17 +161,21 @@ class PolicyFinder:
 
     def _load_from_uri(self, uri: str) -> list[PolicyHandle]:
         """Load policy handles from various URI types."""
-        if uri.startswith("wandb://"):
+        if not uri:
+            return []
+
+        parsed = urlparse(uri)
+        scheme = parsed.scheme
+
+        if scheme == "wandb":
             return self._prs_from_wandb(uri)
+        if scheme == "file":
+            return self._prs_from_path(parsed.path)
+        if scheme == "pytorch":
+            return self._prs_from_pytorch(parsed.path)
 
-        elif uri.startswith("file://"):
-            return self._prs_from_path(uri[len("file://") :])
-
-        elif uri.startswith("pytorch://"):
-            return self._prs_from_pytorch(uri)
-
-        else:
-            return self._prs_from_path(uri)
+        # Treat as direct filesystem path by default
+        return self._prs_from_path(uri)
 
     def _prs_from_wandb(self, uri: str) -> list[PolicyHandle]:
         """
