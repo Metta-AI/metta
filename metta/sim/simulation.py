@@ -257,8 +257,12 @@ class Simulation:
 
         # ---------------- forward passes ------------------------- #
         with torch.no_grad():
-            # Candidate-policy agents
-            my_obs = self._obs[self._policy_idxs.cpu()]
+            # Candidate-policy agents (preserve agent dimension)
+            policy_indices = self._policy_idxs.cpu()
+            my_obs = self._obs[policy_indices]
+            # Ensure agent dimension is preserved for single-agent environments
+            if my_obs.ndim == 2 and len(policy_indices) == 1:
+                my_obs = my_obs[None, ...]  # Add back the agent dimension
             td = obs_to_td(my_obs, self._device)  # One-liner conversion
             policy = self._policy_pr.policy
             policy(td)
@@ -266,7 +270,11 @@ class Simulation:
 
             # NPC agents (if any)
             if self._npc_pr is not None and len(self._npc_idxs):
-                npc_obs = self._obs[self._npc_idxs]
+                npc_indices = self._npc_idxs
+                npc_obs = self._obs[npc_indices]
+                # Ensure agent dimension is preserved for single-NPC environments
+                if npc_obs.ndim == 2 and len(npc_indices) == 1:
+                    npc_obs = npc_obs[None, ...]  # Add back the agent dimension
                 td = obs_to_td(npc_obs, self._device)  # One-liner conversion
                 npc_policy = self._npc_pr.policy
                 try:
