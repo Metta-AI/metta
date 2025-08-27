@@ -1,6 +1,7 @@
 # Asana Integration Action Test Utilities
 
-This directory contains utilities for testing and verifying the behavior of the `pr_gh_to_asana.py` GitHub Action workflow using real workflow run data and VCR cassettes.
+This directory contains utilities for testing and verifying the behavior of the `pr_gh_to_asana.py` GitHub Action
+workflow using real workflow run data and VCR cassettes.
 
 ## Scripts
 
@@ -19,7 +20,8 @@ python download_action_logs.py <branch_name> [--workflow "Asana Integration"]
 
 ### 2. `replay_and_test.py`
 
-Replays a previously recorded workflow run using VCR in strict replay mode, verifying that `pr_gh_to_asana.py` produces the same REST activity as in the original run.
+Replays a previously recorded workflow run using VCR in strict replay mode, verifying that `pr_gh_to_asana.py` produces
+the same REST activity as in the original run.
 
 **Usage:**
 
@@ -28,7 +30,8 @@ python replay_and_test.py <run_directory>
 ```
 
 - `<run_directory>` should be a directory produced by `download_action_logs.py` (e.g., `run_1234567890`).
-- The script infers the run ID from the directory name, parses environment variables from the run log, sets up the VCR cassette, and runs `pr_gh_to_asana.py` in replay mode.
+- The script infers the run ID from the directory name, parses environment variables from the run log, sets up the VCR
+  cassette, and runs `pr_gh_to_asana.py` in replay mode.
 - If the script attempts any HTTP requests not present in the cassette, the test will fail.
 
 ## Workflow
@@ -62,16 +65,15 @@ This directory contains a self-contained virtual environment to manage dependenc
    ```sh
    source .venv/bin/activate
    ```
-2. **Install dependencies (if not already installed):**
-   The required packages are listed in `requirements.txt`. If it's your first time or dependencies have changed, run:
+2. **Install dependencies (if not already installed):** The required packages are listed in `requirements.txt`. If it's
+   your first time or dependencies have changed, run:
    ```sh
    pip install -r requirements.txt
    ```
-3. **Deactivate when done:**
-    When you are finished, you can exit the virtual environment by running:
-    ```sh
-    deactivate
-    ```
+3. **Deactivate when done:** When you are finished, you can exit the virtual environment by running:
+   ```sh
+   deactivate
+   ```
 
 ---
 

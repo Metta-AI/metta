@@ -1,11 +1,9 @@
-"""
-Vectorized simulation runner.
+"""Vectorized simulation runner.
 
 • Launches a MettaGrid vec-env batch
 • Each worker writes its own *.duckdb* shard
 • At shutdown the shards are merged into **one** StatsDB object that the
-  caller can further merge / export.
-"""
+  caller can further merge / export."""
 
 from __future__ import annotations
 
@@ -25,6 +23,7 @@ from metta.agent.policy_record import PolicyRecord
 from metta.agent.policy_store import PolicyStore
 from metta.agent.utils import obs_to_td
 from metta.app_backend.clients.stats_client import StatsClient
+from metta.cogworks.curriculum.curriculum import CurriculumConfig
 from metta.common.util.heartbeat import record_heartbeat
 from metta.mettagrid import MettaGridEnv, dtype_actions
 from metta.mettagrid.replay_writer import ReplayWriter
@@ -49,9 +48,7 @@ class SimulationCompatibilityError(Exception):
 
 
 class Simulation:
-    """
-    A vectorized batch of MettaGrid environments sharing the same parameters.
-    """
+    """A vectorized batch of MettaGrid environments sharing the same parameters."""
 
     def __init__(
         self,
@@ -108,7 +105,7 @@ class Simulation:
         )
 
         self._vecenv = make_vecenv(
-            cfg.env.to_curriculum(),
+            CurriculumConfig.from_env(cfg.env),
             vectorization,
             num_envs=num_envs,
             stats_writer=self._stats_writer,
@@ -177,21 +174,7 @@ class Simulation:
         policy_uri: str | None = None,
         run_name: str = "simulation_run",
     ) -> "Simulation":
-        """Create a Simulation with sensible defaults.
-
-        Args:
-            sim_config: Simulation configuration with environment settings
-            policy_store: PolicyStore instance for managing policies
-            device: Device to run on (e.g., "cpu", "cuda")
-            vectorization: Vectorization backend (e.g., "serial", "multiprocessing")
-            stats_dir: Directory for simulation statistics
-            replay_dir: Directory for replay files
-            policy_uri: Optional policy URI to load (None for mock policy)
-            run_name: Name for the mock run if no policy URI provided
-
-        Returns:
-            Configured Simulation instance
-        """
+        """Create a Simulation with sensible defaults."""
         # Get policy record or create a mock
         policy_record = policy_store.policy_record_or_mock(policy_uri, run_name)
 
@@ -332,11 +315,7 @@ class Simulation:
                 self._env_done_flags[e] = False
 
     def _maybe_generate_thumbnail(self) -> str | None:
-        """Generate thumbnail if this is the first run for this eval_name.
-
-        Returns:
-            Thumbnail URL if generated successfully, None otherwise
-        """
+        """Generate thumbnail if this is the first run for this eval_name."""
         try:
             # Skip synthetic evaluation framework simulations
             if self._name.startswith(SYNTHETIC_EVAL_PREFIX):

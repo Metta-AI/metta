@@ -1,9 +1,11 @@
 "use client";
 
-import { FC } from "react";
+import { FC, useState } from "react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 import { FeedPostDTO } from "@/posts/data/feed";
 import { StarWidgetQuery } from "./StarWidgetQuery";
+import { LLMAbstract } from "@/lib/llm-abstract-generator-clean";
 
 interface PaperCardProps {
   paper: FeedPostDTO["paper"];
@@ -22,11 +24,21 @@ interface PaperCardProps {
 export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
   if (!paper) return null;
 
+  const [isExpanded, setIsExpanded] = useState(false);
+
   const handleTitleClick = () => {
     if (onPaperClick) {
       onPaperClick(paper.id);
     }
   };
+
+  const handleExpandClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent triggering parent click handlers
+    setIsExpanded(!isExpanded);
+  };
+
+  // Extract AI summary data
+  const llmAbstract = paper.llmAbstract as LLMAbstract | null;
 
   return (
     <div className="rounded-xl border border-neutral-200 bg-white p-2.5">
@@ -69,6 +81,38 @@ export const PaperCard: FC<PaperCardProps> = ({ paper, onPaperClick }) => {
                   {tag}
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* AI Summary Section */}
+          {llmAbstract?.shortExplanation && (
+            <div className="mt-2">
+              <div className="text-[13px] leading-[1.4] text-neutral-700">
+                {isExpanded
+                  ? llmAbstract.summary || llmAbstract.shortExplanation
+                  : `${llmAbstract.shortExplanation.slice(0, 120)}${llmAbstract.shortExplanation.length > 120 ? "..." : ""}`}
+              </div>
+
+              {/* Expand/Collapse Button */}
+              {(llmAbstract.summary ||
+                llmAbstract.shortExplanation.length > 120) && (
+                <button
+                  onClick={handleExpandClick}
+                  className="mt-1 flex items-center gap-1 text-[11px] font-medium text-neutral-500 transition-colors hover:text-neutral-700"
+                >
+                  {isExpanded ? (
+                    <>
+                      <ChevronUp className="h-3 w-3" />
+                      Show less
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="h-3 w-3" />
+                      Show more
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           )}
         </div>
