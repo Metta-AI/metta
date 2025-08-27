@@ -818,8 +818,9 @@ def _(
         print(f"🚀 Starting training run: {run_name}")
 
         # Create trainer configuration to reach peak performance before unlearning
+        curriculum_config = env_curriculum(env_config)
         trainer_config = TrainerConfig(
-            curriculum=env_curriculum(env_config),
+            curriculum=curriculum_config.build(),
             total_timesteps=2200000,  # Train to 2.2M to reach peak performance (~12-13 ore)
             batch_size=32768,  # Reduced batch size for more stable learning
             minibatch_size=256,  # Smaller minibatches for better gradient estimates
@@ -1431,7 +1432,8 @@ def _(
 
     def train_agent2():
         # Create a simple curriculum with our hallway environment
-        curriculum = env_curriculum(env_config2)
+        curriculum_config = env_curriculum(env_config2)
+        curriculum = curriculum_config.build()
 
         run_name2 = f"{username}.hello_world_train.mine_plus_generator.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
