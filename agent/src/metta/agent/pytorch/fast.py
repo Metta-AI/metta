@@ -20,17 +20,7 @@ class Fast(PyTorchAgentMixin, LSTMWrapper):
     """Fast CNN-based policy with LSTM using PyTorchAgentMixin for shared functionality."""
 
     def __init__(self, env, policy=None, cnn_channels=128, input_size=128, hidden_size=128, num_layers=2, **kwargs):
-        """Initialize Fast policy with mixin support.
-
-        Args:
-            env: Environment
-            policy: Optional inner policy
-            cnn_channels: Number of CNN channels
-            input_size: LSTM input size
-            hidden_size: LSTM hidden size
-            num_layers: Number of LSTM layers
-            **kwargs: Configuration parameters handled by mixin (clip_range, analyze_weights_interval, etc.)
-        """
+        """Initialize Fast CNN-based policy with LSTM and mixin support."""
         # Extract mixin parameters before passing to parent
         mixin_params = self.extract_mixin_params(kwargs)
 
@@ -205,8 +195,8 @@ class Policy(nn.Module):
         nn.init.uniform_(self.actor_W, -bound, bound)
         nn.init.uniform_(self.actor_bias, -bound, bound)
 
-    def activate_action_embeddings(self, full_action_names: list[str], device):
-        """Activate action embeddings, matching the YAML ActionEmbedding component behavior."""
+    def initialize_to_environment(self, full_action_names: list[str], device):
+        """Initialize to environment, setting up action embeddings to match the available actions."""
         self.active_action_names = full_action_names
         self.num_active_actions = len(full_action_names)
 
@@ -227,12 +217,10 @@ class Policy(nn.Module):
         return x
 
     def encode_observations(self, observations, state=None):
-        """
-        Encode observations into a hidden representation.
+        """Encode observations into a hidden representation.
 
         This implementation matches ComponentPolicy's ObsTokenToBoxShaper exactly,
-        using scatter operation for efficient token placement.
-        """
+        using scatter operation for efficient token placement."""
         token_observations = observations
         B = token_observations.shape[0]
         TT = 1 if token_observations.dim() == 3 else token_observations.shape[1]

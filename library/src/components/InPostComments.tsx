@@ -13,6 +13,7 @@ interface InPostCommentsProps {
     name?: string | null;
     email?: string | null;
   } | null;
+  onCommentCountChange?: (delta: number) => void;
 }
 
 // --- Main component ---------------------------------------------------------
@@ -21,6 +22,7 @@ export const InPostComments: React.FC<InPostCommentsProps> = ({
   isExpanded,
   onToggle,
   currentUser,
+  onCommentCountChange,
 }) => {
   return (
     <>
@@ -31,6 +33,7 @@ export const InPostComments: React.FC<InPostCommentsProps> = ({
             postId={post.id}
             currentUser={currentUser}
             showBackToFeed={false}
+            onCommentCountChange={onCommentCountChange}
           />
         </div>
       )}
