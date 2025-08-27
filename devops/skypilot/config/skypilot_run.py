@@ -118,11 +118,14 @@ def run_preflight_checks():
         except Exception as e:
             logger.warning(f"Failed to collect SkyPilot latency: {e}")
 
-        # Collect instance cost
+        # Collect total hourly cost
         try:
             subprocess.run(["uv", "run", "python", "common/src/metta/common/util/cost_monitor.py"], check=False)
         except Exception as e:
             logger.warning(f"Failed to collect instance cost: {e}")
+
+        # set env METTA_HOURLY_COST for system_monitor to use
+        logger.info(f"Set METTA_HOURLY_COST={total_hourly_cost}")
 
     # Run NCCL tests if needed
     if test_nccl and restart_count == 0:
