@@ -23,6 +23,7 @@ dependencies = [
   "metta-mettagrid",
   "metta-agent",
   "metta-common",
+  "codebot",
   "numpy>=1.26.4,<2",
   "omegaconf>=2.4.0.dev3",
   "pandas>=2.3.0",
@@ -124,13 +125,15 @@ cache-keys = [
 default-groups = ["dev"]
 
 [tool.uv.workspace]
-members = ["mettagrid", "app_backend", "common", "agent", "experiments"]
+members = ["mettagrid", "app_backend", "common", "agent", "experiments", "gitta", "codebot"]
 
 [tool.uv.sources]
 metta-app-backend = { workspace = true }
 metta-mettagrid = { workspace = true }
 metta-common = { workspace = true }
 metta-agent = { workspace = true }
+gitta = { workspace = true }
+codebot = { workspace = true }
 
 [tool.ruff]
 exclude = ["*.ipynb"]

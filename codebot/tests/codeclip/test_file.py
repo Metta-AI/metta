@@ -1,10 +1,10 @@
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from codeclip.file import (
-    _find_git_root,
+from codebot.codeclip.file import (
     _find_gitignore,
     _find_parent_readmes,
     _read_gitignore,
@@ -183,56 +183,47 @@ class TestGitRootAndReadmeHandling(unittest.TestCase):
     def tearDown(self):
         self.test_dir.cleanup()
 
-    def test_find_git_root(self):
-        """Test finding git repository root."""
-        # Create a directory structure with nested git repo
-        repo_root = self.base_path / "myproject"
-        repo_root.mkdir()
-        (repo_root / ".git").mkdir()
-
-        subdir = repo_root / "src" / "module"
-        subdir.mkdir(parents=True)
-
-        # Test from various locations
-        self.assertEqual(_find_git_root(subdir), repo_root)
-        self.assertEqual(_find_git_root(repo_root / "src"), repo_root)
-        self.assertEqual(_find_git_root(repo_root), repo_root)
-
-        # Test when not in a git repo
-        non_git_dir = self.base_path / "non_git"
-        non_git_dir.mkdir()
-        self.assertIsNone(_find_git_root(non_git_dir))
-
     def test_find_parent_readmes_in_git_repo(self):
         """Test finding parent READMEs up to git root."""
-        # Create a git repo structure
-        repo_root = self.base_path / "myproject"
-        repo_root.mkdir()
-        (repo_root / ".git").mkdir()
+        # Save current directory and change to temp directory
+        # This ensures we're outside any parent git repository
+        old_cwd = os.getcwd()
+        os.chdir(self.base_path)
 
-        # Create READMEs at various levels
-        (repo_root / "README.md").write_text("Root readme")
+        try:
+            # Create a git repo structure
+            repo_root = self.base_path / "myproject"
+            repo_root.mkdir()
 
-        src_dir = repo_root / "src"
-        src_dir.mkdir()
-        (src_dir / "README.md").write_text("Src readme")
+            # Initialize as a real git repository
+            subprocess.run(["git", "init"], cwd=repo_root, check=True, capture_output=True)
 
-        module_dir = src_dir / "module"
-        module_dir.mkdir()
-        (module_dir / "README.md").write_text("Module readme")
+            # Create READMEs at various levels
+            (repo_root / "README.md").write_text("Root readme")
 
-        # Create a README outside the git repo (should not be included)
-        (self.base_path / "README.md").write_text("Outside readme")
+            src_dir = repo_root / "src"
+            src_dir.mkdir()
+            (src_dir / "README.md").write_text("Src readme")
 
-        # Test from deep directory
-        readmes = _find_parent_readmes(module_dir / "subdir")
-        readme_paths = [str(r.relative_to(repo_root)) for r in readmes]
+            module_dir = src_dir / "module"
+            module_dir.mkdir()
+            (module_dir / "README.md").write_text("Module readme")
 
-        # Should include READMEs up to git root, but not beyond
-        self.assertIn("README.md", readme_paths)
-        self.assertIn("src/README.md", readme_paths)
-        self.assertIn("src/module/README.md", readme_paths)
-        self.assertEqual(len(readmes), 3)
+            # Create a README outside the git repo (should not be included)
+            (self.base_path / "README.md").write_text("Outside readme")
+
+            # Test from deep directory
+            readmes = _find_parent_readmes(module_dir / "subdir")
+            # Resolve paths to handle symlinks (e.g., /var -> /private/var on macOS)
+            readme_paths = [str(r.resolve().relative_to(repo_root.resolve())) for r in readmes]
+
+            # Should include READMEs up to git root, but not beyond
+            self.assertIn("README.md", readme_paths)
+            self.assertIn("src/README.md", readme_paths)
+            self.assertIn("src/module/README.md", readme_paths)
+            self.assertEqual(len(readmes), 3)
+        finally:
+            os.chdir(old_cwd)
 
     def test_find_parent_readmes_without_git(self):
         """Test finding parent READMEs when not in a git repo."""
@@ -446,30 +437,40 @@ class TestGitignoreFinding(unittest.TestCase):
 
     def test_find_gitignore_with_git_root(self):
         """Test that search stops at git root."""
-        # Create a git repo
-        repo_dir = self.base_path / "repo"
-        repo_dir.mkdir()
-        (repo_dir / ".git").mkdir()
+        # Save current directory and change to temp directory
+        # This ensures we're outside any parent git repository
+        old_cwd = os.getcwd()
+        os.chdir(self.base_path)
 
-        # Create .gitignore outside repo (should not be found)
-        outer_gitignore = self.base_path / ".gitignore"
-        outer_gitignore.write_text("outer\n")
+        try:
+            # Create a real git repo
+            repo_dir = self.base_path / "repo"
+            repo_dir.mkdir()
 
-        # Create subdir in repo
-        subdir = repo_dir / "src"
-        subdir.mkdir()
+            # Initialize as a real git repository
+            subprocess.run(["git", "init"], cwd=repo_dir, check=True, capture_output=True)
 
-        # Should not find the outer gitignore
-        found = _find_gitignore(subdir)
-        self.assertIsNone(found)
+            # Create .gitignore outside repo (should not be found)
+            outer_gitignore = self.base_path / ".gitignore"
+            outer_gitignore.write_text("outer\n")
 
-        # Add gitignore inside repo
-        repo_gitignore = repo_dir / ".gitignore"
-        repo_gitignore.write_text("inner\n")
+            # Create subdir in repo
+            subdir = repo_dir / "src"
+            subdir.mkdir()
 
-        # Now should find the repo's gitignore
-        found = _find_gitignore(subdir)
-        self.assertEqual(found, repo_gitignore)
+            # Should not find the outer gitignore
+            found = _find_gitignore(subdir)
+            self.assertIsNone(found)
+
+            # Add gitignore inside repo
+            repo_gitignore = repo_dir / ".gitignore"
+            repo_gitignore.write_text("inner\n")
+
+            # Now should find the repo's gitignore
+            found = _find_gitignore(subdir)
+            self.assertEqual(found, repo_gitignore)
+        finally:
+            os.chdir(old_cwd)
 
 
 if __name__ == "__main__":
