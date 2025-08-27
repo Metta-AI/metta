@@ -166,8 +166,11 @@ class PolicyLoader:
         if cached_pr is not None:
             return cached_pr
 
-        if not path.endswith(".pt") and os.path.isdir(path):
-            path = os.path.join(path, os.listdir(path)[-1])
+        if os.path.isdir(path):
+            pt_files = sorted([f for f in os.listdir(path) if f.endswith(".pt")])
+            if not pt_files:
+                raise FileNotFoundError(f"No .pt files found in directory: {path}")
+            path = os.path.join(path, pt_files[-1])
 
         logger.info(f"Loading policy from {path}")
 
@@ -239,13 +242,7 @@ class PolicyLoader:
 
     def save_to_pt_file(self, pr: PolicyRecord, path: str | None) -> str:
         """Save a policy record using the simple torch.save approach with atomic file operations."""
-        if path is None:
-            if hasattr(pr, "file_path"):
-                path = pr.file_path
-            elif pr.uri is not None:
-                path = pr.uri[7:] if pr.uri.startswith("file://") else pr.uri
-            else:
-                raise ValueError("PolicyRecord has no file_path or uri")
+        path = self._resolve_target_path(pr, path)
 
         logger.info(f"Saving policy to {path}")
 
@@ -271,13 +268,7 @@ class PolicyLoader:
 
     def save_to_safetensors_file(self, pr: PolicyRecord, path: str | None) -> str:
         """Save a policy record using safetensors format with YAML metadata sidecar."""
-        if path is None:
-            if hasattr(pr, "file_path"):
-                path = pr.file_path
-            elif pr.uri is not None:
-                path = pr.uri[7:] if pr.uri.startswith("file://") else pr.uri
-            else:
-                raise ValueError("PolicyRecord has no file_path or uri")
+        path = self._resolve_target_path(pr, path)
 
         # Ensure directory exists
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -316,7 +307,7 @@ class PolicyLoader:
         self, name: str, type: str, metadata: dict[str, Any], file_path: str, additional_files: list[str] | None = None
     ) -> str:
         if self._wandb_run is None:
-            raise ValueError("PolicyStore was not initialized with a wandb run")
+            raise ValueError("PolicyLoader was not initialized with a wandb run")
 
         additional_files = additional_files or []
 
@@ -329,3 +320,13 @@ class PolicyLoader:
         logger.info(f"Added artifact {artifact.qualified_name}")
         self._wandb_run.log_artifact(artifact)
         return artifact.qualified_name
+
+    def _resolve_target_path(self, pr: PolicyRecord, path: str | None) -> str:
+        """Resolve the final filesystem path for saving a policy record."""
+        if path is not None:
+            return path
+        if hasattr(pr, "file_path"):
+            return pr.file_path  # type: ignore[no-any-return]
+        if pr.uri is not None:
+            return pr.uri[7:] if pr.uri.startswith("file://") else pr.uri
+        raise ValueError("PolicyRecord has no file_path or uri")
