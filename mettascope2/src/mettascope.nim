@@ -1,5 +1,5 @@
 import std/[random, os, times, strformat, strutils],
-  boxy, opengl, windy, chroma, vmath,
+  boxy, opengl, windy, windy/http, chroma, vmath,
   mettascope/[actions, replays, common, panels, utils, worldmap, header, footer, timeline]
 
 window = newWindow("MettaScope in Nim", ivec2(1280, 800))
@@ -111,8 +111,12 @@ else:
   proc cmd(replay: string = "") =
     if replay != "":
       if replay.startsWith("http"):
-        let data = puppy.fetch(replay)
-        common.replay = loadReplay(data, replay)
+        let req = startHttpRequest(replay)
+        req.onError = proc(msg: string) =
+          echo "onError: " & msg
+        req.onResponse = proc(response: HttpResponse) =
+          echo "onResponse: code=", $response.code, ", len=", response.body.len
+          common.replay = loadReplay(response.body, replay)
       else:
         common.replay = loadReplay(replay)
     else:
