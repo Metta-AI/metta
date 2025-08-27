@@ -55,39 +55,44 @@ def cleanup_old_policies(checkpoint_dir: str, keep_last_n: int = 5) -> None:
 
 def validate_policy_environment_match(policy: PolicyAgent, env: MettaGridEnv) -> None:
     """Validate that policy's observation shape matches environment's."""
-    # Extract agent from distributed wrapper if needed
-    if isinstance(policy, MettaAgent):
-        agent = policy
-    elif isinstance(policy, DistributedMettaAgent):
-        agent = policy.module
-    else:
-        raise ValueError(f"Policy must be of type MettaAgent or DistributedMettaAgent, got {type(policy)}")
+    agent = _extract_agent_from_policy(policy)
+    env_shape = _to_tuple_shape(env.single_observation_space.shape)
+    validate_components_match(agent, env_shape)
 
-    _env_shape = env.single_observation_space.shape
-    environment_shape = tuple(_env_shape) if isinstance(_env_shape, list) else _env_shape
 
-    # The rest of the validation logic continues to work with duck typing
-    if hasattr(agent, "components"):
-        found_match = False
-        for component_name, component in agent.components.items():
-            if hasattr(component, "_obs_shape"):
-                found_match = True
-                component_shape = (
-                    tuple(component._obs_shape) if isinstance(component._obs_shape, list) else component._obs_shape
-                )
-                if component_shape != environment_shape:
-                    raise ValueError(
-                        f"Observation space mismatch error:\n"
-                        f"[policy] component_name: {component_name}\n"
-                        f"[policy] component_shape: {component_shape}\n"
-                        f"environment_shape: {environment_shape}\n"
-                    )
+def validate_components_match(agent: PolicyAgent, environment_shape) -> None:
+    """Validate that policy's components match environment's."""
+    if not hasattr(agent, "components"):
+        return
 
-        if not found_match:
+    for component_name, component in agent.components.items():
+        if not hasattr(component, "_obs_shape"):
+            continue
+
+        component_shape = _to_tuple_shape(component._obs_shape)
+        if component_shape != environment_shape:
             raise ValueError(
-                "No component with observation shape found in policy. "
-                f"Environment observation shape: {environment_shape}"
+                f"Observation space mismatch: component '{component_name}' has shape {component_shape}, "
+                f"but environment expects {environment_shape}"
             )
+        return  # Found a matching component
+
+    # No component with observation shape found
+    raise ValueError(f"No component with observation shape found in policy. Environment shape: {environment_shape}")
+
+
+def _extract_agent_from_policy(policy: PolicyAgent) -> PolicyAgent:
+    """Extract the underlying agent from distributed wrappers."""
+    if isinstance(policy, MettaAgent):
+        return policy
+    if isinstance(policy, DistributedMettaAgent):
+        return policy.module
+    raise ValueError(f"Policy must be MettaAgent or DistributedMettaAgent, got {type(policy)}")
+
+
+def _to_tuple_shape(shape) -> tuple:
+    """Convert shape to tuple, handling both list and tuple inputs."""
+    return tuple(shape) if isinstance(shape, list) else shape
 
 
 def wrap_agent_distributed(agent: PolicyAgent, device: torch.device) -> PolicyAgent:
