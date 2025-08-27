@@ -76,11 +76,6 @@ class EvalStatsDB(SimulationStatsDB):
             db = cls(local_path)
             yield db
 
-    @staticmethod
-    def from_sim_stats_db(sim_stats_db: SimulationStatsDB) -> EvalStatsDB:
-        """Create an EvalStatsDB from a SimulationStatsDB."""
-        return EvalStatsDB(sim_stats_db.path)
-
     # Extend parent schema with the extra views
     def tables(self) -> Dict[str, str]:
         return {**super().tables(), **EVAL_DB_VIEWS}

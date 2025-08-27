@@ -9,11 +9,11 @@ from .task_generator import (
     BucketedTaskGeneratorConfig,
     SingleTaskGenerator,
     SingleTaskGeneratorConfig,
+    Span,
     TaskGenerator,
     TaskGeneratorConfig,
     TaskGeneratorSet,
     TaskGeneratorSetConfig,
-    ValueRange,
 )
 
 __all__ = [
@@ -30,7 +30,7 @@ __all__ = [
     "TaskGeneratorSetConfig",
     "BucketedTaskGenerator",
     "BucketedTaskGeneratorConfig",
-    "ValueRange",
+    "Span",
     "bucketed",
     "multi_task",
     "single_task",
