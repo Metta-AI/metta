@@ -6,8 +6,8 @@
 # ]
 # ///
 """
-Simple utility to log debug values to wandb for testing.
-Can be used standalone or imported into other scripts.
+General purpose utility to log values to wandb.
+Can be used standalone or imported by other scripts.
 """
 
 import argparse
@@ -20,138 +20,201 @@ from typing import Any
 from metta.common.util.constants import METTA_WANDB_PROJECT
 
 
-def log_wandb(key: str, value: Any, step: int = 0, also_summary: bool = True) -> bool:
+def ensure_wandb_run():
     """
-    Log a key-value pair to wandb if a run exists.
-
-    Args:
-        key: The metric key name
-        value: The value to log
-        step: The step to log at (default 0)
-        also_summary: Whether to also add to wandb.summary (default True)
+    Ensure a wandb run exists, creating/resuming if needed.
 
     Returns:
-        True if logged successfully, False otherwise
+        wandb.Run object
+
+    Raises:
+        RuntimeError: If no credentials or run ID available
     """
     try:
         import wandb
-    except ImportError:
-        print(f"[log_wandb] wandb not installed, skipping: {key}={value}")
-        return False
+    except ImportError as e:
+        raise RuntimeError("wandb not installed") from e
 
-    # Get the current run (either existing or create new one)
-    run = wandb.run
+    # Check if run already exists
+    if wandb.run is not None:
+        return wandb.run
 
-    # If no active run, try to create/resume one
-    if run is None:
-        # Try to resume the run based on METTA_RUN_ID
-        run_id = os.environ.get("METTA_RUN_ID")
-        project = os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT)
+    # Need to create/resume a run
+    run_id = os.environ.get("METTA_RUN_ID")
+    if not run_id:
+        raise RuntimeError("No active wandb run and METTA_RUN_ID not set")
 
-        if not run_id:
-            print(f"[log_wandb] No active wandb run and no METTA_RUN_ID, skipping: {key}={value}")
-            return False
+    # Check credentials
+    api_key = os.environ.get("WANDB_API_KEY")
+    has_netrc = os.path.exists(os.path.expanduser("~/.netrc"))
 
-        print(f"[log_wandb] Attempting to resume run: {run_id}")
+    if not api_key and not has_netrc:
+        raise RuntimeError("No wandb credentials (need WANDB_API_KEY or ~/.netrc)")
 
-        try:
-            # Try to resume the existing run
-            run = wandb.init(
-                project=project,
-                name=run_id,
-                id=run_id,
-                resume="allow",
-                reinit=True,
-            )
-            print(f"[log_wandb] Successfully resumed wandb run: {run_id}")
-        except Exception as e:
-            print(f"[log_wandb] Failed to resume wandb run: {e}")
-            return False
+    project = os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT)
 
-    # Now we should have a valid run object
-    if run is None:
-        print("[log_wandb] Error: run is still None after init attempt")
-        return False
+    # Login if API key provided
+    if api_key:
+        wandb.login(key=api_key, relogin=True, anonymous="never")
+
+    # Create/resume run
+    run = wandb.init(
+        project=project,
+        name=run_id,
+        id=run_id,
+        resume="allow",
+        reinit=True,
+    )
+
+    entity = os.environ.get("WANDB_ENTITY", wandb.api.default_entity)
+    print(f"✅ Wandb run: https://wandb.ai/{entity}/{project}/runs/{run_id}", file=sys.stderr)
+
+    return run
+
+
+def log_to_wandb(metrics: dict[str, Any], step: int = 0, also_summary: bool = True) -> None:
+    """
+    Log metrics to wandb.
+
+    Args:
+        metrics: Dictionary of key-value pairs to log
+        step: The step to log at (default 0)
+        also_summary: Whether to also add to wandb.summary (default True)
+
+    Raises:
+        RuntimeError: If logging fails
+    """
+    run = ensure_wandb_run()
 
     try:
-        # Log the metric
-        wandb.log({key: value}, step=step)
-        print(f"[log_wandb] Logged: {key}={value} at step={step}")
+        import wandb
+
+        # Log all metrics
+        wandb.log(metrics, step=step)
 
         # Also add to summary if requested
         if also_summary:
-            run.summary[key] = value
-            print(f"[log_wandb] Added to summary: {key}={value}")
+            for key, value in metrics.items():
+                run.summary[key] = value
 
-        return True
+        print(f"✅ Logged {len(metrics)} metrics to wandb", file=sys.stderr)
 
     except Exception as e:
-        print(f"[log_wandb] Error logging to wandb: {e}")
-        return False
+        raise RuntimeError(f"Failed to log to wandb: {e}") from e
 
 
-def log_debug_info():
-    """Log various debug information to help diagnose issues."""
-    debug_info = {
-        "timestamp": datetime.utcnow().isoformat(),
-        "skypilot_task_id": os.environ.get("SKYPILOT_TASK_ID", "not_set"),
-        "metta_run_id": os.environ.get("METTA_RUN_ID", "not_set"),
-        "wandb_project": os.environ.get("WANDB_PROJECT", "not_set"),
-        "hostname": os.environ.get("HOSTNAME", "unknown"),
-        "rank": os.environ.get("RANK", "not_set"),
-        "local_rank": os.environ.get("LOCAL_RANK", "not_set"),
+def log_single_value(key: str, value: Any, step: int = 0, also_summary: bool = True) -> None:
+    """
+    Convenience function to log a single key-value pair.
+
+    Args:
+        key: Metric key
+        value: Metric value
+        step: Step to log at
+        also_summary: Whether to add to summary
+    """
+    log_to_wandb({key: value}, step=step, also_summary=also_summary)
+
+
+def log_debug_info() -> None:
+    """Log various debug information about the environment."""
+    debug_metrics = {
+        "debug/timestamp": datetime.utcnow().isoformat(),
+        "debug/skypilot_task_id": os.environ.get("SKYPILOT_TASK_ID", "not_set"),
+        "debug/metta_run_id": os.environ.get("METTA_RUN_ID", "not_set"),
+        "debug/wandb_project": os.environ.get("WANDB_PROJECT", "not_set"),
+        "debug/hostname": os.environ.get("HOSTNAME", "unknown"),
+        "debug/rank": os.environ.get("RANK", "not_set"),
+        "debug/local_rank": os.environ.get("LOCAL_RANK", "not_set"),
     }
 
-    print("[log_debug_info] Debug environment:")
-    for k, v in debug_info.items():
-        print(f"  {k}: {v}")
+    print("Debug environment:", file=sys.stderr)
+    for k, v in debug_metrics.items():
+        print(f"  {k.split('/')[-1]}: {v}", file=sys.stderr)
 
-    # Try to log each piece of debug info
-    for k, v in debug_info.items():
-        log_wandb(f"debug/{k}", v)
+    log_to_wandb(debug_metrics)
 
-    # Log a simple test value
-    log_wandb("debug/test_value", 42)
-    log_wandb("debug/test_float", 3.14159)
 
-    # Try to read and log skypilot latency if available
-    latency_file = os.path.expanduser("~/.metta/skypilot_latency.json")
-    if os.path.exists(latency_file):
-        try:
-            with open(latency_file, "r") as f:
-                latency_data = json.load(f)
-            latency_sec = latency_data.get("latency_s")
-            if latency_sec is not None:
-                log_wandb("debug/skypilot_queue_latency_s", latency_sec)
-                print(f"[log_debug_info] Found and logged latency: {latency_sec}s")
-        except Exception as e:
-            print(f"[log_debug_info] Error reading latency file: {e}")
-    else:
-        print(f"[log_debug_info] No latency file found at {latency_file}")
+def parse_value(value_str: str) -> Any:
+    """
+    Try to parse a string value into appropriate type.
+
+    Args:
+        value_str: String representation of value
+
+    Returns:
+        Parsed value (int, float, bool, or original string)
+    """
+    # Try to parse as JSON first (handles dicts, lists, etc.)
+    try:
+        return json.loads(value_str)
+    except json.JSONDecodeError:
+        pass
+
+    # Try numeric types
+    try:
+        value = float(value_str)
+        if value.is_integer():
+            return int(value)
+        return value
+    except ValueError:
+        pass
+
+    # Check for boolean
+    if value_str.lower() in ("true", "false"):
+        return value_str.lower() == "true"
+
+    # Return as string
+    return value_str
 
 
 def main():
     """Main function for standalone usage."""
-    parser = argparse.ArgumentParser(description="Log debug values to wandb")
-    parser.add_argument("key", nargs="?", default="debug/test", help="Key to log")
-    parser.add_argument("value", nargs="?", default=42, help="Value to log")
-    parser.add_argument("--debug", action="store_true", help="Log full debug info")
+    parser = argparse.ArgumentParser(
+        description="Log values to wandb",
+        epilog="Examples:\n"
+        "  %(prog)s my/metric 42\n"
+        "  %(prog)s accuracy 0.95 --step 1000\n"
+        "  echo 3.14 | %(prog)s accuracy/train\n"
+        "  %(prog)s --debug\n",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("key", nargs="?", help="Metric key to log")
+    parser.add_argument("value", nargs="?", help="Value to log (reads from stdin if not provided)")
+    parser.add_argument("--step", type=int, default=0, help="Step to log at (default: 0)")
+    parser.add_argument("--no-summary", action="store_true", help="Don't add to wandb summary")
+    parser.add_argument("--debug", action="store_true", help="Log debug environment info")
 
     args = parser.parse_args()
 
-    if args.debug:
-        log_debug_info()
-    else:
-        # Try to convert value to appropriate type
-        try:
-            value = float(args.value)
-            if value.is_integer():
-                value = int(value)
-        except ValueError:
-            value = args.value
+    try:
+        if args.debug:
+            log_debug_info()
+        else:
+            if not args.key:
+                parser.error("Key is required unless using --debug")
 
-        success = log_wandb(args.key, value)
-        sys.exit(0 if success else 1)
+            # Get value from args or stdin
+            if args.value is not None:
+                value_str = args.value
+            else:
+                # Read from stdin
+                value_str = sys.stdin.read().strip()
+                if not value_str:
+                    raise RuntimeError("No value provided (empty stdin)")
+
+            # Parse value
+            value = parse_value(value_str)
+
+            # Log to wandb
+            log_single_value(args.key, value, step=args.step, also_summary=not args.no_summary)
+
+            # Echo value to stdout for chaining
+            print(value)
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -1,21 +1,11 @@
 #!/usr/bin/env python3
 # /// script
 # requires-python = ">=3.11"
-# dependencies = [
-#     "wandb",
-# ]
 # ///
 """
-Tiny helper that converts SkyPilot ``SKYPILOT_TASK_ID`` env var to
-"queue latency [s]" and logs it to wandb.
+Calculate SkyPilot queue latency from SKYPILOT_TASK_ID env var.
 
-Recognized formats  (prefix  ➜  SkyPilot version):
-
-*  ``sky-YYYY-MM-DD-HH-MM-SS-ffffff_<cluster>_<n>``             ≤ v0.9  (default)
-*  ``managed-sky-YYYY‑…_<cluster>_<n>``                         v0.7+  (managed/spot)
-*  ``sky-managed-YYYY‑…_<cluster>_<n>``                         v0.6   (early alpha)
-
-If the env var is absent or malformed, :func:`queue_latency_s` returns ``None``.
+Expected format: sky-YYYY-MM-DD-HH-MM-SS-ffffff_<cluster>_<n>
 """
 
 import datetime
@@ -24,115 +14,75 @@ import re
 import sys
 from typing import Final
 
-from metta.common.util.constants import METTA_WANDB_PROJECT
-
 _EPOCH: Final = datetime.timezone.utc
 _FMT: Final = "%Y-%m-%d-%H-%M-%S-%f"
 
-# Regex captures the timestamp part, whatever the prefix is
-# Updated to accept 6-9 digit microseconds (macOS can produce 9 digits)
-_TS_RE: Final = re.compile(
-    r"^(?:sky-|managed-sky-|sky-managed-)"
-    r"(?P<ts>\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}-\d{6,9})_"
-)
+# Regex for current SkyPilot task ID format
+# Accepts 6-9 digit microseconds (macOS can produce 9 digits)
+_TS_RE: Final = re.compile(r"^sky-(?P<ts>\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}-\d{6,9})_")
 
 
-def _submission_ts(task_id: str) -> datetime.datetime | None:
+def parse_submission_timestamp(task_id: str) -> datetime.datetime:
+    """
+    Parse submission timestamp from task ID.
+
+    Args:
+        task_id: SkyPilot task ID
+
+    Returns:
+        Submission timestamp with UTC timezone
+
+    Raises:
+        ValueError: If task ID format is invalid
+    """
     m = _TS_RE.match(task_id)
     if not m:
-        return None
+        raise ValueError(f"Invalid task ID format: {task_id}")
+
     # Truncate to 26 chars to ensure exactly 6 digits for microseconds
     ts_part = m.group("ts")[:26]  # YYYY-MM-DD-HH-MM-SS-ffffff (26 chars)
     try:
         return datetime.datetime.strptime(ts_part, _FMT).replace(tzinfo=_EPOCH)
-    except ValueError:
-        return None
+    except ValueError as e:
+        raise ValueError(f"Failed to parse timestamp from task ID: {task_id}") from e
 
 
-def queue_latency_s() -> float | None:
-    """Return SkyPilot queue latency in seconds, or ``None`` if not applicable."""
+def calculate_queue_latency() -> float:
+    """
+    Calculate SkyPilot queue latency in seconds.
+
+    Returns:
+        Queue latency in seconds
+
+    Raises:
+        RuntimeError: If SKYPILOT_TASK_ID not set
+        ValueError: If task ID format is invalid
+    """
     task_id = os.environ.get("SKYPILOT_TASK_ID")
     if not task_id:
-        return None
-    submitted = _submission_ts(task_id)
-    if submitted is None:
-        return None
+        raise RuntimeError("SKYPILOT_TASK_ID environment variable not set")
+
+    submitted = parse_submission_timestamp(task_id)
     return (datetime.datetime.now(_EPOCH) - submitted).total_seconds()
 
 
-def main():
-    """Log SkyPilot queue latency to stdout and optionally to wandb."""
-    script_start_time = datetime.datetime.now(_EPOCH).isoformat()
-    task_id = os.environ.get("SKYPILOT_TASK_ID", "unknown")
-    run_id = os.environ.get("METTA_RUN_ID")
+def main() -> int:
+    """Calculate and output SkyPilot queue latency."""
+    try:
+        latency_sec = calculate_queue_latency()
 
-    # First, try to log to wandb that this script ran (regardless of latency calculation)
-    if run_id:
-        api_key = os.environ.get("WANDB_API_KEY")
-        project = os.environ.get("WANDB_PROJECT", METTA_WANDB_PROJECT)
+        # Output latency to stdout
+        print(latency_sec)
 
-        # If no API key but netrc exists, wandb will use that
-        if api_key or os.path.exists(os.path.expanduser("~/.netrc")):
-            try:
-                import wandb
+        # Log info to stderr
+        task_id = os.environ.get("SKYPILOT_TASK_ID", "unknown")
+        print(f"SkyPilot queue latency: {latency_sec:.1f}s (task: {task_id})", file=sys.stderr)
 
-                # Only login if API key is explicitly provided
-                if api_key:
-                    wandb.login(key=api_key, relogin=True, anonymous="never")
+        return 0
 
-                # Initialize wandb with the same run ID that the trainer will use
-                # This creates a placeholder run that the trainer will resume
-                run = wandb.init(
-                    project=project,
-                    name=run_id,
-                    id=run_id,  # Use run_id as the unique wandb run ID
-                    resume="allow",  # Allow resuming if it exists
-                )
-
-                # Always log that the script ran
-                run.summary["skypilot/latency_script_ran"] = True
-                run.summary["skypilot/latency_script_time"] = script_start_time
-
-                # Now try to calculate and log the latency
-                latency_sec = queue_latency_s()
-
-                if latency_sec is not None:
-                    print(f"SkyPilot queue latency: {latency_sec:.1f} s (task: {task_id})")
-
-                    # Export for other scripts to use via environment
-                    os.environ["SKYPILOT_QUEUE_LATENCY_S"] = str(latency_sec)
-
-                    # Also add to summary for easy access
-                    run.summary["skypilot/queue_latency_s"] = latency_sec
-                    run.summary["skypilot/task_id"] = task_id
-                    run.summary["skypilot/latency_calculated"] = True
-                else:
-                    print(f"SkyPilot queue latency: N/A (task_id: {task_id})")
-                    run.summary["skypilot/latency_calculated"] = False
-                    run.summary["skypilot/task_id"] = task_id
-                    run.summary["skypilot/latency_error"] = "Could not parse task ID"
-
-                # Don't call wandb.finish() - let the trainer resume this run
-                print(f"✅ Logged to wandb run: {run_id}")
-                entity = f"{os.environ.get('WANDB_ENTITY', wandb.api.default_entity)}"
-                print(f"   View at: https://wandb.ai/{entity}/{project}/runs/{run_id}")
-
-            except Exception as e:
-                print(f"⚠️  Failed to log to wandb: {e}", file=sys.stderr)
-        else:
-            print("ℹ️  Skipping wandb logging (no API key or .netrc found)")
-    else:
-        print("ℹ️  Skipping wandb logging (METTA_RUN_ID not set)")
-
-        # Still try to calculate latency for stdout
-        latency_sec = queue_latency_s()
-        if latency_sec is not None:
-            print(f"SkyPilot queue latency: {latency_sec:.1f} s (task: {task_id})")
-            os.environ["SKYPILOT_QUEUE_LATENCY_S"] = str(latency_sec)
-        else:
-            print("SkyPilot queue latency: N/A")
-
-    return 0
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

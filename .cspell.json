@@ -120,6 +120,7 @@
     "idxs",
     "IFACE",
     "IFNAME",
+    "IMDS",
     "initializedcheck",
     "iomanip",
     "iosfwd",
@@ -294,5 +295,9 @@
     "zenpower"
   ],
   "ignoreWords": [],
-  "ignorePaths": ["node_modules", "venv", ".git"]
+  "ignorePaths": [
+    "node_modules",
+    "venv",
+    ".git"
+  ]
 }
