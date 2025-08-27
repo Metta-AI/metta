@@ -5,25 +5,22 @@
       "type": "shell",
       "command": "uv sync --inexact",
       "label": "uv sync",
-      "group": "build"
+      "group": "build",
     },
     {
       "type": "shell",
       "command": "bash ./mettascope/install.sh",
       "label": "build frontend",
-      "group": "build"
+      "group": "build",
     },
     {
       "label": "build all",
       "dependsOrder": "sequence",
-      "dependsOn": [
-        "uv sync",
-        "build frontend"
-      ],
+      "dependsOn": ["uv sync", "build frontend"],
       "group": {
         "kind": "build",
-        "isDefault": true
-      }
-    }
-  ]
+        "isDefault": true,
+      },
+    },
+  ],
 }

@@ -1,17 +1,6 @@
-"""This file implements a PolicyStore class that manages loading and caching of trained policies.
-It provides functionality to:
-- Load policies from local files or remote URIs
-- Cache loaded policies to avoid reloading
-- Select policies based on metadata filters
-- Track policy metadata and versioning
-
-The PolicyStore is used by the training system to manage opponent policies and checkpoints."""
-
-import collections
 import logging
 import os
 import random
-import sys
 from typing import Any, Literal
 
 import torch
@@ -95,8 +84,18 @@ class PolicyStore:
         stats_client: StatsClient | None = None,
         eval_name: str | None = None,
     ) -> list[PolicyRecord]:
-        """Select policy records based on URI and selection criteria.
-        Returns list of PolicyRecord objects filtered by selector_type ('all', 'latest', 'rand', 'top')."""
+        """
+        Select policy records based on URI and selection criteria.
+
+        Args:
+            uri: Resource identifier (wandb://, file://, pytorch://, or path)
+            selector_type: Selection strategy ('all', 'latest', 'rand', 'top')
+            n: Number of policy records to select (for 'top' selector)
+            metric: Metric to use for 'top' selection
+
+        Returns:
+            List of selected PolicyRecord objects
+        """
         # Load policy records from URI
         prs = self._load_policy_records_from_uri(uri)
 
@@ -235,14 +234,6 @@ class PolicyStore:
             logger.warning(f"Metric '{metric}' not found in policy metadata")
             return {p: None for p in prs}
 
-    def make_model_name(self, epoch: int) -> str:
-        return f"model_{epoch:04d}.pt"
-
-    def create_empty_policy_record(self, name: str, checkpoint_dir: str) -> PolicyRecord:
-        path = os.path.join(checkpoint_dir, name)
-        metadata = PolicyMetadata()
-        return PolicyRecord(self, name, f"file://{path}", metadata)
-
     def save(self, pr: PolicyRecord, path: str | None = None) -> PolicyRecord:
         """Save a policy record using the simple torch.save approach with atomic file operations."""
         if path is None:
@@ -365,49 +356,6 @@ class PolicyStore:
         pr._cached_policy = load_pytorch_policy(path, self._device, pytorch_cfg=self._pytorch_cfg)
         return pr
 
-    def _make_codebase_backwards_compatible(self):
-        """torch.load expects the codebase to be in the same structure as when the model was saved.
-        We can use this function to alias old layout structures. For now we are supporting:
-        - agent --> metta.agent"""
-        # Memoize
-        if self._made_codebase_backwards_compatible:
-            return
-        self._made_codebase_backwards_compatible = True
-
-        # Handle agent --> metta.agent
-        sys.modules["agent"] = sys.modules["metta.agent"]
-        modules_queue = collections.deque(["metta.agent"])
-
-        processed = set()
-        while modules_queue:
-            module_name = modules_queue.popleft()
-            if module_name in processed:
-                continue
-            processed.add(module_name)
-
-            if module_name not in sys.modules:
-                continue
-            module = sys.modules[module_name]
-            old_name = module_name.replace("metta.agent", "agent")
-            sys.modules[old_name] = module
-
-            # Find all submodules
-            for attr_name in dir(module):
-                try:
-                    attr = getattr(module, attr_name)
-                except (ImportError, AttributeError):
-                    continue
-                if hasattr(attr, "__module__"):
-                    attr_module = getattr(attr, "__module__", None)
-
-                    # If it's a module and part of metta.agent, queue it
-                    if attr_module and attr_module.startswith("metta.agent"):
-                        modules_queue.append(attr_module)
-
-                submodule_name = f"{module_name}.{attr_name}"
-                if submodule_name in sys.modules:
-                    modules_queue.append(submodule_name)
-
     def _load_from_file(self, path: str, metadata_only: bool = False) -> PolicyRecord:
         """Load a PolicyRecord from a file using simple torch.load."""
         cached_pr = self._cached_prs.get(path)
@@ -421,9 +369,6 @@ class PolicyStore:
         logger.info(f"Loading policy from {path}")
 
         assert path.endswith(".pt"), f"Policy file {path} does not have a .pt extension"
-
-        # Make codebase backwards compatible before loading
-        self._make_codebase_backwards_compatible()
 
         # Load checkpoint - could be PolicyRecord or legacy format
         checkpoint = torch.load(path, map_location=self._device, weights_only=False)

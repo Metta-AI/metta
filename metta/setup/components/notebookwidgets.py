@@ -40,7 +40,7 @@ class NotebookWidgetsSetup(SetupModule):
             [
                 "bash",
                 "-c",
-                "npx turbo run build --dry=json 2>/dev/null | jq .tasks[0].cache.status",
+                "pnpm exec turbo run build --dry=json 2>/dev/null | jq .tasks[0].cache.status",
             ],
             cwd=widget_path,
             stdout=subprocess.PIPE,
@@ -80,7 +80,11 @@ class NotebookWidgetsSetup(SetupModule):
                     # After installing, always build
                     info(f"Building {widget}...")
                     subprocess.run(
-                        ["npx", "turbo", "run", "build"],
+                        [
+                            "bash",
+                            "-c",
+                            "pnpm install && pnpm exec turbo run build",
+                        ],
                         check=True,
                         cwd=widget_path,
                     )
@@ -89,7 +93,11 @@ class NotebookWidgetsSetup(SetupModule):
                 elif self.should_build_widget(widget):
                     info(f"Building {widget} (cache miss)...")
                     subprocess.run(
-                        ["npx", "turbo", "run", "build"],
+                        [
+                            "bash",
+                            "-c",
+                            "pnpm exec turbo run build",
+                        ],
                         check=True,
                         cwd=widget_path,
                     )

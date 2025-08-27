@@ -3,7 +3,7 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -15,12 +15,12 @@ from metta.tools.train import TrainTool
 # it's possible the maps are now different
 
 
-def make_env(num_agents: int = 24) -> EnvConfig:
+def make_env(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
     return arena_env
 
 
-def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
+def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
     arena_env = arena_env or make_env()
 
     # make a set of training tasks for the arena
@@ -35,7 +35,7 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
         arena_tasks.add_bucket(
             f"game.agent.rewards.inventory.{item}", [0, 0.1, 0.5, 0.9, 1.0]
         )
-        arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
+        arena_tasks.add_bucket(f"game.agent.rewards.inventory_max.{item}", [1, 2])
 
     # enable or disable attacks. we use cost instead of 'enabled'
     # to maintain action space consistency.
@@ -45,10 +45,10 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
-    return arena_tasks.to_curriculum()
+    return CurriculumConfig(task_generator=arena_tasks)
 
 
-def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
+def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     basic_env = env or make_env()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
@@ -81,20 +81,28 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
 def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     env_cfg = make_env()
-    env_cfg.game.agent.rewards.inventory.heart = 1
-    env_cfg.game.agent.rewards.inventory.heart_max = 100
+    env_cfg.game.agent.rewards.inventory["heart"] = 1
+    env_cfg.game.agent.rewards.inventory_max["heart"] = 100
 
     if rewards:
-        env_cfg.game.agent.rewards.inventory.ore_red = 0.1
-        env_cfg.game.agent.rewards.inventory.ore_red_max = 1
-        env_cfg.game.agent.rewards.inventory.battery_red = 0.8
-        env_cfg.game.agent.rewards.inventory.battery_red_max = 1
-        env_cfg.game.agent.rewards.inventory.laser = 0.5
-        env_cfg.game.agent.rewards.inventory.laser_max = 1
-        env_cfg.game.agent.rewards.inventory.armor = 0.5
-        env_cfg.game.agent.rewards.inventory.armor_max = 1
-        env_cfg.game.agent.rewards.inventory.blueprint = 0.5
-        env_cfg.game.agent.rewards.inventory.blueprint_max = 1
+        env_cfg.game.agent.rewards.inventory.update(
+            {
+                "ore_red": 0.1,
+                "battery_red": 0.8,
+                "laser": 0.5,
+                "armor": 0.5,
+                "blueprint": 0.5,
+            }
+        )
+        env_cfg.game.agent.rewards.inventory_max.update(
+            {
+                "ore_red": 1,
+                "battery_red": 1,
+                "laser": 1,
+                "armor": 1,
+                "blueprint": 1,
+            }
+        )
 
     if converters:
         env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
@@ -109,12 +117,12 @@ def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     return TrainTool(trainer=trainer_cfg)
 
 
-def play(env: Optional[EnvConfig] = None) -> PlayTool:
+def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_env()
     return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
 
 
-def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
+def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_env()
     return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena"))
 

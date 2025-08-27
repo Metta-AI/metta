@@ -16,28 +16,33 @@ A social feed and knowledge repository for AI research papers, built with Next.j
 ### Setup
 
 1. **Install dependencies**:
+
    ```bash
    pnpm install
    ```
 
 2. **Set up environment variables**:
    Create a `.env.local` file with the following content:
+
    ```
    DATABASE_URL=postgres://localhost/metta_library
    DEV_MODE=true
    ```
 
 3. **Generate authentication secret**:
+
    ```bash
    pnpm auth secret
    ```
+
    This will populate your `.env.local` file with a random `AUTH_SECRET`.
 
 4. **Set up the database**:
+
    ```bash
    # Generate Prisma client
    pnpm prisma generate
-   
+
    # Run database migrations (if any)
    pnpm prisma db push
    ```
@@ -45,6 +50,7 @@ A social feed and knowledge repository for AI research papers, built with Next.j
 ### Running
 
 1. **Start the development server**:
+
    ```bash
    pnpm dev
    ```
@@ -97,6 +103,7 @@ The application uses [Prisma ORM](https://www.prisma.io/) for database access:
 - **Migrations**: Applied with `pnpm prisma db push`
 
 The database schema includes:
+
 - **Users**: Authentication and user profiles
 - **Papers**: Research papers with metadata
 - **Posts**: User-generated content and discussions
@@ -141,10 +148,10 @@ pnpm fetch-arxiv 2204.11674
 #### Module Usage
 
 ```typescript
-import { fetchArxivPaper, ArxivPaperData } from './scripts/fetch-arxiv-paper';
+import { fetchArxivPaper, ArxivPaperData } from "./scripts/fetch-arxiv-paper";
 
 // Fetch paper data
-const paperData: ArxivPaperData = await fetchArxivPaper('2204.11674');
+const paperData: ArxivPaperData = await fetchArxivPaper("2204.11674");
 
 // Use the structured data
 console.log(paperData.title);

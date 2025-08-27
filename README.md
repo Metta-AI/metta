@@ -366,7 +366,7 @@ To use `MettaAgent` with a non-default architecture config:
 - (Optional): Create your own configuration file, e.g. `configs/agent/my_agent.yaml`.
 - Run with the configuration file of your choice:
   ```bash
-  ./tools/train.py agent=my_agent
+  ./tools/run.py experiments.recipes.arena.train --overrides policy_architecture.agent_config=my_agent
   ```
 
 #### Defining your own PyTorch agent
@@ -397,8 +397,8 @@ pytest
 
 ### CLI cheat sheet
 
-| Task                        | Command                                                                                        |
-| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| Task                        | Command                                                                                                |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
 | Train (arena)               | `./tools/run.py experiments.recipes.arena.train --args run=my_experiment`                              |
 | Train (navigation)          | `./tools/run.py experiments.recipes.navigation.train --args run=my_experiment`                         |
 | Play (browser)              | `./tools/run.py experiments.recipes.arena.play`                                                        |
