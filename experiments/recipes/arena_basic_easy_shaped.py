@@ -3,7 +3,7 @@ from typing import List, Optional, Sequence
 import metta.cogworks.curriculum as cc
 import metta.mettagrid.config.envs as eb
 from metta.cogworks.curriculum.curriculum import CurriculumConfig
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.rl.trainer_config import EvaluationConfig, TrainerConfig
 from metta.sim.simulation_config import SimulationConfig
 from metta.tools.play import PlayTool
@@ -12,7 +12,7 @@ from metta.tools.sim import SimTool
 from metta.tools.train import TrainTool
 
 
-def make_env(num_agents: int = 24) -> EnvConfig:
+def make_env(num_agents: int = 24) -> MettaGridConfig:
     arena_env = eb.make_arena(num_agents=num_agents)
 
     arena_env.game.agent.rewards.inventory = {
@@ -38,7 +38,7 @@ def make_env(num_agents: int = 24) -> EnvConfig:
     return arena_env
 
 
-def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
+def make_curriculum(arena_env: Optional[MettaGridConfig] = None) -> CurriculumConfig:
     arena_env = arena_env or make_env()
 
     # make a set of training tasks for the arena
@@ -61,7 +61,7 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     return CurriculumConfig(task_generator=arena_tasks)
 
 
-def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
+def make_evals(env: Optional[MettaGridConfig] = None) -> List[SimulationConfig]:
     basic_env = env or make_env()
     basic_env.game.actions.attack.consumed_resources["laser"] = 100
 
@@ -92,12 +92,12 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
     return TrainTool(trainer=trainer_cfg)
 
 
-def play(env: Optional[EnvConfig] = None) -> PlayTool:
+def play(env: Optional[MettaGridConfig] = None) -> PlayTool:
     eval_env = env or make_env()
     return PlayTool(sim=SimulationConfig(env=eval_env, name="arena"))
 
 
-def replay(env: Optional[EnvConfig] = None) -> ReplayTool:
+def replay(env: Optional[MettaGridConfig] = None) -> ReplayTool:
     eval_env = env or make_env()
     return ReplayTool(sim=SimulationConfig(env=eval_env, name="arena"))
 

@@ -136,7 +136,7 @@ export class GameConfig {
   // Add other game config properties as needed
 }
 
-export class EnvConfig {
+export class MettaGridConfig {
   label: string = ''
   game?: GameConfig
 }
@@ -154,7 +154,7 @@ export class Replay {
   objects: Entity[] = []
   rewardSharingMatrix: number[][] = []
   agents: Entity[] = []
-  envConfig: EnvConfig = new EnvConfig()
+  envConfig: MettaGridConfig = new MettaGridConfig()
 
   // Generated data.
   typeImages: string[] = []
@@ -546,7 +546,7 @@ function loadReplayJson(url: string, replayJson: any) {
   state.replay.fileName = replayData.file_name
   state.replay.envConfig = replayData.env_config
   if (state.replay.envConfig === undefined) {
-    state.replay.envConfig = new EnvConfig()
+    state.replay.envConfig = new MettaGridConfig()
     state.replay.envConfig.label = 'Unlabeled Replay'
   }
 

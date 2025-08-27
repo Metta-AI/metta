@@ -579,7 +579,7 @@ def _(
     mo.stop(not observe_button.value)
 
     def _():
-        # Create environment with proper EnvConfig
+        # Create environment with proper MettaGridConfig
         env = MettaGridEnv(env_config, render_mode="human")
         policy = OpportunisticPolicy(env)
 
@@ -1275,7 +1275,7 @@ def _(mo):
     This second environment is more complex - it requires:
 
     1. Collect ore from the mine (right side)
-    2. Transport ore to the generator (left side)  
+    2. Transport ore to the generator (left side)
     3. Convert ore to batteries for higher rewards
     """
     )
@@ -1376,7 +1376,7 @@ def _(
     mo.stop(not observe_button2.value)
 
     def observe_agent2():
-        # Create environment with proper EnvConfig
+        # Create environment with proper MettaGridConfig
         env = MettaGridEnv(env_config2, render_mode="human")
         policy = OpportunisticPolicy(env)
 
@@ -1829,13 +1829,13 @@ def _(
 
     📊 COMPREHENSIVE STATISTICS:
     Total Reward:  {mean_score:.2f} ± {std_score:.2f}
-    Ore Collected: {mean_score_ore:.2f} ± {std_score_ore:.2f} 
+    Ore Collected: {mean_score_ore:.2f} ± {std_score_ore:.2f}
     Batteries:     {mean_score_batteries:.2f} ± {std_score_batteries:.2f}
 
     🎯 BEST EPISODE:
     Reward: {max(trained_scores):.1f}, Ore: {max(trained_scores_ore)}, Batteries: {max(trained_scores_batteries)}
 
-    ⚠️ WORST EPISODE: 
+    ⚠️ WORST EPISODE:
     Reward: {min(trained_scores):.1f}, Ore: {min(trained_scores_ore)}, Batteries: {min(trained_scores_batteries)}
 
     💡 Multi-step task: Collect ore → Transport → Convert to batteries
