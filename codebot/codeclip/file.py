@@ -16,7 +16,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 import tiktoken
 
 # Import git helpers
-from metta.common.util import git as gitlib
+import gitta as git
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def _build_git_diff_document(base_ref: str, start_path: Path, index: int) -> Opt
     Build a Document that contains a Git diff against base_ref.
     Uses git.py helpers. If the repo or base_ref is missing, return a header-only doc.
     """
-    repo_root = gitlib.find_root(start_path) or gitlib.find_root(Path.cwd())
+    repo_root = git.find_root(start_path) or git.find_root(Path.cwd())
     header_title = f"===== Git diff against {base_ref} ====="
 
     if not repo_root:
@@ -70,9 +70,9 @@ def _build_git_diff_document(base_ref: str, start_path: Path, index: int) -> Opt
         return Document(index=index, source=f"GIT_DIFF:{base_ref}", content="\n".join(header))
 
     # Best effort fetch
-    gitlib.fetch(repo_root)
+    git.fetch(repo_root)
 
-    if not gitlib.ref_exists(repo_root, base_ref):
+    if not git.ref_exists(repo_root, base_ref):
         header = [
             header_title,
             f"repo: {repo_root}",
@@ -82,7 +82,7 @@ def _build_git_diff_document(base_ref: str, start_path: Path, index: int) -> Opt
         ]
         return Document(index=index, source=f"GIT_DIFF:{base_ref}", content="\n".join(header))
 
-    diff_text = gitlib.diff(repo_root, base_ref)
+    diff_text = git.diff(repo_root, base_ref)
     body = diff_text if diff_text.strip() else "(working tree matches base, no changes)"
     lines = [
         header_title,
@@ -110,17 +110,23 @@ def _find_parent_readmes(path: Path) -> List[Path]:
     current = path.parent
 
     # Find the git root to use as our boundary
-    git_root = gitlib.find_root(current)
-    stop_at = git_root if git_root else Path("/")
+    git_root = git.find_root(current)
 
-    # Collect READMEs up to the boundary
-    while True:
+    # Collect READMEs up to and including the git root
+    while current != current.parent:  # Not at filesystem root
+        # If we have a git root, check if current dir has one and it matches
+        if git_root:
+            current_git_root = git.find_root(current)
+            if not current_git_root or str(current_git_root) != str(git_root):
+                # We've gone past the git boundary
+                break
+
         readme_path = current / "README.md"
         if readme_path.exists() and readme_path not in readmes:
             readmes.append(readme_path)
 
-        # Stop if we've reached our boundary or can't go higher
-        if current == stop_at or current == current.parent:
+        # If we're at the git root, we're done
+        if git_root and str(current) == str(git_root):
             break
 
         current = current.parent
@@ -480,17 +486,23 @@ def _find_gitignore(start_path: Path) -> Optional[Path]:
     current = start_path if start_path.is_dir() else start_path.parent
 
     # Find the git root to use as our boundary
-    git_root = gitlib.find_root(current)
-    stop_at = git_root if git_root else Path("/")
+    git_root = git.find_root(current)
 
     # Search up the directory tree for .gitignore
-    while True:
+    while current != current.parent:  # Not at filesystem root
+        # If we have a git root, check if current dir is still within it
+        if git_root:
+            current_git_root = git.find_root(current)
+            if not current_git_root or str(current_git_root) != str(git_root):
+                # We've gone past the git boundary
+                break
+
         gitignore_path = current / ".gitignore"
         if gitignore_path.exists():
             return gitignore_path
 
-        # Stop if we've reached our boundary or can't go higher
-        if current == stop_at or current == current.parent:
+        # If we're at the git root, check it then stop
+        if git_root and str(current) == str(git_root):
             break
 
         current = current.parent

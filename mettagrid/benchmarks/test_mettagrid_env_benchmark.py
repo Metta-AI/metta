@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from metta.mettagrid.map_builder.random import RandomMapBuilder
-from metta.mettagrid.mettagrid_config import EnvConfig
+from metta.mettagrid.mettagrid_config import MettaGridConfig
 from metta.mettagrid.mettagrid_env import MettaGridEnv
 from metta.mettagrid.test_support.actions import generate_valid_random_actions
 
@@ -29,7 +29,7 @@ def environment(num_agents: int):
     if expected_grid_hash is None:
         raise ValueError(f"No expected hash defined for num_agents={num_agents}")
 
-    cfg = EnvConfig()
+    cfg = MettaGridConfig()
 
     # Override the number of agents in the configuration
     cfg.game.num_agents = num_agents
@@ -154,7 +154,7 @@ def test_create_env_performance(benchmark):
 
     def create_and_reset():
         """Create a new environment and reset it."""
-        env = MettaGridEnv(EnvConfig(), render_mode="human")
+        env = MettaGridEnv(MettaGridConfig(), render_mode="human")
         obs = env.reset()
         # Cleanup
         del env

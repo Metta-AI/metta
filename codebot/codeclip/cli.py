@@ -61,20 +61,11 @@ def cli(
     Provide codebase context to LLMs with smart defaults.
     - PATHS can be space-separated. Example: metta/rl tests/rl
     """
-    # If no paths provided and no flags, show help
-    if not paths and not any([profile, flamegraph, extension, diff, readmes]):
-        ctx = click.get_current_context()
-        click.echo(ctx.get_help())
-        ctx.exit()
-
     # Use provided paths or default behavior
     # For diff mode with no paths, use empty list to get only diff
-    # For readmes mode with no paths, use current directory
-    # For normal mode with no paths, use current directory
+    # Otherwise default to current directory if no paths provided
     if diff and not paths and not readmes:
         path_list = []
-    elif readmes and not paths:
-        path_list = ["."]
     else:
         path_list = list(paths) if paths else ["."]
     logger.debug(f"Paths: {path_list}")
@@ -219,14 +210,14 @@ def cli(
             sorted_items = sorted(summary_items.items(), key=lambda x: x[1], reverse=True)
 
             # Auto-zoom: if single path requested and it's a directory, show its contents instead
-            if len(path_list) == 1 and len(sorted_items) > 1:
+            if len(path_list) == 1:
                 req_path = Path(path_list[0]).resolve()
                 if req_path.is_dir():
                     # Show individual files within the directory instead of the directory itself
                     summary_parts.append("  Top items:")
 
-                    # Collect and sort all items
-                    items_to_show = []
+                    # Collect and aggregate by immediate children (directories or files)
+                    aggregated = {}
                     for doc in documents:
                         doc_path = Path(doc.source)
                         tokens = file_token_counts.get(doc.source, 0)
@@ -234,13 +225,11 @@ def cli(
                             try:
                                 # Check if this file is under the requested directory
                                 relative = doc_path.relative_to(req_path)
-                                # Use the full relative path for files
-                                if relative.is_file() or len(relative.parts) == 1:
-                                    display_path = str(Path(path_list[0]) / relative)
-                                else:
-                                    # For directories, use the immediate child name
-                                    display_path = str(Path(path_list[0]) / relative.parts[0])
-                                items_to_show.append((display_path, tokens, doc.source))
+                                # Get the immediate child name (first part of relative path)
+                                if len(relative.parts) > 0:
+                                    immediate_child = relative.parts[0]
+                                    display_path = str(Path(path_list[0]) / immediate_child)
+                                    aggregated[display_path] = aggregated.get(display_path, 0) + tokens
                             except ValueError:
                                 # Show READMEs that were auto-included with full path
                                 if doc_path.name == "README.md":
@@ -248,12 +237,7 @@ def cli(
                                         display_path = str(doc_path.relative_to(Path.cwd()))
                                     except ValueError:
                                         display_path = str(doc_path)
-                                    items_to_show.append((display_path, tokens, doc.source))
-
-                    # Aggregate tokens by display name (for directories)
-                    aggregated = {}
-                    for display_name, tokens, _source in items_to_show:
-                        aggregated[display_name] = aggregated.get(display_name, 0) + tokens
+                                    aggregated[display_path] = aggregated.get(display_path, 0) + tokens
 
                     # Sort by tokens and show top 3
                     sorted_items = sorted(aggregated.items(), key=lambda x: x[1], reverse=True)

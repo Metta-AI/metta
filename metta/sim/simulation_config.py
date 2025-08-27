@@ -5,14 +5,14 @@ from typing import Optional
 from pydantic import Field
 
 from metta.common.config import Config
-from metta.mettagrid import EnvConfig
+from metta.mettagrid import MettaGridConfig
 
 
 class SimulationConfig(Config):
     """Configuration for a single simulation run."""
 
     name: str = Field(description="Name of the simulation")
-    env: EnvConfig
+    env: MettaGridConfig
 
     # Core simulation config
     num_episodes: int = Field(default=1, description="Number of episodes to run", ge=1)

@@ -1098,7 +1098,7 @@ onEvent('click', '#file-name', () => {
   // Open a new window with the env config as a JSON string.
   const configWindow = window.open('', '_blank')
   if (configWindow) {
-    configWindow.document.write(`<pre>${JSON.stringify(state.replay.envConfig, null, 2)}</pre>`)
+    configWindow.document.write(`<pre>${JSON.stringify(state.replay.MettaGridConfig, null, 2)}</pre>`)
     configWindow.document.close()
   }
 })

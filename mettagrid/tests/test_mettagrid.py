@@ -4,7 +4,7 @@ import pytest
 from metta.mettagrid.core import MettaGridCore
 from metta.mettagrid.map_builder.random import RandomMapBuilder
 from metta.mettagrid.mettagrid_c import MettaGrid, PackedCoordinate, dtype_actions
-from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, EnvConfig, GameConfig
+from metta.mettagrid.mettagrid_config import ActionConfig, ActionsConfig, GameConfig, MettaGridConfig
 from metta.mettagrid.test_support import TokenTypes
 
 NUM_OBS_TOKENS = 50
@@ -13,7 +13,7 @@ NUM_OBS_TOKENS = 50
 @pytest.fixture
 def basic_env() -> MettaGrid:
     """Create a basic test environment with 8x4 grid and 2 agents."""
-    env_cfg = EnvConfig(
+    env_cfg = MettaGridConfig(
         game=GameConfig(
             num_agents=2,
             obs_width=3,

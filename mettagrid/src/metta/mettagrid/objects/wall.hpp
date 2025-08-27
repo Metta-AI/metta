@@ -10,7 +10,7 @@
 #include "../grid_object.hpp"
 #include "constants.hpp"
 
-// #MettagridConfig
+// #MettaGridConfig
 struct WallConfig : public GridObjectConfig {
   WallConfig(TypeId type_id, const std::string& type_name, bool swappable)
       : GridObjectConfig(type_id, type_name), swappable(swappable) {}
