@@ -29,13 +29,12 @@ essential functionality for training, evaluation, visualization, and development
 
 ## Tool Execution
 
-All tools use the `#!/usr/bin/env -S uv run` shebang, which enables direct execution with automatic dependency
-management:
+The main entry point is `./tools/run.py` which uses the recipe system for all major operations:
 
 ```bash
-./tools/train.py  # Direct execution
-# or
-uv run tools/train.py  # Explicit uv execution
+./tools/run.py experiments.recipes.arena.train --args run=my_experiment  # Training
+./tools/run.py experiments.recipes.arena.evaluate --args policy_uri=wandb://run/my_experiment  # Evaluation
+./tools/run.py experiments.recipes.arena.play --args policy_uri=wandb://run/my_experiment  # Interactive play
 ```
 
 ## Training Tools
@@ -62,17 +61,17 @@ The tool integrates with:
 **Usage**:
 
 ```bash
-# Basic training with default settings
-./tools/train.py
+# Basic arena training
+./tools/run.py experiments.recipes.arena.train --args run=my_experiment
 
-# Train on specific environment
-./tools/train.py env=mettagrid/navigation
+# Navigation training
+./tools/run.py experiments.recipes.navigation.train --args run=my_experiment
 
-# Distributed training with custom parameters
-./tools/train.py trainer.num_workers=8 trainer.batch_size=4096
+# Training with custom parameters
+./tools/run.py experiments.recipes.arena.train --args run=my_experiment --overrides trainer.total_timesteps=1000000
 
-# Override multiple settings
-./tools/train.py env=mettagrid/ants agent=latent_attn_small trainer.learning_rate=0.0003
+# Training with specific device and wandb settings
+./tools/run.py experiments.recipes.arena.train --args run=my_experiment --overrides system.device=cpu wandb.enabled=false
 ```
 
 **Key Features**:
@@ -346,13 +345,13 @@ environments with support for multiple rendering backends.
 
 ```bash
 # Generate replay for a policy
-./tools/replay.py replay_job.policy_uri="wandb://run/abc123"
+./tools/run.py experiments.recipes.arena.replay --args policy_uri=wandb://run/abc123
 
-# Custom simulation configuration
-./tools/replay.py replay_job.sim.env=mettagrid/memory
+# Generate replay with navigation environment
+./tools/run.py experiments.recipes.navigation.replay --args policy_uri=wandb://run/abc123
 
-# Without auto-opening browser (macOS)
-./tools/replay.py replay_job.open_browser_on_start=false
+# Generate replay from local checkpoint
+./tools/run.py experiments.recipes.arena.replay --args policy_uri=file://./train_dir/my_run/checkpoints
 ```
 
 **Key Features**:
@@ -370,10 +369,13 @@ environments with support for multiple rendering backends.
 
 ```bash
 # Start interactive session
-./tools/play.py
+./tools/run.py experiments.recipes.arena.play
 
-# Without auto-opening browser
-./tools/play.py replay_job.open_browser_on_start=false
+# Interactive play with specific policy
+./tools/run.py experiments.recipes.arena.play --args policy_uri=wandb://run/my_experiment
+
+# Interactive navigation environment
+./tools/run.py experiments.recipes.navigation.play --args policy_uri=file://./checkpoints
 ```
 
 **Key Features**:
@@ -749,14 +751,14 @@ GROUP BY policy_name, episode;
 ./tools/sweep_init.py sweep_name=hyperparam_search_001 \
     sweep_params=configs/sweep/navigation_sweep.yaml
 
-# 2. Training happens automatically via sweep agents
+# 2. Training happens automatically via recipe system
 
 # 3. Evaluate sweep runs
 ./tools/sweep_eval.py run=<run_id> sweep_name=hyperparam_search_001
 
-# 4. Visualize best policy
-./tools/renderer.py renderer_job.policy_type=trained \
-    policy_uri="wandb://sweep/hyperparam_search_001:best"
+# 4. Interactive play with best policy
+./tools/run.py experiments.recipes.arena.play \
+    --args policy_uri="wandb://sweep/hyperparam_search_001:best"
 ```
 
 ### Map Development Workflow
@@ -792,18 +794,18 @@ Key environment variables used by tools:
 ### GPU Memory Issues
 
 ```bash
-# Reduce batch size
-./tools/train.py trainer.batch_size=1024
-
 # Use CPU for testing
-./tools/train.py device=cpu
+./tools/run.py experiments.recipes.arena.train --args run=cpu_test --overrides system.device=cpu
+
+# Reduce training time for quick testing
+./tools/run.py experiments.recipes.arena.train --args run=quick_test --overrides trainer.total_timesteps=10000
 ```
 
 ### Database Access
 
 ```bash
-# For local testing without database
-./tools/train.py wandb=off stats_client=null
+# For local testing without external services
+./tools/run.py experiments.recipes.arena.train --args run=local_test --overrides wandb.enabled=false system.device=cpu
 ```
 
 ## Best Practices
