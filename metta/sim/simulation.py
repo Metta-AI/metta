@@ -106,7 +106,7 @@ class Simulation:
 
         # Create curriculum from environment config
         curriculum_config = CurriculumConfig.from_env(cfg.env)
-        curriculum = curriculum_config.build()  # Convert config to curriculum object
+        curriculum = curriculum_config.make()  # Convert config to curriculum object
 
         self._vecenv = make_vecenv(
             curriculum,
