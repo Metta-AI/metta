@@ -5,8 +5,11 @@ description = "Metta experiments and notebooks"
 readme = "README.md"
 requires-python = "==3.11.7"
 dependencies = [
+    "basedpyright>=1.31.3",
     "jupytext>=1.17.2",
     "moutils>=0.3.12",
+    "python-lsp-server>=1.13.1",
+    "ty>=0.0.1a19",
 ]
 
 [build-system]

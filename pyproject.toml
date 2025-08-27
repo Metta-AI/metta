@@ -63,10 +63,16 @@ dependencies = [
   "bidict>=0.23.1",
   "ddtrace>=2.6.0",
   "pydantic-settings>=2.10.1",
-  "marimo>=0.14.16",
   "altair>=5.5.0",
   "pyarrow>=21.0.0",
   "typer>=0.16.0",
+  "marimo==0.15.0",
+  "sqlglot>=27.8.0",
+  "polars[pyarrow]>=1.32.3",
+  "vegafusion>=2.0.2",
+  "vl-convert-python>=1.8.0",
+  "openai>=1.102.0",
+  "anthropic>=0.64.0",
 ]
 name = "metta"
 version = "0.1"
