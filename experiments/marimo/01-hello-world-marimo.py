@@ -440,11 +440,12 @@ def _(RendererToolConfig):
     # Simple approach: use the built-in arena and add a custom map - just like the demos do
     from metta.mettagrid.config.envs import make_arena
     from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
+
     from metta.mettagrid.mettagrid_config import (
         AgentRewards,
-        InventoryRewards,
         StatsRewards,
     )
+    import pprint
 
     # Define simple hallway map as ASCII string
     import textwrap
@@ -481,12 +482,14 @@ def _(RendererToolConfig):
 
     # IMPORTANT: Match the exact training reward structure from config.json
     env_config.game.agent.rewards = AgentRewards(
-        inventory=InventoryRewards(
-            ore_red=0.1,  # Exact match to training config
-            ore_red_max=255,
-            battery_red=0.8,  # Exact match to training config
-            battery_red_max=255,
-        ),
+        inventory={
+            "ore_red": 0.1,
+            "battery_red": 0.8,
+        },
+        inventory_max={
+            "ore_red": 255,
+            "battery_red": 255,
+        },
     )
 
     # Use action failure penalty to discourage inefficient actions
@@ -524,7 +527,6 @@ def _(RendererToolConfig):
     return (
         AgentRewards,
         AsciiMapBuilder,
-        InventoryRewards,
         StatsRewards,
         env_config,
         make_arena,
@@ -1284,7 +1286,6 @@ def _(mo):
 def _(
     AgentRewards,
     AsciiMapBuilder,
-    InventoryRewards,
     RendererToolConfig,
     StatsRewards,
     make_arena,
@@ -1322,12 +1323,14 @@ def _(
 
     # CONVERSION INCENTIVE: Make conversion much more profitable than resource limit camping
     env_config2.game.agent.rewards = AgentRewards(
-        inventory=InventoryRewards(
-            ore_red=-0.02,  # Light negative pressure - don't make ore too toxic
-            ore_red_max=255,
-            battery_red=5.0,  # HUGE battery reward - conversion must be irresistible
-            battery_red_max=255,
-        ),
+        inventory={
+            "ore_red": -0.02,
+            "battery_red": 5.0,
+        },
+        inventory_max={
+            "ore_red": 255,
+            "battery_red": 255,
+        },
     )
 
     # Force more frequent conversion by limiting ore storage

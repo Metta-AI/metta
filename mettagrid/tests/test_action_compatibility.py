@@ -9,12 +9,9 @@ from metta.mettagrid.mettagrid_config import (
     ActionConfig,
     ActionsConfig,
     AgentConfig,
-    AgentRewards,
     AttackActionConfig,
     GameConfig,
     GroupConfig,
-    InventoryRewards,
-    StatsRewards,
     WallConfig,
 )
 from metta.mettagrid.test_support.actions import get_agent_position, get_current_observation
@@ -32,7 +29,6 @@ def create_basic_config() -> GameConfig:
         agent=AgentConfig(
             freeze_duration=0,
             resource_limits={"ore": 10, "wood": 10},
-            rewards=AgentRewards(inventory=InventoryRewards(), stats=StatsRewards()),
         ),
         groups={"default": GroupConfig(id=0, group_reward_pct=1.0)},
         actions=ActionsConfig(
@@ -230,7 +226,6 @@ class TestResourceRequirements:
                 freeze_duration=0,
                 resource_limits={"ore": 10, "wood": 10},
                 initial_inventory={"ore": 5, "wood": 3},
-                rewards=AgentRewards(inventory=InventoryRewards(), stats=StatsRewards()),
             ),
             groups=basic_config.groups,
             actions=ActionsConfig(

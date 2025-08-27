@@ -18,7 +18,7 @@ arena_tasks = cc.bucketed(arena)
 
 for item in arena.game.inventory_item_names:
     arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}", [0, Span(0, 1.0)])
-    arena_tasks.add_bucket(f"game.agent.rewards.inventory.{item}_max", [1, 2])
+    arena_tasks.add_bucket(f"game.agent.rewards.inventory_max.{item}", [1, 2])
 
 # enable or disable attacks. we use cost instead of 'enabled'
 # to maintain action space consistency.

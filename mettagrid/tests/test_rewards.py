@@ -52,7 +52,8 @@ def create_heart_reward_test_env(max_steps=50, num_agents=NUM_AGENTS):
             "change_color": {"enabled": True},
             "change_glyph": {"enabled": False, "number_of_glyphs": 4},
         },
-        "groups": {"red": {"id": 0, "props": {}}},
+        # This override should do nothing, but we've had problems with merges overwriting more than we want before.
+        "groups": {"red": {"id": 0, "props": {"rewards": {"inventory": {}}}}},
         "objects": {
             "wall": {"type_id": 1},
             "altar": {
