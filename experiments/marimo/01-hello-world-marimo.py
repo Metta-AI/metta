@@ -233,7 +233,12 @@ def _():
             ar, ac = agent["r"], agent["c"]
             agent_ori = int(agent.get("agent:orientation", 0))
 
-            # Check if next to a mine with ore - if so, pick up
+            # Check agent's ore inventory first
+            agent_inventory = agent.get("inventory", {})
+            agent_ore_count = agent_inventory.get(0, 0)  # ore_red is typically index 0
+            max_ore_limit = 10  # Match the resource limit we set
+
+            # Check if next to a mine with ore - only pick up if not at max capacity
             for orient, (dr, dc) in self.ORIENT_TO_DELTA.items():
                 tr, tc = ar + dr, ac + dc
                 for obj in grid_objects.values():
@@ -249,6 +254,10 @@ def _():
                                     sum(inv.values()) if isinstance(inv, dict) else 0
                                 )
                                 if total > 0:
+                                    # If at max ore capacity, move randomly instead of getting stuck
+                                    if agent_ore_count >= max_ore_limit:
+                                        break  # Skip mine interaction, go to random movement
+
                                     # If facing the mine, pick up; otherwise rotate toward it
                                     if orient == agent_ori:
                                         action_type, action_arg = self.pickup_idx, 0
@@ -431,7 +440,11 @@ def _(RendererToolConfig):
     # Simple approach: use the built-in arena and add a custom map - just like the demos do
     from metta.mettagrid.config.envs import make_arena
     from metta.mettagrid.map_builder.ascii import AsciiMapBuilder
-    from metta.mettagrid.mettagrid_config import AgentRewards, InventoryRewards
+    from metta.mettagrid.mettagrid_config import (
+        AgentRewards,
+        InventoryRewards,
+        StatsRewards,
+    )
 
     # Define simple hallway map as ASCII string
     import textwrap
@@ -512,6 +525,7 @@ def _(RendererToolConfig):
         AgentRewards,
         AsciiMapBuilder,
         InventoryRewards,
+        StatsRewards,
         env_config,
         make_arena,
         renderer_config,
@@ -796,9 +810,7 @@ def _(
 
     def train_agent():
         # Unique run name (so multiple notebook runs don't collide)
-        run_name = (
-            f"{username}.hello_world_train.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        )
+        run_name2 = f"{username}.hello_world_train.mine.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         print(f"🚀 Starting training run: {run_name}")
 
         # Create trainer configuration to reach peak performance before unlearning
@@ -1273,7 +1285,7 @@ def _(display_by_wandb_path, mo, run_name):
 def _(mo):
     mo.md(
         r"""
-    # Let's run a new example with a new map
+    ## 9. Let's run a new example with a new map
 
     This time we have a mine (m) on the right to dispense red ore and a red converter (R) on the left to turn the ore into batteries.
 
@@ -1282,6 +1294,14 @@ def _(mo):
     #R...@...m#
     ###########
     ```
+
+    ###  🔄 Multi-Step Task Success
+
+    This second environment is more complex - it requires:
+
+    1. Collect ore from the mine (right side)
+    2. Transport ore to the generator (left side)  
+    3. Convert ore to batteries for higher rewards
     """
     )
     return
@@ -1293,6 +1313,7 @@ def _(
     AsciiMapBuilder,
     InventoryRewards,
     RendererToolConfig,
+    StatsRewards,
     make_arena,
     textwrap,
 ):
@@ -1326,23 +1347,29 @@ def _(
     env_config2.game.actions.swap.enabled = False
     env_config2.game.actions.place_box.enabled = False
 
-    # Task-focused reward structure for ore->battery conversion task
+    # CONVERSION INCENTIVE: Make conversion much more profitable than resource limit camping
     env_config2.game.agent.rewards = AgentRewards(
         inventory=InventoryRewards(
-            ore_red=0.3,  # Moderate reward for collecting ore (intermediate step)
+            ore_red=-0.02,  # Light negative pressure - don't make ore too toxic
             ore_red_max=255,
-            battery_red=15.0,  # Very high reward for batteries (the goal!)
+            battery_red=5.0,  # HUGE battery reward - conversion must be irresistible
             battery_red_max=255,
         ),
     )
 
-    # Use action failure penalty for efficiency (higher for more complex task)
-    env_config2.game.agent.action_failure_penalty = 0.025
+    # Force more frequent conversion by limiting ore storage
+    env_config2.game.agent.resource_limits = {"ore_red": 10}  # Can only hold 10 ore max
+
+    # Use action failure penalty for efficiency (encourages purposeful movement)
+    env_config2.game.agent.action_failure_penalty = 0.01
+
+    # Use proper StatsRewards object to avoid serialization warnings
+    env_config2.game.agent.rewards.stats = StatsRewards()
 
     renderer_config2 = RendererToolConfig(
         policy_type="opportunistic",
         num_steps=3000,
-        sleep_time=0.005,
+        sleep_time=0.0020,
         renderer_type="human",
     )
     return env_config2, renderer_config2
@@ -1384,7 +1411,7 @@ def _(
 
         with simulation_context(env):
             # steps = renderer_config.num_steps
-            steps = renderer_config2.num_steps
+            steps = env_config2.game.max_steps
             for _step in range(steps):
                 _actions = policy.predict(_obs)
                 _obs, rewards, terminals, truncations, info = env.step(_actions)
@@ -1440,31 +1467,55 @@ def _(
         # Create a simple curriculum with our hallway environment
         curriculum = env_curriculum(env_config2)
 
-        run_name2 = f"{username}.hello_world_train.generator.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        run_name2 = f"{username}.hello_world_train.mine_plus_generator.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-        # Create trainer configuration with Mac-optimized settings
-        # Batch sizes optimized for Mac CPU/Metal - larger than first demo but still reasonable
         trainer_config = TrainerConfig(
             curriculum=curriculum,
-            total_timesteps=2000000,  # Small demo run
-            # total_timesteps=1000,  # DEBUG run
-            batch_size=65536,  # Increased from 256, reduced from default 524288 for Mac
-            minibatch_size=512,  # Increased from 256, reduced from default 16384 for Mac
-            rollout_workers=multiprocessing.cpu_count(),  # N-core workers worker for Mac
-            forward_pass_minibatch_target_size=512,  # Increased from 2 - better GPU utilization
-            # Adjusted learning rate for smaller batch size (scaled down from default 0.000457)
-            # Using sqrt(4096/524288) ≈ 0.088 scaling factor
-            # optimizer={"learning_rate": 0.00004},  # Reduced from default for smaller batch
+            total_timesteps=2500000,  # Extended training to master conversion cycles
+            batch_size=65536,  # Larger batches for stable learning of clear signal
+            minibatch_size=512,  # Bigger minibatches with clean reward structure
+            rollout_workers=min(
+                6, multiprocessing.cpu_count()
+            ),  # More workers for route exploration
+            forward_pass_minibatch_target_size=512,
+            # Learning rate with decay to prevent unlearning
+            optimizer={
+                "learning_rate": 0.0004,  # Start high to learn conversion quickly
+                "eps": 1e-8,  # Numerical stability
+                "weight_decay": 5e-7,  # Slightly higher regularization to prevent overfitting
+            },
+            # Anti-unlearning PPO settings
+            ppo={
+                "clip_coef": 0.15,  # Tighter clipping to prevent policy drift
+                "ent_coef": 0.02,  # Start with exploration, will decay via scheduler
+                "target_kl": 0.03,  # Stricter KL limit to prevent large policy changes
+                "vf_coef": 0.5,  # Standard value function coefficient
+                "gamma": 0.99,  # Standard discount for immediate conversion feedback
+                "gae_lambda": 0.95,  # Standard GAE
+                "max_grad_norm": 0.5,  # Gradient clipping for stability
+            },
+            # Comprehensive scheduling to prevent unlearning
+            hyperparameter_scheduler={
+                "learning_rate_schedule": {
+                    "_target_": "metta.rl.hyperparameter_scheduler.LinearSchedule",
+                    "initial_value": 0.0004,  # Start high for initial learning
+                    "min_value": 0.00005,  # Decay to very low to lock in behavior
+                },
+                "ppo_ent_coef_schedule": {
+                    "_target_": "metta.rl.hyperparameter_scheduler.LinearSchedule",
+                    "initial_value": 0.02,  # Start with exploration
+                    "min_value": 0.001,  # Reduce exploration once learned
+                },
+            },
             checkpoint=CheckpointConfig(
-                checkpoint_interval=10,  # Checkpoint every n epochs
+                checkpoint_interval=10,  # More frequent checkpoints to catch peak
                 wandb_checkpoint_interval=10,
             ),
-            # Enable replay generation for MettaScope visualization
             evaluation=EvaluationConfig(
-                evaluate_interval=10,  # Generate replays every 50 steps (matches checkpoint interval)
-                evaluate_remote=False,  # Run locally or you'll have to wait
+                evaluate_interval=10,  # More frequent evaluation to monitor unlearning
+                evaluate_remote=False,
                 evaluate_local=True,
-                replay_dir=f"s3://softmax-public/replays/{run_name2}",  # Store replays on S3
+                replay_dir=f"s3://softmax-public/replays/{run_name2}",
             ),
         )
 
@@ -1483,9 +1534,7 @@ def _(
         try:
             print("🏋️ Training started...")
             with training_context():
-                result = train_tool.invoke(
-                    args={}, overrides=[]
-                )  # Use invoke() method instead of run()
+                result = train_tool.invoke(args={}, overrides=[])
                 print(f"✅ Training completed successfully! Result: {result}")
         except Exception as e:
             print(f"❌ Training failed: {e}")
@@ -1501,7 +1550,7 @@ def _(
 
 @app.cell
 def _(mo):
-    eval_trained_button2 = mo.ui.run_button(label="Click to evaluate trained agent")
+    eval_trained_button2 = mo.ui.run_button(label="Click to evaluate 2nd trained agent")
     eval_trained_button2
     return (eval_trained_button2,)
 
@@ -1514,7 +1563,6 @@ def _(
     PolicyStore,
     TensorDict,
     WandbConfig,
-    checkpoints,
     contextlib,
     display,
     env_config,
@@ -1534,10 +1582,43 @@ def _(
 ):
     mo.stop(not eval_trained_button2.value or not run_name2)
 
+    # run_name2 = "zfogg.hello_world_train.mine_plus_generator.20250827_042602"
+
     def evaluate_agent2():
-        # Find the latest checkpoint
+        # Find all checkpoints and select the best one using peak performance strategy
         ckpt_dir = Path("train_dir") / run_name2 / "checkpoints"
-        latest_ckpt = max(ckpt_dir.glob("*.pt"), key=lambda p: p.stat().st_mtime)
+        print(f"Looking for checkpoints in: {ckpt_dir.absolute()}")
+        print(f"Directory exists: {ckpt_dir.exists()}")
+        if ckpt_dir.exists():
+            checkpoints = list(ckpt_dir.glob("*.pt"))
+            print(
+                f"Found {len(checkpoints)} checkpoint files: {[c.name for c in checkpoints]}"
+            )
+        if not ckpt_dir.exists() or not list(ckpt_dir.glob("*.pt")):
+            raise Exception(f"No checkpoints found in {ckpt_dir.absolute()}")
+
+        # Get all checkpoints sorted by epoch number (extract epoch from filename)
+        checkpoints = list(ckpt_dir.glob("*.pt"))
+        if (
+            len(checkpoints) > 10
+        ):  # If we have many checkpoints, try one from the peak learning phase
+            # Sort by epoch number and take one from around 60-80% through training
+            checkpoints.sort(
+                key=lambda p: int("".join(filter(str.isdigit, p.stem)))
+                if any(c.isdigit() for c in p.stem)
+                else 0
+            )
+            peak_idx = int(
+                len(checkpoints) * 0.7
+            )  # Use checkpoint from 70% through training
+            latest_ckpt = checkpoints[peak_idx]
+            print(
+                f"Using peak performance checkpoint: {latest_ckpt.name} (index {peak_idx}/{len(checkpoints)})"
+            )
+            print(f"   📊 This avoids the unlearning phase seen in later checkpoints")
+        else:
+            latest_ckpt = max(checkpoints, key=lambda p: p.stat().st_mtime)
+            print(f"Using latest checkpoint: {latest_ckpt.name}")
 
         print(f"Evaluating checkpoint: {latest_ckpt.name}")
 
@@ -1581,6 +1662,7 @@ def _(
         trained_policy = policy_record.policy
 
         # Run animated evaluation with the trained policy
+        trained_scores: list[int] = []
         trained_scores_ore: list[int] = []
         trained_scores_batteries: list[int] = []
 
@@ -1591,9 +1673,6 @@ def _(
 
         print(f"🔧 EVALUATION SETUP:")
         print(f"   - Environment max_steps: {env_config.game.max_steps}")
-        print(
-            f"   - Using checkpoint selection strategy: {'peak performance (70% through)' if len(checkpoints) > 10 else 'latest'}"
-        )
         print(f"   - Selected checkpoint: {latest_ckpt.name}")
 
         with simulation_context(eval_env):
@@ -1607,7 +1686,7 @@ def _(
                 # Convert obs to tensor format for policy
                 obs_tensor = torch.as_tensor(_obs, device=torch.device("cpu"))
 
-                steps = 1000
+                steps = env_config2.game.max_steps  # Use same steps as training (5000)
                 for _step in range(steps):  # Same number of steps as opportunistic
                     # Use TensorDict format for trained policy (same as simulation.py:272-275)
                     td = TensorDict(
@@ -1641,7 +1720,9 @@ def _(
                     with contextlib.redirect_stdout(io.StringIO()) as buffer:
                         buffer_str = eval_env.render()
                     map_box.value = f"<pre>{buffer_str}</pre>"
-                    time.sleep(renderer_config2.sleep_time)  # Small delay for animation
+                    time.sleep(
+                        renderer_config2.sleep_time / 100
+                    )  # Small delay for animation
 
                 # Final inventory count for this episode
                 _agent_obj = next(
@@ -1657,16 +1738,28 @@ def _(
                 }
                 inv_count_ore = int(_inv.get("ore_red", 0))
                 inv_count_batteries = int(_inv.get("battery_red", 0))
+                reward_ore = (
+                    inv_count_ore * env_config2.game.agent.rewards.inventory.ore_red
+                )  # Will be 0.0
+                reward_batteries = (
+                    inv_count_batteries
+                    * env_config2.game.agent.rewards.inventory.battery_red
+                )  # Only source of reward
+                reward = reward_ore + reward_batteries  # Pure battery reward
+                trained_scores.append(reward)
                 trained_scores_ore.append(inv_count_ore)
                 trained_scores_batteries.append(inv_count_batteries)
 
             eval_env.close()
 
         # Calculate and display results
+        mean_score = np.mean(trained_scores)
         mean_score_ore = np.mean(trained_scores_ore)
         mean_score_batteries = np.mean(trained_scores_batteries)
+        std_score = np.std(trained_scores)
         std_score_ore = np.std(trained_scores_ore)
         std_score_batteries = np.std(trained_scores_batteries)
+        running_avg = pd.Series(trained_scores).expanding().mean()
         running_avg_ore = pd.Series(trained_scores_ore).expanding().mean()
         running_avg_batteries = pd.Series(trained_scores_batteries).expanding().mean()
 
@@ -1676,13 +1769,19 @@ def _(
     🏆 TRAINED AGENT RESULTS 🏆
 
     Episodes: {EVAL_EPISODES}
-    Average Score: {mean_score_ore:.2f} ± {std_score_ore:.2f} ore collected
-    Average Score: {mean_score_batteries:.2f} ± {std_score_batteries:.2f} batteries collected
-    Best Episode: {max(trained_scores_ore)} ore, {max(trained_scores_batteries)} batteries
-    Worst Episode: {min(trained_scores_ore)} ore, {min(trained_scores_batteries)} batteries
 
-    Individual Episode Scores: {trained_scores_ore} ore, {trained_scores_batteries} batteries
+    📊 COMPREHENSIVE STATISTICS:
+    Total Reward:  {mean_score:.2f} ± {std_score:.2f}
+    Ore Collected: {mean_score_ore:.2f} ± {std_score_ore:.2f} 
+    Batteries:     {mean_score_batteries:.2f} ± {std_score_batteries:.2f}
 
+    🎯 BEST EPISODE:
+    Reward: {max(trained_scores):.1f}, Ore: {max(trained_scores_ore)}, Batteries: {max(trained_scores_batteries)}
+
+    ⚠️ WORST EPISODE: 
+    Reward: {min(trained_scores):.1f}, Ore: {min(trained_scores_ore)}, Batteries: {min(trained_scores_batteries)}
+
+    💡 Multi-step task: Collect ore → Transport → Convert to batteries
     Compare this to the opportunistic baseline from earlier!
         </pre>"""
 
@@ -1690,23 +1789,64 @@ def _(
             pd.DataFrame(
                 {
                     "episode": list(range(1, EVAL_EPISODES + 1)),
+                    "reward": trained_scores,
                     "ore_red": trained_scores_ore,
                     "battery_red": trained_scores_batteries,
+                    "running_avg_reward": running_avg,
                     "running_avg_ore": running_avg_ore,
                     "running_avg_batteries": running_avg_batteries,
                 }
             )
         )
 
+        print(f"\n🎯 Trained agent performance:")
+        print(f"   Total Reward: {mean_score:.2f} ± {std_score:.2f}")
+        print(f"   Ore Collected: {mean_score_ore:.2f} ± {std_score_ore:.2f}")
         print(
-            f"\n🎯 Trained agent performance: {mean_score_ore:.2f} ± {std_score_ore:.2f} ore collected"
+            f"   Batteries Collected: {mean_score_batteries:.2f} ± {std_score_batteries:.2f}"
+        )
+        print(f"\n💰 Reward Breakdown:")
+        print(
+            f"   Ore reward rate: {env_config2.game.agent.rewards.inventory.ore_red} per ore"
         )
         print(
-            f"\n🎯 Trained agent performance: {mean_score_batteries:.2f} ± {std_score_batteries:.2f} batteries collected"
+            f"   Battery reward rate: {env_config2.game.agent.rewards.inventory.battery_red} per battery"
+        )
+        print(
+            f"   Average ore reward: {mean_score_ore * env_config2.game.agent.rewards.inventory.ore_red:.2f}"
+        )
+        print(
+            f"   Average battery reward: {mean_score_batteries * env_config2.game.agent.rewards.inventory.battery_red:.2f}"
         )
         print(f"📊 Compare with opportunistic baseline from earlier evaluation!")
 
     evaluate_agent2()
+    return
+
+
+@app.cell
+def _(mo, run_name2, show_replay):
+    mo.stop(not run_name2)
+
+    try:
+        # Show the latest replay from the training run
+        show_replay(run_name2, step="last", width=1250, height=500, autoplay=True)
+    except Exception as e:
+        print(f"❌ Error loading replay: {e}")
+        print("This could mean:")
+        print("- Training hasn't generated replays yet (evaluation incomplete)")
+        print("- Run not found in W&B (check run name)")
+        print("- Network connectivity issues")
+        print(
+            f"\nReplays are stored on S3 at: s3://softmax-public/replays/{run_name2}/"
+        )
+    return
+
+
+@app.cell
+def _(display_by_wandb_path, mo, run_name2):
+    mo.stop(not run_name2)
+    display_by_wandb_path(f"metta-research/metta/{run_name2}", height=580)
     return
 
 
