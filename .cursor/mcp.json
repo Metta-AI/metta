@@ -2,10 +2,7 @@
   "mcpServers": {
     "codebot": {
       "command": "codebot",
-      "args": ["mcp-server"],
-      "env": {
-        "PYTHONPATH": "/home/morganm/workspace/metta/manybot/codebot"
-      }
+      "args": ["mcp-server"]
     }
   }
 }
