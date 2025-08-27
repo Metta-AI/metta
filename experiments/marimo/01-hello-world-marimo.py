@@ -443,7 +443,6 @@ def _(RendererToolConfig):
 
     from metta.mettagrid.mettagrid_config import (
         AgentRewards,
-        InventoryRewards,
         StatsRewards,
     )
     import pprint
@@ -528,7 +527,6 @@ def _(RendererToolConfig):
     return (
         AgentRewards,
         AsciiMapBuilder,
-        InventoryRewards,
         StatsRewards,
         env_config,
         make_arena,

@@ -94,52 +94,19 @@ def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
 
 def train_shaped(rewards: bool = True, converters: bool = True) -> TrainTool:
     env_cfg = make_env()
-    env_cfg.game.agent.rewards.inventory = {
-        "heart": 1,
-    }
-    env_cfg.game.agent.rewards.inventory_max = {
-        "heart": 100,
-    }
 
-    if rewards:
-        env_cfg.game.agent.rewards.inventory.update(
-            {
-                "ore_red": 0.1,
-                "battery_red": 0.8,
-                "laser": 0.5,
-                "armor": 0.5,
-                "blueprint": 0.5,
-            }
-        )
-        env_cfg.game.agent.rewards.inventory_max.update(
-            {
-                "ore_red": 1,
-                "battery_red": 1,
-                "laser": 1,
-                "armor": 1,
-                "blueprint": 1,
-            }
-        )
+    # Reset to heart-only rewards when not using shaped rewards
+    if not rewards:
+        env_cfg.game.agent.rewards.inventory = {"heart": 1}
+        env_cfg.game.agent.rewards.inventory_max = {"heart": 100}
 
-        # Set the same rewards on group config
-        env_cfg.game.groups["agent"].props.rewards.inventory.update(
-            {
-                "ore_red": 0.1,
-                "battery_red": 0.8,
-                "laser": 0.5,
-                "armor": 0.5,
-                "blueprint": 0.5,
-            }
-        )
-        env_cfg.game.groups["agent"].props.rewards.inventory_max.update(
-            {
-                "ore_red": 1,
-                "battery_red": 1,
-                "laser": 1,
-                "armor": 1,
-                "blueprint": 1,
-            }
-        )
+    # Ensure group config mirrors agent config
+    env_cfg.game.groups[
+        "agent"
+    ].props.rewards.inventory = env_cfg.game.agent.rewards.inventory.copy()
+    env_cfg.game.groups[
+        "agent"
+    ].props.rewards.inventory_max = env_cfg.game.agent.rewards.inventory_max.copy()
 
     if converters:
         env_cfg.game.objects["altar"].input_resources["battery_red"] = 1
