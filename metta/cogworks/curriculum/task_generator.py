@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import random
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar, cast
+from typing import TYPE_CHECKING, Annotated, Any, ClassVar, Optional, Sequence, Type, TypeVar
 
 from pydantic import (
     ConfigDict,
@@ -68,11 +68,29 @@ class TaskGeneratorConfig(Config, Generic[TTaskGenerator]):
         return cls._generator_cls
 
     def to_curriculum(self, num_tasks: Optional[int] = None) -> "CurriculumConfig":
-        """Create a CurriculumConfig from this configuration."""
-        from metta.cogworks.curriculum.curriculum import CurriculumConfig
+        """Create a CurriculumConfig from this configuration.
 
-        cc = CurriculumConfig(task_generator=self)
-        cc.num_active_tasks = num_tasks or cast(int, cc.num_active_tasks)
+        Args:
+            num_tasks: Number of tasks to maintain in the unified pool
+        """
+        from metta.cogworks.curriculum.curriculum import CurriculumConfig
+        from metta.cogworks.curriculum.learning_progress_algorithm import LearningProgressConfig
+
+        # Create learning progress algorithm hyperparameters
+        lp_config = LearningProgressConfig(
+            pool_size=num_tasks or 16,  # Use provided num_tasks or default to 16
+            sample_size=10,  # K=10 tasks to sample
+            max_samples=20,  # A=20 max samples before eviction
+            exploration_bonus=0.1,  # Balance exploration vs exploitation
+        )
+
+        # Create curriculum with integrated learning progress algorithm
+        cc = CurriculumConfig(
+            task_generator=self,
+            num_active_tasks=lp_config.pool_size,  # Use pool_size for compatibility
+            algorithm_config=lp_config,
+        )
+
         return cc
 
     @model_serializer(mode="wrap")

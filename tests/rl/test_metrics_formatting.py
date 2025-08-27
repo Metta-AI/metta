@@ -58,9 +58,16 @@ class TestMetricsFormattingMain:
         assert result["overview/sps"] == 1000
         assert result["overview/reward"] == 1.5
         assert result["overview/episode_length"] == 100
-        assert result["overview/navigation_score"] == 0.8
-        assert result["overview/survival_score"] == 0.6
         assert result["overview/reward_vs_total_time"] == 1.5
+
+        # Check evals metrics (consolidated structure)
+        assert result["evals/navigation/score"] == 0.8
+        assert result["evals/survival/score"] == 0.6
+        assert result["evals/navigation/maze"] == 0.7
+        assert result["evals/navigation/random"] == 0.9
+        assert result["evals/survival/basic"] == 0.6
+        assert result["evals/avg_category_score"] == 0.7  # (0.8 + 0.6) / 2
+        assert abs(result["evals/avg_simulation_score"] - 0.7333333333333334) < 1e-10  # (0.7 + 0.9 + 0.6) / 3
 
         # Check losses
         assert result["losses/policy_loss"] == 0.5
@@ -75,13 +82,6 @@ class TestMetricsFormattingMain:
 
         # Check hyperparameters
         assert result["hyperparameters/learning_rate"] == 0.001
-
-        # Check evaluation scores
-        assert result["eval_navigation/score"] == 0.8
-        assert result["eval_survival/score"] == 0.6
-        assert result["eval_navigation/maze"] == 0.7
-        assert result["eval_navigation/random"] == 0.9
-        assert result["eval_survival/basic"] == 0.6
 
         # Check system stats (already prefixed)
         assert result["monitor/cpu_percent"] == 50.0

@@ -45,6 +45,7 @@ def make_curriculum(arena_env: Optional[EnvConfig] = None) -> CurriculumConfig:
     for obj in ["mine_red", "generator_red", "altar", "lasery", "armory"]:
         arena_tasks.add_bucket(f"game.objects.{obj}.initial_resource_count", [0, 1])
 
+    # Use the updated to_curriculum method that defaults to learning progress
     return arena_tasks.to_curriculum()
 
 
@@ -61,7 +62,10 @@ def make_evals(env: Optional[EnvConfig] = None) -> List[SimulationConfig]:
     ]
 
 
-def train(curriculum: Optional[CurriculumConfig] = None) -> TrainTool:
+def train(
+    run: str,
+    curriculum: Optional[CurriculumConfig] = None,
+) -> TrainTool:
     trainer_cfg = TrainerConfig(
         curriculum=curriculum or make_curriculum(),
         evaluation=EvaluationConfig(
