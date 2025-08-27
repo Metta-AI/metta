@@ -134,7 +134,7 @@ class Simulation:
         features = metta_grid_env.get_observation_features()
         policy.initialize_to_environment(
             features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device,
-            is_training=False, metadata=self._policy_pr.metadata
+            is_training=False
         )
 
         if self._npc_pr is not None:
@@ -143,7 +143,7 @@ class Simulation:
             features = metta_grid_env.get_observation_features()
             npc_policy.initialize_to_environment(
                 features, metta_grid_env.action_names, metta_grid_env.max_action_args, self._device,
-                is_training=False, metadata=self._npc_pr.metadata
+                is_training=False
             )
 
         # ---------------- agent-index bookkeeping ---------------------- #

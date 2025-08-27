@@ -97,25 +97,18 @@ class MockAgent(MettaAgent):
         action_max_params: list[int],
         device,
         is_training: bool = True,
-        metadata: dict | None = None,
     ):
-        """
-        Initialize the agent to work with a specific environment.
+        """Initialize the agent to work with a specific environment.
 
-        For MockAgent, this sets up feature remapping support while maintaining
-        minimal functionality.
-
-        Note: is_training parameter is deprecated and ignored.
+        One-stop shop for setting up agents to interact with environments.
+        Handles both new agents and agents loaded from disk with existing feature mappings.
         """
         self.device = device
+        self.training = is_training
 
         # Store action configuration
         self.action_names = action_names
         self.action_max_params = action_max_params
-
-        # Restore original feature mapping from metadata if available
-        if metadata and "original_feature_mapping" in metadata and self.original_feature_mapping is None:
-            self.original_feature_mapping = metadata["original_feature_mapping"].copy()
 
         # Build feature mappings
         self.feature_id_to_name = {props["id"]: name for name, props in features.items()}

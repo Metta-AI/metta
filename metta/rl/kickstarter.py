@@ -83,7 +83,7 @@ class Kickstarter:
                 features = self.metta_grid_env.get_observation_features()
                 policy.initialize_to_environment(
                     features, self.metta_grid_env.action_names, self.metta_grid_env.max_action_args, self.device,
-                    is_training=True, metadata=policy_record.metadata
+                    is_training=True
                 )
             teacher = KickstartTeacher(
                 policy=policy,
